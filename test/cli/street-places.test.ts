@@ -282,3 +282,105 @@ test("the history of the places by the municipality: one row for Lhota and its s
     w.cleanup();
   }
 });
+
+test("strom fixes street-places: a number alone after a municipality (\"Lhota 16\") only on the person's word for all of it; parts of a municipality never offered", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["place", "add", "Lhota", "--kind", "village"]); // L0001
+    await w.ok(["place", "add", "Lhotov 4", "--kind", "part"]); // a part of Lhotov as a place of its own
+    const jan = (await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M", "--json"])).json.person.id;
+    const add = async (place: string, date: string, more: string[] = []) => (await w.ok(["event", "add", jan, "RESI", "--date", date, "--place", place, ...more, "--json"])).json.event.id as string;
+    // a number alone is no street by the rules: written as it is
+    const ids = {
+      lhota: await add("Lhota", "1850"),
+      b16: await add("Lhota 16", "1851"),
+      b3a: await add("Lhota 3a".normalize("NFD"), "1852"),
+      b16h: await add("Lhota 16", "1853", ["--house", "16"]),
+      cyr: await add("Лхота", "1854"),
+      cyr5: await add("Лхота 5", "1855"),
+      praha: await add("Praha", "1856"),
+      praha5: await add("Praha 5", "1857"),
+      lhotin: await add("Lhotín", "1858"),
+      lhotin2: await add("Lhotín 2", "1859"),
+      lhotin2s: await add("Lhotín", "1860"),
+      lhotov: await add("Lhotov", "1861"),
+      lhotov4: await add("Lhotov 4", "1862"),
+      lhotka: await add("Lhotka 7", "1863"),
+    };
+    // a street at Lhotín 2: Lhotín's numbers are its parts
+    oldPlaces(w, { [ids.lhotin2s]: { place: "Lhotín 2, Dlouhá 12" } });
+    const before = placesOf(w);
+    // strom check warns of the street alone (a number alone is not refused)
+    assert.equal((await w.run(["check", "--json"])).json.findings.find((f: { code: string }) => f.code === "street-place").count, 1);
+    const j = await w.ok(["fixes", "show", "street-places", "--json"]);
+    assert.deepEqual(j.json.found, { count: 5, split: 1, unsplit: 0, bare: 4 });
+    assert.equal(j.json.state, "pending");
+    assert.deepEqual(
+      j.json.towns.map((t: { town: string; count: number; places: string[] }) => [t.town, t.count, t.places]),
+      [
+        ["Lhota", 3, ["Lhota 16", "Lhota 3a"]],
+        ["Лхота", 1, ["Лхота 5"]],
+      ],
+      "Praha (numbered by its parts), Lhotín (a street at Lhotín 2), Lhotov (a place record of Lhotov 4), Lhotka (no municipality of the research): never",
+    );
+    assert.deepEqual(Object.fromEntries(j.json.towns[0].items.map((i: { event: string; after: unknown; record?: string }) => [i.event, [i.after, i.record]])), {
+      [ids.b16]: [{ place: "Lhota", house: "16" }, "L0001"],
+      [ids.b3a]: [{ place: "Lhota", house: "3a" }, "L0001"],
+      [ids.b16h]: [{ place: "Lhota", house: "16" }, "L0001"],
+    });
+    const show = await w.ok(["fixes", "show", "street-places", "--lang", "en"]);
+    assert.match(show.out, /Lhota: 3 facts with a number alone after the name \(Lhota 16, Lhota 3a\)/);
+    assert.match(show.out, /set right only on a person's word for the whole municipality/);
+    const cs = await w.ok(["fixes", "show", "street-places", "--lang", "cs"]);
+    assert.match(cs.out, /Lhota: 3 údaje se samotným číslem za jménem/);
+    assert.match((await w.ok(["fixes", "show", "street-places", "--lang", "de"])).out, /Lhota: 3 Angaben mit einer Nummer allein nach dem Namen/);
+    // an agent, a run nobody watches: never; later (Enter): nothing kept
+    for (const env of [{ CLAUDECODE: "1" }, { STROM_NONINTERACTIVE: "1" }] as Record<string, string>[])
+      assert.equal((await w.run(["fixes", "run", "street-places"], { env })).code, 4, JSON.stringify(env));
+    const n0 = commits(w);
+    await w.ok(["fixes", "run", "street-places", "--lang", "en"], { tty: true, answers: ["1", "0", "0"] });
+    assert.equal(commits(w), n0 + 1, "the street alone");
+    assert.deepEqual(placesOf(w)[ids.b16], before[ids.b16], "later: nothing of Lhota");
+    // the person's word: Lhota's numbers are houses, Лхота's not
+    const r = await w.ok(["fixes", "run", "street-places", "--lang", "en"], { tty: true, answers: ["1", "2"] });
+    assert.match(r.out, /Lhota: are the numbers after the municipality's name house numbers\?/);
+    assert.match(r.out, /Set right: 3 facts in 1 record\./);
+    assert.match(r.out, /Left as places of their own: Лхота\. Asked again: strom fixes reopen street-places/);
+    assert.equal(commits(w), n0 + 2, "one commit");
+    const now = placesOf(w);
+    assert.deepEqual(now[ids.b16], { place: "Lhota", house: "16" });
+    assert.deepEqual(now[ids.b3a], { place: "Lhota", house: "3a" });
+    assert.equal(now[ids.b3a]!.house, "3a");
+    assert.deepEqual(now[ids.b16h], { place: "Lhota", house: "16" });
+    for (const id of ["cyr5", "praha5", "lhotin2", "lhotov4", "lhotka"] as const) assert.deepEqual(now[ids[id]], before[ids[id]], id);
+    const answers = JSON.parse(fs.readFileSync(path.join(w.cwd, "quality", "street-places.json"), "utf8")).towns;
+    assert.deepEqual(Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, (v as { houses: boolean }).houses])), { lhota: true, лхота: false });
+    assert.equal((await w.run(["verify", "--json"])).code, 0, "sealed");
+    // answered: not asked again; a new number alone at Lhota is refused with what to write
+    const after = await w.ok(["fixes", "show", "street-places", "--json"]);
+    assert.equal(after.json.state, "fixed");
+    assert.equal(after.json.towns, undefined);
+    const x = await w.run(["event", "add", jan, "RESI", "--date", "1870", "--place", "Lhota 17", "--json"]);
+    assert.equal(x.json.code, "place.street");
+    assert.match(x.json.hint, /--place "Lhota" --house "17"/);
+    await w.ok(["event", "add", jan, "RESI", "--date", "1870", "--place", "Лхота 6"]);
+    // reopen: the answers asked again (the person's); an answer alone is its own step, said in the research's language
+    assert.equal((await w.run(["fixes", "reopen", "street-places"], { env: { CLAUDECODE: "1" } })).code, 4);
+    await w.ok(["fixes", "reopen", "street-places"], { tty: true });
+    const again = await w.ok(["fixes", "show", "street-places", "--json"]);
+    assert.deepEqual(again.json.towns.map((t: { town: string; count: number }) => [t.town, t.count]), [["Лхота", 2]]);
+    await w.ok(["fixes", "run", "street-places"], { tty: true, answers: ["2"] });
+    const tree = Tree.open(w.cwd, w.env);
+    const op = tree.readOps().filter((o) => o.op === "streetplace.towns").at(-1)!;
+    assert.deepEqual(changeLines(tree, [op], "", "cs").map((l) => l.text), ["Posouzena čísla za jménem obce (domy, nebo ne): 1"]);
+    // undo: back exactly, the answers with it
+    const u = await w.ok(["fixes", "undo", "street-places", "--lang", "en"], { tty: true });
+    assert.match(u.out, /Put back as they were: 4 facts/);
+    const back = placesOf(w);
+    for (const [id, p] of Object.entries(before)) assert.deepEqual(back[id], p, id);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "quality", "street-places.json"), "utf8")).towns, undefined);
+  } finally {
+    w.cleanup();
+  }
+});

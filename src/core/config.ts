@@ -12,11 +12,12 @@ import { detectLang, isValidLang } from "./lang.ts";
 import { UsageError } from "./errors.ts";
 import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts";
 import { ALL_EFFORTS, EFFORTS, hasEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
-import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
+import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, OFF_LINE_CHOICES, STRATEGIES, type OffLine, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
+import { EVENT_KINDS, kindsOf, normalizeKinds, type EventKind } from "./eventkinds.ts";
 import { WEB_PER_HOST, WEB_SOFT } from "./metrics.ts";
 import { TERMINAL_CHOICES, terminalChoices } from "./terminal.ts";
 import type { BackupRecord } from "./backup.ts";
@@ -81,6 +82,8 @@ export interface UserConfig {
   readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
+  /** Work off the lines of a research of several (core/offline.ts): last (default), normal, never. */
+  queueOffLine?: string;
   /** Ask the user before a connector runs: off (default) or on. */
   connectorsConsent?: string;
   /** The route chosen for a connector (strom connector use): its images come directly or through the browser. */
@@ -94,6 +97,8 @@ export interface UserConfig {
   /** Claude Code sessions strom starts with Remote Control: on, off (default). */
   agentRemote?: string;
   agentBrowser?: string;
+  /** Claude Code's own folder (agent.claudeConfigDir; CLAUDE_CONFIG_DIR wins). */
+  claudeConfigDir?: string;
   /** The agent's personal add-ons in the sessions it works alone: off (default — the research's tools only) or on. */
   agentAddons?: string;
   /** The experiment of history at the places of the trees (core/pastevents.ts): on, off (default). */
@@ -104,6 +109,8 @@ export interface UserConfig {
   experimentsHistoryPlaces?: string;
   /** The history of the places and their surroundings at all (core/placehistory.ts): on, off; unset: as experimentsHistory. */
   experimentsPlaceHistory?: string;
+  /** The kinds of the history's events looked for (core/eventkinds.ts): all (unset), none, "war,epidemic", "-economy,-law". */
+  historyKinds?: string;
   /**
    * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
    * update to a strom that has it — never again there, whatever the answer).
@@ -162,6 +169,8 @@ export interface UserConfig {
   tuneAuto?: string;
   /** A person's answers to the questions about the reading of scans of an agent and model (core/tuneask.ts): [key][kind]. */
   tuneAnswers?: Record<string, Record<string, TuneAnswer>>;
+  /** Minutes the bridge (strom live) runs on with nobody asking it before it ends by itself; 0: never (default 120). */
+  liveIdleMinutes?: number;
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -216,13 +225,16 @@ export const DEFAULT_HISTORY_PACE: HistoryPace = "sometimes";
 export const DEFAULT_READ_PARALLEL = 5;
 export const READ_PARALLEL_MAX = 10;
 
+/** Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never). */
+export const DEFAULT_LIVE_IDLE_MINUTES = 120;
+
 /** One setting: where it can live and how it is checked. */
 export interface SettingDef {
   key: string;
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace" | "limits";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace" | "limits" | "kinds";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -263,6 +275,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
   { key: "read.app", env: "", tree: false, kind: "limits", description: "readings of documents the Strom app may ask (its \"Read a document\"; each reader costs as one of strom read): at most so many an hour, then so many a day (default \"20 60\"; auto: the default) — one at a time, three more queued; never in an archive — only you raise it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
+  { key: "queue.offLine", env: "STROM_QUEUE_OFFLINE", tree: true, kind: "choice", choices: OFF_LINE_CHOICES, description: "work off the lines of a research with several (a task of no line about people none of its lines reaches — a side branch — that helps no line: no hypothesis or conflict of a line, not joining people to the tree, no --helps): last (default — taken only once the lines have nothing to do), normal (by priority, as the lines' work), never (not taken; a session at work goes on)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
@@ -282,12 +295,16 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
   { key: "agent.browser", env: "", tree: true, kind: "choice", choices: ["archives", "always"], description: "browser tools (Claude in Chrome) for the Claude Code sessions strom starts: archives (default) — only in a research whose connectors fetch through the browser, for their sites; always — in every session, for the sites of the research's archives (a conversation asks about others) — only you turn it on" },
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
+  { key: "agent.claudeConfigDir", env: "CLAUDE_CONFIG_DIR", tree: false, kind: "path", description: "Claude Code's own folder — its login (the subscription), settings and conversations — for every Claude Code strom starts (strom run, strom chat, the gate claude-usage) and what strom reads of it there; e.g. the folder of a second subscription. Unset: ~/.claude. The variable CLAUDE_CONFIG_DIR wins over it. Claude Code only" },
   // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
   { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
   // Read from the config files only — no variable: the person alone turns it on (a search spends the agent's time and
   // the plan), for every research on this computer or for one (strom.json, both ways); off is anyone's.
   { key: "experiments.history", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of the regions of the tree's places (wars, epidemics, censuses, changes of the state), looked for now and then between the sessions of the family research (experiments.historyPace): on or off (unset: off; the first setup suggests on) — only you turn it on, for every research on this computer or with --for-tree for one (a tree's own value wins both ways); the places' own history is experiments.placeHistory" },
   { key: "experiments.placeHistory", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of a place of the tree and its surroundings (fires, floods, battles nearby, the parish, the school): on — looked for when you ask for a place (strom history place L…, the Strom app's person card), by itself only with experiments.historyPlaces; off — never, not even when asked (unset: as experiments.history) — only you turn it on, for every research on this computer or with --for-tree for one (a tree's own value wins both ways)" },
+  // Which kinds of events: the user's config for every research, a tree's strom.json for one (its own wins both ways);
+  // a kind added is the person's alone (it spends sessions), a kind left out anyone's.
+  { key: "history.kinds", env: "", tree: true, kind: "kinds", description: `the kinds of events the history looks for, in the regions (experiments.history) and at the places (experiments.placeHistory, with the events of the tree's own sources): all (default), none, the kinds looked for ("war,epidemic") or all but some ("all,-economy,-law"); the kinds: ${EVENT_KINDS.join(", ")} — only the person adds a kind, in their terminal, for every research on this computer or with --for-tree for one (a tree's own value wins both ways); what was found already stays until strom history align hides it` },
   // The places' own history by itself: the user's config turns it on (the person alone, in the terminal), a tree's
   // strom.json may only turn it off.
   { key: "experiments.historyPlaces", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of each place of the tree with coordinates and its surroundings, looked for by itself one place at a time at the pace of the history (experiments.historyPace), the places of the most people first, while experiments.placeHistory is on: on or off (unset: off) — only you turn it on; a tree may only turn it off" },
@@ -307,6 +324,7 @@ export const SETTINGS: SettingDef[] = [
   // Measured and set by strom itself (tune.auto), never typed: shown with their reason; unset returns to the default.
   { key: "reading.batch", env: "", tree: false, kind: "tuned", description: "how many scans are read in one batch (by a delegate, the agent itself, a reader of strom read) and how many views one call of strom media view gives — default about 6 scans, 24 views; strom makes it smaller by itself when the context clears or readers end without a result; strom config unset reading.batch returns to the default" },
   { key: "reading.views", env: "", tree: false, kind: "tuned", description: "after how many views a reader stops and reports (the agent reading itself writes down and goes on) — default about 30; strom makes it smaller by itself from the context it measured; strom config unset reading.views returns to the default" },
+  { key: "live.idleMinutes", env: "", tree: false, kind: "number", description: `minutes the bridge to the Strom app (strom live) runs on while nobody asks it anything and nobody works in the tree, then it ends by itself (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: it never ends by itself — only strom live stop ends it. A bridge running takes it when it starts again` },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -319,17 +337,20 @@ const FIELDS: Record<string, string> = {
   "gedcom.for": "gedcomFor",
   "strom.version": "stromVersion",
   "queue.strategy": "queueStrategy",
+  "queue.offLine": "queueOffLine",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
   "agent.permissions": "agentPermissions",
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",
   "agent.browser": "agentBrowser",
+  "agent.claudeConfigDir": "claudeConfigDir",
   "agent.addons": "agentAddons",
   "experiments.history": "experimentsHistory",
   "experiments.historyPace": "experimentsHistoryPace",
   "experiments.historyPlaces": "experimentsHistoryPlaces",
   "experiments.placeHistory": "experimentsPlaceHistory",
+  "history.kinds": "historyKinds",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -342,6 +363,7 @@ const FIELDS: Record<string, string> = {
   "read.app": "readApp",
   "tune.transcripts": "tuneTranscripts",
   "tune.auto": "tuneAuto",
+  "live.idleMinutes": "liveIdleMinutes",
 };
 
 /** Environment variables that are not settings but steer strom. */
@@ -470,10 +492,17 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       return v;
     case "views":
       throw new UsageError(`${def.key} is measured, not set: strom media calibrate`, { hint: "strom media calibrate (a person starts it: paid readings of the research's own records) · strom config unset views.size returns to the defaults" });
+    case "kinds":
+      return normalizeKinds(v, def.key);
     case "tuned":
       throw new UsageError(`${def.key} is set by strom itself from the reading of scans, not typed`, { hint: `strom media calibrate --report says why · strom config unset ${def.key} returns to the default` });
     case "number": {
       const n = Number(v);
+      // the bridge's idle time: whole minutes, 0 for never
+      if (def.key === "live.idleMinutes") {
+        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: never by itself — strom config set live.idleMinutes ${DEFAULT_LIVE_IDLE_MINUTES}` });
+        return n;
+      }
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
       if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
@@ -652,6 +681,18 @@ export class Settings {
     return r ? Number(r.value) : fallback;
   }
 
+  /**
+   * How long the bridge (strom live) runs on with nobody asking it, ms (0: it never ends by itself): STROM_LIVE_IDLE_MS
+   * (tests) > live.idleMinutes > DEFAULT_LIVE_IDLE_MINUTES. A stored value that is no whole number of minutes: the default.
+   */
+  liveIdleMs(): number {
+    const raw = this.env.STROM_LIVE_IDLE_MS;
+    if (raw !== undefined && raw !== "" && Number.isFinite(Number(raw)) && Number(raw) >= 0) return Number(raw);
+    const v = readStored(this.config, "live.idleMinutes", "");
+    const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+    return (Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES) * 60_000;
+  }
+
   /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */
   readParallel(tree?: TreeConfig): number {
     const n = Math.round(this.number("read.parallel", tree, DEFAULT_READ_PARALLEL));
@@ -667,6 +708,12 @@ export class Settings {
   /** How the task queue is ordered (core/queue.ts). */
   strategy(tree?: TreeConfig): Strategy {
     return String(this.resolve("queue.strategy", tree)?.value ?? "balanced") as Strategy;
+  }
+
+  /** Work off the lines (core/offline.ts): last (default), normal, never. */
+  offLine(tree?: TreeConfig): OffLine {
+    const v = String(this.resolve("queue.offLine", tree)?.value ?? "last");
+    return (OFF_LINE_CHOICES as readonly string[]).includes(v) ? (v as OffLine) : "last";
   }
 
   /** The GEDCOM files to write: standard (any program), strom (the Strom app), or both. */
@@ -740,6 +787,14 @@ export class Settings {
     const user = known(readStored(this.config, "experiments.historyPace", "")) ?? DEFAULT_HISTORY_PACE;
     const own = known(readStored(tree, "experiments.historyPace", ""));
     return own && HISTORY_PACES.indexOf(own) > HISTORY_PACES.indexOf(user) ? own : user;
+  }
+
+  /**
+   * The kinds of the history's events looked for here (history.kinds): the tree's strom.json, else the user's config,
+   * else all — what every research did before the setting (no variable, no flag: adding a kind is the person's).
+   */
+  historyKinds(tree?: TreeConfig): EventKind[] {
+    return kindsOf(readStored(tree, "history.kinds", "") ?? readStored(this.config, "history.kinds", ""));
   }
 
   /** Claude Code's transcripts of the sessions strom started read for tuning (core/transcripts.ts): on unless the user said off. */

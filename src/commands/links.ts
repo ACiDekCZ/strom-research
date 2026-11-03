@@ -127,8 +127,8 @@ type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" }>;
  */
 function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; values: Record<string, string>; state: string } | undefined {
   // an experiment turned on where nothing is looked for: said so, nothing of an agent (turned off: anywhere)
-  if (link.action === "experiment") {
-    if (link.do !== "on") return undefined;
+  if (link.action === "experiment" || link.action === "history-kinds" || link.action === "history-align") {
+    if (link.action === "experiment" && link.do !== "on") return undefined;
     const state = stateOf(Tree.open(root, ctx.env));
     return state === "research" ? undefined : { key: state === "archive" ? "ui.link.experiment.archive" : "ui.link.experiment.waiting", values: {}, state };
   }
@@ -137,6 +137,7 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "review" ||
     link.action === "research" ||
     link.action === "history" ||
+    link.action === "places" ||
     (link.action === "conflict" && link.do === "agent") ||
     (link.action === "task" && link.do === "chat") ||
     (link.action === "fixes" && link.id !== undefined && fixCheck(link.id)?.remedy !== "rewrite");
@@ -281,10 +282,30 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       const { placeSearch } = await import("../cli/menu-links.ts");
       return end(await placeSearch(ctx, run, treeLang, root, link.place));
     }
+    case "places": {
+      // the places to identify: the queue (or one place) and the estimate here, its task on top, started now if wanted
+      const { placesRun } = await import("../cli/menu-links.ts");
+      return end(await placesRun(ctx, run, treeLang, root, link.place));
+    }
     case "fixes": {
       // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
       const { fixesDo } = await import("../cli/menu-links.ts");
       return end(await fixesDo(ctx, run, treeLang, root, link.id, link.do));
+    }
+    case "history-kinds": {
+      // the kinds of history looked for, one added: what changes and the estimate here, set on the person's yes, align offered
+      const { historyKindsDo } = await import("../cli/menu-links.ts");
+      return end(await historyKindsDo(ctx, run, treeLang, root, link.scope, link.kinds, link.inherit === "1"));
+    }
+    case "history-align": {
+      // the history aligned with the kinds: strom history align's preview and its question here
+      const { historyAlignDo } = await import("../cli/menu-links.ts");
+      return end(await historyAlignDo(ctx, run, treeLang, root, link.prune === "1"));
+    }
+    case "back": {
+      // back in time: the change named (or one picked here) — strom history back shows what returns, the person decides
+      const { backDo } = await import("../cli/menu-links.ts");
+      return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
     }
   }
   const named = "person" in link ? link.person : undefined;
@@ -417,8 +438,15 @@ register(
       "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
+      "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
+      "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
+      "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +
+      "  estimate, run one after another (the bridge never starts it).\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
+      "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +
+      "  its hash (the bridge's /log head, or its first 8), else the earlier changes to pick from — what returns shown, the\n" +
+      "  return only on the person's word in the terminal.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +

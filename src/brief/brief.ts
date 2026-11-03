@@ -36,8 +36,9 @@ import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
 import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
-import { forHistory, historyOn } from "../core/pastevents.ts";
+import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
+import { placesIdentifySections } from "./places.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
@@ -1054,6 +1055,9 @@ export function buildBrief(
     // a task of history (the experiment): its own sections, nothing of the records, the method or the queue
     const history = forHistory(task) ? historySections(tree, task, opts.shared, alone) : undefined;
     if (history) return assemble([...sections, ...history], budget);
+    // a task of identifying places: its batch and how, nothing of the records, the method or the people's queue
+    const places = placesIdentifySections(tree, task, alone, new Settings(tree.env, {}));
+    if (places) return assemble([...sections, ...places], budget);
 
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)
@@ -1389,8 +1393,9 @@ export function buildBrief(
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
 
   // 8'. the experiment of history on: a session that reads records may write a local event they tell of
-  if (task && ["link", "verify", "intake", "enrich"].includes(kind ?? "") && historyOn(tree)) {
-    const local = localEventsSection();
+  // (the local history: experiments.placeHistory, K1.3), of the kinds looked for (history.kinds) — none: no section
+  if (task && ["link", "verify", "intake", "enrich"].includes(kind ?? "") && placesOn(tree)) {
+    const local = localEventsSection(treeKinds(tree));
     if (local) sections.push(local);
   }
 
@@ -1470,6 +1475,10 @@ export function buildBrief(
     text: [
       "## Finishing",
       "- new questions → strom task add … (what, where, why, done-when)",
+      // a research of several lines: work off them waits for them unless it says how it helps one (core/offline.ts)
+      tree.list<Research>("research").filter((r) => !r.retracted).length > 1
+        ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree) — else it waits until the lines have nothing to do'
+        : "",
       task
         ? '- done: strom session close --done "what was proven, what was searched in vain" --next "the next cheapest step" (the task and the session in one call; a complete negative search is a result)'
         : '- then: strom session close --summary "what was proven, what was searched in vain" --next "the next cheapest step"',

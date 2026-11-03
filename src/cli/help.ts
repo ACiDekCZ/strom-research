@@ -33,7 +33,7 @@ const ARCHIVE_COMMANDS = new Set([
   "init", "trees", "trees use", "trees remove", "mode", "lang", "pack", "unpack", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
-  "find", "stats", "pedigree", "recent", "history",
+  "find", "stats", "pedigree", "recent", "history", "history back",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
   "check", "verify", "repair", "seal adopt",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
@@ -64,7 +64,8 @@ const ARCHIVE_DESCRIPTION: Record<string, string> = {
   live:
     "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
     "strom app --live, takes the tree from it and hears what changes. It ends by itself when nobody asks it anything for\n" +
-    "two hours, or with strom live stop. One error does not end it; what it did and what went wrong is in .strom/live.log.\n" +
+    "two hours (strom config set live.idleMinutes <minutes>; 0: never), or with strom live stop. One error does not end\n" +
+    "it; what it did and what went wrong is in .strom/live.log.\n" +
     "Started again by itself (strom updated) it takes the address it had, so the app following it goes on by itself.",
   phone:
     "A server of its own on this computer's private addresses (Wi-Fi or a cable at home: 10.x, 172.16–31.x, 192.168.x —\n" +
@@ -216,7 +217,7 @@ export const HUMAN_COMMANDS = [
   "init", "trees", "trees use", "trees remove", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "review",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "task list", "task wake", "story approve", "story discard",
-  "stats", "recent", "plan", "history", "person card", "person list", "pedigree", "find",
+  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check", "media calibrate",
   "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
 ];

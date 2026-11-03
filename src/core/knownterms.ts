@@ -3,7 +3,9 @@
 // the list is a confirmed one — a connector's "allowed" there needs no person's word, a connector taken over there no
 // confirmation — and still the strictest of all that is known holds (core/terms.ts). Besides the level an entry may
 // give a pace (a site's Crawl-delay: only ever slower), paths no automated request takes (its robots.txt, kept here
-// as well), an archive only a person's browser goes to, and a note of what the level covers (for the agent).
+// as well), an archive only a person's browser goes to, a note of what the level covers (for the agent), and whether
+// the terms quoted expressly allow automated use (`automatedUse`: then a Disallow of the site's robots.txt alone
+// yields, carefully — core/net.ts robotsYields; the paths kept here never do).
 // Read by core/terms.ts (the levels) and core/net.ts (the pace, the paths) — nothing of either is imported here.
 
 import { assetPath } from "./assets.ts";
@@ -38,6 +40,13 @@ export interface KnownTerms {
   search?: KnownSearch[];
   /** What its robots.txt said when it was checked. */
   robots?: string;
+  /**
+   * Its terms (the quote, word for word, at `terms`) expressly allow automated use — open data, a licence for any use,
+   * an interface for programs: a Disallow of its robots.txt alone yields (core/net.ts robotsYields), carefully — one
+   * request after another, at least its Crawl-delay, strom's User-Agent, its limits and backoff as ever. Never a
+   * robots.txt that names AI agents or strom, never the paths `disallow` keeps off. Optional: none, robots.txt holds.
+   */
+  automatedUse?: boolean;
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
 }
@@ -89,6 +98,19 @@ export function strictestEntry(hits: KnownTerms[]): KnownTerms | undefined {
 /** The slowest pause strom's list asks of a host (its Crawl-delay; 0: none) — a floor, slower only. */
 export function knownPaceMs(host: string): number {
   return Math.max(0, ...shippedTerms().filter((k) => within(host, k.host)).map((k) => k.pace?.minIntervalMs ?? 0));
+}
+
+/**
+ * An entry whose terms expressly allow automated use: `automatedUse` on an "allowed" one, quoted word for word from its
+ * terms (not its robots.txt) and not only for a person's browser — anything less, robots.txt holds as before.
+ */
+export function openByTerms(k: KnownTerms | undefined): boolean {
+  return !!k && k.automatedUse === true && k.level === "allowed" && !k.browserOnly && k.quoteFrom !== "robots" && typeof k.quote === "string" && !!k.quote.trim() && typeof k.terms === "string" && /^https?:\/\//u.test(k.terms);
+}
+
+/** strom's own list says a host's terms expressly allow automated use (its strictest entry, a site above it too). */
+export function knownOpen(host: string): boolean {
+  return openByTerms(strictestEntry(shippedTerms().filter((k) => within(host, k.host))));
 }
 
 /** The paths strom's list keeps automated requests off on a host. */

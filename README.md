@@ -52,7 +52,7 @@ Updates: strom looks for a new version at most once a day and says so;
 `strom update` installs it (checked like the installer does), and with it the
 newest security release of its Node line. Installed with
 npm: `npm install -g strom-research@latest`. What is new in each version:
-[CHANGELOG.md](CHANGELOG.md) ([čeština](CHANGELOG.cs.md), [Deutsch](CHANGELOG.de.md));
+[CHANGELOG.md](CHANGELOG.md) ([čeština](CHANGELOG.cs.md), [Deutsch](CHANGELOG.de.md), [polski](CHANGELOG.pl.md));
 `strom --version` and `strom update` link to it in the research language.
 
 ## Features
@@ -124,7 +124,7 @@ npm: `npm install -g strom-research@latest`. What is new in each version:
 **Everywhere**
 - Windows, macOS and Linux; strom brings its own official Node, needs no admin
   rights, and everything it runs is readable JavaScript
-- English, Czech and German in the program; the research itself in any
+- English, Czech, German and Polish in the program; the research itself in any
   language and script
 
 ## What you need

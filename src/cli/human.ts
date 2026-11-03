@@ -13,17 +13,21 @@ import type { Family, Person, RecordSet, Session, Source } from "../core/model.t
 /**
  * English reads "31 Aug 1830"; the others their own numeric form ("31. 8. 1830", "31.8.1830"). A month and
  * year alone are named ("srpen 1830") — after a word ("před 3/1853") in numbers, which no grammatical case bends.
+ * Polish writes a day's day and month with two digits ("02.11", "05.08.1830"), as the Strom app does.
  */
 function format(lang: string, date: Date, parts: "day" | "month" | "monthafter" | "daymonth"): string {
   const en = lang === "en";
+  const two = lang === "pl" || lang.startsWith("pl-");
+  const day = two ? "2-digit" : "numeric";
+  const month = en ? "short" : two ? "2-digit" : "numeric";
   const opts: Intl.DateTimeFormatOptions =
     parts === "month"
       ? { month: "long", year: "numeric" }
       : parts === "monthafter"
         ? { month: en ? "short" : "numeric", year: "numeric" }
         : parts === "daymonth"
-        ? { day: "numeric", month: en ? "short" : "numeric" }
-        : { day: "numeric", month: en ? "short" : "numeric", year: "numeric" };
+        ? { day, month }
+        : { day, month, year: "numeric" };
   try {
     return new Intl.DateTimeFormat(en ? "en-GB" : lang, { ...opts, timeZone: "UTC" }).format(date);
   } catch {

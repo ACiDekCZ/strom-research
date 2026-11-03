@@ -14,6 +14,8 @@ import { spawnSync } from "node:child_process";
 import { hasGit } from "../helpers.ts";
 import { nodeArchive } from "../../src/core/update.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
+import { enterWorker } from "../../src/core/workers.ts";
+import { shimScript, writeShim } from "../../src/core/self.ts";
 import { SCHEMA_VERSION } from "../../src/core/model.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -67,7 +69,7 @@ test("a release carries the changelogs: in strom-app.tar.gz and a beta's npm tar
   const listed = (file: string) => spawnSync("tar", ["-tzf", file], { encoding: "utf8" }).stdout.split("\n");
   const app = listed(path.join(rel.beta, "strom-app.tar.gz"));
   const npm = fs.readdirSync(rel.beta).find((f) => f.endsWith(".tgz"));
-  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"]) {
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.pl.md"]) {
     assert.ok(app.includes(`app/${f}`), `strom-app.tar.gz: ${f}`);
     if (npm) assert.ok(listed(path.join(rel.beta, npm)).includes(`package/${f}`), `${npm}: ${f}`);
   }
@@ -181,7 +183,9 @@ function snapshot(inst: Install, tree: string): Snapshot {
     git: spawnSync("git", ["log", "--format=%H"], { cwd: tree, encoding: "utf8" }).stdout.trim().split("\n"),
     data: { ...files(path.join(tree, "data"), () => false), ...Object.fromEntries(Object.entries(files(path.join(tree, "inputs"))).map(([k, v]) => [path.join("..", "inputs", k), v])) },
     shared: files(shared, (rel) => rel.split(path.sep).includes(".incoming")),
-    settings: files(inst.cfg, (rel) => rel.endsWith(".lock") || rel === "config.json" || rel.split(path.sep)[0] === "Strom research"),
+    // (the widget's files of an isolated installation: what each strom writes of the research for the widget, its
+    // version in index.json — no setting)
+    settings: files(inst.cfg, (rel) => rel.endsWith(".lock") || rel === "config.json" || ["Strom research", "widget"].includes(rel.split(path.sep)[0]!)),
     config,
   };
 }
@@ -314,6 +318,98 @@ test("stable → beta → stable on an isolated installation: each switch backed
   } finally {
     inst.run(["live", "stop"], at);
   }
+});
+
+test("strom update while work goes on (spec 037): without a terminal needs-input update.busy naming the work, nothing installed; --now puts the new version in a folder of its own — the run keeps its version (the research's shim names it), what starts now is the new one; the version before and the one at work stay", opts, () => {
+  const inst = new Install("busy");
+  inst.install("stable");
+  inst.ok(["setup", "--yes"]);
+  inst.ok(["init", "Lhotákovi"]);
+  const tree = inst.ok(["trees", "--json"]).json.trees.find((t: { name: string }) => t.name === "Lhotákovi").root as string;
+  assert.equal(inst.info().app, `app-${STABLE}`);
+  // a run of the stable at work: its worker says its version, the research's shim pinned to its folder
+  const stableCli = path.join(inst.root, `app-${STABLE}`, "dist", "cli.js");
+  writeShim(tree, inst.env, { command: process.execPath, args: [stableCli] });
+  const leave = enterWorker(tree, "run", "strom run", STABLE);
+  try {
+    const beta = { STROM_RELEASES_API: rel.list, STROM_RELEASE_DOWNLOAD: `file://${rel.download}` };
+    const held = inst.run(["update", "--channel", "beta", "--yes", "--json"], { env: beta });
+    assert.equal(held.code, 3, held.out + held.err);
+    assert.equal(held.json.status, "needs-input");
+    assert.equal(held.json.code, "update.busy");
+    assert.deepEqual(held.json.work.map((w: { tree: string }) => w.tree), ["Lhotákovi"], "the research where work goes on");
+    assert.match(held.json.message, /Lhotákovi/);
+    assert.match(JSON.stringify(held.json.needs), /--now/);
+    assert.equal(inst.version(), STABLE, "nothing installed");
+    assert.equal(inst.info().app, `app-${STABLE}`);
+    // --now: the new version beside it
+    const done = inst.ok(["update", "--channel", "beta", "--yes", "--now", "--json"], { env: beta });
+    assert.equal(done.json.version, BETA);
+    assert.equal(inst.version(), BETA, "what starts now is the new one");
+    assert.equal(inst.info().app, `app-${BETA}`);
+    assert.equal(inst.info().previous, `app-${STABLE}`);
+    assert.equal(shimScript(tree), stableCli, "the run's shim still names its version");
+    assert.ok(fs.existsSync(stableCli));
+    const pinned = spawnSync(path.join(tree, ".strom", "bin", "strom"), ["--version", "--json"], { env: inst.env, encoding: "utf8" });
+    assert.deepEqual(JSON.parse(pinned.stdout), { version: STABLE }, "the run's calls: its own version");
+    // the run's agent writes with its version after the new one ran: no way back — no backup "from the beta to the
+    // stable", the settings still the new one's (found on Windows: a backup "1.26.0-beta.92 to 1.26.0-beta.91")
+    inst.ok(["trees", "--json"]);
+    const backups = (inst.config().backups ?? []).length;
+    const call = spawnSync(path.join(tree, ".strom", "bin", "strom"), ["person", "list", "--json"], { cwd: tree, env: inst.env, encoding: "utf8" });
+    assert.equal(call.status, 0, call.stdout + call.stderr);
+    assert.equal((inst.config().backups ?? []).length, backups, "no backup of a way back");
+    assert.equal(inst.config().lastVersion, BETA);
+    // strom tidy keeps the folder at work and the one before
+    inst.ok(["tidy", "--yes"]);
+    assert.ok(fs.existsSync(stableCli));
+  } finally {
+    leave();
+  }
+  // back to the stable once the work ended: the folder before is never taken over (a strom started before may read it)
+  inst.ok(["update", "--channel", "stable", "--yes", "--json"], { env: { STROM_DOWNLOAD_BASE: `file://${rel.stable}` } });
+  assert.equal(inst.version(), STABLE);
+  assert.equal(inst.info().app, `app-${STABLE}_2`);
+  assert.equal(inst.info().previous, `app-${BETA}`);
+  assert.ok(!fs.existsSync(stableCli), "the stable's first folder, neither in use nor the one before, gone");
+});
+
+test("from the beta back to a release before 1.25 (no stromLayout: it knows only app/; found 2026-11-02 — 1.24.0 ran from app-1.24.0/, took itself for npm's, and strom update --channel beta did nothing): the whole release in app/, install.json without app; from it back to the beta into a folder of its own", opts, () => {
+  // the stable release made one before 1.25: its package.json says nothing of the versions' folders
+  const old = path.join(dir, "releases-old", `v${STABLE}`);
+  fs.mkdirSync(path.join(old, "unpacked"), { recursive: true });
+  for (const f of ["VERSION", "NODE_VERSION"]) fs.copyFileSync(path.join(rel.stable, f), path.join(old, f));
+  assert.equal(spawnSync("tar", ["-xzf", path.join(rel.stable, "strom-app.tar.gz"), "-C", path.join(old, "unpacked")]).status, 0);
+  const pkgFile = path.join(old, "unpacked", "app", "package.json");
+  const { stromLayout: _layout, ...pkg } = JSON.parse(fs.readFileSync(pkgFile, "utf8"));
+  fs.writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
+  assert.equal(spawnSync("tar", ["-czf", path.join(old, "strom-app.tar.gz"), "app"], { cwd: path.join(old, "unpacked") }).status, 0);
+  fs.writeFileSync(path.join(old, "SHASUMS256.txt"), `${sha(fs.readFileSync(path.join(old, "strom-app.tar.gz")))}  strom-app.tar.gz\n`);
+
+  const inst = new Install("way-back");
+  inst.install("beta");
+  inst.ok(["setup", "--yes"]);
+  inst.ok(["init", "Lhotákovi"]);
+  const tree = inst.ok(["trees", "--json"]).json.trees.find((t: { name: string }) => t.name === "Lhotákovi").root as string;
+  inst.ok(["person", "add", "Jan /Lhoták/"], { cwd: tree });
+  assert.equal(inst.info().app, `app-${BETA}`);
+  const back = inst.ok(["update", "--channel", "stable", "--yes", "--json"], { env: { STROM_DOWNLOAD_BASE: `file://${old}` } });
+  assert.equal(back.json.version, STABLE);
+  assert.ok(back.json.backup?.path && fs.existsSync(back.json.backup.path), "backed up before");
+  assert.ok(fs.existsSync(path.join(inst.root, "app", "dist", "core", "self.js")), "the whole release in app/ — what a strom before 1.25 takes for the installer's");
+  assert.doesNotMatch(fs.readFileSync(path.join(inst.root, "app", "dist", "cli.js"), "utf8"), /await import\("\.\.\/\.\.\/app-/, "no entry");
+  assert.equal("app" in inst.info(), false);
+  assert.equal(inst.info().previous, `app-${BETA}`);
+  assert.equal(inst.version(), STABLE);
+  assert.equal(inst.ok(["person", "list", "--json"], { cwd: tree }).json.persons.length, 1);
+  // from it, back to the beta: into a folder of its own, app/ the version before
+  const again = inst.ok(["update", "--channel", "beta", "--yes", "--json"], { env: { STROM_RELEASES_API: rel.list, STROM_RELEASE_DOWNLOAD: `file://${rel.download}` } });
+  assert.equal(again.json.version, BETA);
+  assert.equal(inst.version(), BETA);
+  assert.equal(inst.info().channel, "beta");
+  assert.equal(inst.info().previous, "app");
+  assert.match(inst.info().app, new RegExp(`^app-${BETA.replace(/\./g, "\\.")}(_\\d+)?$`));
+  assert.equal(inst.ok(["person", "list", "--json"], { cwd: tree }).json.persons.length, 1);
 });
 
 test("strom uninstall of an isolated installation never takes its research or backups: only what the installer and strom update put into its folder goes — the folder stays with what else is in it (found 2026-10-07: the research and the backups in it went whole)", opts, () => {

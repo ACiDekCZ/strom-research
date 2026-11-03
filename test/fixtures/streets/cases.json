@@ -1,0 +1,487 @@
+{
+  "about": "Shared cases of the rules telling a street and a house number in the place of a fact (strom-research src/core/streets.ts, words in assets/terms/streets.json). Each input is also run decomposed (NFD): the result is the same, written composed (NFC). split: splitStreet(place, known) — town (the place without them), house (as written), by: word | known; null: the place stays. known: the streets the houses of facts name at a municipality, by its first part folded (no accents, lower case). bare: bareNumber(place) — a number alone after the name (name, town, house); never split by rules, a house only on a person's word for the whole municipality; null: no such number. numbered: whether the terms say the municipality's numbers are its parts. houseWith: the house of a fact whose place held `street` beside the house it had; null: the house says another thing (left). fold: foldText — how every word is compared (NFD, marks dropped, ß ss, ł l, đ d, ø o, æ ae, œ oe, þ th, lower case, spaces one). Written by test/fixtures/streets/make-cases.ts.",
+  "split": [
+    {
+      "place": "Lhota, nám. Míru",
+      "expect": {
+        "town": "Lhota",
+        "house": "nám. Míru",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Dlouhá ulice 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "Dlouhá ulice 12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhotau, Hauptstraße 3",
+      "expect": {
+        "town": "Lhotau",
+        "house": "Hauptstraße 3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhotau, Hauptstr. 3",
+      "expect": {
+        "town": "Lhotau",
+        "house": "Hauptstr. 3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Лхота, ул. Ленина 5",
+      "expect": {
+        "town": "Лхота",
+        "house": "ул. Ленина 5",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Лхота, вулиця Шевченка 5",
+      "expect": {
+        "town": "Лхота",
+        "house": "вулиця Шевченка 5",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, okres Horní, náměstí Míru 4",
+      "expect": {
+        "town": "Lhota, okres Horní",
+        "house": "náměstí Míru 4",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Hauptstraße 3, Lhotau",
+      "note": "a street before the municipality only with its number",
+      "expect": {
+        "town": "Lhotau",
+        "house": "Hauptstraße 3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota č. p. 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota čp. 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, čp. 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, 13/2",
+      "expect": {
+        "town": "Lhota",
+        "house": "13/2",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhotau Nr. 3",
+      "expect": {
+        "town": "Lhotau",
+        "house": "3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Лхота, д. 5",
+      "expect": {
+        "town": "Лхота",
+        "house": "5",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Horní Lhota Nr. 3",
+      "note": "a part of the village with its number: the number alone goes",
+      "expect": {
+        "town": "Lhota, Horní Lhota",
+        "house": "3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Dlouhá 12",
+      "expect": {
+        "town": "Lhota",
+        "house": "Dlouhá 12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Polní 5/3",
+      "expect": {
+        "town": "Lhota",
+        "house": "Polní 5/3",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Polní 3a",
+      "expect": {
+        "town": "Lhota",
+        "house": "Polní 3a",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, U Lhoty 7",
+      "expect": {
+        "town": "Lhota",
+        "house": "U Lhoty 7",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota 2, Dlouhá 12",
+      "note": "the municipality keeps its number: a part of it",
+      "expect": {
+        "town": "Lhota 2",
+        "house": "Dlouhá 12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, okres Horní, Dlouhá 12",
+      "expect": {
+        "town": "Lhota, okres Horní",
+        "house": "Dlouhá 12",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Лхота, Ленина 5",
+      "expect": {
+        "town": "Лхота",
+        "house": "Ленина 5",
+        "by": "word"
+      }
+    },
+    {
+      "place": "Lhota, Dlouhá",
+      "known": {
+        "lhota": [
+          "dlouha"
+        ]
+      },
+      "expect": {
+        "town": "Lhota",
+        "house": "Dlouhá",
+        "by": "known"
+      }
+    },
+    {
+      "place": "Lhota, DLOUHA",
+      "known": {
+        "lhota": [
+          "dlouha"
+        ]
+      },
+      "expect": {
+        "town": "Lhota",
+        "house": "DLOUHA",
+        "by": "known"
+      }
+    },
+    {
+      "place": "Lhotinka, Dlouhá",
+      "known": {
+        "lhota": [
+          "dlouha"
+        ]
+      },
+      "note": "a street of another municipality's houses",
+      "expect": null
+    },
+    {
+      "place": "Lhota",
+      "expect": null
+    },
+    {
+      "place": "Lhota, okres Horní",
+      "expect": null
+    },
+    {
+      "place": "Lhota, Horní Lhota",
+      "expect": null
+    },
+    {
+      "place": "Lhota, farnost Lhotinka",
+      "expect": null
+    },
+    {
+      "place": "Lhota, St. Martin",
+      "expect": null
+    },
+    {
+      "place": "Lhota, Ostr.",
+      "expect": null
+    },
+    {
+      "place": "Lhota, Lhotecká",
+      "expect": null
+    },
+    {
+      "place": "Lhota, Dlouhá",
+      "note": "without the houses: unclear",
+      "expect": null
+    },
+    {
+      "place": "Lhota u Lhotína",
+      "expect": null
+    },
+    {
+      "place": "Lhota, 3. díl",
+      "expect": null
+    },
+    {
+      "place": "Lhotau, 3. Teil",
+      "expect": null
+    },
+    {
+      "place": "Lhotín, Lhotín 5",
+      "note": "the municipality's own name with a number: a part of it",
+      "expect": null
+    },
+    {
+      "place": "Bergweg, okres Horní",
+      "expect": null
+    },
+    {
+      "place": "Лхота, Московская область",
+      "expect": null
+    },
+    {
+      "place": "Lhota 16",
+      "note": "a number alone after the name: see bare",
+      "expect": null
+    },
+    {
+      "place": "Praha 5",
+      "expect": null
+    },
+    {
+      "place": "Brno 2",
+      "expect": null
+    }
+  ],
+  "bare": [
+    {
+      "place": "Lhota 16",
+      "expect": {
+        "name": "Lhota",
+        "town": "Lhota",
+        "house": "16"
+      }
+    },
+    {
+      "place": "Lhota 16a",
+      "expect": {
+        "name": "Lhota",
+        "town": "Lhota",
+        "house": "16a"
+      }
+    },
+    {
+      "place": "Lhota 13/2",
+      "expect": {
+        "name": "Lhota",
+        "town": "Lhota",
+        "house": "13/2"
+      }
+    },
+    {
+      "place": "Horní Lhota 3",
+      "expect": {
+        "name": "Horní Lhota",
+        "town": "Horní Lhota",
+        "house": "3"
+      }
+    },
+    {
+      "place": "Lhota 16, okres Horní",
+      "expect": {
+        "name": "Lhota",
+        "town": "Lhota, okres Horní",
+        "house": "16"
+      }
+    },
+    {
+      "place": "Лхота 5",
+      "expect": {
+        "name": "Лхота",
+        "town": "Лхота",
+        "house": "5"
+      }
+    },
+    {
+      "place": "Praha 5",
+      "expect": {
+        "name": "Praha",
+        "town": "Praha",
+        "house": "5"
+      }
+    },
+    {
+      "place": "Lhota",
+      "expect": null
+    },
+    {
+      "place": "Lhota č. p. 16",
+      "expect": null
+    },
+    {
+      "place": "16 Lhota",
+      "expect": null
+    },
+    {
+      "place": "16",
+      "expect": null
+    },
+    {
+      "place": "Lhota, 16",
+      "expect": null
+    }
+  ],
+  "numbered": [
+    {
+      "name": "Praha",
+      "expect": true
+    },
+    {
+      "name": "praha",
+      "expect": true
+    },
+    {
+      "name": "Wien",
+      "expect": true
+    },
+    {
+      "name": "Brno",
+      "expect": true
+    },
+    {
+      "name": "Lhota",
+      "expect": false
+    },
+    {
+      "name": "Lhota 5",
+      "expect": false
+    }
+  ],
+  "fold": [
+    {
+      "text": "Dlouhá",
+      "expect": "dlouha"
+    },
+    {
+      "text": "NÁMĚSTÍ  Míru",
+      "expect": "namesti miru"
+    },
+    {
+      "text": "Hauptstraße",
+      "expect": "hauptstrasse"
+    },
+    {
+      "text": "Łódź",
+      "expect": "lodz"
+    },
+    {
+      "text": "Øster Allé",
+      "expect": "oster alle"
+    },
+    {
+      "text": "Й улица",
+      "expect": "и улица"
+    },
+    {
+      "text": "Lhotín 3a",
+      "expect": "lhotin 3a"
+    },
+    {
+      "text": " Ленина ",
+      "expect": "ленина"
+    }
+  ],
+  "houseWith": [
+    {
+      "street": "Dlouhá 12",
+      "expect": "Dlouhá 12"
+    },
+    {
+      "street": "nám. Míru",
+      "had": "5",
+      "expect": "nám. Míru 5"
+    },
+    {
+      "street": "Dlouhá",
+      "had": "Dlouhá 88",
+      "expect": "Dlouhá 88"
+    },
+    {
+      "street": "Dlouhá 12",
+      "had": "dlouhá 12",
+      "expect": "dlouhá 12"
+    },
+    {
+      "street": "16",
+      "had": "16",
+      "expect": "16"
+    },
+    {
+      "street": "16",
+      "expect": "16"
+    },
+    {
+      "street": "nám. Míru 9",
+      "had": "Horní 4",
+      "expect": null
+    },
+    {
+      "street": "Dlouhá 12",
+      "had": "7",
+      "expect": null
+    },
+    {
+      "street": "Dlouhá",
+      "had": "Horní 4",
+      "expect": null
+    },
+    {
+      "street": "16",
+      "had": "Dlouhá 3",
+      "expect": null
+    }
+  ]
+}

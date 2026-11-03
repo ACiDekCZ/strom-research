@@ -1,9 +1,50 @@
 # What's new in Strom Research
 
-English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
+English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski](CHANGELOG.pl.md)
 
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
+
+## 1.25.0
+
+*2026-11-03 · goes with the Strom app 3.21.0.*
+
+- **In Polish.** The research speaks Polish: the menu, its messages, what it writes into the research, the
+  installer and the phone's page; the notes and roles of the Strom file are Polish. A Polish system is recognized by itself,
+  otherwise `strom config set lang pl`. The agent's help stays English.
+- **The Strom widget on Windows too, and it opens the person.** A research now writes what the Strom widget shows of it (what it works
+  on, the finds of the last 24 hours, what waits) also on Windows, into `%USERPROFILE%\.config\strom\widget`, with a
+  mark of the strom that wrote it. A widget reading its file never holds up the bridge. `strom uninstall` takes the
+  widget's files too, on a Mac as well; the research and the settings stay.
+  A line or a find of the Strom widget about one person opens that person in the
+  Strom app (its page, the tree around it), what waits opens the research's "Waiting" (an app that cannot open them
+  yet opens the tree as before).
+- **House numbers after the name of a village.** Places written as the name with a number alone (`Lhota 16`) can
+  now be set right too (`strom fixes run street-places`): the place becomes the municipality, the number its house —
+  only once the person says, for each municipality on its own, that its numbers are houses, with the facts it changes
+  shown first. Parts of a town with a number (`Praha 5`) are never offered. The answer is kept with the research and
+  `strom fixes undo street-places` puts everything back.
+- **Back in time.** `strom history back <change>` returns the research to its state after an earlier change: first
+  what would come back and what would be put aside, then only on the person's yes in the terminal. Nothing is deleted:
+  records added since are put aside, and the return itself can be taken back the same way. The link
+  `strom-research://back` opens it for one change; the bridge's log says a return apart.
+- **Identifying places.** The research identifies the places of its records (`strom place identify`, `propose`,
+  `unlocated`): a place sure from its records gets its coordinates, names and parish over time; where it is not sure,
+  it asks the person with up to three candidates, or says what would decide it. The questions wait in "What waits",
+  the bridge offers them to the Strom app, and `strom place undo` takes back the last answer. A queue of places the
+  Strom app asks to identify now runs in as many sessions as the person picks, each count with its time and price.
+  Each name of a place says whether it is a form the records write or another name of the place (another language, an
+  old name), and a name given both ways is kept once. The Strom file gives the Strom app 3.21.0 the identified places
+  with their names, position and parish.
+- **Kinds of history.** `history.kinds` sets which kinds of events the history of the places looks for (wars,
+  epidemics, …). `strom history align` says first what it would hide, show again and look for, and does it only on
+  the person's yes; nothing found is deleted.
+- **Side branches last.** In a research of several lines, work that helps no line waits until the lines have nothing
+  to do (`queue.offLine`: last, by priority, or never).
+- **Updates without stopping the work.** `strom update` installs each version into a folder of its own, so a run or a
+  conversation under way goes on with its version; older versions go at the next update or with `strom tidy`, and
+  `strom doctor` tells of them. The bridge keeps answering the Strom app while it renews itself and while it makes the
+  tree's file.
 
 ## 1.24.0
 

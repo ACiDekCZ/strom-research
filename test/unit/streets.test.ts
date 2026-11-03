@@ -4,8 +4,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { houseWith, numbersOnly, splitStreet, streetOfHouse } from "../../src/core/streets.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { bareNumber, houseWith, numberedTown, numbersOnly, splitStreet, streetOfHouse } from "../../src/core/streets.ts";
 import { ui } from "../../src/cli/ui.ts";
+import { foldText } from "../../src/core/text.ts";
 
 const known = (streets: Record<string, string[]>) => (town: string) => (streets[town] ? new Set(streets[town]) : undefined);
 
@@ -109,4 +113,46 @@ test("houseWith: the street where no house is, before a number alone, the house 
   assert.equal(houseWith("nám. Míru 9", "Horní 4"), undefined);
   assert.equal(houseWith("Dlouhá 12", "7"), undefined, "two numbers: unclear");
   assert.equal(houseWith("Dlouhá", "Horní 4"), undefined);
+});
+
+test("bareNumber: a number alone after the municipality's name — never split by rules (a house or a part of it), any script, NFD the same", () => {
+  assert.deepEqual(bareNumber("Lhota 16"), { name: "Lhota", town: "Lhota", house: "16" });
+  assert.deepEqual(bareNumber("Lhota 16, okres Horní"), { name: "Lhota", town: "Lhota, okres Horní", house: "16" });
+  assert.deepEqual(bareNumber("Лхота 5"), { name: "Лхота", town: "Лхота", house: "5" });
+  assert.deepEqual(bareNumber("Lhotín 3a".normalize("NFD")), { name: "Lhotín", town: "Lhotín", house: "3a" }, "written composed");
+  for (const place of ["Lhota", "Lhota č. p. 16", "16 Lhota", "16", "Lhota, 16", ""]) assert.equal(bareNumber(place), undefined, place);
+  assert.equal(splitStreet("Lhota 16"), undefined, "rules alone never take it");
+  assert.equal(numberedTown("Praha"), true, "a municipality numbered by its parts (assets/terms/streets.json)");
+  assert.equal(numberedTown("Lhota"), false);
+});
+
+// the shared cases: the Strom app ports the same rules and runs its port over this file (test/fixtures/streets/cases.json,
+// written by make-cases.ts) — the file must say what the code does, each input decomposed (NFD) the same
+interface Cases {
+  split: { place: string; known?: Record<string, string[]>; expect: unknown }[];
+  bare: { place: string; expect: unknown }[];
+  numbered: { name: string; expect: boolean }[];
+  houseWith: { street: string; had?: string; expect: string | null }[];
+  fold: { text: string; expect: string }[];
+}
+
+test("the shared cases of the street rules (test/fixtures/streets/cases.json) are what the code does, NFD the same", () => {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "streets", "cases.json");
+  const c = JSON.parse(fs.readFileSync(file, "utf8")) as Cases;
+  assert.ok(c.split.length > 30 && c.bare.length > 5 && c.numbered.length && c.houseWith.length);
+  for (const x of c.split) {
+    const k = x.known ? known(x.known) : undefined;
+    assert.deepEqual(splitStreet(x.place, k) ?? null, x.expect, x.place);
+    assert.deepEqual(splitStreet(x.place.normalize("NFD"), k) ?? null, x.expect, `${x.place} (NFD)`);
+  }
+  for (const x of c.bare) {
+    assert.deepEqual(bareNumber(x.place) ?? null, x.expect, x.place);
+    assert.deepEqual(bareNumber(x.place.normalize("NFD")) ?? null, x.expect, `${x.place} (NFD)`);
+  }
+  for (const x of c.numbered) assert.equal(numberedTown(x.name), x.expect, x.name);
+  for (const x of c.houseWith) assert.equal(houseWith(x.street, x.had) ?? null, x.expect, `${x.street} + ${x.had}`);
+  for (const x of c.fold) assert.equal(foldText(x.text), x.expect, x.text);
+  // every case also a non-Latin script, and the numbers alone never a street by the rules
+  assert.ok(c.split.some((x) => /\p{Script=Cyrillic}/u.test(x.place)));
+  for (const x of c.bare) if (x.expect) assert.equal(splitStreet(x.place), undefined, x.place);
 });

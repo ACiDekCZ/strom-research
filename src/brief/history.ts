@@ -12,6 +12,9 @@ import {
   catalogIds,
   EVENT_KINDS,
   forGaps,
+  isEventKind,
+  regionKinds,
+  treeKinds,
   GAP_DENSITY,
   gapsOfTask,
   gapText,
@@ -81,11 +84,25 @@ const ONLY_FROM_PAGES = [
  */
 export function historySections(tree: Tree, task: Task, shared: string | undefined, alone: boolean): Section[] | undefined {
   const region = regionOfTask(task);
-  if (region) return regionSections(tree, region, shared, alone, forGaps(task) ? gapsOfTask(task) : undefined);
+  // the kinds looked for (history.kinds): a task of kinds (strom history align) its own; a region's those of every
+  // research sharing it (K1.5), a place's this research's
+  const own = task.kinds?.filter(isEventKind);
+  if (region) return regionSections(tree, region, shared, alone, forGaps(task) ? gapsOfTask(task) : undefined, own?.length ? own : regionKinds(tree, region), !!own?.length);
   if (task.origin === HISTORY_PLACES_ORIGIN) return placesSections(tree, shared, alone);
   const place = placeOfTask(task);
-  if (place) return placeSections(tree, place, shared, alone);
+  if (place) return placeSections(tree, place, shared, alone, own?.length ? own : treeKinds(tree));
   return undefined;
+}
+
+/**
+ * The brief's line of the kinds to look for: those looked for, and those that are not (history.kinds) — never searched,
+ * strom history add refuses them.
+ */
+function kindsLine(kinds: readonly string[]): string {
+  const off = EVENT_KINDS.filter((k) => !kinds.includes(k));
+  return off.length
+    ? `- kinds: ${EVENT_KINDS.filter((k) => kinds.includes(k)).join(", ")} only — not looked for here: ${off.join(", ")} (history.kinds, the person's setting: never searched, strom history add refuses them)`
+    : `- kinds: ${EVENT_KINDS.join(", ")}`;
 }
 
 function closing(alone: boolean, lang: string, lines: string[]): Section {
@@ -108,21 +125,22 @@ const SHAPED =
   "those that shaped the lives of ordinary people there: wars and their levies, epidemics, famines, censuses, changes of the state and its borders, waves of emigration, laws on serfdom, land, schools, religion, great disasters; no lists of rulers, no battles far away, no happening of one village";
 
 /** A region's session — or, with its gaps, a session filling the gaps of its finished catalog (K2.6). */
-function regionSections(tree: Tree, region: string, shared: string | undefined, alone: boolean, gaps?: Gap[]): Section[] {
+function regionSections(tree: Tree, region: string, shared: string | undefined, alone: boolean, gaps: Gap[] | undefined, kinds: readonly string[], only = false): Section[] {
   const lang = tree.lang;
   const c = shared ? readCatalog(shared, region) : undefined;
   const name = regionName(c, lang, region);
   const period = regionPeriod(tree, region);
   // a task of years (K2.6, K2.7): those never looked through for (the period grew) apart from the gaps of the catalog
-  const searched = gaps ? searchedSpans(tree, c) : [];
-  const fresh = gaps?.filter((g) => !searched.some((s) => s.from <= g.from && g.to <= s.to)) ?? [];
-  const empty = gaps?.filter((g) => !fresh.includes(g)) ?? [];
+  // a task of kinds (strom history align, `only`): years looked through for the other kinds, never for these
+  const searched = gaps && !only ? searchedSpans(tree, c) : [];
+  const fresh = only ? [] : (gaps?.filter((g) => !searched.some((s) => s.from <= g.from && g.to <= s.to)) ?? []);
+  const empty = only ? [] : (gaps?.filter((g) => !fresh.includes(g)) ?? []);
   const events = c?.events ?? [];
   const live = events.filter((e) => !e.retracted);
   // what the person hid in this tree: by event, and by kind (fewer of those kinds)
   const hides = readHidden(tree);
   const hiddenOf = new Map<string, number>();
-  for (const h of hides) if (h.event !== undefined) hiddenOf.set(h.event, (hiddenOf.get(h.event) ?? 0) + 1);
+  for (const h of hides) if (h.event !== undefined && h.by !== "align") hiddenOf.set(h.event, (hiddenOf.get(h.event) ?? 0) + 1);
   const byKind = new Map<string, number>();
   for (const e of events) if (hiddenOf.has(e.id)) byKind.set(e.kind, (byKind.get(e.kind) ?? 0) + hiddenOf.get(e.id)!);
   const room = Math.max(0, REGION_DENSITY - live.length);
@@ -134,13 +152,20 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
     required: true,
     pointer: "strom history status",
     text: [
-      gaps
+      gaps && only
+        ? `## The kinds ${kinds.join(", ")} in the history of ${name} (${region}) — for the Strom app`
+        : gaps
         ? fresh.length
           ? `## The years not looked through yet in the history of ${name} (${region}) — for the Strom app`
           : `## The gaps in the history of ${name} (${region}) — for the Strom app`
         : `## The history of ${name} (${region}) — for the Strom app`,
       "What the ancestors lived through: the events of this region's history, shown in the Strom app with the lives of the people of its places. " + NOTHING_ELSE,
-      gaps
+      gaps && only
+        ? [
+            `- the region's catalog was looked through in these years of this tree's people there for the other kinds, never for ${kinds.join(", ")} (the person turned them on since): ${gaps.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")}`,
+            "- look for events of these kinds and years alone (strom history add refuses others in this session); what the catalog has (below) is never looked for again",
+          ].join("\n")
+        : gaps
         ? [
             fresh.length
               ? `- the region's catalog is finished for the years looked through before; these years of this tree's people there were never looked through: ${fresh.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")}`
@@ -158,18 +183,20 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
       period.places.length
         ? `- this tree's places in it: ${period.places.map((p) => `${p.place}${p.from !== undefined || p.to !== undefined ? ` (${p.from ?? "…"}–${p.to ?? "…"})` : ""}${p.years.length ? ` facts ${years(Math.min(...p.years), Math.max(...p.years))}` : ""}`).join(" · ")}`
         : "",
-      gaps
+      gaps && only
+        ? `- how many: only what a page documents of these kinds — ${SHAPED}; none documented: nothing`
+        : gaps
         ? `- how many: about one event every 10–15 years of each ${fresh.length ? "span of these years" : "gap"} (about ${wanted} in all) — ${SHAPED}; none documented worth writing: nothing — a year is never filled for its own sake`
         : `- how many: at most about ${REGION_DENSITY} events for the region, rather fewer (${live.length} written${room ? `, room for about ${room} more` : ": enough — only what is missing badly"}) — ${SHAPED}`,
       gaps ? "" : "- spread over the period: the people of every part of it lived through something — rather an event each 10–15 years of it than many of a few decades",
-      `- kinds: ${EVENT_KINDS.join(", ")}`,
+      kindsLine(kinds),
       `- each event: its years (the day only when sure: --date); its texts in ${REGION_LANGS.join(", ")}, each ≤ 300 characters — factual and impersonal: what happened, where, how many; never addressed to anyone, never what to do, never speaking as yourself; --why-*: why it mattered for the people of the place; --tip-*: where a research may look because of it (a kind of record, an archive's series), impersonal too`,
       "- a hard event (persecution, deportation, expulsion, famine, a pogrom): --sensitive; sober and factual, no judgement, no words of horror, and never a guess about the people of this tree — whom it touched is the reader's to see",
       ...ONLY_FROM_PAGES,
       "- the same event again (one more source): --same-as <event>; the same kind and years yet another event: --distinct \"<why>\"; a better one in the place of one written: --replaces <event> (what the person hid holds on it); one that was wrong: strom history retract <event> --why \"…\"",
     ].filter(Boolean).join("\n"),
   });
-  const kinds = [...byKind.entries()].sort((a, b) => b[1] - a[1]);
+  const hiddenKinds = [...byKind.entries()].sort((a, b) => b[1] - a[1]);
   out.push({
     name: "events",
     first: true,
@@ -183,7 +210,7 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
           })
         : ["  none yet"]),
       events.length > EVENTS_SHOWN ? `  … ${events.length - EVENTS_SHOWN} more: strom history status --app --json` : "",
-      kinds.length ? `Hidden by the person in this tree, by kind: ${kinds.map(([k, n]) => `${k} ${n}`).join(" · ")} — fewer events of those kinds` : "Hidden by the person in this tree: none",
+      hiddenKinds.length ? `Hidden by the person in this tree, by kind: ${hiddenKinds.map(([k, n]) => `${k} ${n}`).join(" · ")} — fewer events of those kinds` : "Hidden by the person in this tree: none",
       c?.tried.length ? `Pages strom could not read (never tried again): ${c.tried.slice(-20).map((t) => `${t.url} (${short(t.why, 40)})`).join(" · ")}` : "",
     ].filter(Boolean).join("\n"),
   });
@@ -226,7 +253,7 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
 }
 
 /** A place's session (spec 020 K7.1–K7.3): the history of the place itself, its parish, estate and surroundings. */
-function placeSections(tree: Tree, id: string, shared: string | undefined, alone: boolean): Section[] {
+function placeSections(tree: Tree, id: string, shared: string | undefined, alone: boolean, kinds: readonly string[]): Section[] {
   const lang = tree.lang;
   const p = placeRecord(tree, id);
   if (!p) return [];
@@ -258,7 +285,7 @@ function placeSections(tree: Tree, id: string, shared: string | undefined, alone
         : "- period: no fact there has a year — the years the place's records speak of, never before 1600",
       "- what: what happened at the place or near enough to touch its people — fires, floods, storms and hail, an epidemic there, armies passing or quartered, a battle nearby, the estate sold or divided, the parish founded or moved, the church or the school built, the railway, a factory, the end of serfdom there, the village chronicle; never what the region's catalog has (below), never a battle far away",
       "- how many: rather few, only what a page documents — about 5–20; none documented: nothing written (the place is looked for, its catalog empty)",
-      `- kinds: ${EVENT_KINDS.join(", ")}`,
+      kindsLine(kinds),
       `- each event: strom history add --place ${p.id} …; its years (the day only when sure: --date); its texts in ${REGION_LANGS.join(", ")}, each ≤ 300 characters — factual and impersonal: what happened, where, how many; never addressed to anyone, never what to do, never speaking as yourself; --why-*: why it mattered for the people of the place; --tip-*: where a research may look because of it, impersonal too`,
       "- a hard event (persecution, deportation, expulsion, famine, a pogrom): --sensitive; sober and factual, no judgement, and never a guess about the people of this tree",
       ...ONLY_FROM_PAGES,
@@ -414,18 +441,25 @@ function othersSection(tree: Tree, shared: string | undefined): Section[] {
   ];
 }
 
-/** One short section for a session that reads records while the experiment is on: a local event read in them. */
-export function localEventsSection(): Section | undefined {
+/**
+ * One short section for a session that reads records while the history of the places is on: a local event read in
+ * them, of the kinds looked for (history.kinds) — none looked for: no section.
+ */
+export function localEventsSection(kinds: readonly string[] = EVENT_KINDS): Section | undefined {
   const line = cmd(["history", "local"]);
-  if (!line) return undefined;
+  if (!line || !kinds.length) return undefined;
   return {
     name: "local events",
     pointer: "strom help history local",
     text: [
       "## Local events",
       "- an event of the place a source read in this session tells of (a fire, a flood, an epidemic, soldiers quartered — the priest's note in a register): written once, as the source says it, never guessed",
+      // every kind (the default): the section as before history.kinds
+      kinds.length < EVENT_KINDS.length ? kindsLine(kinds) : undefined,
       line,
-    ].join("\n"),
+    ]
+      .filter((x) => x !== undefined)
+      .join("\n"),
   };
 }
 

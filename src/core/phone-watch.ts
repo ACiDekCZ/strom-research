@@ -39,6 +39,12 @@ export interface TreeMarks {
   waiting: number;
 }
 
+/**
+ * The record ID of the one person a line or a find is about, for the Strom Widget's link to that person (widget.ts
+ * openUrl `&person=`). A symbol's key: JSON leaves it out, so neither the phone's page nor the widget's texts ever get it.
+ */
+export const PERSON: unique symbol = Symbol("person");
+
 /** One line of "Now": a direction worked on (or the agent itself when it has none), its task, since when, paused. */
 export interface NowLine {
   /** up: ancestors, down: descendants, other: a person or a question (the page's glyph). */
@@ -50,6 +56,8 @@ export interface NowLine {
   /** The research's direction and the years of the life of whom it is about (the widget names it so without the name). */
   direction?: Research["direction"];
   span?: string;
+  /** Whom its research is about: its ancestors, its descendants or the person (none for a question, the agent itself). */
+  [PERSON]?: string;
 }
 
 export interface Overview {
@@ -247,6 +255,7 @@ export function treeOverview(root: string, env: Env): Overview {
         ...(w.paused ? { paused: { until: w.paused.until } } : {}),
         ...(r ? { direction: r.direction } : {}),
         ...(span ? { span } : {}),
+        ...(r && r.direction !== "question" && focus?.type === "person" && !focus.retracted ? { [PERSON]: focus.id } : {}),
       };
     });
     const sessions = tree.list<Session>("session");

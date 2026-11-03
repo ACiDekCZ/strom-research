@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { World, hasGit } from "../helpers.ts";
-import { humanDate } from "../../src/cli/human.ts";
+import { humanDate, humanDay, humanWhen } from "../../src/cli/human.ts";
 import { recent } from "../../src/core/overview.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { pickNumbers } from "../../src/cli/menu.ts";
@@ -39,6 +39,21 @@ test("dates as a person reads them, in their language", () => {
   assert.equal(humanDate("FROM 1839 TO 1845", "en"), "from 1839 to 1845");
   assert.equal(humanDate("AFT 1850", "xx"), "after 1850", "no catalog: English words");
   assert.equal(humanDate("INT 1850 (podle věku)", "cs"), "INT 1850 (PODLE VĚKU)", "what it cannot read stays as written");
+});
+
+test("Polish writes a day's day and month with two digits, as the Strom app does; the other languages as before", () => {
+  assert.equal(humanDate("5 AUG 1830", "pl"), "05.08.1830");
+  assert.equal(humanDate("31 DEC 1830", "pl"), "31.12.1830");
+  assert.match(humanDate("BEF 2 MAR 1853", "pl"), /^\p{L}+ 02\.03\.1853$/u);
+  assert.equal(humanDate("5 AUG 1830", "de"), "5.8.1830");
+  assert.equal(humanDate("5 AUG 1830", "cs"), "5. 8. 1830");
+  // a day of this year (history back's preview, what waits): "02.11", "02.11 23:21"
+  const year = new Date().getUTCFullYear();
+  assert.equal(humanDay(`${year}-11-02T12:00:00Z`, "pl"), "02.11");
+  assert.equal(humanDay(`${year}-11-02T12:00:00Z`, "cs"), "2. 11.");
+  assert.equal(humanDay(`${year}-11-02T12:00:00Z`, "de"), "2.11.");
+  assert.equal(humanWhen(new Date(year, 10, 2, 23, 21).toISOString(), "pl"), "02.11 23:21");
+  assert.equal(humanWhen(new Date(year, 10, 2, 23, 21).toISOString(), "cs"), "2. 11. 23:21");
 });
 
 test("the research at a glance, the ancestors of one person, one person's card", { skip: !hasGit }, async () => {

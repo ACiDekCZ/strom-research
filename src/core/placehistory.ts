@@ -50,6 +50,8 @@ import {
   withCatalogs,
   HISTORY_LEVEL,
   type Catalog,
+  EVENT_KINDS,
+  treeKinds,
   type EventKind,
   type EventSource,
   type RegionEvent,
@@ -92,7 +94,8 @@ export interface PlaceCatalog {
   next: number;
   events: RegionEvent[];
   tried: { url: string; at: string; why: string }[];
-  done?: { at: string; tree: string };
+  /** Finished: when, by which tree, the kinds looked for (history.kinds; none: every kind). */
+  done?: { at: string; tree: string; kinds?: EventKind[] };
   holder?: { tree: string; since: string };
   /** When the person asked for it to be looked for again: a task of it dropped before is no answer since. */
   redo?: string;
@@ -253,7 +256,7 @@ export function yearsAt(a: AtPlace | undefined): { from: number; to: number } | 
 }
 
 /** Is a place skipped by the person in this tree (any of its names)? */
-function placeSkipped(tree: Tree, p: Place): boolean {
+export function placeSkipped(tree: Tree, p: Place): boolean {
   const h = historyPlaces(tree);
   const skipped = new Set(readSkips(tree).places.map((x) => foldText(h.keyOf(x.place))));
   if (!skipped.size) return false;
@@ -543,12 +546,23 @@ export function notePlaceTried(shared: string, key: string, url: string, why: st
   });
 }
 
-/** A place's catalog finished (its task done): looked for again only on the person's word (strom history place). */
-export function markPlaceDone(shared: string, key: string, treeId: string): PlaceCatalog | undefined {
+/** The kinds a finished place catalog was looked through for (none kept: every kind). */
+export function placeKindsDone(c: Pick<PlaceCatalog, "done">): EventKind[] {
+  return c.done?.kinds ? EVENT_KINDS.filter((k) => c.done!.kinds!.includes(k)) : [...EVENT_KINDS];
+}
+
+/**
+ * A place's catalog finished (its task done): looked for again only on the person's word (strom history place). The
+ * kinds looked for (history.kinds) kept with it when not all — joined with those of a catalog finished before (a task
+ * of kinds, strom history align, adds its own).
+ */
+export function markPlaceDone(shared: string, key: string, treeId: string, kinds?: readonly EventKind[]): PlaceCatalog | undefined {
   return withCatalogs(shared, () => {
     const c = readPlaceCatalog(shared, key);
     if (!c) return undefined;
-    c.done = { at: new Date().toISOString(), tree: treeId };
+    const looked = new Set<string>([...(kinds ?? EVENT_KINDS), ...(c.done ? placeKindsDone(c) : [])]);
+    const all = EVENT_KINDS.filter((k) => looked.has(k));
+    c.done = { at: new Date().toISOString(), tree: treeId, ...(all.length < EVENT_KINDS.length ? { kinds: all } : {}) };
     delete c.holder;
     writePlaceCatalog(shared, c);
     return c;
@@ -577,9 +591,15 @@ export function finishPlaceOf(tree: Tree, shared: string | undefined, t: Task): 
   const id = placeOfTask(t);
   const p = id ? placeRecord(tree, id) : undefined;
   if (!p || !shared || tree.dryRun) return;
-  // finished with nothing found (no session wrote into it): its catalog made, empty and done
+  // finished with nothing found (no session wrote into it): its catalog made, empty and done — for the kinds looked for
   ensurePlaceCatalog(shared, tree, p);
-  markPlaceDone(shared, placeKeyOf(tree, p), tree.config.id);
+  markPlaceDone(shared, placeKeyOf(tree, p), tree.config.id, placeTaskKinds(tree, t));
+}
+
+/** The kinds a place's task looks for: its own (strom history align), else the tree's (history.kinds). */
+export function placeTaskKinds(tree: Tree, t: Pick<Task, "kinds"> | undefined, settings?: Settings): EventKind[] {
+  const own = t?.kinds?.filter((k): k is EventKind => (EVENT_KINDS as readonly string[]).includes(k));
+  return own?.length ? own : treeKinds(tree, settings);
 }
 
 /** The place catalog of a record now, read once per key. */
@@ -652,6 +672,8 @@ export function raisePlaceTasks(tree: Tree, shared: string, settings: Settings):
   for (const t of tasks.filter((x) => x.state === "open" || x.state === "parked")) {
     const got = of(placeOfTask(t)!);
     if (!got.catalog?.done) continue;
+    // a task of kinds (strom history align): done once the catalog was looked through for them (another tree's too)
+    if (t.kinds?.length && t.kinds.some((k) => !placeKindsDone(got.catalog!).includes(k as EventKind))) continue;
     update<Task>(tree, t.id, "task", (x) => ({ ...x, state: "done", result: phrase(lang, "history.place.finished", { place: got.place ? placeLabel(got.place, lang) : placeOfTask(t)! }) }), {
       op: "task.done",
       summary: `${t.id} done: the catalog of the place ${placeOfTask(t)} is finished`,

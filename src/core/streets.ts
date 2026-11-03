@@ -4,10 +4,16 @@
 // them the research's own houses tell its streets: "Dlouhá 88" at Lhota makes "Lhota, Dlouhá" a street of Lhota.
 // strom refuses a place written so now (strom event add|edit --place, person add --born-place …), keys the history of
 // the places by the municipality (core/pastevents.ts), and sets old facts right by rules (strom fixes street-places).
+// A number alone after the municipality's name ("Lhota 16") may be a house or a part of the municipality ("Praha 5"):
+// a house only where a person said so for the whole municipality (kept in STREET_PLACES_FILE "towns"), and offered
+// only where the research writes the name as a municipality and nothing tells a part of it (bareOf).
+
+import fs from "node:fs";
+import path from "node:path";
 
 import { readAsset } from "./assets.ts";
 import { UsageError } from "./errors.ts";
-import type { Event, Family, Person } from "./model.ts";
+import type { Event, Family, Person, Place } from "./model.ts";
 import { foldText } from "./text.ts";
 import type { Tree } from "./tree.ts";
 
@@ -16,6 +22,7 @@ interface TermsFile {
   suffixes: string[];
   last: string[];
   house: string[];
+  numbered: string[];
 }
 
 interface Terms {
@@ -24,6 +31,8 @@ interface Terms {
   last: Set<string>;
   /** Each marker of a house number as its folded words ("č. p." → ["c.", "p."]), the longest first. */
   house: string[][];
+  /** Municipalities whose number after the name is a part of them ("Praha 5"), folded. */
+  numbered: Set<string>;
 }
 
 /** A word as written: letters, marks and numbers, a dot at its end kept ("č.", "nám."); "№" a word of its own. */
@@ -49,6 +58,7 @@ export function streetTerms(): Terms {
     suffixes: (f.suffixes ?? []).map((w) => foldText(w)),
     last: new Set((f.last ?? []).map((w) => foldText(w))),
     house: (f.house ?? []).map(words).filter((w) => w.length).sort((a, b) => b.length - a.length),
+    numbered: new Set((f.numbered ?? []).map((w) => foldText(w))),
   };
   return terms;
 }
@@ -133,8 +143,11 @@ export interface StreetSplit {
   town: string;
   /** The street and the number as written ("Dlouhá 12", "nám. Míru", "12"). */
   house: string;
-  /** How it is told: a street's word or a house number's marker (`word`), or a street of the research's houses (`known`). */
-  by: "word" | "known";
+  /**
+   * How it is told: a street's word or a house number's marker (`word`), a street of the research's houses (`known`),
+   * or a number alone after a municipality whose numbers a person said are houses (`town`).
+   */
+  by: "word" | "known" | "town";
 }
 
 /**
@@ -192,14 +205,90 @@ export function splitStreet(place: string, known?: (town: string) => ReadonlySet
   return { town: keep.join(", "), house: house.join(" "), by };
 }
 
+/** A number alone after the municipality's name: the name, the place without the number, the number. */
+export interface BareNumber {
+  /** The name before the number ("Lhota" of "Lhota 16, okres Horní"). */
+  name: string;
+  /** The place without the number ("Lhota, okres Horní"). */
+  town: string;
+  /** The number as written ("16", "16a", "13/2"). */
+  house: string;
+}
+
+/**
+ * A number alone at the end of the place's first part, after words, with no marker ("Lhota 16", "Lhota 16, okres
+ * Horní", "Horní Lhota 3a"): a house or a part of the municipality ("Praha 5") — splitStreet never takes it; undefined
+ * for anything else ("Lhota", "Lhota č. p. 16", "16 Lhota").
+ */
+export function bareNumber(place: string): BareNumber | undefined {
+  const parts = place.normalize("NFC").split(",").map((p) => p.trim());
+  const first = parts[0];
+  if (!first) return undefined;
+  const toks = tokens(first);
+  const tail = numberTail(toks);
+  if (!tail || tail.at !== tail.number || tail.at === 0) return undefined;
+  if (!toks.slice(0, tail.at).some((w) => LETTER.test(w.fold))) return undefined;
+  const name = first.slice(0, toks[tail.at]!.start).replace(/[\s,;:–-]+$/u, "").trim();
+  if (!name) return undefined;
+  return { name, town: [name, ...parts.slice(1).filter(Boolean)].join(", "), house: first.slice(toks[tail.at]!.start).trim() };
+}
+
+/** Whether a municipality's numbers are part of it by the terms ("Praha", "Wien"): never a house. */
+export function numberedTown(name: string): boolean {
+  return streetTerms().numbered.has(foldText(name));
+}
+
 // ── the research's own: its streets, its forms of a municipality ────────────────────────────────────────────────
 
 const ownersOf = (tree: Tree): (Person | Family)[] => [...tree.list<Person>("person"), ...tree.list<Family>("family")];
 const live = (o: Person | Family, e: Event) => !o.retracted && !(o as Person).mergedInto && !e.retracted && e.status !== "retracted";
 
+/** Where strom keeps what the fix street-places changed and the persons' answers on bare numbers (sealed, travels). */
+export const STREET_PLACES_FILE = "quality/street-places.json";
+
+/** A person's answer for a municipality: its numbers alone after the name are houses, or not. */
+export interface TownAnswer {
+  /** The municipality as it was asked ("Lhota"). */
+  town: string;
+  houses: boolean;
+  at: string;
+}
+
+/** The persons' answers on bare numbers, by the municipality's name folded (STREET_PLACES_FILE "towns"). */
+export function townAnswers(root: string): Record<string, TownAnswer> {
+  try {
+    const f = JSON.parse(fs.readFileSync(path.join(root, ...STREET_PLACES_FILE.split("/")), "utf8")) as { towns?: unknown };
+    if (!f.towns || typeof f.towns !== "object" || Array.isArray(f.towns)) return {};
+    const out: Record<string, TownAnswer> = {};
+    for (const [k, v] of Object.entries(f.towns as Record<string, Partial<TownAnswer>>))
+      if (v && typeof v.houses === "boolean") out[k] = { town: typeof v.town === "string" ? v.town : k, houses: v.houses, at: typeof v.at === "string" ? v.at : "" };
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** A bare number the research may take for a house: the municipality's key, the person's answer where there is one. */
+export interface BareOffer extends BareNumber {
+  /** The name folded: what a person's answer is kept by. */
+  key: string;
+  /** The person's answer: houses (true), not (false), none yet (undefined). */
+  houses?: boolean;
+}
+
 export interface Streets {
-  /** What a place holds of a street or a house number (the research's streets counted), or undefined. */
+  /**
+   * What a place holds of a street or a house number (the research's streets counted, a number alone after a
+   * municipality whose numbers a person said are houses), or undefined.
+   */
   split(place: string): StreetSplit | undefined;
+  /**
+   * A number alone after a municipality the research writes ("Lhota 16" where its facts or place records name "Lhota"),
+   * where nothing tells it a part of the municipality: not a municipality numbered so by the terms ("Praha 5"), no place
+   * record of the whole ("Lhota 2" as a place), no street the research names there ("Lhota 2, Dlouhá 12", a house
+   * "Dlouhá 12" at "Lhota 2") — one number of a municipality told a part, none of its numbers is offered. Else undefined.
+   */
+  bare(place: string): BareOffer | undefined;
   /**
    * The place as the research writes the municipality: its own spelling of it where its facts write it so, else the one
    * form its facts write of that first part ("Lhota, okres Horní"), else the municipality as split.
@@ -209,12 +298,14 @@ export interface Streets {
   placeOf(place: string): string;
 }
 
-const memo = new WeakMap<Tree, { version: number; streets: Streets }>();
+const memo = new WeakMap<Tree, { version: number; answers: string; streets: Streets }>();
 
 /** The research's streets and its forms of the municipalities, read once a version of the tree. */
 export function streetsOf(tree: Tree): Streets {
+  const answers = townAnswers(tree.root);
+  const answersKey = JSON.stringify(answers);
   const had = memo.get(tree);
-  if (had && had.version === tree.version) return had.streets;
+  if (had && had.version === tree.version && had.answers === answersKey) return had.streets;
   // the streets of each municipality: of the houses its facts give
   const known = new Map<string, Set<string>>();
   const places: string[] = [];
@@ -229,7 +320,14 @@ export function streetsOf(tree: Tree): Streets {
       s.add(street);
       known.set(town, s);
     }
-  const split = (place: string) => splitStreet(place, (t) => known.get(t));
+  const byRules = (place: string) => splitStreet(place, (t) => known.get(t));
+  // a number alone after a municipality whose numbers a person said are houses: its house
+  const split = (place: string): StreetSplit | undefined => {
+    const s = byRules(place);
+    if (s) return s;
+    const b = bareNumber(place);
+    return b && answers[foldText(b.name)]?.houses === true ? { town: b.town, house: b.house, by: "town" } : undefined;
+  };
   // the forms of the municipalities the facts write without a street: each spelling counted, by the whole and its first part
   const spellings = new Map<string, Map<string, number>>();
   const byFirst = new Map<string, Set<string>>();
@@ -242,6 +340,37 @@ export function streetsOf(tree: Tree): Streets {
     const first = foldText(p.split(",")[0]!);
     byFirst.set(first, (byFirst.get(first) ?? new Set<string>()).add(f));
   }
+  // the municipalities the research writes (a place of its facts without a street or a number, a place record), and
+  // the names whose numbers something tells a part of the municipality (a place record of the whole, a street there)
+  const towns = new Set<string>();
+  const parts = new Set<string>();
+  const partOf = (first: string) => {
+    const b = bareNumber(first);
+    if (b) parts.add(foldText(b.name));
+  };
+  for (const p of places) {
+    if (!p) continue;
+    const s = byRules(p);
+    if (s) partOf(s.town.split(",")[0]!);
+    else if (!bareNumber(p)) towns.add(foldText(p.split(",")[0]!));
+  }
+  for (const t of known.keys()) partOf(t);
+  for (const r of tree.list<Place>("place")) {
+    if (r.retracted) continue;
+    for (const n of r.names) {
+      if (bareNumber(n.name)) partOf(n.name.split(",")[0]!);
+      else towns.add(foldText(n.name.split(",")[0]!));
+    }
+  }
+  const bare = (place: string): BareOffer | undefined => {
+    if (byRules(place)) return undefined;
+    const b = bareNumber(place);
+    if (!b) return undefined;
+    const key = foldText(b.name);
+    if (!towns.has(key) || parts.has(key) || numberedTown(b.name)) return undefined;
+    const a = answers[key];
+    return { ...b, key, ...(a ? { houses: a.houses } : {}) };
+  };
   const most = (m: Map<string, number>) => [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
   const townOf = (town: string) => {
     const f = foldText(town);
@@ -255,13 +384,14 @@ export function streetsOf(tree: Tree): Streets {
   };
   const streets: Streets = {
     split,
+    bare,
     townOf,
     placeOf: (place) => {
       const s = split(place);
       return s ? townOf(s.town) : place;
     },
   };
-  memo.set(tree, { version: tree.version, streets });
+  memo.set(tree, { version: tree.version, answers: answersKey, streets });
   return streets;
 }
 
@@ -283,7 +413,8 @@ export function checkStreetPlace(tree: Tree, place: string | undefined, house: s
     flag === "--place"
       ? `the municipality as the place, the street and the number as the house: --place "${town}" --house "${set}"${both ? "" : ` (the house given, "${given}", differs: write it as the record gives it)`}`
       : `the municipality alone: ${flag} "${town}", then the street and the number as the fact's house: strom event edit <E…> --house "${set}"`;
-  throw new UsageError(`the place "${place.trim()}" holds ${s.by === "known" ? "a street of the research's houses" : "a street or a house number"} ("${s.house}"): the place is the municipality`, {
+  const holds = s.by === "known" ? "a street of the research's houses" : s.by === "town" ? `a house number (the numbers in ${s.town.split(",")[0]} are houses)` : "a street or a house number";
+  throw new UsageError(`the place "${place.trim()}" holds ${holds} ("${s.house}"): the place is the municipality`, {
     hint,
     code: "place.street",
     params: { place: place.trim(), town, house: set },

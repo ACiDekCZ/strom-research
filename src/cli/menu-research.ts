@@ -8,7 +8,8 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree } from "../core/tree.ts";
-import { directionOf, scopes } from "../core/directions.ts";
+import { scopes } from "../core/directions.ts";
+import { lineOf } from "../core/offline.ts";
 import type { UIKey } from "./ui.ts";
 import type { Research, Task } from "../core/model.ts";
 import { displayName, lifespan } from "../core/people.ts";
@@ -221,10 +222,10 @@ export async function startDirection(ctx: Context, run: Run, lang: string, root:
   await offerChat(ctx, run, lang, root, t("ui.research.chat"), t("ui.research.say", { name: made.name, id: made.id }));
 }
 
-/** A direction's tasks not finished: open, at work, put aside or waiting for the user. */
+/** A direction's tasks not finished: open, at work, put aside or waiting for the user — its own and those that help it. */
 export function directionTasks(tree: Tree, research: string): number {
-  const all = scopes(tree);
-  return tree.list<Task>("task").filter((x) => ["open", "doing", "parked", "waiting"].includes(x.state) && directionOf(tree, x, all) === research).length;
+  const line = lineOf(tree, scopes(tree));
+  return tree.list<Task>("task").filter((x) => ["open", "doing", "parked", "waiting"].includes(x.state) && line(x) === research).length;
 }
 
 /** The directions of the research, each with how it goes and its tasks: one paused, ended or taken up again. */

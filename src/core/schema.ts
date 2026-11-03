@@ -7,6 +7,7 @@ import {
   CHECK_ANSWERS,
   INPUT_KINDS,
   JURISDICTIONS,
+  PLACE_BY,
   LESSON_DETAIL_MAX,
   LESSON_MAX,
   LESSON_SCOPES,
@@ -100,6 +101,21 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
         recordsets: RS("recordset"),
       },
     },
+    locating: {
+      t: "object",
+      of: {
+        by: S({ req: true, enum: PLACE_BY }),
+        at: S({ req: true }),
+        why: S({ max: 1000 }),
+        source: { t: "object", of: { title: S({ req: true, max: 300 }), url: S({ max: 2000 }) } },
+        verified: S(),
+        checkWhy: S({ max: 1000 }),
+        needs: S({ max: 300 }),
+        context: { t: "number", int: true, min: 0 },
+        kept: { t: "object", of: { lat: { t: "number", req: true, min: -90, max: 90 }, lon: { t: "number", req: true, min: -180, max: 180 } } },
+        question: { t: "any" },
+      },
+    },
   },
   search: {
     question: S({ req: true, max: 300 }),
@@ -134,6 +150,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     result: S({ max: 1000 }),
     produced: { t: "strings" },
     origin: S({ req: true }),
+    helps: S({ max: 500 }),
+    kinds: { t: "strings" },
   },
   conflict: {
     title: S({ req: true, max: 200 }),

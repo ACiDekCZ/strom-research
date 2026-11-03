@@ -1,6 +1,6 @@
 // The menu's settings: what belongs to this computer and to the person alone —
 // the setup wizard (with its model step alone), the agent working alone (its
-// time, the condition it works on under), hooks, logins to archives and the
+// time, the condition it works on under, the work off the lines), hooks, logins to archives and the
 // consent to downloaders, research or archive, the tuning of the scans, Remote
 // Control, maintenance (the check of the installation, disk space, the update)
 // and the person's help — each at a number of its own. Only the user changes these; here
@@ -8,13 +8,14 @@
 
 import path from "node:path";
 import type { Context } from "./context.ts";
-import type { UIKey } from "./ui.ts";
+import { ui, type UIKey } from "./ui.ts";
 import { lines } from "./format.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
+import { OFF_LINE_CHOICES } from "../core/model.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -34,6 +35,8 @@ import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
 import { isAgent } from "../core/which.ts";
 import { placesWithCoords } from "../core/placehistory.ts";
+import { ALL_KINDS, allKinds, EVENT_KINDS, NO_KINDS } from "../core/eventkinds.ts";
+import { kindNames } from "../core/historyalign.ts";
 import { pinPlaces, placeCost } from "./menu-links.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
@@ -374,14 +377,7 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
     items.push({
       key: "5",
       label: t("ui.alone.history", { state: history ? t(`ui.history.pace.${ctx.settings.historyPace(undefined)}` as UIKey) : t("ui.settings.off") }),
-      act: async () => {
-        const h = await chooseHistory(ctx, t("ui.setup.history"), historySuggested(ctx), { back: t("ui.browse.back") });
-        if (!h) return;
-        // the person's answer: the menu's question after an update never comes
-        markHistoryAsked(ctx);
-        ctx.settings.save();
-        await applyHistory(ctx, run, h);
-      },
+      act: () => historyMenu(ctx, run, lang, root),
     });
     // the history of each place with coordinates, looked for by itself (spec 020 K7.4): this computer's, off unless the
     // person turns it on here or from the app's link; a research may have turned it off for itself
@@ -402,6 +398,20 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         await run(["config", "set", "experiments.historyPlaces", places ? "off" : "on"], true);
         // turned on here: a research's own off goes with it (this computer's choice is the person's)
         if (!places && root && tree?.experimentsHistoryPlaces === "off") await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true);
+      },
+    });
+    // work off the lines (spec 036, core/offline.ts): at the end (the default), as the lines' work, never — a research with
+    // a value of its own: the change is for it, else this computer's
+    const offLine = ctx.settings.offLine(tree);
+    items.push({
+      key: "9",
+      label: t("ui.alone.offline", { state: t(`ui.alone.offline.${offLine}` as UIKey) }),
+      act: async () => {
+        out(t("ui.alone.offline.about"));
+        const i = await ctx.choose(t("ui.alone.offline.pick"), OFF_LINE_CHOICES.map((c) => ({ label: t(`ui.alone.offline.${c}` as UIKey) })), OFF_LINE_CHOICES.indexOf(offLine), { back: t("ui.browse.back") });
+        if (i === undefined || OFF_LINE_CHOICES[i] === offLine) return;
+        const own = root ? ctx.settings.resolve("queue.offLine", tree)?.source === "tree" : false;
+        await run(["config", "set", "queue.offLine", OFF_LINE_CHOICES[i]!, ...(own ? ["--for-tree"] : [])], true);
       },
     });
     // the two switches of this research (spec 020 K8): its strom.json wins over this computer's both ways
@@ -444,6 +454,90 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       });
     return { title: t("ui.alone.title"), items };
   });
+}
+
+/**
+ * The history (Settings → the agent working alone → History): how often, the kinds of events looked for (history.kinds,
+ * spec 035), and — in a research — the history aligned with them (strom history align: what it would do said first).
+ */
+async function historyMenu(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<"quit" | void> {
+  const t = translator(lang);
+  return subMenu(ctx, lang, () => {
+    ctx.settings.reload();
+    const tree = root ? Tree.open(root, ctx.env).config : undefined;
+    const on = ctx.settings.experimentsHistory(undefined);
+    const kinds = ctx.settings.historyKinds(tree);
+    const items: Item[] = [
+      {
+        key: "1",
+        label: t("ui.history.menu.pace", { state: on ? t(`ui.history.pace.${ctx.settings.historyPace(undefined)}` as UIKey) : t("ui.settings.off") }),
+        act: async () => {
+          const h = await chooseHistory(ctx, t("ui.setup.history"), historySuggested(ctx), { back: t("ui.browse.back") });
+          if (!h) return;
+          // the person's answer: the menu's question after an update never comes
+          markHistoryAsked(ctx);
+          ctx.settings.save();
+          await applyHistory(ctx, run, h);
+        },
+      },
+      {
+        key: "2",
+        label: t("ui.history.menu.kinds", { kinds: kindsLabel(lang, kinds) }),
+        act: () => kindsMenu(ctx, run, lang, root),
+      },
+    ];
+    if (root) items.push({ key: "3", label: t("ui.history.menu.align"), act: async () => void (await run(["history", "align"])) });
+    return { title: t("ui.history.menu.title"), items };
+  });
+}
+
+/** The kinds looked for, in a few words: all, none, or their names. */
+function kindsLabel(lang: string, kinds: readonly string[]): string {
+  return !kinds.length ? ui(lang, "ui.history.kinds.none") : allKinds(kinds) ? ui(lang, "ui.history.kinds.all") : kindNames(lang, kinds);
+}
+
+/**
+ * Each kind of event on or off, one number each (nine kinds: the menu's nine): through strom config set history.kinds,
+ * as the person would type it — for the research when it has kinds of its own, else for this computer. A kind turned on
+ * is asked (it costs sessions); the value written says what was meant: the kinds looked for, or all but those left out.
+ */
+async function kindsMenu(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<"quit" | void> {
+  const t = translator(lang);
+  let told = false;
+  return subMenu(
+    ctx,
+    lang,
+    () => {
+      ctx.settings.reload();
+      const tree = root ? Tree.open(root, ctx.env).config : undefined;
+      const own = !!root && ctx.settings.resolve("history.kinds", tree)?.source === "tree";
+      if (!told) {
+        told = true;
+        ctx.io.stdout(`${t(own ? "ui.history.kinds.about.tree" : "ui.history.kinds.about")}\n`);
+      }
+      const kinds = ctx.settings.historyKinds(tree);
+      return {
+        title: t("ui.history.kinds.title"),
+        items: EVENT_KINDS.map((k, i) => ({
+          key: String(i + 1),
+          label: t("ui.history.kinds.item", { kind: t(`ui.history.kind.${k}` as UIKey), state: t(kinds.includes(k) ? "ui.settings.on" : "ui.settings.off") }),
+          act: async () => {
+            const next = kinds.includes(k) ? kinds.filter((x) => x !== k) : EVENT_KINDS.filter((x) => x === k || kinds.includes(x));
+            await run(["config", "set", "history.kinds", kindsValue(next), ...(own ? ["--for-tree"] : [])], true);
+          },
+        })),
+      };
+    },
+    { fixed: true },
+  );
+}
+
+/** A value of history.kinds for these kinds: all, none, the kinds looked for, or all but the few left out. */
+export function kindsValue(kinds: readonly string[]): string {
+  if (allKinds(kinds)) return ALL_KINDS;
+  if (!kinds.length) return NO_KINDS;
+  const off = EVENT_KINDS.filter((k) => !kinds.includes(k));
+  return off.length < kinds.length ? [ALL_KINDS, ...off.map((k) => `-${k}`)].join(",") : EVENT_KINDS.filter((k) => kinds.includes(k)).join(",");
 }
 
 /**

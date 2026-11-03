@@ -15,12 +15,25 @@ const ENGLISH: Record<string, string> = { ...PHRASES, ...UI };
 /** The values a text takes: its {values} and the numbers its plurals count — a language may say a count with a plural where English does not. */
 const values = (t: string) => placeholdersOf(t);
 
-test("the Czech and German catalogs cover everything a person reads", () => {
-  for (const lang of ["cs", "de"]) {
+test("the Czech, German and Polish catalogs cover everything a person reads", () => {
+  for (const lang of ["cs", "de", "pl"]) {
     const c = catalog(lang);
     for (const key of Object.keys(ENGLISH)) assert.ok(c[key], `${lang}: missing ${key}`);
   }
   assert.equal(phrase("de", "link.what", { name: "Jan Novák", place: "", about: "" }), "Taufe: Jan Novák");
+  // nothing a catalog has that English has not (a key gone from the sources goes from every catalog)
+  for (const lang of ["cs", "de", "pl"]) assert.deepEqual(Object.keys(catalog(lang)).filter((k) => !(k in ENGLISH)), [], lang);
+});
+
+test("Polish: a plural in its four forms (1, 2–4, 5+ and 12–14, a fraction), every plural of the catalog saying each", () => {
+  const pl = "{n, plural, one {# osoba czeka} few {# osoby czekają} many {# osób czeka} other {# osoby czeka}}";
+  assert.deepEqual([1, 2, 4, 5, 12, 14, 22, 25, 0, 1.5].map((n) => fill(pl, { n }, "pl")), ["1 osoba czeka", "2 osoby czekają", "4 osoby czekają", "5 osób czeka", "12 osób czeka", "14 osób czeka", "22 osoby czekają", "25 osób czeka", "0 osób czeka", "1.5 osoby czeka"]);
+  const lacking: string[] = [];
+  for (const [key, text] of Object.entries(catalog("pl"))) {
+    for (const p of pluralsOf(text ?? "")) for (const form of ["one", "few", "many"]) if (!p.selectors.includes(form)) lacking.push(`${key}: {${p.name}} ${form}`);
+  }
+  assert.deepEqual(lacking, [], "a Polish plural without its few or many form says 5 for 2 (or 2 for 5)");
+  assert.deepEqual([1, 2, 5].map((n) => ui("pl", "ui.why.session", { n })).map((t) => /\d/.test(t)), [true, true, true]);
 });
 
 test("every language catalog has known keys with the same values as English", () => {
@@ -127,7 +140,7 @@ const IMPERSONAL_EXCEPTIONS = new Set<string>([]);
 
 test("what a person reads never addresses them: impersonal, in every language (texts for the agent aside)", () => {
   const found: string[] = [];
-  for (const lang of ["en", "cs", "de"]) {
+  for (const lang of ["en", "cs", "de", "pl"]) {
     const texts = lang === "en" ? ENGLISH : catalog(lang);
     for (const [key, text] of Object.entries(texts)) {
       if (!/^(ui|log)\./.test(key) || SPOKEN_BY_THE_PERSON.has(key) || key.endsWith(".say") || FOR_THE_AGENT.has(key) || IMPERSONAL_EXCEPTIONS.has(`${lang}:${key}`)) continue;
@@ -142,4 +155,33 @@ test("what a person reads never addresses them: impersonal, in every language (t
     }
   }
   assert.deepEqual(found, []);
+});
+
+test("Polish: what addresses the person is found, the words of records and of strom are not", () => {
+  const says = (t: string, opts: { thorough?: boolean; clear?: boolean } = {}) => addressesPerson(t, "pl", opts);
+  for (const t of ["Twoje drzewo jest gotowe.", "Wybrane źródło można otworzyć, jeśli masz konto.", "Agent czeka, aż Pan odpowie.", "Czy możesz to sprawdzić?"]) assert.ok(says(t, { clear: true }), t);
+  assert.equal(says("Zapisano dla was.", { thorough: true }), "was");
+  assert.equal(says("Pani Józefa Brzózka", { thorough: true }), "Pani", "in strom's catalogs a capital Pani addresses");
+  // the second person of the present: in strom's catalogs only
+  assert.equal(says("Klikniesz Enter."), undefined);
+  assert.equal(says("Klikniesz Enter.", { thorough: true }), "Klikniesz");
+  for (const t of ["Zapisano.", "Nie znaleziono osoby.", "Można dodać kolejne miejsce.", "Brzózka, wdowa po panu Janie", "Agent zapisuje notatki.", "Klawisz Enter zamyka okno.", "Zapisz", "Wpisz nazwę", "Zdjęcie i akt chrztu w świecie parafii"]) {
+    for (const opts of [{}, { thorough: true }]) assert.equal(says(t, opts), undefined, `${t} ${JSON.stringify(opts)}`);
+  }
+  // decomposed input reads as the same words
+  assert.ok(says("Twoje drzewo".normalize("NFD")));
+  assert.equal(says("Proszę o odpis aktu."), "Proszę", "the agent asking in the first person: in what an agent writes");
+});
+
+test("Polish: the Strom app's request reads with every thing it asks for, and its family book is always księga rodu", () => {
+  // what the app asks for is a noun (rozmowa z agentem…) or an infinitive (zidentyfikować miejsca…): never „prosi o: zidentyfikować“
+  for (const key of ["ui.link.what.places", "ui.link.what.history.align", "ui.link.what.chat"] as const) {
+    const said = ui("pl", "ui.link.asks", { what: ui("pl", key, { agent: "Codex" }), name: "Lhotákowie" });
+    assert.match(said, /^Prośba z aplikacji Strom: \p{Ll}/u, key);
+    assert.doesNotMatch(said, /prosi o:/u, key);
+  }
+  // the app's name of the place where the stories are read (its SLOVNIK_pl): „księga rodu“, in every case
+  const book = /\p{L}*(?:księg|książ|ksiąg)\p{L}* rodzinn\p{L}*|rodzinn\p{L}* (?:księg|książ|ksiąg)\p{L}*/iu;
+  assert.deepEqual(Object.entries(catalog("pl")).filter(([, t]) => book.test(t ?? "")).map(([k]) => k), []);
+  for (const key of ["story.why", "ui.o.stories.tell", "ui.setup.stories", "ui.help.cmd.story.approve", "ui.story.new.pick"]) assert.match(catalog("pl")[key] ?? "", /księ\p{L}+ rodu/u, key);
 });

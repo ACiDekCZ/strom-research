@@ -24,7 +24,7 @@ import { acquireLock } from "./lock.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { VERSION } from "./tree.ts";
 import { fetchH2, type H2Init } from "./http2.ts";
-import { knownDisallow, knownPaceMs, loopbackGuard } from "./knownterms.ts";
+import { knownDisallow, knownOpen, knownPaceMs, loopbackGuard } from "./knownterms.ts";
 import dns from "node:dns";
 import { isIP } from "node:net";
 
@@ -71,6 +71,46 @@ export const ROBOTS_TOKEN = "strom-research";
  * no token strom knows: strom's own groups and those for every robot (*) hold for it.
  */
 export const AGENT_TOOL_TOKENS: Record<string, readonly string[]> = { claude: ["claude-user", "claude-web", "claude-code"], grok: [] };
+/**
+ * The robots.txt product tokens of AI agents and crawlers (lower case) — a general list of tokens, never of sites: a
+ * robots.txt that names any of them (or strom itself) in a group with a Disallow says outright that it keeps AI off, and
+ * no terms make that yield (robotsNamesAi).
+ */
+export const AI_ROBOTS_TOKENS: readonly string[] = [
+  "gptbot",
+  "chatgpt-user",
+  "oai-searchbot",
+  "claudebot",
+  "claude-user",
+  "claude-web",
+  "claude-searchbot",
+  "claude-code",
+  "anthropic-ai",
+  "ccbot",
+  "google-extended",
+  "google-cloudvertexbot",
+  "applebot-extended",
+  "perplexitybot",
+  "perplexity-user",
+  "bytespider",
+  "meta-externalagent",
+  "meta-externalfetcher",
+  "facebookbot",
+  "cohere-ai",
+  "cohere-training-data-crawler",
+  "ai2bot",
+  "ai2bot-dolma",
+  "diffbot",
+  "omgili",
+  "omgilibot",
+  "youbot",
+  "timpibot",
+  "imagesiftbot",
+  "mistralai-user",
+  "duckassistbot",
+  "amazonbot",
+  "novaact",
+];
 /** The longest strom waits by itself (an hourly cap, a Retry-After) before it gives up for now — unless its caller waits longer (waitMs). */
 export const MAX_WAIT_MS = 2 * 60_000;
 /** An hour off after a host kept asking us to slow down, or stopped answering. */
@@ -120,6 +160,11 @@ export interface RobotsState {
   tools?: RobotsGroup[];
   /** Where it was read (scheme, host, port): read there again. */
   origin?: string;
+  /**
+   * The AI agents and crawlers (AI_ROBOTS_TOKENS) it names in a group with a Disallow, read by a strom that looks for
+   * them (none named: empty). Not there (read by an older strom): not known — robots.txt yields to no terms then.
+   */
+  ai?: string[];
 }
 
 /** What strom read or decided of a host, told to the caller to keep it beside the person's settings (core/terms.ts). */
@@ -296,6 +341,11 @@ export interface NetOptions {
    * be asked, at this pace — never when it keeps them off the whole site (only a person's browser goes there).
    */
   robotsPermit?: Pace;
+  /**
+   * Whether a host's terms expressly allow automated use (core/terms.ts termsOpen: strom's list, a test's own too) — then
+   * a Disallow of its robots.txt alone yields (robotsYields). None: strom's own list (core/knownterms.ts knownOpen).
+   */
+  termsOpen?: (host: string) => boolean;
   /** Told of what strom read and decided of a host (its robots.txt, a refusal) — to keep it beside the person's settings. */
   onVerdict?: (v: NetVerdict) => void;
   /**
@@ -725,6 +775,12 @@ export function parseToolRobots(text: string): RobotsGroup[] {
   return parseGroups(text, (a) => tokens.has(a.split("/")[0]!.trim()));
 }
 
+/** The AI agents and crawlers (AI_ROBOTS_TOKENS) a robots.txt names in a group with a Disallow, each once (lower case). */
+export function parseAiRobots(text: string): string[] {
+  const tokens = new Set(AI_ROBOTS_TOKENS);
+  return [...new Set(parseGroups(text, (a) => tokens.has(a.split("/")[0]!.trim())).filter((g) => g.disallow.length).flatMap((g) => g.agents.map((a) => a.split("/")[0]!.trim())))];
+}
+
 function parseGroups(text: string, ours: (agent: string) => boolean): RobotsGroup[] {
   const groups: RobotsGroup[] = [];
   let cur: RobotsGroup | undefined;
@@ -763,6 +819,7 @@ function robotsShape(v: unknown): v is RobotsState {
     typeof r.status === "number" &&
     Array.isArray(r.groups) &&
     (r.groups as unknown[]).every((g) => !!g && typeof g === "object" && strings((g as RobotsGroup).agents) && strings((g as RobotsGroup).allow) && strings((g as RobotsGroup).disallow)) &&
+    (r.ai === undefined || strings(r.ai)) &&
     (r.tools === undefined ||
       (Array.isArray(r.tools) && (r.tools as unknown[]).every((g) => !!g && typeof g === "object" && strings((g as RobotsGroup).agents) && strings((g as RobotsGroup).allow) && strings((g as RobotsGroup).disallow))))
   );
@@ -810,6 +867,31 @@ export function robotsAll(r: RobotsState | undefined): string | undefined {
   const hit = r.groups.find((g) => g.disallow.some((d) => d === "/" || d === "/*"));
   if (!hit || r.groups.some((g) => g.allow.some((a) => a !== "/robots.txt"))) return undefined;
   return `Disallow: ${hit.disallow.find((d) => d === "/" || d === "/*")}`;
+}
+
+/**
+ * A robots.txt that keeps AI agents off by name — a group with a Disallow for strom itself (strom-research), for an
+ * agent's own web tool, or for an AI agent or crawler (AI_ROBOTS_TOKENS): the token it names. One read by an older strom
+ * (what it names of AI not kept) that keeps anything off: not known, so named (the gentle side; read again within a day).
+ */
+export function robotsNamesAi(r: RobotsState): string | undefined {
+  const own = r.groups.find((g) => g.disallow.length && g.agents.some((a) => a !== "*"));
+  if (own) return own.agents.find((a) => a !== "*");
+  const tool = (r.tools ?? []).find((g) => g.disallow.length);
+  if (tool) return tool.agents[0];
+  if (r.ai?.length) return r.ai[0];
+  if (r.ai === undefined && r.groups.some((g) => g.disallow.length)) return "(not known)";
+  return undefined;
+}
+
+/**
+ * A Disallow of the site's robots.txt yields — only where the archive's terms expressly allow automated use (`open`:
+ * strom's list of terms, core/knownterms.ts openByTerms) and the robots.txt names no AI agent nor strom. Then strom asks
+ * as it asks any open archive, carefully: one request after another, at least its Crawl-delay (hostPace), strom's
+ * User-Agent, every limit and backoff as ever; the paths strom's list keeps off never yield.
+ */
+export function robotsYields(r: RobotsState | undefined, open: boolean): boolean {
+  return open && !!r && !robotsNamesAi(r);
 }
 
 /** The longest Crawl-delay of the groups that apply to strom (ms; 0: none). */
@@ -943,9 +1025,9 @@ async function readRobots(u: URL, opts: NetOptions): Promise<RobotsState | undef
     if (res.status >= 200 && res.status < 300) {
       const text = res.body.toString("utf8");
       const tools = parseToolRobots(text);
-      got = { at, status: res.status, groups: parseRobots(text), ...(tools.length ? { tools } : {}), origin: u.origin };
+      got = { at, status: res.status, groups: parseRobots(text), ...(tools.length ? { tools } : {}), ai: parseAiRobots(text), origin: u.origin };
     }
-    else if (res.status === 404 || res.status === 410) got = { at, status: res.status, groups: [], origin: u.origin };
+    else if (res.status === 404 || res.status === 410) got = { at, status: res.status, groups: [], ai: [], origin: u.origin };
     else got = { groups: [], ...kept, at, status: res.status, origin: u.origin };
   } catch (err) {
     if (!(err instanceof NetError)) throw err;
@@ -1033,8 +1115,10 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
   // (a request of /robots.txt itself — a probe — is that read, never one more before it)
   if (!robotsAsked && opts.robots && !(u.pathname === "/robots.txt" && !u.search)) {
     // the site's robots.txt first (read at most once a day): a path it keeps automated tools off is not asked
-    const read = await readRobots(u, opts);
-    // the paths strom's known terms of the archive keep automated requests off too (its robots.txt as checked)
+    const got = await readRobots(u, opts);
+    // terms that expressly allow automated use (strom's list): its robots.txt alone yields, unless it names AI agents
+    const read = robotsYields(got, (opts.termsOpen ?? knownOpen)(host)) ? undefined : got;
+    // the paths strom's known terms of the archive keep automated requests off too (its robots.txt as checked) — always
     const known = knownDisallow(host);
     const robots: RobotsState | undefined = known.length ? { at: read?.at ?? 0, status: read?.status ?? 200, groups: [...(read?.groups ?? []), { agents: ["*"], allow: [], disallow: known }] } : read;
     const target = `${u.pathname}${u.search}`;

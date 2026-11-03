@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { compareVersions, installUpdate, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, npmChannel, npmChannelKept, setInstallChannel, updateChannel } from "../../src/core/update.ts";
+import { compareVersions, currentAppDir, entryPackage, entryScript, installUpdate, layoutOf, VERSION_FOLDERS, oldVersions, removeOldVersions, UpdateHeld, versionDirs, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, npmChannel, npmChannelKept, setInstallChannel, updateChannel } from "../../src/core/update.ts";
 import { Settings } from "../../src/core/config.ts";
 import { launchersToTake, notOurs, ownProcesses, uninstallPlan, windowsRemoval } from "../../src/core/uninstall.ts";
 import { insideProgram, installationAt, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
@@ -20,6 +20,7 @@ import { registerLinks } from "../../src/core/links.ts";
 import { isBetaAgents } from "../../scripts/beta-commit.ts";
 
 const unix = { skip: process.platform === "win32" };
+const LAYOUT2 = JSON.stringify({ name: "strom-research", version: "9.9.9", type: "module", stromLayout: 2 });
 
 function world(): { dir: string; root: string; launcher: string; release: string; env: Record<string, string> } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-install-"));
@@ -38,6 +39,8 @@ function world(): { dir: string; root: string; launcher: string; release: string
   fs.mkdirSync(stage, { recursive: true });
   fs.mkdirSync(release);
   fs.writeFileSync(path.join(stage, "cli.js"), "// 9.9.9\n");
+  // a release that knows the versions' folders (its package.json says so: core/update.ts layoutOf)
+  fs.writeFileSync(path.join(stage, "..", "package.json"), LAYOUT2);
   spawnSync("tar", ["-czf", path.join(release, "strom-app.tar.gz"), "app"], { cwd: path.join(dir, "stage") });
   const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(release, "strom-app.tar.gz"))).digest("hex");
   fs.writeFileSync(path.join(release, "SHASUMS256.txt"), `${sha}  strom-app.tar.gz\n`);
@@ -46,34 +49,179 @@ function world(): { dir: string; root: string; launcher: string; release: string
   return { dir, root, launcher, release, env: { HOME: dir, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(dir, "no-node")}` } };
 }
 
-test("strom update: the new code in place of the old, Node kept when the release asks for the same", unix, async () => {
+const ENTRY = (dir: string) => entryScript(dir);
+const json = (f: string) => JSON.parse(fs.readFileSync(f, "utf8"));
+
+test("strom update: the new version in a folder of its own beside the one at work, the entry written again to name it; Node kept when the release asks for the same", unix, async () => {
   const w = world();
-  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9" });
-  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), "// 9.9.9\n");
-  assert.equal(JSON.parse(fs.readFileSync(path.join(w.root, "install.json"), "utf8")).version, "9.9.9");
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(w.root, "install.json"), "utf8")).env, { STROM_CONFIG_DIR: path.join(w.dir, "cfg") }, "what it was installed with stays");
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9", dir: "app-9.9.9" });
+  assert.equal(fs.readFileSync(path.join(w.root, "app-9.9.9", "dist", "cli.js"), "utf8"), "// 9.9.9\n");
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), ENTRY("app-9.9.9"), "the entry names it");
+  assert.equal(json(path.join(w.root, "app", "package.json")).version, "9.9.9", "the version on disk for a strom started before");
+  const info = json(path.join(w.root, "install.json"));
+  assert.equal(info.version, "9.9.9");
+  assert.equal(info.app, "app-9.9.9");
+  assert.equal(info.previous, "app", "the whole program before lay in app/");
+  assert.deepEqual(info.env, { STROM_CONFIG_DIR: path.join(w.dir, "cfg") }, "what it was installed with stays");
   assert.equal(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), "#!/bin/sh\n", "Node untouched");
-  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "install.json", "node"], "nothing left over");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.9", "install.json", "node"], "nothing left over");
+  assert.deepEqual(fs.readdirSync(path.join(w.root, "app", "dist")), ["cli.js"], "no file aside left");
   fs.rmSync(w.dir, { recursive: true, force: true });
 });
 
-test("strom update: the newest Node of the release's line comes along (security fixes), checked against nodejs.org's sums", unix, async () => {
+test("the entry runs the version it names — the launchers, shortcuts and research's shims never written again (cmd.exe reads a batch file by its offset)", unix, async () => {
   const w = world();
-  fs.writeFileSync(path.join(w.release, "NODE_VERSION"), "24\n");
-  // A mirror in nodejs.org's layout: latest-v24.x/ with the archive for this computer and its sums.
-  const name = nodeArchive("24.99.0");
-  const top = name.replace(/\.tar\.gz$/, "");
-  const stage = path.join(w.dir, "node-stage");
-  fs.mkdirSync(path.join(stage, top, "bin"), { recursive: true });
-  fs.writeFileSync(path.join(stage, top, "bin", "node"), "#!/bin/sh\necho v24.99.0\n", { mode: 0o755 });
-  const latest = path.join(w.dir, "no-node", "latest-v24.x");
-  fs.mkdirSync(latest, { recursive: true });
-  spawnSync("tar", ["-czf", path.join(latest, name), top], { cwd: stage });
-  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(latest, name))).digest("hex");
-  fs.writeFileSync(path.join(latest, "SHASUMS256.txt"), `${"0".repeat(64)}  node-v24.99.0-aix-ppc64.tar.gz\n${sha}  ${name}\n`);
-  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9", node: { from: "26.9.0", to: "24.99.0" } });
-  assert.match(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), /v24\.99\.0/);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(w.root, "install.json"), "utf8")).node, "24.99.0");
+  fs.writeFileSync(path.join(w.dir, "stage", "app", "dist", "cli.js"), "console.log('runs 9.9.9 from', import.meta.url);\n");
+  fs.writeFileSync(path.join(w.dir, "stage", "app", "package.json"), JSON.stringify({ name: "strom-research", version: "9.9.9", type: "module", stromLayout: 2 }));
+  spawnSync("tar", ["-czf", path.join(w.release, "strom-app.tar.gz"), "app"], { cwd: path.join(w.dir, "stage") });
+  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(w.release, "strom-app.tar.gz"))).digest("hex");
+  fs.writeFileSync(path.join(w.release, "SHASUMS256.txt"), `${sha}  strom-app.tar.gz\n`);
+  const launcher = fs.readFileSync(w.launcher, "utf8");
+  await installUpdate(w.env, w.root);
+  const r = spawnSync(process.execPath, [path.join(w.root, "app", "dist", "cli.js")], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /runs 9\.9\.9 from file:.*\/app-9\.9\.9\/dist\/cli\.js/);
+  assert.equal(fs.readFileSync(w.launcher, "utf8"), launcher, "the launcher as it was");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("strom update from an installation before 1.25 (the whole program in app/): its entry written over its cli.js, the rest kept as the version before; made the entry alone by the update after; the versions before the one before go, unless in use", unix, async () => {
+  const w = world();
+  const app = path.join(w.root, "app");
+  fs.mkdirSync(path.join(app, "dist", "core"), { recursive: true });
+  fs.writeFileSync(path.join(app, "dist", "core", "tree.js"), "// 1.0.0's\n");
+  fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ name: "strom-research", version: "1.0.0", type: "module" }));
+  fs.mkdirSync(path.join(app, "assets"));
+  fs.mkdirSync(path.join(w.root, "app.old"), { recursive: true }); // what an update of a strom before 1.25 left
+  await installUpdate(w.env, w.root);
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), ENTRY("app-9.9.9"));
+  assert.ok(fs.existsSync(path.join(app, "dist", "core", "tree.js")), "a strom started before still reads its modules");
+  assert.ok(fs.existsSync(path.join(app, "assets")));
+  assert.ok(!fs.existsSync(path.join(w.root, "app.old")), "app.old/ gone");
+  // the update after: app-9.9.9 the version before, app/ the entry alone
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.10\n");
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.10", dir: "app-9.9.10" });
+  assert.deepEqual(json(path.join(w.root, "install.json")), { ...json(path.join(w.root, "install.json")), app: "app-9.9.10", previous: "app-9.9.9", version: "9.9.10" });
+  assert.deepEqual(fs.readdirSync(app).sort(), ["dist", "package.json"]);
+  assert.deepEqual(fs.readdirSync(path.join(app, "dist")), ["cli.js"]);
+  assert.equal(json(path.join(app, "package.json")).version, "9.9.10");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.9", "install.json", "node"]);
+  // the one after that: app-9.9.9 in use (a run pinned to it) stays; once nobody uses it, it goes
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.11\n");
+  await installUpdate(w.env, w.root, process.platform, { inUse: ["app-9.9.9"] });
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.11", "app-9.9.9", "install.json", "node"]);
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.12\n");
+  await installUpdate(w.env, w.root);
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.11", "app-9.9.12", "install.json", "node"]);
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+/** The release in `w.release` made a version before 1.25 (layout 1): its package.json says nothing of the versions' folders. */
+function oldRelease(w: ReturnType<typeof world>, version: string): void {
+  const stage = path.join(w.dir, "old-stage");
+  fs.rmSync(stage, { recursive: true, force: true });
+  fs.mkdirSync(path.join(stage, "app", "dist", "core"), { recursive: true });
+  fs.writeFileSync(path.join(stage, "app", "dist", "cli.js"), `// ${version}\n`);
+  fs.writeFileSync(path.join(stage, "app", "dist", "core", "self.js"), `// ${version}'s\n`);
+  fs.writeFileSync(path.join(stage, "app", "package.json"), JSON.stringify({ name: "strom-research", version, type: "module" }));
+  spawnSync("tar", ["-czf", path.join(w.release, "strom-app.tar.gz"), "app"], { cwd: stage });
+  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(w.release, "strom-app.tar.gz"))).digest("hex");
+  fs.writeFileSync(path.join(w.release, "SHASUMS256.txt"), `${sha}  strom-app.tar.gz\n`);
+  fs.writeFileSync(path.join(w.release, "VERSION"), `${version}\n`);
+}
+
+/** The release in `w.release` made a version that knows the versions' folders again. */
+function newRelease(w: ReturnType<typeof world>, version: string): void {
+  const stage = path.join(w.dir, "new-stage");
+  fs.rmSync(stage, { recursive: true, force: true });
+  fs.mkdirSync(path.join(stage, "app", "dist"), { recursive: true });
+  fs.writeFileSync(path.join(stage, "app", "dist", "cli.js"), `// ${version}\n`);
+  fs.writeFileSync(path.join(stage, "app", "package.json"), JSON.stringify({ name: "strom-research", version, type: "module", stromLayout: 2 }));
+  spawnSync("tar", ["-czf", path.join(w.release, "strom-app.tar.gz"), "app"], { cwd: stage });
+  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(w.release, "strom-app.tar.gz"))).digest("hex");
+  fs.writeFileSync(path.join(w.release, "SHASUMS256.txt"), `${sha}  strom-app.tar.gz\n`);
+  fs.writeFileSync(path.join(w.release, "VERSION"), `${version}\n`);
+}
+
+test("the layout a version knows: its package.json's stromLayout (2: each version in app-<version>/), nothing said or nonsense 1; a release of these sources says 2", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-layout-"));
+  assert.equal(layoutOf(dir), 1, "no package.json");
+  for (const [pkg, n] of [[{ version: "1.24.0" }, 1], [{ stromLayout: 2 }, 2], [{ stromLayout: 3 }, 3], [{ stromLayout: "2" }, 1], [{ stromLayout: 0 }, 1], [{ stromLayout: 1.5 }, 1]] as const) {
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(pkg));
+    assert.equal(layoutOf(dir), n, JSON.stringify(pkg));
+  }
+  fs.writeFileSync(path.join(dir, "package.json"), "{ not json");
+  assert.equal(layoutOf(dir), 1, "unreadable");
+  assert.ok(layoutOf(path.join(import.meta.dirname, "..", "..")) >= VERSION_FOLDERS, "package.json of the sources (what build-release packs)");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("strom update back to a version before 1.25 (found 2026-11-02: from the beta to 1.24.0 it ran from app-1.24.0/, took itself for npm's and never updated again): the whole version in app/ as it knows, install.json without app; from it the next update goes on into a folder of its own", unix, async () => {
+  const w = world();
+  const app = path.join(w.root, "app");
+  await installUpdate(w.env, w.root);
+  newRelease(w, "9.9.10");
+  await installUpdate(w.env, w.root, process.platform, { channel: "beta" });
+  assert.equal(currentAppDir(w.root), "app-9.9.10");
+  // the marks of the researches' shims beside the entry (core/self.ts shimMarker)
+  fs.writeFileSync(path.join(app, "dist", ".strom-shim-0123456789abcdef"), "");
+  // a version that knows only app/
+  oldRelease(w, "1.24.0");
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { channel: "stable" }), { version: "1.24.0" });
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), "// 1.24.0\n", "the version itself in app/, no entry");
+  assert.ok(fs.existsSync(path.join(app, "dist", "core", "self.js")));
+  assert.equal(json(path.join(app, "package.json")).version, "1.24.0");
+  assert.ok(fs.existsSync(path.join(app, "dist", ".strom-shim-0123456789abcdef")), "the shims' mark kept");
+  assert.equal(currentAppDir(w.root), undefined);
+  const info = json(path.join(w.root, "install.json"));
+  assert.equal(info.version, "1.24.0");
+  assert.equal("app" in info, false, "no app: the version knows none");
+  assert.equal(info.previous, "app-9.9.10", "the version that ran until now (a strom started before reads it on)");
+  assert.equal("channel" in info, false);
+  assert.deepEqual(info.env, { STROM_CONFIG_DIR: path.join(w.dir, "cfg") }, "what it was installed with stays");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.9", "install.json", "node"], "the one before the one before kept this time; no app.old, no .update-*");
+  // what a strom before 1.25 takes for the installer's: run from app/ with install.json beside (its installationOf)
+  assert.equal(path.basename(path.resolve(path.join(app, "dist", "core", "self.js"), "..", "..", "..")), "app");
+  // another version before 1.25 over it: app/ whole again, the leftovers nobody uses gone; then a version that knows
+  // the folders goes into a folder of its own again
+  oldRelease(w, "1.24.1");
+  await installUpdate(w.env, w.root, process.platform, { channel: "stable" });
+  assert.deepEqual(json(path.join(w.root, "install.json")).previous, undefined, "the whole program before lay in app/");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "install.json", "node"], "app-9.9.9 nobody used: gone; app-9.9.10 kept as the one before");
+  newRelease(w, "9.9.11");
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { channel: "beta" }), { version: "9.9.11", dir: "app-9.9.11" });
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), ENTRY("app-9.9.11"));
+  const back = json(path.join(w.root, "install.json"));
+  assert.deepEqual([back.version, back.app, back.previous, back.channel], ["9.9.11", "app-9.9.11", "app", "beta"]);
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.11", "install.json", "node"]);
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("strom update back to a version before 1.25: a version folder in use (a run pinned to it) stays; app/ held by another program — app/ as it was, the entry naming the version before, the Node before, the reason said", unix, async () => {
+  const w = world();
+  const app = path.join(w.root, "app");
+  await installUpdate(w.env, w.root);
+  newRelease(w, "9.9.10");
+  await installUpdate(w.env, w.root);
+  newRelease(w, "9.9.11");
+  await installUpdate(w.env, w.root, process.platform, { inUse: ["app-9.9.9"] });
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.11", "app-9.9.9", "install.json", "node"]);
+  oldRelease(w, "1.24.0");
+  // the unpacked version never let into app/: app/ back as it was
+  const toApp = (from: string, to: string) => path.dirname(from).startsWith(path.join(w.root, ".update-")) && to === app;
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ops: heldDisk({ rename: toApp }).ops }), /could not be put in place \(EBUSY: another program held strom's files.*strom stays at its version/);
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), ENTRY("app-9.9.11"), "the entry as it was");
+  assert.equal(json(path.join(w.root, "install.json")).version, "9.9.11");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.11", "app-9.9.9", "install.json", "node"], "no app.old, no .update-*");
+  // app/ itself held: nothing renamed; a newer Node came along — the Node before back too
+  newerNodeOffered(w);
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ops: heldDisk({ rename: (from) => from === app }).ops }), /strom stays at its version/);
+  assert.equal(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), "#!/bin/sh\n", "the Node before");
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), ENTRY("app-9.9.11"));
+  // let through, app-9.9.9 at work in a run: kept; app-9.9.10 the one before the one in use: kept; the rest go
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { inUse: ["app-9.9.9"] }), { version: "1.24.0", node: { from: "26.9.0", to: "24.99.0" } });
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.10", "app-9.9.11", "app-9.9.9", "install.json", "node"]);
+  assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), "// 1.24.0\n");
   fs.rmSync(w.dir, { recursive: true, force: true });
 });
 
@@ -89,6 +237,169 @@ test("strom update: a damaged download or a Node that cannot be had changes noth
   assert.equal(fs.readFileSync(path.join(v.root, "app", "dist", "cli.js"), "utf8"), "// 1.0.0\n");
   assert.deepEqual(fs.readdirSync(v.root).sort(), ["app", "install.json", "node"]);
   for (const x of [w, v]) fs.rmSync(x.dir, { recursive: true, force: true });
+});
+
+test("strom update: work under way and the person waits — the download checked, nothing put in place (UpdateHeld)", unix, async () => {
+  const w = world();
+  let asked = "";
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ready: async (v) => ((asked = v), false) }), UpdateHeld);
+  assert.equal(asked, "9.9.9");
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), "// 1.0.0\n");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "install.json", "node"], "no .update-* left");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+/** The release asks for Node 24, and a mirror in nodejs.org's layout has 24.99.0: latest-v24.x/ with the archive for this computer and its sums. */
+function newerNodeOffered(w: ReturnType<typeof world>): void {
+  fs.writeFileSync(path.join(w.release, "NODE_VERSION"), "24\n");
+  const name = nodeArchive("24.99.0");
+  const top = name.replace(/\.tar\.gz$/, "");
+  const stage = path.join(w.dir, "node-stage");
+  fs.mkdirSync(path.join(stage, top, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(stage, top, "bin", "node"), "#!/bin/sh\necho v24.99.0\n", { mode: 0o755 });
+  const latest = path.join(w.dir, "no-node", "latest-v24.x");
+  fs.mkdirSync(latest, { recursive: true });
+  spawnSync("tar", ["-czf", path.join(latest, name), top], { cwd: stage });
+  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(latest, name))).digest("hex");
+  fs.writeFileSync(path.join(latest, "SHASUMS256.txt"), `${sha}  ${name}\n`);
+}
+
+test("strom update: the newest Node of the release's line comes along (security fixes), checked against nodejs.org's sums", unix, async () => {
+  const w = world();
+  fs.writeFileSync(path.join(w.release, "NODE_VERSION"), "24\n");
+  // A mirror in nodejs.org's layout: latest-v24.x/ with the archive for this computer and its sums.
+  const name = nodeArchive("24.99.0");
+  const top = name.replace(/\.tar\.gz$/, "");
+  const stage = path.join(w.dir, "node-stage");
+  fs.mkdirSync(path.join(stage, top, "bin"), { recursive: true });
+  fs.writeFileSync(path.join(stage, top, "bin", "node"), "#!/bin/sh\necho v24.99.0\n", { mode: 0o755 });
+  const latest = path.join(w.dir, "no-node", "latest-v24.x");
+  fs.mkdirSync(latest, { recursive: true });
+  spawnSync("tar", ["-czf", path.join(latest, name), top], { cwd: stage });
+  const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(latest, name))).digest("hex");
+  fs.writeFileSync(path.join(latest, "SHASUMS256.txt"), `${"0".repeat(64)}  node-v24.99.0-aix-ppc64.tar.gz\n${sha}  ${name}\n`);
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9", node: { from: "26.9.0", to: "24.99.0" }, dir: "app-9.9.9" });
+  assert.match(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), /v24\.99\.0/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(w.root, "install.json"), "utf8")).node, "24.99.0");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+
+/** A disk whose renames or removals another program holds (EBUSY) — `held` says when; the waits counted, never slept. */
+function heldDisk(held: { rename?: (from: string, to: string, n: number) => boolean; rm?: (target: string) => boolean }) {
+  const waits: number[] = [];
+  let renames = 0;
+  const busy = (what: string) => Object.assign(new Error(`EBUSY: resource busy or locked, ${what}`), { code: "EBUSY" });
+  return {
+    waits,
+    ops: {
+      rename: (from: string, to: string) => {
+        if (held.rename?.(from, to, ++renames)) throw busy(`rename '${from}' -> '${to}'`);
+        fs.renameSync(from, to);
+      },
+      rm: (target: string) => {
+        if (fs.existsSync(target) && held.rm?.(target)) throw busy(`rm '${target}'`);
+        fs.rmSync(target, { recursive: true, force: true });
+      },
+      wait: (ms: number) => void waits.push(ms),
+    },
+  };
+}
+
+test("strom update: the new version's folder another program holds a moment (an antivirus) — the move tried again with growing waits, then in place", unix, async () => {
+  const w = world();
+  const d = heldDisk({ rename: (from, to, n) => path.dirname(from).startsWith(path.join(w.root, ".update-")) && to === path.join(w.root, "app-9.9.9") && n <= 3 });
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { ops: d.ops }), { version: "9.9.9", dir: "app-9.9.9" });
+  assert.deepEqual(d.waits, [50, 100, 200], "three waits, growing");
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), ENTRY("app-9.9.9"));
+  assert.equal(json(path.join(w.root, "install.json")).version, "9.9.9");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "app-9.9.9", "install.json", "node"], "nothing left over");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("strom update: the new version never let into place, or the entry never written — the one before stays in use (and its Node), nothing left over, the reason said", unix, async () => {
+  const w = world();
+  const toNew = (from: string, to: string) => path.dirname(from).startsWith(path.join(w.root, ".update-")) && to === path.join(w.root, "app-9.9.9");
+  const d = heldDisk({ rename: toNew });
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ops: d.ops }), /the new version could not be put in place \(EBUSY: another program held its files.*nothing was replaced/);
+  assert.deepEqual(d.waits, [50, 100, 200, 400, 800, 1600, 1850], "tried again until the patience is spent (5 s, at most ten tries)");
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), "// 1.0.0\n", "the one before in use");
+  assert.equal(json(path.join(w.root, "install.json")).version, "1.0.0");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "install.json", "node"], "no .update-*");
+  // the entry held for good: the new folder taken away again, app/package.json as it was
+  fs.writeFileSync(path.join(w.root, "app", "package.json"), "{\"version\":\"1.0.0\"}\n");
+  const e = heldDisk({ rename: (_from, to) => to === path.join(w.root, "app", "dist", "cli.js") });
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ops: e.ops }), /another program held strom's entry.*strom stays at its version/);
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), "// 1.0.0\n");
+  assert.equal(fs.readFileSync(path.join(w.root, "app", "package.json"), "utf8"), "{\"version\":\"1.0.0\"}\n", "put back");
+  assert.deepEqual(fs.readdirSync(w.root).sort(), ["app", "install.json", "node"]);
+  assert.deepEqual(fs.readdirSync(path.join(w.root, "app", "dist")), ["cli.js"], "no file aside left");
+  // a newer Node came along: the code not put in place, the Node before back too — never the old code on the new Node
+  newerNodeOffered(w);
+  await assert.rejects(installUpdate(w.env, w.root, process.platform, { ops: heldDisk({ rename: toNew }).ops }), /could not be put in place/);
+  assert.equal(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), "#!/bin/sh\n", "the Node before");
+  assert.equal(json(path.join(w.root, "install.json")).node, "26.9.0");
+  assert.deepEqual(fs.readdirSync(path.join(w.root, "node", "bin")), ["node"], "nothing of it left");
+  // let through: both in place, the Node before gone
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9", node: { from: "26.9.0", to: "24.99.0" }, dir: "app-9.9.9" });
+  assert.match(fs.readFileSync(path.join(w.root, "node", "bin", "node"), "utf8"), /v24\.99\.0/);
+  assert.deepEqual(fs.readdirSync(path.join(w.root, "node", "bin")), ["node"]);
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("strom update: an old version's folder held (a process still reading it) — the update done, the leftover in update.log, removed by the next update or strom tidy; a leftover of the same version nobody uses taken again", unix, async () => {
+  const w = world();
+  await installUpdate(w.env, w.root);
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.10\n");
+  await installUpdate(w.env, w.root);
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.11\n");
+  const d = heldDisk({ rm: (target) => target === path.join(w.root, "app-9.9.9") });
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { ops: d.ops }), { version: "9.9.11", dir: "app-9.9.11" });
+  assert.equal(json(path.join(w.root, "install.json")).version, "9.9.11");
+  assert.ok(fs.existsSync(path.join(w.root, "app-9.9.9")), "left");
+  assert.match(fs.readFileSync(path.join(w.root, "update.log"), "utf8"), /app-9\.9\.9 left: EBUSY/);
+  assert.deepEqual(oldVersions(w.root), { dirs: ["app-9.9.9"], prune: false }, "strom tidy names it");
+  // never one holding what the person keeps (a shared folder set there before strom refused it)
+  const shared = path.join(w.root, "app-9.9.9", "sdílené");
+  fs.mkdirSync(shared);
+  assert.deepEqual(oldVersions(w.root, [], [shared]), { dirs: [], prune: false });
+  assert.deepEqual(removeOldVersions(w.root, [], undefined, [shared]), []);
+  fs.rmdirSync(shared);
+  assert.deepEqual(removeOldVersions(w.root), ["app-9.9.9"]);
+  // a folder of the version coming, left by an update that failed: nobody uses it — taken again
+  fs.mkdirSync(path.join(w.root, "app-9.9.12", "dist"), { recursive: true });
+  fs.writeFileSync(path.join(w.root, "app-9.9.12", "dist", "cli.js"), "// half\n");
+  fs.writeFileSync(path.join(w.release, "VERSION"), "9.9.12\n");
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.12", dir: "app-9.9.12" });
+  assert.equal(fs.readFileSync(path.join(w.root, "app-9.9.12", "dist", "cli.js"), "utf8"), "// 9.9.9\n");
+  // the same version again while a run uses its folder: a name of its own
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { inUse: ["app-9.9.12"] }), { version: "9.9.12", dir: "app-9.9.12_2" });
+  assert.equal(currentAppDir(w.root), "app-9.9.12_2");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("strom update and strom doctor read an old version's package.json another program holds (found on Windows: EBUSY stopped both): the version then named by its folder", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-held-pkg-"));
+  for (const dir of ["app-1.0.0", "app-1.0.0_2", "app-1.1.0-beta.3"]) {
+    fs.mkdirSync(path.join(root, dir, "dist"), { recursive: true });
+    // unreadable as a file on every system: a folder where the file would be
+    fs.mkdirSync(path.join(root, dir, "package.json"));
+  }
+  fs.writeFileSync(path.join(root, "install.json"), JSON.stringify({ version: "1.2.0", app: "app-1.2.0", previous: "app-1.1.0-beta.3" }));
+  // the version in use, the entry naming it
+  fs.mkdirSync(path.join(root, "app-1.2.0", "dist"), { recursive: true });
+  fs.writeFileSync(path.join(root, "app-1.2.0", "dist", "cli.js"), "// 1.2.0\n");
+  fs.writeFileSync(path.join(root, "app-1.2.0", "package.json"), JSON.stringify({ version: "1.2.0" }));
+  fs.mkdirSync(path.join(root, "app", "dist"), { recursive: true });
+  fs.writeFileSync(path.join(root, "app", "dist", "cli.js"), entryScript("app-1.2.0"));
+  assert.deepEqual(versionDirs(root).sort((a, b) => a.dir.localeCompare(b.dir)), [
+    { dir: "app-1.0.0", version: "1.0.0" },
+    { dir: "app-1.0.0_2", version: "1.0.0" },
+    { dir: "app-1.1.0-beta.3", version: "1.1.0-beta.3" },
+    { dir: "app-1.2.0", version: "1.2.0" },
+  ]);
+  assert.deepEqual(oldVersions(root).dirs.sort(), ["app-1.0.0", "app-1.0.0_2"]);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test("strom uninstall: the installer's folder and its command go; Node's archive names per system", unix, () => {
@@ -133,7 +444,7 @@ test("strom uninstall takes only what the installer and strom update made in its
   const w = world();
   const home = path.join(w.root, "Strom research");
   const tree = path.join(home, "Novákovi");
-  for (const d of [path.join(tree, ".git"), path.join(home, "backups", "2026-10-07 1.0.0 to 1.1.0", "trees"), path.join(w.root, "app.old"), path.join(w.root, ".update-x1"), path.join(w.root, "git", "cmd")]) fs.mkdirSync(d, { recursive: true });
+  for (const d of [path.join(tree, ".git"), path.join(home, "backups", "2026-10-07 1.0.0 to 1.1.0", "trees"), path.join(w.root, "app.old"), path.join(w.root, "app-1.25.0", "dist"), path.join(w.root, "app-1.25.0_2"), path.join(w.root, ".update-x1"), path.join(w.root, "git", "cmd")]) fs.mkdirSync(d, { recursive: true });
   fs.writeFileSync(path.join(tree, "strom.json"), "{}");
   fs.writeFileSync(path.join(w.root, "poznámka.txt"), "moje");
   fs.writeFileSync(path.join(w.root, "strom"), "#!/bin/sh\n");
@@ -229,6 +540,7 @@ function release(dir: string, node = "#!/bin/sh\necho v24.99.0\n"): Record<strin
   fs.mkdirSync(path.join(stage, "app", "dist"), { recursive: true });
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(stage, "app", "dist", "cli.js"), "// strom\n");
+  fs.writeFileSync(path.join(stage, "app", "package.json"), LAYOUT2);
   spawnSync("tar", ["-czf", path.join(rel, "strom-app.tar.gz"), "app"], { cwd: stage });
   const sum = (f: string) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
   fs.writeFileSync(path.join(rel, "SHASUMS256.txt"), `${sum(path.join(rel, "strom-app.tar.gz"))}  strom-app.tar.gz\n`);
@@ -266,20 +578,93 @@ test("the installer, isolated (STROM_ISOLATED=1): everything in its folder, inst
   const r = run({ STROM_ISOLATED: "1", STROM_INSTALL_DIR: inst, STROM_CONFIG_DIR: cfg });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Izolovaná instalace: .* Spouští se takto: .*zkouška strom\/strom/);
-  assert.deepEqual(fs.readdirSync(inst).sort(), ["app", "install.json", "node", "strom"]);
+  assert.deepEqual(fs.readdirSync(inst).sort(), ["app", "app-9.9.9", "install.json", "node", "strom"]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(inst, "install.json"), "utf8")), {
     launchers: [path.join(inst, "strom")],
     node: "24.99.0",
     version: "9.9.9",
+    app: "app-9.9.9",
     env: { STROM_CONFIG_DIR: cfg, HOME: home, STROM_ISOLATED: "1" },
   });
   assert.deepEqual(fs.readdirSync(home), [], "no PATH line, nothing in its HOME");
+  // the entry as strom update writes it, word for word; the version in its own folder
+  assert.equal(fs.readFileSync(path.join(inst, "app", "dist", "cli.js"), "utf8"), entryScript("app-9.9.9"));
+  assert.equal(fs.readFileSync(path.join(inst, "app", "package.json"), "utf8"), entryPackage("9.9.9"));
+  assert.equal(fs.readFileSync(path.join(inst, "app-9.9.9", "dist", "cli.js"), "utf8"), "// strom\n");
+  // installed again over it (the same version, its folder in use): a folder of its own beside, the one before kept
+  const again = run({ STROM_ISOLATED: "1", STROM_INSTALL_DIR: inst, STROM_CONFIG_DIR: cfg });
+  assert.equal(again.status, 0, again.stdout + again.stderr);
+  assert.deepEqual(fs.readdirSync(inst).sort(), ["app", "app-9.9.9", "app-9.9.9_2", "install.json", "node", "strom"]);
+  assert.equal(currentAppDir(inst), "app-9.9.9_2");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(inst, "install.json"), "utf8")).previous, "app-9.9.9");
+  // over an installation before 1.25 (the whole program in app/, app.old/ left): the whole kept as the version before
+  const older = path.join(dir, "older");
+  fs.mkdirSync(path.join(older, "app", "dist", "core"), { recursive: true });
+  fs.mkdirSync(path.join(older, "app.old"));
+  fs.writeFileSync(path.join(older, "app", "dist", "cli.js"), "// 1.24.0\n");
+  const o = run({ STROM_ISOLATED: "1", STROM_INSTALL_DIR: older, STROM_CONFIG_DIR: cfg });
+  assert.equal(o.status, 0, o.stdout + o.stderr);
+  assert.deepEqual(fs.readdirSync(older).sort(), ["app", "app-9.9.9", "install.json", "node", "strom"]);
+  assert.ok(fs.existsSync(path.join(older, "app", "dist", "core")), "what a strom at work reads stays");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(older, "install.json"), "utf8")).previous, "app");
 
   // the person's own: its PATH line, install.json with its settings folder only when set
   const own = run({ STROM_INSTALL_DIR: path.join(dir, "bin"), STROM_PROGRAM_DIR: path.join(dir, "share") });
   assert.equal(own.status, 0, own.stdout + own.stderr);
   assert.match(fs.readFileSync(path.join(home, ".zshrc"), "utf8"), /# strom research/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "share", "install.json"), "utf8")).env, undefined);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the installer of a version before 1.25 (no stromLayout) over an installation with the versions' folders: the whole version in app/ as it knows, the shims' marks kept, install.json without app, previous the version that ran; one that knows the folders again goes into its own", unix, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-installer-old-"));
+  const home = path.join(dir, "home");
+  fs.mkdirSync(home);
+  const script = path.join(import.meta.dirname, "..", "..", "install", "install.sh");
+  const inst = path.join(dir, "inst");
+  const cfg = path.join(dir, "cfg");
+  const base: Record<string, string> = { ...release(dir), HOME: home, PATH: "/usr/bin:/bin:/usr/sbin:/sbin", SHELL: "/bin/zsh", LANG: "en_US.UTF-8", STROM_INSTALL_ONLY: "1", STROM_ISOLATED: "1", STROM_INSTALL_DIR: inst, STROM_CONFIG_DIR: cfg };
+  const run = () => spawnSync("sh", [script], { env: base, encoding: "utf8" });
+  const first = run();
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  assert.equal(currentAppDir(inst), "app-9.9.9");
+  fs.writeFileSync(path.join(inst, "app", "dist", ".strom-shim-0123456789abcdef"), "");
+  // the release made one before 1.25: no stromLayout in its package.json
+  const rel = new URL(base.STROM_DOWNLOAD_BASE!).pathname;
+  const stage = path.join(dir, "old-stage");
+  fs.mkdirSync(path.join(stage, "app", "dist", "core"), { recursive: true });
+  fs.writeFileSync(path.join(stage, "app", "dist", "cli.js"), "// 1.24.0\n");
+  fs.writeFileSync(path.join(stage, "app", "package.json"), JSON.stringify({ name: "strom-research", version: "1.24.0", type: "module" }, null, 2));
+  const pack = () => {
+    spawnSync("tar", ["-czf", path.join(rel, "strom-app.tar.gz"), "app"], { cwd: stage });
+    const sum = crypto.createHash("sha256").update(fs.readFileSync(path.join(rel, "strom-app.tar.gz"))).digest("hex");
+    fs.writeFileSync(path.join(rel, "SHASUMS256.txt"), `${sum}  strom-app.tar.gz\n`);
+  };
+  pack();
+  fs.writeFileSync(path.join(rel, "VERSION"), "1.24.0\n");
+  const o = run();
+  assert.equal(o.status, 0, o.stdout + o.stderr);
+  assert.equal(fs.readFileSync(path.join(inst, "app", "dist", "cli.js"), "utf8"), "// 1.24.0\n", "the version itself in app/");
+  assert.ok(fs.existsSync(path.join(inst, "app", "dist", "core")));
+  assert.ok(fs.existsSync(path.join(inst, "app", "dist", ".strom-shim-0123456789abcdef")), "the shims' mark kept");
+  assert.deepEqual(fs.readdirSync(inst).sort(), ["app", "app-9.9.9", "install.json", "node", "strom"], "no app.old");
+  const info = JSON.parse(fs.readFileSync(path.join(inst, "install.json"), "utf8"));
+  assert.equal(info.version, "1.24.0");
+  assert.equal("app" in info, false);
+  assert.equal(info.previous, "app-9.9.9");
+  // installed again (the same old version over app/ whole): no previous — the whole program before lay in app/
+  const again = run();
+  assert.equal(again.status, 0, again.stdout + again.stderr);
+  assert.equal("previous" in JSON.parse(fs.readFileSync(path.join(inst, "install.json"), "utf8")), false);
+  // one that knows the folders (stromLayout 2): into a folder of its own, app/ kept as the version before
+  fs.writeFileSync(path.join(stage, "app", "package.json"), JSON.stringify({ name: "strom-research", version: "1.25.0", type: "module", stromLayout: 2 }, null, 2));
+  pack();
+  fs.writeFileSync(path.join(rel, "VERSION"), "1.25.0\n");
+  const n = run();
+  assert.equal(n.status, 0, n.stdout + n.stderr);
+  assert.equal(currentAppDir(inst), "app-1.25.0");
+  const now = JSON.parse(fs.readFileSync(path.join(inst, "install.json"), "utf8"));
+  assert.deepEqual([now.version, now.app, now.previous], ["1.25.0", "app-1.25.0", "app"]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -494,12 +879,12 @@ test("strom update keeps the channel and what the installation was installed wit
   const w = world();
   const info = () => JSON.parse(fs.readFileSync(path.join(w.root, "install.json"), "utf8"));
   fs.writeFileSync(path.join(w.root, "install.json"), JSON.stringify({ ...info(), channel: "beta" }));
-  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9" });
+  assert.deepEqual(await installUpdate(w.env, w.root), { version: "9.9.9", dir: "app-9.9.9" });
   assert.equal(info().channel, "beta", "kept");
   assert.deepEqual(info().env, { STROM_CONFIG_DIR: path.join(w.dir, "cfg") });
   // back to the releases: an older version than the one there, the channel gone
   fs.writeFileSync(path.join(w.release, "VERSION"), "1.0.0\n");
-  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { channel: "stable" }), { version: "1.0.0" });
+  assert.deepEqual(await installUpdate(w.env, w.root, process.platform, { channel: "stable" }), { version: "1.0.0", dir: "app-1.0.0" });
   assert.equal(info().version, "1.0.0");
   assert.equal("channel" in info(), false);
   assert.deepEqual(info().env, { STROM_CONFIG_DIR: path.join(w.dir, "cfg") }, "what it was installed with stays");
@@ -569,6 +954,32 @@ test("the Windows installer takes the channel the same way: STROM_CHANNEL beta, 
   assert.match(code, /if \(\$channel\) \{ \$info\.channel = \$channel \}/);
 });
 
+test("the Windows installer puts each version in a folder of its own the same way: the entry it names read back, app-<version> free or another name, the entry and app/package.json written aside and moved over whole, app.old/ gone, install.json app and previous — app/ renamed only for a version before 1.25 (no stromLayout), its shims' marks kept", () => {
+  const ps1 = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "install.ps1"), "utf8");
+  const code = ps1.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  // the entry's line as strom update writes it, and the installer reads it back by the same pattern
+  const line = entryScript("app-9.9.9").split("\n")[2]!;
+  const pattern = /\[regex\]::Match\(\[IO\.File\]::ReadAllText\(\$entry\), '([^']+)'\)/.exec(code)?.[1];
+  assert.ok(pattern, "the entry read back");
+  assert.equal(new RegExp(pattern!.replace("(?m)", ""), "m").exec(line)?.[1], "app-9.9.9");
+  assert.ok(code.includes("await import(`\"../../$dir/dist/cli.js`\");"), "the same entry written");
+  for (const head of entryScript("x").split("\n").slice(0, 2)) assert.ok(code.includes(head), head);
+  assert.match(code, /\$dir = "app-\$version"/);
+  assert.match(code, /Move-Item \(Join-Path \$tmp 'app'\) \(Join-Path \$dest \$dir\)/);
+  assert.equal((code.match(/Move-Item -Force \$aside /g) ?? []).length, 2, "package.json, then the entry");
+  assert.match(code, /\$info\.app = \$dir/);
+  assert.match(code, /\$info\.previous = \$before/);
+  assert.doesNotMatch(code, /Move-Item[^\n]*'app'\)? -Destination[^\n]*app\.old/, "app/ never renamed to app.old");
+  assert.match(code, /Remove-Item[^\n]*app\.old/);
+  // a version before 1.25 (layout 1, the same rule as core/update.ts layoutOf): the whole version in app/
+  assert.match(code, /\.stromLayout/);
+  assert.match(code, /if \(\$layout -lt 2\) \{/);
+  assert.match(code, /Move-Item \$app \$old \}\n\s*Move-Item \(Join-Path \$tmp 'app'\) \$app/);
+  assert.match(code, /'\.strom-shim-\*'/);
+  assert.match(code, /if \(\$dir\) \{ \$info\.app = \$dir \}/, "no app for a version before 1.25");
+  assert.ok(VERSION_FOLDERS === 2, "the installers say 2 too");
+});
+
 test("a research's folder never inside strom's program folder: anywhere in the installer's folder refused (app/, node/, beside them), the settings folder lying in it allowed unless in app/; named another way (case, /tmp and /private/tmp) the same; strom update refuses what lies in app/, app.old/, node/ and installs nothing", unix, async () => {
   const w = world();
   const inst = { kind: "installed" as const, root: w.root, launchers: [w.launcher] };
@@ -589,6 +1000,11 @@ test("a research's folder never inside strom's program folder: anywhere in the i
   fs.writeFileSync(path.join(home, "backups", "b1", "strom.json"), "{}");
   assert.deepEqual(replacedHolding(w.root, [home, path.join(w.dir, "cfg")]), [{ folder: home, entry: path.join(w.root, "app") }]);
   assert.deepEqual(replacedHolding(w.root, [path.join(w.root, "Strom research")]), [], "beside app/: an update leaves it");
+  // a version's own folder (app-<version>) is strom's as app/ is: a research there refused, an update would remove it
+  const inVersion = path.join(w.root, "app-1.25.0", "Strom");
+  assert.equal(insideProgram(inVersion, { inst, settings }), w.root);
+  assert.deepEqual(replacedHolding(w.root, [inVersion]), [{ folder: inVersion, entry: path.join(w.root, "app-1.25.0") }]);
+  assert.deepEqual(replacedHolding(w.root, [path.join(w.root, "app-notes", "Strom")]), [], "a folder of the person's named so: no version");
   await assert.rejects(installUpdate(w.env, w.root, process.platform, { keep: [home] }), /lies inside .*app.*nothing was installed/);
   assert.equal(fs.readFileSync(path.join(w.root, "app", "dist", "cli.js"), "utf8"), "// 1.0.0\n", "the old code stays");
   assert.equal(fs.readFileSync(path.join(home, "backups", "b1", "strom.json"), "utf8"), "{}");

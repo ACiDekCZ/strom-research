@@ -28,17 +28,19 @@ import { storiesToApprove } from "./stories.ts";
 import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
 import type { Settings } from "./config.ts";
-import { directionOf, scopes, type Scope } from "./directions.ts";
+import { scopes, type Scope } from "./directions.ts";
+import { lineOf } from "./offline.ts";
 import { collectFiles, IMAGE_FILE_EXT, parseImageList } from "./media.ts";
 import { conflictTitle, displayName } from "./people.ts";
 import { conflictsToDecide } from "./conflicts.ts";
 import { phrase } from "./phrases.ts";
 import { actsAsArchive } from "./state.ts";
+import { placeQuestions, type PlaceAsked } from "./placesview.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "sent" | "chat";
@@ -55,6 +57,7 @@ const SECTION: Record<string, WaitSection> = {
   send: "decide",
   tune: "decide",
   conflict: "decide",
+  place: "decide",
   images: "images",
   letter: "letter",
   family: "family",
@@ -69,7 +72,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, tune: 6 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, tune: 6 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean): WaitAction[] {
@@ -111,6 +114,8 @@ export interface Waiting {
   tune?: Question;
   /** An open conflict the person decides (the terminal). */
   conflict?: Conflict;
+  /** A question of a place the research asks (core/placeid.ts): which of the candidates, the position, the facts' writing. */
+  place?: PlaceAsked;
   /** Shown only in the terminal: the Strom app never gets it (/status `waiting` asks for none of these — TERMINAL_ONLY). */
   terminalOnly?: true;
 }
@@ -315,6 +320,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   // waits for images saved by hand stays an item
   const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)));
   let all = o.scopes;
+  let line: ((t: Task) => string | undefined) | undefined;
   for (const t of tasks) {
     const kind = waitKindOf(t);
     const group = waitGroupOf(tree, t, lang);
@@ -324,7 +330,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     const to = t.wait?.to?.trim() || (group.kind === "office" ? group.name : undefined);
     const inbox = kind === "images" ? inboxOf(o.shared, t) : undefined;
     all ??= scopes(tree);
-    const research = directionOf(tree, t, all);
+    // its direction, else the one it helps (core/offline.ts)
+    line ??= lineOf(tree, all);
+    const research = line(t);
     out.push({
       task: t,
       item: {
@@ -381,6 +389,36 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
           actions: [],
           ...(people[0] ? { person: people[0] } : {}),
           ...(people[1] ? { partner: people[1] } : {}),
+        },
+      });
+    }
+  // the research's questions of places (which of the villages, the position against the records, the facts' writing):
+  // answered by the person at once, nothing spent — the app (POST /places/answer) and the terminal; an archive asks none
+  if (!actsAsArchive(tree))
+    for (const a of placeQuestions(tree)) {
+      const q = a.question;
+      const name = a.place.names[0]?.name ?? a.place.id;
+      const years = a.years ? `, ${a.years[0] === a.years[1] ? a.years[0] : `${a.years[0]}–${a.years[1]}`}` : "";
+      const by = a.place.locating?.by ?? (a.place.coords ? "person" : undefined);
+      out.push({
+        place: a,
+        item: {
+          id: a.place.id,
+          what: ui(lang, q.kind === "conflict" ? "ui.waiting.place.conflict" : q.kind === "form" ? "ui.waiting.place.form" : "ui.waiting.place.propose", { place: name }),
+          on: a.persons ? ui(lang, "ui.waiting.place.on", { n: a.persons, years }) : "",
+          at: q.at,
+          kind: "place",
+          section: "decide",
+          group: { key: "places", name: phrase(lang, "wait.group.places"), kind: "other" },
+          phase: "todo",
+          actions: ["answer"],
+          place: a.place.id,
+          forms: a.forms,
+          question: q.kind,
+          ...(q.candidates?.length ? { candidates: q.candidates } : {}),
+          ...(q.kind === "conflict" ? { current: q.current ?? (a.place.coords ? { lat: a.place.coords.lat, lon: a.place.coords.lon } : undefined), ...(by ? { by } : {}) } : {}),
+          ...(q.kind === "form" && q.change ? { change: q.change } : {}),
+          ...(q.why ? { why: q.why } : {}),
         },
       });
     }

@@ -43,11 +43,9 @@ export function placesOffMap(tree: Tree): OffMap[] {
 
 /** One place off the map, and the command that puts it there. */
 export function offMapLine(m: OffMap): string {
-  return m.place
-    ? `${m.name} (${counted(m.events, "fact")}, ${m.place.id}): strom place edit ${m.place.id} --lat … --lon …`
-    : `${m.name} (${counted(m.events, "fact")}, no place yet): strom place add "${m.name}" --kind … --lat … --lon …`;
+  return `${m.name} (${counted(m.events, "fact")}, ${m.place ? m.place.id : "no place yet"}): strom place identify ${m.place ? m.place.id : JSON.stringify(m.name)} --lat … --lon … --why "…"`;
 }
 
 /** What to do about them, in a line. */
 export const OFF_MAP_HOW =
-  "identify each first (its district, parish, today's name — the facts' records and the books tell); then the coordinates of that village; not sure which it is: --unlocated \"<why>\"";
+  "identify each first (its district, parish, today's name — the facts' records and the books tell; only the place's name to the web); sure: strom place identify; one of a few: strom place propose --candidate …; not to be decided: strom place unlocated --why \"…\" --needs \"…\"";

@@ -19,7 +19,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -38,6 +38,10 @@ async function seeded(): Promise<World> {
   await w.ok(["repo", "add", "SOA Praha"]);
   await w.ok(["recordset", "add", "Týnec 17", "--repo", "R0001"]);
   await w.ok(["place", "add", "Týnec nad Labem"]);
+  await w.ok(["place", "add", "Horní Lhota", "--lat", "49.61", "--lon", "15.23"]); // L0002: place verify, rewrite --to, queue
+  await w.ok(["event", "add", "P0002", "RESI", "--date", "1890", "--place", "H. Lhota"]); // place identify|queue|rewrite
+  await w.ok(["event", "add", "P0003", "RESI", "--date", "1895", "--place", "Lhota"]); // place unlocated|propose
+  await w.ok(["event", "add", "P0002", "DEAT", "--date", "1930", "--place", "Lhota, Dlouhá"]); // place rewrite --house
   await w.ok(["source", "add", "Křest", "--kind", "baptism", "--form", "original", "--information", "primary"]);
   await w.ok(["source", "add", "Sňatek", "--kind", "marriage"]);
   await w.ok(["intake", "--text", "Děda Jan byl mlynář"]);

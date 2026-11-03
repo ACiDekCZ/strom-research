@@ -4,6 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -100,9 +101,9 @@ test("strom live stop asks the bridge through its stop file: the end said on its
  * endBridge in a process of its own (as strom live stop runs it), told it runs on another system — never waited for
  * synchronously here: this process reaps its children (a bridge that ended is otherwise still there, as on Windows it is not)
  */
-function endBridgeAs(platform: string, pid: number, root: string): Promise<string> {
-  const code = "const m = await import(process.argv[1]); process.stdout.write(m.endBridge(Number(process.argv[2]), process.argv[3], { platform: process.argv[4], askMs: 600, waitMs: 1500 }))";
-  const c = spawn(process.execPath, ["--input-type=module", "-e", code, LIVE, String(pid), root, platform], { stdio: ["ignore", "pipe", "pipe"] });
+function endBridgeAs(platform: string, pid: number, root: string, more: { writeMs?: number } = {}): Promise<string> {
+  const code = "const m = await import(process.argv[1]); process.stdout.write(m.endBridge(Number(process.argv[2]), process.argv[3], { platform: process.argv[4], askMs: 600, waitMs: 1500, ...JSON.parse(process.argv[5]) }))";
+  const c = spawn(process.execPath, ["--input-type=module", "-e", code, LIVE, String(pid), root, platform, JSON.stringify(more)], { stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   let err = "";
   c.stdout.on("data", (d) => (out += d));
@@ -132,5 +133,89 @@ test("endBridge on Windows: a bridge that hears its stop file ends as it should;
     assert.equal(await endBridgeAs("win32", deaf.pid!, root), "gone");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("endBridge: a bridge that says it writes what the app sent is waited for until it is written; one that keeps saying so only a while, then ended", { skip: process.platform === "win32" }, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-live-stop-"));
+  fs.mkdirSync(path.join(root, ".strom"));
+  fs.writeFileSync(path.join(root, "strom.json"), "{}");
+  const file = path.join(root, ".strom", "live-stop.json");
+  const busy = path.join(root, ".strom", "live-busy.json");
+  const written = path.join(root, "written");
+  const exited = (c: ReturnType<typeof spawn>) => new Promise<string | null>((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
+  // asked to end, it writes on for `writes` ms (saying so), then ends by itself
+  const writer = (writes: number) =>
+    `const f=${JSON.stringify(file)},b=${JSON.stringify(busy)},w=${JSON.stringify(written)},fs=require("fs");let at=0;setInterval(()=>{let a;try{a=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}if(a?.pid!==process.pid)return;at||=Date.now();if(Date.now()-at<${writes}){fs.writeFileSync(b,JSON.stringify({pid:process.pid,at:Date.now()}));return}fs.writeFileSync(w,"whole");fs.rmSync(f);fs.rmSync(b,{force:true});process.exit(0)},50)`;
+  try {
+    // writing longer than the ask is waited for (600 ms): ended as it should once written, never cut short
+    const slow = spawn(process.execPath, ["-e", writer(2000), "live", "serve"], { cwd: root, stdio: "ignore" });
+    await until("it runs", () => slow.pid !== undefined && alive(slow.pid));
+    assert.equal(await endBridgeAs("win32", slow.pid!, root, { writeMs: 20_000 }), "stopped");
+    assert.equal(await exited(slow), null, "it ended by itself");
+    assert.equal(fs.readFileSync(written, "utf8"), "whole", "what it wrote was written whole");
+    // one that says it writes for ever: waited for only as long as given, then ended for good — and said so
+    const stuck = spawn(process.execPath, ["-e", writer(3_600_000), "live", "serve"], { cwd: root, stdio: "ignore" });
+    await until("it runs", () => stuck.pid !== undefined && alive(stuck.pid));
+    const from = Date.now();
+    assert.equal(await endBridgeAs("win32", stuck.pid!, root, { writeMs: 1000 }), "killed");
+    assert.equal(await exited(stuck), "SIGKILL");
+    assert.ok(Date.now() - from < 15_000, `not waited for longer than given (${Date.now() - from} ms)`);
+    assert.match(fs.readFileSync(path.join(root, ".strom", "live.log"), "utf8"), new RegExp(`the bridge ${stuck.pid} still wrote what the app sent after \\d+ s: ended without waiting longer`));
+    assert.equal(fs.existsSync(file), false, "an ask nobody took is not left behind");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("strom live stop while the app sends an original: the bridge ends once it is written, the original kept — never cut short", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);
+  const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+  const cli = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
+  const info = (await w.ok(["live", "start", "--json"])).json as Info;
+  let stopper: ReturnType<typeof spawn> | undefined;
+  try {
+    const jpg = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "images", "s0001.jpg"));
+    const sha = crypto.createHash("sha256").update(jpg).digest("hex");
+    // the app sends an original: part of it has come when strom live stop asks the bridge to end
+    let answer = "";
+    let status = 0;
+    const req = http.request(`${info.url}/media/${sha}`, { method: "PUT", agent: false, headers: { Origin: "https://beta.stromapp.info", "Content-Type": "application/octet-stream", "Content-Length": String(jpg.length), "X-Strom-Person": "P0001", "X-Strom-Name": "lhota.jpg" } });
+    const answered = new Promise<void>((resolve, reject) => {
+      req.on("response", (res) => {
+        status = res.statusCode ?? 0;
+        res.setEncoding("utf8");
+        res.on("data", (d: string) => (answer += d));
+        res.on("end", resolve);
+      });
+      req.on("error", reject);
+    });
+    req.write(jpg.subarray(0, 10_000));
+    let out = "";
+    stopper = spawn(process.execPath, [cli, "live", "stop", "--json"], { cwd: w.cwd, env: w.env, stdio: ["ignore", "pipe", "pipe"] });
+    stopper.stdout!.on("data", (d) => (out += d));
+    const stopped = new Promise<number | null>((r) => stopper!.once("exit", (code) => r(code)));
+    // the bridge heard the ask and says it ends once the original is written; the one asking waits
+    await until("the bridge says it writes", () => fs.existsSync(path.join(w.cwd, ".strom", "live-busy.json")), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(alive(info.pid), true, "not ended in the middle of it");
+    assert.equal(stopper.exitCode, null, "strom live stop waits");
+    req.end(jpg.subarray(10_000));
+    await answered;
+    assert.equal(status, 200, answer);
+    const got = JSON.parse(answer) as { input?: string };
+    assert.match(String(got.input), /^I\d+/, answer);
+    assert.equal(await stopped, 0);
+    assert.equal(JSON.parse(out).how, "stopped", "ended as it should, not killed");
+    await until("the bridge ended", () => !alive(info.pid), 5000);
+    assert.match(log(), /asked to end \(strom live stop\) while something the app sent is written: ends once it is written\n(?:.*\n)*.*ended: strom live stop\n/);
+    assert.equal(fs.existsSync(path.join(w.cwd, ".strom", "live-busy.json")), false, "nothing of the wait left");
+    assert.equal((await w.ok(["input", "show", got.input!, "--json"])).json.input.persons[0], "P0001", "the original kept");
+  } finally {
+    if (stopper && stopper.exitCode === null) stopper.kill("SIGKILL");
+    await w.run(["live", "stop"]);
+    w.cleanup();
   }
 });

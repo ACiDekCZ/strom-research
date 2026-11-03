@@ -13,6 +13,7 @@ import "./surname.ts";
 import "./quality.ts";
 import "./batch.ts";
 import "./sources.ts";
+import "./placeid.ts";
 import "./media.ts";
 import "./connectors.ts";
 import "./archives.ts";

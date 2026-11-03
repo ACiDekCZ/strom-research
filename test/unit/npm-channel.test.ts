@@ -127,8 +127,8 @@ test("the npm package carries the changelogs (what is new in the installed versi
   const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: ROOT, encoding: "utf8", shell: process.platform === "win32" });
   assert.equal(r.status, 0, r.stderr);
   const files = (JSON.parse(r.stdout)[0].files as { path: string }[]).map((f) => f.path);
-  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "LICENSE", "README.md", "package.json"]) assert.ok(files.includes(f), f);
-  assert.deepEqual(files.filter((f) => !/^(dist|assets)\//.test(f)).sort(), ["CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.md", "LICENSE", "README.md", "package.json"], "nothing else of the sources");
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.pl.md", "LICENSE", "README.md", "package.json"]) assert.ok(files.includes(f), f);
+  assert.deepEqual(files.filter((f) => !/^(dist|assets)\//.test(f)).sort(), ["CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.md", "CHANGELOG.pl.md", "LICENSE", "README.md", "package.json"], "nothing else of the sources");
 });
 
 test("what a pushed tag publishes: a beta newer than the sources under beta, a release of the sources' version under latest, anything else nothing", () => {
@@ -227,7 +227,7 @@ test("the beta's tarball checked before it goes out: its version, publishConfig.
     return file;
   };
   const pkg = (over: object = {}) => JSON.stringify({ name: "strom-research", version: "1.17.0-beta.2", publishConfig: { tag: "beta" }, ...over });
-  const rest = { LICENSE: "x", "README.md": "x", "CHANGELOG.md": "x", "CHANGELOG.cs.md": "x", "CHANGELOG.de.md": "x", "dist/cli.js": "x", "assets/a.json": "{}" };
+  const rest = { LICENSE: "x", "README.md": "x", "CHANGELOG.md": "x", "CHANGELOG.cs.md": "x", "CHANGELOG.de.md": "x", "CHANGELOG.pl.md": "x", "dist/cli.js": "x", "assets/a.json": "{}" };
   assert.equal(tarballRefusal(tgz({ "package.json": pkg(), ...rest }), "1.17.0-beta.2"), undefined);
   assert.match(tarballRefusal(tgz({ "package.json": pkg(), ...rest }), "1.17.0-beta.3")!, /version 1\.17\.0-beta\.2, not 1\.17\.0-beta\.3/);
   assert.match(tarballRefusal(tgz({ "package.json": pkg({ publishConfig: {} }), ...rest }), "1.17.0-beta.2")!, /publishConfig\.tag is missing/);

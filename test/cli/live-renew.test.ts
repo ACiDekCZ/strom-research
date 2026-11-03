@@ -25,9 +25,10 @@ const alive = (pid: number) => {
   }
 };
 
-async function bridge(version: Record<string, unknown>) {
+async function bridge(version: Record<string, unknown>, before?: (w: World) => void) {
   const w = new World();
   await w.withTree("Dvořákovi");
+  before?.(w);
   const disk = path.join(w.dir, "package.json");
   fs.writeFileSync(disk, JSON.stringify({ version: "1.0.0" }));
   Object.assign(w.env, { STROM_LIVE_DISK_VERSION: disk, STROM_LIVE_RENEW_MS: "200", STROM_LIVE_POLL_MS: "100", STROM_LIVE_RENEWED: "1.0.0" });
@@ -50,6 +51,40 @@ test("a newer strom on disk: the bridge starts again with it at its port and tok
     assert.equal(s.installed, undefined, "it runs what is on disk");
     assert.match(b.log(), /strom 9\.9\.9 on disk: the bridge starts again with it[\s\S]*handed over to the bridge of strom 9\.9\.9/);
     await until("the old bridge ended", () => !alive(b.info.pid));
+  } finally {
+    await b.w.ok(["live", "stop"]);
+    b.w.cleanup();
+  }
+});
+
+test("a newer strom on disk: the address answers through the hand-over — the old bridge until the new one runs, never the new one's start without an answer", opts, async () => {
+  // a bridge's start made slow (a slow computer, a cold disk): the old one answers while the new one starts
+  const b = await bridge({ version: "9.9.9" }, (w) => {
+    fs.writeFileSync(path.join(w.dir, "slow.cjs"), "if (process.argv.includes('serve')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500);\n");
+    w.env.NODE_OPTIONS = `${w.env.NODE_OPTIONS ?? ""} --require=${JSON.stringify(path.join(w.dir, "slow.cjs"))}`.trim();
+  });
+  try {
+    let last = Date.now();
+    let gap = 0;
+    let done = false;
+    const watch = (async () => {
+      while (!done) {
+        const ok = await fetch(`${b.info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" }, signal: AbortSignal.timeout(1000) }).then((r) => r.ok, () => false);
+        const now = Date.now();
+        if (ok) {
+          gap = Math.max(gap, now - last);
+          last = now;
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    })();
+    b.update();
+    await until("the new bridge", () => /handed over/.test(b.log()) && fs.existsSync(path.join(b.w.cwd, ".strom", "live.json")) && b.live().pid !== b.info.pid);
+    await new Promise((r) => setTimeout(r, 500));
+    done = true;
+    await watch;
+    assert.ok(gap < 2000, `the longest time without an answer: ${gap} ms`);
+    assert.equal(b.live().token, b.info.token);
   } finally {
     await b.w.ok(["live", "stop"]);
     b.w.cleanup();

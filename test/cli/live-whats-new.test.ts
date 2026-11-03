@@ -36,7 +36,7 @@ test("GET /whats-new: this version's points in the language asked for, else Engl
     const info = (await w.ok(["live", "start", "--json"])).json as Info;
     const status = JSON.parse((await ask(`${info.url}/status?app=3.12.0`, { Origin: APP })).body) as { features: string[]; strom: string };
     assert.ok(status.features.includes("whats.new"), "the app asks only a bridge that says it");
-    for (const [asked, lang] of [["cs", "cs"], ["de", "de"], ["en", "en"], ["pl", "en"], ["", "en"]] as const) {
+    for (const [asked, lang] of [["cs", "cs"], ["de", "de"], ["en", "en"], ["pl", "pl"], ["uk", "en"], ["", "en"]] as const) {
       const r = await ask(`${info.url}/whats-new?lang=${asked}&app=3.12.0`, { Origin: APP });
       assert.equal(r.status, 200, asked);
       assert.equal(r.headers["access-control-allow-origin"], APP, "the app's pages may read it");

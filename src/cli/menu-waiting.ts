@@ -32,6 +32,7 @@ import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
 import { listConnectors } from "../core/connector.ts";
+import { placeQuestions } from "../core/placesview.ts";
 import { inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
 import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
 import { viewModel } from "../core/viewsizes.ts";
@@ -49,7 +50,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "place", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -458,6 +459,7 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
 /** A decision: its own screen — an archive's question, a story's new version, the app's send, the reading of scans, a site to check. */
 async function decide(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
   if (w.conflict) return decideConflictHere(ctx, run, lang, root, w.conflict.id);
+  if (w.place) return decidePlace(ctx, run, lang, root, w.place.place.id);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
   const tree = Tree.open(root, ctx.env);
@@ -506,6 +508,56 @@ async function decideConflictHere(ctx: Context, run: Run, lang: string, root: st
   if (!why) return;
   if ((await run(["conflict", "resolve", id, `--take=${i === 0 ? "user" : "research"}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return;
   out(t("ui.link.conflict.done"));
+}
+
+/**
+ * The research's question of a place, answered here as in the app's What waits (strom place answer, the person's own):
+ * which of the candidates it is (or none, or no telling), the position on the map kept against the records, the facts
+ * written as the record says or left. Nothing spent; 0 leaves it open.
+ */
+async function decidePlace(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const a = placeQuestions(Tree.open(root, ctx.env)).find((x) => x.place.id === id);
+  // meanwhile answered or changed (in the app, a sync): said, nothing asked
+  if (!a) return void out(t("ui.wait.place.gone"));
+  const q = a.question;
+  const p = a.place;
+  const name = p.names[0]?.name ?? p.id;
+  const what = t(q.kind === "conflict" ? "ui.waiting.place.conflict" : q.kind === "form" ? "ui.waiting.place.form" : "ui.waiting.place.propose", { place: name });
+  const lines = ["", ` ${p.id} · ${kindWord(t, "place")} · ${t("ui.wait.since", { day: humanDay(q.at, lang) })}`, ` ${what}`];
+  if (a.forms.length) lines.push(`    ${a.forms.join(" · ")}`);
+  if (q.why) lines.push(`    ${q.why}`);
+  if (q.kind === "conflict") {
+    const cur = q.current ?? p.coords;
+    const by = p.locating?.by ?? "person";
+    if (cur) lines.push(`    ${t("ui.wait.place.current", { lat: cur.lat, lon: cur.lon, by: t(`ui.wait.place.by.${by}` as UIKey) })}`);
+  }
+  const at = (x: { place: string; house?: string }) => (x.house ? `${x.place} ${x.house}` : x.place);
+  if (q.kind === "form" && q.change) lines.push(`    ${t("ui.wait.place.change", { facts: q.change.facts, from: at(q.change.from), to: at(q.change.to) })}`);
+  out(lines.join("\n"));
+  const choices: { label: string; take: string }[] =
+    q.kind === "form"
+      ? [
+          { label: t("ui.wait.place.yes"), take: "yes" },
+          { label: t("ui.wait.place.no"), take: "no" },
+        ]
+      : [
+          ...(q.candidates ?? []).map((c) => {
+            const where = [c.district, c.country].filter(Boolean).join(", ");
+            return { label: `${c.name}${where ? ` (${where})` : ""} — ${c.why}`, take: c.id };
+          }),
+          ...(q.kind === "conflict"
+            ? [{ label: t("ui.wait.place.keep"), take: "keep" }]
+            : [
+                { label: t("ui.wait.place.none"), take: "none" },
+                { label: t("ui.wait.place.unknown"), take: "unknown" },
+              ]),
+        ];
+  const i = await ctx.choose(t("ui.wait.place.pick"), choices, choices.length, { back: t("ui.wait.conflict.open") });
+  if (i === undefined) return;
+  if ((await run(["place", "answer", p.id, `--take=${choices[i]!.take}`, `--expect=${p.id}=${q.at}`], true)) !== 0) return;
+  out(t("ui.wait.place.done", { place: name }));
 }
 
 /** The images to save by hand and where (a task waiting for an archive's images). */

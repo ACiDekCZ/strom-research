@@ -32,14 +32,16 @@ import { isAgent } from "../core/which.ts";
 import { noPermission } from "../core/writable.ts";
 import { completePath, pathOf, pathToRemember } from "../core/userpath.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
-import { lastChannelOf, npmChannelKept, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
+import { isNewer, lastChannelOf, npmChannelKept, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
-import { guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
+import { diskVersion, guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
+import { otherVersionsAtWork } from "../core/workers.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
+import { markWidget } from "../core/widget.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
@@ -349,7 +351,11 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
     // outside the research's measurements
     const hook = (command === "net web" || command === "agents delegate") && v.hook === true;
-    const pending = fromSources || hook || guest ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    // …nor in a strom its installation has updated meanwhile (a run's agent calls the version the run started with, spec
+    // 037): a newer one in use is no way back — no backup "from the newer to this one", nothing of a first run that the
+    // newer one would only do again (found on Windows: a backup "1.26.0-beta.92 to 1.26.0-beta.91" during a run)
+    const superseded = installation().kind === "installed" && isNewer(diskVersion(env)?.version ?? VERSION, VERSION);
+    const pending = fromSources || hook || guest || superseded ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
         const made = timed("start.backup", () => backupBefore(ctx, pending));
@@ -364,7 +370,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
-    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest) {
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest && !superseded) {
       // (measured: strom --timing — a first run that never ends as one, its settings not kept, is here each time)
       stepStart("start.newversion");
       // the connectors here when this strom first runs: taken over as they are — they run as before, the person
@@ -389,6 +395,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       ctx.settings.config.lastChannel = channel;
       ctx.settings.save();
       refreshGlobal(env);
+      // …and the widget on the desktop (macOS, Windows) learns this strom writes its files: index.json, even with no tree
+      markWidget(env);
       // …and the links from the Strom app lead to this strom again (where strom made them on this person's yes —
       // never another installation's: one with its own settings asks)
       try {
@@ -400,6 +408,9 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       for (const k of ctx.knownTrees()) {
         // a research a newer strom wrote: kept as it is — nothing settled, no bridge started for it
         if (newerTree(k.root, env)) continue;
+        // another version still works there (a run, a conversation started before the update): nothing of this one's
+        // written under it — its bridge renews itself once that work ends and settles the rest (spec 037)
+        if (otherVersionsAtWork(k.root, VERSION).length > 0) continue;
         try {
           settleArchive(Tree.open(k.root, env));
         } catch {

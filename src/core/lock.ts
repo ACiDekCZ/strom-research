@@ -12,6 +12,8 @@ export interface LockInfo {
   host: string;
   at: string;
   owner: string;
+  /** The version of strom that holds it (a worker's lock: a research another version works in is never migrated meanwhile). */
+  version?: string;
 }
 
 function sleepSync(ms: number): void {
@@ -137,6 +139,8 @@ export interface LockOptions {
   staleMs?: number;
   /** Older than this the lock is taken over even when a process of its pid lives here (a pid the system gave again). */
   maxAgeMs?: number;
+  /** The version of strom written into the lock (LockInfo.version). */
+  version?: string;
 }
 
 /**
@@ -228,7 +232,7 @@ export function acquireLock(file: string, opts: LockOptions): () => void {
   const staleMs = opts.staleMs ?? 10 * 60 * 1000;
   const deadline = Date.now() + waitMs;
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner };
+  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner, ...(opts.version ? { version: opts.version } : {}) };
 
   // The lock appears whole or not at all: written aside, then linked in under its name
   // (a link fails if the name exists). A lock created empty and filled a moment later

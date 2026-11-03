@@ -31,7 +31,7 @@ import { finishMovedByFile, movedByFile } from "../core/transfer.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { endProcess, notOurs, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
 import { stopPhone } from "../core/phone.ts";
-import { newerTree, Tree, TREE_FILE } from "../core/tree.ts";
+import { newerTree, Tree, TREE_FILE, VERSION } from "../core/tree.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Task, TreeConfig } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
@@ -39,6 +39,7 @@ import { waitGroupOf } from "../core/waitkind.ts";
 import { sameGroup } from "../core/waiting.ts";
 import type { Research } from "../core/model.ts";
 import { commitNow, shimDir } from "./session.ts";
+import { unpinShim } from "../core/self.ts";
 import { abandonedSessions, closeSession, openSessions } from "../core/session.ts";
 import { enterWorker, liveWorkers } from "../core/workers.ts";
 import { phrase } from "../core/phrases.ts";
@@ -46,10 +47,11 @@ import { phrase } from "../core/phrases.ts";
 import { imageSettings, qualityIn, writeGedcoms, writeTreeGed } from "./output.ts";
 import { shortcutName } from "../cli/wizard.ts";
 import { refuseInArchive } from "../core/state.ts";
+import { claudeStateFile } from "../core/claudedir.ts";
 
 /** Has the user trusted this folder in Claude Code already? (Its own record, read only.) */
 function claudeTrusts(root: string, env: Env): boolean {
-  const file = env.CLAUDE_CONFIG_DIR ? path.join(env.CLAUDE_CONFIG_DIR, ".claude.json") : path.join(userHome(env), ".claude.json");
+  const file = claudeStateFile(env);
   try {
     const projects = (JSON.parse(fs.readFileSync(file, "utf8")) as { projects?: Record<string, { hasTrustDialogAccepted?: boolean }> }).projects ?? {};
     const real = fs.realpathSync(root);
@@ -244,13 +246,13 @@ register({
       commitNow(t, `${s.id} interrupted: its ${s.runner ? "run had stopped" : "conversation had ended"}`);
     }
     const worker = `${agent}-${process.pid}-${Date.now().toString(36)}`;
-    const leave = enterWorker(tree.root, worker, `${profile.name} conversation`);
+    const leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
     ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
     const browserSays = browserNote(ctx, tree, agent);
     if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
+    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
     delete env.STROM_HANDOVER;
     let code: number;
     try {
@@ -261,6 +263,7 @@ register({
         code = await waitFor(spawnAgent(profile.command, conversationArgs(agent, { ...base, level: "ask" }), { cwd: tree.root, env, stdio: "inherit" }));
     } finally {
       leave();
+      unpinShim(tree.root);
     }
     // A session the agent left open goes back: its task returns to the queue.
     for (const s of openSessions(Tree.open(tree.root, ctx.env)).filter((x) => x.worker === worker)) {
@@ -386,8 +389,8 @@ register(
     description:
       "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
-      "waits for the user. It ends by itself when nobody asks it anything for two hours while nobody works in the tree,\n" +
-      "or with strom live stop.\n" +
+      "waits for the user. It ends by itself when nobody asks it anything for two hours while nobody works in the tree\n" +
+      "(strom config set live.idleMinutes <minutes>; 0: never by itself), or with strom live stop.\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
       "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
       "(its port while free), so the app following it goes on by itself; one that ended without a word or when idle is\n" +
@@ -515,7 +518,7 @@ register(
   },
   {
     path: ["uninstall"],
-    summary: "Take strom off this computer: what the agents were taught, the shortcut, its own git, its PATH lines and the program — the research and the settings stay",
+    summary: "Take strom off this computer: what the agents were taught, the shortcut, its own git, its PATH lines, the widget's files and the program — the research and the settings stay",
     group: "setup",
     description:
       "The user's decision: a person at their terminal is asked there (--yes: no question); asked by an agent, strom asks\n" +
@@ -527,7 +530,7 @@ register(
       // never taken, nor a folder that holds it: the research and what is the person's (found 2026-10-07: an isolated
       // installation's research and its backups lay in its folder, which went whole)
       const keep = ctx.researchFolders();
-      const plan = uninstallPlan(ctx.env, ["en", "cs", "de"].map(shortcutName), { keep });
+      const plan = uninstallPlan(ctx.env, ["en", "cs", "de", "pl"].map(shortcutName), { keep });
       const label = (r: Removal) => ui(lang, `ui.uninstall.${r.kind}`, { agent: r.agent ?? "" });
       const keeps = ui(lang, "ui.uninstall.keeps", { home: home ? ctx.display(home) : "—", config: ctx.display(configDir(ctx.env)) });
       if (!plan.remove.length)

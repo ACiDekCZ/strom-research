@@ -1,8 +1,9 @@
 // What strom put on this computer outside the research, and taking it away
 // again (strom uninstall): what the agents were taught, the shortcut, strom's
-// own git, the PATH lines of the installer and the program itself. The
-// research stays, and so do the settings with the keys that seal it — they
-// are the user's; strom says where they are.
+// own git, the PATH lines of the installer, the widget's files (what it
+// showed of the research) and the program itself. The research stays, and so
+// do the settings with the keys that seal it — they are the user's; strom
+// says where they are.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -13,15 +14,16 @@ import { ownGitDir } from "./git.ts";
 import { shortcutCmdDir } from "./shortcut.ts";
 import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { holdsPath, installation, pathForms, PROGRAM_ENTRIES, type Installation } from "./self.ts";
+import { holdsPath, installation, isVersionDir, pathForms, PROGRAM_ENTRIES, type Installation } from "./self.ts";
 import { linkFiles, linkOwner, unregisterLinks } from "./links.ts";
+import { widgetDir } from "./widget.ts";
 
 /** The mark the installer (install/install.sh) puts on the PATH line it adds. */
 const MARK = "# strom research";
 
 export interface Removal {
-  /** What it is: what an agent was taught, the shortcut, strom's own git, a PATH entry, the program. */
-  kind: "agent" | "shortcut" | "links" | "git" | "path" | "program";
+  /** What it is: what an agent was taught, the shortcut, strom's own git, a PATH entry, the widget's files, the program. */
+  kind: "agent" | "shortcut" | "links" | "git" | "path" | "widget" | "program";
   /** The agent's name (kind agent). */
   agent?: string;
   path: string;
@@ -166,13 +168,13 @@ function onWindowsPath(dir: string): boolean {
  * What the installer, strom update and strom's own git put into an installation's folder — the one thing strom
  * uninstall takes from it (found 2026-10-07: the whole folder went, an isolated installation's research and its
  * backups in it). Folders: Node, strom's code (and the one an update or the installer set aside), strom's own git
- * (MinGit on Windows) with what its download leaves; files: install.json, the launchers (strom, strom.cmd; strom.exe of
- * an older strom). Besides: the update's work folders (.update-…), bin with a second installation's launchers (only
+ * (MinGit on Windows) with what its download leaves; files: install.json, update.log, the launchers (strom, strom.cmd; strom.exe of
+ * an older strom). Besides: each version's folder (app-<version>), the update's work folders (.update-…), bin with a second installation's launchers (only
  * when nothing else is left in it), and what a system leaves in any folder it shows (.DS_Store, Thumbs.db,
  * desktop.ini). Anything else — a research, backups, a file the person put there — stays, and so does the folder.
  */
 const OUR_DIRS = new Set<string>(PROGRAM_ENTRIES);
-const OUR_FILES = new Set(["install.json", "strom", "strom.cmd", "strom.exe", "git.zip", ".DS_Store", "Thumbs.db", "desktop.ini"]);
+const OUR_FILES = new Set(["install.json", "update.log", "strom", "strom.cmd", "strom.exe", "git.zip", ".DS_Store", "Thumbs.db", "desktop.ini"]);
 
 /** One entry of an installation's folder that strom uninstall takes away. */
 export interface OurEntry {
@@ -206,7 +208,7 @@ export function ourEntries(root: string, keep: string[] = [], platform: NodeJS.P
       continue;
     }
     const dir = st.isDirectory();
-    const ours = dir ? OUR_DIRS.has(name) || /^\.update-/.test(name) : OUR_FILES.has(name);
+    const ours = dir ? OUR_DIRS.has(name) || isVersionDir(name) || /^\.update-/.test(name) : OUR_FILES.has(name);
     if (!ours || holdsKept(path.join(root, name), keep, platform)) continue;
     out.push({ name, dir });
   }
@@ -371,6 +373,13 @@ export function uninstallPlan(
       // none
     }
   }
+  // the widget's files (macOS, Windows): only what strom wrote there, the folder when nothing else is left in it — the
+  // widget would show the research as not at work for ever
+  // a folder of the person's own (STROM_WIDGET_DIR): only the files that say they are strom's widget's
+  const widget = widgetDir(env, platform);
+  const own = !!env.STROM_WIDGET_DIR?.trim();
+  if (widget && widgetFiles(widget, own).length && !holdsKept(widget, keep, platform))
+    remove.push({ kind: "widget", path: widget, remove: () => removeWidgetFiles(widget, own) });
   const program = inst.kind === "installed" ? inst.root : undefined;
   // install.json's launchers: those of a launcher's name outside the research only
   const chosen = launchersToTake(inst.launchers ?? [], keep, platform);
@@ -386,4 +395,64 @@ export function uninstallPlan(
   const taken = new Set(program ? ourEntries(program, keep, platform).filter((e) => !e.dir).flatMap((e) => pathForms(path.join(program, e.name), platform)) : []);
   const skipped = chosen.skipped.filter((l) => !pathForms(l, platform).some((f) => taken.has(f)));
   return { remove, npm: inst.kind === "npm", ...(program ? { program, launchers: chosen.take, skipped } : {}) };
+}
+
+/** What strom writes into the widget's folder: index.json, each tree's <ID>.json and a file being written beside one. */
+const WIDGET_FILE = /^(?:index|[0-9A-Za-z-]{1,64})\.json$|^\..+\.json\.\d+\.[0-9a-f]+\.tmp$/u;
+/** A file being written beside a tree's: `.<ID>.json.<pid>.<hex>.tmp`, its tree's ID. */
+const WIDGET_TMP = /^\.([0-9A-Za-z-]{1,64})\.json\.\d+\.[0-9a-f]+\.tmp$/u;
+
+const jsonOf = (file: string): Record<string, unknown> | undefined => {
+  try {
+    const v = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * strom's files in the widget's folder. `own`: a folder the person named (STROM_WIDGET_DIR), other files may be theirs —
+ * only those that say they are the widget's: index.json with its schema and trees, each tree's <treeKey>.json whose
+ * treeKey is its name, a file being written beside one of those trees (by its name: being written, it cannot be read).
+ */
+export function widgetFiles(dir: string, own = false): string[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => WIDGET_FILE.test(n) && fs.statSync(path.join(dir, n)).isFile());
+  } catch {
+    return [];
+  }
+  if (!own) return names;
+  const keys = new Set<string>();
+  const out: string[] = [];
+  const index = names.includes("index.json") ? jsonOf(path.join(dir, "index.json")) : undefined;
+  if (index && typeof index.schemaVersion === "number" && Array.isArray(index.trees)) {
+    out.push("index.json");
+    for (const t of index.trees as { treeKey?: unknown }[]) if (typeof t?.treeKey === "string") keys.add(t.treeKey);
+  }
+  for (const n of names) {
+    if (n === "index.json" || n.startsWith(".")) continue;
+    const key = n.slice(0, -".json".length);
+    if (jsonOf(path.join(dir, n))?.treeKey === key) {
+      out.push(n);
+      keys.add(key);
+    }
+  }
+  for (const n of names) {
+    const m = WIDGET_TMP.exec(n);
+    if (m && keys.has(m[1]!)) out.push(n);
+  }
+  return out;
+}
+
+/** The widget's files taken; the folder too when nothing else is in it (never what strom did not write there). */
+export function removeWidgetFiles(dir: string, own = false): boolean {
+  for (const n of widgetFiles(dir, own)) fs.rmSync(path.join(dir, n), { force: true });
+  try {
+    if (!fs.readdirSync(dir).length) fs.rmdirSync(dir);
+  } catch {
+    // gone already, or another program's file in it: it stays
+  }
+  return !widgetFiles(dir, own).length;
 }

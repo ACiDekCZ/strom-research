@@ -4,8 +4,11 @@
 //
 // strom is JavaScript on Node, installed one of three ways:
 //   installed  by strom's installer: a folder with the official Node from
-//              nodejs.org (node/) and strom's code (app/), install.json beside
-//              them naming the command(s) on PATH that start it
+//              nodejs.org (node/) and strom's code — each version in a folder of
+//              its own (app-<version>/), app/dist/cli.js the one entry that leads
+//              to the version in use (an installation before versions: app/ is
+//              the code itself) —, install.json beside them naming the command(s)
+//              on PATH that start it
 //   npm        npm install -g strom-research, on the Node of the computer
 //   source     run from the repository (node src/cli.ts)
 
@@ -13,6 +16,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { anyoneAtWork } from "./workers.ts";
 
 export interface Installation {
   kind: "installed" | "npm" | "source";
@@ -92,14 +96,14 @@ export const installation: () => Installation = installationAt(here);
 /** How the strom whose core/self module is `file` was installed (tests: a folder of their own). */
 export function installationOf(file: string): Installation {
   if (file.endsWith(".ts")) return { kind: "source" };
-  // …/app/dist/core/self.js
+  // …/app/dist/core/self.js, …/app-<version>/dist/core/self.js
   const app = path.resolve(path.dirname(file), "..", "..");
   const root = path.dirname(app);
   // dist/ built in a checkout of the sources is the sources too, never npm's package (found 2026-10-15: one run of it
   // took the person's links and the next link from the Strom app started it over the installed beta)
   if (fs.existsSync(path.join(app, ".git"))) return { kind: "source" };
   try {
-    if (path.basename(app) === "app") {
+    if (path.basename(app) === "app" || isVersionDir(path.basename(app))) {
       const info = JSON.parse(fs.readFileSync(path.join(root, "install.json"), "utf8")) as { launchers?: string[]; node?: string; env?: Record<string, string>; channel?: unknown; command?: unknown };
       const env = info.env && typeof info.env === "object" ? info.env : undefined;
       return { kind: "installed", root, launchers: info.launchers ?? [], ...(info.node ? { node: info.node } : {}), ...(env ? { env } : {}), ...(info.channel === "beta" ? { channel: "beta" as const } : {}), ...(typeof info.command === "string" ? { command: info.command } : {}) };
@@ -143,10 +147,39 @@ export function replacedOnDisk(version: string): boolean {
   }
 }
 
-/** The program and arguments that run strom: this Node and its entry script (cli.ts from sources, cli.js built). */
+/**
+ * The program and arguments that run this very strom: this Node and its entry script (cli.ts from sources, cli.js
+ * built) — of the installer's, this version's own folder (app-<version>/): what it starts goes on with this version
+ * (a run's agent, a child it waits for), however strom update changes the version in use meanwhile.
+ */
 export function stromLauncher(): { command: string; args: string[] } {
   const cli = path.resolve(path.dirname(here), "..", here.endsWith(".ts") ? "cli.ts" : "cli.js");
   return { command: process.execPath, args: [cli] };
+}
+
+/**
+ * The folder of one version of strom's code in the installer's folder: app-<version> (another try of the same version
+ * beside the one in use: app-<version>_<n>). strom update puts each new version into one; app/dist/cli.js leads to the
+ * one in use.
+ */
+export const VERSION_DIR = /^app-\d+\.\d+\.\d+[0-9A-Za-z.+_-]*$/;
+export const isVersionDir = (name: string): boolean => VERSION_DIR.test(name);
+
+/** The entry a version in its own folder is started through: app/dist/cli.js, which leads to the version in use. */
+export function entryOf(root: string): string {
+  return path.join(root, "app", "dist", "cli.js");
+}
+
+/**
+ * The program and arguments that run the strom in use on this computer, now and after the next update: for what
+ * lasts beyond this process — the research's shim an agent finds later, the shortcut, the links, a bridge started
+ * again. The installer's strom in a folder of its version: through app/dist/cli.js (the version in use whenever it
+ * starts); else this very strom (an installation before versions, npm's, the sources: one place for every version).
+ */
+export function lastingLauncher(inst: Installation = installation()): { command: string; args: string[] } {
+  const own = stromLauncher();
+  if (inst.kind !== "installed" || !inst.root || !isVersionDir(path.basename(path.dirname(path.dirname(own.args[0]!))))) return own;
+  return { command: own.command, args: [entryOf(inst.root)] };
 }
 
 /**
@@ -307,12 +340,17 @@ export type Launcher = { command: string; args: string[] };
 /**
  * A `strom` in the tree's .strom/bin for the agent — on its PATH when strom starts it, named by the tree's agent hooks —
  * pointing at this very installation (a shell script and a .cmd; strom-hook.cmd: the .cmd whose exit is always 0, for
- * a hook). Written only when it differs, each file whole (a temporary file renamed over it: an agent running it that
- * moment never reads half of it). The folder, and the files written now.
+ * a hook): the strom in use (`lastingLauncher`), or `pin`: this very version (`stromLauncher`) — a run or a conversation
+ * strom starts, whose agent goes on with the version that prepared its work however strom update changes the one in
+ * use meanwhile (spec 037 K1.2: never a research brought to a newer schema in the middle of a run). The strom in use is
+ * never written over a version another one pinned while somebody works in the research (an agent's call that moment
+ * would leave its run's version). Written only when it differs, each file whole (a temporary file renamed over it: an
+ * agent running it that moment never reads half of it). The folder, and the files written now.
  */
-export function putShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher: Launcher = stromLauncher()): { dir: string; changed: string[] } {
+export function putShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher?: Launcher, opts: { pin?: boolean } = {}): { dir: string; changed: string[] } {
   const dir = path.join(root, ".strom", "bin");
-  const { command, args } = launcher;
+  if (!launcher && !opts.pin && pinnedNow(root)) return { dir, changed: [] };
+  const { command, args } = launcher ?? (opts.pin ? stromLauncher() : lastingLauncher());
   const run = [command, ...args].map((a) => `"${a}"`).join(" ");
   fs.mkdirSync(dir, { recursive: true });
   const changed: string[] = [];
@@ -344,8 +382,34 @@ export function putShim(root: string, env: NodeJS.ProcessEnv = process.env, laun
 }
 
 /** `putShim`'s folder. */
-export function writeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher: Launcher = stromLauncher()): string {
-  return putShim(root, env, launcher).dir;
+export function writeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher?: Launcher, opts: { pin?: boolean } = {}): string {
+  return putShim(root, env, launcher, opts).dir;
+}
+
+/**
+ * The research's shim names a version of strom pinned there (one of the installer's folders of a version, not the
+ * entry of the one in use) that is still on disk, and somebody works in the research (a run, a conversation strom
+ * started): left as it is.
+ */
+export function pinnedNow(root: string, inst: Installation = installation()): boolean {
+  const script = shimScript(root);
+  if (!script || inst.kind !== "installed" || !inst.root || !isVersionDir(path.basename(path.dirname(path.dirname(script))))) return false;
+  return fs.existsSync(script) && anyoneAtWork(root);
+}
+
+/**
+ * After a run or a conversation that pinned its version: the research's shim leads to the strom in use again — only when
+ * it still names this very version and nobody else works there (another one's pin stays). Never an error.
+ */
+export function unpinShim(root: string, env: NodeJS.ProcessEnv = process.env): void {
+  try {
+    const own = stromLauncher().args[0];
+    const lasting = lastingLauncher();
+    if (lasting.args[0] === own || shimScript(root) !== own || anyoneAtWork(root)) return;
+    putShim(root, env, lasting);
+  } catch {
+    // its next session writes it again
+  }
 }
 
 /** The entry script the research's shim runs (its last word before "$@"), undefined when there is none or it is not read. */
@@ -364,7 +428,7 @@ export function shimScript(root: string): string | undefined {
  * one whose mark went with the app/ an update replaced) — only where the research has one (.strom/bin), never in an
  * archive (no agent's files there), never an error. Whether anything was written.
  */
-export function refreshTreeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher: Launcher = stromLauncher(), inst: Installation = installation()): boolean {
+export function refreshTreeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher?: Launcher, inst: Installation = installation()): boolean {
   try {
     if (!fs.statSync(path.join(root, ".strom", "bin")).isDirectory()) return false;
     const config = JSON.parse(fs.readFileSync(path.join(root, "strom.json"), "utf8")) as { mode?: unknown };
@@ -406,8 +470,26 @@ export function holdsPath(outer: string, inner: string, platform: NodeJS.Platfor
   return pathForms(inner, platform).some((i) => os.some((o) => i === o || i.startsWith(o.endsWith(path.sep) ? o : o + path.sep)));
 }
 
-/** The entries of the installer's folder that strom update replaces (app, node) or removes (app.old) — never a research's place. */
+/**
+ * The entries of the installer's folder that strom update replaces (app, node) or removes (app.old, a version's
+ * app-<version>/ once another is in use) — never a research's place.
+ */
 export const REPLACED_ENTRIES = ["app", "app.old", "node"] as const;
+
+/** The first entry under the installer's folder `root` that holds `folder`, when strom update replaces or removes it (REPLACED_ENTRIES, app-<version>/, .update-*). */
+function replacedEntry(root: string, folder: string, platform: NodeJS.Platform): string | undefined {
+  const e = REPLACED_ENTRIES.find((e) => holdsPath(path.join(root, e), folder, platform));
+  if (e) return path.join(root, e);
+  if (!holdsPath(root, folder, platform)) return undefined;
+  for (const r of pathForms(root, platform)) {
+    for (const f of pathForms(folder, platform)) {
+      const first = path.relative(r, f).split(/[\\/]/)[0] ?? "";
+      if (first && !first.startsWith("..") && (isVersionDir(first) || /^\.update-/.test(first))) return path.join(root, first);
+    }
+  }
+  return undefined;
+}
+
 /** What the installer, strom update and strom's own git put into its folder (strom uninstall takes these). */
 export const PROGRAM_ENTRIES = [...REPLACED_ENTRIES, "git", "git.part"] as const;
 
@@ -471,20 +553,21 @@ export function insideProgram(folder: string, opts: { inst?: Installation; setti
   const platform = opts.platform ?? process.platform;
   if (!holdsPath(root, folder, platform)) return undefined;
   if (inst.kind !== "installed") return root;
-  const inEntry = PROGRAM_ENTRIES.some((e) => holdsPath(path.join(root, e), folder, platform)) || /^\.update-/.test(path.relative(root, folder).split(/[\\/]/)[0] ?? "");
+  const inEntry = PROGRAM_ENTRIES.some((e) => holdsPath(path.join(root, e), folder, platform)) || !!replacedEntry(root, folder, platform);
   if (!inEntry && opts.settings && holdsPath(root, opts.settings, platform) && holdsPath(opts.settings, folder, platform)) return undefined;
   return root;
 }
 
 /**
  * What of `keep` (the research, its home, trees, shared folder, backups, the settings) lies inside the entries strom
- * update replaces or removes in the installer's folder `root` — app/, app.old/, node/: an update would take it away.
+ * update replaces or removes in the installer's folder `root` — app/, app.old/, app-<version>/, node/: an update would
+ * take it away.
  */
 export function replacedHolding(root: string, keep: string[], platform: NodeJS.Platform = process.platform): { folder: string; entry: string }[] {
   const out: { folder: string; entry: string }[] = [];
   for (const folder of keep) {
-    const e = REPLACED_ENTRIES.find((e) => holdsPath(path.join(root, e), folder, platform));
-    if (e) out.push({ folder, entry: path.join(root, e) });
+    const entry = replacedEntry(root, folder, platform);
+    if (entry) out.push({ folder, entry });
   }
   return out;
 }

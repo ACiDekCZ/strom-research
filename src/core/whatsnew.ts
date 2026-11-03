@@ -1,5 +1,5 @@
 // What is new in this strom, for the Strom app (the bridge's GET <token>/whats-new): the points of the running
-// version's section of the changelog shipped with strom (CHANGELOG.md, CHANGELOG.cs.md, CHANGELOG.de.md beside
+// version's section of the changelog shipped with strom (CHANGELOG.md, CHANGELOG.cs.md, CHANGELOG.de.md, CHANGELOG.pl.md beside
 // dist/ and assets/), in the language the app asks for, and where the whole section is on GitHub. Read only; the
 // files missing or without the section: no points, the address still said.
 
@@ -12,7 +12,7 @@ import { whatsNewUrl, type Channel } from "./update.ts";
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** The languages with a changelog of their own; any other reads the English one. */
-const LANGS = new Set(["cs", "de"]);
+const LANGS = new Set(["cs", "de", "pl"]);
 export const WHATS_NEW_MAX_POINTS = 20;
 export const WHATS_NEW_MAX_CHARS = 1000;
 
@@ -72,7 +72,7 @@ function read(dir: string, lang: string): string | undefined {
 }
 
 /**
- * What is new in a version, in a language (cs, de; any other: en) — from that language's changelog, else the
+ * What is new in a version, in a language (cs, de, pl; any other: en) — from that language's changelog, else the
  * English one; the address of the section on the branch of the channel (whatsNewUrl).
  */
 export function whatsNew(version: string, asked: string | null | undefined, channel: Channel, dir: string = PACKAGE_ROOT): WhatsNew {

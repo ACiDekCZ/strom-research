@@ -524,3 +524,97 @@ test("the word for a house number only before numbers alone: a street with its n
     w.cleanup();
   }
 });
+
+test("the place records (APP_READS_PLACE_RECORDS) from the app 3.21.0 on, an unknown version off; its beta and development from 3.21.0-beta.2", opts, async () => {
+  const w = new World();
+  const m = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
+  const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  // set from the app's version that reads them (strom:je-venku-brany), never a beta for the production app
+  assert.equal(m.APP_READS_PLACE_RECORDS, "3.21.0");
+  assert.equal(m.APP_READS_PLACE_RECORDS_BETA, "3.21.0-beta.2");
+  for (const [v, on] of [[undefined, false], ["3.20.0", false], ["3.21.0-beta.5", false], ["3.21.0", true], ["9.0.0", true]] as const) {
+    assert.equal(m.appReadsPlaceRecords(prod, v), on, String(v));
+  }
+  for (const [v, on] of [[undefined, false], ["3.20.0", false], ["3.21.0-beta.1", false], ["3.21.0-beta.2", true], ["3.21.0", true]] as const) {
+    assert.equal(m.appReadsPlaceRecords(beta, v), on, `beta ${v}`);
+  }
+  // the gates set (given in their place, as their own parameters)
+  assert.equal(m.appReadsPlaceRecords(prod, "3.20.9", "3.21.0"), false);
+  assert.equal(m.appReadsPlaceRecords(prod, "3.21.0", "3.21.0"), true);
+  assert.equal(m.appReadsPlaceRecords(prod, undefined, "3.21.0"), false, "an unknown version stays off");
+  assert.equal(m.appReadsPlaceRecords(beta, "3.21.0-beta.2", undefined, "3.21.0-beta.3"), false);
+  assert.equal(m.appReadsPlaceRecords(beta, "3.21.0-beta.3", undefined, "3.21.0-beta.3"), true);
+  assert.equal(m.appReadsPlaceRecords(prod, "3.21.0-beta.3", undefined, "3.21.0-beta.3"), false, "the production app: its own gate");
+  w.cleanup();
+});
+
+test("the place records in the Strom file: _STROM_PLACE under each PLAC that is a record's (any accent, by its first part), the records pointed to with their parents; never without the gate, never in the standard file", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree();
+    const agent = { env: { CLAUDECODE: "1" } };
+    await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M", "--born", "1850", "--born-place", "H. Lhota"]); // P0001
+    await w.ok(["event", "add", "P0001", "RESI", "--date", "1870", "--place", "Horní Lhota, Lhotákova"]);
+    await w.ok(["event", "add", "P0001", "DEAT", "--date", "1925", "--place", "Lhotákov".normalize("NFD")]);
+    await w.ok(["person", "add", "Anna /Лгота/", "--sex", "F", "--born", "1852", "--born-place", "Лгота"]); // P0002
+    await w.ok(["place", "add", "Lhotov", "--lat", "49.7", "--lon", "15.3"]); // L0001, the person's
+    await w.ok(
+      ["place", "identify", "H. Lhota", "--lat", "49.61", "--lon", "15.23", "--name", "Horní Lhota", "--alt", "Ober Lhota@de:-1945", "--jurisdiction", "parish:Lhotov:1784-", "--parent", "L0001", "--why", "fara Lhotov v matrikách; druhá Horní Lhota 200 km", "--source-title", "Místopis", "--source-url", "https://example.org/mistopis"],
+      agent,
+    ); // L0002
+    await w.ok(["place", "unlocated", "Лгота", "--why", "zaniklá ves, poloha nedoložena", "--needs", "fara nebo okres u záznamu"], agent); // L0003
+    const { Tree } = await import("../../src/core/tree.ts");
+    const { exportGedcom } = await import("../../src/gedcom/export.ts");
+    const tree = Tree.open(w.cwd, w.env);
+    const t = exportGedcom(tree, { for: "strom", placeRecords: true }).text;
+    assert.deepEqual(validateGedcom(t).filter((f) => f.level === "error"), []);
+    assert.deepEqual(validateGedcom(t).filter((f) => /_STROM_(PLACE|JUR|IN|BY|AT|WHY|SRC|UNLOCATED|NEEDS)/.test(f.message)), [], "no warning of the new tags");
+    // each PLAC that belongs to a record points to it: H. Lhota and Horní Lhota with its district; Лгота
+    assert.match(t, /2 PLAC H\. Lhota\n3 MAP\n4 LATI N49\.61\n4 LONG E15\.23\n3 _STROM_PLACE @L0002@\n/);
+    assert.match(t, /2 PLAC Horní Lhota, Lhotákova\n(?:[34] .*\n)*3 _STROM_PLACE @L0002@\n/u);
+    assert.match(t, /2 PLAC Лгота\n3 _STROM_PLACE @L0003@\n/u);
+    assert.doesNotMatch(t, /2 PLAC Lhotákov\n3 _STROM_PLACE/u, "a place no record bears: nothing");
+    // the records: the one pointed to, its parent (pointed to by _STROM_IN), the one not located
+    const rec = (id: string) => t.slice(t.indexOf(`0 @${id}@ _STROM_PLACE`)).split(/\n0 /)[0]!;
+    assert.equal(
+      rec("L0002"),
+      [
+        "0 @L0002@ _STROM_PLACE",
+        "1 NAME Horní Lhota",
+        "1 NAME H. Lhota",
+        "2 TYPE form",
+        "1 NAME Ober Lhota",
+        "2 LANG de",
+        "2 DATE TO 1945",
+        "2 TYPE alt",
+        "1 MAP",
+        "2 LATI N49.61",
+        "2 LONG E15.23",
+        "1 _STROM_JUR parish Lhotov",
+        "2 DATE FROM 1784",
+        "1 _STROM_IN @L0001@",
+        "1 _STROM_BY research",
+        `1 _STROM_AT ${tree.get<import("../../src/core/model.ts").Place>("L0002")!.locating!.at.slice(0, 10)}`,
+        "1 _STROM_WHY fara Lhotov v matrikách; druhá Horní Lhota 200 km",
+        "1 _STROM_SRC Místopis",
+        "2 WWW https://example.org/mistopis",
+      ].join("\n"),
+    );
+    assert.match(rec("L0001"), /^0 @L0001@ _STROM_PLACE\n1 NAME Lhotov\n1 MAP\n2 LATI N49\.7\n2 LONG E15\.3\n1 _STROM_BY person\n/);
+    assert.match(rec("L0003"), /1 NAME Лгота\n1 _STROM_BY research\n1 _STROM_AT .+\n1 _STROM_UNLOCATED zaniklá ves, poloha nedoložena\n2 _STROM_NEEDS fara nebo okres u záznamu$/u);
+    assert.doesNotMatch(rec("L0003"), /\n1 MAP/, "not located: no MAP");
+    // never without the gate, never in the standard file; strom export: the gate closed (not released)
+    assert.doesNotMatch(exportGedcom(tree, { for: "strom" }).text, /_STROM_PLACE/);
+    assert.doesNotMatch(exportGedcom(tree, { placeRecords: true }).text, /_STROM_PLACE/);
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none"]);
+    assert.doesNotMatch(fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8"), /_STROM_PLACE/);
+    // the app's file with them comes back unedited: no change, nothing of the records taken as an edit
+    const ged = path.join(w.dir, "places.ged");
+    fs.writeFileSync(ged, exportGedcom(tree, { for: "strom", placeRecords: true }).text);
+    assert.deepEqual((await w.ok(["sync", ged, "--json"])).json.changes, []);
+  } finally {
+    w.cleanup();
+  }
+});

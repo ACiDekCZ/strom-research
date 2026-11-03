@@ -122,8 +122,11 @@ conversation opened anywhere, a bot on its own server)
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
-  new --person <them>. The user wants a direction to wait or to end: strom research pause|done G… (its
-  tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
+  new --person <them>. A task on a side branch no line reaches (an ancestor's sibling and their family)
+  waits until the lines have nothing to do (setting queue.offLine) unless it says how it helps a line:
+  strom task add … --helps "<how it helps G…>" (godparent or witness of an ancestor, the same house, a
+  surname for an ancestor). The user wants a direction to wait or to end: strom research pause|done G…
+  (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
   from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or
@@ -167,7 +170,12 @@ write is a suggestion: link (godparent:P…) only when the record says so. Old n
 (strom fixes undo participant-names) is the user's decision alone, in their terminal — never an agent's.
 A place is the municipality, never a street or a house number: --place "Lhota" --house "Dlouhá 12" (refused:
 place.street, the hint says what to write). Old facts with a street in the place (street-place): strom fixes show
-street-places; setting them right or back is the user's decision alone, in their terminal.
+street-places; setting them right or back is the user's decision alone, in their terminal. A number alone
+after the name ("Lhota 16") is written as the record gives it: whether a municipality's numbers are houses only the
+user says (strom fixes run street-places), never an agent.
+Back in time: strom history lists the changes; strom history back <change> --preview says what a return to the
+state after one would bring back (read only). The return itself is the user's decision alone, in their terminal:
+tell them the command, never run it. It is a new change (nothing deleted), taken back the same way.
 Many facts from one record in one call — lines of commands, "#name" labels
 what a line creates, "@name" uses it later:
   strom batch 'person add "Anna /Svobodová/" --sex F #anna' 'family add --partner P0001 --partner @anna --married 1910 --cite S0001'

@@ -598,7 +598,16 @@ async function browse(ctx: Context, run: Run, lang: string, root: string): Promi
           }
         },
       },
-      ...(stromAppState(ctx.settings) === "no" ? [] : [{ key: "6", label: t("ui.menu.app"), act: async () => openStromApp(ctx, run, lang, stromAppState(ctx.settings) !== "unknown") }]),
+      // back in time: to the state after an earlier change (strom history back — the preview, then the person's yes)
+      {
+        key: "6",
+        label: t("ui.browse.time"),
+        act: async () => {
+          const { backDo } = await import("./menu-links.ts");
+          if ((await backDo(ctx, run, lang, root)) !== undefined) await partsPause(ctx, lang);
+        },
+      },
+      ...(stromAppState(ctx.settings) === "no" ? [] : [{ key: "7", label: t("ui.menu.app"), act: async () => openStromApp(ctx, run, lang, stromAppState(ctx.settings) !== "unknown") }]),
     ];
     return { items };
   });

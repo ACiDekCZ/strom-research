@@ -8,6 +8,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { threadId } from "node:worker_threads";
 import type { Clip, ExcerptQuality, ExcerptScope, Family, Input, Media, Person, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { clipText, inputPath, sharperPart } from "./media.ts";
@@ -102,6 +103,23 @@ function clipPlace(tree: Tree, shared: string, clip: Clip, all: Media[], level: 
   return { m, src, region, file: path.join(shared, src.file), cache: path.join(tree.root, ".strom", "excerpts", `${src.id}-${key}.jpg`) };
 }
 
+/**
+ * An excerpt kept in the cache whole or not at all: written beside it, then put in its place — the bridge makes them on
+ * a thread of its own while another asks for the same one (core/liveged.ts), never a half-written one read.
+ */
+function keep(cache: string, jpeg: Uint8Array): void {
+  fs.mkdirSync(path.dirname(cache), { recursive: true });
+  // a JPEG too by its name: one left by a strom that ended under it goes as old excerpts go (strom tidy)
+  const part = `${cache}.${process.pid}-${threadId}.part.jpg`;
+  fs.writeFileSync(part, jpeg);
+  try {
+    fs.renameSync(part, cache);
+  } catch {
+    // the same one put there meanwhile, held open by its reader (Windows): that one stays
+    fs.rmSync(part, { force: true });
+  }
+}
+
 /** One clip cut out of its scan at a level (cached in .strom/excerpts); undefined when its image is not on this computer. */
 export function renderClip(
   tree: Tree,
@@ -126,8 +144,7 @@ export function renderClip(
   const img = decodeImage(fs.readFileSync(file));
   const px = { x: Math.round(region.x * img.width), y: Math.round(region.y * img.height), w: Math.round(region.w * img.width), h: Math.round(region.h * img.height) };
   const out = finish(crop(img, px.x, px.y, Math.max(1, Math.min(px.w, img.width - px.x)), Math.max(1, Math.min(px.h, img.height - px.y))), level);
-  fs.mkdirSync(path.dirname(cache), { recursive: true });
-  fs.writeFileSync(cache, out.jpeg);
+  keep(cache, out.jpeg);
   return { media: m.id, from: src.id, ...out, url, clip: clipMark(clip), ...orient };
 }
 
@@ -180,8 +197,7 @@ export function renderInput(tree: Tree, id: string, level: ExcerptLevel = LEVELS
   }
   if (cachedOnly) return LATER;
   const out = finish(decodeImage(fs.readFileSync(found.file)), level);
-  fs.mkdirSync(path.dirname(cache), { recursive: true });
-  fs.writeFileSync(cache, out.jpeg);
+  keep(cache, out.jpeg);
   return { media: found.input.id, from: found.input.id, ...out, clip: INPUT_MARK, ...orient };
 }
 
@@ -530,7 +546,6 @@ export function fullExcerpt(tree: Tree, shared: string, s: Source, mark: string)
   const img = decodeImage(fs.readFileSync(file));
   const px = { x: Math.round(region.x * img.width), y: Math.round(region.y * img.height), w: Math.round(region.w * img.width), h: Math.round(region.h * img.height) };
   const cut = crop(img, px.x, px.y, Math.max(1, Math.min(px.w, img.width - px.x)), Math.max(1, Math.min(px.h, img.height - px.y)));
-  fs.mkdirSync(path.dirname(cache), { recursive: true });
-  fs.writeFileSync(cache, encodeImage(cut, "jpeg", 92));
+  keep(cache, encodeImage(cut, "jpeg", 92));
   return { file: cache };
 }

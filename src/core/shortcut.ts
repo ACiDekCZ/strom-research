@@ -8,7 +8,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { configDir, desktopDir, userHome } from "./paths.ts";
-import { stromLauncher } from "./self.ts";
+import { lastingLauncher } from "./self.ts";
 import { isAgentMark } from "./which.ts";
 import { assetPath } from "./assets.ts";
 import { macTerminal } from "./terminal.ts";
@@ -43,7 +43,7 @@ function windowsLink(lnk: string, target: string, env: Env): boolean {
 
 /** Make (or refresh) the shortcut; returns the files written. */
 export function createShortcut(name: string, env: Env, platform: NodeJS.Platform = process.platform): string[] {
-  const { command, args } = stromLauncher();
+  const { command, args } = lastingLauncher();
   const run = [command, ...args].map((a) => `"${a}"`).join(" ");
   const desktop = desktopDir(env, platform);
   fs.mkdirSync(desktop, { recursive: true });
@@ -118,7 +118,7 @@ export function openInNewTerminal(
   opts: { terminal?: string; lang?: string } = {},
 ): boolean | "recent" | "fallback" {
   if (env.STROM_NO_OPEN === "1") return false;
-  const { command, args } = stromLauncher();
+  const { command, args } = lastingLauncher();
   const skip = new Set(["STROM_WORKER", "STROM_SESSION", "STROM_IN_AGENT", "STROM_NONINTERACTIVE", "STROM_HANDOVER"]);
   const own = Object.entries(env).filter(([k, v]) => k.startsWith("STROM_") && !skip.has(k) && v !== undefined) as [string, string][];
   const marks = Object.keys(env).filter(isAgentMark);

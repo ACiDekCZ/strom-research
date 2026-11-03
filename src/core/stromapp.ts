@@ -570,6 +570,27 @@ export function appReadsLines(settings: Settings, version?: string, gate: string
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The first Strom app that reads the research's place records (spec 034; the app's ZADANI_VYZKUM_ztotozneni-mist.md,
+ * point 10): 0 @L…@ _STROM_PLACE with its names, position, jurisdictions, parent, who put it on the map and why, and
+ * 3 _STROM_PLACE @L…@ under each PLAC of a fact that belongs to one — in the Strom file and the bridge's /tree.ged.
+ * An older app counts an unknown record as unsupported: the app reads them from 3.21.0 (the names' kinds, 2 TYPE form|alt,
+ * from the same release); an app of unknown version stays off; another copy of the app (its beta, its development) from
+ * APP_READS_PLACE_RECORDS_BETA.
+ */
+export const APP_READS_PLACE_RECORDS: string | undefined = "3.21.0";
+
+/** The first beta of the app that reads the place records (another copy of the app gets them from it). */
+export const APP_READS_PLACE_RECORDS_BETA: string | undefined = "3.21.0-beta.2";
+
+/** Does the Strom app of this version read the research's place records (0 @L…@ _STROM_PLACE, 3 _STROM_PLACE)? */
+export function appReadsPlaceRecords(settings: Settings, version?: string, gate: string | undefined = APP_READS_PLACE_RECORDS, beta: string | undefined = APP_READS_PLACE_RECORDS_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;
@@ -598,9 +619,9 @@ export function importAppUrl(file: string, settings: Settings): string {
 /** The page for people starting research with an AI agent: what an agent is, which one, how to install it. */
 export const RESEARCH_URL = "https://stromapp.info/research/";
 
-/** That page in the user's language (it speaks en, cs, de), at a section: "agents". */
+/** That page in the user's language (it speaks en, cs, de, pl), at a section: "agents". */
 export function researchUrl(lang: string, section?: string): string {
-  return `${RESEARCH_URL}${["cs", "de"].includes(lang) ? `?lang=${lang}` : ""}${section ? `#${section}` : ""}`;
+  return `${RESEARCH_URL}${["cs", "de", "pl"].includes(lang) ? `?lang=${lang}` : ""}${section ? `#${section}` : ""}`;
 }
 
 export interface InstalledApp {

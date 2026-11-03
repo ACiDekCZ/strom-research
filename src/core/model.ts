@@ -394,16 +394,85 @@ export interface Jurisdiction {
   recordsets?: string[];
 }
 
+/**
+ * What a name of a place record is, after the first (today's): a form the facts write that was identified as the place
+ * ("form"), or another name of it — another language, a historical name ("alt"). Optional: a name written before it
+ * was kept has none (an older strom keeps it and ignores it; no SCHEMA_VERSION raised).
+ */
+export const PLACE_NAME_KINDS = ["form", "alt"] as const;
+export type PlaceNameKind = (typeof PLACE_NAME_KINDS)[number];
+
+export interface PlaceName {
+  name: string;
+  lang?: string;
+  from?: number;
+  to?: number;
+  kind?: PlaceNameKind;
+}
+
 export interface Place extends BaseRecord {
   type: "place";
-  names: { name: string; lang?: string; from?: number; to?: number }[];
+  names: PlaceName[];
   kind?: string;
   coords?: { lat: number; lon: number };
   /** Why it has no coordinates: not identified yet (which of the villages of this name). Given coordinates clear it. */
   unlocated?: string;
   parent?: string;
   jurisdictions: Jurisdiction[];
+  /**
+   * How the place was identified (core/placeid.ts): by whom, when, why and from what; checked by the research; what
+   * would decide it while it is not identified; a question for the person. Optional: an older strom keeps it and
+   * ignores it (no SCHEMA_VERSION raised).
+   */
+  locating?: PlaceLocating;
   notes: Note[];
+}
+
+/** Who put a place on the map: the research, the person (in the app or by hand), taken from another research here. */
+export const PLACE_BY = ["research", "person", "adopted"] as const;
+export type PlaceBy = (typeof PLACE_BY)[number];
+
+/** One place a question offers (at most three): where it is and why. */
+export interface PlaceCandidate {
+  id: string;
+  name: string;
+  district?: string;
+  country?: string;
+  lat: number;
+  lon: number;
+  why: string;
+  source?: { title: string; url?: string };
+}
+
+/** A question about a place for the person (the app's What waits, kind place). */
+export interface PlaceQuestion {
+  /** propose: which of the candidates; conflict: the coordinates against what the records say; form: how the facts write it. */
+  kind: "propose" | "conflict" | "form";
+  at: string;
+  candidates?: PlaceCandidate[];
+  /** A conflict: the coordinates now. */
+  current?: { lat: number; lon: number; label?: string };
+  /** A form: the facts' place (and house) before and after. */
+  change?: { from: { place: string; house?: string }; to: { place: string; house?: string }; facts: number };
+  why?: string;
+}
+
+export interface PlaceLocating {
+  by: PlaceBy;
+  at: string;
+  why?: string;
+  source?: { title: string; url?: string };
+  /** The day the research checked the coordinates and found them right (K6.6). */
+  verified?: string;
+  /** Checked, and why it could not be decided. */
+  checkWhy?: string;
+  /** Not identified: what would decide it. */
+  needs?: string;
+  /** Not identified: how much was known of it then (facts citing a record, jurisdictions, parent) — more is something new (K2.3). */
+  context?: number;
+  /** The person kept these coordinates against the research's question: not asked again while they stay. */
+  kept?: { lat: number; lon: number };
+  question?: PlaceQuestion;
 }
 
 export const SEARCH_METHODS = ["index", "page-by-page", "full-text", "catalog", "web", "request", "other"] as const;
@@ -427,6 +496,9 @@ export interface Search extends BaseRecord {
 /** How the task queue is ordered (core/queue.ts). */
 export const STRATEGIES = ["balanced", "depth", "priority"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
+/** Work off the lines of a research with several (setting queue.offLine, core/offline.ts). */
+export const OFF_LINE_CHOICES = ["last", "normal", "never"] as const;
+export type OffLine = (typeof OFF_LINE_CHOICES)[number];
 
 /** The person's answer to a task's check of a site: the book and its images there, only to be viewed there, nothing there. */
 export const CHECK_ANSWERS = ["works", "view", "no"] as const;
@@ -480,6 +552,11 @@ export interface Task extends BaseRecord {
   parkedUntil?: string;
   /** Why it was put aside (strom task park --reason, or strom run parking a stuck task). */
   parkedReason?: string;
+  /**
+   * A task of history for these kinds of events alone (strom history align: a kind turned on, looked for where the
+   * history was looked for without it). Optional: an older strom keeps it and looks for every kind.
+   */
+  kinds?: string[];
   /** Put aside because the research is an archive: back in the queue when work with an agent is switched on. */
   heldBy?: "archive";
   /** What it was when the archive put it aside, when it was not open: waiting for the user — waiting again after. */
@@ -523,6 +600,13 @@ export interface Task extends BaseRecord {
   files?: TaskFile[];
   result?: string;
   produced?: string[];
+  /**
+   * How the task helps a line of the research though none of its people is in one (strom task add|edit --helps): an
+   * ancestor's sibling as a godparent or witness, the same house, a surname for an ancestor — the line named by its ID
+   * (G…) when said. Without it a task off the lines waits until they have nothing to do (core/offline.ts). Optional:
+   * an older strom keeps it and ignores it.
+   */
+  helps?: string;
   origin: string;
   notes: Note[];
 }
@@ -787,6 +871,8 @@ export interface TreeConfig {
   readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
+  /** Work off the lines (core/offline.ts): last (default), normal, never. */
+  queueOffLine?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
   /** The history of the regions of the tree's places for this tree alone, both ways ("on" | "off"; unset: the user's config). */
@@ -797,6 +883,8 @@ export interface TreeConfig {
   experimentsHistoryPlaces?: string;
   /** The history of the places and their surroundings for this tree alone, both ways ("on" | "off"; unset: as experimentsHistory here, else the user's). */
   experimentsPlaceHistory?: string;
+  /** The kinds of the history's events looked for in this tree alone, both ways (core/eventkinds.ts; unset: the user's config, else all). */
+  historyKinds?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

@@ -1,9 +1,53 @@
 # Was ist neu in Strom Ahnenforschung
 
-[English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · Deutsch
+[English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · Deutsch · [Polski](CHANGELOG.pl.md)
 
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
+
+## 1.25.0
+
+*3.11.2026 · gehört zur Strom-App 3.21.0.*
+
+- **Auf Polnisch.** Die Forschung spricht Polnisch: das Menü, seine Meldungen, was sie in die Forschung schreibt, der
+  Installer und die Seite des Telefons; die Notizen und Rollen der Strom-Datei sind polnisch. Ein polnisches System wird von
+  selbst erkannt, sonst `strom config set lang pl`. Die Hilfe für den Agenten bleibt englisch.
+- **Das Strom-Widget auch unter Windows, und es öffnet die Person.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
+  (woran gearbeitet wird, die Funde der letzten 24 Stunden, was wartet), auch unter Windows, nach
+  `%USERPROFILE%\.config\strom\widget`, mit einer Marke des strom, der es geschrieben hat. Ein Widget, das gerade seine
+  Datei liest, hält die Brücke nie auf. `strom uninstall` entfernt auch die Dateien des Widgets, auch auf dem Mac; die
+  Forschung und die Einstellungen bleiben.
+  Eine Zeile oder ein Fund des Strom-Widgets zu einer Person öffnet in der Strom-App
+  genau diese Person (ihre Seite, den Stammbaum um sie), was wartet, den Abschnitt „Wartet“ der Forschung (eine App,
+  die sie noch nicht öffnen kann, öffnet den Stammbaum wie bisher).
+- **Eine Nummer allein nach dem Namen einer Gemeinde.** Orte, geschrieben als Name mit einer Nummer allein (`Lhota 16`),
+  lassen sich jetzt auch richtigstellen (`strom fixes run street-places`): der Ort wird die Gemeinde, die Nummer ihr
+  Haus – erst wenn eine Person für jede Gemeinde einzeln sagt, dass ihre Nummern Häuser sind, nachdem die betroffenen
+  Angaben gezeigt wurden. Teile einer Stadt mit Nummer (`Praha 5`) werden nie angeboten. Die Antwort bleibt in der
+  Forschung, und `strom fixes undo street-places` stellt alles wieder her.
+- **Zurück in der Zeit.** `strom history back <Änderung>` bringt die Forschung auf ihren Stand nach einer früheren
+  Änderung zurück: zuerst, was zurückkommt und was beiseitegelegt wird, dann nur auf das Ja einer Person im Terminal.
+  Nichts wird gelöscht: seither hinzugefügte Einträge werden beiseitegelegt, und die Rückkehr selbst lässt sich ebenso
+  zurücknehmen. Der Link `strom-research://back` öffnet sie zu einer Änderung; das
+  Protokoll der Brücke weist eine Rückkehr eigens aus.
+- **Orte bestimmen.** Die Forschung bestimmt die Orte ihrer Einträge (`strom place identify`, `propose`,
+  `unlocated`): ein aus den Einträgen sicherer Ort erhält Koordinaten, Namen und Pfarrei im Lauf der Zeit; wo es nicht
+  sicher ist, fragt sie eine Person mit höchstens drei Kandidaten oder sagt, was entscheiden würde. Die Fragen warten
+  unter „Wartet“, die Brücke bietet sie der Strom-App an, und `strom place undo` nimmt die letzte Antwort zurück. Eine
+  Warteschlange von Orten, die die Strom-App jetzt bestimmen lässt, läuft in so vielen Sitzungen nacheinander, wie die
+  Person wählt, jede Zahl mit Zeit und Preis. Bei jedem Namen eines Ortes ist erkennbar, ob er eine Schreibweise der
+  Einträge oder ein anderer Name des Ortes ist (eine andere Sprache, ein alter Name), und ein auf beide Arten
+  angegebener Name steht nur einmal da. Die Strom-Datei gibt der Strom-App 3.21.0 die bestimmten Orte mit ihren Namen,
+  ihrer Lage und Pfarrei.
+- **Arten der Geschichte.** `history.kinds` legt fest, welche Arten von Ereignissen die Geschichte der Orte sucht
+  (Kriege, Epidemien …). `strom history align` sagt zuerst, was es verbergen, wieder zeigen und suchen würde, und tut
+  es nur auf das Ja einer Person; nichts Gefundenes wird gelöscht.
+- **Nebenzweige zuletzt.** In einer Forschung mit mehreren Linien wartet Arbeit, die keiner Linie hilft, bis die
+  Linien nichts mehr zu tun haben (`queue.offLine`: zuletzt, nach Priorität oder nie).
+- **Aktualisieren, ohne die Arbeit anzuhalten.** `strom update` installiert jede Version in einen eigenen Ordner, so
+  geht eine laufende Arbeit oder ein Gespräch mit ihrer Version weiter; ältere Versionen gehen beim nächsten Update
+  oder mit `strom tidy`, und `strom doctor` nennt sie. Die Brücke antwortet der Strom-App auch, während sie sich
+  erneuert und während sie die Datei des Stammbaums erstellt.
 
 ## 1.24.0
 

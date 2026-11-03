@@ -8,14 +8,15 @@
 // file not found, a field missing or renamed, a line cut short — that part is "unknown" or left out, never an error.
 // It only reads; it writes nothing anywhere. The setting tune.transcripts off: nothing is read at all.
 //
-// Where Claude Code keeps it: <CLAUDE_CONFIG_DIR, else ~/.claude>/projects/<the session's folder as a slug>/<uuid>.jsonl,
+// Where Claude Code keeps it: <CLAUDE_CONFIG_DIR, else agent.claudeConfigDir, else ~/.claude>/projects/<the session's folder as a slug>/<uuid>.jsonl,
 // its subagents in <slug>/<uuid>/subagents/agent-<id>.jsonl (older versions kept them in the main file, marked
 // isSidechain). One line per content block of a response: the lines of one response share message.id and repeat its
 // usage (the last one carries the final output count).
 
 import fs from "node:fs";
 import path from "node:path";
-import { userHome, type Env } from "./paths.ts";
+import type { Env } from "./paths.ts";
+import { claudeConfigDir } from "./claudedir.ts";
 import { eachLineOf } from "./lines.ts";
 import type { Settings } from "./config.ts";
 
@@ -120,9 +121,9 @@ const SESSION_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}
 /** A subagent's transcript in its folder. */
 const SUBAGENT_FILE = /^agent-(.+)\.jsonl$/;
 
-/** Claude Code's own folder: CLAUDE_CONFIG_DIR, else ~/.claude. */
-export function claudeDir(env: Env, home?: string): string {
-  return env.CLAUDE_CONFIG_DIR ? path.resolve(env.CLAUDE_CONFIG_DIR) : path.join(home ?? userHome(env), ".claude");
+/** Claude Code's own folder: CLAUDE_CONFIG_DIR, else agent.claudeConfigDir (of `settings`, else the user's), else ~/.claude. */
+export function claudeDir(env: Env, home?: string, settings?: Settings): string {
+  return claudeConfigDir(env, settings?.config, home);
 }
 
 /**
@@ -138,7 +139,7 @@ export function projectSlug(cwd: string): string {
 /** The transcript of a session: under its folder's slug (as written, NFC, NFD), else in whichever project holds it. */
 export function transcriptFile(uuid: string, opts: TranscriptOptions): string | undefined {
   if (!SESSION_ID.test(uuid)) return undefined;
-  const projects = path.join(claudeDir(opts.env ?? process.env, opts.home), "projects");
+  const projects = path.join(claudeDir(opts.env ?? process.env, opts.home, opts.settings), "projects");
   const name = `${uuid}.jsonl`;
   const slugs = new Set([projectSlug(opts.cwd), projectSlug(opts.cwd.normalize("NFC")), projectSlug(opts.cwd.normalize("NFD"))]);
   for (const slug of slugs) {

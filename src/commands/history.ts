@@ -7,7 +7,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
-import { UsageError } from "../core/errors.ts";
+import { StromError, UsageError } from "../core/errors.ts";
 import { listOpt, normId } from "../core/records.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -50,6 +50,9 @@ import {
   regionOfTask,
   requireHistoryOn,
   requireRegionId,
+  refuseKindOff,
+  regionKinds,
+  treeKinds,
   retractEvent,
   skipHistory,
   EVENT_KINDS,
@@ -75,6 +78,7 @@ import {
   placeKeyOf,
   placeLabel,
   placeOfTask,
+  placeTaskKinds,
   readPlaceCatalog,
   refusePlaceBeforePage,
   refusePlaceSame,
@@ -83,6 +87,9 @@ import {
   yearsAt,
 } from "../core/placehistory.ts";
 import { adoptPlaces, regionArg } from "../core/placeadopt.ts";
+import { alignData, alignEmpty, applyAlign, byKind, kindNames, planAlign, undoAlign, type AlignEvent, type AlignPlan } from "../core/historyalign.ts";
+import { allKinds, kindsOf, normalizeKinds } from "../core/eventkinds.ts";
+import { isAgent } from "../core/which.ts";
 import type { Place, RecordSet, Source, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 // strom history list
@@ -92,6 +99,7 @@ import { displayName } from "../core/people.ts";
 import { historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
 import { placeRecord } from "../core/placehistory.ts";
 import { foldText } from "../core/text.ts";
+import { recordIndex, unlocatePlace } from "../core/placeid.ts";
 import type { Person } from "../core/model.ts";
 
 function shared(ctx: Context): string {
@@ -166,6 +174,29 @@ function regionText(ctx: Context, tree: Tree, id: string): string {
   const sh = ctx.settings.shared()?.value;
   const c = sh && regionIdOk(id) ? readCatalog(sh, id) : undefined;
   return c?.region.name[tree.lang] ?? c?.region.name.en ?? id;
+}
+
+/** What align would do, as the person reads it (the research language). */
+function alignText(ctx: Context, tree: Tree, plan: AlignPlan, prune: boolean): string {
+  const lang = tree.lang;
+  const counted = (events: AlignEvent[]) => byKind(events).map((x) => `${ui(lang, `ui.history.kind.${x.kind}` as UIKey)} ${x.n}`).join(", ");
+  const kinds = !plan.kinds.length ? ui(lang, "ui.history.kinds.none") : allKinds(plan.kinds) ? ui(lang, "ui.history.kinds.all") : kindNames(lang, plan.kinds);
+  const out: (string | undefined)[] = [ui(lang, "ui.history.align.kinds", { kinds })];
+  if (alignEmpty(plan)) out.push(ui(lang, "ui.history.align.nothing"));
+  if (plan.hide.general.length) out.push(ui(lang, "ui.history.align.hide.general", { n: plan.hide.general.length, list: counted(plan.hide.general) }));
+  if (plan.hide.local.length) out.push(ui(lang, "ui.history.align.hide.local", { n: plan.hide.local.length, list: counted(plan.hide.local) }));
+  if (plan.show.length) out.push(ui(lang, "ui.history.align.show", { n: plan.show.length, list: counted(plan.show) }));
+  if (plan.backfill.length) {
+    out.push(ui(lang, "ui.history.align.backfill", { n: plan.backfill.length, sessions: plan.sessions, pace: ui(lang, `ui.history.pace.${plan.pace}` as UIKey) }));
+    for (const b of plan.backfill) {
+      const p = b.place ? tree.get<Place>(b.place) : undefined;
+      const where = b.region ? `${regionText(ctx, tree, b.region)} ${(b.years ?? []).map(gapText).join(", ")}` : p ? placeLabel(p, lang) : b.place!;
+      out.push(`- ${where}: ${kindNames(lang, b.kinds)}`);
+    }
+  }
+  if (plan.busy.length) out.push(ui(lang, "ui.history.align.busy", { list: plan.busy.map((id) => (/^L\d+$/u.test(id) ? (tree.get<Place>(id) ? placeLabel(tree.get<Place>(id)!, lang) : id) : regionText(ctx, tree, id))).join(", ") }));
+  if (plan.prune.length) out.push(ui(lang, prune ? "ui.history.align.prune.on" : "ui.history.align.prune", { n: plan.prune.length, list: counted(plan.prune) }));
+  return lines(...out);
 }
 
 function agentWork(ctx: Context, what: string): Tree {
@@ -303,6 +334,10 @@ register(
       if (opts.unlocated) {
         if (listOpt(opts.region).length) throw new UsageError("--unlocated or --region, not both", { code: "history.map" });
         const m = mapPlace(tree, key, { unlocated: true, ...(str(opts.why) ? { why: str(opts.why)! } : {}) });
+        // the one state of "not located" is the place record's (spec 034): written there too, unless it is on the map
+        const rec = recordIndex(tree)(key);
+        if (!tree.dryRun && !rec?.coords && !rec?.unlocated)
+          unlocatePlace(tree, rec?.id ?? key, str(opts.why) ?? "not identified which place of this name it is", undefined, "research");
         return { text: lines(...tree.written.map((o) => o.summary)), data: { place: key, map: m } };
       }
       const links = listOpt(opts.region).map(regionLink);
@@ -409,6 +444,16 @@ register(
       const date = str(opts.date);
       checkYears(from, to, date);
       const kind = checkKind(str(opts.kind) ?? "");
+      // a kind not looked for (history.kinds), before any page is read: this session's task's kinds, a place's
+      // research's, a region's those of every research sharing it (K1.5)
+      const ownTask = (() => {
+        const own = currentSession(tree, ctx.env, ctx.refs)?.task;
+        return own ? tree.get<Task>(own) : undefined;
+      })();
+      if (ownTask?.kinds?.length && (regionOfTask(ownTask) === region || (place && placeOfTask(ownTask) === place.id)))
+        refuseKindOff(kind, ownTask.kinds, "in this session (its task looks for these kinds alone)");
+      if (place) refuseKindOff(kind, treeKinds(tree, ctx.settings), "in this research");
+      else refuseKindOff(kind, regionKinds(tree, region!, ctx.settings), `in the region ${region} by any research on this computer`);
       const text = texts(opts, "text") ?? {};
       checkTexts("text", text, REGION_LANGS);
       const why = texts(opts, "why");
@@ -422,8 +467,6 @@ register(
       if (shape) throw new UsageError(`--quote: ${shape}`, { code: "history.quote", params: { why: shape } });
       const s = sameness(opts);
       // a session filling a finished catalog's gaps: an event of those years alone, before any request
-      const own = currentSession(tree, ctx.env, ctx.refs)?.task;
-      const ownTask = own ? tree.get<Task>(own) : undefined;
       if (region && ownTask && forGaps(ownTask) && regionOfTask(ownTask) === region) {
         const gaps = gapsOfTask(ownTask);
         if (gaps.length && !gaps.some((g) => from <= g.to && g.from <= to)) {
@@ -577,7 +620,11 @@ register(
     examples: ['strom history local --source S0001 --from 1842 --kind disaster --text "…"'],
     run(ctx, { opts }) {
       const tree = agentWork(ctx, "strom history local");
-      requireHistoryOn(tree, ctx.settings);
+      // the local history (K1.3): the events at the tree's places, its own sources' too — experiments.placeHistory
+      requireHistoryOn(tree, ctx.settings, "places");
+      // a kind not looked for in this research (history.kinds): before anything of the source is read
+      const kind = checkKind(str(opts.kind) ?? "");
+      refuseKindOff(kind, treeKinds(tree, ctx.settings), "in this research");
       const id = normId(str(opts.source) ?? "", "source");
       const src = id ? tree.get<Source>(id) : undefined;
       if (!src || src.type !== "source") throw new UsageError(`there is no source ${opts.source ?? ""}`, { code: "history.local.source", hint: "--source S…" });
@@ -600,7 +647,6 @@ register(
       const lo = Math.min(...span);
       const hi = Math.max(...span);
       if (from < lo || to > hi) throw new UsageError(`${from === to ? from : `${from}–${to}`} is not within the years of ${id} (${lo === hi ? lo : `${lo}–${hi}`})`, { code: "history.local.years" });
-      const kind = checkKind(str(opts.kind) ?? "");
       const text: Texts = { ...(texts(opts, "text") ?? {}) };
       const own = str(opts.text);
       if (own) text[tree.lang] = own;
@@ -648,7 +694,9 @@ register(
         requireHistoryOn(tree, ctx.settings);
         const p = requirePlace(tree, normId(region, "place"));
         const key = ensurePlaceCatalog(sh, tree, p).place.key;
-        const c = markPlaceDone(sh, key, tree.config.id)!;
+        const own = currentSession(tree, ctx.env, ctx.refs)?.task;
+        const ownTask = own ? tree.get<Task>(own) : undefined;
+        const c = markPlaceDone(sh, key, tree.config.id, placeTaskKinds(tree, ownTask && placeOfTask(ownTask) === p.id ? ownTask : undefined, ctx.settings))!;
         // its task waiting (asked for, or raised by itself) is done with it; one at work closes with its session
         raiseHistoryTasks(tree, sh, ctx.settings);
         return { text: `${p.id}: done (${c.events.filter((e) => !e.retracted).length} events)`, data: { place: p.id, key, done: c.done } };
@@ -657,8 +705,76 @@ register(
       const had = readCatalog(sh, region);
       const own = currentSession(tree, ctx.env, ctx.refs)?.task;
       const since = own ? tree.get<Task>(own)?.created : undefined;
-      const c = markDone(sh, region, tree.config.id, had ? donePeriod(tree, had) : undefined, since);
+      const c = markDone(sh, region, tree.config.id, had ? donePeriod(tree, had) : undefined, since, regionKinds(tree, region, ctx.settings));
       return { text: `${c.region.id}: done (${c.events.filter((e) => !e.retracted).length} events)`, data: { region: c.region.id, done: c.done } };
+    },
+  },
+  {
+    path: ["history", "align"],
+    summary: "Align the history with the kinds looked for (history.kinds): what it would hide, show again and look for; done on the person's yes",
+    group: "history",
+    tree: true,
+    writes: true,
+    hidden: true,
+    description:
+      "Without --yes it only says what would change: the events of the kinds not looked for that this research shows (the\n" +
+      "regions' and the places' and its sources' apart), those hidden by an earlier align whose kind is looked for again,\n" +
+      "the tasks that would look for the kinds turned on where the history was looked through without them (with about how\n" +
+      "many sessions, at the pace of the history) and the events of the shared catalogs no research on this computer looks for.\n" +
+      "Done only by the person: in a terminal it asks first; --yes does it at once (a terminal of the person's, never an agent).\n" +
+      "Events are hidden in this research, never deleted: shown again by align once their kind is looked for. The shared\n" +
+      "catalogs change only with --prune-shared, and only of kinds no research of their region looks for (strom history restore\n" +
+      "brings an event back). The setting alone changes nothing found.",
+    options: [
+      { name: "prune-shared", type: "boolean", description: "also delete from the shared catalogs the events of kinds no research on this computer looks for" },
+      { name: "kinds", type: "string", description: "only say what align would do were these kinds looked for (a value of history.kinds) — nothing done" },
+      { name: "only-hide", type: "boolean", description: "hide and show again only: no task raised, no shared catalog changed (free, taken back by --undo)" },
+      { name: "plan", type: "string", description: "the plan's mark its preview gave (--json plan): refused, history.align.changed, when align would now do otherwise" },
+      { name: "undo", type: "string", description: "take back an align by the undo its answer gave: its events shown again, the hides it took away put back (its tasks stay)" },
+    ],
+    examples: ["strom history align", "strom history align --json", "strom history align --kinds war,epidemic --json", "strom history align --yes --prune-shared"],
+    async run(ctx, { opts }) {
+      const tree = ctx.tree();
+      const sh = ctx.settings.shared()?.value;
+      const agent = isAgent(ctx.env);
+      // the Strom app (the bridge, on the person's click after its preview): hide and show again, and take that back — free
+      const app = ctx.env.STROM_FOR_APP === "1";
+      const only = opts["only-hide"] ? ("hide" as const) : undefined;
+      const askHuman = (set: string) => ctx.requireHuman("Align the history with the kinds looked for?", set, "history.align", ui(tree.lang, "ui.history.align.apply"), { window: false });
+      if (typeof opts.undo === "string") {
+        if (!(app || (ctx.interactive && !agent) || (ctx.yes && ctx.io.tty && !agent))) askHuman(`strom history align --undo ${opts.undo}`);
+        if (tree.dryRun) return { text: `would take back the align ${opts.undo}`, data: { undo: opts.undo, applied: false } };
+        const back = undoAlign(tree, opts.undo);
+        return { text: ui(tree.lang, "ui.history.align.undone", { shown: back.shown, hidden: back.hidden }), data: { undo: opts.undo, applied: true, ...back } };
+      }
+      const prune = !!opts["prune-shared"] && !only;
+      // a preview of other kinds: only said, never done
+      const asked = typeof opts.kinds === "string" ? kindsOf(normalizeKinds(opts.kinds, "--kinds")) : undefined;
+      if (asked && (ctx.yes || only || opts.plan)) throw new UsageError("--kinds only says what align would do were those kinds looked for: set them first (strom config set history.kinds …), then align", { code: "history.kinds" });
+      const plan = planAlign(tree, sh, ctx.settings, asked);
+      const preview = alignText(ctx, tree, plan, prune);
+      const data = alignData(tree, sh, plan, prune);
+      if (typeof opts.plan === "string" && opts.plan !== data.plan)
+        throw new StromError(`align would now do otherwise than the preview said (the setting changed, or history was found since): see it again`, { code: "history.align.changed", hint: "strom history align --json says what it would do now; its plan is the mark to go on with" });
+      const nothing = only ? !plan.hide.general.length && !plan.hide.local.length && !plan.show.length : alignEmpty(plan) && !(prune && plan.prune.length);
+      if (nothing || asked) return { text: preview, data: { ...data, applied: false } };
+      let yes = false;
+      if (ctx.yes) {
+        // the person's alone, in their own terminal: an agent or a script only hears what it would do; the app (the
+        // person's click after its preview) only hides and shows again — what raises tasks spends sessions: the terminal
+        if (!(app && only) && (agent || !ctx.io.tty)) askHuman(`strom history align --yes${prune ? " --prune-shared" : ""}`);
+        yes = true;
+      } else if (ctx.interactive && !agent) {
+        ctx.io.stdout(`${preview}\n`);
+        if (!(await ctx.confirm(ui(tree.lang, "ui.history.align.ask"), false))) return { text: ui(tree.lang, "ui.history.align.no"), data: { ...data, applied: false } };
+        yes = true;
+      }
+      if (!yes || tree.dryRun) return { text: lines(preview, ui(tree.lang, "ui.history.align.apply")), data: { ...data, applied: false } };
+      const done = applyAlign(tree, sh, plan, prune, only);
+      return {
+        text: ui(tree.lang, "ui.history.align.done", { hidden: done.hidden, shown: done.shown, tasks: done.tasks.length, pruned: done.pruned.length }),
+        data: { ...data, applied: true, done },
+      };
     },
   },
   {

@@ -2,25 +2,29 @@
 // into a file the widget reads — who works on what now, the finds of the last 24 hours, what waits for the person in
 // the Strom app, the last 24 hours — worked out by the same functions as the phone's page (phone-watch.ts,
 // phone-finds.ts) and cleaned as for it (forPhone): never a path, a record's ID, a spend or a model. Beside each text
-// that names a person, the same without the names (the widget's "hide names").
+// that names a person, the same without the names (the widget's "hide names"). A record's ID only in a link: a line or
+// a find of one person opens that person in the app (`&person=P0012`, the GEDCOM's REFN), what waits the app's
+// "Waiting" (`&show=waiting`) — an older app passes over both and opens the tree.
 //
-// Written by the tree's bridge (strom live) while it runs, on macOS alone: ~/Library/Application Support/Strom/widget/
-// <tree id>.json and index.json (the trees there), each whole (a file beside it renamed over it). Looked at every
-// WIDGET_CHECK_MS, written when what it says changed, else every WIDGET_HEARTBEAT_MS; the bridge ending as it should
-// writes `running: false`, its research gone takes the file away. An archive has none. The widget only reads: nothing
-// of it comes back. An isolated installation (STROM_ISOLATED: a test's, a second strom) writes into its own settings
-// folder — a research of a test never shows in the person's widget.
+// Written by the tree's bridge (strom live) while it runs, on macOS (~/Library/Application Support/Strom/widget/) and
+// Windows (%USERPROFILE%\.config\strom\widget\, the Windows 11 widget of strom-win): <tree id>.json and index.json
+// (the trees there), each whole (a file beside it renamed over it). Looked at every WIDGET_CHECK_MS, written when what
+// it says changed, else every WIDGET_HEARTBEAT_MS; the bridge ending as it should writes `running: false`, its research
+// gone takes the file away. An archive has none. The widget only reads: nothing of it comes back. An isolated
+// installation (STROM_ISOLATED: a test's, a second strom) writes into its own settings folder — a research of a test
+// never shows in the person's widget. index.json is there from this strom's first run and its setup on (`strom`: the
+// version that wrote it), so the widget tells a strom too old to write any from one whose bridge has not run yet.
 
 import fs from "node:fs";
 import path from "node:path";
 import { configDir, isolated, userHome, type Env } from "./paths.ts";
 import { Settings } from "./config.ts";
-import { Tree } from "./tree.ts";
+import { Tree, VERSION } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { foldText } from "./text.ts";
-import { writeFileAtomic } from "./json.ts";
+import { writeFileAtomic, HELD } from "./json.ts";
 import { appUrlSetting } from "./stromapp.ts";
-import { forPhone, treeOverview, type NowLine } from "./phone-watch.ts";
+import { forPhone, PERSON, treeOverview, type NowLine } from "./phone-watch.ts";
 import { treeFinds, type FindGroup, type FindLine } from "./phone-finds.ts";
 import { waitingFor, inApp, type Waiting } from "./waiting.ts";
 import { scopes } from "./directions.ts";
@@ -82,18 +86,25 @@ export interface WidgetTree {
 export interface WidgetIndex {
   schemaVersion: number;
   generatedAt: string;
+  /** The version of strom that wrote it (optional: the widget of a Mac reads it not; an older strom wrote none). */
+  strom?: string;
   trees: { treeKey: string; treeName: string; lang: string; running: boolean; lastActiveAt: string; generatedAt: string }[];
 }
 
 /**
- * Where the widget's files are written: none but on macOS; STROM_WIDGET_DIR when set; an isolated installation into its
- * own settings folder; else ~/Library/Application Support/Strom/widget of the HOME strom runs with.
+ * Where the widget's files are written: none but on macOS and Windows; STROM_WIDGET_DIR when set; an isolated
+ * installation into its own settings folder; else on macOS ~/Library/Application Support/Strom/widget of the HOME strom
+ * runs with, on Windows %USERPROFILE%\.config\strom\widget — the profile's own folder (HOME may be Git Bash's), also
+ * with settings elsewhere (STROM_CONFIG_DIR), as the Mac's ~/Library. Never under AppData: an app packaged as MSIX
+ * (Claude's desktop app, whose agent starts the bridge) gets every new file there as a private copy of its own, which
+ * the widget would never see (found 2026-10-30 with the seal keys; core/paths.ts configDir).
  */
 export function widgetDir(env: Env, platform: NodeJS.Platform = process.platform): string | undefined {
-  if (platform !== "darwin") return undefined;
+  if (platform !== "darwin" && platform !== "win32") return undefined;
   const said = env.STROM_WIDGET_DIR?.trim();
   if (said) return path.resolve(said);
   if (isolated(env)) return path.join(configDir(env, platform), "widget");
+  if (platform === "win32") return path.join(env.USERPROFILE || userHome(env), ".config", "strom", "widget");
   return path.join(userHome(env), "Library", "Application Support", "Strom", "widget");
 }
 
@@ -129,6 +140,24 @@ export function treeUrl(env: Env, name: string, id: string): string {
   if (slug) url.searchParams.set("tree", slug);
   const research = id.trim().toLowerCase();
   if (UUID.test(research)) url.searchParams.set("research", research);
+  return url.href;
+}
+
+/** A person's record ID as the app finds it (its REFN): what a link to a person may carry. */
+const PERSON_ID = /^P\d{1,7}$/u;
+
+/** The tree's link opening one person in the app (its page, the tree around it); not a person's ID: the tree's link. */
+export function personUrl(tree: string, id: string | undefined): string {
+  if (!id || !PERSON_ID.test(id)) return tree;
+  const url = new URL(tree);
+  url.searchParams.set("person", id);
+  return url.href;
+}
+
+/** The tree's link opening what waits for the person in the app ("Waiting" of its research). */
+export function waitingUrl(tree: string): string {
+  const url = new URL(tree);
+  url.searchParams.set("show", "waiting");
   return url.href;
 }
 
@@ -243,18 +272,20 @@ function findItems(tree: Tree, groups: FindGroup[], stems: Set<string>, openUrl:
       const who = g.kind === "person" ? (g.name ?? g.title ?? "") : (g.title ?? "");
       const whoNoNames = g.kind === "person" ? person : ui(lang, "ui.widget.family");
       const base = { at: at(l), openUrl };
+      // a find of one person opens that person: the person's group, a child the child; a family's fact the tree
+      const own = { at: at(l), openUrl: personUrl(openUrl, g.kind === "person" ? g[PERSON] : undefined) };
       switch (l.kind) {
         case "person":
-          out.push({ kind: "person_new", text: g.title ?? "", textNoNames: anon(g.span), ...base });
+          out.push({ kind: "person_new", text: g.title ?? "", textNoNames: anon(g.span), ...own });
           break;
         case "family":
           out.push({ kind: "family_new", text: g.title ?? "", textNoNames: whoNoNames, ...base });
           break;
         case "name":
-          out.push({ kind: "name", text: l.text, textNoNames: anon(g.span), ...base });
+          out.push({ kind: "name", text: l.text, textNoNames: anon(g.span), ...own });
           break;
         case "child":
-          out.push({ kind: "child", text: l.text, textNoNames: anon(l.span), ...base });
+          out.push({ kind: "child", text: l.text, textNoNames: anon(l.span), at: at(l), openUrl: personUrl(openUrl, l[PERSON]) });
           break;
         case "fact":
         case "fixed":
@@ -267,7 +298,7 @@ function findItems(tree: Tree, groups: FindGroup[], stems: Set<string>, openUrl:
             label: fact === "other" && l.fact?.name ? heading(l.fact.name, lang) : null,
             text: [who, what].filter(Boolean).join(", "),
             textNoNames: [whoNoNames, withoutNames(what, stems)].filter(Boolean).join(", "),
-            ...base,
+            ...own,
           });
           break;
         }
@@ -334,7 +365,8 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
       ...(taskNoNames ? { taskNoNames } : {}),
       since: isoSecond(l.since),
       pausedUntil: l.paused ? isoSecond(l.paused.until) : null,
-      openUrl,
+      // ancestors, descendants or one person: that person; a question, the agent itself: the tree
+      openUrl: personUrl(openUrl, l[PERSON]),
     };
   });
   const windowStart = now - 24 * 3_600_000;
@@ -357,7 +389,7 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
     openUrl,
     now: { lines, ...(o.lastWorked ? { lastWorkedAt: isoSecond(o.lastWorked) } : {}) },
     findings: { windowStart: isoSecond(finds.since), items: findItems(tree, finds.groups, stems, openUrl) },
-    pending: { count: waits.length, items: pendingItems, openUrl },
+    pending: { count: waits.length, items: pendingItems, openUrl: waitingUrl(openUrl) },
     ...(o.day ? { stats24h: o.day } : {}),
   };
 }
@@ -368,14 +400,34 @@ const treeFile = (dir: string, key: string) => path.join(dir, `${key}.json`);
 /** A tree's key as a file's name: the tree's ID (a UUID) — never a path. */
 const KEY = /^[0-9A-Za-z-]{1,64}$/u;
 
-/** index.json as the files of the trees there say it, written whole when it says something else. */
-export function writeWidgetIndex(dir: string, now = Date.now()): void {
+/**
+ * A file of the widget written whole (a file beside it renamed over it) — at once or not now: the widget reading it this
+ * moment holds it on Windows (a rename over an open file fails with EPERM or EBUSY there), and the bridge never waits
+ * for it (writeFileAtomic's patience would hold the bridge's tick for 1.5 s). False: not written, nothing left beside
+ * it; the next look writes it.
+ */
+function writeNow(file: string, content: string): boolean {
+  try {
+    writeFileAtomic(file, content, { patient: false });
+    return true;
+  } catch (err) {
+    if (HELD.has((err as NodeJS.ErrnoException).code ?? "")) return false;
+    throw err;
+  }
+}
+
+/**
+ * index.json as the files of the trees there say it, written whole when it says something else (or another strom wrote
+ * it); the folder made when there is none (the mark of this strom: strom's first run, its setup). False: held by the
+ * widget this moment, not written.
+ */
+export function writeWidgetIndex(dir: string, now = Date.now()): boolean {
   const trees: WidgetIndex["trees"] = [];
   let names: string[] = [];
   try {
     names = fs.readdirSync(dir).filter((n) => n.endsWith(".json") && n !== "index.json" && !n.startsWith("."));
-  } catch {
-    return;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") return true;
   }
   for (const n of names.sort()) {
     try {
@@ -389,26 +441,53 @@ export function writeWidgetIndex(dir: string, now = Date.now()): void {
   const file = path.join(dir, "index.json");
   try {
     const was = JSON.parse(fs.readFileSync(file, "utf8")) as WidgetIndex;
-    if (JSON.stringify(was.trees) === JSON.stringify(trees) && was.schemaVersion === WIDGET_SCHEMA) return;
+    if (JSON.stringify(was.trees) === JSON.stringify(trees) && was.schemaVersion === WIDGET_SCHEMA && was.strom === VERSION) return true;
   } catch {
     // none yet
   }
-  writeFileAtomic(file, `${JSON.stringify({ schemaVersion: WIDGET_SCHEMA, generatedAt: isoSecond(now), trees } satisfies WidgetIndex, null, 2)}\n`);
+  return writeNow(file, `${JSON.stringify({ schemaVersion: WIDGET_SCHEMA, generatedAt: isoSecond(now), strom: VERSION, trees } satisfies WidgetIndex, null, 2)}\n`);
 }
 
-/** A tree's file written whole (a file beside it renamed over it), then index.json. */
-export function writeWidgetTree(dir: string, data: WidgetTree): void {
-  if (!KEY.test(data.treeKey)) return;
-  writeFileAtomic(treeFile(dir, data.treeKey), `${JSON.stringify(data, null, 2)}\n`);
-  writeWidgetIndex(dir, Date.parse(data.generatedAt) || Date.now());
-}
-
-/** A tree's file taken away (its research gone, an archive now), and index.json without it. */
-export function dropWidgetTree(dir: string, key: string): void {
-  if (!KEY.test(key)) return;
+/**
+ * The mark that this strom writes the widget's files (on macOS and Windows): index.json, with no tree in it when no
+ * bridge ran yet — written at strom's first run of a version and at its setup. A widget that finds none tells a strom too
+ * old to write any (strom update) from one whose bridge has not run yet. Never in the way: any failure said nowhere.
+ */
+export function markWidget(env: Env, platform: NodeJS.Platform = process.platform): void {
+  const dir = widgetDir(env, platform);
+  if (!dir) return;
   try {
-    fs.rmSync(treeFile(dir, key), { force: true });
+    writeWidgetIndex(dir);
   } catch {
+    // written by the next bridge
+  }
+}
+
+/** A tree's file written whole (a file beside it renamed over it), then index.json. False: held by the widget, not now. */
+export function writeWidgetTree(dir: string, data: WidgetTree): boolean {
+  if (!KEY.test(data.treeKey)) return true;
+  if (!writeNow(treeFile(dir, data.treeKey), `${JSON.stringify(data, null, 2)}\n`)) return false;
+  return writeWidgetIndex(dir, Date.parse(data.generatedAt) || Date.now());
+}
+
+/**
+ * A tree's file taken away (its research gone, an archive now), and index.json without it. One the widget holds without
+ * letting it go (Windows) stays: it says at least `running: false` (as `last` was, or as it says), not a research at work
+ * for the quarter of an hour the widget takes to call it old.
+ */
+export function dropWidgetTree(dir: string, key: string, last?: WidgetTree): void {
+  if (!KEY.test(key)) return;
+  const file = treeFile(dir, key);
+  try {
+    fs.rmSync(file, { force: true });
+  } catch {
+    try {
+      const was = last ?? (JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree);
+      const at = isoSecond(Date.now());
+      writeWidgetTree(dir, { ...was, running: false, generatedAt: at, lastActiveAt: at });
+    } catch {
+      // nothing more to do: the widget calls it old by itself
+    }
     return;
   }
   writeWidgetIndex(dir);
@@ -421,7 +500,7 @@ export interface WidgetWriter {
   end(gone: boolean): void;
 }
 
-/** The writer of a tree's bridge; none off macOS. */
+/** The writer of a tree's bridge; none but on macOS and Windows. */
 export function widgetWriter(root: string, env: Env, platform: NodeJS.Platform = process.platform, clock: () => number = Date.now): WidgetWriter | undefined {
   const dir = widgetDir(env, platform);
   if (!dir) return undefined;
@@ -432,35 +511,49 @@ export function widgetWriter(root: string, env: Env, platform: NodeJS.Platform =
   let said = "";
   let last: WidgetTree | undefined;
   let key: string | undefined;
+  // what the widget held at the last look (Windows: renamed over an open file): written at the next tick, not the next look
+  let held: { t: WidgetTree; c: string } | undefined;
   // what moves with the clock alone says nothing new
   const content = (t: WidgetTree) => JSON.stringify({ ...t, generatedAt: "", lastActiveAt: "", findings: { ...t.findings, windowStart: "" } });
+  const write = (t: WidgetTree, c: string, now: number) => {
+    if (!writeWidgetTree(dir, t)) {
+      held = { t, c };
+      return;
+    }
+    held = undefined;
+    said = c;
+    written = now;
+  };
   return {
     tick(force = false) {
       const now = clock();
-      if (!force && now - checked < checkMs) return;
+      if (!force && now - checked < checkMs) {
+        if (held) write({ ...held.t, generatedAt: isoSecond(now), lastActiveAt: isoSecond(now) }, held.c, now);
+        return;
+      }
       checked = now;
       const t = widgetTree(root, env, { running: true, now });
       if (!t) {
         // an archive now: nothing of it on the desktop
-        if (key) dropWidgetTree(dir, key);
+        if (key) dropWidgetTree(dir, key, last);
         key = undefined;
         last = undefined;
+        held = undefined;
         said = "";
         return;
       }
       key = t.treeKey;
       last = t;
       const c = content(t);
-      if (c === said && now - written < beatMs) return;
-      writeWidgetTree(dir, t);
-      said = c;
-      written = now;
+      if (c === said && now - written < beatMs && !held) return;
+      write(t, c, now);
     },
     end(gone) {
       if (!key) return;
       // what the file says now is no longer what was written: the next look writes it again
       said = "";
-      if (gone) return dropWidgetTree(dir, key);
+      held = undefined;
+      if (gone) return dropWidgetTree(dir, key, last && { ...last, running: false });
       if (!last) return;
       const at = isoSecond(clock());
       writeWidgetTree(dir, { ...last, running: false, generatedAt: at, lastActiveAt: at });

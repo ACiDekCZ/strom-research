@@ -116,6 +116,10 @@ conclusion so the next researcher can follow it.
   another way, or say what was refused.
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours.
+- **The lines first.** With several lines, a task about a side branch none of
+  them reaches waits until they have nothing to do. Add one only with `--helps
+  "<how it helps G…>"`: an ancestor's sibling as godparent or witness, the same
+  house, an ancestor's surname or origin. The sibling's own family helps none.
 <!-- for locate request -->
 - **What waits for the user is a sentence they read** (`strom task wait T…
   --on "…"`: strom's menu, the Strom app): impersonal, in the research

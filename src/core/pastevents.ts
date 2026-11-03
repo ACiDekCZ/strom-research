@@ -17,10 +17,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { withLock } from "./lock.ts";
+import { allKinds, EVENT_KINDS, sayKinds, type EventKind } from "./eventkinds.ts";
 import { readJsonIfExists, stringifyCanonical, writeFileAtomic } from "./json.ts";
 import { foldText } from "./text.ts";
 import { streetsOf } from "./streets.ts";
-import { Settings, type HistoryPace } from "./config.ts";
+import { historySwitches, Settings, type HistoryPace } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
 import { addressesPerson } from "./impersonal.ts";
@@ -29,8 +30,8 @@ import { create, update } from "./records.ts";
 import { factPlaces, factWritten } from "../gedcom/export.ts";
 import { dateYears } from "./gdate.ts";
 import { lineValue } from "../gedcom/lines.ts";
-import type { Family, Person, Place, Session, Source, Task } from "./model.ts";
-import type { Tree } from "./tree.ts";
+import type { Family, Person, Place, Session, Source, Task, TreeConfig } from "./model.ts";
+import { knownTreesIn, TREE_FILE, type Tree } from "./tree.ts";
 import {
   factsByRecord,
   finishPlaceOf,
@@ -40,6 +41,7 @@ import {
   placeKeyOf,
   placeOfEvent,
   placeOfTask,
+  placeOrigin,
   placeRecord,
   placeTurn,
   raisePlaceTasks,
@@ -82,8 +84,7 @@ export function forHistory(t: Pick<Task, "origin">): boolean {
   return typeof t.origin === "string" && t.origin.startsWith("history:");
 }
 
-export const EVENT_KINDS = ["war", "epidemic", "census", "state", "emigration", "law", "economy", "disaster", "other"] as const;
-export type EventKind = (typeof EVENT_KINDS)[number];
+export { EVENT_KINDS, type EventKind } from "./eventkinds.ts";
 /** The languages of every text of a region's event. */
 export const REGION_LANGS = ["cs", "en", "de"] as const;
 /** At most so many characters of a text, a quote. */
@@ -199,6 +200,10 @@ export interface GapTried extends Gap {
   at: string;
   tree: string;
   added: number;
+  /** The kinds looked for (history.kinds of the researches sharing the region then); none: every kind. */
+  kinds?: EventKind[];
+  /** A session of these kinds alone in years looked through for the others (strom history align): no gap look of its own. */
+  backfill?: true;
 }
 
 /** Years a tree's session looked a region's catalog through for: when, the tree, the events it wrote in them (when known). */
@@ -206,6 +211,8 @@ export interface Searched extends Gap {
   at: string;
   tree: string;
   added?: number;
+  /** The kinds looked for (history.kinds of the researches sharing the region then); none: every kind. */
+  kinds?: EventKind[];
 }
 
 export interface LocalEvent {
@@ -261,6 +268,10 @@ export interface Hide {
   tree?: true;
   region?: string;
   at: string;
+  /** Hidden by strom history align (its kind is not looked for here): shown again by align once the kind is. */
+  by?: "align";
+  /** Which align hid it (history/aligns.json): taken back by strom history align --undo <it>. */
+  align?: string;
 }
 
 /** The regions and places the person does not want looked for in this tree. */
@@ -319,6 +330,81 @@ export function requireHistoryOn(tree: Tree, settings: Settings = new Settings(t
   throw new UsageError(`${what} is off for this research — nothing is looked for or written`, {
     code: "history.off",
     hint: `the user alone turns it on, in their terminal: strom config set ${key} on --for-tree (this research) or strom config set ${key} on (every research)`,
+  });
+}
+
+// ── the kinds looked for (history.kinds) ───────────────────────────────────
+
+export function isEventKind(k: unknown): k is EventKind {
+  return typeof k === "string" && (EVENT_KINDS as readonly string[]).includes(k);
+}
+
+/** The kinds of events this tree looks for (history.kinds: its own, else the user's, else every kind). */
+export function treeKinds(tree: Tree, settings: Settings = new Settings(tree.env, {})): EventKind[] {
+  return settings.historyKinds(tree.config);
+}
+
+/** Another research on this computer that looks for the history of its regions: the kinds it wants, of which regions. */
+export interface OtherWants {
+  id: string;
+  root: string;
+  kinds: EventKind[];
+  regions: Set<string>;
+}
+
+/**
+ * The other researches on this computer (the trees' folder, those added) that look for the history of their regions —
+ * no archive, the regions' switch on —: the kinds each wants and the regions of its places (none it skipped). Read
+ * from their files alone; one that cannot be read is left out.
+ */
+export function otherWants(tree: Tree, settings: Settings = new Settings(tree.env, {})): OtherWants[] {
+  let known: ReturnType<typeof knownTreesIn> = [];
+  try {
+    known = knownTreesIn(settings.trees()?.value, settings.config.extraTrees ?? []);
+  } catch {
+    return [];
+  }
+  const here = path.resolve(tree.root);
+  const out: OtherWants[] = [];
+  for (const t of known) {
+    if (t.id === tree.config.id || path.resolve(t.root) === here) continue;
+    try {
+      const config = readJsonIfExists<TreeConfig>(path.join(t.root, TREE_FILE));
+      if (!config || config.mode === "archive" || !historySwitches(settings.config, config).regions) continue;
+      const places = readJsonIfExists<PlacesFile>(path.join(t.root, ...PLACES_FILE.split("/")))?.places ?? {};
+      const skips = readJsonIfExists<Partial<Skips>>(path.join(t.root, ...SKIP_FILE.split("/")));
+      const skipped = new Set((Array.isArray(skips?.regions) ? skips!.regions : []).map((x) => x?.region));
+      const regions = new Set(Object.values(places).flatMap((m) => (Array.isArray(m?.regions) ? m.regions.map((g) => g?.id) : [])).filter((id): id is string => typeof id === "string" && regionIdOk(id) && !skipped.has(id)));
+      out.push({ id: config.id ?? t.id, root: t.root, kinds: settings.historyKinds(config), regions });
+    } catch {
+      continue;
+    }
+  }
+  return out;
+}
+
+/**
+ * The kinds a region's catalog is looked for (K1.5): those of this tree and of every other research on this computer
+ * whose places belong to the region — one catalog for all of them, so a kind any of them wants is looked for.
+ */
+export function regionKinds(tree: Tree, region: string, settings: Settings = new Settings(tree.env, {}), others: OtherWants[] = otherWants(tree, settings), own?: readonly EventKind[]): EventKind[] {
+  // own: the kinds this research would look for (strom history align --kinds, the app's preview of a change)
+  const want = new Set<string>(own ?? treeKinds(tree, settings));
+  for (const o of others) if (o.regions.has(region)) for (const k of o.kinds) want.add(k);
+  return EVENT_KINDS.filter((k) => want.has(k));
+}
+
+/**
+ * Refused before anything is read or written (strom history add, local): an event of a kind not looked for — `where`
+ * says for what (this research, the region's researches, this session's task). For the agent: what is off, that only
+ * the person changes it, and how.
+ */
+export function refuseKindOff(kind: EventKind, kinds: readonly string[], where: string): void {
+  if (kinds.includes(kind)) return;
+  throw new UsageError(`events of the kind ${kind} are not looked for ${where} (looked for: ${sayKinds(kinds)}) — nothing written`, {
+    code: "history.kindOff",
+    params: { kind, kinds: sayKinds(kinds) },
+    hint: `only the person adds a kind, in their terminal: strom config set history.kinds <kinds> (now: strom config get history.kinds); write only events of the kinds looked for`,
   });
 }
 
@@ -1096,7 +1182,7 @@ export function regionOfEvent(id: string): string | undefined {
  * period (regionPeriod) its years are written as looked through (K2.7) — with the events this tree wrote in them since
  * `since` (its task made) when given; a catalog finished before it kept them keeps its earlier years first (legacy).
  */
-export function markDone(shared: string, region: string, treeId: string, period?: { spans: Gap[]; legacy?: Gap }, since?: string): Catalog {
+export function markDone(shared: string, region: string, treeId: string, period?: { spans: Gap[]; legacy?: Gap }, since?: string, kinds?: readonly EventKind[]): Catalog {
   requireRegionId(region);
   return withCatalogs(shared, () => {
     const c = readCatalog(shared, region);
@@ -1105,7 +1191,8 @@ export function markDone(shared: string, region: string, treeId: string, period?
     if (period) {
       const before: Searched[] = c.searched ?? (c.done ? [{ ...(period.legacy ?? legacySpan(c, undefined)), at: c.done.at, tree: c.done.tree }] : []);
       const mine = since !== undefined ? c.events.filter((e) => !e.retracted && e.by === treeId && e.at >= since) : undefined;
-      c.searched = [...before, ...period.spans.map((g) => ({ ...g, at, tree: treeId, ...(mine ? { added: mine.filter((e) => overlap(e, g)).length } : {}) }))];
+      const only = kinds && !allKinds(kinds) ? { kinds: [...kinds] } : {};
+      c.searched = [...before, ...period.spans.map((g) => ({ ...g, at, tree: treeId, ...(mine ? { added: mine.filter((e) => overlap(e, g)).length } : {}), ...only }))];
     }
     c.done = { at, tree: treeId };
     delete c.holder;
@@ -1227,7 +1314,9 @@ function hideKey(event: string | undefined, h: Hide, person: string | undefined)
 /** A hide as the app reads it: {event, place} | {event, person} | {event, tree: true} | {region}, and when. */
 function hideRead(event: string | undefined, h: Hide, person: string | undefined): Hide {
   if (event === undefined) return { region: h.region!, at: h.at };
-  return { event, ...(h.place !== undefined ? { place: h.place } : h.person !== undefined ? { person: person! } : { tree: true as const }), at: h.at };
+  // hidden by align (its kind not looked for): said apart from the person's own hides, with the align that hid it
+  const align = h.by === "align" ? { by: "align" as const, ...(h.align ? { align: h.align } : {}) } : {};
+  return { event, ...(h.place !== undefined ? { place: h.place } : h.person !== undefined ? { person: person! } : { tree: true as const }), at: h.at, ...align };
 }
 
 /** What is hidden as the app reads it: at the event that took its place, the person merged into; once each. */
@@ -1294,6 +1383,8 @@ export interface AppPlace {
   history?: PlaceHistoryState;
   at?: string;
   area?: Texts;
+  /** The kinds turned on looked for at it (strom history align), while its task lives. */
+  kindsFill?: KindsFill;
 }
 
 export type SearchState = "none" | "running" | "done" | "waiting";
@@ -1325,6 +1416,14 @@ export interface AppRegion {
   /** A finished catalog's gaps not looked at yet, and the state of the task filling them. */
   gaps?: Gap[];
   fill?: "queued" | "running";
+  /** The kinds turned on looked for where it was looked through without them (strom history align), while its task lives. */
+  kindsFill?: KindsFill;
+}
+
+/** A task of history for some kinds alone (strom history align's backfill): its kinds, in the queue or at work. */
+export interface KindsFill {
+  kinds: string[];
+  state: "queued" | "running";
 }
 
 export interface HistoryAnswer {
@@ -1434,9 +1533,16 @@ function reading(tree: Tree, shared: string | undefined): Reading {
     if (!catalogs.has(id)) catalogs.set(id, shared ? readCatalog(shared, id) : undefined);
     return catalogs.get(id);
   };
-  const anyMapOf = (place: string) => {
+  // one state of "not located" (spec 034): the place record's — a place the research found not located is not mapped
+  // again here, and one identified since its history said so waits for its regions again
+  const named = placeNamed(tree.list<Place>("place"));
+  const anyMapOf = (place: string): PlaceMap | undefined => {
     const k = h.keyOf(place);
-    return maps[k] ?? folded.get(foldText(k));
+    const m = maps[k] ?? folded.get(foldText(k));
+    const p = named(k);
+    if (!m && p?.unlocated && !p.coords) return { regions: [], state: "unlocated", why: p.unlocated, at: p.locating?.at ?? p.updated };
+    if (m?.state === "unlocated" && !m.manual && p?.coords && !p.unlocated) return undefined;
+    return m;
   };
   return {
     facts,
@@ -1628,6 +1734,14 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
   const people = peopleAt(tree);
   const recordOf = placeRecordOf(records);
   const own = placeHistories(tree, shared, settings);
+  // the tasks of some kinds alone at a place (strom history align), while they live: queued, or running in a session
+  const kindsTasks = new Map<string, Task>();
+  for (const t of tree.list<Task>("task")) if (t.kinds?.length && LIVE_STATES.has(t.state) && typeof t.origin === "string") kindsTasks.set(t.origin, t);
+  const kindsAtWork = new Set(tree.list<Session>("session").filter((s) => s.state === "open" && s.task).map((s) => s.task!));
+  const kindsFillOf = (place: string): KindsFill | undefined => {
+    const t = kindsTasks.get(placeOrigin(place));
+    return t ? { kinds: [...t.kinds!], state: kindsAtWork.has(t.id) ? "running" : "queued" } : undefined;
+  };
   for (const key of new Set([...keys, ...skippedKeys, ...localAt.keys()])) {
     const skip = r.skippedFacts.has(key);
     const m = skip ? r.anyMapOf(key) : r.mapOf(key);
@@ -1640,6 +1754,7 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
     const also = alsoOf(tree, records, key, m);
     const persons = people.get(foldText(key))?.size ?? 0;
     const history = id && fact ? own(id) : undefined;
+    const kindsFill = id && fact ? kindsFillOf(id) : undefined;
     // why: the unlocated one's first (the app shows one sentence), else why its own history waits
     const why = m?.state === "unlocated" && m.why ? m.why : history?.why;
     places.set(key, {
@@ -1654,6 +1769,7 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
       ...(skip ? { skip: true as const } : {}),
       ...(id ? { id } : {}),
       ...(history ? { history: history.history, ...(history.at ? { at: history.at } : {}), area: history.area } : {}),
+      ...(kindsFill ? { kindsFill } : {}),
     });
   }
   // the replacements of the places' own catalogs
@@ -1854,11 +1970,18 @@ function appRegions(
       ...(order !== undefined ? { order } : {}),
       ...(turn?.asked?.region === id ? { first: true as const } : {}),
     };
-    let state: Pick<AppRegion, "state" | "at" | "why" | "nobody" | "covered" | "gaps" | "fill">;
+    let state: Pick<AppRegion, "state" | "at" | "why" | "nobody" | "covered" | "gaps" | "fill" | "kindsFill">;
     if (r.skippedRegions.has(id)) state = { state: "skipped" };
     else if (c?.done) {
       const gaps = regionGaps(tree, shared, id, r);
-      state = { state: "done", at: c.done.at, ...(gaps.length ? { gaps } : {}), ...(fill ? { fill: atWork.has(fill.id) ? ("running" as const) : ("queued" as const) } : {}) };
+      const filling = fill ? (atWork.has(fill.id) ? ("running" as const) : ("queued" as const)) : undefined;
+      state = {
+        state: "done",
+        at: c.done.at,
+        ...(gaps.length ? { gaps } : {}),
+        ...(filling ? { fill: filling } : {}),
+        ...(filling && fill!.kinds?.length ? { kindsFill: { kinds: [...fill!.kinds], state: filling } } : {}),
+      };
     } else if (task && atWork.has(task.id)) state = { state: "running" };
     else if (!on) state = { state: "none" };
     else if (archive) state = { state: "waiting", why: phrase(tree.lang, "history.why.archive") };
@@ -2168,7 +2291,7 @@ export function legacySpan(c: Pick<Catalog, "done" | "region">, tree: Tree | und
 export function searchedSpans(tree: Tree, c: Catalog | undefined, read?: Reading): Gap[] {
   if (!c) return [];
   const own: Gap[] = c.searched ?? (c.done ? [legacySpan(c, tree, read)] : []);
-  return union([...own, ...(c.gaps ?? [])].map((g) => ({ from: g.from, to: g.to })));
+  return union([...own, ...(c.gaps ?? []).filter((g) => !g.backfill)].map((g) => ({ from: g.from, to: g.to })));
 }
 
 // ── the gaps of a finished catalog (K2.6) ──────────────────────────────────
@@ -2298,6 +2421,53 @@ export function regionNew(tree: Tree, shared: string | undefined, region: string
   return out;
 }
 
+/**
+ * The years of this tree's period in a finished catalog looked through for some kinds, never for each of these (strom
+ * history align, K2.2: a kind turned on since): per kind, the runs of the period's years looked through (searchedSpans)
+ * whose every look — a region's search, a session of its gaps — left that kind out (kept with it, `kinds`), nor
+ * answered by a task of that kind this tree dropped (since the person last asked for the region again). Kinds with no
+ * such years are left out. Nothing written; none for a catalog not finished or a region nobody of the tree lived in.
+ */
+export function regionKindGaps(tree: Tree, shared: string | undefined, region: string, kinds: readonly EventKind[], read?: Reading): Map<EventKind, Gap[]> {
+  const out = new Map<EventKind, Gap[]>();
+  if (!shared || !kinds.length) return out;
+  const r = read ?? reading(tree, shared);
+  const c = r.catalog(region);
+  if (!c?.done) return out;
+  const period = regionPeriod(tree, region, r);
+  if (period.nobody) return out;
+  const searched = searchedSpans(tree, c, r);
+  const looks: { from: number; to: number; kinds?: readonly string[] }[] = [
+    ...(c.searched ?? [{ ...legacySpan(c, tree, r) }]),
+    ...(c.gaps ?? []),
+  ];
+  const dropped = tree.list<Task>("task").filter((t) => t.origin === gapsOrigin(region) && t.kinds?.length && t.state === "dropped" && t.updated >= (c.redo ?? ""));
+  for (const kind of kinds) {
+    const covered = new Set<number>();
+    for (const g of looks) if (!g.kinds || g.kinds.includes(kind)) for (let y = g.from; y <= g.to; y++) covered.add(y);
+    for (const t of dropped) if (t.kinds!.includes(kind)) for (const g of gapsOfTask(t)) for (let y = g.from; y <= g.to; y++) covered.add(y);
+    const runs: Gap[] = [];
+    for (const span of period.spans) {
+      let start: number | undefined;
+      for (let y = span.from; y <= span.to + 1; y++) {
+        const open = y <= span.to && !covered.has(y) && searched.some((x) => x.from <= y && y <= x.to);
+        if (open && start === undefined) start = y;
+        if (!open && start !== undefined) {
+          runs.push({ from: start, to: y - 1 });
+          start = undefined;
+        }
+      }
+    }
+    if (runs.length) out.set(kind, runs);
+  }
+  return out;
+}
+
+/** Spans joined (touching or overlapping ones as one). */
+export function joinSpans(spans: Gap[]): Gap[] {
+  return union(spans);
+}
+
 /** The years of a finished catalog answered for this tree: looked through (searchedSpans), its tasks of them dropped. */
 function answeredYears(tree: Tree, c: Catalog, region: string, r: Reading): Set<number> {
   const years = new Set<number>();
@@ -2306,7 +2476,7 @@ function answeredYears(tree: Tree, c: Catalog, region: string, r: Reading): Set<
   };
   for (const g of searchedSpans(tree, c, r)) mark(g);
   for (const t of tree.list<Task>("task"))
-    if (t.origin === gapsOrigin(region) && t.state === "dropped" && t.updated >= (c.redo ?? "")) for (const g of gapsOfTask(t)) mark(g);
+    if (t.origin === gapsOrigin(region) && !t.kinds?.length && t.state === "dropped" && t.updated >= (c.redo ?? "")) for (const g of gapsOfTask(t)) mark(g);
   return years;
 }
 
@@ -2340,9 +2510,9 @@ export function regionGaps(tree: Tree, shared: string | undefined, region: strin
   const mark = (g: Gap) => {
     for (let y = g.from; y <= g.to; y++) covered.add(y);
   };
-  for (const g of c.gaps ?? []) mark(g);
+  for (const g of c.gaps ?? []) if (!g.backfill) mark(g);
   for (const t of tree.list<Task>("task"))
-    if (t.origin === gapsOrigin(region) && t.state === "dropped" && t.updated >= (c.redo ?? "")) for (const g of gapsOfTask(t)) mark(g);
+    if (t.origin === gapsOrigin(region) && !t.kinds?.length && t.state === "dropped" && t.updated >= (c.redo ?? "")) for (const g of gapsOfTask(t)) mark(g);
   // years never looked through are no gap: regionNew's (a run too short of them waits)
   const searched = searchedSpans(tree, c, r);
   for (const g of lived) for (let y = g.from; y <= g.to; y++) if (!searched.some((x) => x.from <= y && y <= x.to)) covered.add(y);
@@ -2411,7 +2581,7 @@ export function gapsClosed(
  * A gaps' task finished (strom session close --done): its gaps written into the shared catalog as looked at — with the
  * events this tree wrote in them since the task was made, none too — and the region let go when this tree held it.
  */
-export function noteGaps(shared: string, region: string, t: Pick<Task, "where" | "created">, treeId: string): void {
+export function noteGaps(shared: string, region: string, t: Pick<Task, "where" | "created" | "kinds">, treeId: string, kinds?: readonly EventKind[]): void {
   const gaps = gapsOfTask(t);
   if (!regionIdOk(region) || !gaps.length) return;
   withCatalogs(shared, () => {
@@ -2419,7 +2589,10 @@ export function noteGaps(shared: string, region: string, t: Pick<Task, "where" |
     if (!c) return;
     const at = new Date().toISOString();
     const mine = c.events.filter((e) => !e.retracted && e.by === treeId && e.at >= t.created);
-    c.gaps = [...(c.gaps ?? []), ...gaps.map((g) => ({ ...g, at, tree: treeId, added: mine.filter((e) => overlap(e, g)).length }))];
+    // a task of kinds (strom history align) looked for those alone; any other for the kinds wanted then
+    const looked = t.kinds?.length ? t.kinds.filter(isEventKind) : kinds;
+    const only = looked && !allKinds(looked) ? { kinds: [...looked] } : {};
+    c.gaps = [...(c.gaps ?? []), ...gaps.map((g) => ({ ...g, at, tree: treeId, added: mine.filter((e) => overlap(e, g)).length, ...only, ...(t.kinds?.length ? { backfill: true as const } : {}) }))];
     if (c.holder?.tree === treeId) delete c.holder;
     writeCatalog(shared, c);
   });
@@ -2727,10 +2900,14 @@ export function historyHeld(tree: Tree, shared: string | undefined, settings: Se
     if (!nobody.has(region)) nobody.set(region, !!regionPeriod(tree, region, (read ??= reading(tree, undefined))).nobody);
     return nobody.get(region)!;
   };
+  let kinds: EventKind[] | undefined;
   return (t) => {
     if (!forHistory(t)) return undefined;
-    if (state === null) state = !historyOn(tree, settings) ? "off" : actsAsArchive(tree) ? "archive" : undefined;
+    // no kind of events looked for (history.kinds none): as off — its tasks wait as they are
+    if (state === null) state = !historyOn(tree, settings) || !(kinds ??= treeKinds(tree, settings)).length ? "off" : actsAsArchive(tree) ? "archive" : undefined;
     if (state) return state;
+    // a task of kinds (strom history align) none of which is looked for now: waits as it is
+    if (t.kinds?.length && !t.kinds.some((k) => kinds!.includes(k as EventKind))) return "off";
     // the one switch of the two turned off (K8.2, K8.3): its tasks wait as they are, back when it is on again
     if (placeOfTask(t)) return placesOn(tree, settings) ? placeHeld(tree, shared, t) : "off";
     if (t.origin !== HISTORY_PLACES_ORIGIN && !regionsOn(tree, settings)) return "off";
@@ -2753,7 +2930,8 @@ export function historyHeld(tree: Tree, shared: string | undefined, settings: Se
  * (another tree, strom history done) is done. Inside the tree's lock, committed by the caller. Returns what it made.
  */
 export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settings: Settings = new Settings(tree.env, {})): string[] {
-  if (tree.dryRun || !shared || !historyOn(tree, settings) || actsAsArchive(tree)) return [];
+  // no kind of events looked for (history.kinds none): no task of history arises
+  if (tree.dryRun || !shared || !historyOn(tree, settings) || actsAsArchive(tree) || !treeKinds(tree, settings).length) return [];
   return tree.withTreeLock(() => {
     const lang = tree.lang;
     const tasks = tree.list<Task>("task").filter(forHistory);
@@ -2770,8 +2948,9 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
       const live = tasks.filter((t) => t.origin === origin && LIVE_STATES.has(t.state));
       const { added: fresh, gaps: empty, all: gaps } = yearsToSearch(tree, shared, id);
       if (!gaps.length) {
-        // its result says why, truly: filled, looked at by another research (found or not), or no gap here any more
-        for (const t of live.filter((x) => x.state === "open" || x.state === "parked")) {
+        // its result says why, truly: filled, looked at by another research (found or not), or no gap here any more —
+        // a task of kinds (strom history align) is no task of gaps: it waits for its session
+        for (const t of live.filter((x) => (x.state === "open" || x.state === "parked") && !x.kinds?.length)) {
           const { why, added, extended } = gapsClosed(tree, shared, id, t);
           const key =
             why === "looked" ? (added ? "history.gaps.looked.some" : "history.gaps.looked.none") : why === "gone" ? (extended ? "history.extend.gone" : "history.gaps.gone") : "history.gaps.filled";
@@ -2872,9 +3051,10 @@ export function finishRegionOf(tree: Tree, shared: string | undefined, t: Task):
   if (placeOfTask(t)) return finishPlaceOf(tree, shared, t);
   const region = regionOfTask(t);
   if (!region || !shared || tree.dryRun) return;
-  if (forGaps(t)) return noteGaps(shared, region, t, tree.config.id);
+  const kinds = regionKinds(tree, region);
+  if (forGaps(t)) return noteGaps(shared, region, t, tree.config.id, kinds);
   const c = readCatalog(shared, region);
-  if (c && !c.done) markDone(shared, region, tree.config.id, donePeriod(tree, c), t.created);
+  if (c && !c.done) markDone(shared, region, tree.config.id, donePeriod(tree, c), t.created, kinds);
 }
 
 /** The years a tree's session finishing a region looked through (its period), with a legacy catalog's earlier years. */

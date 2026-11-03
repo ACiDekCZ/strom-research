@@ -9,7 +9,8 @@
 //   · an archive only a person's browser goes to (its robots.txt keeps automated tools off the whole site, or strom's
 //     list says so): no web fetch at all — the person's browser with their permission, else by hand;
 //   · a path its robots.txt keeps automated tools off — strom's groups, those of the agent's own tool (Claude Code's
-//     WebFetch is Claude-User), else those for every robot, and the paths strom's list keeps off: refused, the line said;
+//     WebFetch is Claude-User), else those for every robot, and the paths strom's list keeps off: refused, the line said
+//     (robots.txt alone yields where strom's list says the terms expressly allow automated use and it names no AI agent);
 //   · images of an archive that restricts automation, allows them by hand only or whose terms are not known: never
 //     through a web tool — strom fetch (the person's permission, a person's pace), else by hand; its pages stay open;
 //   · a failure reading what strom keeps of the host: refused where strom's list says the archive forbids automation
@@ -17,8 +18,8 @@
 
 import path from "node:path";
 import type { Env } from "./paths.ts";
-import { archiveLevel, keyHost, loadArchives, termsFor, type ArchiveLevel, type ConnectorLike } from "./terms.ts";
-import { AGENT_TOOL_TOKENS, clock, hostAllowed, hostState, REFUSED_FOREVER, toolRobotsVerdict, type RobotsState } from "./net.ts";
+import { archiveLevel, keyHost, loadArchives, termsFor, termsOpen, type ArchiveLevel, type ConnectorLike } from "./terms.ts";
+import { AGENT_TOOL_TOKENS, clock, hostAllowed, hostState, REFUSED_FOREVER, robotsYields, toolRobotsVerdict, type RobotsState } from "./net.ts";
 import { knownDisallow } from "./knownterms.ts";
 import { listConnectors } from "./connector.ts";
 import { metricsDir, termsPagesToday } from "./metrics.ts";
@@ -196,6 +197,8 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
   } catch {
     read = undefined;
   }
+  // terms that expressly allow automated use: its robots.txt alone yields, unless it names AI agents (core/net.ts)
+  if (robotsYields(read, termsOpen(o.env, host))) read = undefined;
   const known = knownDisallow(host);
   const robots: RobotsState | undefined = known.length ? { at: read?.at ?? 0, status: read?.status ?? 200, groups: [...(read?.groups ?? []), { agents: ["*"], allow: [], disallow: known }], ...(read?.tools ? { tools: read.tools } : {}) } : read;
   const tokens = o.agent ? (AGENT_TOOL_TOKENS[o.agent] ?? []) : Object.values(AGENT_TOOL_TOKENS).flat();

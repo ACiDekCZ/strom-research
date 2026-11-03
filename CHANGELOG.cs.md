@@ -1,9 +1,46 @@
 # Co je nového ve Strom výzkumu
 
-[English](CHANGELOG.md) · Čeština · [Deutsch](CHANGELOG.de.md)
+[English](CHANGELOG.md) · Čeština · [Deutsch](CHANGELOG.de.md) · [Polski](CHANGELOG.pl.md)
 
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
+
+## 1.25.0
+
+*3. 11. 2026 · patří k aplikaci Strom 3.21.0.*
+
+- **Polsky.** Výzkum mluví polsky: menu, jeho hlášky, co zapisuje do výzkumu, instalátor i stránka telefonu; poznámky
+  a role v souboru pro Strom jsou polsky. Polský systém se pozná sám, jinak `strom config set lang pl`. Nápověda pro
+  agenta zůstává anglicky.
+- **Widget Strom i na Windows, a otevře osobu.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
+  nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
+  strom, která je zapsala. Widget, který zrovna čte svůj soubor, most nikdy nezdrží. `strom uninstall` odebere i soubory
+  widgetu, také na Macu; výzkum a nastavení zůstávají.
+  Řádek nebo nález widgetu Strom o jedné osobě otevře v aplikaci Strom právě tu osobu (její
+  stránku, strom kolem ní), to, co čeká, otevře oddíl Čeká výzkumu (aplikace, která je ještě otevřít neumí,
+  otevře strom jako dosud).
+- **Čísla domů za jménem obce.** Místa zapsaná jako jméno se samotným číslem (`Lhota 16`) teď jde opravit také
+  (`strom fixes run street-places`): místem bude obec a číslo jejím domem – jen když člověk za každou obec zvlášť
+  potvrdí, že její čísla jsou domy, a předtím vidí, kterých údajů se to týká. Části města s číslem (`Praha 5`) se
+  nikdy nenabízejí. Odpověď se pamatuje ve výzkumu a `strom fixes undo street-places` vše vrátí.
+- **Návrat v čase.** `strom history back <změna>` vrátí výzkum do stavu po dřívější změně: nejdřív ukáže, co se vrátí
+  a co se vyřadí, a pak jen na „ano“ člověka v terminálu. Nic se nemaže: záznamy přidané od té doby se vyřadí a i sám
+  návrat jde stejně vrátit. Odkaz `strom-research://back` ho otevře k jedné změně;
+  přehled mostu návrat odliší.
+- **Ztotožnění míst.** Výzkum ztotožňuje místa svých záznamů (`strom place identify`, `propose`, `unlocated`): místo
+  jisté ze záznamů dostane souřadnice, jména a farnost v čase; kde jistota není, zeptá se člověka s nejvýš třemi
+  kandidáty, nebo řekne, co by rozhodlo. Otázky čekají v oddílu Čeká, most je nabízí aplikaci Strom a `strom place
+  undo` vezme poslední odpověď zpět. Frontu míst, kterou aplikace Strom zadá ztotožnit hned, lze pustit v tolika
+  sezeních za sebou, kolik člověk zvolí, každý počet s časem a cenou. U každého jména místa je poznat, zda je to zápis
+  ze záznamů, nebo jiné jméno místa (jiný jazyk, starý název), a jméno zadané oběma způsoby je v místě jednou. Soubor
+  Strom dává aplikaci Strom 3.21.0 ztotožněná místa s jejich jmény, polohou a farností.
+- **Druhy dějin.** `history.kinds` určuje, jaké druhy událostí dějiny míst hledají (války, epidemie…). `strom history
+  align` nejdřív řekne, co by skryl, znovu ukázal a hledal, a provede to jen na „ano“ člověka; nic nalezeného se nemaže.
+- **Vedlejší větve nakonec.** Ve výzkumu s více liniemi čeká práce, která žádné linii nepomáhá, až linie nebudou mít
+  co dělat (`queue.offLine`: nakonec, podle priority, nebo nikdy).
+- **Aktualizace bez přerušení práce.** `strom update` instaluje každou verzi do vlastní složky, takže rozběhnutá práce
+  nebo rozhovor pokračuje se svou verzí; starší verze odstraní další aktualizace nebo `strom tidy` a `strom doctor`
+  je vypíše. Most aplikaci Strom odpovídá i během vlastní obnovy a během sestavování souboru stromu.
 
 ## 1.24.0
 

@@ -139,17 +139,17 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
 test("the menu: the history of the places in the settings of working alone — how often or off, the person's choice; 0 changes nothing", opts, async () => {
   const w = await world();
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // 8 settings · 2 working alone · 4 history: 2 rare · 0 back · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "2", "0", "0", "0"] });
+  // 8 settings · 2 working alone · 4 history · 1 how often: 2 rare · 0 back · 0 back · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "1", "2", "0", "0", "0", "0"] });
   assert.match(r.out, / 4 {2}Dějiny: vypnuto\n/u);
   assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}vypnuto – dějiny se nehledají\n {3}0 {2}Zpět\n/u);
   assert.match(r.out, / 4 {2}Dějiny: zřídka – zhruba každé 10\. sezení\n/u);
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // 0: nothing changes; then off — the pace kept for next time
-  await w.ok([], { tty: true, answers: ["8", "2", "4", "0", "0", "0", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "2", "4", "1", "0", "0", "0", "0", "0"] });
   assert.equal(config().experimentsHistory, "on");
-  await w.ok([], { tty: true, answers: ["8", "2", "4", "4", "0", "0", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "2", "4", "1", "4", "0", "0", "0", "0"] });
   assert.equal(config().experimentsHistory, "off");
   assert.equal(config().experimentsHistoryPace, "rare");
   w.cleanup();
@@ -157,8 +157,8 @@ test("the menu: the history of the places in the settings of working alone — h
 
 test("the menu: the history of each place by itself says what it takes before it turns on — minutes, and the price once three sessions of history are measured, as the app's link says", opts, async () => {
   const w = await world();
-  // 8 settings · 2 working alone · 4 history: 2 rare · 5 each place: not now · 0 back · 0 back · 0 quit
-  const answers = ["8", "2", "4", "2", "5", "n", "0", "0", "0"];
+  // 8 settings · 2 working alone · 4 history · 1 how often: 2 rare · 0 back · 5 each place: not now · 0 back · 0 back · 0 quit
+  const answers = ["8", "2", "4", "1", "2", "0", "5", "n", "0", "0", "0"];
   const first = await w.ok([], { tty: true, answers });
   assert.match(first.out, /Jedno sezení agenta, zhruba 15–30 minut/u);
   assert.doesNotMatch(first.out, /Taková sezení tu zatím stála/u, "nothing measured: no price");

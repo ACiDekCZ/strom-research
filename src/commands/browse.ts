@@ -18,6 +18,8 @@ import { displayName } from "../core/people.ts";
 import { humanTask } from "../cli/human.ts";
 export { humanTask };
 import { lacksImages, waitsForArchive } from "../core/queue.ts";
+import { scopes } from "../core/directions.ts";
+import { placer } from "../core/offline.ts";
 import { clockUp } from "../core/net.ts";
 import { forStory } from "../core/stories.ts";
 import { forGaps, forHistory, gapsOfTask, gapText, HISTORY_PLACES_ORIGIN, historyOn, historyTurn, readCatalog, regionName, regionOfTask, regionPeriod, searchedSpans, type HistoryTurn } from "../core/pastevents.ts";
@@ -212,7 +214,10 @@ register(
       if (stateOf(tree) === "waiting") return { text: ui(lang, "ui.plan.waitagent", { name: tree.config.name }), data: { waiting: true, tasks: [] } };
       const count = positive(opts.count, "count", 10, 200);
       // The order of a conversation (the story's turn is only for working alone).
-      const queue = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).map((r) => r.task);
+      const ranked = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) });
+      const queue = ranked.map((r) => r.task);
+      // work off the lines, helping none: after the lines' work (core/offline.ts) — said on its row
+      const offLines = new Set(ranked.filter((r) => r.offLine).map((r) => r.task.id));
       // the stories, with the searches beyond the registers before them
       const work = queue.filter((t) => !forStory(t));
       const stories = queue.filter(forStory);
@@ -229,7 +234,7 @@ register(
         .filter((t) => !inQueue.has(t.id) && !forStory(t))
         .flatMap((t) => ((a) => (a ? [{ t, a }] : []))(held(t)));
       const rows = [
-        ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}`]),
+        ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}${offLines.has(t.id) ? ui(lang, "ui.plan.offline") : ""}`]),
         ...later.slice(0, 5).map(({ t, a }) => [`  ${ui(lang, "ui.plan.later")}`, `${truncate(humanTask(tree, t.what, lang), 110)}${ui(lang, "ui.plan.asleep", { at: clockUp(a.until), host: a.host })}`]),
       ];
       const storyNames = [...new Set(stories.map((t) => tree.get<Person>(t.subject[0] ?? "")).filter((p): p is Person => !!p).map((p) => `${displayName(p)} [${p.id}]`))];
@@ -258,12 +263,15 @@ register(
             ].join(" · "),
           }),
         );
+      // queue.offLine never: the work off the lines not taken, how much of it
+      const never = ctx.settings.offLine(tree.config) === "never" ? ((place) => tree.list<Task>("task").filter((t) => t.state === "open" && place(t).off).length)(placer(tree, scopes(tree))) : 0;
+      if (never) out.push(ui(lang, "ui.plan.offline.never", { n: never }));
       if (waiting) out.push(waitingLine(lang, waits, "ui.plan.waiting"));
       if (queue.length) out.push("", ui(lang, "ui.plan.steer"));
-      const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t) });
+      const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t), ...(offLines.has(t.id) ? { offLine: "last" } : {}) });
       return {
         text: lines(...out),
-        data: { tasks: work.map(item), stories: stories.map(item), waiting, ...(history ? { history: { ...item(history.task), pace: history.turn.pace, now: history.turn.now, ...(history.turn.in !== undefined ? { in: history.turn.in } : {}), ...(history.prefer ? { prefer: history.prefer } : {}), ...(history.asked ? { asked: history.asked } : {}), regions: history.regions, left: history.left } } : {}), ...(later.length ? { later: later.map(({ t, a }) => ({ ...item(t), until: new Date(a.until).toISOString(), host: a.host })) } : {}) },
+        data: { tasks: work.map(item), stories: stories.map(item), waiting, ...(never ? { offLineNever: never } : {}), ...(history ? { history: { ...item(history.task), pace: history.turn.pace, now: history.turn.now, ...(history.turn.in !== undefined ? { in: history.turn.in } : {}), ...(history.prefer ? { prefer: history.prefer } : {}), ...(history.asked ? { asked: history.asked } : {}), regions: history.regions, left: history.left } } : {}), ...(later.length ? { later: later.map(({ t, a }) => ({ ...item(t), until: new Date(a.until).toISOString(), host: a.host })) } : {}) },
       };
     },
   },

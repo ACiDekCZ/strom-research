@@ -3393,6 +3393,15 @@ function newCites(tree: Tree, f: SFact, ours: SFact[], given: SFact[], sources: 
   return (f.cites ?? []).filter((c) => !has.has(sources.get(c.source) ?? c.source));
 }
 
+/**
+ * A position from the app is the person's (the app's synchronization, a place new or not): by person, now — the research's
+ * own reasons, check and question of the position go with what it said; a question of the facts' writing stays.
+ */
+function byPerson(locating: Place["locating"]): NonNullable<Place["locating"]> {
+  const q = locating?.question;
+  return { by: "person", at: now(), ...(q?.kind === "form" ? { question: q } : {}) };
+}
+
 /** The research's places by placeKey of each of their names — one with coordinates first, as the export gives them. */
 function researchPlaces(tree: Tree): Map<string, Place> {
   const out = new Map<string, Place>();
@@ -4547,13 +4556,15 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const coords = { lat: p.lat, lon: p.lon };
           const mine = p.id ? tree.get<Place>(p.id) : undefined;
           if (mine && !mine.retracted) {
-            update<Place>(tree, mine.id, "place", ({ unlocated: _found, ...rest }) => ({ ...rest, coords }), {
+            // the person's hand (spec 034, K2.5): never changed by the research again — its question of the position is
+            // answered by it, one of the facts' writing still waits
+            update<Place>(tree, mine.id, "place", ({ unlocated: _found, locating, ...rest }) => ({ ...rest, coords, locating: byPerson(locating) }), {
               op: "place.edit",
               summary: `${mine.id} at ${p.lat}, ${p.lon}: ${reason}`,
             });
-            applied.push({ do: "place.edit", id: mine.id, before: JSON.stringify({ coords: mine.coords, unlocated: mine.unlocated }) });
+            applied.push({ do: "place.edit", id: mine.id, before: JSON.stringify({ coords: mine.coords, unlocated: mine.unlocated, locating: mine.locating ?? null }) });
           } else {
-            const made = create<Place>(tree, "place", { names: [{ name: p.name }], coords, jurisdictions: [], note: `the position from ${reason}` } as never, (id) => `+${id} place "${p.name}" (from ${source.id})`);
+            const made = create<Place>(tree, "place", { names: [{ name: p.name }], coords, locating: byPerson(undefined), jurisdictions: [], note: `the position from ${reason}` } as never, (id) => `+${id} place "${p.name}" (from ${source.id})`);
             applied.push({ do: "place.add", id: made.id });
           }
           break;
@@ -5324,8 +5335,12 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         if (!tree.get<Person>(a.id)?.retracted) retractPerson(tree, a.id, reason);
         break;
       case "place.edit": {
-        const b = JSON.parse(String(a.before ?? "{}")) as Pick<Place, "coords" | "unlocated">;
-        update<Place>(tree, a.id, "place", ({ coords: _now, unlocated: _u, ...p }) => ({ ...p, ...(b.coords ? { coords: b.coords } : {}), ...(b.unlocated ? { unlocated: b.unlocated } : {}) }), {
+        const b = JSON.parse(String(a.before ?? "{}")) as Pick<Place, "coords" | "unlocated"> & { locating?: Place["locating"] | null };
+        // who put it on the map as it was (a sync before it was kept: as it is now)
+        update<Place>(tree, a.id, "place", ({ coords: _now, unlocated: _u, locating, ...p }) => {
+          const was = "locating" in b ? (b.locating ?? undefined) : locating;
+          return { ...p, ...(b.coords ? { coords: b.coords } : {}), ...(b.unlocated ? { unlocated: b.unlocated } : {}), ...(was ? { locating: was } : {}) };
+        }, {
           op: "place.edit",
           summary: `${a.id} position back: ${reason}`,
           reason,
