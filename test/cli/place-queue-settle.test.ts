@@ -289,3 +289,32 @@ test("every step on places undone by its own id: the tidying and names taken off
     w.cleanup();
   }
 });
+
+test("a form with a check waiting rewritten to another place: the check goes with the facts, never left of no place", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["place", "add", "Horní Lhota", "--lat", "49.61", "--lon", "15.23"]); // L0001 on the map
+    await w.ok(["place", "queue", "L0001", "--check"]);
+    assert.equal(queue(w)["horni lhota"]?.check, true);
+    await w.ok(["place", "add", "Dolní Lhota", "--lat", "49.58", "--lon", "15.20"]); // L0002 on the map
+    // the facts' "Horní Lhota" was the other village: its name is borne by both records now
+    await w.ok(["place", "rewrite", "Horní Lhota", "--to", "L0002", "--reason", "jiná ves v matrice"], { env: AGENT });
+    assert.equal(queue(w)["horni lhota"], undefined, "no entry of a form two records bear");
+    assert.equal(queue(w)["dolni lhota"]?.check, true, "the check asked goes with the facts to their place");
+    const listed = (await w.ok(["place", "queue", "--json"])).json;
+    assert.ok(JSON.stringify(listed).includes("L0002"), "the entry leads to a place");
+    await w.ok(["place", "verify", "L0001", "--ok", "--why", "fara Lhotov"], { env: AGENT });
+    assert.equal(queue(w)["dolni lhota"]?.check, true, "the other place's check settles nothing of it");
+    await w.ok(["place", "verify", "L0002", "--ok", "--why", "fara Lhotov"], { env: AGENT });
+    assert.deepEqual(Object.values(queue(w)).filter((e) => e.check), [], "checked: out");
+    // NFD and another case of the form: the same entry
+    await w.ok(["place", "add", "Lhotákov", "--lat", "50.2", "--lon", "15.9"]); // L0003
+    await w.ok(["place", "queue", "L0003", "--check"]);
+    await w.ok(["place", "add", "Лгота", "--lat", "50.1", "--lon", "15.8"]); // L0004
+    await w.ok(["place", "rewrite", "LHOTÁKOV".normalize("NFD"), "--to", "L0004", "--reason", "azbukou v soupisu"], { env: AGENT });
+    assert.equal(queue(w)["lhotakov"], undefined);
+    assert.equal(Object.values(queue(w)).find((e) => e.form === "Лгота")?.check, true);
+  } finally {
+    w.cleanup();
+  }
+});

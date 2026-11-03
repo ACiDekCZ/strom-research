@@ -30,7 +30,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   anders schreiben; Orte, die eine Sitzung schon erledigt hat, werden nicht erneut genommen, und die Zahl des Wartenden
   stimmt. Was eine frühere Version in der Warteschlange ließ, wird von selbst entfernt (nur erledigte Orte, der Schritt
   lässt sich rückgängig machen); eine Prüfung, die für einen Ort verlangt wird, der auf die Bestimmung wartet, bleibt
-  als Prüfung. Jeder Schritt bei den Orten lässt sich mit seiner eigenen Nummer rückgängig machen, auch wenn ein anderer
+  als Prüfung, und eine Prüfung, die bei einer Form wartet, die die Fakten jetzt als anderen Ort schreiben, geht mit
+  ihnen zu diesem Ort. Jeder Schritt bei den Orten lässt sich mit seiner eigenen Nummer rückgängig machen, auch wenn ein anderer
   wartet (auch die Antworten der Person). Ein falscher Name im Datensatz eines Ortes — ein Versehen eines Eintrags, das
   kein Faktum mehr schreibt, der Name eines anderen Ortes — lässt sich mit Begründung entfernen (`strom place names L…
   --drop`); die Sitzung über die Orte sieht die weiteren Namen des Datensatzes mit Sprache und Jahren; eine Prüfung kann
@@ -38,6 +39,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - In den Widersprüchen einer Änderung aus der App bekommt eine Hausnummer, die ihre Bezeichnung schon trägt, sie nicht
   ein zweites Mal (polnisch „nr domu nr domu 12“), und der Gedankenstrich im Titel richtet sich nach der Sprache der
   Forschung.
+- Der Plan dessen, was der Agent als Nächstes tut, bricht bei einer wartenden Geschichte eines Paares nicht mehr ab:
+  er nennt beide Partner.
 
 ## 1.25.1
 

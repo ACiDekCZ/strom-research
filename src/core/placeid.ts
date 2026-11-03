@@ -1137,6 +1137,27 @@ export function rewriteForm(
     // the form's entry of the queue leads to the record now: out where the place was dealt with already
     const file = readPlacesFile(tree);
     const was = JSON.stringify(file.queue);
+    // the form's entry no fact writes now and no one record bears (another place of that name: found on 1.26.0-beta.2)
+    // goes with the facts to their place — the person's check never left of no place, and checked only there
+    const key = foldText(form.normalize("NFC").trim());
+    const e = file.queue[key];
+    const recordOf = recordIndexOf([...tree.list<Place>("place").filter((x) => x.id !== place.id), place]);
+    if (e && !left.length && !gone && recordOf(e.form)?.id !== place.id) {
+      const to = foldText(name);
+      const there = file.queue[to];
+      const check = !!place.coords && (!!e.check || !!there?.check);
+      const flag = there?.flag ?? e.flag;
+      const back = !!there?.back || !!e.back;
+      delete file.queue[key];
+      file.queue[to] = {
+        form: there?.form ?? name,
+        at: there && there.at > e.at ? there.at : e.at,
+        by: there?.by === "person" || e.by === "person" ? "person" : "research",
+        ...(check ? { check: true } : {}),
+        ...(flag ? { flag } : {}),
+        ...(back ? { back: true as const } : {}),
+      };
+    }
     unqueue(tree, file, [place], [], (e, x) => settledBy(x, e));
     write(tree, [place, ...records], JSON.stringify(file.queue) !== was ? file : undefined, {
       op: "place.rewrite",

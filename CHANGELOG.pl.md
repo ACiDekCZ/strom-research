@@ -27,13 +27,15 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   pytanie albo nieustalone opuszcza kolejkę ze wszystkimi swoimi formami, także z tą, którą fakty zapisują teraz
   inaczej; miejsca, które sesja już zrobiła, nie są brane ponownie, a liczba oczekujących się zgadza. To, co w kolejce
   zostawiła wcześniejsza wersja, usuwa się samo (tylko załatwione miejsca, krok można cofnąć); sprawdzenie zlecone dla
-  miejsca czekającego na identyfikację zostaje jako sprawdzenie. Każdy krok przy miejscach można cofnąć jego własnym
+  miejsca czekającego na identyfikację zostaje jako sprawdzenie, a sprawdzenie czekające przy formie, którą fakty
+  zapisują teraz jako inne miejsce, przechodzi z nimi do tego miejsca. Każdy krok przy miejscach można cofnąć jego własnym
   numerem, także gdy czeka inny (również odpowiedzi osoby). Błędną nazwę w rekordzie miejsca — pomyłkę z zapisu, której
   żaden fakt już nie zapisuje, nazwę innego miejsca — można usunąć z uzasadnieniem (`strom place names L… --drop`);
   sesja nad miejscami widzi pozostałe nazwy rekordu z językiem i latami; sprawdzenie może podać źródło, na którym się
   oparło; przynależność można podać także dla jednego roku.
 - W sprzecznościach zmian z aplikacji numer domu, który ma już oznaczenie, nie dostaje go po raz drugi („nr domu nr
   domu 12”), a myślnik w tytule zależy od języka badania.
+- Plan tego, co agent zrobi dalej, nie przerywa się już na oczekującej opowieści o parze: podaje oboje partnerów.
 
 ## 1.25.1
 

@@ -24,12 +24,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Fronta míst se po vyřízení míst vyprázdní.** Místo ztotožněné, ověřené, předané k otázce nebo nedohledané odejde z
   fronty se všemi svými tvary, i s tím, který fakta mezitím píší jinak; místa, která sezení už udělalo, se znovu neberou
   a počet čekajících sedí. Co ve frontě nechala dřívější verze, se odebere samo (jen vyřízená místa, krok jde vrátit);
-  kontrola vyžádaná u místa, které čeká na ztotožnění, zůstane jako kontrola. Každý krok nad místy jde vrátit vlastním
+  kontrola vyžádaná u místa, které čeká na ztotožnění, zůstane jako kontrola, a kontrola čekající u tvaru, který fakta
+  nově píší jako jiné místo, přejde s nimi k tomu místu. Každý krok nad místy jde vrátit vlastním
   číslem, i když čeká jiný (také odpovědi člověka). Chybné jméno v záznamu místa — překlep ze záznamu, který už žádný
   fakt nepíše, jméno jiného místa — jde odebrat i s důvodem (`strom place names L… --drop`); sezení nad místy vidí další
   jména záznamu s jazykem a roky; kontrola může uvést, o jaký zdroj se opřela; příslušnost jde zadat i k jednomu roku.
 - V rozporech úpravy z aplikace už číslo domu, které značku má, nedostane značku podruhé (polsky „nr domu nr domu 12“),
   a pomlčka v titulku je podle jazyka výzkumu.
+- Plán toho, co agent udělá dál, už nespadne na čekajícím vyprávění o manželích: jmenuje oba manžele.
 
 ## 1.25.1
 

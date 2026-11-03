@@ -27,12 +27,13 @@ The changes of each version in short. The full notes and the install lines are o
   the queue with every form of it, also one the facts write otherwise since; the places a session already did are no
   longer taken again, and the count of what waits is right. What an earlier version left in the queue is taken out by
   itself (only places dealt with, the step can be undone); a check asked of a place waiting to be identified is kept as
-  the check. Each step on places is undone by its own number, also while another waits (the person's answers among
+  the check, and a check waiting for a form the facts now write as another place goes with them to that place. Each step on places is undone by its own number, also while another waits (the person's answers among
   them). A wrong name of a place's record — a slip of a record no fact writes any more, another place's name — can be
   taken off with the reason (`strom place names L… --drop`); the session on the places sees the record's other names
   with their language and years; a check can name the reference it stood on; a jurisdiction can be given for one year.
 - In the conflicts of an edit from the app a house that says it is one already no longer gets its marker twice ("nr domu nr
   domu 12" in Polish), and the title's dash is the one of the research's language.
+- The plan of what the agent does next no longer fails on a couple's story waiting: it names the two partners.
 
 ## 1.25.1
 
