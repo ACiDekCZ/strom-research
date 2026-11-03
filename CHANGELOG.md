@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.26.0-beta.5. The section is complete with the release.*
 
 - **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
   in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the
@@ -15,15 +15,16 @@ The changes of each version in short. The full notes and the install lines are o
   reaches, such as an ancestor's sister and her family – now comes now and then, one task in ten sessions, instead of
   only at the end. Each such branch can have a choice of its own (now and then, at the end, as the lines' work, never,
   or added to a line), and a branch that grows gets a line proposed in What waits: add it to a line, create a line for
-  it, leave it as it is, or not research it. The husband or wife of an ancestor belongs to the ancestor's line. Any task
-  can be taken next or put at the end, and each task in the queue says why it stands where it does. In the terminal:
-  Settings → the agent working alone → Work off the lines, `strom offline`, `strom task order`.
+  it, leave it as it is, or not research it. The husband or wife of an ancestor belongs to the ancestor's line, and a
+  line asking a question has its person in it. Any task can be taken next or put at the end, and each task in the queue
+  says why it stands where it does. In the terminal: Settings → the agent working alone → Work off the lines, `strom
+  offline`, `strom task order`.
 
-- **A story written again loses nothing.** When the research writes a story anew – more facts, a better reading, a
-  story taken over from older work – each fact, source and link of the version before stays, or goes only on purpose
-  with the reason, kept with the story. The sources a story rests on are shown with it, title and address under each
-  fact, also where the text does not name them, and the Strom app receives them with the story. A fact told from a
-  lead names in the text where it comes from.
+- **A story written again loses nothing.** When the research writes a story anew – more facts, a better reading, a story
+  taken over from older work – each fact, source and link of the version before stays, or goes only on purpose with the
+  reason, kept with the story. The sources a story rests on are shown with it, title and address under each fact, also
+  where the text does not name them, and a source the text names only by its code among them; the Strom app receives
+  them with the story. A fact told from a lead names in the text where it comes from.
 
 ## 1.25.2
 

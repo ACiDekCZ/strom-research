@@ -958,10 +958,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         w.line(level, "DATA", clipChars([e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" "), 200));
       }
     };
-    // the sources it rests on — those its facts cite and those of its background — each a record of the file, so a
-    // reader shows their titles and addresses even where the text names none (found 2026-11-03); an app that does not
-    // read them passes them by
-    const sour = (level: number, v: Pick<Story, "facts" | "sources">) => {
+    // the sources it rests on — those its facts cite, those of its background and those its text names by ID — each a
+    // record of the file, so a reader shows their titles and addresses even where the text names none (found
+    // 2026-11-03); an app that does not read them passes them by
+    const sour = (level: number, v: Pick<Story, "facts" | "sources" | "text" | "title" | "note">) => {
       for (const s of storySources(tree, v, eventById)) {
         if (!sourceById.has(s.id)) continue;
         citedSources.add(s.id);

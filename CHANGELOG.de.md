@@ -7,25 +7,26 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.26.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Linien der Forschung aus der Strom-App: anlegen, ändern, pausieren, ordnen.** Eine Linie lässt sich in der App
   anlegen oder ändern (Person, Richtung, Frage, Grenzen), pausieren, beenden oder wieder aufnehmen; die Reihenfolge der
-  Linien ist die Reihenfolge der Arbeit, und die Seite fürs Telefon schiebt eine Linie nach oben oder unten und
-  pausiert sie. Arbeit außerhalb der Linien – ein Nebenzweig, den keine Linie erreicht, etwa die Schwester eines
-  Vorfahren und ihre Familie – kommt jetzt gelegentlich, eine Aufgabe in zehn Sitzungen, statt nur am Ende. Jeder
-  solche Zweig kann eine eigene Wahl haben (gelegentlich, am Ende, wie die Arbeit der Linien, nie oder einer Linie
-  hinzugefügt), und für einen wachsenden Zweig wird unter „Was wartet“ eine Linie vorgeschlagen: einer Linie
-  hinzufügen, eine Linie für ihn anlegen, so lassen oder nicht erforschen. Ehemann oder Ehefrau eines Vorfahren gehören
-  zur Linie des Vorfahren. Jede Aufgabe lässt sich sofort nehmen oder ans Ende stellen, und jede Aufgabe in der
-  Warteschlange sagt, warum sie dort steht. Im Terminal: Einstellungen → Der Agent allein → Arbeit außerhalb der
-  Linien, `strom offline`, `strom task order`.
+  Linien ist die Reihenfolge der Arbeit, und die Seite fürs Telefon schiebt eine Linie nach oben oder unten und pausiert
+  sie. Arbeit außerhalb der Linien – ein Nebenzweig, den keine Linie erreicht, etwa die Schwester eines Vorfahren und
+  ihre Familie – kommt jetzt gelegentlich, eine Aufgabe in zehn Sitzungen, statt nur am Ende. Jeder solche Zweig kann
+  eine eigene Wahl haben (gelegentlich, am Ende, wie die Arbeit der Linien, nie oder einer Linie hinzugefügt), und für
+  einen wachsenden Zweig wird unter „Was wartet“ eine Linie vorgeschlagen: einer Linie hinzufügen, eine Linie für ihn
+  anlegen, so lassen oder nicht erforschen. Ehemann oder Ehefrau eines Vorfahren gehören zur Linie des Vorfahren, und
+  eine Linie mit einer Frage enthält ihre Person. Jede Aufgabe lässt sich sofort nehmen oder ans Ende stellen, und jede
+  Aufgabe in der Warteschlange sagt, warum sie dort steht. Im Terminal: Einstellungen → Der Agent allein → Arbeit
+  außerhalb der Linien, `strom offline`, `strom task order`.
 
 - **Eine neu geschriebene Erzählung verliert nichts.** Schreibt die Forschung eine Erzählung neu – mehr Angaben, eine
   bessere Lesung, eine aus älterer Forschung übernommene Erzählung –, bleibt jede Angabe, Quelle und jeder Link der
-  vorigen Fassung, oder geht nur absichtlich mit dem Grund, der bei der Erzählung gespeichert wird. Die Quellen, auf
-  die sich eine Erzählung stützt, stehen bei ihr, Titel und Adresse unter jeder Angabe, auch wenn der Text sie nicht
-  nennt, und die Strom-App erhält sie mit der Erzählung. Eine Angabe aus einem Hinweis nennt im Text ihre Herkunft.
+  vorigen Fassung, oder geht nur absichtlich mit dem Grund, der bei der Erzählung gespeichert wird. Die Quellen, auf die
+  sich eine Erzählung stützt, stehen bei ihr, Titel und Adresse unter jeder Angabe, auch wenn der Text sie nicht nennt,
+  auch eine Quelle, die der Text nur mit ihrem Kürzel nennt; die Strom-App erhält sie mit der Erzählung. Eine Angabe aus
+  einem Hinweis nennt im Text ihre Herkunft.
 
 ## 1.25.2
 

@@ -69,10 +69,12 @@ function restsOn(tree: Tree, v: StoryVersion & { history?: string[] }, history: 
     return [`  ${id} ${owner} ${rest.join(" ")}`, ...its.map((s) => `      ← ${sourceLine(s)}`)];
   });
   const background = sources.filter((s) => s.background);
+  const named = sources.filter((s) => s.named);
   return [
     v.facts.length ? "rests on" : "rests on no recorded fact",
     ...facts,
     ...(background.length ? ["the background of place and time from", ...background.map((s) => `  ${sourceLine(s)}`)] : []),
+    ...(named.length ? ["named in the text", ...named.map((s) => `  ${sourceLine(s)}`)] : []),
     ...(v.sources ?? []).filter((s) => !background.some((b) => b.id === s)).map((s) => `  ${s} (no longer exists)`),
     ...history(v.history),
     ...(v.dropped?.length ? ["left out on purpose of the version before", ...v.dropped.map((d) => `  ${d.ref}: ${d.why}`)] : []),

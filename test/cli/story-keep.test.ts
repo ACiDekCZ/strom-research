@@ -131,6 +131,28 @@ test("the sources a story rests on are said: story show (title and address under
   w.cleanup();
 });
 
+test("a source the text names by its ID alone: in story show, its JSON and the Strom file — once, after those of the facts and the background", opts, async () => {
+  const w = await world();
+  await w.ok(["source", "add", "Летопись Лготы", "--kind", "book", "--url", "https://example.org/летопись"]); // S4: named in the text only
+  // S1 is named in the text too, but a fact cites it: it stays with the fact; S9 is no source of the tree
+  await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář (S0001). V listopadu 1905 hořelo (S0004, S9).", "--fact", "E1", "--source", "S3"]);
+  const show = (await w.ok(["story", "show", "P1"])).out;
+  assert.match(show, /the background of place and time from\n  S0003 Kronika Lhotecka\nnamed in the text\n  S0004 Летопись Лготы · https:\/\/example\.org\/летопись\n/);
+  const data = (await w.ok(["story", "show", "P1", "--json"])).json;
+  assert.deepEqual(data.sources, [
+    { id: "S0001", title: "Křest Jana 1850", facts: ["E0001"], background: false },
+    { id: "S0003", title: "Kronika Lhotecka", facts: [], background: true },
+    { id: "S0004", title: "Летопись Лготы", url: "https://example.org/летопись", facts: [], background: false, named: true },
+  ]);
+  await w.ok(["export", "gedcom"]);
+  const ged = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+  const story = /\n1 _STORY\n(?:[2-9] .*\n)*/u.exec(ged)?.[0] ?? "";
+  assert.match(story, /2 DATA BAPM 1850 Lhotečka \[S0001\]\n2 SOUR @S0001@\n2 SOUR @S0003@\n2 SOUR @S0004@\n$/);
+  assert.match(ged, /0 @S0004@ SOUR\n1 TITL Летопись Лготы\n/);
+  assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
+  w.cleanup();
+});
+
 test("a fact told from a lead whose source the text does not name: said, by its title, ID or address — any script", opts, async () => {
   const w = await world();
   const vague = await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář. Podle staršího výzkumu v roce 1905 hořelo.", "--fact", "E1", "--fact", "E3"]);
@@ -152,12 +174,13 @@ for (const dir of ["strom", "strom-beta"]) {
   const tsx = path.join(repo, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
   test(`the Strom app (${dir}, its own parser and exporter): the story's sources pass by, the story as before, sent back nothing changed`, { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
     const w = await world();
-    await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář. Roku 1905 prý hořelo.", "--title", "Mlynář", "--fact", "E1", "--fact", "E3", "--source", "S3", "--final"]);
-    await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář. Roku 1905 hořelo, říkají Dějiny hasičů ve Lhotě.", "--fact", "E1", "--fact", "E3", "--source", "S3"]);
+    await w.ok(["source", "add", "Летопись Лготы", "--kind", "book"]); // S4: named in the text only
+    await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář. Roku 1905 prý hořelo (S0004).", "--title", "Mlynář", "--fact", "E1", "--fact", "E3", "--source", "S3", "--final"]);
+    await w.ok(["story", "set", "P1", "--text", "Jan byl mlynář. Roku 1905 hořelo (S0004), říkají Dějiny hasičů ve Lhotě.", "--fact", "E1", "--fact", "E3", "--source", "S3"]);
     const given = path.join(w.dir, "given.ged");
     await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", given]);
     const text = fs.readFileSync(given, "utf8");
-    assert.match(text, /\n2 SOUR @S0003@\n/);
+    assert.match(text, /\n2 SOUR @S0003@\n2 SOUR @S0004@\n/);
     const [tree, head] = [/^1 _STROM_TREE (.+)$/m.exec(text)![1]!, /^1 _STROM_HEAD (.+)$/m.exec(text)![1]!];
     const script = path.join(w.dir, "app.ts");
     fs.writeFileSync(
@@ -177,12 +200,20 @@ console.log(JSON.stringify({ story: p.story, sources: Object.values(data.sources
     const read = JSON.parse(r.stdout.trim().split("\n").pop()!) as { story: { title: string; status: string; text: string; facts: string[]; draft?: { text: string; facts: string[] } }; sources: string[] };
     assert.equal(read.story.title, "Mlynář");
     assert.equal(read.story.status, "final");
-    assert.equal(read.story.text, "Jan byl mlynář. Roku 1905 prý hořelo.");
+    assert.equal(read.story.text, "Jan byl mlynář. Roku 1905 prý hořelo (S0004).");
     assert.deepEqual(read.story.facts, ["BAPM 1850 Lhotečka [S0001]", "EVEN NOV 1905 Lhotečka [S0002]"]);
-    assert.equal(read.story.draft?.text, "Jan byl mlynář. Roku 1905 hořelo, říkají Dějiny hasičů ve Lhotě.");
+    assert.equal(read.story.draft?.text, "Jan byl mlynář. Roku 1905 hořelo (S0004), říkají Dějiny hasičů ve Lhotě.");
     assert.equal(read.story.draft?.facts.length, 2);
-    for (const t of ["Křest Jana 1850", "Dějiny hasičů ve Lhotě", "Kronika Lhotecka"]) assert.ok(read.sources.includes(t), `${t} in ${read.sources.join(" | ")}`);
+    for (const t of ["Křest Jana 1850", "Dějiny hasičů ve Lhotě", "Kronika Lhotecka", "Летопись Лготы"]) assert.ok(read.sources.includes(t), `${t} in ${read.sources.join(" | ")}`);
+    // an app that keeps them (3.22) writes the story's sources back under _STORY, by its own pointers: the same sources
+    const sent = fs.readFileSync(back, "utf8");
+    const refn = new Map([...sent.matchAll(/^0 (@[^@]+@) SOUR\n(?:[1-9] .*\n)*?1 REFN (S\d+)$/gmu)].map((m) => [m[1]!, m[2]!]));
+    const pointers = [.../\n1 _STORY\n(?:[2-9] .*\n)*/u.exec(sent)![0].matchAll(/^2 SOUR (@[^@]+@)$/gmu)].map((m) => refn.get(m[1]!));
+    if (dir === "strom-beta" || pointers.length) assert.deepEqual(pointers, ["S0001", "S0002", "S0003", "S0004"], "the app sends the story's sources back");
+    // strom sync takes nothing of a story (the research's own): sent back, nothing changed, the story as it was
+    const before = (await w.ok(["story", "show", "P1", "--json"])).json;
     assert.deepEqual((await w.ok(["sync", back, "--json"])).json.changes, [], "sent back: nothing changed");
+    assert.deepEqual((await w.ok(["story", "show", "P1", "--json"])).json, before);
     w.cleanup();
   });
 }

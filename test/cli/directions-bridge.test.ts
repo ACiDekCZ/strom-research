@@ -152,6 +152,16 @@ test("bridge: the lines written by the app — new (a note as material), edited 
     assert.deepEqual(withDown.P0002, ["G0001", "G0004"]);
     assert.ok(withDown.P0001.includes("G0004"), JSON.stringify(withDown));
     assert.ok(!(withDown.P0003 ?? []).includes("G0004"), "Václav is no descendant of Jan");
+    // a line of the kind question: its person is in it (nobody else), and the queue of tasks stays as it was
+    const queue = async () => ((await w.ok(["task", "list", "--json"])).json.tasks as { id: string; subject: string[]; reason?: unknown }[]).map((t) => [t.id, t.subject, t.reason]);
+    const tasksBefore = await queue();
+    const asked = await request(`${url}/directions`, "POST", { person: "P0003", direction: "question", question: "Kde se Václav oženil?" });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    assert.equal(asked.body.direction.id, "G0005");
+    const withQuestion = (await request(`${url}/directions/people`)).body.people;
+    assert.deepEqual(withQuestion.P0003, ["G0002", "G0005"], JSON.stringify(withQuestion));
+    assert.deepEqual(Object.entries(withQuestion).filter(([, ids]) => (ids as string[]).includes("G0005")).map(([p]) => p), ["P0003"]);
+    assert.deepEqual(await queue(), tasksBefore);
     // a session of a line that added nothing: no found for it
     await w.ok(["session", "start", "--research", "G0002", "--json"]);
     await w.ok(["session", "close", "--continue", "--summary", "Nic nenalezeno.", "--next", "Dál."]);

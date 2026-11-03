@@ -31,6 +31,8 @@ export interface StorySource {
   facts: string[];
   /** Named with --source: the background of place and time. */
   background: boolean;
+  /** Named in its text by its ID only (an older story's "rests on" footer): no fact cites it, not of its background. */
+  named?: boolean;
 }
 
 /** What a new version would leave out of the one before it. */
@@ -48,7 +50,7 @@ const SOURCE_ID = /(?<![\p{L}\p{M}\p{N}_])S\d{1,7}(?![\p{L}\p{M}\p{N}_])/gu;
 // A link: up to a space or a closing bracket or quote; the punctuation a sentence ends it with is not part of it.
 const LINK = /https?:\/\/[^\s<>"'()[\]{}]+/giu;
 
-function words(v: Pick<StoryVersion, "text" | "title" | "note">): string {
+function words(v: Partial<Pick<StoryVersion, "text" | "title" | "note">>): string {
   return [v.title, v.text, v.note].filter(Boolean).join("\n");
 }
 
@@ -90,23 +92,30 @@ function eventOf(tree: Tree, id: string): Event | undefined {
   return undefined;
 }
 
-/** The sources a version of a story rests on: those its facts cite, then those of its background. */
-export function storySources(tree: Tree, v: Pick<StoryVersion, "facts" | "sources">, events?: Map<string, Event>): StorySource[] {
+/**
+ * The sources a version of a story rests on: those its facts cite, then those of its background, then those its text
+ * names by their ID alone (found 2026-11-03: a source named so counted for a story written again, yet neither the Strom
+ * file nor strom story show gave it).
+ */
+export function storySources(tree: Tree, v: Pick<StoryVersion, "facts" | "sources"> & Partial<Pick<StoryVersion, "text" | "title" | "note">>, events?: Map<string, Event>): StorySource[] {
   const out = new Map<string, StorySource>();
-  const add = (id: string, fact?: string) => {
+  const add = (id: string, how: { fact?: string; named?: true } = {}) => {
     const s = tree.get<Source>(id);
     if (!s || s.type !== "source" || s.retracted) return;
     const row = out.get(id) ?? { id, title: s.title, ...(s.url ? { url: s.url } : {}), facts: [], background: false };
-    if (fact && !row.facts.includes(fact)) row.facts.push(fact);
-    if (!fact) row.background = true;
+    if (how.fact && !row.facts.includes(how.fact)) row.facts.push(how.fact);
+    else if (how.named) {
+      if (!out.has(id)) row.named = true;
+    } else if (!how.fact) row.background = true;
     out.set(id, row);
   };
   for (const f of v.facts) {
     const e = events ? events.get(f) : eventOf(tree, f);
     if (!e || e.retracted) continue;
-    for (const c of e.citations) add(c.source, e.id);
+    for (const c of e.citations) add(c.source, { fact: e.id });
   }
   for (const s of v.sources ?? []) add(s);
+  for (const s of sourcesNamed(tree, words(v))) add(s, { named: true });
   return [...out.values()];
 }
 

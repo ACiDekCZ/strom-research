@@ -186,10 +186,12 @@ export function researchPeople(tree: Tree, research: Research): Map<string, numb
 /**
  * The people of a line as the person sees it (the app's GET /directions/people, strom research show): those of
  * researchPeople, and for a line of descendants — of which researchPeople proposes nothing — the descendants of its
- * person within its generations (the person 1, the children 2, …). The queue and the stories keep researchPeople.
+ * person within its generations (the person 1, the children 2, …); a question is about its person (generation 1).
+ * The queue and the stories keep researchPeople.
  */
 export function linePeople(tree: Tree, research: Research): Map<string, number> {
   if (research.direction === "descendants") return tree.get(research.focus) ? descendantGenerations(tree, research.focus, research.limits?.generations ?? 50) : new Map();
+  if (research.direction === "question") return tree.get(research.focus) ? new Map([[research.focus, 1]]) : new Map();
   return researchPeople(tree, research);
 }
 

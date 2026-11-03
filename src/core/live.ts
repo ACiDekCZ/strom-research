@@ -20,10 +20,10 @@
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
 //                          for an app that keeps them the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES;
 //                          feature lineage.read: strom sync takes them back); under each _STORY (and its 2 _DRAFT) the
-//                          sources it rests on as 2 SOUR @S…@ (3 SOUR), each a record of the file — those its facts cite
-//                          and those of its background (feature story.sources); made on a thread of its own (core/liveged.ts:
-//                          new images decode whole scans, the file of a big research is tens of MB) — one making at a
-//                          time, the asks for the same file wait for it together, /status and the rest answer meanwhile
+//                          sources it rests on as 2 SOUR @S…@ (3 SOUR), each a record of the file — those its facts cite,
+//                          those of its background and those its text names by ID (feature story.sources); made on a
+//                          thread of its own (core/liveged.ts: new images decode whole scans, the file of a big research
+//                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
@@ -1421,13 +1421,13 @@ function foundNow(tree: Tree, all: Scope[], h: string): Map<string, Found> {
 
 /**
  * Who is in which line (GET /directions/people): the narrowest line first, only active and paused ones. A line of
- * descendants: the descendants of its person within its generations (core/frontier.ts linePeople).
+ * descendants: the descendants of its person within its generations; a question: its person (core/frontier.ts linePeople).
  */
 function directionPeople(tree: Tree, all: Scope[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   const lines = all
     .filter((s) => s.research.state !== "done" && !s.research.retracted)
-    .map((s) => ({ id: s.research.id, people: s.research.direction === "descendants" ? linePeople(tree, s.research) : s.people }))
+    .map((s) => ({ id: s.research.id, people: s.research.direction === "descendants" || s.research.direction === "question" ? linePeople(tree, s.research) : s.people }))
     .sort((a, b) => a.people.size - b.people.size || a.id.localeCompare(b.id));
   for (const s of lines) for (const p of s.people.keys()) (out[p] ??= []).push(s.id);
   return out;
