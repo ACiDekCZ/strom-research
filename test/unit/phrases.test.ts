@@ -173,15 +173,17 @@ test("Polish: what addresses the person is found, the words of records and of st
   assert.equal(says("Proszę o odpis aktu."), "Proszę", "the agent asking in the first person: in what an agent writes");
 });
 
-test("Polish: the Strom app's request reads with every thing it asks for, and its family book is always księga rodu", () => {
+test("Polish: the Strom app's request reads with every thing it asks for, and its family book is always Księga rodu", () => {
   // what the app asks for is a noun (rozmowa z agentem…) or an infinitive (zidentyfikować miejsca…): never „prosi o: zidentyfikować“
   for (const key of ["ui.link.what.places", "ui.link.what.history.align", "ui.link.what.chat"] as const) {
     const said = ui("pl", "ui.link.asks", { what: ui("pl", key, { agent: "Codex" }), name: "Lhotákowie" });
     assert.match(said, /^Prośba z aplikacji Strom: \p{Ll}/u, key);
     assert.doesNotMatch(said, /prosi o:/u, key);
   }
-  // the app's name of the place where the stories are read (its SLOVNIK_pl): „księga rodu“, in every case
+  // the app's name of the place where the stories are read (its SLOVNIK_pl §9): „Księga rodu“ with a capital K, in every case
   const book = /\p{L}*(?:księg|książ|ksiąg)\p{L}* rodzinn\p{L}*|rodzinn\p{L}* (?:księg|książ|ksiąg)\p{L}*/iu;
   assert.deepEqual(Object.entries(catalog("pl")).filter(([, t]) => book.test(t ?? "")).map(([k]) => k), []);
-  for (const key of ["story.why", "ui.o.stories.tell", "ui.setup.stories", "ui.help.cmd.story.approve", "ui.story.new.pick"]) assert.match(catalog("pl")[key] ?? "", /księ\p{L}+ rodu/u, key);
+  for (const key of ["story.why", "ui.o.stories.tell", "ui.setup.stories", "ui.help.cmd.story.approve", "ui.story.new.pick"]) assert.match(catalog("pl")[key] ?? "", /Księ\p{L}+ rodu/u, key);
+  // never with a small k: the app, its changelog and the web name the screen so
+  assert.deepEqual(Object.entries(catalog("pl")).filter(([, t]) => /(?<![\p{L}\p{M}\p{N}])księ\p{L}* rodu/u.test(t ?? "")).map(([k]) => k), []);
 });

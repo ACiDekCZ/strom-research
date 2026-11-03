@@ -5,6 +5,26 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.25.1
+
+*3.11.2026 · gehört zur Strom-App 3.21.1.*
+
+- **Die Bedingungen der Archive erneut geprüft, polnische Quellen dazu.** Bedingungen und robots.txt jedes Archivs,
+  das strom kennt, wurden am 3. November 2026 neu gelesen. Die eBadatelna des SOA Praha lässt jetzt keinen Roboter
+  mehr an ihre Digitalisate (ihre robots.txt vom 2. November): ihre Bilder nur über den Browser der Person, wie beim
+  Archiv Třeboň, das die Anfragen von strom jetzt abweist. Die Bedingungen von Porta fontium sind zitiert (eine Seite
+  nach der anderen, für die eigene Forschung, mit Quelle und Adresse). Neu: die
+  Skanoteka der PTG (eine Minute zwischen Anfragen), GenBaza, BaSIA, Genealogia w Archiwach, die litauischen Metrikai
+  und die Archive in Lwiw, Schytomyr und Riwne (hinter einer Bot-Prüfung oder für KI-Agenten gesperrt: nur der
+  Browser der Person), Polona und die Schlesische Digitale Bibliothek (gemeinfrei), die Kleinpolnische Digitale Bibliothek (nur für den eigenen Gebrauch, nie massenhaft) und für Orte in Polen die Namen
+  aus dem PRNG des Geoportals und der Słownik geograficzny, mit eigener Suche.
+- **Polnische Texte berichtigt; ein kopierter Befehl funktioniert.** Das polnische Menü, die Meldungen, der
+  Installer und diese Notizen wurden durchgesehen: überall dieselben Begriffe wie in der Strom-App 3.21.1 (Księga
+  rodu, Halbgeviertstriche), Grammatik und Pluralformen berichtigt; Daten stehen wie in der App ohne führende Nullen
+  (3.11.2026), ein Monat im Fall, den sein Wort verlangt (przed majem 1880).
+  Der Befehl `strom unpack "…"` nach dem Packen einer Forschung oder vor dem Entfernen hat jetzt in jeder Sprache
+  gerade Anführungszeichen und funktioniert so auch kopiert.
+
 ## 1.25.0
 
 *3.11.2026 · gehört zur Strom-App 3.21.0.*

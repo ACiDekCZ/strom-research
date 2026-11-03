@@ -52,7 +52,7 @@ test("trees remove: a backup first, the name typed, the tree and the images only
   await w.ok(["trees", "use", "Novákovi"]);
   // typed without its accents and capitals: it goes, with a backup and its own image
   const r = await w.ok(["trees", "remove", "Novákovi"], { answers: ["a", "a", "novakovi"] });
-  assert.match(r.out, /záloha: [\s\S]*„Novákovi“ je v koši\.\n  aplikace Strom ho už živě nesleduje\n[\s\S]*jeho snímky v koši: 1[\s\S]*vrátí se ze zálohy: strom unpack „(.+)“[\s\S]*z koše systému/);
+  assert.match(r.out, /záloha: [\s\S]*„Novákovi“ je v koši\.\n  aplikace Strom ho už živě nesleduje\n[\s\S]*jeho snímky v koši: 1[\s\S]*vrátí se ze zálohy: strom unpack "(.+)"[\s\S]*z koše systému/);
   assert.ok(!fs.existsSync(root));
   await gone;
   const trash = w.env.STROM_TRASH!;
@@ -65,7 +65,7 @@ test("trees remove: a backup first, the name typed, the tree and the images only
   assert.match(r.out, /nebo z koše systému, dokud se koš nevysype\nTeď se pracuje s rodokmenem „Dvořákovi“/);
   assert.match((await w.ok([], { tty: true, answers: ["0"] })).out, /Rodokmen: Dvořákovi/);
   // back from the backup, its image too
-  const backup = /vrátí se ze zálohy: strom unpack „(.+)“/.exec(r.out)![1]!.replace(/^~/, w.env.HOME!);
+  const backup = /vrátí se ze zálohy: strom unpack "(.+)"/.exec(r.out)![1]!.replace(/^~/, w.env.HOME!);
   await w.ok(["unpack", backup], { answers: ["a"] });
   assert.match((await w.ok(["check"], { cwd: root })).out, /^ok/);
   assert.ok(fs.existsSync(path.join(w.home, "shared", only)));

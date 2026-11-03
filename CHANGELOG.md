@@ -5,6 +5,24 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.25.1
+
+*2026-11-03 · goes with the Strom app 3.21.1.*
+
+- **The archives' terms checked again, Polish sources added.** The terms and robots.txt of every archive strom knows
+  were read again on 3 November 2026. SOA Praha's eBadatelna now keeps every robot off its scans (its robots.txt of
+  2 November): its images only through the person's browser, as Třeboň's archive, which now refuses strom's requests.
+  Porta fontium's terms are quoted (a page at a time, for the person's own research, cited with its address). New:
+  PTG's Skanoteka (a minute between requests), GenBaza, BaSIA, Genealogia w Archiwach, the
+  Lithuanian Metrikai and the archives of Lviv, Zhytomyr and Rivne (behind a bot check or closed to AI agents: the
+  person's browser only), Polona and the Silesian Digital Library (public domain), the Małopolska Digital Library (for one's own use, never copied in bulk), and for places in Poland the names
+  of Geoportal's PRNG and the Słownik geograficzny, with their own search.
+- **Polish texts set right; a copied command works.** The Polish menu, messages, installer and these notes were
+  reviewed: the same terms everywhere as in the Strom app 3.21.1 (Księga rodu, en dashes), grammar and plurals fixed;
+  dates read as the app writes them, without leading zeros (3.11.2026), a month named in the case its word asks
+  for (przed majem 1880). The command `strom unpack "…"` shown after
+  packing a research or before removing one now has plain quotes in every language, so it works when copied.
+
 ## 1.25.0
 
 *2026-11-03 · goes with the Strom app 3.21.0.*
