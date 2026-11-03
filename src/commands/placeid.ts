@@ -13,6 +13,7 @@ import type { Place } from "../core/model.ts";
 import {
   answerPlaces,
   cancelPlaces,
+  dropPlaceNames,
   factForms,
   identifyEstimate,
   identifyPlace,
@@ -63,7 +64,7 @@ const DETAIL_OPTIONS = [
   { name: "form", type: "string", multiple: true, value: "<place>", description: "another form of the facts that is the same place (kept among the record's names as a form, out of the queue; repeatable)" },
   { name: "kind", type: "string", value: "<kind>", description: "village, town, part of a municipality, …" },
   { name: "parent", type: "string", value: "<L…>", description: "the place it is part of" },
-  { name: "jurisdiction", type: "string", multiple: true, value: "<kind:name[:from-to]>", description: 'e.g. "parish:Lhotov:1784-" or "district:Lhotov" (repeatable)' },
+  { name: "jurisdiction", type: "string", multiple: true, value: "<kind:name[:from-to]>", description: 'e.g. "parish:Lhotov:1784-", "district:Lhotov" or one year "district:Lhotov:1899" (repeatable)' },
   { name: "drop-jurisdiction", type: "string", multiple: true, value: "<kind:name>", description: "a jurisdiction of the record found wrong: taken off, --why says why (repeatable)" },
 ] as const;
 
@@ -167,6 +168,8 @@ register(
       { name: "ok", type: "boolean", description: "the records agree with the coordinates" },
       { name: "undecided", type: "string", value: "<why>", description: "it cannot be decided, and why" },
       { name: "why", type: "string", value: "<text>", description: "with --ok: on what (kept with the check); with --drop-jurisdiction: why it is wrong" },
+      { name: "source-title", type: "string", value: "<title>", description: "the reference the check stands on (a gazetteer, a register of places)" },
+      { name: "source-url", type: "string", value: "<url>", description: "its address" },
       ...DETAIL_OPTIONS,
     ],
     args: [{ name: "place", description: "place ID (L0012) or the place as the facts write it", required: true }],
@@ -180,7 +183,11 @@ register(
       refuseInArchive(tree, "place verify", ctx.settings.agent(tree.config).value);
       if (!!opts.ok === !!opts.undecided)
         throw new UsageError("--ok or --undecided \"<why>\"", { hint: `strom place verify ${args[0] ?? "L…"} --ok --why "on what" (names found: --alt, --form)` });
-      const r = verifyPlace(tree, args[0]!, opts.ok ? { ok: true, ...(str(opts.why) ? { why: str(opts.why) } : {}) } : { ok: false, why: String(opts.undecided) }, detailsOf(opts));
+      const title = str(opts["source-title"]);
+      const url = str(opts["source-url"]);
+      if (url && !title) throw new UsageError("--source-url with its --source-title");
+      const source = title ? { source: { title, ...(url ? { url } : {}) } } : {};
+      const r = verifyPlace(tree, args[0]!, opts.ok ? { ok: true, ...(str(opts.why) ? { why: str(opts.why) } : {}), ...source } : { ok: false, why: String(opts.undecided), ...source }, detailsOf(opts));
       raisePlacesTask(tree, actsAsArchive(tree));
       return stepResult(tree, r);
     },
@@ -233,9 +240,35 @@ register(
         propose: !!opts.propose,
         ...(str(opts.why) ? { why: str(opts.why) } : {}),
       });
+      raisePlacesTask(tree, actsAsArchive(tree));
       return {
         text: lines(written(tree), r.left ? `left: ${counted(r.left, "fact")} (their house says another thing — never written over)` : undefined),
         data: { place: r.place, changed: r.changed, left: r.left, asked: r.asked },
+      };
+    },
+  },
+  {
+    path: ["place", "names"],
+    summary: "Take a wrong name off a place record (a slip of a record kept as a form, another place's name), with the reason",
+    group: "sources",
+    tree: true,
+    writes: true,
+    description:
+      "Never today's name (the first: --name of strom place verify or identify sets another) and never a name a fact still writes for the place (strom place rewrite first). Other names are added with --alt and --form of strom place identify or verify.",
+    args: [{ name: "place", description: "place ID (L0012)", required: true }],
+    options: [
+      { name: "drop", type: "string", multiple: true, value: "<name>", description: "the name to take off, as the record has it" },
+      { name: "why", type: "string", value: "<text>", description: "why it is wrong (kept with the step)" },
+    ],
+    examples: ['strom place names L0002 --drop "v Lhotě v" --why "a slip of the register; the facts write Lhota now"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseInArchive(tree, "place names", ctx.settings.agent(tree.config).value);
+      const r = dropPlaceNames(tree, args[0]!, listOpt(opts.drop), String(opts.why ?? ""));
+      raisePlacesTask(tree, actsAsArchive(tree));
+      return {
+        text: lines(`${r.place.id}: ${r.dropped.map((n) => n.name).join(", ")} taken off`, `undo (the person's): strom place undo ${r.undo}`, written(tree)),
+        data: { place: r.place, dropped: r.dropped, undo: r.undo },
       };
     },
   },
@@ -357,12 +390,12 @@ register(
   },
   {
     path: ["place", "undo"],
-    summary: "Undo the person's last step on places (answers)",
+    summary: "Undo a step on places by its id (the person's answers, names taken off, the queue tidied)",
     group: "sources",
     tree: true,
     writes: true,
-    person: "Undoing the person's answers is the person's own",
-    args: [{ name: "step", description: "the step's id (the answer prints it)", required: true }],
+    person: "Undoing a step on places is the person's own",
+    args: [{ name: "step", description: "the step's id (the step prints it; each of the last 20 steps once)", required: true }],
     examples: ["strom place undo u1a2b3c"],
     run(ctx, { args }) {
       const tree = ctx.tree();

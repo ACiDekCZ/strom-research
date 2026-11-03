@@ -51,6 +51,8 @@ export interface QueueEntry {
   flag?: PlaceFlag;
   /** Who queued it: the person (the app, a link, the terminal), or the research itself (K2.3: something new of it). */
   by: "person" | "research";
+  /** Put back by the person's undo of the queue's tidying: never taken out by it again. */
+  back?: true;
 }
 
 /** A fact's place set right (K3), as it was and as it is made. */
@@ -68,11 +70,16 @@ export interface PlacesUndo {
   /** Each place record before the step (null: made by it) and its `updated` after. */
   places: Record<string, { before: Place | null; after: string }>;
   facts?: FormChange[];
+  /** Queue entries the step took out (settleQueue): put back. */
+  queue?: Record<string, QueueEntry>;
 }
 
 export interface PlacesFile {
   queue: Record<string, QueueEntry>;
+  /** The newest step on places to be undone. */
   undo?: PlacesUndo;
+  /** The steps before it still to be undone, oldest first (UNDO_KEPT in all): each one undone by its own ID. */
+  undos?: PlacesUndo[];
   /** When the places not located in history/places.json were taken into the place records (once). */
   converted?: string;
   /** The repairs of the place records done (repairPlaces, PLACES_REPAIR). */
@@ -84,10 +91,29 @@ export function readPlacesFile(tree: Tree): PlacesFile {
     const f = readJsonIfExists<Partial<PlacesFile>>(path.join(tree.root, ...PLACE_QUEUE_FILE.split("/")));
     const queue: Record<string, QueueEntry> = {};
     for (const [k, v] of Object.entries(f?.queue ?? {})) if (v && typeof v.form === "string" && v.form.trim()) queue[k] = v;
-    return { queue, ...(f?.undo ? { undo: f.undo } : {}), ...(f?.converted ? { converted: f.converted } : {}), ...(typeof f?.repaired === "number" ? { repaired: f.repaired } : {}) };
+    const undos = Array.isArray(f?.undos) ? f.undos.filter((u) => u && typeof u.id === "string") : [];
+    return { queue, ...(f?.undo ? { undo: f.undo } : {}), ...(undos.length ? { undos } : {}), ...(f?.converted ? { converted: f.converted } : {}), ...(typeof f?.repaired === "number" ? { repaired: f.repaired } : {}) };
   } catch {
     return { queue: {} };
   }
+}
+
+/** How many steps on places can be undone, each by its own ID (the oldest go first). */
+export const UNDO_KEPT = 20;
+
+/** A step to be undone kept: the newest; the one before it waits among the others, never lost to it. */
+function keepUndo(file: PlacesFile, u: PlacesUndo): string {
+  if (file.undo) file.undos = [...(file.undos ?? []), file.undo].slice(-(UNDO_KEPT - 1));
+  file.undo = u;
+  return u.id;
+}
+
+/** A new step's undo ID: never one waiting already (two steps in one millisecond). */
+function undoId(file: PlacesFile): string {
+  const taken = new Set([file.undo?.id, ...(file.undos ?? []).map((u) => u.id)]);
+  let t = Date.now();
+  while (taken.has(`u${t.toString(36)}`)) t++;
+  return `u${t.toString(36)}`;
 }
 
 function fileContent(f: PlacesFile): string {
@@ -155,8 +181,13 @@ export function factForms(tree: Tree): Map<string, FactForm> {
  * okres Horní"); none when two do — a place two records could be belongs to none until its writing is set right.
  */
 export function recordIndex(tree: Tree): (form: string) => Place | undefined {
+  return recordIndexOf(tree.list<Place>("place"));
+}
+
+/** recordIndex over the given records (the records as a step leaves them). */
+function recordIndexOf(places: Place[]): (form: string) => Place | undefined {
   const byName = new Map<string, Place[]>();
-  for (const p of tree.list<Place>("place")) {
+  for (const p of places) {
     if (p.retracted) continue;
     for (const k of new Set(p.names.map((n) => foldText(n.name)))) byName.set(k, [...(byName.get(k) ?? []), p]);
   }
@@ -356,7 +387,17 @@ export function queuePlaces(tree: Tree, req: QueueRequest, by: QueueEntry["by"] 
         skipped.push({ form: w.form, why: "running" });
         continue;
       }
-      if ([w.key, ...others].some((k) => file.queue[k])) {
+      const had = [w.key, ...others].find((k) => file.queue[k]);
+      if (had) {
+        const e = file.queue[had]!;
+        // queued to be looked for, and on the map since: the check asked now takes its place (the tidying would take
+        // the old entry out as identified, and the person's check with it)
+        if (req.check && w.place?.coords && !e.check) {
+          const { back: _b, ...rest } = e;
+          file.queue[had] = { ...rest, at, by, check: true };
+          queued.push(e.form);
+          continue;
+        }
         skipped.push({ form: w.form, why: "queued" });
         continue;
       }
@@ -581,7 +622,7 @@ export interface PlaceDetails {
 
 /** "<kind>:<name>" of a jurisdiction to take off. */
 export function parseDrop(s: string): { kind: string; name: string } {
-  const m = /^([^:]+):(.+?)(?::\d{0,4}-\d{0,4})?$/u.exec(s.normalize("NFC").trim());
+  const m = /^([^:]+):(.+?)(?::\d{0,4}-\d{0,4}|:\d{3,4})?$/u.exec(s.normalize("NFC").trim());
   if (!m || !(JURISDICTIONS as readonly string[]).includes(m[1]!.trim())) throw new UsageError(`--drop-jurisdiction "${s}": "<kind>:<name>", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
   return { kind: m[1]!.trim(), name: m[2]!.trim() };
 }
@@ -691,9 +732,63 @@ export interface PlaceStep {
   dropped: Jurisdiction[];
 }
 
-/** The forms queued for a place, and the place's forms, out of the queue. */
-function unqueue(file: PlacesFile, keys: string[]): void {
+/**
+ * A step done on a place takes out of the queue every entry that leads to it now — the forms of its facts, and any
+ * form the queue keeps whose writing is a name of the record as the step leaves it (the facts written otherwise since,
+ * a rewrite, a merge) — and only those. `keys`: forms the step names itself. `only`: which entries go (all by default).
+ */
+function unqueue(tree: Tree, file: PlacesFile, changed: Place[], keys: string[], only: (e: QueueEntry, p: Place) => boolean = () => true): void {
+  const ids = new Set(changed.filter((p) => !p.retracted).map((p) => p.id));
+  const byId = new Set(changed.map((p) => p.id));
+  const recordOf = recordIndexOf([...tree.list<Place>("place").filter((p) => !byId.has(p.id)), ...changed]);
+  for (const [k, e] of Object.entries(file.queue)) {
+    const p = recordOf(e.form);
+    if ((keys.includes(k) && only(e, changed[0]!)) || (p && ids.has(p.id) && only(e, p))) delete file.queue[k];
+  }
+}
+
+/**
+ * A queue entry whose place was dealt with after it was queued (identified, checked, asked, not located) — what an
+ * earlier strom left in the queue when the facts' form of it was written otherwise before the step. An entry the
+ * person put back (`back`) is never taken out so.
+ */
+export function settledBy(p: Place, e: QueueEntry): boolean {
+  if (e.back) return false;
+  const l = p.locating;
+  const asked = !!l?.question && l.question.at >= e.at;
+  // checked after it was queued: the time of the check (an earlier strom kept only the day of a check found right — a
+  // later day; the same day, or a check undecided of no time, is not known to come after)
+  if (e.check) return !!p.coords && (asked || (l?.checked ? l.checked >= e.at : !!l?.verified && l.verified > e.at.slice(0, 10)));
+  // a place on the map is never queued to be looked for (queuePlaces): on the map since, it was identified
+  return !!p.coords || asked || (!!p.unlocated && (l?.at ?? "") >= e.at);
+}
+
+/**
+ * The entries of the queue whose place was dealt with already (settledBy) taken out — nothing else: an entry of no
+ * record, of a record two places bear, or of a place still to be done stays. One operation; while the person has no
+ * step to undo, `strom place undo` puts them back (and they stay then). Inside the tree's lock; the forms taken out.
+ */
+export function settleQueue(tree: Tree): string[] {
+  const file = readPlacesFile(tree);
+  if (!Object.keys(file.queue).length) return [];
+  const recordOf = recordIndex(tree);
+  const gone: Record<string, QueueEntry> = {};
+  for (const [k, e] of Object.entries(file.queue)) {
+    const p = recordOf(e.form);
+    if (p && settledBy(p, e)) gone[k] = e;
+  }
+  const keys = Object.keys(gone);
+  if (!keys.length) return [];
   for (const k of keys) delete file.queue[k];
+  const undo = keepUndo(file, { id: undoId(file), at: now(), places: {}, queue: gone });
+  const forms = keys.map((k) => gone[k]!.form);
+  write(tree, [], file, {
+    op: "place.settle",
+    targets: [],
+    reason: "queue entries of places dealt with already, left by an earlier version; nothing else taken out",
+    summary: `out of the queue, dealt with already: ${forms.length === 1 ? `place "${forms[0]}"` : `${forms.length} places (${forms.join(", ").slice(0, 600)})`} — undo: strom place undo ${undo}`,
+  });
+  return forms;
 }
 
 /**
@@ -750,7 +845,7 @@ export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): Pl
     p.locating = locating;
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, [...t.keys, ...more]);
+    unqueue(tree, file, [p], [...t.keys, ...more]);
     write(tree, [p], file, {
       op: "place.identify",
       targets: [p.id],
@@ -786,7 +881,7 @@ export function unlocatePlace(tree: Tree, ref: string, why: string, needs?: stri
     if (!n) delete p.locating.needs;
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, t.keys);
+    unqueue(tree, file, [p], t.keys);
     write(tree, [p], file, { op: "place.unlocated", targets: [p.id], summary: `${p.id} ${p.names[0]!.name} not located: ${w.slice(0, 80)}` });
     return p;
   });
@@ -841,7 +936,7 @@ export function proposePlace(tree: Tree, ref: string, q: Omit<PlaceQuestion, "at
     p.locating = { ...(p.locating ?? originUnknown(p)), question };
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, t.keys);
+    unqueue(tree, file, [p], t.keys);
     write(tree, [p], file, { op: "place.propose", targets: [p.id], summary: `${p.id} ${p.names[0]!.name}: a question for the person (${q.kind}${q.candidates ? `, ${q.candidates.length} candidates` : ""})` });
     return p;
   });
@@ -852,7 +947,12 @@ export function proposePlace(tree: Tree, ref: string, q: Omit<PlaceQuestion, "at
  * of the queue. What the check found of the place beside its coordinates is written too — its other names, the forms
  * of the facts that are it, its jurisdictions (a wrong one taken off, said why) — the coordinates never moved.
  */
-export function verifyPlace(tree: Tree, ref: string, result: { ok: true; why?: string } | { ok: false; why: string }, details: PlaceDetails = {}): PlaceStep {
+export function verifyPlace(
+  tree: Tree,
+  ref: string,
+  result: ({ ok: true; why?: string } | { ok: false; why: string }) & { source?: { title: string; url?: string } },
+  details: PlaceDetails = {},
+): PlaceStep {
   return tree.withTreeLock(() => {
     const forms = factForms(tree);
     const t = target(tree, ref, forms);
@@ -862,16 +962,19 @@ export function verifyPlace(tree: Tree, ref: string, result: { ok: true; why?: s
     if (details.drop?.length && !why) throw new UsageError('why the jurisdiction is wrong: --why "…" (what the records or the reference say)', { code: "place.why" });
     const { more, dropped, today } = applyDetails(tree, p, t, details, forms);
     const base: PlaceLocating = p.locating ?? { by: "person", at: p.updated };
+    const { verifiedSource: _s, ...kept } = base;
+    const source = result.source ? { verifiedSource: { title: text(result.source.title, 300, "--source-title")!, ...(result.source.url ? { url: result.source.url.trim() } : {}) } } : {};
     if (result.ok) {
-      const { checkWhy: _c, verifiedWhy: _w, ...rest } = base;
-      p.locating = { ...rest, verified: now().slice(0, 10), ...(why ? { verifiedWhy: why } : {}) };
+      const { checkWhy: _c, verifiedWhy: _w, ...rest } = kept;
+      const at = now();
+      p.locating = { ...rest, verified: at.slice(0, 10), checked: at, ...(why ? { verifiedWhy: why } : {}), ...source };
     } else {
       if (!why) throw new UsageError('why it cannot be decided: --undecided "…"', { code: "place.why" });
-      p.locating = { ...base, checkWhy: why };
+      p.locating = { ...kept, checkWhy: why, checked: now(), ...source };
     }
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, [...t.keys, ...more]);
+    unqueue(tree, file, [p], [...t.keys, ...more]);
     write(tree, [p], file, {
       op: "place.verify",
       targets: [p.id],
@@ -933,7 +1036,11 @@ export function mergePlaces(tree: Tree, dupRef: string, intoRef: string, reason:
       .filter((x) => !x.retracted && x.parent === dup.id && x.id !== into.id)
       .map((x) => ({ ...structuredClone(x), parent: into.id, updated: t }));
     const gone: Place = { ...structuredClone(dup), retracted: { at: t, reason: `the same place as ${into.id}: ${why}` }, mergedInto: into.id, updated: t };
-    write(tree, [into, gone, ...parts], undefined, {
+    // the queue's forms of the duplicate lead to the one record now: out where it was dealt with already
+    const file = readPlacesFile(tree);
+    const was = JSON.stringify(file.queue);
+    unqueue(tree, file, [into, gone, ...parts], [], (e, p) => settledBy(p, e));
+    write(tree, [into, gone, ...parts], JSON.stringify(file.queue) !== was ? file : undefined, {
       op: "place.merge",
       targets: [into.id, dup.id, ...parts.map((x) => x.id)].sort(),
       summary: `${dup.id} ${dup.names[0]!.name} merged into ${into.id} ${into.names[0]!.name}${parts.length ? ` (its parts ${parts.map((x) => x.id).join(", ")} with it)` : ""}`,
@@ -1027,7 +1134,11 @@ export function rewriteForm(
     if (!reason) throw new UsageError('why the facts write it so: --reason "…"', { code: "place.why" });
     const { records, done, left: gone } = applyChanges(tree, changes, "before");
     place.updated = now();
-    write(tree, [place, ...records], undefined, {
+    // the form's entry of the queue leads to the record now: out where the place was dealt with already
+    const file = readPlacesFile(tree);
+    const was = JSON.stringify(file.queue);
+    unqueue(tree, file, [place], [], (e, x) => settledBy(x, e));
+    write(tree, [place, ...records], JSON.stringify(file.queue) !== was ? file : undefined, {
       op: "place.rewrite",
       targets: [place.id, ...records.map((r) => r.id)].sort(),
       summary: `the facts' place "${form}" → ${name}${to.house ? ` (house ${to.house})` : ""}: ${done.length} facts in ${records.length} records${left.length ? `, ${left.length} left (another house)` : ""}`,
@@ -1136,12 +1247,12 @@ export function answerPlaces(tree: Tree, ids: string[], take: PlaceTake, opts: {
     const file = readPlacesFile(tree);
     const before = new Map(places.map((p) => [p.id, tree.get<Place>(p.id)!]));
     const undo: PlacesUndo = {
-      id: `u${Date.now().toString(36)}`,
+      id: undoId(file),
       at: now(),
       places: Object.fromEntries(places.map((p) => [p.id, { before: before.get(p.id)!, after: p.updated }])),
       ...(done.length ? { facts: done } : {}),
     };
-    file.undo = undo;
+    keepUndo(file, undo);
     write(tree, [...places, ...records], file, {
       op: "place.answer",
       targets: [...places.map((p) => p.id), ...records.map((r) => r.id)].sort(),
@@ -1153,14 +1264,15 @@ export function answerPlaces(tree: Tree, ids: string[], take: PlaceTake, opts: {
 }
 
 /**
- * The person's last step on places undone (answers, a whole batch of them): each place as it was where nothing changed
- * it since, the facts' places back where still so. Inside the tree's lock.
+ * A step on places undone by its ID (the person's answers, a whole batch of them; names taken off; the queue tidied —
+ * each of the last UNDO_KEPT once): each place as it was where nothing changed it since, the facts' places back where
+ * still so, the queue's entries back. Inside the tree's lock.
  */
 export function undoPlaces(tree: Tree, id: string): { restored: string[]; left: string[] } {
   return tree.withTreeLock(() => {
     const file = readPlacesFile(tree);
-    const u = file.undo;
-    if (!u || u.id !== id) throw new UsageError("nothing to undo of that step (only the last step on places, once)", { code: "places.undo.later" });
+    const u = file.undo?.id === id ? file.undo : file.undos?.find((x) => x.id === id);
+    if (!u) throw new UsageError(`nothing to undo of that step (each step on places once, the last ${UNDO_KEPT})`, { code: "places.undo.later" });
     const restored: string[] = [];
     const left: string[] = [];
     const records: (Place | Person | Family)[] = [];
@@ -1173,13 +1285,35 @@ export function undoPlaces(tree: Tree, id: string): { restored: string[]; left: 
       if (before) records.push({ ...before, updated: now() });
       restored.push(pid);
     }
-    if (left.length) throw new UsageError(`changed since: ${left.join(", ")} — the step is not undone`, { code: "places.undo.later", params: { places: left.join(", ") } });
+    if (left.length)
+      throw new UsageError(`changed since: ${left.join(", ")} — the step is not undone (a later step on the same place is undone first)`, {
+        code: "places.undo.later",
+        params: { places: left.join(", ") },
+      });
+    // an earlier step still to be undone that left a place as this undo puts it back: it knows the place by its new time
+    for (const r of records) {
+      const was = u.places[r.id]!.before!.updated;
+      for (const x of [file.undo, ...(file.undos ?? [])]) if (x && x !== u && x.places[r.id]?.after === was) x.places[r.id] = { ...x.places[r.id]!, after: r.updated };
+    }
     const back = applyChanges(tree, u.facts ?? [], "after");
-    delete file.undo;
+    // the queue's entries the step took out: back, and kept there (never taken out by the tidying again)
+    let queued = 0;
+    for (const [k, e] of Object.entries(u.queue ?? {})) {
+      if (file.queue[k]) continue;
+      file.queue[k] = { ...e, back: true };
+      queued++;
+    }
+    // out of the steps to be undone; the one before it the newest again
+    if (file.undo === u) {
+      const before = file.undos?.pop();
+      if (before) file.undo = before;
+      else delete file.undo;
+    } else file.undos = file.undos!.filter((x) => x !== u);
+    if (!file.undos?.length) delete file.undos;
     write(tree, [...records, ...back.records], file, {
       op: "place.undo",
       targets: [...restored, ...back.records.map((r) => r.id)].sort(),
-      summary: `the last step on places undone: ${restored.length} places${back.done.length ? `, ${back.done.length} facts' places back` : ""}`,
+      summary: `a step on places undone (${u.id}): ${restored.length} places${back.done.length ? `, ${back.done.length} facts' places back` : ""}${queued ? `, ${queued} back in the queue` : ""}`,
     });
     return { restored, left };
   });
@@ -1237,6 +1371,8 @@ export function convertHistoryUnlocated(tree: Tree, entries: Record<string, { st
 export function raisePlacesTask(tree: Tree, archive: boolean): string | undefined {
   if (tree.dryRun || archive) return undefined;
   return tree.withTreeLock(() => {
+    // what an earlier version left in the queue of places dealt with already: out first, so the count is right
+    settleQueue(tree);
     const file = readPlacesFile(tree);
     const forms = factForms(tree);
     const recordOf = recordIndex(tree);
@@ -1291,6 +1427,51 @@ export function raisePlacesTask(tree: Tree, archive: boolean): string | undefine
     } as Task;
     tree.putMany([task], [], { op: "task.add", targets: [task.id], summary: `+${task.id} task "identify the places of the facts" (${queued} queued)` });
     return task.id;
+  });
+}
+
+/**
+ * Names of a place record found wrong (a slip of a record kept as a form, another place's name) taken off, with the
+ * reason: never today's name (the first), never a name a fact of the tree still writes for this place (set the facts
+ * right first: strom place rewrite). One operation; while the person has no step to undo, `strom place undo` puts them
+ * back. Inside the tree's lock.
+ */
+export function dropPlaceNames(tree: Tree, ref: string, names: string[], reason: string): { place: Place; dropped: PlaceName[]; undo: string } {
+  return tree.withTreeLock(() => {
+    const id = placeIdOf(ref);
+    const was = id ? tree.get<Place>(id) : undefined;
+    if (!was || was.type !== "place" || was.retracted) throw new UsageError(`no place ${ref}: a place ID (L0012)`, { code: "place.unknown", hint: "strom place list" });
+    const why = text(reason, 1000, "--why");
+    if (!why) throw new UsageError('why the name is wrong: --why "…"', { code: "place.why" });
+    if (!names.length) throw new UsageError('which name: --drop "<name>"', { code: "place.name" });
+    const p = structuredClone(was);
+    const forms = factForms(tree);
+    const recordOf = recordIndex(tree);
+    const dropped: PlaceName[] = [];
+    for (const raw of names) {
+      const n = raw.normalize("NFC").trim();
+      const key = foldText(n);
+      // the very writing first, else any of the same letters (any accent)
+      const exact = p.names.findIndex((x) => x.name === n);
+      const hit = exact >= 0 ? exact : p.names.findIndex((x) => foldText(x.name) === key);
+      if (hit < 0) throw new UsageError(`${p.id} has no name "${n}" (it has ${p.names.map((x) => x.name).join(", ")})`, { code: "place.name" });
+      if (hit === 0) throw new UsageError(`"${n}" is the first name of ${p.id} — today's name is set with --name (strom place verify ${p.id} --ok --name "…")`, { code: "place.name" });
+      const f = forms.get(foldText(p.names[hit]!.name));
+      if (f && recordOf(f.form)?.id === p.id && !p.names.some((x, i) => i !== hit && foldText(x.name) === foldText(p.names[hit]!.name)))
+        throw new UsageError(`${f.facts === 1 ? "a fact" : `${f.facts} facts`} of the tree still write "${f.form}" — set them right first: strom place rewrite "${f.form}" --to ${p.id} --reason "…"`, { code: "place.form" });
+      dropped.push(p.names[hit]!);
+      p.names.splice(hit, 1);
+    }
+    p.updated = now();
+    const file = readPlacesFile(tree);
+    const undo = keepUndo(file, { id: undoId(file), at: now(), places: { [p.id]: { before: was, after: p.updated } } });
+    write(tree, [p], file, {
+      op: "place.names",
+      targets: [p.id],
+      reason: why,
+      summary: `${p.id} ${p.names[0]!.name}: name${dropped.length === 1 ? "" : "s"} taken off as wrong: ${dropped.map((x) => `${x.name}${x.lang ? `@${x.lang}` : ""}`).join(", ")} — ${why.slice(0, 80)} — undo: strom place undo ${undo}`,
+    });
+    return { place: p, dropped, undo };
   });
 }
 
@@ -1425,19 +1606,17 @@ export function repairPlaces(tree: Tree): string[] {
   // nothing to set right: nothing written (looked at again next time — a tree that never had places stays without the file)
   if (!records.length) return [];
   file.repaired = PLACES_REPAIR;
-  if (!file.undo) {
-    file.undo = {
-      id: `u${Date.now().toString(36)}`,
-      at: now(),
-      places: Object.fromEntries(records.map((p) => [p.id, { before: tree.get<Place>(p.id)!, after: p.updated }])),
-    };
-  }
+  const undo = keepUndo(file, {
+    id: undoId(file),
+    at: now(),
+    places: Object.fromEntries(records.map((p) => [p.id, { before: tree.get<Place>(p.id)!, after: p.updated }])),
+  });
   write(tree, records, file, {
     op: "place.repair",
     targets: records.map((p) => p.id).sort(),
     // a name read from its syntax, or written twice, is no name lost: the data check takes the step as reasoned
     reason: "what an earlier version wrote into the place records set right, nothing lost (undo kept)",
-    summary: `place records set right (${records.length}): ${said.join(" · ").slice(0, 1500)}${file.undo?.places[records[0]!.id] ? ` — undo: strom place undo ${file.undo.id}` : ""}`,
+    summary: `place records set right (${records.length}): ${said.join(" · ").slice(0, 1500)} — undo: strom place undo ${undo}`,
   });
   return said;
 }
@@ -1482,11 +1661,14 @@ export function keepPlacesTask(tree: Tree): string | undefined {
   return raisePlacesTask(tree, false);
 }
 
-/** The jurisdiction of "<kind>:<name>[:from-to]". */
+/** The jurisdiction of "<kind>:<name>[:from-to]" — one year (":1899"): known so in that year, from and to alike. */
 export function parseJurisdiction(s: string): Jurisdiction {
-  const m = /^([^:]+):([^:]+?)(?::(\d{3,4})?-(\d{3,4})?)?$/u.exec(s.normalize("NFC").trim());
+  const m = /^([^:]+):([^:]+?)(?::(?:(\d{3,4})?-(\d{3,4})?|(\d{3,4})))?$/u.exec(s.normalize("NFC").trim());
   const kind = m?.[1]?.trim();
   if (!m || !kind || !(JURISDICTIONS as readonly string[]).includes(kind))
-    throw new UsageError(`--jurisdiction "${s}": "<kind>:<name>[:from-to]", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
-  return { kind: kind as Jurisdiction["kind"], name: m[2]!.trim(), recordsets: [], ...(m[3] ? { from: Number(m[3]) } : {}), ...(m[4] ? { to: Number(m[4]) } : {}) };
+    throw new UsageError(`--jurisdiction "${s}": "<kind>:<name>[:from-to]" or one year "<kind>:<name>:<year>", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
+  const from = m[3] ?? m[5];
+  const to = m[4] ?? m[5];
+  if (from && to && Number(from) > Number(to)) throw new UsageError(`--jurisdiction "${s}": the years ${from}-${to} go backwards`, { code: "place.jurisdiction" });
+  return { kind: kind as Jurisdiction["kind"], name: m[2]!.trim(), recordsets: [], ...(from ? { from: Number(from) } : {}), ...(to ? { to: Number(to) } : {}) };
 }

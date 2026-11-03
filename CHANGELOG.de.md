@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.26.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Das Tor der Abo-Woche beendet einen Lauf nicht mehr wegen einer unlesbaren Antwort.** Es fragt erneut, wartet dann
   eine Viertelstunde und nennt, was es erhielt. Ein nicht angemeldeter Agent wird schon vor der ersten Sitzung gemeldet,
@@ -25,6 +25,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   benachbarter Gebiete. Aus „in Lhota in Nr. 12“ bleibt kein Ort „in Lhota in“ mehr:
   Ort ist die Gemeinde, wie die Forschung sie sonst schreibt, auch wenn der Satz sie beugt. Jeder Name steht nur einmal
   im Eintrag eines Ortes.
+- **Die Warteschlange der Orte leert sich, wenn die Orte erledigt sind.** Ein Ort, der bestimmt, geprüft, erfragt oder
+  nicht gefunden wurde, verlässt die Warteschlange mit allen seinen Formen, auch mit einer, die die Fakten inzwischen
+  anders schreiben; Orte, die eine Sitzung schon erledigt hat, werden nicht erneut genommen, und die Zahl des Wartenden
+  stimmt. Was eine frühere Version in der Warteschlange ließ, wird von selbst entfernt (nur erledigte Orte, der Schritt
+  lässt sich rückgängig machen); eine Prüfung, die für einen Ort verlangt wird, der auf die Bestimmung wartet, bleibt
+  als Prüfung. Jeder Schritt bei den Orten lässt sich mit seiner eigenen Nummer rückgängig machen, auch wenn ein anderer
+  wartet (auch die Antworten der Person). Ein falscher Name im Datensatz eines Ortes — ein Versehen eines Eintrags, das
+  kein Faktum mehr schreibt, der Name eines anderen Ortes — lässt sich mit Begründung entfernen (`strom place names L…
+  --drop`); die Sitzung über die Orte sieht die weiteren Namen des Datensatzes mit Sprache und Jahren; eine Prüfung kann
+  die Quelle nennen, auf die sie sich stützt; eine Zugehörigkeit lässt sich auch für ein einzelnes Jahr angeben.
 - In den Widersprüchen einer Änderung aus der App bekommt eine Hausnummer, die ihre Bezeichnung schon trägt, sie nicht
   ein zweites Mal (polnisch „nr domu nr domu 12“), und der Gedankenstrich im Titel richtet sich nach der Sprache der
   Forschung.

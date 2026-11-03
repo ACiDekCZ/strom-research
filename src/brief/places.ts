@@ -3,13 +3,13 @@
 // street rules, then well-known references on the web), the three degrees of certainty, the person's hand never moved,
 // only the place's name ever sent anywhere. Nothing of the records, the method or the people's queue.
 
-import type { Place, Repository, Task } from "../core/model.ts";
+import type { Place, PlaceName, Repository, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { langName } from "../core/lang.ts";
 import { match } from "../cli/registry.ts";
 import { synopsis } from "./sheet.ts";
 import type { Section } from "./brief.ts";
-import { factForms, personsHand, PLACES_IDENTIFY_ORIGIN, queueBatches, readPlacesFile, recordIndex, type FactForm, type QueueEntry } from "../core/placeid.ts";
+import { factForms, otherNames, personsHand, PLACES_IDENTIFY_ORIGIN, queueBatches, readPlacesFile, recordIndex, type FactForm, type QueueEntry } from "../core/placeid.ts";
 import { historyOn } from "../core/pastevents.ts";
 import { othersRecords, type PlaceSigns } from "../core/placeadopt.ts";
 import { foldText } from "../core/text.ts";
@@ -32,6 +32,26 @@ function span(ys: number[]): string {
   return a === b ? String(a) : `${a}–${b}`;
 }
 
+/** A name as the agent writes it: name[@lang][:from-to]. */
+function nameSaid(n: PlaceName): string {
+  const years = n.from === undefined && n.to === undefined ? "" : n.from === n.to ? `:${n.from}` : `:${n.from ?? ""}-${n.to ?? ""}`;
+  return `${n.name}${n.lang ? `@${n.lang}` : ""}${years}`;
+}
+
+/** A record's names: today's, its other names (another language, old names — with their language and years), the forms of the facts. */
+function recordNames(p: Place): string {
+  const rest = otherNames(p);
+  const alt = rest.filter((n) => n.kind !== "form");
+  const forms = rest.filter((n) => n.kind === "form");
+  return [
+    nameSaid(p.names[0]!),
+    alt.length ? `other names ${alt.map(nameSaid).join(", ")}` : "",
+    forms.length ? `forms ${forms.map((n) => n.name).join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
 /** One place of the batch: its form, the facts, the people, the archives of its sources, the record of it. */
 function placeLine(tree: Tree, form: string, f: FactForm | undefined, entry: QueueEntry, p: Place | undefined, others: (PlaceSigns & { tree: string })[]): string {
   const areas = f
@@ -48,7 +68,7 @@ function placeLine(tree: Tree, form: string, f: FactForm | undefined, entry: Que
     f ? `${f.facts} fact${f.facts === 1 ? "" : "s"} ${span(f.years)}` : "",
     persons.length ? `people ${persons.join(" ")}${f!.persons.size > persons.length ? " …" : ""}` : "",
     areas.length ? `sources from ${areas.join(", ")}` : "",
-    p ? `record ${p.id}: ${p.names.map((n) => n.name).join(", ")}` : "no record yet",
+    p ? `record ${p.id}: ${recordNames(p)}` : "no record yet",
     p?.parent ? `in ${p.parent}` : "",
     p?.jurisdictions.length ? p.jurisdictions.map((j) => `${j.kind} ${j.name}${j.from || j.to ? ` ${j.from ?? "…"}–${j.to ?? "…"}` : ""}`).join(", ") : "",
     p?.coords ? `on the map ${p.coords.lat.toFixed(4)}, ${p.coords.lon.toFixed(4)}${personsHand(p) ? " (the person's — never moved)" : ""}` : "",
@@ -99,8 +119,11 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
         "",
         "The record of a place:",
         "- its first name is the official name of today in the language of the country it lies in now (a village now in Poland: Polish; the German name is historical) — the names of the facts and the old names go in as --form and --alt name@lang:from-to (an old name: from-to its years; one year: name@lang:1844)",
+        "- the record's other names above are known already (name@language:years): today's name in another language may be among them — look it up by that name before calling it not found, and set it first with --name when the reference confirms it",
+        "- a name of the record found wrong (another place's name, a slip of a record no fact writes any more): strom place names L… --drop \"<name>\" --why \"what shows it is wrong\" — never left in with a note that it is wrong",
         "- what is found of a place goes into its record, also where the coordinates are right already: strom place verify L… --ok --why \"…\" --alt … --form … (never only into the history)",
-        "- a jurisdiction found wrong (another parish): strom place verify L… --ok --why \"what the records say\" --drop-jurisdiction parish:<name> --jurisdiction parish:<right one>:from-to",
+        "- a jurisdiction found wrong (another parish): strom place verify L… --ok --why \"what the records say\" --drop-jurisdiction parish:<name> --jurisdiction parish:<right one>:from-to (one year: parish:<name>:1899)",
+        "- the reference a check stood on: strom place verify L… --ok --why \"…\" --source-title \"…\" --source-url …",
         "- a form of the facts that is a place with a record already (\"Nové Lhoty\" of Lhoty): strom place identify L… --form \"<form>\" — never a second record; two records of one place: strom place merge L… --into L… --reason \"…\"",
         "",
         "Three degrees, never guessed:",
@@ -125,6 +148,7 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
     cmd(["place", "verify"]),
     cmd(["place", "rewrite"]),
     cmd(["place", "merge"]),
+    cmd(["place", "names"]),
     cmd(["place", "show"]),
     ...(history ? [cmd(["history", "map"])] : []),
   ].filter(Boolean);

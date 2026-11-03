@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.26.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Brána týdne předplatného už neukončí běh kvůli jedné nepřečtené odpovědi.** Zeptá se znovu, pak čtvrt hodiny počká
   a řekne, co dostala. Nepřihlášený agent se ohlásí už před prvním sezením i s postupem přihlášení; výchozí složka
@@ -21,6 +21,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   vrátit. Souhrn sezení o místech začíná tím, co se udělalo – ztotožněno, ověřeno, s otázkou, nedohledáno – a jedno
   sezení vezme víc míst sousedních oblastí. Z „v Lhotě v čp. 12“ už nezůstane místo „v Lhotě v“:
   místem je obec, jak ji výzkum píše jinde, i když ji věta skloňuje. Každý název se do záznamu místa zapíše jen jednou.
+- **Fronta míst se po vyřízení míst vyprázdní.** Místo ztotožněné, ověřené, předané k otázce nebo nedohledané odejde z
+  fronty se všemi svými tvary, i s tím, který fakta mezitím píší jinak; místa, která sezení už udělalo, se znovu neberou
+  a počet čekajících sedí. Co ve frontě nechala dřívější verze, se odebere samo (jen vyřízená místa, krok jde vrátit);
+  kontrola vyžádaná u místa, které čeká na ztotožnění, zůstane jako kontrola. Každý krok nad místy jde vrátit vlastním
+  číslem, i když čeká jiný (také odpovědi člověka). Chybné jméno v záznamu místa — překlep ze záznamu, který už žádný
+  fakt nepíše, jméno jiného místa — jde odebrat i s důvodem (`strom place names L… --drop`); sezení nad místy vidí další
+  jména záznamu s jazykem a roky; kontrola může uvést, o jaký zdroj se opřela; příslušnost jde zadat i k jednomu roku.
 - V rozporech úpravy z aplikace už číslo domu, které značku má, nedostane značku podruhé (polsky „nr domu nr domu 12“),
   a pomlčka v titulku je podle jazyka výzkumu.
 

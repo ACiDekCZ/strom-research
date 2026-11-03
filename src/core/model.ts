@@ -466,8 +466,12 @@ export interface PlaceLocating {
   verified?: string;
   /** On what the research found them right. */
   verifiedWhy?: string;
+  /** The reference the check of the coordinates stood on (strom place verify --source-title). */
+  verifiedSource?: { title: string; url?: string };
   /** Checked, and why it could not be decided. */
   checkWhy?: string;
+  /** When the research last checked the coordinates (right or undecided): a check queued before it is done. */
+  checked?: string;
   /** Not identified: what would decide it. */
   needs?: string;
   /** Not identified: how much was known of it then (facts citing a record, jurisdictions, parent) — more is something new (K2.3). */

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.26.0-beta.2. The section is complete with the release.*
 
 - **The gate of the subscription's week no longer ends a run over one answer it cannot read.** It asks again, then
   waits a quarter of an hour and says what it got. An agent not logged in is said before the first session, with how to
@@ -23,6 +23,14 @@ The changes of each version in short. The full notes and the install lines are o
   located — and takes more places of neighbouring areas at once. "in Lhota in no. 12" no longer leaves "in Lhota in" as
   a place: the place is the municipality as the research writes it elsewhere, also where the sentence declined it. Each
   name goes into a place's record once.
+- **The queue of places empties as the places are done.** A place identified, checked, asked about or not located leaves
+  the queue with every form of it, also one the facts write otherwise since; the places a session already did are no
+  longer taken again, and the count of what waits is right. What an earlier version left in the queue is taken out by
+  itself (only places dealt with, the step can be undone); a check asked of a place waiting to be identified is kept as
+  the check. Each step on places is undone by its own number, also while another waits (the person's answers among
+  them). A wrong name of a place's record — a slip of a record no fact writes any more, another place's name — can be
+  taken off with the reason (`strom place names L… --drop`); the session on the places sees the record's other names
+  with their language and years; a check can name the reference it stood on; a jurisdiction can be given for one year.
 - In the conflicts of an edit from the app a house that says it is one already no longer gets its marker twice ("nr domu nr
   domu 12" in Polish), and the title's dash is the one of the research's language.
 
