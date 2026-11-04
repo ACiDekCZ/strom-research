@@ -18,6 +18,8 @@ import { surnamesForExport } from "./surnames.ts";
 import { lineMarks } from "./lineages.ts";
 import { LINK_SCHEME, linkScheme } from "./links.ts";
 import { refusal } from "./receive.ts";
+import { actsAsArchive } from "./state.ts";
+import type { WidgetTree } from "./widget.ts";
 import type { Input, Media, Source } from "./model.ts";
 
 /** A source whose excerpts the file leaves out though the research has them (/excerpts?missing=1). */
@@ -157,10 +159,17 @@ export function excerptAnswer(ask: ExcerptAsk): Answer {
   return { code: 200, body: { source: id, level: level.name, excerpts, missing: got.missing, ...(each ? { each: true } : {}) } };
 }
 
+/** strom's fixes of a research for the app (GET /fixes): who asks, and what they are told. */
+export type FixesAsk = { root: string; env: Env };
+/** The fixes found, as JSON, and the stamp of what they were found by (`fixesStamp`, the archive or not). */
+export type FixesMade = { key: string; text: string };
+
 /** What a thread is asked to do (liveged-worker.ts). */
-export type Job = { job: "ged"; ask: GedAsk } | { job: "excerpt"; ask: ExcerptAsk };
+export type Job = { job: "ged"; ask: GedAsk } | { job: "excerpt"; ask: ExcerptAsk } | { job: "fixes"; ask: FixesAsk } | { job: "widget"; ask: WidgetAsk };
 /** What it says back: what it made, or why it could not. */
-export type Done = { ok: true; made: GedMade | { code: number; text: string } } | { ok: false; message: string; stack?: string };
+export type Done = { ok: true; made: GedMade | { code: number; text: string } | FixesMade | WidgetTree | null } | { ok: false; message: string; stack?: string };
+/** The overview of a research for the desktop's widget (core/widget.ts widgetTree), as its bridge runs. */
+export type WidgetAsk = { root: string; env: Env; now: number };
 
 /** Where the thread's code is: next to this file, the same kind (the sources run as .ts, the package as .js). */
 const WORKER = new URL(`./liveged-worker${path.extname(fileURLToPath(import.meta.url))}`, import.meta.url);
@@ -205,6 +214,35 @@ export async function gedOnThread(ask: GedAsk): Promise<GedMade> {
   const made = done.made as GedMade;
   // a buffer came over as its bytes (Uint8Array)
   return { ...made, bytes: Buffer.from(made.bytes.buffer, made.bytes.byteOffset, made.bytes.byteLength) };
+}
+
+/**
+ * strom's fixes of a research found on a thread of its own (they read every person, source and reading: seconds on a
+ * large research, after each of its commits, as the app asks for them at each new head — found 2026-11-04).
+ */
+export async function fixesOnThread(ask: FixesAsk): Promise<FixesMade> {
+  return (await onThread({ job: "fixes", ask })).made as FixesMade;
+}
+
+/** strom's fixes of a research for the app, found here: the stamp they are found by, and what they say. */
+export async function fixesHere(ask: FixesAsk): Promise<FixesMade> {
+  const m = await import("../commands/fixchecks.ts");
+  const tree = Tree.open(ask.root, ask.env);
+  const settings = new Settings(ask.env, {});
+  const archive = actsAsArchive(tree);
+  const key = `${m.fixesStamp(tree, m.fixEnvOf(settings, ask.env, tree))}|${archive}`;
+  return { key, text: JSON.stringify(m.fixesForApp(tree, settings, ask.env, { archive })) };
+}
+
+/** The widget's overview of a research worked out on a thread of its own (undefined: an archive, nothing to show). */
+export async function widgetOnThread(ask: WidgetAsk): Promise<WidgetTree | undefined> {
+  return ((await onThread({ job: "widget", ask })).made as WidgetTree | null) ?? undefined;
+}
+
+/** The widget's overview of a research, worked out here (the thread's part). */
+export async function widgetHere(ask: WidgetAsk): Promise<WidgetTree | null> {
+  const { widgetTree } = await import("./widget.ts");
+  return widgetTree(ask.root, ask.env, { running: true, now: ask.now }) ?? null;
 }
 
 /** One source's excerpts made on a thread of its own: the status and the JSON text. */

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.26.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Linien der Forschung aus der Strom-App: anlegen, ändern, pausieren, ordnen.** Eine Linie lässt sich in der App
   anlegen oder ändern (Person, Richtung, Frage, Grenzen), pausieren, beenden oder wieder aufnehmen; die Reihenfolge der
@@ -30,6 +30,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 - Ein großer Stammbaum, unter Windows übernommen (etwa 1 500 Personen und mehr), scheitert nicht mehr in git an einer zu
   langen Befehlszeile (ENAMETOOLONG), ohne dass etwas davon bleibt: alles Übernommene wird geschrieben.
+
+- Bei einer großen Forschung (Hunderte Aufgaben in der Warteschlange, vieles wartet) meldet die Strom-App nicht mehr,
+  dass die Forschung nicht antwortet, während ihr Agent arbeitet: die Verbindung berechnet den Stand der Forschung einmal
+  je Änderung, nebenher, und antwortet der App inzwischen sofort – auch während des täglichen Aufräumens, der Suche nach
+  den Korrekturen von strom, dem Lesen der Historie nach jeder Änderung und der Übersicht für das Widget auf dem
+  Schreibtisch.
+
+- Eine Erzählung und eine Notiz kommen mit ihren Leerzeichen in die Strom-App, wie sie geschrieben sind: zwei
+  Leerzeichen zwischen Wörtern, ein geschütztes oder schmales Leerzeichen werden nicht mehr zu einem einfachen.
 
 - **Was der Nutzer entscheidet, bleibt seine Sache.** Einen Widerspruch zwischen der Forschung und einer Änderung in der
   Strom-App, die Freigabe einer Erzählung oder ihrer neuen Fassung und die Antwort zu einem wachsenden Zweig entscheidet

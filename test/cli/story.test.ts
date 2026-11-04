@@ -48,6 +48,27 @@ test("story set / show: the facts it rests on, draft or final, _STORY in the GED
   w.cleanup();
 });
 
+test("a story's spaces come to the Strom file as written: two between words, a no-break and a narrow one, beside an emoji and a cut of a long line", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci", "--new-person", "Matěj /Lhoták/", "--sex", "M"]);
+  // decomposed letters, Cyrillic, an emoji of joined parts with two spaces after it, a no-break space in "čp. 7", a
+  // narrow one in "1 850", long enough that cuts of its line fall among the double spaces
+  const words = "Matěj  žil v Lhotě čp.\u00a07 —  Жовква,\u202f1\u202f850 👨‍👩‍👧  konec🏁".normalize("NFD");
+  const text = `${Array.from({ length: 12 }, (_, i) => `${"x".repeat(i + 1)} ${words}`).join(" ")}\n\nDruhý  odstavec.`;
+  fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
+  fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), text + "\n");
+  await w.ok(["story", "set", "P1", "--text", "@notes/story-P0001.md"]);
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none"]);
+  const ged = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+  for (const l of ged.split("\n")) assert.ok(Buffer.byteLength(l) <= 255, l);
+  const indi = parseGedcomText(ged).records.find((x) => x.tag === "INDI")!;
+  const said = indi.children.find((c) => c.tag === "_STORY")!.children.find((c) => c.tag === "TEXT")!.value;
+  assert.equal(said, text.normalize("NFC"));
+  assert.ok(said.includes("👨‍👩‍👧  konec🏁") && said.includes("čp.\u00a07") && said.includes("1\u202f850"));
+  w.cleanup();
+});
+
 test("the story's format: its title from a first \"# \" line (or dropped when it repeats --title); what the Strom app shows as plain text is said, never refused", opts, async () => {
   const w = new World();
   await w.withTree();

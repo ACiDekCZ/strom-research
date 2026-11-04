@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.26.0
 
-*W przygotowaniu: bety do 1.26.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.26.0-beta.8. Sekcja będzie kompletna z wydaniem.*
 
 - **Linie badania z aplikacji Strom: założyć, zmienić, wstrzymać, uporządkować.** Linię można w aplikacji założyć lub
   zmienić (osoba, kierunek, pytanie, granice), wstrzymać, zakończyć lub wznowić; kolejność linii to kolejność pracy, a
@@ -28,6 +28,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 - Duże drzewo przejęte w systemie Windows (około 1500 osób i więcej) nie kończy się już błędem gita o zbyt długim
   poleceniu (ENAMETOOLONG) bez żadnej zapisanej danej: wszystko, co przejęte, zostaje zapisane.
+
+- Przy dużym badaniu (setki zadań w kolejce, wiele spraw czekających) aplikacja Strom nie zgłasza już, że badanie nie
+  odpowiada, gdy pracuje jego agent: połączenie oblicza stan badania raz dla każdej zmiany, osobno, a aplikacji
+  odpowiada w tym czasie od razu – także podczas codziennego porządkowania, szukania poprawek strom, czytania historii
+  po każdej zmianie i przygotowania przeglądu dla widżetu na pulpicie.
+
+- Opowieść i notatka trafiają do aplikacji Strom ze spacjami takimi, jak zostały zapisane: dwie spacje między
+  słowami ani spacja nierozdzielająca lub wąska nie zamieniają się już w jedną zwykłą.
 
 - **To, o czym decyduje użytkownik, pozostaje jego decyzją.** O sprzeczności badania ze zmianą z aplikacji Strom,
   o zatwierdzeniu opowieści lub jej nowej wersji i o odpowiedzi dla rosnącej gałęzi decyduje tylko użytkownik – w

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.26.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
   (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu
@@ -27,6 +27,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 - Velký rodokmen převzatý ve Windows (zhruba 1 500 osob a víc) už neskončí chybou gitu o příliš dlouhém příkazu
   (ENAMETOOLONG) bez jediného zapsaného údaje: vše převzaté se zapíše.
+
+- Na velkém výzkumu (stovky úkolů ve frontě, hodně věcí k vyřízení) už aplikace Strom neříká, že výzkum neodpovídá,
+  když jeho agent pracuje: spojení s aplikací spočítá stav výzkumu jednou pro každou změnu, stranou, a aplikaci mezitím
+  odpovídá hned – i během denního úklidu, hledání oprav strom, čtení historie po každé změně a přípravy přehledu pro
+  widget na ploše.
+
+- Vyprávění i poznámka přijdou do aplikace Strom s mezerami, jak jsou napsané: dvě mezery mezi slovy, nezlomitelná
+  ani úzká mezera už se nemění na jednu obyčejnou.
 
 - **Co rozhoduje uživatel, zůstává jeho.** Rozpor výzkumu s úpravou z aplikace Strom, schválení vyprávění nebo jeho nové
   verze a odpověď u větve, která roste, rozhoduje jen uživatel – v aplikaci nebo v Co čeká; agenta strom odmítne a ten

@@ -111,13 +111,17 @@ export class GedWriter {
     for (let i = first; i < value.length; i += next) this.raw(level + 1, "CONC", value.slice(i, i + next));
   }
 
-  /** A tag with free text of any length: CONT for line breaks, CONC for long lines. */
+  /**
+   * A tag with free text of any length: CONT for line breaks, CONC for long lines. The text as it is written, its
+   * spaces kept — two between words, a no-break or narrow one (found 2026-11-04: a story's two spaces came to the app
+   * as one); only a tab or a form feed is a space, and the spaces round a line go (a line's value starts after one).
+   */
   text(level: number, tag: string, text: string): void {
     const paragraphs = text
       .normalize("NFC")
       .replace(/\r\n?/g, "\n")
       .split("\n")
-      .map((p) => p.replace(/\s+/g, " ").trim().replace(/@/g, "@@"));
+      .map((p) => p.replace(/[\t\v\f]/g, " ").trim().replace(/@/g, "@@"));
     paragraphs.forEach((para, i) => {
       if (i === 0) this.long(level, tag, para);
       else this.long(level + 1, "CONT", para, level + 1);

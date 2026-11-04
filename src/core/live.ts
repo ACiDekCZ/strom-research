@@ -9,6 +9,12 @@
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits; what the research takes from
 //                          the app (accepts). ?poll=1: the app asking now and then — the bridge's idle time goes on.
+//                          Made once for a state of the research on a thread of its own (core/livestatus.ts) and
+//                          answered from it while the state lasts. ?parts=1 (feature status.parts): without the parts
+//                          that weigh (waiting; queue, queueMore, queueCounts; offLine; researches), with parts {name:
+//                          rev} instead — the same rev, the same part.
+//   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
+//                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
 //                          "occasional" (now and then one), "last" (after the lines' work) or "never" (not taken) — its
 //                          branch's choice, else queue.offLine; one that helps a line says how (helps: question | joins |
@@ -293,6 +299,8 @@ import os from "node:os";
 import http from "node:http";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { configDir, userHome, type Env } from "./paths.ts";
 import { newerTree, now, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
@@ -308,7 +316,8 @@ import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
 import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerpt.ts";
-import { endWork, excerptAnswer, excerptOnThread, gedOnThread, type GedMade } from "./liveged.ts";
+import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, widgetOnThread, type GedMade } from "./liveged.ts";
+import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
@@ -1111,7 +1120,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1229,6 +1238,51 @@ export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MA
 }
 
 /**
+ * What the bridge works out for a state of the research (/log for a head, /fixes for their stamp), one at a time: an ask
+ * for the state being made waits for it; an ask for another waits for the next, made once for the state as it is when
+ * that one starts. (An agent's commits a second apart each made one more, side by side on a busy computer: each took
+ * longer, and the answers came ten seconds late and later — found 2026-11-04.)
+ */
+export class OneAtATime<T> {
+  private making?: { key: string; done: Promise<T> };
+  private next?: Promise<T>;
+  private readonly keyNow: () => string;
+  private readonly make: (key: string) => Promise<T>;
+  constructor(keyNow: () => string, make: (key: string) => Promise<T>) {
+    this.keyNow = keyNow;
+    this.make = make;
+  }
+
+  ask(key: string): Promise<T> {
+    if (!this.making) return this.start(key);
+    if (this.making.key === key) return this.making.done;
+    this.next ??= this.making.done
+      .catch(() => undefined)
+      .then(() => {
+        this.next = undefined;
+        return this.start(this.keyNow());
+      });
+    return this.next;
+  }
+
+  private start(key: string): Promise<T> {
+    let done: Promise<T>;
+    try {
+      done = this.make(key);
+    } catch (e) {
+      done = Promise.reject(e);
+    }
+    const now = { key, done };
+    this.making = now;
+    const over = () => {
+      if (this.making === now) this.making = undefined;
+    };
+    done.then(over, over);
+    return done;
+  }
+}
+
+/**
  * The history a bridge gives again and again (/log, each change): what git says of a commit is kept by its hash, so
  * after a new commit git is asked about the new ones only — the same entries, in the same order, as history() gives.
  */
@@ -1243,9 +1297,14 @@ export class HistoryCache {
 
   /** The last LOG_MAX commits up to `h`, newest first (as history(root, tree) at h). */
   log(tree: Tree, h: string): HistoryEntry[] {
+    return rendered(tree, this.raws(h));
+  }
+
+  /** What git says of the last LOG_MAX commits up to `h`, newest first: asked about the ones it does not know only. */
+  raws(h: string): RawCommit[] {
     if (!h) return [];
     const listed = runGit(this.root, ["rev-list", `-n${LOG_MAX}`, h]);
-    if (listed.status !== 0) return history(this.root, tree, [`-n${LOG_MAX}`, h]);
+    if (listed.status !== 0) return rawCommits(this.root, [`-n${LOG_MAX}`, h]);
     const order = listed.stdout.split("\n").filter(Boolean);
     // the newest ones it has not seen; anything else unknown (a history written anew): all of it again
     let k = 0;
@@ -1255,9 +1314,9 @@ export class HistoryCache {
     this.read = k;
     if (fresh.length !== k || fresh.some((c, i) => c.head !== order[i])) {
       this.read = order.length;
-      return this.keep(tree, rawCommits(this.root, [`-n${LOG_MAX}`, h]));
+      return this.keep(rawCommits(this.root, [`-n${LOG_MAX}`, h]));
     }
-    return this.keep(tree, order.map((x, i) => (i < k ? fresh[i]! : this.known.get(x)!)));
+    return this.keep(order.map((x, i) => (i < k ? fresh[i]! : this.known.get(x)!)));
   }
 
   /** The commits after `from` up to `to` (a change the app hears), newest first; kept for the next /log. */
@@ -1272,10 +1331,10 @@ export class HistoryCache {
     return rendered(tree, raws);
   }
 
-  private keep(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
+  private keep(raws: RawCommit[]): RawCommit[] {
     // oldest first, as since() adds the newer ones after them
     this.known = new Map([...raws].reverse().map((c) => [c.head, c]));
-    return rendered(tree, raws);
+    return raws;
   }
 }
 
@@ -1823,7 +1882,11 @@ export function saidAppVersion(req: { url?: string | undefined; headers: http.In
 }
 
 /** What the app shows beside the tree. */
-function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): Record<string, unknown> {
+/**
+ * /status worked out (on the bridge's thread of /status, core/livestatus.ts: it reads the whole research — never on the
+ * bridge's own thread, which answers everything else meanwhile).
+ */
+export function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): Record<string, unknown> {
   // a research a newer strom wrote (a beta's, this strom back on the releases): said, never opened
   const refused = newerTree(root, env);
   if (refused) {
@@ -1945,6 +2008,17 @@ function historyRevNow(tree: Tree, settings: Settings, h: string, fresh?: string
   return rev;
 }
 
+/** What this thread knows of the history's rev (the bridge's tick, GET /history): told to the thread of /status. */
+export function historyRevKnown(root: string): { at: number; head: string; rev: string } | undefined {
+  return historyRevs.get(root);
+}
+
+/** The history's rev the bridge's thread found, taken by the thread of /status when newer than its own. */
+export function historyRevLearn(root: string, known: { at: number; head: string; rev: string } | undefined): void {
+  const had = historyRevs.get(root);
+  if (known && (!had || had.at < known.at)) historyRevs.set(root, known);
+}
+
 /** A tree the app is told the history of: with the experiment on, or one that has anything of it (its history/ folder). */
 function historyShown(tree: Tree, settings: Settings): boolean {
   return historyOn(tree, settings) || fs.existsSync(path.join(tree.root, "history"));
@@ -2040,6 +2114,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
   /** The excerpts the tree's file of that head leaves out, though the research has them (the same for every app): /excerpts. */
   let left: GedMade["left"] | undefined;
   let log: { head: string; text: string } | undefined;
+  // /log worked out for one head at a time (the asks for it wait for it together, those for a newer one for the next)
+  const logs = new OneAtATime<string>(
+    () => head(root),
+    (h) =>
+      log?.head === h
+        ? Promise.resolve(log.text)
+        : keeper.log(h).then((text) => {
+            log = { head: h, text };
+            return text;
+          }),
+  );
   // what git said of each commit, kept: a new commit costs only itself (/log, the changes heard)
   const histories = new HistoryCache(root);
 
@@ -2075,6 +2160,28 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const receiver: Receiver = { root, env, note: (text) => noteLive(root, text), track, head: () => head(root), safely };
   // the documents the app asks to be read (live-read.ts): their queue read one at a time, each by a strom of its own
   const reads = new AppReadings({ root, env, settings: () => new Settings(env, {}), note: (text) => noteLive(root, text), safely });
+  // /status made on a thread of its own, kept for the state it was made for (core/livestatus.ts): the state is the commit
+  // and what changes beside it — the day, who is at work, the tree's settings, this computer's, the choices off the lines
+  const stamp = (file: string) => {
+    try {
+      return String(fs.statSync(file).mtimeMs);
+    } catch {
+      return "-";
+    }
+  };
+  const keeper = new StatusKeeper({
+    root,
+    env,
+    git: gitProgram() ?? "git",
+    stateNow: () => [now().slice(0, 10), JSON.stringify(liveWorkers(root)), stamp(path.join(root, TREE_FILE)), stamp(configFile(env)), stamp(path.join(root, ...OFFLINE_FILE.split("/"))), historyRevs.get(root)?.rev ?? "", JSON.stringify(agentsHere(env)), diskVersion(env)?.version ?? ""].join("|"),
+    known: () => historyRevKnown(root),
+    inline: (version, key) => splitStatus(status(root, env, version, reads.seen), key),
+    logHere: (h) => JSON.stringify({ entries: histories.log(Tree.open(root, env), h) }),
+    note: (text) => noteLive(root, text),
+  });
+  // the app's version of the last /status asked: made for it again before it asks, when a commit comes
+  // (a bridge that takes over from one of an older strom: the version the app asked that one with)
+  let statusVersion: string | undefined = env.STROM_LIVE_STATUS_FOR || undefined;
 
   /**
    * What changes something (a send, an adoption, an original, a batch, the app saying nothing came): one line in the
@@ -2259,16 +2366,44 @@ export function serveLive(root: string, env: Env): Promise<void> {
   // strom's fixes as the app was last told them, while nothing they are found by changed (fixesStamp) and the research
   // is as much of an archive as then
   let fixesKept: { key: string; text: string } | undefined;
+  // the stamp is told by the files alone (no read of the research): here; what it finds, on a thread of its own
+  // (seconds on a large research, after each commit: the bridge answered nothing meanwhile — found 2026-11-04)
+  type FixChecks = typeof import("../commands/fixchecks.ts");
+  const fixesNow = (m: FixChecks) => {
+    const tree = Tree.open(root, env);
+    const settings = new Settings(env, {});
+    const archive = actsAsArchive(tree);
+    return { tree, settings, archive, key: `${m.fixesStamp(tree, m.fixEnvOf(settings, env, tree))}|${archive}` };
+  };
+  let fixes: OneAtATime<string> | undefined;
+  const fixesOf = (m: FixChecks) =>
+    (fixes ??= new OneAtATime<string>(
+      () => fixesNow(m).key,
+      (key) => {
+        if (fixesKept?.key === key) return Promise.resolve(fixesKept.text);
+        // the thread failed (or is turned off): found here, as before
+        const here = () => {
+          const now = fixesNow(m);
+          return { key: now.key, text: JSON.stringify(m.fixesForApp(now.tree, now.settings, env, { archive: now.archive })) };
+        };
+        const found = env.STROM_LIVE_STATUS_THREAD === "0" ? Promise.resolve().then(here) : fixesOnThread({ root, env }).catch(here);
+        return found.then((made) => {
+          // kept for the stamp the research was read at (a commit since: another)
+          fixesKept = made;
+          return made.text;
+        });
+      },
+    ));
   const giveFixes = (req: http.IncomingMessage, res: http.ServerResponse) => {
     import("../commands/fixchecks.ts").then(
       (m) =>
         safely(req, res, () => {
-          const tree = Tree.open(root, env);
-          const settings = new Settings(env, {});
-          const archive = actsAsArchive(tree);
-          const key = `${m.fixesStamp(tree, m.fixEnvOf(settings, env, tree))}|${archive}`;
-          if (fixesKept?.key !== key) fixesKept = { key, text: JSON.stringify(m.fixesForApp(tree, settings, env, { archive })) };
-          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(fixesKept.text);
+          const { key } = fixesNow(m);
+          const answer = (text: string) => {
+            if (!req.destroyed) res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+          };
+          if (fixesKept?.key === key) return answer(fixesKept.text);
+          fixesOf(m).ask(key).then(answer, (e) => failed(req, res, e));
         }),
       (e) => failed(req, res, e),
     );
@@ -2327,6 +2462,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     const origin = allowedOrigin(req.headers.origin);
     const version = appVersionOf(req, new Settings(env, {}));
+    // what the app sends may change what /status says without a commit (a send waiting, a reading, a batch): made again
+    if (req.method !== "GET" && req.method !== "OPTIONS") res.once("finish", () => keeper.forget());
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
@@ -2642,10 +2779,24 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // the request texts of one place, for one e-mail: read only
         const got = groupNote(decoded(sub));
         res.writeHead(got.code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(got.body));
-      } else if (what === "status") {
-        // what is answered is made first: a read that fails can still answer 500
-        const text = JSON.stringify(status(root, env, version, reads.seen));
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "status" && !sub) {
+        // made on its thread, kept for the state of the research (core/livestatus.ts); parts=1: without the parts that
+        // weigh, their revs instead (feature status.parts: the app asks a part only when its rev changed)
+        const lite = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("parts") === "1";
+        statusVersion = version;
+        keeper.get(version).then(
+          (made) => res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(lite ? made.lite : made.full),
+          (e) => failed(req, res, e),
+        );
+      } else if (what === "status" && sub && !act) {
+        // one part of /status that weighs (feature status.parts): {part, rev, head, …its fields as /status carries them}
+        const part = decoded(sub);
+        if (!isStatusPart(part)) res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(refusal(`no such part of /status: ${Object.keys(STATUS_PARTS).join(", ")}`, "status.part")));
+        else
+          keeper.get(version).then(
+            (made) => res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(made.parts[part].text),
+            (e) => failed(req, res, e),
+          );
       } else if (what === "whats-new") {
         // what is new in this strom, from the changelog shipped with it (the app's window "What's new")
         const lang = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("lang");
@@ -2663,19 +2814,30 @@ export function serveLive(root: string, env: Env): Promise<void> {
             (e) => failed(req, res, e),
           );
       } else if (what === "log") {
+        // on the thread of /status: git asked of the commits it does not know (a hundred at first: a second), each read
+        // as the app reads it (every session, each name and task: a second on a large research, at each change)
         const h = head(root);
-        if (!log || log.head !== h) log = { head: h, text: JSON.stringify({ entries: histories.log(Tree.open(root, env), h) }) };
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(log.text);
+        const answer = (text: string) => {
+          if (!req.destroyed) res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+        };
+        if (log?.head === h) answer(log.text);
+        else logs.ask(h).then(answer, (e) => failed(req, res, e));
       } else if (what === "tree.ged" || what === "images.ged") {
         // made when the commits stop coming (an agent's commands one after another): once for them all
         afterQuiet(() => giveGed(res, version).catch((e) => failed(req, res, e)));
       } else if (what === "events") {
-        const hello = JSON.stringify(status(root, env, version, reads.seen));
-        res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive" });
-        res.write(`event: hello\ndata: ${hello}\n\n`);
-        streams.add(res);
-        req.on("close", () => streams.delete(res));
-        res.on("error", () => streams.delete(res));
+        statusVersion = version;
+        keeper.get(version).then(
+          (made) => {
+            if (req.destroyed) return;
+            res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive" });
+            res.write(`event: hello\ndata: ${made.full}\n\n`);
+            streams.add(res);
+            req.on("close", () => streams.delete(res));
+            res.on("error", () => streams.delete(res));
+          },
+          (e) => failed(req, res, e),
+        );
       } else res.writeHead(404).end();
     } catch (e) {
       failed(req, res, e);
@@ -4738,7 +4900,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       noteLive(root, `the server: ${errorText(e)}`);
       if (!up) resolve();
     });
-    server.listen(wanted, "127.0.0.1");
+    // taking over from the bridge of an older strom (it answers meanwhile): /status made first, so the app's first ask
+    // here waits for no thread's start (a few seconds on a slow computer) — at most a while
+    if (env.STROM_LIVE_RENEWED) void keeper.ready(statusVersion, Number(env.STROM_LIVE_READY_MS ?? 10_000)).then(() => server.listen(wanted, "127.0.0.1"));
+    else server.listen(wanted, "127.0.0.1");
     server.once("listening", () => {
       up = true;
       const port = (server.address() as { port: number }).port;
@@ -4798,7 +4963,22 @@ export function serveLive(root: string, env: Env): Promise<void> {
       let workers = safe("the start", () => JSON.stringify(atWork(seen))) ?? "";
       // the research on the desktop (the Strom Widget of a Mac, the widget of Windows 11): the tree's overview written
       // while the bridge runs (core/widget.ts; none but on macOS and Windows) — the first a moment after the start, never in its way
-      const widget = widgetWriter(root, env);
+      // (worked out on a thread of its own: a second and more on a large research, every check; off: here, as before —
+      // the thread ended with the bridge says nothing)
+      let widgetEnds = false;
+      const widget = widgetWriter(
+        root,
+        env,
+        process.platform,
+        Date.now,
+        env.STROM_LIVE_STATUS_THREAD === "0"
+          ? undefined
+          : (now) =>
+              widgetOnThread({ root, env, now }).catch((e) => {
+                if (!widgetEnds) noteLive(root, `the widget failed (tried again): ${errorText(e)}`);
+                throw e;
+              }),
+      );
       if (widget) setTimeout(() => safe("the widget", () => widget.tick(true)), 1000).unref?.();
       const send = (event: string, data: unknown) => {
         for (const s of streams) s.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -4823,7 +5003,32 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // something the app sent written now: its body coming, a strom of the bridge's writing it (a send, an adoption, an
       // original, a batch, the person's answer)
       const writesNow = () => incoming > 0 || writing !== undefined || adopting || kids.size > 0;
-      const busy = () => writesNow() || retryAt !== undefined;
+      const busy = () => writesNow() || retryAt !== undefined || tidying;
+      // the order kept on a thread of its own (core/livetidy-worker.ts): seconds on a large research, the bridge answers
+      // meanwhile; a thread that cannot start: kept here, as before
+      let tidying = false;
+      const tidyOffThread = () => {
+        let w: Worker;
+        try {
+          const env1 = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"));
+          w = new Worker(new URL(`./livetidy-worker${path.extname(fileURLToPath(import.meta.url))}`, import.meta.url), { workerData: { root, env: env1 }, env: env1 });
+        } catch (e) {
+          noteLive(root, `keeping order not on its thread (${errorText(e)}): here`);
+          return safe("keeping order", () => autoTidy(Tree.open(root, env)));
+        }
+        tidying = true;
+        w.unref();
+        const from = Date.now();
+        const done = (why?: string) => {
+          if (!tidying) return;
+          tidying = false;
+          noteLive(root, why ? `keeping order: ${why}` : `kept in order on its thread (${Date.now() - from} ms)`);
+          void w.terminate();
+        };
+        w.once("message", (m: { ok: boolean; message?: string }) => done(m.ok ? undefined : m.message));
+        w.once("error", (e) => done(errorText(e)));
+        w.once("exit", (code) => done(code ? `its thread ended (exit ${code})` : undefined));
+      };
       // The new bridge started while this one still answers: once it runs (its code loaded, a few seconds on a slow
       // computer) it asks this one to end through the stop file and takes the port at once, as a bridge wanted by
       // another strom does — the app waits a moment, not the new one's start (found: ~4.5 s without an answer when this
@@ -4847,7 +5052,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         };
         let child: ChildProcess;
         try {
-          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version });
+          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "" });
         } catch (e) {
           renewing = false;
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
@@ -4873,7 +5078,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       let qualitySeen: string | undefined = qualityRev({ root }, "0000000");
       const HISTORY_MS = Number(env.STROM_LIVE_HISTORY_MS ?? 60_000);
       // the first a few minutes after it starts, then once a day
-      let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + 5 * 60_000;
+      let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + Number(env.STROM_TIDY_FIRST_MS ?? 5 * 60_000);
       const timer = setInterval(() => {
         // its research gone (taken off the computer, a test's folder, moved; its .strom deleted): nothing to follow —
         // even while handing over (found: bridges of a folder removed in the middle of it left running for hours)
@@ -4907,12 +5112,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what strom keeps beside the research in order, once a day (a tree tidied once; never while a send is written)
         if (Date.now() - tidied > Number(env.STROM_TIDY_MS ?? 24 * 3600_000) && !busy()) {
           tidied = Date.now();
-          safe("keeping order", () => autoTidy(Tree.open(root, env)));
+          tidyOffThread();
         }
         // the idle time runs only while nobody works in the tree (a run waiting for its gate works too): the app watching
         // the tree without following it (/status?poll=1) still finds the bridge while an agent is at work
         // the queue of the documents the app asked to be read (one at a time); what changed of the readings, for the event read
         const readsChanged = safe("the readings", () => reads.tick()) ?? [];
+        // what /status says of the readings changed without a commit: made again at the next ask
+        if (readsChanged.length) keeper.forget();
         if (streams.size || anyoneAtWork(root) || reads.active()) lastAsked = Date.now();
         if (idleMs > 0 && Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
@@ -4926,6 +5133,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
             const entries = histories.since(Tree.open(root, env), seen ? [`-n${LOG_MAX}`, `${seen}..${h}`] : ["-1", h]);
             send("change", { head: h, what: subjects(root, seen, h), at: at ?? new Date().toISOString(), entries });
             seen = h;
+            // the app asks /status after a change: made for the new commit before it asks
+            keeper.warm(statusVersion);
           }
           for (const r of readsChanged) send("read", r);
           // what GET /history answers changed without a new commit (a catalog of the shared folder another tree's session
@@ -4993,7 +5202,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
         clearInterval(keepAlive);
         clearInterval(stopAsked);
         // what a thread makes for the app is wanted no more
+        widgetEnds = true;
         endWork();
+        keeper.end();
         if (stopWaits) safe("the stop's wait", () => fs.rmSync(liveBusyFile(root), { force: true }));
         safe("the widget", () => widget?.end(reason === "gone"));
         send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });

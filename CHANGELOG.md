@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.26.0-beta.8. The section is complete with the release.*
 
 - **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
   in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the
@@ -28,6 +28,14 @@ The changes of each version in short. The full notes and the install lines are o
 
 - A big family tree taken in on Windows (some 1 500 people and more) no longer fails in git over a command line too long
   (ENAMETOOLONG) with nothing of it kept: everything taken in is written.
+
+- On a large research (hundreds of tasks in the queue, much waiting) the Strom app no longer says the research does
+  not answer while its agent works: the connection works out the state of the research once for each change, on its
+  own, and answers the app at once meanwhile – also while it keeps its order once a day, finds strom's fixes, reads
+  the history after each change and makes the overview for the desktop widget.
+
+- A story or a note comes to the Strom app with its spaces as written: two between words, a no-break or a narrow
+  space are no longer made one plain space.
 
 - **What is the user's to decide stays the user's.** A disagreement between the research and an edit made in the Strom
   app, the approval of a story or of its new version, and the answer for a branch that grows are decided by the user
