@@ -168,8 +168,23 @@ export function capProblem(args: string[]): string | undefined {
 }
 
 /**
+ * The points given to claude-usage (what is not its cap) as the gate itself reads them — a whole number from 0 to 99
+ * (gate.ts in assets/plugins/gates/claude-usage): the first that is not one, said at once (the menu asks again, strom
+ * config set refuses), never a gate that answers 2 and stops every run. Another gate: undefined.
+ */
+export function pointsProblem(name: string, args: string[]): string | undefined {
+  if (name !== "claude-usage") return undefined;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a === "--cap") i++;
+    else if (!a.startsWith("--cap=") && !/^\d{1,2}$/u.test(a)) return a;
+  }
+  return undefined;
+}
+
+/**
  * A gate as the user names it — its name, then what it is given ("claude-usage 10") — checked without its folder: a
- * name strom takes, a cap that is a cap. Its code (gate.cap, gate.cap.none) says it to a person in the research's
+ * name strom takes, a cap that is a cap, claude-usage's points that are points. Its code (gate.cap, gate.cap.none) says it to a person in the research's
  * language through the catalog (ui.error.*), a program reads the English.
  */
 export function checkGateSpec(spec: string): { name: string; args: string[] } {
@@ -182,6 +197,14 @@ export function checkGateSpec(spec: string): { name: string; args: string[] } {
       code: cap ? "gate.cap" : "gate.cap.none",
       params: { ...(cap ? { cap } : {}), name },
       hintCode: "gate.cap",
+    });
+  const points = pointsProblem(name, args);
+  if (points !== undefined)
+    throw new UsageError(`${points}: the points of ${name} are a whole number from 0 to 99 — how far the week's usage stays behind the part of the week gone`, {
+      hint: `e.g. strom config set run.gate "${name} 10"`,
+      code: "gate.points",
+      params: { given: points, name },
+      hintCode: "gate.points",
     });
   return { name, args };
 }

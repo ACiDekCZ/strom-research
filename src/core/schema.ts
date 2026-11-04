@@ -169,6 +169,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     decidedBy: S({ enum: ["user", "agent"] }),
     decidedIn: S({ enum: ["app"] }),
     decidedAt: S(),
+    leftToAgent: S(),
     taken: S({ enum: ["user", "research"] }),
   },
   hypothesis: {

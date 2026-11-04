@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.26.0-beta.7. The section is complete with the release.*
 
 - **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
   in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the
@@ -28,6 +28,24 @@ The changes of each version in short. The full notes and the install lines are o
 
 - A big family tree taken in on Windows (some 1 500 people and more) no longer fails in git over a command line too long
   (ENAMETOOLONG) with nothing of it kept: everything taken in is written.
+
+- **What is the user's to decide stays the user's.** A disagreement between the research and an edit made in the Strom
+  app, the approval of a story or of its new version, and the answer for a branch that grows are decided by the user
+  alone – in the app or in What waits; the agent is refused and only says that it waits. Taking back what the app sent
+  or a synced tree (`strom sync undo`) and throwing away a tree that waits are the user's alone too. The app's "Leave it
+  to the agent" hands such a disagreement over; a side picked in the app is only confirmed in the terminal, a reason
+  optional. Identifying places: "Don't know" also answers a disagreement about a place's position and a proposed form of
+  its name, and "Always the first candidate (A)" moves a disagreement to its candidate too – never over coordinates set
+  by hand. The terminal uses the app's words: lead, proven, disproven, Don't know, None of them, the same choices of a
+  side. Such a disagreement an agent decided before is found by `strom fixes show edit-decisions` and opened again for
+  the user, the agent's decision kept in a note (`strom fixes undo edit-decisions` puts it back).
+
+- **The gate of the subscription's week takes whole numbers from 0 to 99 and holds its cap.** The menu and `strom
+  config set` refuse a fraction or 100 (before, it was saved and every run then ended) and the menu keeps a cap that
+  is set; under a cap a session at work is asked to finish when the week reaches the cap, not only at 99 %. A task put
+  aside until a date comes back on that day, as its help now says. Images that arrive wake only the tasks waiting for
+  that book – never a check of a site left to the person, and a letter only when it waits for that book.
+  Tasks woken so before are found by `strom fixes show woken-waits` and wait again as they waited.
 
 ## 1.25.2
 

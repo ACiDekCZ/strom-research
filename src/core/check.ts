@@ -2,6 +2,9 @@
 // errors (block the automatic commit) or warnings.
 
 import { streetPlaces } from "./streetfix.ts";
+import { editDecisions } from "./editdecisionfix.ts";
+import { wokenWaits } from "./wokenwaitfix.ts";
+import { isArchive } from "./mode.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { RECORD_TYPES, type Conflict, type Family, type Input, type Media, type Person, type RecordType } from "./model.ts";
@@ -149,6 +152,32 @@ export function check(tree: Tree): Finding[] {
       message: `${streets.count} fact${streets.count === 1 ? "" : "s"} hold${streets.count === 1 ? "s" : ""} a street or a house number in the place (the place is the municipality, the street and the number the house)`,
       hint: "strom fixes show street-places",
     });
+
+  // 5f. what an agent decided of the user's own edits in the Strom app, and tasks images woke though they waited for
+  // somebody's answer (written before strom refused them): one warning each, how many — strom fixes sets them right, as
+  // the person decides (an archive says nothing of an agent's work)
+  if (!isArchive(tree)) {
+    const decided = editDecisions(tree);
+    if (decided.count)
+      out.push({
+        level: "warn",
+        code: "agent-decided-edit",
+        id: decided.first,
+        count: decided.count,
+        message: `${decided.count} disagreement${decided.count === 1 ? "" : "s"} with the user's own edit in the Strom app ${decided.count === 1 ? "was" : "were"} decided by an agent, not by the user (before strom refused it)`,
+        hint: "strom fixes show edit-decisions",
+      });
+    const woken = wokenWaits(tree);
+    if (woken.count)
+      out.push({
+        level: "warn",
+        code: "woken-wait",
+        id: woken.first,
+        count: woken.count,
+        message: `${woken.count} task${woken.count === 1 ? "" : "s"} waiting for somebody's answer ${woken.count === 1 ? "was" : "were"} put back in the queue by images of another book registered (before strom stopped it)`,
+        hint: "strom fixes show woken-waits",
+      });
+  }
 
   // 6. counters are ahead of every ID on disk
   const counters = readJsonIfExists<Record<string, number>>(path.join(tree.dataDir, "_counters.json")) ?? {};

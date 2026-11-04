@@ -26,7 +26,8 @@ import { systemNotice } from "../core/dialog.ts";
 import { configDir, noLinks } from "../core/paths.ts";
 import { startLive } from "../core/live.ts";
 import { stateOf } from "../core/state.ts";
-import { fixCheck } from "./fixchecks.ts";
+import { isEditConflict } from "../core/conflicts.ts";
+import { fixCheck, quietCheck } from "./fixchecks.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -140,7 +141,7 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "places" ||
     (link.action === "conflict" && link.do === "agent") ||
     (link.action === "task" && link.do === "chat") ||
-    (link.action === "fixes" && link.id !== undefined && fixCheck(link.id)?.remedy !== "rewrite");
+    (link.action === "fixes" && link.id !== undefined && !quietCheck(fixCheck(link.id) ?? { remedy: "read-again" }));
   if (!forAgent) return undefined;
   const tree = Tree.open(root, ctx.env);
   const state = stateOf(tree);
@@ -242,6 +243,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       if (!say) return said("ui.link.conflict.none", { id: link.id });
       const { asks } = await import("../cli/menu-links.ts");
       if (!(await asks(ctx, treeLang, root, ui(treeLang, "ui.link.what.conflict.agent", { agent, title: tree.get<Conflict>(link.id)!.title }), ui(treeLang, "ui.link.cost")))) return end(false);
+      // the user's own edit: the agent may decide it only once the user left it so — written first, by the person
+      if (isEditConflict(tree.get<Conflict>(link.id)!) && (await run(["conflict", "leave", link.id], true)) !== 0) return end(false);
       return { text: "", data: { done: (await run(["chat", `--say=${say}`])) === 0, action: link.action, tree: root } };
     }
     case "sync-undo": {

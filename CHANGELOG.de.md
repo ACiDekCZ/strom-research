@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.26.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Linien der Forschung aus der Strom-App: anlegen, ändern, pausieren, ordnen.** Eine Linie lässt sich in der App
   anlegen oder ändern (Person, Richtung, Frage, Grenzen), pausieren, beenden oder wieder aufnehmen; die Reihenfolge der
@@ -30,6 +30,27 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 - Ein großer Stammbaum, unter Windows übernommen (etwa 1 500 Personen und mehr), scheitert nicht mehr in git an einer zu
   langen Befehlszeile (ENAMETOOLONG), ohne dass etwas davon bleibt: alles Übernommene wird geschrieben.
+
+- **Was der Nutzer entscheidet, bleibt seine Sache.** Einen Widerspruch zwischen der Forschung und einer Änderung in der
+  Strom-App, die Freigabe einer Erzählung oder ihrer neuen Fassung und die Antwort zu einem wachsenden Zweig entscheidet
+  allein der Nutzer – in der App oder unter Was wartet; der Agent wird abgewiesen und sagt nur, dass es wartet. Auch was
+  die App gesendet hat oder was synchronisiert wurde zurückzunehmen (`strom sync undo`) und einen wartenden Stammbaum zu
+  verwerfen, bleibt allein dem Nutzer. „Dem Agenten überlassen“ in der App übergibt einen solchen Widerspruch; eine in
+  der App gewählte Seite wird im Terminal nur bestätigt, eine Begründung ist freiwillig. Orte bestimmen: „Weiß nicht“
+  beantwortet auch einen Widerspruch der Lage und einen Vorschlag für die Schreibweise, und „Immer der erste Kandidat
+  (A)“ übernimmt den Kandidaten auch bei einem Widerspruch – nie über von Hand gesetzte Koordinaten. Das Terminal
+  spricht mit den Worten der App: Hinweis, belegt, widerlegt, Weiß nicht, Keiner davon, dieselben Wahlen einer Seite.
+  Einen solchen Widerspruch, den früher ein Agent entschieden hat, findet `strom fixes show edit-decisions` und öffnet
+  ihn wieder für den Nutzer; die Entscheidung des Agenten bleibt in einer Notiz (`strom fixes undo edit-decisions`
+  stellt sie wieder her).
+
+- **Die Bedingung der Abo-Woche nimmt ganze Zahlen von 0 bis 99 und hält ihre Obergrenze.** Menü und `strom config set`
+  lehnen Bruchzahlen und 100 ab (früher wurde das gespeichert und jeder Lauf endete dann) und das Menü behält eine
+  gesetzte Obergrenze; mit Obergrenze wird eine laufende Sitzung gebeten abzuschließen, sobald die Woche die
+  Obergrenze erreicht, nicht erst bei 99 %. Eine bis zu einem Datum zurückgestellte Aufgabe kommt an diesem Tag zurück,
+  wie es nun auch die Hilfe sagt. Ankommende Bilder wecken nur die Aufgaben, die auf dieses Buch warten – nie eine
+  Prüfung einer Website durch den Menschen, einen Brief nur, wenn er auf dieses Buch wartet.
+  So früher geweckte Aufgaben findet `strom fixes show woken-waits`, und sie warten wieder, wie sie gewartet haben.
 
 ## 1.25.2
 

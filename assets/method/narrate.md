@@ -30,9 +30,8 @@ A story is written from the facts, for the family.
   their own story's — referred to in a sentence, never told again.
 - A person whose couple has a story: the marriage in one sentence pointing to
   it. What a story told already stays; it is never shortened for a couple's.
-- It stays a draft; when the user says it is right: `strom story approve P…`
-  (the Strom app asks them too). An approved story is locked — the user liked
+- It stays a draft until the user approves it themselves (the Strom app, or
+  strom → What waits; never you). An approved story is locked — the user liked
   it: written again (more facts, a better reading), the new version waits
   beside it and the approved one stays until the user decides. Tell them what
-  is new in it; they approve it (`strom story approve P…`) or keep the old one
-  (`strom story discard P…`) — only on their word.
+  is new in it; they approve it or keep the old one.

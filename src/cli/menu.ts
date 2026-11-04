@@ -61,7 +61,7 @@ import { isArchive } from "../core/mode.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
-import { fixEnv, pendingCount, pendingFixes, refreshFixesSoon } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes, quietCheck, refreshFixesSoon } from "../commands/fixchecks.ts";
 import { restartTiming, timed, timedAsync, timingOn } from "../core/timing.ts";
 import { researchStamp } from "../core/stamp.ts";
 import { timingSaid } from "./timing.ts";
@@ -261,7 +261,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const fix = timed("menu.fixes", () => {
         const env = fixEnv(ctx, tree);
         // (a backup not made: nothing written to the research, nothing looked through either)
-        return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.find((f) => !archive || f.check.remedy === "rewrite");
+        return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.find((f) => !archive || quietCheck(f.check));
       });
       // a fix of strom's said as one; another model reading now, as readings to read again
       if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: pendingCount(fix) }));

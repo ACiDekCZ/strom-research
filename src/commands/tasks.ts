@@ -182,7 +182,7 @@ export function rankData(r: Ranked): Record<string, unknown> {
 }
 
 /** --helps: what the agent said, trimmed; empty takes it off. */
-const HELPS_DESCRIPTION = "how this task helps a line though none of its people is in one (G… names the line): an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor — without it, work off the lines waits until the lines have nothing to do";
+const HELPS_DESCRIPTION = "how this task helps a line though none of its people is in one (G… names the line): an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor — without it, work off the lines comes now and then, the rest after the lines' work (queue.offLine)";
 const helpsOpt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /** --json of a task: where it stands among the lines — off them (how it is taken, its branch), or the line it helps. */
@@ -574,8 +574,9 @@ register(
       "verify (independent second reading), enrich (details of a placed person), request (ask an archive),\n" +
       "narrate (write the story). Priority 1 (low) – 5 (urgent), default 3 — added in a session, at most the priority of\n" +
       "the session's task (a follow-up never goes before the work it came from).\n" +
-      "Off the lines (a research of several lines, none of the task's people in one — a side branch): it waits until the\n" +
-      "lines have nothing to do (setting queue.offLine), unless it names a hypothesis or conflict of a line (--about H…),\n" +
+      "Off the lines (a research of several lines, none of the task's people in one — a side branch): taken as\n" +
+      "queue.offLine says (occasional by default: now and then one, the rest after the lines' work; a branch's own choice:\n" +
+      "strom offline set), unless it names a hypothesis or conflict of a line (--about H…),\n" +
       "would join people to the tree, or says how it helps a line: --helps (an ancestor's sibling as a godparent or\n" +
       "witness, the same house, a surname for an ancestor — not the sibling's own family for its own sake).",
     args: [{ name: "what", description: 'what to find, one line: "Baptism of Jan Novák (~1905)"', required: true }],
@@ -909,7 +910,7 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
-    options: [{ name: "until", type: "string", value: "<YYYY-MM-DD>", description: "offer it again after this date" }],
+    options: [{ name: "until", type: "string", value: "<YYYY-MM-DD>", description: "offer it again from this date on (the day itself included)" }],
     examples: ['strom task park T0002 --reason "waiting until the register is digitised"', 'strom task park T0002 --until 2027-01-15 --reason "the archive reopens in January"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();

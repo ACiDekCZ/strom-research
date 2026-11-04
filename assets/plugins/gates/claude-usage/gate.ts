@@ -13,8 +13,9 @@
 // Early in the week the number grows with it: at least min(n, gone / 2) — right
 // after the reset (0 % gone, 0 % used) a session may start, and until 2·n % of
 // the week is gone usage may reach half of it; from there on the full number.
-// So the first day never spends the week (at most half its share), and a new
-// week is not idle for n % of it (a day and more at 15) for nothing.
+// So the first day never spends the week (from 8 on at most half its share; with
+// less, its share less the number), and a new week is not idle for n % of it (a
+// day and more at 15) for nothing.
 // Late in the week what is left goes with the reset: in its last END_WINDOW a
 // session starts when what is left (to 100 %, or to the cap) holds one session
 // (SESSION_POINTS).
@@ -50,7 +51,7 @@ import { spawnSync } from "node:child_process";
 const DAY = 86_400_000;
 /** What the agent said of its limits counts for this long; older: `claude -p /usage` is asked. */
 const FRESH_MS = 15 * 60_000;
-/** Under a cap, a session at work is asked to finish at this much of the week. */
+/** Under a cap, a session at work is asked to finish at the cap — at most at this much of the week. */
 const FINISH_AT = 0.99;
 const WEEK = 7 * DAY;
 /**
@@ -200,8 +201,9 @@ function say(key: string, v: Record<string, string | number> = {}): string {
   return s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k] ?? ""));
 }
 function answer(code: 0 | 1 | 2, reason: string, until?: Date, hard?: boolean): never {
-  // under a cap: strom asks before every session and asks a session at work to finish near the week's end
-  const watch = cap !== undefined ? { kind: "seven_day", finish: FINISH_AT } : undefined;
+  // under a cap: strom asks before every session and asks a session at work to finish at the cap (a cap of 100:
+  // near the week's end) — a session started below the cap never runs on past it
+  const watch = cap !== undefined ? { kind: "seven_day", finish: Math.min(FINISH_AT, cap / 100) } : undefined;
   console.log(JSON.stringify({ reason, ...(until ? { until: until.toISOString() } : {}), ...(hard ? { hard: true } : {}), ...(watch ? { watch } : {}) }));
   process.exit(code);
 }

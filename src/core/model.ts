@@ -433,7 +433,10 @@ export interface Place extends BaseRecord {
   notes: Note[];
 }
 
-/** Who put a place on the map: the research, the person (in the app or by hand), taken from another research here. */
+/**
+ * Who put a place on the map: the research, the person (in the app or by hand). "adopted" (taken from another research
+ * here) is read, never written: no coordinates are taken from another research (it shows its records as a proposal only).
+ */
 export const PLACE_BY = ["research", "person", "adopted"] as const;
 export type PlaceBy = (typeof PLACE_BY)[number];
 
@@ -618,7 +621,8 @@ export interface Task extends BaseRecord {
   /**
    * How the task helps a line of the research though none of its people is in one (strom task add|edit --helps): an
    * ancestor's sibling as a godparent or witness, the same house, a surname for an ancestor — the line named by its ID
-   * (G…) when said. Without it a task off the lines waits until they have nothing to do (core/offline.ts). Optional:
+   * (G…) when said. Without it a task off the lines goes as queue.offLine says — occasional by default: now and then
+   * one, the rest after the lines' work (core/offline.ts). Optional:
    * an older strom keeps it and ignores it.
    */
   helps?: string;
@@ -664,8 +668,13 @@ export interface Conflict extends BaseRecord {
    * reason. None: decided by an older strom.
    */
   decidedBy?: "user" | "agent";
-  /** The user decided it in the Strom app (through the bridge). */
+  /** The user decided it in the Strom app (its link with the side picked there). */
   decidedIn?: "app";
+  /**
+   * A conflict of the user's edit the person left to the agent (the Strom app's "Leave it to the agent", strom conflict
+   * leave): only then may an agent decide it — otherwise it is the person's alone.
+   */
+  leftToAgent?: string;
   decidedAt?: string;
   /** A conflict of the user's edit decided for a side: whose value the fact keeps. */
   taken?: "user" | "research";

@@ -158,13 +158,14 @@ test("claude-usage --cap: reads what the agent said when fresh (no /usage), stop
   const over = run(["15", "--cap", "95"], fresh(0.97));
   assert.equal(over.code, 2);
   assert.equal(over.said.hard, true);
-  assert.deepEqual(over.said.watch, WATCH);
+  // a session at work is asked to finish at the cap itself
+  assert.deepEqual(over.said.watch, { kind: "seven_day", finish: 0.95 });
   assert.match(over.said.reason, /^týden: využito 97 % – strop 95 % dosažen; obnoví se /);
   assert.equal(usageAsked(), 0);
   // under it: the pace as before, the watch said
   const under = run(["0", "--cap=95"], fresh(0.2));
   assert.equal(under.code, 0);
-  assert.deepEqual(under.said.watch, WATCH);
+  assert.deepEqual(under.said.watch, { kind: "seven_day", finish: 0.95 });
   assert.equal(under.said.hard, undefined);
   // what the agent said 20 minutes ago is stale: /usage is asked (30 %)
   const stale = run(["--cap", "95"], fresh(0.97, 20));
@@ -181,9 +182,9 @@ test("claude-usage --cap: reads what the agent said when fresh (no /usage), stop
   assert.match(bad.said.reason, /strop musí být 1 až 100/);
   // strom gate test says the cap — in the research's language (this tree's Czech), never an English line in it
   const test = await w.ok(["gate", "test", "claude-usage --cap 95"], { env: { PATH: `${bin}${path.delimiter}${w.env.PATH}`, STROM_AGENT: "claude" } });
-  assert.match(test.out, /strop nastaven: ptá se před každým sezením každého běhu; sezení v práci je požádáno o dokončení při 99 % týdne/);
+  assert.match(test.out, /strop nastaven: ptá se před každým sezením každého běhu; sezení v práci je požádáno o dokončení při 95 % týdne/);
   assert.doesNotMatch(test.out, /cap set/);
-  for (const [lang, said] of [["en", /cap set: asked before every session of every run; a session at work is asked to finish at 99 % of the week/], ["de", /Obergrenze gesetzt: vor jeder Sitzung jedes Laufs gefragt; eine laufende Sitzung wird bei 99 % der Woche um den Abschluss gebeten/]] as const)
+  for (const [lang, said] of [["en", /cap set: asked before every session of every run; a session at work is asked to finish at 95 % of the week/], ["de", /Obergrenze gesetzt: vor jeder Sitzung jedes Laufs gefragt; eine laufende Sitzung wird bei 95 % der Woche um den Abschluss gebeten/]] as const)
     assert.match((await w.ok(["gate", "test", "claude-usage --cap 95", "--lang", lang], { env: { PATH: `${bin}${path.delimiter}${w.env.PATH}`, STROM_AGENT: "claude" } })).out, said);
   w.cleanup();
 });
@@ -255,6 +256,26 @@ test("a cap in run.gate is checked when it is set: a whole number 1 to 100, else
   await w.ok(["config", "set", "run.gate", "claude-usage 15 --cap 95"], { tty: true, answers: ["y"] });
   assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "claude-usage 15 --cap 95");
   await w.ok(["config", "set", "run.gate", "claude-usage --cap=100"], { tty: true, answers: ["y"] });
+  w.cleanup();
+});
+
+test("claude-usage's points in run.gate are checked when set, as the gate reads them: a whole number 0 to 99, else said at once and nothing saved", opts, async () => {
+  const w = await world([]);
+  for (const [spec, given] of [["claude-usage 10.5", "10.5"], ["claude-usage 10,5", "10,5"], ["claude-usage 100", "100"], ["claude-usage hodně --cap 95", "hodně"], ["claude-usage --cap 95 -1", "-1"]] as const) {
+    const r = await w.run(["config", "set", "run.gate", spec], { tty: true, answers: ["y"] });
+    assert.equal(r.code, 2, spec);
+    assert.match(r.err, new RegExp(`${given.replace(/[.]/gu, "\\.")}: body podmínky claude-usage jsou celé číslo od 0 do 99`), spec);
+    assert.match(r.err, /např\. strom config set run\.gate "claude-usage 10"/, spec);
+    assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "", `${spec}: nothing saved`);
+  }
+  const json = await w.run(["config", "set", "run.gate", "claude-usage 12.5", "--json"], { tty: true, answers: ["y"] });
+  assert.deepEqual([json.json.code, json.json.params], ["gate.points", { given: "12.5", name: "claude-usage" }]);
+  // another gate's words are its own
+  await w.ok(["config", "set", "run.gate", "zkouska 10.5"], { tty: true, answers: ["y"] });
+  for (const spec of ["claude-usage 0", "claude-usage 99 --cap 95", "claude-usage --cap=90 7", "claude-usage"]) {
+    await w.ok(["config", "set", "run.gate", spec], { tty: true, answers: ["y"] });
+    assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), spec);
+  }
   w.cleanup();
 });
 

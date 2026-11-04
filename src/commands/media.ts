@@ -22,6 +22,7 @@ import { IMAGE_MAX, IMAGE_MAX_LARGE, OVERVIEW_MAX } from "../agents/images.ts";
 import { viewSizesFor, type ViewSizes } from "../core/viewsizes.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { detectAgent } from "../core/which.ts";
+import { waitKindOf } from "../core/waitkind.ts";
 import { byHandOnly, listConnectors, missingConsents } from "../core/connector.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { bookTuned, bookViewSizes, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
@@ -126,8 +127,16 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
 /** Tasks that waited for images of a book back in the queue, now that this many of them are registered. */
 export function wakeWaiting(tree: Tree, recordset: string, count: number): string[] {
   const woken: string[] = [];
-  // a task that waits for images of a book is woken by that book alone, whatever other books it names
-  const wakes = (t: Task, b: string) => (t.awaits ? t.awaits.recordset === b : t.where.includes(b) || (t.waitingOn ?? "").includes(b));
+  // a task that waits for images of a book is woken by that book alone, whatever other books it names; the person's
+  // check of a site never (only the person answers it, as an archive's decision leaves it: core/archivewait.ts);
+  // somebody's answer (a letter, the family, a site) only by the book it waits on, never by a book it merely works in
+  const wakes = (t: Task, b: string) => {
+    if (t.awaits) return t.awaits.recordset === b;
+    const kind = waitKindOf(t);
+    if (kind === "check") return false;
+    const named = (t.waitingOn ?? "").includes(b);
+    return kind === "letter" || kind === "family" || kind === "web" ? named : named || t.where.includes(b);
+  };
   if (count)
     for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && wakes(t, recordset))) {
       // what it asked for and what is still missing, for the session that takes it up

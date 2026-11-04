@@ -613,6 +613,7 @@ async function decidePlace(ctx: Context, run: Run, lang: string, root: string, i
       ? [
           { label: t("ui.wait.place.yes"), take: "yes" },
           { label: t("ui.wait.place.no"), take: "no" },
+          { label: t("ui.wait.place.unknown"), take: "unknown" },
         ]
       : [
           ...(q.candidates ?? []).map((c) => {
@@ -620,7 +621,10 @@ async function decidePlace(ctx: Context, run: Run, lang: string, root: string, i
             return { label: `${c.name}${where ? ` (${where})` : ""} — ${c.why}`, take: c.id };
           }),
           ...(q.kind === "conflict"
-            ? [{ label: t("ui.wait.place.keep"), take: "keep" }]
+            ? [
+                { label: t("ui.wait.place.keep"), take: "keep" },
+                { label: t("ui.wait.place.unknown"), take: "unknown" },
+              ]
             : [
                 { label: t("ui.wait.place.none"), take: "none" },
                 { label: t("ui.wait.place.unknown"), take: "unknown" },

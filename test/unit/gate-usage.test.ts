@@ -14,7 +14,7 @@ const H = 3_600_000;
 const DAY = 24 * H;
 const WEEK = 7 * DAY;
 
-type Said = { code: number | null; reason: string; until?: number };
+type Said = { code: number | null; reason: string; until?: number; watch?: { kind: string; finish: number } };
 
 /**
  * The gate asked with what the agent said a minute ago: the week `used` %, its reset `resetIn` ms from now. Asked as
@@ -34,8 +34,8 @@ function ask(args: string[], used: number, resetIn: number, o: { lang?: string; 
     ...(o.dir ? { cwd: o.dir } : {}),
     env: { PATH: "", STROM_LANG: o.lang ?? "en", STROM_AGENT: "claude", STROM_AGENT_LIMITS: JSON.stringify(limits), ...(o.dir ? { STROM_GATE: "claude-usage" } : {}) },
   });
-  const said = JSON.parse(r.stdout.trim().split("\n").pop()!) as { reason: string; until?: string };
-  return { code: r.status, reason: said.reason, ...(said.until ? { until: Date.parse(said.until) } : {}), now, resets };
+  const said = JSON.parse(r.stdout.trim().split("\n").pop()!) as { reason: string; until?: string; watch?: { kind: string; finish: number } };
+  return { code: r.status, reason: said.reason, ...(said.until ? { until: Date.parse(said.until) } : {}), ...(said.watch ? { watch: said.watch } : {}), now, resets };
 }
 
 test("claude-usage right after the reset: a session starts at once, and the first day never spends the week", () => {
@@ -167,4 +167,23 @@ test("claude-usage asked outside strom (no STROM_GATE) remembers nothing, wherev
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("claude-usage with a cap: a session at work is asked to finish at the cap, not only near the week's end", () => {
+  assert.deepEqual(ask(["15", "--cap", "50"], 20, 3 * DAY).watch, { kind: "seven_day", finish: 0.5 });
+  assert.deepEqual(ask(["--cap", "95"], 20, 3 * DAY).watch, { kind: "seven_day", finish: 0.95 });
+  // a cap of 100: near the week's end, as before
+  assert.deepEqual(ask(["15", "--cap", "100"], 20, 3 * DAY).watch, { kind: "seven_day", finish: 0.99 });
+  // no cap: nothing to watch
+  assert.equal(ask(["15"], 20, 3 * DAY).watch, undefined);
+});
+
+test("claude-usage early in the week: half the day's share from 8 on, with less its share less the number", () => {
+  // a day gone (≈ 14.3 %): at 8 the need is half of it (7.1) — 7 % goes, 8 % waits
+  assert.equal(ask(["8"], 7, WEEK - DAY).code, 0);
+  assert.equal(ask(["8"], 8, WEEK - DAY).code, 1);
+  // at 5 the full number from 10 % gone on: 9 % used goes (≈ 5.3 in hand), more than half the day's share
+  assert.equal(ask(["5"], 9, WEEK - DAY).code, 0);
+  // at 0 the whole share: 14 % goes
+  assert.equal(ask(["0"], 14, WEEK - DAY).code, 0);
 });

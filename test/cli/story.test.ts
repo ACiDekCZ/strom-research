@@ -71,3 +71,30 @@ test("the story's format: its title from a first \"# \" line (or dropped when it
   assert.match(outside.out, /note: the Strom app shows links, tables, quotes \(> \), numbered lists, bullets other than "- " as plain text/);
   w.cleanup();
 });
+
+test("approving a story is the user's own: an agent is refused story approve, story discard and story set --final", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci", "--new-person", "Jan /Lhoták/", "--sex", "M"]); // P1
+  await w.ok(["source", "add", "Křest Jana 1870", "--kind", "baptism", "--information", "primary"]); // S1
+  await w.ok(["event", "add", "P1", "BIRT", "--date", "2 MAR 1870", "--place", "Lhota", "--cite", "S1", "--status", "proven"]); // E1
+  const agent = { env: { AI_AGENT: "1" } };
+  const status = async () => (await w.ok(["story", "show", "P1", "--json"])).json;
+  // the agent writes a draft; --final from it refused, nothing written
+  const final = await w.run(["story", "set", "P1", "--text", "Jan se narodil v Lhotě.", "--fact", "E1", "--final", "--json"], agent);
+  assert.equal(JSON.parse(final.out).code, "story.final");
+  await w.ok(["story", "set", "P1", "--text", "Jan se narodil v Lhotě.", "--fact", "E1"], agent);
+  assert.equal(JSON.stringify(await status()).includes('"final"'), false);
+  // nor does it approve the draft
+  assert.notEqual((await w.run(["story", "approve", "P1", "--json"], agent)).code, 0);
+  assert.equal(JSON.stringify(await status()).includes('"final"'), false);
+  // the user approves it; a new version the agent writes waits — the agent neither approves nor discards it
+  await w.ok(["story", "approve", "P1"]);
+  const again = await w.ok(["story", "set", "P1", "--text", "Jan se narodil 2. března 1870 v Lhotě.", "--fact", "E1"], agent);
+  assert.match(again.out, /they approve it or keep the old one themselves \(the Strom app, or strom → What waits\)/);
+  assert.notEqual((await w.run(["story", "approve", "P1"], agent)).code, 0);
+  assert.notEqual((await w.run(["story", "discard", "P1"], agent)).code, 0);
+  assert.ok(JSON.stringify(await status()).includes("2. března"), "the new version still waits");
+  await w.ok(["story", "discard", "P1"]);
+  assert.ok(!JSON.stringify(await status()).includes("2. března"));
+});

@@ -344,7 +344,7 @@ register(
     args: [{ name: "places", description: "place IDs (L0012)", variadic: true }],
     options: [
       { name: "places-from", type: "string", value: "<file|->", description: 'many places from a file ("-" = stdin): JSON {"places": ["L…"], "expect": {"L…": "<time>"}}' },
-      { name: "take", type: "string", value: `<${PLACE_TAKES.join("|")}>`, description: "a candidate (c1–c3), keep the coordinates, unknown, none of them, yes/no to a form; several places: first" },
+      { name: "take", type: "string", value: `<${PLACE_TAKES.join("|")}>`, description: "a candidate (c1–c3), keep the coordinates, unknown (any question: nothing moved), none of them, yes/no to a form; several places: first (each one's first candidate, yes to a form; never over the person's own coordinates)" },
       { name: "dry", type: "boolean", description: "only what it would do" },
       { name: "expect", type: "string", multiple: true, value: "<L…=time>", description: "the place as the person saw it (its question's time or its last change): changed since, it is not answered (repeatable)" },
     ],

@@ -83,6 +83,8 @@ export interface Ranked {
   helps?: { by: NonNullable<Placed["helps"]>; research?: string };
   /** Its branch off the lines (B-P…), also when added to a line. */
   branch?: string;
+  /** The line it belongs to, or the one it helps (core/offline.ts Placed.research): none off the lines. */
+  research?: string;
   /** The person's own choice for it (strom task order). */
   own?: "next" | "last";
   /** Off the lines, taken now and then: this one's turn has come (it stands before the lines' work). */
@@ -366,6 +368,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(mode && mode !== "normal" ? { offLine: mode } : {}),
       ...(p.helps ? { helps: { by: p.helps, ...(p.research ? { research: p.research } : {}) } } : {}),
       ...(p.branch ? { branch: p.branch } : {}),
+      ...(p.research ? { research: p.research } : {}),
       ...(mine ? { own: mine } : {}),
       ...(ahead ? { turn: true as const } : {}),
     };

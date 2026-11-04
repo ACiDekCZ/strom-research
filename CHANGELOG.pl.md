@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.26.0
 
-*W przygotowaniu: bety do 1.26.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.26.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **Linie badania z aplikacji Strom: założyć, zmienić, wstrzymać, uporządkować.** Linię można w aplikacji założyć lub
   zmienić (osoba, kierunek, pytanie, granice), wstrzymać, zakończyć lub wznowić; kolejność linii to kolejność pracy, a
@@ -28,6 +28,25 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 - Duże drzewo przejęte w systemie Windows (około 1500 osób i więcej) nie kończy się już błędem gita o zbyt długim
   poleceniu (ENAMETOOLONG) bez żadnej zapisanej danej: wszystko, co przejęte, zostaje zapisane.
+
+- **To, o czym decyduje użytkownik, pozostaje jego decyzją.** O sprzeczności badania ze zmianą z aplikacji Strom,
+  o zatwierdzeniu opowieści lub jej nowej wersji i o odpowiedzi dla rosnącej gałęzi decyduje tylko użytkownik – w
+  aplikacji albo w Co czeka; agent zostaje odrzucony i mówi tylko, że to czeka. Cofnięcie tego, co wysłała aplikacja lub
+  co zsynchronizowano (`strom sync undo`), i odrzucenie czekającego drzewa również należy tylko do użytkownika. „Zostaw
+  agentowi” w aplikacji przekazuje mu taką sprzeczność; strona wybrana w aplikacji jest w terminalu tylko potwierdzana,
+  powód jest nieobowiązkowy. Identyfikacja miejsc: „Nie wiem” odpowiada też na sprzeczność położenia i na propozycję
+  zapisu nazwy, a „Zawsze pierwszy kandydat (A)” przyjmuje kandydata także przy sprzeczności – nigdy ponad współrzędne
+  wpisane ręcznie. Terminal mówi słowami aplikacji: wskazówka, udokumentowane, obalone, Nie wiem, Żaden z nich, te same
+  wybory strony. Taką sprzeczność, o której wcześniej zdecydował agent, znajduje `strom fixes show edit-decisions` i
+  otwiera ją ponownie dla użytkownika; decyzja agenta zostaje w notatce (`strom fixes undo edit-decisions` ją
+  przywraca).
+
+- **Warunek tygodnia subskrypcji przyjmuje liczby całkowite od 0 do 99 i trzyma pułap.** Menu i `strom config set`
+  odrzucają ułamek i 100 (wcześniej zapisywały je, a potem każdy przebieg się kończył), a menu zachowuje ustawiony
+  pułap; z pułapem trwająca sesja dostaje prośbę o zakończenie, gdy tydzień osiągnie pułap, nie dopiero przy 99 %.
+  Zadanie odłożone do daty wraca tego dnia, jak teraz mówi też pomoc. Przychodzące skany budzą tylko zadania czekające
+  na tę księgę – nigdy sprawdzenia strony przez człowieka, a list tylko wtedy, gdy czeka na tę księgę.
+  Zadania obudzone tak wcześniej znajduje `strom fixes show woken-waits` i znów czekają tak, jak czekały.
 
 ## 1.25.2
 

@@ -144,6 +144,7 @@ register(
     group: "tasks",
     tree: true,
     writes: true,
+    person: "The answer for a branch that grows is the user's own: the Strom app, or strom → What waits — never an agent",
     description:
       "The user's answer to What waits (a branch off the lines grew): line — its tasks help the nearest line (or\n" +
       "--line G…); keep — as it is (proposed again only at twice the size); never — not researched. A new line for\n" +

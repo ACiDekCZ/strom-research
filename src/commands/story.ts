@@ -7,6 +7,7 @@ import { register } from "../cli/registry.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { approveStory, discardStoryDraft, setStory, findEventOwner } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
+import { isAgent } from "../core/which.ts";
 import { csvOpt, normId, textOpt } from "../core/records.ts";
 import { displayName, lifespan, resolvePerson } from "../core/people.ts";
 import type { Family, Person, Source } from "../core/model.ts";
@@ -112,13 +113,16 @@ register(
       { name: "history", type: "string", multiple: true, value: "<event>", hidden: true, description: "an event of the history of the places it tells as the background of its time, from the brief (repeatable)" },
       { name: "note", type: "string", value: "<text>", description: "your caveat: what is inferred, what is unknown" },
       { name: "drop", type: "string", multiple: true, value: "<E…|S…|link> <why>", description: "written again: a fact, source or link of the version before left out on purpose, and why (repeatable)" },
-      { name: "final", type: "boolean", description: "the user approved it" },
+      { name: "final", type: "boolean", description: "the user approved it (the user's own: refused to an agent — they approve it in the Strom app or strom → What waits)" },
     ],
     examples: [
       'strom story set P0001 --text @notes/story-P0001.md --title "The miller of Týnec" --fact E0001 --fact E0002 --note "The house is inferred from the census."',
       'strom story set P0001 --text @notes/story-P0001.md --fact E0001 --fact E0002 --drop "E0003 told in the couple\'s story"',
     ],
     run(ctx, { args, opts }) {
+      // approved is the user's word alone: an agent writes a draft, the user approves it themselves
+      if (opts.final && isAgent(ctx.env))
+        throw new UsageError("--final is the user's approval: an agent writes the story as a draft, the user approves it themselves", { hint: "write it without --final; tell the user it waits for their approval (the Strom app, or strom → What waits)", code: "story.final" });
       const tree = ctx.tree();
       const given = textOpt(opts.text, (p) => fs.readFileSync(ctx.resolvePath(p), "utf8"));
       if (!given?.trim()) throw new UsageError("--text is required", { hint: "--text @notes/story.md (a file) or the text itself" });
@@ -139,7 +143,7 @@ register(
       const missing = written.facts.length === 0 ? "note: no --fact given — say which facts the story rests on" : undefined;
       const outside = outsideSet(written.text);
       const locked = rec.story!.draft
-        ? `the user approved the story before: it stays as it is, the new version waits for them — tell them, they approve it (strom story approve ${rec.id}) or keep the old one (strom story discard ${rec.id})`
+        ? `the user approved the story before: it stays as it is, the new version waits for them — tell them what is new in it: they approve it or keep the old one themselves (the Strom app, or strom → What waits)`
         : undefined;
       const plain = outside.length ? `note: the Strom app shows ${outside.join(", ")} as plain text — keep to paragraphs, "## " subheadings, "- " bullets, **bold**, *italic*` : undefined;
       const leads = leadsUnnamed(tree, written);
@@ -155,6 +159,7 @@ register(
     group: "people",
     tree: true,
     writes: true,
+    person: "Approving a story is the user's own: the Strom app, or strom → What waits — never an agent",
     description:
       "Only on the user's word (they read it and said it is right): the text stays, the draft becomes the story of the family book —\n" +
       "locked: written again, the new version waits beside it for the user. With a new version waiting, that one is approved in its place.",
@@ -174,6 +179,7 @@ register(
     group: "people",
     tree: true,
     writes: true,
+    person: "Turning down the new version of an approved story is the user's own: the Strom app, or strom → What waits — never an agent",
     description: "Only on the user's word: the new version written beside the story they approved goes (the history keeps it).",
     args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
     examples: ["strom story discard P0001"],

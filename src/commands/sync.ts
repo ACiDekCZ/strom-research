@@ -466,6 +466,7 @@ register(
     path: ["sync", "undo"],
     summary: "Take a sync back: what it added withdrawn, what it corrected put back, its conflicts closed",
     group: "research",
+    person: "Taking back what the user sent or brought is the user's own: the Strom app, or this command in their own terminal — never an agent",
     tree: true,
     writes: true,
     args: [{ name: "input", description: "the sync's input (I…), as strom sync said", required: true }],
@@ -502,6 +503,7 @@ register(
     path: ["sync", "discard"],
     summary: "Throw away a tree the Strom app sent that waits: nothing of it is written (the edits stay in the app)",
     group: "research",
+    person: "Throwing away a tree the user sent is the user's own: strom → What waits, or this command in their own terminal — never an agent",
     tree: true,
     description:
       "A tree the Strom app sends waits in the research's inbox until the user writes it (strom sync <file> --apply) or\n" +

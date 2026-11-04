@@ -75,7 +75,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   person with a conflict only once something else proves it. What would decide
   it, if not at hand, is a task about it: `strom task add … --about X…` (or H…).
   `strom conflict resolve X… --resolution "…" --reasoning "…"` when the
-  evidence decides it. What the user decided (in the Strom app, or from its
+  evidence decides it (one of the user's own edit: only when left to you).
+  What the user decided (in the Strom app, or from its
   link) stands: an agent decides it again — or opens a conflict of that fact
   again — only on a source the decision did not weigh (`--source S…`) and with
   `--reason "…"`; the same record read again changes nothing. A decided

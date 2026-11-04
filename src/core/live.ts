@@ -16,7 +16,10 @@
 //                          says its branch (B-P…, off the lines or added to a line), the person's own turn (own: next |
 //                          last) and why it stands there (why: {kind: own, do} | {kind: line, research} | {kind: helps,
 //                          research?, by} | {kind: off, mode: occasional|last|normal, branch?} | {kind: paused,
-//                          research}; none for a task about nobody) — feature queue.own
+//                          research}; none for a task about nobody) — feature queue.own. Each in the queue says its place
+//                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
+//                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
+//                          the same research and branch GET /queue filters by — feature queue.page
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
 //                          for an app that keeps them the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES;
 //                          feature lineage.read: strom sync takes them back); under each _STORY (and its 2 _DRAFT) the
@@ -230,7 +233,12 @@
 //                          mode (+ line), line?, own, grows?}]}; a branch that grows waits in /status waiting as kind
 //                          "branch" {id: W-B-P…, branch, person, research?, tasks, persons, at, what}
 //   GET <token>/offline/<B-…>   one branch and all its open tasks (those not taken too): {branch, tasks: [{id, text,
-//                          person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
+//                          pos?, person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
+//   GET <token>/queue      a page of the whole queue (feature queue.page): ?from=<0…> (among the tasks the filter
+//                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked — {items (as /status
+//                          queue[], with pos), total (what the filter leaves), from, next? (from of the next page), head};
+//                          in the order of the queue, those put aside after it without pos; an archive: none. 400
+//                          queue.query, 503 research.busy (+ Retry-After)
 //   POST <token>/offline/<B-…>  {mode: occasional|last|normal|never|default} | {mode: "line", line: G…}: strom offline
 //                          set (for the branch's new tasks too) — {branch, head, parent}; 400 offline.body, 404
 //                          offline.none, 404 directions.none (the line)
@@ -287,13 +295,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { configDir, userHome, type Env } from "./paths.ts";
-import { newerTree, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
+import { newerTree, now, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { RETURN_OP } from "./timetravel.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
-import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
+import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
 import { sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
@@ -324,7 +332,7 @@ import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./w
 import { widgetWriter } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { busyIn } from "./busy.ts";
-import { rankTasks, type Ranked } from "./queue.ts";
+import { effectiveState, rankTasks, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import { whatsNew } from "./whatsnew.ts";
@@ -335,7 +343,7 @@ import { appOpensLinks, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStro
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { readStored, Settings } from "./config.ts";
+import { configFile, readStored, Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
@@ -1103,7 +1111,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1535,6 +1543,8 @@ interface QueueItem {
   id: string;
   text: string;
   state: "next" | "parked";
+  /** Its place in the whole queue (1: the next one, the one at work first): none for a task put aside (feature queue.page). */
+  pos?: number;
   person?: string;
   research?: string;
   offLine?: Exclude<OffLine, "normal">;
@@ -1547,23 +1557,150 @@ interface QueueItem {
   why?: Ranked["reason"];
 }
 
-/** One task as the queue has it: ranked (in the queue: its why, its own turn), else as it stands among the lines alone. */
-function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked): QueueItem {
-  const where = researchOf(place, offLine, file, t);
-  if (r) {
-    delete where.offLine;
-    if (r.offLine && r.offLine !== "normal") where.offLine = r.offLine;
-  }
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...personOf(t), ...where, ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}) };
+/**
+ * Where a task stands among the lines as the queue says it: ranked, as the queue placed it (core/queue.ts — the one
+ * place, also what GET /queue filters by and /status queueCounts counts), else as it stands among the lines alone.
+ */
+function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, t: Task, r?: Ranked): ReturnType<typeof researchOf> {
+  if (!r) return researchOf(place, offLine, file, t);
+  return { ...(r.research ? { research: r.research } : {}), ...(r.offLine && r.offLine !== "normal" ? { offLine: r.offLine } : {}), ...(r.helps ? { helps: r.helps.by } : {}), ...(r.branch ? { branch: r.branch } : {}) };
+}
+
+/** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
+function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}) };
+}
+
+/** The tasks put aside (parked, not back by their date): after the queue, by their IDs — no place in it. */
+function parkedTasks(tree: Tree): Task[] {
+  const today = now().slice(0, 10);
+  return tree.list<Task>("task").filter((t) => effectiveState(t, today) === "parked");
+}
+
+/**
+ * The queue in its order, worked out once for a state of the research and shared by /status, GET /queue's pages and
+ * filters, GET /offline/<B-…> and the answer to POST /queue/<T…> (a queue of thousands ranked once, not for every page):
+ * worked out again with a new commit, a new day, a change of the tree's or this computer's settings or of the choices off
+ * the lines — and after STROM_LIVE_QUEUE_MS (10 s) for what changes beside them (an archive left alone for a while).
+ * rev: the fingerprint of the queue's order and of the research (the app keeps its pages while it stays).
+ */
+const rankedCache = new Map<string, { at: number; key: string; ranked: Ranked[]; parked: Task[]; rev: string }>();
+function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[]; parked: Task[]; rev: string } {
+  const mtime = (file: string) => {
+    try {
+      return String(fs.statSync(file).mtimeMs);
+    } catch {
+      return "-";
+    }
+  };
+  const key = [h, now().slice(0, 10), settings.strategy(tree.config), settings.offLine(tree.config), mtime(path.join(tree.root, TREE_FILE)), mtime(configFile(tree.env)), mtime(path.join(tree.root, ...OFFLINE_FILE.split("/")))].join("|");
+  const had = rankedCache.get(tree.root);
+  if (had && had.key === key && Date.now() - had.at < Number(tree.env.STROM_LIVE_QUEUE_MS ?? 10_000)) return had;
+  const ranked = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config));
+  // what a page needs, kept with the order: a page asked again reads no task of the research (thousands of files)
+  const parked = parkedTasks(tree);
+  const rev = crypto.createHash("sha256").update([h, ranked.map((r) => r.task.id).join(","), parked.map((t) => t.id).join(",")].join("|")).digest("hex").slice(0, 16);
+  const made = { at: Date.now(), key, ranked, parked, rev };
+  rankedCache.set(tree.root, made);
+  return made;
 }
 
 /** The agent's queue in its order, for the user (records by their names), and how many more there are. */
-function queue(tree: Tree, ranked: Ranked[], all: Scope[], offLine: OffLine): { queue: QueueItem[]; queueMore: number } {
-  const parked = tree.list<Task>("task").filter((t) => t.state === "parked");
+function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLine: OffLine): { queue: QueueItem[]; queueMore: number } {
   const place = placer(tree, all);
   const file = readOffline(tree);
-  const shown = [...ranked.slice(0, QUEUE_NEXT).map((r) => queueItem(tree, place, offLine, file, "next", r.task, r)), ...parked.slice(0, QUEUE_PARKED).map((t) => queueItem(tree, place, offLine, file, "parked", t))];
+  const shown = [...ranked.slice(0, QUEUE_NEXT).map((r, i) => queueItem(tree, place, offLine, file, "next", r.task, r, i + 1)), ...parked.slice(0, QUEUE_PARKED).map((t) => queueItem(tree, place, offLine, file, "parked", t))];
   return { queue: shown, queueMore: ranked.length + parked.length - shown.length };
+}
+
+/**
+ * How many tasks of the queue each line and each branch has, for the app's labels without the whole queue (/status
+ * queueCounts, feature queue.page): the same field GET /queue?research= and ?branch= filter by, counted from the queue
+ * already ranked — next: all in the queue, parked: those put aside.
+ */
+function queueCounts(ranked: Ranked[], parked: number, rev?: string): { research: Record<string, number>; branch: Record<string, number>; next: number; parked: number; rev?: string } {
+  const research: Record<string, number> = {};
+  const branch: Record<string, number> = {};
+  for (const r of ranked) {
+    if (r.research) research[r.research] = (research[r.research] ?? 0) + 1;
+    if (r.branch) branch[r.branch] = (branch[r.branch] ?? 0) + 1;
+  }
+  return { research, branch, next: ranked.length, parked, ...(rev ? { rev } : {}) };
+}
+
+/** At most so many tasks in one page of GET /queue; so many when the app says none. */
+export const QUEUE_PAGE_MAX = 100;
+const QUEUE_PAGE = 50;
+
+/** What GET /queue asks: where the page starts among the tasks the filter leaves, how many, which. */
+export interface QueueAsk {
+  from: number;
+  count: number;
+  branch?: string;
+  research?: string;
+  state?: "next" | "parked";
+}
+
+/** The query of GET /queue read, or why it is none (400 queue.query). */
+export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
+  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked (each optional)`;
+  const known = new Set(["from", "count", "branch", "research", "state", "app", "poll"]);
+  for (const k of q.keys()) if (!known.has(k)) return { bad: `unknown ${k}: ${shape}` };
+  const int = (k: string, dflt: number, min: number, max: number): number | undefined => {
+    const v = q.get(k);
+    if (v === null || v === "") return dflt;
+    if (!/^\d{1,9}$/u.test(v)) return undefined;
+    const n = Number(v);
+    return n < min || n > max ? undefined : n;
+  };
+  const from = int("from", 0, 0, 999_999_999);
+  const count = int("count", QUEUE_PAGE, 1, QUEUE_PAGE_MAX);
+  if (from === undefined || count === undefined) return { bad: shape };
+  const ask: QueueAsk = { from, count };
+  const b = q.get("branch");
+  if (b !== null) {
+    const key = branchKey(b);
+    if (!key) return { bad: `branch=B-P…: ${shape}` };
+    ask.branch = key;
+  }
+  const g = q.get("research");
+  if (g !== null) {
+    const m = /^G(\d{1,9})$/iu.exec(g.trim());
+    if (!m) return { bad: `research=G…: ${shape}` };
+    ask.research = `G${m[1]!.padStart(4, "0")}`;
+  }
+  const st = q.get("state");
+  if (st !== null) {
+    if (st !== "next" && st !== "parked") return { bad: `state=next|parked: ${shape}` };
+    ask.state = st;
+  }
+  return ask;
+}
+
+/**
+ * A page of the whole queue (GET /queue, feature queue.page): the tasks in the order of the queue — those put aside
+ * after, without a place — as /status queue[] says each (pos: its place in the whole queue), only those of a branch,
+ * a line (as /status queueCounts counts them) or a state when asked; total: how many the filter leaves. The same order
+ * as /status (rankTasks), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
+ * queue.
+ */
+export function queuePage(tree: Tree, settings: Settings, ask: QueueAsk, h: string): { items: QueueItem[]; total: number; from: number; next?: number; rev?: string } {
+  if (actsAsArchive(tree)) return { items: [], total: 0, from: ask.from };
+  const all = scopes(tree);
+  const place = placer(tree, all);
+  const offLine = settings.offLine(tree.config);
+  const file = readOffline(tree);
+  const order = rankedNow(tree, settings, h);
+  const ranked = ask.state === "parked" ? [] : order.ranked;
+  type Entry = { t: Task; r?: Ranked; pos?: number; where: ReturnType<typeof researchOf> };
+  const entries: Entry[] = [];
+  for (const [i, r] of ranked.entries()) entries.push({ t: r.task, r, pos: i + 1, where: whereInQueue(place, offLine, file, r.task, r) });
+  if (ask.state !== "next") for (const t of order.parked) entries.push({ t, where: whereInQueue(place, offLine, file, t) });
+  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research));
+  const page = left.slice(ask.from, ask.from + ask.count);
+  const items = page.map((e) => queueItem(tree, place, offLine, file, e.r ? "next" : "parked", e.t, e.r, e.pos));
+  const end = ask.from + page.length;
+  return { items, total: left.length, from: ask.from, ...(end < left.length ? { next: end } : {}), rev: order.rev };
 }
 
 /**
@@ -1591,11 +1728,12 @@ function branchInQueueOrder(b: BranchView, ranked: Ranked[]): BranchView {
  * One branch off the lines as the app reads it (/status offLine.branches[], GET /offline/<B-…>, the answers to the
  * writes): its tasks in the order of the queue; undefined when it is no branch now.
  */
-function branchNow(tree: Tree, settings: Settings, key: string): { view: BranchView; json: Record<string, unknown> } | undefined {
+function branchNow(tree: Tree, settings: Settings, key: string): { view: BranchView; json: Record<string, unknown>; pos: Map<string, number> } | undefined {
   const b = branchOf(tree, settings, key);
   if (!b) return undefined;
-  const view = branchInQueueOrder(b, rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)));
-  return { view, json: branchJson(view, (t) => humanTask(tree, t.what, tree.lang)) };
+  const { ranked } = rankedNow(tree, settings, head(tree.root));
+  const view = branchInQueueOrder(b, ranked);
+  return { view, json: branchJson(view, (t) => humanTask(tree, t.what, tree.lang)), pos: new Map(ranked.map((r, i) => [r.task.id, i + 1])) };
 }
 
 /** A task as the queue has it now (the answer to POST /queue/<T…>): ranked, else as it stands among the lines. */
@@ -1603,8 +1741,9 @@ function queueTask(tree: Tree, settings: Settings, id: string): QueueItem | unde
   const t = tree.get<Task>(id);
   if (!t) return undefined;
   const all = scopes(tree);
-  const r = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).find((x) => x.task.id === id);
-  return queueItem(tree, placer(tree, all), settings.offLine(tree.config), readOffline(tree), t.state === "parked" ? "parked" : "next", t, r);
+  const { ranked } = rankedNow(tree, settings, head(tree.root));
+  const at = ranked.findIndex((x) => x.task.id === id);
+  return queueItem(tree, placer(tree, all), settings.offLine(tree.config), readOffline(tree), t.state === "parked" ? "parked" : "next", t, ranked[at], at < 0 ? undefined : at + 1);
 }
 
 /** The work off the lines without its branches (the answer to POST /offline): also for a research of one line, where nothing is off them. */
@@ -1711,7 +1850,8 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
   // directions, nobody at work, nothing waiting for the person, no queue, nothing spent (Milan's decisions,
   // 2026-10-03 and 2026-10-15); what waits for the agent says so (accepts.agentHere)
   const archive = actsAsArchive(tree);
-  const ranked = archive ? [] : rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config));
+  const order = archive ? undefined : rankedNow(tree, settings, last.head);
+  const ranked = order?.ranked ?? [];
   const next = ranked.map((r) => r.task);
   const atWork = archive ? [] : working(root, tree, all);
   // where the research is on this computer, and the agent that works on it (an archive: none)
@@ -1773,7 +1913,9 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
-    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, all, settings.offLine(tree.config))),
+    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, order?.parked ?? [], all, settings.offLine(tree.config))),
+    // how many tasks of the queue each line and branch has (the labels; the tasks themselves: GET /queue)
+    queueCounts: queueCounts(ranked, order?.parked.length ?? 0, order?.rev),
     // the work off the lines of a research of several (spec 038 K7): the tree's choice, the branches, which grow
     ...(archive ? {} : offLineOf(tree, settings, all, ranked)),
     ...(newer ? { update: { version: newer } } : {}),
@@ -2471,7 +2613,19 @@ export function serveLive(root: string, env: Env): Promise<void> {
         else {
           const b = key ? branchNow(tree, new Settings(env, {}), key) : undefined;
           if (!b) json(404, noBranch(key ?? decoded(sub).slice(0, 40)).body);
-          else json(200, { branch: b.json, tasks: b.view.tasks.map((x) => ({ id: x.id, text: humanTask(tree, x.what, tree.lang), ...personOf(x), ...(x.queueAt ? { own: x.queueAt.do } : {}) })) });
+          else json(200, { branch: b.json, tasks: b.view.tasks.map((x) => ({ id: x.id, text: humanTask(tree, x.what, tree.lang), ...(b.pos.has(x.id) ? { pos: b.pos.get(x.id) } : {}), ...personOf(x), ...(x.queueAt ? { own: x.queueAt.do } : {}) })) });
+        }
+      } else if (what === "queue" && !sub) {
+        // a page of the whole queue, of a branch or a line (feature queue.page): never while the research is written;
+        // an archive's is empty
+        const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        const ask = queueAsk(new URLSearchParams((req.url ?? "").split("?")[1] ?? ""));
+        if ("bad" in ask) json(400, refusal(ask.bad, "queue.query"));
+        else if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        else {
+          const h = head(root);
+          json(200, { ...queuePage(Tree.open(root, env), new Settings(env, {}), ask, h), head: h });
         }
       } else if (what === "quality" && !sub) {
         // what the person marked no error: read in an archive too

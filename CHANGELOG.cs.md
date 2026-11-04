@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.26.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
   (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu
@@ -27,6 +27,23 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 - Velký rodokmen převzatý ve Windows (zhruba 1 500 osob a víc) už neskončí chybou gitu o příliš dlouhém příkazu
   (ENAMETOOLONG) bez jediného zapsaného údaje: vše převzaté se zapíše.
+
+- **Co rozhoduje uživatel, zůstává jeho.** Rozpor výzkumu s úpravou z aplikace Strom, schválení vyprávění nebo jeho nové
+  verze a odpověď u větve, která roste, rozhoduje jen uživatel – v aplikaci nebo v Co čeká; agenta strom odmítne a ten
+  jen řekne, že to čeká. Vzít zpět, co aplikace poslala nebo co se synchronizovalo (`strom sync undo`), a zahodit strom,
+  který čeká, je také jen na uživateli. Volba aplikace „Nechat na agentovi“ takový rozpor agentovi předá; strana vybraná
+  v aplikaci se v terminálu jen potvrdí, důvod je nepovinný. Ztotožnění míst: „Nevím“ jde i u rozporu polohy a u návrhu
+  zápisu názvu a „Vždy první kandidát (A)“ převezme kandidáta i u rozporu – nikdy přes ručně zadané souřadnice. Terminál
+  mluví slovy aplikace: vodítko, doložené, vyvrácené, Nevím, Žádný z nich, stejné volby strany. Takový rozpor, který
+  dřív rozhodl agent, najde `strom fixes show edit-decisions` a znovu ho otevře pro uživatele; rozhodnutí agenta zůstane
+  v poznámce (`strom fixes undo edit-decisions` ho vrátí).
+
+- **Podmínka týdne předplatného bere celá čísla od 0 do 99 a drží strop.** Menu i `strom config set` odmítnou desetinné
+  číslo nebo 100 (dřív se uložilo a každý běh pak skončil) a menu nastavený strop zachová; se stropem se rozběhnuté
+  sezení požádá o dokončení, když týden dosáhne stropu, ne až při 99 %. Úkol odložený do data se vrátí v ten den, jak
+  teď říká i nápověda. Příchozí snímky probudí jen úkoly, které na tu knihu čekají – nikdy kontrolu webu, kterou dělá
+  člověk, a dopis jen tehdy, když čeká na tu knihu.
+  Úkoly takto dřív probuzené najde `strom fixes show woken-waits` a znovu čekají, jak čekaly.
 
 ## 1.25.2
 

@@ -113,11 +113,14 @@ usage is at least the number you give it behind the week gone:
 
     strom config set run.gate "claude-usage 10"     gone − used ≥ 10
 
-Without a number: 0 — no faster than the week goes; 14: about a day in hand.
+The number is a whole number from 0 to 99 (`strom config set` and the menu
+refuse anything else). Without a number: 0 — no faster than the week goes; 14:
+about a day in hand.
 
 Early in the week the number grows with it: at least half the week gone, the
 full number from twice it on (at 15: from 30 % gone). Right after the reset a
-session starts at once, and the first day uses at most half of its share.
+session starts at once, and the first day uses at most half of its share
+(from 8 on; with less, its share less the number — at 0 all of it).
 In the week's last 2 hours what is left would go with the reset: a session
 starts when the room left (to 100 %, or to the cap) holds one — counted high,
 10 points.
@@ -133,7 +136,13 @@ Once it waited for want of points in hand, it goes again only with 2 more (at
 until fewer than the number are in hand: several sessions in a row instead of
 one after every wait ("until 17 in hand, then several sessions in a row"). It
 remembers the week it waits in (`hold.json` in its folder); a new week starts
-free.
+free. A wait is never shorter than 5 minutes.
+
+Claude Code not logged in (its `/usage` says nothing of the week): the run
+stops at once, saying how to log in (with `agent.claudeConfigDir`, which
+folder) — a run you started yourself asks, as for every gate's no, whether to
+start anyway (a session then ends at its start, not logged in). `/usage` that cannot be read otherwise — asked a few times — waits 15
+minutes and is asked again.
 
 **A cap** — your own hard stop for the week:
 
@@ -142,10 +151,11 @@ free.
 At 95 % of the week used no session starts: in every run, `--max` and
 `--task` and the menu's too, asked before each session, and no "start anyway"
 goes past it — the run ends saying the use and when the week resets. A session
-at work is asked to finish when Claude Code says the week is at 99 %. What
+at work is asked to finish when Claude Code says the week reached the cap
+(a cap of 100: at 99 %). What
 Claude Code said in the run (`STROM_AGENT_LIMITS`, at most 15 minutes old) is
-read instead of asking `claude -p /usage`. `--cap` alone: the cap without the
-pace (`claude-usage --cap 95`).
+read instead of asking `claude -p /usage`. `--cap` alone (`claude-usage --cap
+95`) keeps the pace of 0 as well — no faster than the week goes — and the cap.
 
 A gate is a program on this computer, put here by you (or by strom); the
 `.gitignore` of the plugins folder keeps it out of any repository.

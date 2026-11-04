@@ -66,8 +66,8 @@ test("an archive's menu: What waits lists the open conflicts; one of the app's e
   assert.match(r.out, /^ X0001 · rozpor · od /m, r.out);
   assert.match(r.out, /^ {4}v aplikaci Strom: 4\. 3\. 1885, Kamenice$/m, r.out);
   assert.match(r.out, /^ {4}v Archivu Stromu: 3\. 3\. 1885, Kamenice$/m, r.out);
-  assert.match(r.out, /^ {3}1 {2}Platí hodnota z aplikace Strom$/m, r.out);
-  assert.match(r.out, /^ {3}2 {2}Platí hodnota v Archivu Stromu$/m, r.out);
+  assert.match(r.out, /^ {3}1 {2}Ponechat hodnotu z aplikace$/m, r.out);
+  assert.match(r.out, /^ {3}2 {2}Převzít hodnotu Archivu Stromu$/m, r.out);
   assert.match(r.out, /^ {3}0 {2}Nechat otevřený$/m, r.out);
   assert.match(r.out, /✓ Rozpor je rozhodnutý\./, r.out);
   assert.doesNotMatch(r.out, NO_AI, r.out);

@@ -20,7 +20,7 @@ import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
 import { humanTask } from "./human.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
-import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
+import { askGate, capProblem, ensureGatesDir, listGates, loadGate, pointsProblem } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
@@ -34,7 +34,7 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
-import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes, quietCheck } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
 import { isAgent } from "../core/which.ts";
 import { placesWithCoords } from "../core/placehistory.ts";
@@ -238,9 +238,10 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       // what a fix of strom's left behind in this research: what it is, then the person's choice (strom fixes run)
       if (root) {
         const tree = Tree.open(root, ctx.env);
-        // an archive: only what is rewritten by rules (participant-names, app-shapes, street-places) — nobody reads there, nothing of an agent said
+        // an archive: only what is rewritten by rules (participant-names, app-shapes, street-places) — nobody reads there,
+        // nothing of an agent said (edit-decisions, woken-waits are of an agent's work)
         const archive = archiveHere(tree);
-        const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((s) => !archive || s.check.remedy === "rewrite").reduce((n, s) => n + pendingCount(s), 0);
+        const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((s) => !archive || quietCheck(s.check)).reduce((n, s) => n + pendingCount(s), 0);
         items.push({
           key: "3",
           label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
@@ -346,12 +347,11 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
           let given = "";
           for (;;) {
             given = (await ctx.ask(t(g.name === "claude-usage" ? "ui.alone.gate.claude" : "ui.alone.gate.args"), had ?? (g.name === "claude-usage" ? "10" : ""))).trim();
-            // claude-usage takes a number of points (0–100); anything else would stop every run
-            if (g.name !== "claude-usage" || (/^\d+(?:[.,]\d+)?$/u.test(given) && Number(given.replace(",", ".")) <= 100)) break;
+            // claude-usage takes a whole number of points (0–99), as the gate reads it; anything else would stop every run
+            if (pointsProblem(g.name, given.split(/\s+/u).filter(Boolean)) === undefined && capProblem(given.split(/\s+/u).filter(Boolean)) === undefined) break;
             out(t("ui.alone.gate.bad"));
             if (ctx.io.answers !== undefined && ctx.io.answers.length === 0) return;
           }
-          given = g.name === "claude-usage" ? given.replace(",", ".") : given;
           if (given === "0" && g.name !== "claude-usage") return;
           const spec = [g.name, given].filter(Boolean).join(" ");
           if (spec !== set) await run(["config", "set", "run.gate", spec], true);

@@ -386,10 +386,11 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   const twice = await w.ok([], { tty: true, answers: ["4", "2", "1", "1", "Jan", "0", "0"] });
   assert.match(twice.out, /Taková linie výzkumu už je: „Předci Jana“/);
   assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 1);
-  // claude-usage takes a number of points; a tree with a time of its own gets the change
+  // claude-usage takes a whole number of points 0–99, as the gate reads it (a decimal or 100 would stop every run); a
+  // tree with a time of its own gets the change
   await w.ok(["config", "set", "run.minutes", "45", "--for-tree"]);
-  const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "15", "a", "1", "30", "0", "0", "0"] });
-  assert.match(s.out, /Čekám počet bodů od 0 do 100/);
+  const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "10,5", "100", "15", "a", "1", "30", "0", "0", "0"] });
+  assert.equal(s.out.match(/Čekám celý počet bodů od 0 do 99/g)?.length, 3);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).runGate, "claude-usage 15");
   assert.match(s.out, /Čas na jeden úkol: 30 min/);
   assert.equal((await w.ok(["config", "get", "run.minutes", "--json"])).json.value, 30);

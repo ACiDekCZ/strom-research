@@ -264,6 +264,10 @@ test("a branch that grows: a line proposed (What waits), again only at twice the
   assert.equal((await w.ok(["status", "--json"])).json.offLine.mode, "occasional");
   // nothing written by reading
   assert.ok(!fs.existsSync(path.join(w.cwd, "quality", "offline.json")));
+  // the answer is the user's own: an agent is refused, nothing written
+  const agent = await w.run(["offline", "answer", "B-P0004", "keep", "--json"], { env: { AI_AGENT: "1" } });
+  assert.notEqual(agent.code, 0);
+  assert.ok(!fs.existsSync(path.join(w.cwd, "quality", "offline.json")));
   await w.ok(["offline", "answer", "B-P0004", "keep"]);
   assert.equal(await grows(), false);
   await task(w, "Křest Жофии", ["P8"]);

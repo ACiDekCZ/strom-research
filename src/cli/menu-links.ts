@@ -49,7 +49,7 @@ import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
 import { fileRefused } from "../core/taskfiles.ts";
 import { placesPinned } from "../core/pastevents.ts";
-import { fixCheck, fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { fixCheck, fixEnv, pendingFixes, quietCheck } from "../commands/fixchecks.ts";
 import { historyRows } from "../commands/checks.ts";
 import { placeEstimate, placeLabel, placeRecord, placesWithCoords, placeTask } from "../core/placehistory.ts";
 import { BATCH_MAX, identifyEstimate, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
@@ -412,7 +412,7 @@ export async function fixesDo(ctx: Context, run: Run, lang: string, root: string
   const check = id ? fixCheck(id) : undefined;
   if (!check) {
     const quiet = actsAsArchive(tree);
-    const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((p) => !quiet || p.check.remedy === "rewrite");
+    const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((p) => !quiet || quietCheck(p.check));
     if (!waits.length) return (await run(["fixes"])) === 0;
     if (!quiet || isArchive(tree)) return (await run(["fixes", "run"])) === 0;
     let done = true;
@@ -517,9 +517,11 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   if (take && sides) {
     const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
     if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
-    const why = await askWhy(ctx, lang);
-    if (!why) return false;
-    if ((await run(["conflict", "resolve", id, `--take=${take}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
+    // the side picked in the app: confirmed is enough (the app says it only asks to confirm) — why may be said, Enter skips
+    const said = (await ctx.ask(t("ui.link.conflict.whyMaybe"))).trim();
+    if (said === "0") return false;
+    const why = said || t("ui.link.conflict.inApp");
+    if ((await run(["conflict", "resolve", id, `--take=${take}`, "--from-app", `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
     out(ctx, t("ui.link.conflict.done"));
     return true;
   }
