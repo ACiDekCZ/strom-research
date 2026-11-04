@@ -88,10 +88,10 @@ test("the research at a glance, the ancestors of one person, one person's card",
   assert.notEqual((await w.run(["pedigree", "--generations", "0"])).code, 0);
 
   const jan = (await w.ok(["person", "card", "jan novak"])).out;
-  assert.match(jan, /^Jan Novák \(\*1905\) \[P0001\]\n {2}narození +25\. 6\. 1905 · doloženo — Křest Jana Nováka 1905\n {2}křest +26\. 6\. 1905, Týnec nad Labem č\. 12 · doloženo/);
+  assert.match(jan, /^Jan Novák \(\*1905\) \[P0001\]\n {2}narození +25\. 6\. 1905 · doložené — Křest Jana Nováka 1905\n {2}křest +26\. 6\. 1905, Týnec nad Labem č\. 12 · doložené/);
   assert.match(jan, /Rodiče: Josef Novák \[P0002\], Marie Dvořáková \(\*<1885\) \[P0003\]/);
   const josef = (await w.ok(["person", "card", "P0002"])).out;
-  assert.match(josef, /povolání +mlynář, 1905 · doloženo/);
+  assert.match(josef, /povolání +mlynář, 1905 · doložené/);
   assert.match(josef, /Rodiče: Václav Novák \[P0004\]\nManželka: Marie Dvořáková \(\*<1885\) \[P0003\]\n {2}sňatek +mezi 1900 a 1904 · pravděpodobné — Křest Jana Nováka 1905\n {2}Děti: Jan Novák \(\*1905\) \[P0001\]/);
   // The same in English, when the research is.
   const en = (await w.ok(["person", "card", "P0001", "--lang", "en"])).out;
@@ -111,7 +111,7 @@ test("what came in lately: new people, facts added or refined, what the agent di
   assert.match(r, /^Co přibylo od \d{1,2}\. \d{1,2}\./);
   assert.match(r, /Nové osoby: 5 · údaje: nové \d+, upřesněné 0/);
   assert.match(r, /Noví lidé:\n(.*\n)* {2}Иван Петров \(\*1901\) \[P0005\]/);
-  assert.match(r, /Jan Novák – narození: 25\. 6\. 1905 · doloženo/);
+  assert.match(r, /Jan Novák – narození: 25\. 6\. 1905 · doložené/);
   assert.match(r, /Novák & Marie Dvořáková – sňatek: mezi 1900 a 1904/);
   assert.match(r, /Co dělal agent:\n {2}\d{1,2}\. \d{1,2}\. – (.+: )?Rejstřík prošel, Josef nalezen/);
   // The same for a program.

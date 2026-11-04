@@ -203,7 +203,7 @@ register(
         type: "string",
         multiple: true,
         value: "<M…@x,y,w,h>",
-        description: "where the entry itself is on its image — the crop you read it in (the view prints it); a second one when it runs over a page break",
+        description: `where the entry itself is on its image — the crop you read it in (the view prints it); one more per page break it runs over (at most ${MAX_CLIPS})`,
       },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],

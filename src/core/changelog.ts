@@ -59,6 +59,7 @@ const SAID: Record<string, PhraseKey> = {
   "hypothesis.decide": "log.hypothesis.decide",
   "conflict.add": "log.conflict.add",
   "conflict.resolve": "log.conflict.resolve",
+  "conflict.leave": "log.conflict.leave",
   "conflict.edit": "log.conflict.edit",
   "place.add": "log.place.add",
   "place.edit": "log.place.edit",
@@ -448,6 +449,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       );
       continue;
     }
+    // the person's choice for a branch off the lines, or an answer to a line proposed for it (quality/offline.json)
+    if (o.op === "offline.set" || o.op === "offline.answer") {
+      say(phrase(lang, o.op === "offline.set" ? "log.offline.set" : "log.offline.answer", { who: who(o.targets[0]) }));
+      continue;
+    }
     // the names of participants set apart from their notes by strom's fix, or put back (quality/participant-names.json)
     if (o.op === "participant.fix" || o.op === "participant.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
@@ -465,6 +471,20 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "streetplace.fix" || o.op === "streetplace.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
       say(phrase(lang, o.op === "streetplace.fix" ? "log.streetplace.fix" : "log.streetplace.unfix", { n }));
+      continue;
+    }
+    // disagreements with the user's own edits an agent decided, opened again for the user by strom's fix, or closed again
+    // (quality/edit-decisions.json)
+    if (o.op === "editdecision.fix" || o.op === "editdecision.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "editdecision.fix" ? "log.editdecision.fix" : "log.editdecision.unfix", { n }));
+      continue;
+    }
+    // tasks images woke though they waited for somebody's answer, set waiting again by strom's fix, or put back in the
+    // queue (quality/woken-waits.json)
+    if (o.op === "wokenwait.fix" || o.op === "wokenwait.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "wokenwait.fix" ? "log.wokenwait.fix" : "log.wokenwait.unfix", { n }));
       continue;
     }
     // the research returned to its state after an earlier change (strom history back): one line, the day of then

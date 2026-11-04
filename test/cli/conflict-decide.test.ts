@@ -282,7 +282,7 @@ test("the link with the side picked in the app: only confirmed and why — that 
   assert.match(r.out, /rozhodnout rozpor: Josef Novák: Titul před jménem – Ing\. × — — ponechat hodnotu z aplikace: \(prázdné\)/);
   assert.equal(((await w.ok(["person", "show", "P1", "--json"])).json.person as Person).names[0]!.prefix, undefined);
   const x = await conflict(w, "X3");
-  assert.deepEqual([x.taken, x.decidedBy, x.reasoning], ["user", "user", "Titul nezískal (rozhodnutí uživatele)"]);
+  assert.deepEqual([x.taken, x.decidedBy, x.reasoning, x.decidedIn], ["user", "user", "Titul nezískal (rozhodnutí uživatele)", "app"]);
   const res = await open("&id=X0002&take=research", ["a", "Matrika je jasná", ""]);
   assert.match(res.out, /převzít hodnotu výzkumu: 3\. 3\. 1885, Kamenice/);
   assert.equal((await conflict(w, "X2")).taken, "research");
@@ -291,4 +291,42 @@ test("the link with the side picked in the app: only confirmed and why — that 
   assert.doesNotMatch(wrong.out + wrong.err, /unknown take/, "no English reason in the person's sentence");
   assert.equal((await conflict(w, "X4")).state, "open");
   w.cleanup();
+});
+
+test("an open conflict of the user's edit is the user's: an agent refused until the user leaves it to the agent; the side picked in the app is only confirmed", opts, async () => {
+  const { w, sent } = await world();
+  try {
+    await w.ok(["sync", sent, "--apply"]);
+    const agent = { env: { AI_AGENT: "1" } };
+    // the user's edit against the research: never an agent's to close
+    const refused = await w.run(["conflict", "resolve", "X2", "--take", "research", "--reasoning", "matrika", "--json"], agent);
+    assert.notEqual(refused.code, 0);
+    assert.equal(JSON.parse(refused.out).code, "conflict.users");
+    const own = await w.run(["conflict", "resolve", "X2", "--resolution", "3 MAR 1885", "--reasoning", "matrika", "--json"], agent);
+    assert.equal(JSON.parse(own.out).code, "conflict.users");
+    assert.equal((await conflict(w, "X2")).state, "open");
+    // nor does an agent leave it to itself
+    const self = await w.run(["conflict", "leave", "X2", "--json"], agent);
+    assert.notEqual(self.code, 0);
+    assert.equal((await conflict(w, "X2")).leftToAgent, undefined);
+    // a conflict between sources: the agent's as before
+    await w.ok(["conflict", "resolve", "X1", "--resolution", "1885", "--reasoning", "křest je blíž narození"], agent);
+    // left to the agent by the user (the app's "Leave it to the agent"): then the agent decides it
+    await w.ok(["conflict", "leave", "X2"]);
+    assert.ok((await conflict(w, "X2")).leftToAgent);
+    await w.ok(["conflict", "resolve", "X2", "--take", "research", "--reasoning", "matrika je jasná"], agent);
+    assert.deepEqual([(await conflict(w, "X2")).state, (await conflict(w, "X2")).decidedBy], ["resolved", "agent"]);
+    // the link with the side picked in the app: confirmed, Enter for why — decided, noted as the app's
+    const id = readJsonFile(path.join(w.cwd, "strom.json")).id as string;
+    const r = await w.run(["link", "open", `strom-research://conflict?tree=${id}&id=X0003&do=decide&take=user`], { tty: true, answers: ["a", "", ""] });
+    assert.equal(r.code, 0, r.err + r.out);
+    const x = await conflict(w, "X3");
+    assert.deepEqual([x.state, x.taken, x.decidedBy, x.decidedIn, x.reasoning], ["resolved", "user", "user", "app", "vybráno v aplikaci Strom (rozhodnutí uživatele)"]);
+    // 0: nothing decided
+    const no = await w.run(["link", "open", `strom-research://conflict?tree=${id}&id=X0004&do=decide&take=user`], { tty: true, answers: ["a", "0", ""] });
+    assert.equal(no.code, 0, no.err + no.out);
+    assert.equal((await conflict(w, "X4")).state, "open");
+  } finally {
+    w.cleanup();
+  }
 });

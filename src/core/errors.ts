@@ -79,6 +79,28 @@ export class UsageError extends StromError {
 }
 
 /**
+ * A second line of the same person and kind (for a question also the same question) — one is there already, in any
+ * state: code directions.exists, the line in `existing`.
+ */
+export class DirectionExists extends UsageError {
+  readonly existing: { id: string; name: string; state: string };
+
+  constructor(existing: { id: string; name: string; state: string }) {
+    super(`a line of this person and kind is there already: ${existing.id} "${existing.name}" (${existing.state})`, {
+      hint: existing.state === "active" ? `strom research show ${existing.id}` : `strom research resume ${existing.id}`,
+      code: "directions.exists",
+      params: { id: existing.id, name: existing.name, state: existing.state },
+    });
+    this.name = "DirectionExists";
+    this.existing = existing;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return { ...super.toJSON(), existing: this.existing };
+  }
+}
+
+/**
  * A file or folder that is not there, the same words wherever a path was given (a person's in their language: ui.error.fs.missing).
  */
 export function notFound(where: string): UsageError {

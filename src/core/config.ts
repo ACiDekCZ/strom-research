@@ -82,8 +82,12 @@ export interface UserConfig {
   readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
-  /** Work off the lines of a research of several (core/offline.ts): last (default), normal, never. */
+  /** Work off the lines of a research of several (core/offline.ts): occasional (default), last, normal, never. */
   queueOffLine?: string;
+  queueOffLineShare?: number;
+  queueSuggestLines?: string;
+  queueSuggestTasks?: number;
+  queueSuggestPersons?: number;
   /** Ask the user before a connector runs: off (default) or on. */
   connectorsConsent?: string;
   /** The route chosen for a connector (strom connector use): its images come directly or through the browser. */
@@ -240,6 +244,12 @@ export interface SettingDef {
   description: string;
 }
 
+/** occasional: one task off the lines in so many sessions (queue.offLineShare). */
+export const OFF_LINE_SHARE = 10;
+/** A line proposed for a branch off the lines from so many open tasks, or so many people (queue.suggestTasks, queue.suggestPersons). */
+export const SUGGEST_TASKS = 10;
+export const SUGGEST_PERSONS = 5;
+
 export const SETTINGS: SettingDef[] = [
   { key: "home", env: "STROM_HOME", tree: false, kind: "path", description: "folder with the trees and shared data" },
   { key: "shared", env: "STROM_SHARED", tree: false, kind: "path", description: "shared data: scans, catalog, tools (default <home>/shared)" },
@@ -275,7 +285,11 @@ export const SETTINGS: SettingDef[] = [
   { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
   { key: "read.app", env: "", tree: false, kind: "limits", description: "readings of documents the Strom app may ask (its \"Read a document\"; each reader costs as one of strom read): at most so many an hour, then so many a day (default \"20 60\"; auto: the default) — one at a time, three more queued; never in an archive — only you raise it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
-  { key: "queue.offLine", env: "STROM_QUEUE_OFFLINE", tree: true, kind: "choice", choices: OFF_LINE_CHOICES, description: "work off the lines of a research with several (a task of no line about people none of its lines reaches — a side branch — that helps no line: no hypothesis or conflict of a line, not joining people to the tree, no --helps): last (default — taken only once the lines have nothing to do), normal (by priority, as the lines' work), never (not taken; a session at work goes on)" },
+  { key: "queue.offLine", env: "STROM_QUEUE_OFFLINE", tree: true, kind: "choice", choices: OFF_LINE_CHOICES, description: "work off the lines of a research with several (a task of no line about people none of its lines reaches — a side branch — that helps no line: no hypothesis or conflict of a line, not joining people to the tree, no --helps): occasional (default — now and then one, the nearest to a line first: one in queue.offLineShare; at once when the lines have nothing to do), last (taken only once the lines have nothing to do), normal (by priority, as the lines' work), never (not taken; a session at work goes on). A branch's own choice wins: strom offline set" },
+  { key: "queue.offLineShare", env: "", tree: true, kind: "number", description: `with queue.offLine occasional: one task off the lines in so many sessions (default ${OFF_LINE_SHARE}, a whole number from 2)` },
+  { key: "queue.suggestLines", env: "", tree: true, kind: "choice", choices: ["yes", "no"], description: "a line proposed for a branch off the lines that grows (What waits for you, the Strom app): yes (default), no" },
+  { key: "queue.suggestTasks", env: "", tree: true, kind: "number", description: `the open tasks of a branch off the lines from which a line is proposed for it (default ${SUGGEST_TASKS}; again only at twice as many after an answer)` },
+  { key: "queue.suggestPersons", env: "", tree: true, kind: "number", description: `the people of a branch off the lines from which a line is proposed for it (default ${SUGGEST_PERSONS}; again only at twice as many after an answer)` },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
@@ -338,6 +352,10 @@ const FIELDS: Record<string, string> = {
   "strom.version": "stromVersion",
   "queue.strategy": "queueStrategy",
   "queue.offLine": "queueOffLine",
+  "queue.offLineShare": "queueOffLineShare",
+  "queue.suggestLines": "queueSuggestLines",
+  "queue.suggestTasks": "queueSuggestTasks",
+  "queue.suggestPersons": "queueSuggestPersons",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
   "agent.permissions": "agentPermissions",
@@ -504,6 +522,8 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
         return n;
       }
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
+      if (def.key === "queue.offLineShare" && (!Number.isInteger(n) || n < 2)) throw new UsageError(`${def.key} is a whole number from 2`, { hint: `one task off the lines in so many sessions — strom config set queue.offLineShare ${OFF_LINE_SHARE}` });
+      if ((def.key === "queue.suggestTasks" || def.key === "queue.suggestPersons") && !Number.isInteger(n)) throw new UsageError(`${def.key} is a whole number from 1`);
       if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
@@ -710,10 +730,28 @@ export class Settings {
     return String(this.resolve("queue.strategy", tree)?.value ?? "balanced") as Strategy;
   }
 
-  /** Work off the lines (core/offline.ts): last (default), normal, never. */
+  /**
+   * Work off the lines (core/offline.ts): occasional (the default — also for a research that never set it: what 1.25 took
+   * as its default "last" is now this), last, normal, never. A value set (the tree's, the user's) stays as set.
+   */
   offLine(tree?: TreeConfig): OffLine {
-    const v = String(this.resolve("queue.offLine", tree)?.value ?? "last");
-    return (OFF_LINE_CHOICES as readonly string[]).includes(v) ? (v as OffLine) : "last";
+    const v = String(this.resolve("queue.offLine", tree)?.value ?? "occasional");
+    return (OFF_LINE_CHOICES as readonly string[]).includes(v) ? (v as OffLine) : "occasional";
+  }
+
+  /** occasional: one task off the lines in so many sessions (queue.offLineShare, a whole number from 2). */
+  offLineShare(tree?: TreeConfig): number {
+    const n = Number(this.resolve("queue.offLineShare", tree)?.value ?? OFF_LINE_SHARE);
+    return Number.isInteger(n) && n >= 2 ? n : OFF_LINE_SHARE;
+  }
+
+  /** A line proposed for a branch off the lines that grows (queue.suggestLines, yes by default), and from what size. */
+  suggestLines(tree?: TreeConfig): { on: boolean; tasks: number; persons: number } {
+    const whole = (key: string, fallback: number) => {
+      const n = Number(this.resolve(key, tree)?.value ?? fallback);
+      return Number.isInteger(n) && n >= 1 ? n : fallback;
+    };
+    return { on: this.resolve("queue.suggestLines", tree)?.value !== "no", tasks: whole("queue.suggestTasks", SUGGEST_TASKS), persons: whole("queue.suggestPersons", SUGGEST_PERSONS) };
   }
 
   /** The GEDCOM files to write: standard (any program), strom (the Strom app), or both. */

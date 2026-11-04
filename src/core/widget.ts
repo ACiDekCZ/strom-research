@@ -500,8 +500,18 @@ export interface WidgetWriter {
   end(gone: boolean): void;
 }
 
-/** The writer of a tree's bridge; none but on macOS and Windows. */
-export function widgetWriter(root: string, env: Env, platform: NodeJS.Platform = process.platform, clock: () => number = Date.now): WidgetWriter | undefined {
+/**
+ * The writer of a tree's bridge; none but on macOS and Windows. `make`: the overview worked out elsewhere (the bridge: on
+ * a thread of its own — it reads every task, person and finding: a second and more on a large research, every
+ * WIDGET_CHECK_MS, the bridge answering nothing meanwhile; found 2026-11-04); without it, here.
+ */
+export function widgetWriter(
+  root: string,
+  env: Env,
+  platform: NodeJS.Platform = process.platform,
+  clock: () => number = Date.now,
+  make?: (now: number) => Promise<WidgetTree | undefined>,
+): WidgetWriter | undefined {
   const dir = widgetDir(env, platform);
   if (!dir) return undefined;
   const checkMs = Number(env.STROM_WIDGET_CHECK_MS ?? WIDGET_CHECK_MS);
@@ -524,6 +534,25 @@ export function widgetWriter(root: string, env: Env, platform: NodeJS.Platform =
     said = c;
     written = now;
   };
+  // an overview being worked out elsewhere (`make`), and the bridge ended meanwhile (what comes after is written by nobody)
+  let making = false;
+  let ended = false;
+  const take = (t: WidgetTree | undefined, now: number) => {
+    if (!t) {
+      // an archive now: nothing of it on the desktop
+      if (key) dropWidgetTree(dir, key, last);
+      key = undefined;
+      last = undefined;
+      held = undefined;
+      said = "";
+      return;
+    }
+    key = t.treeKey;
+    last = t;
+    const c = content(t);
+    if (c === said && now - written < beatMs && !held) return;
+    write(t, c, now);
+  };
   return {
     tick(force = false) {
       const now = clock();
@@ -531,24 +560,24 @@ export function widgetWriter(root: string, env: Env, platform: NodeJS.Platform =
         if (held) write({ ...held.t, generatedAt: isoSecond(now), lastActiveAt: isoSecond(now) }, held.c, now);
         return;
       }
-      checked = now;
-      const t = widgetTree(root, env, { running: true, now });
-      if (!t) {
-        // an archive now: nothing of it on the desktop
-        if (key) dropWidgetTree(dir, key, last);
-        key = undefined;
-        last = undefined;
-        held = undefined;
-        said = "";
-        return;
+      if (!make) {
+        checked = now;
+        return take(widgetTree(root, env, { running: true, now }), now);
       }
-      key = t.treeKey;
-      last = t;
-      const c = content(t);
-      if (c === said && now - written < beatMs && !held) return;
-      write(t, c, now);
+      if (making) return;
+      checked = now;
+      making = true;
+      make(now).then(
+        (t) => {
+          making = false;
+          if (!ended) take(t, clock());
+        },
+        // (said by `make`): looked at again at the next check
+        () => (making = false),
+      );
     },
     end(gone) {
+      ended = true;
       if (!key) return;
       // what the file says now is no longer what was written: the next look writes it again
       said = "";

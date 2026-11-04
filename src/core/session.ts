@@ -232,6 +232,13 @@ export interface CloseInput {
 }
 
 /** Close a session. The task must not be left "doing" — done, parked, waiting, or explicitly continued. */
+/** The person's "next" for a task is used once: a session on it ended (strom task order; "last" stays). */
+function onceDone(t: Task): Task {
+  if (t.queueAt?.do !== "next") return t;
+  const { queueAt: _used, ...rest } = t;
+  return rest;
+}
+
 export function closeSession(tree: Tree, s: Session, input: CloseInput): Session {
   if (!input.interrupted && (!input.summary.trim() || !input.next.trim()))
     throw new UsageError("closing needs --summary and --next", { hint: 'e.g. --summary "found the baptism, parents Josef and Marie" --next "marriage of Josef ~1898 in B0002"' });
@@ -248,10 +255,10 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       // decision (woken by it, core/archivewait.ts), not back in the queue to ask again and again
       const decision = permissionWait(tree, task, s.id);
       if (decision) {
-        const waits: Task = { ...waitingForDecision(tree, task, decision), notes: [...task.notes, note], updated: now() };
+        const waits: Task = { ...onceDone(waitingForDecision(tree, task, decision)), notes: [...task.notes, note], updated: now() };
         tree.put(waits, { op: "task.wait", targets: [task.id, s.id], summary: `${task.id} waits for the person's decision on ${decision.hosts.join(", ")}` });
       } else {
-        const back: Task = { ...task, state: "open", notes: [...task.notes, note], updated: now() };
+        const back: Task = { ...onceDone(task), state: "open", notes: [...task.notes, note], updated: now() };
         tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
       }
     }

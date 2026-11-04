@@ -18,14 +18,20 @@ A story is written from the facts, for the family.
 - Write it to a file in notes/, then `strom story set P… --text @notes/story-P….md
   --title "…" --fact E… --fact E… --source S… --note "what is inferred"`: every fact it leans on goes
   in --fact, every source of its background in --source. A couple's story goes on the family (F…).
+- Told from a lead (an index, an older research, a page not read): the text
+  names where it comes from — the source's title, never only "an older
+  research says" — and that the record itself is not read yet.
+- Written again: `strom story show P…` first. Each fact, source and link of
+  that version stays in the new one (--fact, --source, the text); what goes,
+  goes on purpose: `--drop "E… <why>"` (or S…, a link). strom refuses a
+  version that loses one without it.
 - A couple's story tells their life together: the wedding, the household, the
   homes, the children, the widowhood. Each one's life before and after it is
   their own story's — referred to in a sentence, never told again.
 - A person whose couple has a story: the marriage in one sentence pointing to
   it. What a story told already stays; it is never shortened for a couple's.
-- It stays a draft; when the user says it is right: `strom story approve P…`
-  (the Strom app asks them too). An approved story is locked — the user liked
+- It stays a draft until the user approves it themselves (the Strom app, or
+  strom → What waits; never you). An approved story is locked — the user liked
   it: written again (more facts, a better reading), the new version waits
   beside it and the approved one stays until the user decides. Tell them what
-  is new in it; they approve it (`strom story approve P…`) or keep the old one
-  (`strom story discard P…`) — only on their word.
+  is new in it; they approve it or keep the old one.

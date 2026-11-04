@@ -208,6 +208,47 @@ test("the facts' place written as the record says: the street into the house, a 
   }
 });
 
+test("don't know: an answer to a conflict and to a form too; first moves a conflict to its candidate A, never the person's own", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["place", "identify", "Horní Lhota", "--lat", "49.61", "--lon", "15.23", "--why", "fara Lhotov"], { env: AGENT }); // L0001, the research's
+    await w.ok(["place", "add", "Лгота", "--lat", "50.1", "--lon", "14.9"]); // L0002, the person's own
+    await w.ok(["place", "propose", "L0001", "--conflict", "--candidate", "Horní Lhota|49.7|15.3|fara Lhotov v záznamech|Lhotov|CZ"], { env: AGENT });
+    await w.ok(["place", "propose", "L0002", "--conflict", "--candidate", "Лгота|49.6|15.2|по записи прихода"], { env: AGENT });
+    // "Always the first candidate (A)": the research's coordinates moved to it as the person's choice; the person's own
+    // left to be answered one by one
+    const first = await w.ok(["place", "answer", "L0001", "L0002", "--take", "first", "--json"]);
+    assert.deepEqual(first.json.done, ["L0001"]);
+    assert.deepEqual(first.json.skipped, [{ place: "L0002", why: "take" }]);
+    assert.deepEqual(place(w, "L0001").coords, { lat: 49.7, lon: 15.3 });
+    assert.equal(place(w, "L0001").locating?.by, "person");
+    assert.equal(place(w, "L0001").locating?.kept, undefined);
+    assert.equal(place(w, "L0002").locating?.question?.kind, "conflict");
+    // don't know of a conflict: the coordinates stay, the question off, never kept as the person's — asked again later
+    const dunno = await w.ok(["place", "answer", "L0002", "--take", "unknown", "--json"]);
+    assert.deepEqual(dunno.json.done, ["L0002"]);
+    const l2 = place(w, "L0002");
+    assert.deepEqual(l2.coords, { lat: 50.1, lon: 14.9 });
+    assert.equal(l2.locating?.question, undefined);
+    assert.equal(l2.locating?.kept, undefined);
+    assert.equal(l2.locating?.by, "person");
+    assert.ok(l2.locating?.checkWhy);
+    await w.ok(["place", "propose", "L0002", "--conflict", "--candidate", "Лгота|49.6|15.2|новая запись"], { env: AGENT });
+    // none of them is no answer to a conflict (the app offers it only to which of the candidates)
+    const none = await w.run(["place", "answer", "L0002", "--take", "none", "--json"]);
+    assert.notEqual(none.code, 0);
+    // don't know of a form: the facts left as they write it, the question off
+    await w.ok(["place", "rewrite", "H. Lhota", "--to", "L0001", "--propose", "--why", "zkratka?"], { env: AGENT });
+    const form = await w.ok(["place", "answer", "L0001", "--take", "unknown", "--json"]);
+    assert.equal(form.json.facts, 0);
+    assert.equal(place(w, "L0001").locating?.question, undefined);
+    const jan = JSON.parse(fs.readFileSync(path.join(w.cwd, "data", "persons", "P0001.json"), "utf8")) as Person;
+    assert.equal(jan.events.find((e) => e.kind === "BIRT")!.place, "H. Lhota");
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("checked by the research: right with the day, or why it cannot be decided; queued --check only for places on the map", opts, async () => {
   const w = await world();
   try {

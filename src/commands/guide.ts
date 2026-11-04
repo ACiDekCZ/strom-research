@@ -123,10 +123,14 @@ conversation opened anywhere, a bot on its own server)
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
   new --person <them>. A task on a side branch no line reaches (an ancestor's sibling and their family)
-  waits until the lines have nothing to do (setting queue.offLine) unless it says how it helps a line:
-  strom task add … --helps "<how it helps G…>" (godparent or witness of an ancestor, the same house, a
-  surname for an ancestor). The user wants a direction to wait or to end: strom research pause|done G…
-  (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
+  comes now and then or after the lines' work (setting queue.offLine; each branch's own choice: strom
+  offline list) unless it says how it helps a line: strom task add … --helps "<how it helps G…>" (godparent
+  or witness of an ancestor, the same house, a surname for an ancestor). A branch the user chose not to
+  research gets no new task. The user wants a task next or at the end: strom task order T… --next|--last;
+  a branch added to a line or not researched: strom offline set B-… --line G…|--mode never. The user wants a direction to wait or to end: strom research pause|done G…
+  (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back). The order
+  of work of the directions is the user's too: strom research order G… G… / move G… --up|--down|--first;
+  a name, question or limit changed: strom research edit G….
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
   from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or
@@ -173,6 +177,9 @@ place.street, the hint says what to write). Old facts with a street in the place
 street-places; setting them right or back is the user's decision alone, in their terminal. A number alone
 after the name ("Lhota 16") is written as the record gives it: whether a municipality's numbers are houses only the
 user says (strom fixes run street-places), never an agent.
+Disagreements with the user's own edits an agent decided before strom refused it (agent-decided-edit), and tasks
+waiting for an answer that images of another book woke (woken-wait): strom fixes show edit-decisions|woken-waits;
+setting them right or back is the user's decision alone, in their terminal — tell the user, never run it.
 Back in time: strom history lists the changes; strom history back <change> --preview says what a return to the
 state after one would bring back (read only). The return itself is the user's decision alone, in their terminal:
 tell them the command, never run it. It is a new change (nothing deleted), taken back the same way.
@@ -241,8 +248,9 @@ THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Str
   strom sync <file> shows what it would take: what the file adds, what the user changed since the research
   gave it (_STROM_HEAD), what is no longer in it. Show the user the list; write it on their yes (--apply, some:
   --only 1,3). Additions become leads; a change to a fact a record proves becomes a conflict (sync.edits: the
-  user's choice). A file of another research, or of few of our people, is refused; strom sync undo I… takes a
-  sync back. After it: the user opens the research in the Strom app again to have the tree updated.
+  user's choice). A file of another research, or of few of our people, is refused; the user takes a sync back
+  themselves (strom sync undo I… in their terminal, or the app). After it: the user opens the research in the
+  Strom app again to have the tree updated.
   The app's sources come too: an entry the user transcribed in the app becomes a source of the research and its
   facts cite it — a lead (a task to read the record for the research) unless the app says the user's transcripts
   count (evidence) or the user verified it; a record you read that the user read otherwise is kept as a note
@@ -267,7 +275,7 @@ STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   proposes adding to it. Once one of a couple has a story, the couple's (strom story set F…): their life
   together alone, the partners' stories referred to, not retold. Stories wait behind all the research; working alone
   (strom run), every few sessions one comes first. In a conversation the user leads: write one when they
-  want it, or offer it when the research has a pause. A story is a draft until the user approves it (strom story approve P…; the Strom app asks it too). When strom says to tell
+  want it, or offer it when the research has a pause. A story is a draft until the user approves it themselves (the Strom app, or strom → What waits). When strom says to tell
   the user (once, not in every conversation): in a sentence, and that they may say no (strom config set
   stories no).
 ${history ? HISTORY_GUIDE : ""}

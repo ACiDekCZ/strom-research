@@ -17,7 +17,7 @@ import { UsageError } from "../core/errors.ts";
 import { CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type OffLine, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { directionOf, ofResearch, scopes } from "../core/directions.ts";
-import { lineOf, placer } from "../core/offline.ts";
+import { branchModeOf, lineOf, notTaken, placer, readOffline } from "../core/offline.ts";
 import { resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
@@ -170,33 +170,57 @@ export function rankedQueue(tree: Tree, filter: { research?: string; level?: str
   return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn, awake: filter.awake, history: filter.history });
 }
 
-/** --helps: what the agent said, trimmed; empty takes it off. */
-const HELPS_DESCRIPTION = "how this task helps a line though none of its people is in one (G… names the line): an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor — without it, work off the lines waits until the lines have nothing to do";
-const helpsOpt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
-
-/** --json of a task: where it stands among the lines — off them (and how it waits), or the line it helps. */
-export function offLineData(tree: Tree, t: Task, offLine: OffLine): { offLine?: OffLine; helps?: { by: string; research?: string } } {
-  const p = placer(tree, scopes(tree))(t);
-  if (p.off) return offLine === "normal" ? {} : { offLine };
-  return p.helps ? { helps: { by: p.helps, ...(p.research ? { research: p.research } : {}) } } : {};
+/** --json of a task in the queue: why for a program, how it is taken off the lines, the line it helps, its branch, the person's turn. */
+export function rankData(r: Ranked): Record<string, unknown> {
+  return {
+    ...(r.reason ? { reason: r.reason } : {}),
+    ...(r.offLine ? { offLine: r.offLine } : {}),
+    ...(r.helps ? { helps: r.helps } : {}),
+    ...(r.branch ? { branch: r.branch } : {}),
+    ...(r.own ? { own: r.own } : {}),
+  };
 }
 
-/** With queue.offLine never: how many open tasks off the lines are not taken (undefined: none, or another setting). */
+/** --helps: what the agent said, trimmed; empty takes it off. */
+const HELPS_DESCRIPTION = "how this task helps a line though none of its people is in one (G… names the line): an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor — without it, work off the lines comes now and then, the rest after the lines' work (queue.offLine)";
+const helpsOpt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+
+/** --json of a task: where it stands among the lines — off them (how it is taken, its branch), or the line it helps. */
+export function offLineData(tree: Tree, t: Task, offLine: OffLine): { offLine?: OffLine; helps?: { by: string; research?: string }; branch?: string } {
+  const p = placer(tree, scopes(tree))(t);
+  const branch = p.branch ? { branch: p.branch } : {};
+  if (p.off) {
+    const mode = branchModeOf(readOffline(tree), offLine, p.branch).mode;
+    return mode === "normal" ? branch : { offLine: mode, ...branch };
+  }
+  return p.helps ? { helps: { by: p.helps, ...(p.research ? { research: p.research } : {}) }, ...branch } : {};
+}
+
+/** How many open tasks off the lines are not taken — queue.offLine never or their branch's (undefined: none). */
 function neverLine(tree: Tree, offLine: OffLine): string | undefined {
-  if (offLine !== "never") return undefined;
-  const place = placer(tree, scopes(tree));
-  const n = tree.list<Task>("task").filter((t) => t.state === "open" && place(t).off).length;
-  return n ? `${n} more off the lines are not taken (queue.offLine never): strom task list --state open` : undefined;
+  const n = notTaken(tree, offLine);
+  return n ? `${n} more off the lines are not taken (queue.offLine never or their branch's: strom offline list): strom task list --state open` : undefined;
 }
 
 /**
- * What an agent is told of a task off the lines of a research with several (core/offline.ts): it waits until the lines
- * have nothing to do (queue.offLine last) or is not taken (never), unless it says how it helps a line. Undefined for a
- * task of a line, one that helps one, or while the setting takes it as the lines' work.
+ * What an agent is told of a task off the lines of a research with several (core/offline.ts): how it is taken (now and
+ * then, after the lines' work, not at all — the tree's setting or its branch's), unless it says how it helps a line.
+ * Undefined for a task of a line, one that helps one, or while it is taken as the lines' work.
  */
 export function offLineLine(tree: Tree, t: Task, offLine: OffLine): string | undefined {
-  if (offLine === "normal" || t.state !== "open" || !placer(tree, scopes(tree))(t).off) return undefined;
-  return `· ${t.id} is off the lines: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${offLine === "never" ? "it is not taken (queue.offLine never)" : "it waits until the lines have nothing to do (queue.offLine last)"}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
+  if (t.state !== "open") return undefined;
+  const p = placer(tree, scopes(tree))(t);
+  if (!p.off) return undefined;
+  const { mode, own } = branchModeOf(readOffline(tree), offLine, p.branch);
+  if (mode === "normal") return undefined;
+  const whose = own ? `its branch ${p.branch}: strom offline show ${p.branch}` : `queue.offLine ${mode}`;
+  const how =
+    mode === "never"
+      ? `it is not taken (${whose})`
+      : mode === "last"
+        ? `it waits until the lines have nothing to do (${whose})`
+        : `it comes now and then, one in ${new Settings(tree.env, {}).offLineShare(tree.config)} sessions, else after the lines' work (${whose})`;
+  return `· ${t.id} is off the lines${p.branch ? ` (branch ${p.branch})` : ""}: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${how}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
 }
 
 /**
@@ -498,8 +522,11 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
   const wait: NonNullable<Task["wait"]> = {};
   if (opts.kind !== undefined) {
     const k = String(opts.kind).trim().toLowerCase();
-    if (has.images || has.check)
+    if (has.images || has.check) {
+      // --kind images with --images (--kind check with --check) only repeats what the flag says: taken as said
+      if (k === (has.images ? "images" : "check")) return waitOptions(tree, id, { ...opts, kind: undefined }, has);
       throw new UsageError(`--kind: --${has.images ? "images" : "check"} says the kind itself (${has.images ? "images the user saves by hand" : "a site only the user checks"})`, { hint: `leave out --kind` });
+    }
     if (!(WAIT_KINDS as readonly string[]).includes(k)) throw new UsageError(`--kind is one of ${WAIT_KINDS.join(", ")} — not "${opts.kind}"`, { hint: "images saved by hand: --images B…:<numbers>; a site only the user checks: --check <URL>" });
     wait.kind = k as NonNullable<Task["wait"]>["kind"];
   }
@@ -547,8 +574,9 @@ register(
       "verify (independent second reading), enrich (details of a placed person), request (ask an archive),\n" +
       "narrate (write the story). Priority 1 (low) – 5 (urgent), default 3 — added in a session, at most the priority of\n" +
       "the session's task (a follow-up never goes before the work it came from).\n" +
-      "Off the lines (a research of several lines, none of the task's people in one — a side branch): it waits until the\n" +
-      "lines have nothing to do (setting queue.offLine), unless it names a hypothesis or conflict of a line (--about H…),\n" +
+      "Off the lines (a research of several lines, none of the task's people in one — a side branch): taken as\n" +
+      "queue.offLine says (occasional by default: now and then one, the rest after the lines' work; a branch's own choice:\n" +
+      "strom offline set), unless it names a hypothesis or conflict of a line (--about H…),\n" +
       "would join people to the tree, or says how it helps a line: --helps (an ancestor's sibling as a godparent or\n" +
       "witness, the same house, a surname for an ancestor — not the sibling's own family for its own sake).",
     args: [{ name: "what", description: 'what to find, one line: "Baptism of Jan Novák (~1905)"', required: true }],
@@ -681,7 +709,7 @@ register(
       const t = first.task;
       return {
         text: lines(taskDetail(tree, t), "", `first because: ${first.why} (queue: ${strategy})`, `start it: strom task start ${t.id}`),
-        data: { task: t, why: first.why, ...(first.offLine ? { offLine: first.offLine } : {}), ...(first.helps ? { helps: first.helps } : {}), strategy, queueLength: queue.length },
+        data: { task: t, why: first.why, ...rankData(first), strategy, queueLength: queue.length },
       };
     },
   },
@@ -744,8 +772,7 @@ register(
           tasks: page.items.map((t) => ({
             ...(opts.full ? t : { id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(t.wait ? { wait: t.wait } : {}) }),
             ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
-            ...(ranks.get(t.id)?.offLine ? { offLine: ranks.get(t.id)!.offLine } : {}),
-            ...(ranks.get(t.id)?.helps ? { helps: ranks.get(t.id)!.helps } : {}),
+            ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
           })),
         },
@@ -883,7 +910,7 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
-    options: [{ name: "until", type: "string", value: "<YYYY-MM-DD>", description: "offer it again after this date" }],
+    options: [{ name: "until", type: "string", value: "<YYYY-MM-DD>", description: "offer it again from this date on (the day itself included)" }],
     examples: ['strom task park T0002 --reason "waiting until the register is digitised"', 'strom task park T0002 --until 2027-01-15 --reason "the archive reopens in January"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();

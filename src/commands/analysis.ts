@@ -521,13 +521,15 @@ register(
       "A decided conflict is decided again only with --reason (the earlier decision is kept in a note). One the user decided " +
       "(in the Strom app, or at a terminal) stands: an agent decides it again only on a source the decision did not weigh " +
       "(--source S…) and with --reason; a side once taken is not taken again — change the facts with the fact commands — " +
-      "except whether a person stays in the tree (PERSON): the other side, with --reason, puts them back or takes them away.",
+      "except whether a person stays in the tree (PERSON): the other side, with --reason, puts them back or takes them away. " +
+      "An open conflict of the user's edit: an agent only once the user left it so (strom conflict leave).",
     args: [{ name: "conflict", description: "conflict ID (X0001)", required: true }],
     options: [
       { name: "resolution", type: "string", value: "<text>", description: "the conclusion (with --take: the value taken, by default)" },
       { name: "reasoning", type: "string", value: "<text>", description: "why — which evidence outweighs which" },
       { name: "take", type: "string", value: "<user|research>", description: "a conflict of the user's edit in the Strom app: whose value the fact keeps — the user's is written into it" },
       { name: "source", type: "string", multiple: true, value: "<S…>", description: "deciding again what the user decided: the new source it rests on (one none of its claims names)" },
+      { name: "from-app", type: "boolean", description: "the side picked in the Strom app's link" },
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -559,12 +561,20 @@ register(
       const sources = listOpt(opts.source).map((s) => requireRecord(tree, s, "source").id);
       // who decides: the user (in the Strom app through the bridge, or at a terminal), else an agent
       const by: "user" | "agent" = tree.actor === "user" ? "user" : "agent";
-      const inApp = ctx.env.STROM_FOR_APP === "1";
+      const inApp = ctx.env.STROM_FOR_APP === "1" || (by === "user" && opts["from-app"] === true);
       let did: string | undefined;
       let again: Conflict | undefined;
       const x = tree.withTreeLock(() => {
         // read afresh under the lock: decided meanwhile (another strom, the app) — never decided over in silence
         const now = tree.get<Conflict>(id)!;
+        // the user's own edit against the research: the user's to decide, never an agent's — unless the user left it to
+        // the agent (found: nothing kept an agent from closing it)
+        if (now.state === "open" && by === "agent" && isEditConflict(now) && !now.leftToAgent)
+          throw new UsageError(`${id} is a conflict of the user's own edit in the Strom app: the user decides it (the app, or strom → What waits) — an agent only when the user leaves it to the agent`, {
+            hint: `tell the user: ${id} waits for their decision`,
+            code: "conflict.users",
+            params: { id },
+          });
         if (now.state === "resolved") {
           againAllowed(tree, now, { reason, sources, by, side });
           again = now;
@@ -595,6 +605,26 @@ register(
       const shown = lines(...changeLines(tree, tree.written, "", tree.lang).map((l) => l.text));
       const left = c0.edit && !side ? ui(tree.lang, "ui.conflict.left", { fact: c0.edit.event, value: research ? claimText(tree, c0, research) : "?", id }) : undefined;
       return { text: lines(shown, left, stillOpen(tree, id)), data: { conflict: x, ...(side ? { taken: side } : {}), ...(did ? { written: did } : {}) } };
+    },
+  },
+  {
+    path: ["conflict", "leave"],
+    summary: "Leave a conflict of the user's edit to the agent to decide (the person's own)",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    person: "Leaving a conflict of the user's own edit to the agent is the user's choice: the Strom app's link, never an agent",
+    description: "What the Strom app's \"Leave it to the agent\" writes before the conversation about it: from then on an agent may decide it (strom conflict resolve).",
+    args: [{ name: "conflict", description: "conflict ID (X0001)", required: true }],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const id = normId(args[0]!, "conflict");
+      const c0 = requireRecord<Conflict>(tree, id, "conflict");
+      if (c0.state !== "open") throw new UsageError(`${id} is decided already`, { code: "conflict.decided", params: { id } });
+      if (!isEditConflict(c0)) throw new UsageError(`${id} is no conflict of an edit in the Strom app: an agent decides it anyway`, { code: "conflict.no-edit", params: { id } });
+      if (c0.leftToAgent) return { text: `${id}: left to the agent already`, data: { conflict: c0 } };
+      const x = update<Conflict>(tree, id, "conflict", (c) => ({ ...c, leftToAgent: new Date().toISOString() }), { op: "conflict.leave", summary: `${id} left to the agent by the user` });
+      return { text: written(tree), data: { conflict: x } };
     },
   },
   {

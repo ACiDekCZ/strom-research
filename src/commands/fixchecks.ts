@@ -41,6 +41,8 @@ import { listReadings, loadState, resultPath, type ReadResult } from "../core/do
 import { nameRewritesDone, participantNames, type NameRewrite } from "../core/participants.ts";
 import { appShapeFixes, appShapesDone, type ShapeFix } from "../core/appshapefix.ts";
 import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft, type StreetTown } from "../core/streetfix.ts";
+import { EDIT_DECISIONS_SINCE, editDecisionFixes, editDecisionsDone, type EditDecisionFix, type EditDecisionLeft } from "../core/editdecisionfix.ts";
+import { wokenWaitFixes, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -91,11 +93,13 @@ export interface FixFindings {
   unjudged: number;
   /** Earlier readings the items are of. */
   readings: number;
-  /** A check that rewrites (participant-names, app-shapes, street-places): what it would set right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[];
+  /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
+   * right, and how many it found it cannot. */
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[];
   unsplit?: number;
-  /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing). */
-  left?: StreetLeft[];
+  /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
+   * the user's value taken, decided again on a new source; woken-waits: taken up since). */
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -135,8 +139,14 @@ export interface FixCheck {
    */
   remedy: "read-again" | "rewrite";
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
-   * what a sync wrote (app-shapes: conflicts, facts, dates), or facts (street-places). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact";
+   * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
+   * (woken-waits). */
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task";
+  /**
+   * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
+   * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
+   */
+  agentWork?: true;
   /** The phrases of the task where a reading again differs (core/phrases.ts): fix.reread, fix.model (read-again only). */
   phrases?: "fix.reread" | "fix.model";
   detect(tree: Tree, env: FixEnv): FixFindings;
@@ -872,12 +882,59 @@ export const STREET_PLACES: FixCheck = {
   applied: (tree) => streetPlacesDone(tree).length,
 };
 
-/** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES];
+// ── what an agent decided or woke that was the user's or somebody's ─────────────────────────────────────────────────
 
-/** The checks of this research: in an archive only those that rewrite by rules (nobody reads there). */
+/**
+ * Until 1.26.0 an agent could decide a disagreement between the research and the user's own edit in the Strom app
+ * (strom conflict resolve). Since then it is the user's alone, unless the user left it to the agent (strom conflict
+ * leave); those an agent decided before are opened again for the user by rules (core/editdecisionfix.ts), what it
+ * decided kept in a note — no fact touched.
+ */
+export const EDIT_DECISIONS: FixCheck = {
+  id: "edit-decisions",
+  since: EDIT_DECISIONS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "conflict",
+  agentWork: true,
+  detect: (tree) => {
+    const f = editDecisionFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => editDecisionsDone(tree).length,
+};
+
+/**
+ * Until 1.26.0 images of a book registered put back in the queue a task that waited for the person's check of a site,
+ * or for a letter, the family or a site on another book. Since then they wake only a task that waits for that book; those
+ * woken before are set waiting again by rules (core/wokenwaitfix.ts), as they waited.
+ */
+export const WOKEN_WAITS: FixCheck = {
+  id: "woken-waits",
+  since: "1.26.0",
+  paid: false,
+  remedy: "rewrite",
+  unit: "task",
+  agentWork: true,
+  detect: (tree) => {
+    const f = wokenWaitFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => wokenWaitsDone(tree).length,
+};
+
+/** Every check strom knows, the oldest fix first. */
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS];
+
+/**
+ * A check offered where nobody researches (an archive, a research waiting for its agent): one that rewrites by rules and
+ * says nothing of an agent's work.
+ */
+export const quietCheck = (c: Pick<FixCheck, "remedy" | "agentWork">): boolean => c.remedy === "rewrite" && !c.agentWork;
+
+/** The checks of this research: in an archive only those that rewrite by rules (nobody reads there), none of an agent's work. */
 export function checksHere(tree: Tree): readonly FixCheck[] {
-  return isArchive(tree) ? FIX_CHECKS.filter((c) => c.remedy === "rewrite") : FIX_CHECKS;
+  return isArchive(tree) ? FIX_CHECKS.filter(quietCheck) : FIX_CHECKS;
 }
 
 /** How many a check found to set right: what it would rewrite, or the places to read again. */
@@ -1280,7 +1337,7 @@ export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string, keep = tr
   const s = pending[0]!;
   return {
     status: "warn",
-    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : s.check.unit === "participant" ? "ui.doc.fixes.pending.participants" : s.check.unit === "finding" ? "ui.doc.fixes.pending.findings" : s.check.unit === "fact" ? "ui.doc.fixes.pending.facts" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
+    text: ui(lang, s.check.unit === "place" ? "ui.doc.fixes.pending" : (`ui.doc.fixes.pending.${s.check.unit}s` as UIKey), { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
     fix: `strom fixes show ${s.check.id}`,
   };
 }
@@ -1341,8 +1398,8 @@ export interface AppFixTargets {
 /** The records a check's findings are of, by their kind: the owners of what it rewrites, the sources and images it reads again. */
 export function fixTargets(f: FixFindings): AppFixTargets | undefined {
   const ids = new Set<string>();
-  for (const r of (f.rewrites ?? []) as { owner?: string; record?: string }[]) for (const id of [r.owner, r.record]) if (id) ids.add(id);
-  for (const l of f.left ?? []) ids.add(l.owner);
+  type Of = { owner?: string; record?: string; subject?: string[] };
+  for (const r of [...(f.rewrites ?? []), ...(f.left ?? [])] as Of[]) for (const id of [r.owner, r.record, ...(r.subject ?? [])]) if (id) ids.add(id);
   for (const t of f.towns ?? []) for (const r of t.fixes) for (const id of [r.owner, r.record]) if (id) ids.add(id);
   for (const i of f.items) {
     for (const s of i.sources) ids.add(s);
@@ -1421,7 +1478,7 @@ export function appFixTowns(f: FixFindings): AppFixTown[] | undefined {
 export function fixesForApp(tree: Tree, settings: Settings, env: Env, o: { archive: boolean }): { rev: string; fixes: AppFix[] } {
   const fenv = fixEnvOf(settings, env, tree);
   const rev = fixesStamp(tree, fenv);
-  const checks = o.archive ? FIX_CHECKS.filter((c) => c.remedy === "rewrite") : FIX_CHECKS;
+  const checks = o.archive ? FIX_CHECKS.filter(quietCheck) : FIX_CHECKS;
   const fixes = checks.flatMap((check): AppFix[] => {
     let s: FixState;
     try {

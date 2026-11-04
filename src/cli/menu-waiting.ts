@@ -18,13 +18,14 @@
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
-import { decideSent } from "./menu-research.ts";
+import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, pickClaim, waitingDo } from "./menu-links.ts";
 import { truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Family, Person, RecordSet, Task } from "../core/model.ts";
+import type { Conflict, Family, Person, RecordSet, Research, Task } from "../core/model.ts";
+import { branchOf } from "../core/offline.ts";
 import { humanDay, humanTask } from "./human.ts";
 import { conflictTitle, displayName, lifespan } from "../core/people.ts";
 import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
@@ -50,7 +51,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "place", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "place", "branch", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -460,6 +461,7 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
 async function decide(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
   if (w.conflict) return decideConflictHere(ctx, run, lang, root, w.conflict.id);
   if (w.place) return decidePlace(ctx, run, lang, root, w.place.place.id);
+  if (w.branch) return decideBranch(ctx, run, lang, root, w.branch.id);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
   const tree = Tree.open(root, ctx.env);
@@ -511,6 +513,76 @@ async function decideConflictHere(ctx: Context, run: Run, lang: string, root: st
 }
 
 /**
+ * A branch off the lines that grew (spec 038 K7.0 d): whose it is, how it hangs on a line, a few of its tasks — added to
+ * a line (the nearest, else one picked), a line made for it (the new direction's wizard with its person, --branch),
+ * left as it is, or not researched (strom offline answer). Nothing spent; 0 leaves it waiting.
+ */
+async function decideBranch(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const b = branchOf(tree, ctx.settings, id);
+  // meanwhile answered (in the app, another terminal) or no branch now: said, nothing asked
+  if (!b?.grows) return void out(t("ui.wait.branch.gone"));
+  const who = (p: string) => {
+    const x = tree.get<Person>(p);
+    return x ? label(x) : p;
+  };
+  const lineName = (g: string) => tree.get<Research>(g)?.name ?? g;
+  const p = tree.get<Person>(b.person);
+  const name = p ? displayName(p) : b.person;
+  const at = b.tasks.map((x) => x.created).sort().pop() ?? "";
+  out(
+    [
+      "",
+      ` ${b.id} · ${kindWord(t, "branch")}${at ? ` · ${t("ui.wait.since", { day: humanDay(at, lang) })}` : ""}`,
+      ` ${t("ui.waiting.branch", { who: name, tasks: b.tasks.length, persons: b.persons.length })}`,
+      `    ${t("ui.offline.via", { who: who(b.via.person), rel: t(`ui.offline.rel.${b.via.rel}` as UIKey) })}`,
+      ...(b.nearest ? [`    ${t("ui.wait.branch.nearest", { line: lineName(b.nearest) })}`] : []),
+      ...b.tasks.slice(0, 3).map((x) => `    • ${truncate(humanTask(tree, x.what, lang, { asWritten: true }), 70)}`),
+    ].join("\n"),
+  );
+  const i = await ctx.choose(
+    "",
+    [
+      { label: b.nearest ? t("ui.wait.branch.line", { line: lineName(b.nearest) }) : t("ui.wait.branch.line.pick") },
+      { label: t("ui.wait.branch.create") },
+      { label: t("ui.wait.branch.keep") },
+      { label: t("ui.wait.branch.never") },
+    ],
+    4,
+    { back: t("ui.browse.back") },
+  );
+  if (i === undefined) return;
+  if (i === 0) {
+    let line = b.nearest;
+    if (!line) {
+      const lines = tree.list<Research>("research").filter((r) => !r.retracted && r.state === "active");
+      if (!lines.length) return void out(t("ui.wait.branch.nolines"));
+      const k = await ctx.choose(t("ui.wait.branch.which"), lines.slice(0, 9).map((r) => ({ label: r.name })), 0, { back: t("ui.browse.back") });
+      if (k === undefined) return;
+      line = lines[k]!.id;
+    }
+    if ((await run(["offline", "answer", b.id, "line", ...(line !== b.nearest ? ["--line", line] : [])], true)) !== 0) return;
+    return void out(t("ui.wait.branch.done.line", { line: lineName(line) }));
+  }
+  if (i === 1) {
+    // the new direction's wizard with the branch's person: what to find out, its title, what is known of it
+    const kinds = ["ancestors", "descendants", "question"] as const;
+    const k = await ctx.choose(t("ui.research.kind"), [{ label: t("ui.research.ancestors") }, { label: t("ui.research.descendants") }, { label: t("ui.research.question") }], 1, { back: t("ui.browse.back") });
+    if (k === undefined) return;
+    let question: string | undefined;
+    if (kinds[k] === "question") {
+      question = (await ctx.ask(t("ui.research.ask"))).trim();
+      if (!question || question === "0") return;
+    }
+    return startDirection(ctx, run, lang, root, kinds[k]!, ["--person", b.person], name, question, b.id);
+  }
+  if ((await run(["offline", "answer", b.id, i === 2 ? "keep" : "never"], true)) !== 0) return;
+  out(t(i === 2 ? "ui.wait.branch.done.keep" : "ui.wait.branch.done.never"));
+}
+
+/**
  * The research's question of a place, answered here as in the app's What waits (strom place answer, the person's own):
  * which of the candidates it is (or none, or no telling), the position on the map kept against the records, the facts
  * written as the record says or left. Nothing spent; 0 leaves it open.
@@ -541,6 +613,7 @@ async function decidePlace(ctx: Context, run: Run, lang: string, root: string, i
       ? [
           { label: t("ui.wait.place.yes"), take: "yes" },
           { label: t("ui.wait.place.no"), take: "no" },
+          { label: t("ui.wait.place.unknown"), take: "unknown" },
         ]
       : [
           ...(q.candidates ?? []).map((c) => {
@@ -548,7 +621,10 @@ async function decidePlace(ctx: Context, run: Run, lang: string, root: string, i
             return { label: `${c.name}${where ? ` (${where})` : ""} — ${c.why}`, take: c.id };
           }),
           ...(q.kind === "conflict"
-            ? [{ label: t("ui.wait.place.keep"), take: "keep" }]
+            ? [
+                { label: t("ui.wait.place.keep"), take: "keep" },
+                { label: t("ui.wait.place.unknown"), take: "unknown" },
+              ]
             : [
                 { label: t("ui.wait.place.none"), take: "none" },
                 { label: t("ui.wait.place.unknown"), take: "unknown" },

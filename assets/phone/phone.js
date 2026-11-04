@@ -179,6 +179,9 @@
     dwell: { finds: 0, wait: 0 }, // seconds each part has been in sight
     newCount: 0, // changes added above while scrolled down
     returning: false, // the page looked at again: the first answer after it awaited
+    lineOpen: "", // the line opened on a tap (its key: never its ID)
+    lineBusy: "", // the line being moved or paused now
+    lineSaid: "", // what the last change of a line could not do
   };
   const PENDING = new Set(["queued", "preparing", "sending", "offline"]);
   const FINAL = (i) => i.state === "error" && !i.retry;
@@ -719,6 +722,7 @@
     if (!tree || !o) return;
     const archive = !!tree.archive;
     $("nowCard").hidden = $("waitCard").hidden = $("findsCard").hidden = archive;
+    drawLines(archive);
     const lines = Array.isArray(o.now) ? o.now : [];
     if (!archive && changed("now", [lines, o.lastWorked, new Date().toDateString()])) {
       $("nowTitle").textContent = lines.length > 1 ? t("now.lines", { n: lines.length }) : t("now");
@@ -755,6 +759,72 @@
       $("daySavesL").textContent = t("day.saves", { n: o.day.saves });
     }
     $("logCard").hidden = S.logTree !== S.tree;
+  };
+
+  // the lines in the order of work, each with its number; one opened on a tap: ▲ ▼ and pause / start again (the same
+  // commands as on the computer, the line named by its key alone)
+  const drawLines = (archive) => {
+    const o = S.shown;
+    const lines = !archive && o && Array.isArray(o.lines) ? o.lines : [];
+    $("linesCard").hidden = !lines.length;
+    if (!lines.length || !changed("lines", [lines, S.lineOpen, S.lineBusy, S.lineSaid])) return;
+    $("linesTitle").textContent = t("lines.title");
+    $("linesList").replaceChildren(
+      ...lines.map((l, i) => {
+        const li = el("li", l.state === "active" ? "" : "off");
+        const open = S.lineOpen === l.key;
+        const head = el("button", "row-head");
+        head.type = "button";
+        head.setAttribute("aria-expanded", String(open));
+        const glyph = el("span", "glyph" + (l.way === "up" || l.way === "down" ? "" : " find"), l.way === "up" ? "↑" : l.way === "down" ? "↓" : "⌕");
+        glyph.setAttribute("aria-hidden", "true");
+        const box = el("span");
+        box.append(el("div", "name", l.name));
+        const meta = [l.state === "paused" ? t("lines.paused") : l.state === "done" ? t("lines.done") : "", t("lines.tasks", { n: Number(l.tasks) || 0 })].filter(Boolean).join(" · ");
+        box.append(el("div", "meta", meta));
+        head.append(el("span", "num", `${l.n}.`), glyph, box);
+        head.onclick = () => {
+          S.lineOpen = open ? "" : l.key;
+          S.lineSaid = "";
+          drawLines(false);
+        };
+        li.append(head);
+        if (open) {
+          const acts = el("div", "acts");
+          const busy = !!S.lineBusy;
+          const button = (cls, text, label, act, off) => {
+            const b = el("button", "btn outline small " + cls, text);
+            b.type = "button";
+            if (label) b.setAttribute("aria-label", label);
+            b.disabled = busy || off;
+            b.onclick = () => void lineDo(l.key, act);
+            return b;
+          };
+          acts.append(
+            button("arrow", "▲", t("lines.up"), "up", i === 0),
+            button("arrow", "▼", t("lines.down"), "down", i === lines.length - 1),
+            l.state === "active" ? button("", t("lines.pause"), "", "pause", false) : button("", t("lines.resume"), "", "resume", false),
+          );
+          li.append(acts);
+        }
+        return li;
+      }),
+    );
+    $("linesError").hidden = !S.lineSaid;
+    $("linesError").textContent = S.lineSaid;
+  };
+  // a line moved or paused: the computer writes it as its own command, then the page asks what is there now
+  const lineDo = async (key, act) => {
+    if (S.lineBusy) return;
+    S.lineBusy = key;
+    S.lineSaid = "";
+    drawLines(false);
+    const r = await ask(`/phone/line/${key}?tree=${encodeURIComponent(S.tree)}`, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify({ do: act }) }, 30_000);
+    S.lineBusy = "";
+    if (r.status === 401) return unpaired();
+    if (r.status !== 200) S.lineSaid = r.status === 503 ? t("lines.busy") : r.status === 409 ? t("lines.off") : t("lines.failed");
+    drawLines(false);
+    void refresh();
   };
 
   // what waits, each text whole: the overview's first ones, or more of them asked for (kept till what waits is another)
@@ -1348,7 +1418,7 @@
     doneNext: "commit.next", captureNote: "captureOnly", noPersonBtn: "field.noPerson", typingDone: "field.done", commitCancel: "commit.cancel",
     commitLater: "commit.later", switcherTitle: "switcher.title", pairedTitle: "paired.title", pairedText: "paired",
     homeBtn: "home.button", homeTitle: "home.title", homeIos: "home.ios", homeAndroid: "home.android", homeNote: "home.note", homeClose: "close",
-    nowIdleText: "now.idle", waitNone: "waiting.none", waitWhere: "waiting.where", dayTitle: "day", logTitle: "log", logNone: "log.none", logMore: "log.more",
+    nowIdleText: "now.idle", linesNote: "lines.note", waitNone: "waiting.none", waitWhere: "waiting.where", dayTitle: "day", logTitle: "log", logNone: "log.none", logMore: "log.more",
   };
   for (const [id, key] of Object.entries(texts)) $(id).textContent = t(key);
   // the icon on the home screen scans no QR code: the browser pairs again, and the icon is added from there

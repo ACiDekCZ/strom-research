@@ -756,7 +756,7 @@ register(
     "and when it would not start, the user is asked whether to start anyway (an agent: a window of the system).\n" +
     "A gate with a cap (e.g. run.gate \"claude-usage 15 --cap 95\") is asked before every session of every run, and\n" +
     "no \"start anyway\" goes past the cap: the run ends saying the use and the reset; a session at work is asked to\n" +
-    "finish when the agent says the cap's window is at 99 %.\n" +
+    "finish when the agent says the cap's window reached the cap (a cap of 100: 99 %).\n" +
     "Each answer of the gate is said in one line and recorded (time, gate and its arguments, exit status, verdict,\n" +
     "reason, wait, the plan's limits it was given, what the run did) in .strom/gate.log and the next session's log.\n" +
     "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +

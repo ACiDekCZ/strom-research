@@ -6,7 +6,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { addPerson, addResearch } from "../core/actions.ts";
 import { applyFrontier, researchProposals } from "./session.ts";
-import { frontier } from "../core/frontier.ts";
+import { frontier, linePeople } from "../core/frontier.ts";
 import { DEATH_AFTER_YEARS, livingBorn, unprovenPeople } from "../core/review.ts";
 import { parkedWhy } from "./tasks.ts";
 import { placeholders, ui, type UIKey } from "../cli/ui.ts";
@@ -17,7 +17,8 @@ import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePe
 import { foldText } from "../core/text.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { scopes } from "../core/directions.ts";
-import { lineOf } from "../core/offline.ts";
+import { answerBranch, branchOf, lineOf } from "../core/offline.ts";
+import { arranged, moved, orderNumbers, workOrder, writeOrder, type Move } from "../core/order.ts";
 import { otherKind, otherKindHint, update } from "../core/records.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
 import { actsAsArchive, refuseInArchive } from "../core/state.ts";
@@ -49,6 +50,30 @@ function researchLine(tree: Tree, r: Research): string[] {
   return [r.id, r.name, `[${r.state}]`, r.direction, focus ? label(focus) : r.focus];
 }
 
+/** Writing to the directions is refused where nobody researches (an archive, a research waiting for its agent). */
+function refuseLines(ctx: Context, tree: Tree, what: string): void {
+  refuseInArchive(tree, what, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
+}
+
+/** The tasks that belong to a direction now (its own and those that help it; core/offline.ts), not finished. */
+function belonging(tree: Tree, id: string): Set<string> {
+  const line = lineOf(tree, scopes(tree));
+  return new Set(tree.list<Task>("task").filter((t) => ["open", "parked", "waiting", "doing"].includes(t.state) && line(t) === id).map((t) => t.id));
+}
+
+function orderResult(tree: Tree, order: string[], ignored: string[]): { text: string; data: Record<string, unknown> } {
+  const byId = new Map(tree.list<Research>("research").map((r) => [r.id, r]));
+  return {
+    text: lines(
+      ...tree.written.map((o) => o.summary),
+      ...(tree.written.length ? [] : ["the order is as it was"]),
+      table(order.map((id, i) => [`${i + 1}.`, ...researchLine(tree, byId.get(id)!)])),
+      ...(ignored.length ? [`ignored (no such direction): ${ignored.join(" ")}`] : []),
+    ),
+    data: { order, ...(ignored.length ? { ignored } : {}), changed: tree.written.length > 0 },
+  };
+}
+
 register(
   {
     path: ["research", "new"],
@@ -72,6 +97,7 @@ register(
       { name: "question", type: "string", value: "<text>", description: "the research question (direction question)" },
       { name: "priority", type: "string", value: "1-5", description: "priority among researches (default 3)" },
       { name: "note", type: "string", value: "<text>", description: "what the user told you (short)" },
+      { name: "branch", type: "string", value: "<B-…>", description: "a line for a branch off the lines (strom offline list): its tasks go with the new line" },
     ],
     examples: [
       'strom research new "Předci Jana Nováka" --new-person "Jan /Novák/" --sex M --born "ABT 1905" --born-place "Týnec nad Labem"',
@@ -93,6 +119,10 @@ register(
           bornPlace: opts["born-place"] as string | undefined,
         });
       } else focus = resolvePerson(tree, opts.person as string);
+      // a line for a branch off the lines (What waits proposed one): the branch must be one now
+      const branch = typeof opts.branch === "string" ? branchOf(tree, ctx.settings, opts.branch) : undefined;
+      if (typeof opts.branch === "string" && !branch)
+        throw new UsageError(`no branch ${opts.branch} now: its person is in a line, or nothing off the lines hangs on them`, { hint: "strom offline list", code: "offline.none", params: { branch: String(opts.branch) } });
       const r = addResearch(tree, {
         name: args[0]!,
         focus: focus.id,
@@ -103,6 +133,8 @@ register(
         priority: int(opts.priority, "priority"),
         note: opts.note as string | undefined,
       });
+      // the branch goes with the new line; the proposal answered
+      if (branch) answerBranch(tree, branch, "create", r.id);
       const text = lines(
         ...tree.written.map((o) => o.summary),
         "",
@@ -110,12 +142,12 @@ register(
           ? `next   strom intake --text "<what the user told you about ${displayName(focus)} and the family>"`
           : `next   strom session start`,
       );
-      return { text, data: { research: r, focus } };
+      return { text, data: { research: r, focus, ...(branch ? { branch: branch.id } : {}) } };
     },
   },
   {
     path: ["research", "list"],
-    summary: "Researches in this tree",
+    summary: "Researches in this tree, in the order of work (1 = first)",
     group: "research",
     tree: true,
     options: [{ name: "state", type: "string", value: "<state>", description: "active, paused or done" }],
@@ -128,7 +160,9 @@ register(
           text: `${ui(tree.lang, "ui.research.none")}${actsAsArchive(tree) ? "" : ` → ${placeholders(tree.lang, 'strom research new "<research name>" --new-person "<Given /Surname/>"')}`}`,
           data: { researches: [] },
         };
-      return { text: table(all.map((r) => researchLine(tree, r))), data: { researches: all } };
+      const places = orderNumbers(tree.list<Research>("research"));
+      const ordered = workOrder(all).map((r) => ({ ...r, order: places.get(r.id)! }));
+      return { text: table(ordered.map((r) => [`${r.order}.`, ...researchLine(tree, r)])), data: { researches: ordered } };
     },
   },
   ...(["pause", "resume", "done"] as const).map((act): CommandDef => ({
@@ -151,6 +185,7 @@ register(
     examples: act === "pause" ? ['strom research pause G0001 --reason "the family asked to wait"'] : act === "resume" ? ["strom research resume G0001"] : ["strom research done G0001"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      refuseLines(ctx, tree, `strom research ${act}`);
       const r = resolveResearch(tree, args[0]!);
       const state = act === "pause" ? "paused" : act === "resume" ? "active" : "done";
       const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
@@ -177,8 +212,155 @@ register(
     },
   })),
   {
+    path: ["research", "edit"],
+    summary: "Change a research direction: its name, question or limits; why it is paused",
+    group: "research",
+    tree: true,
+    writes: true,
+    description:
+      "The user's decision (an agent changes it when the user asks). The person and the kind stay. A narrower\n" +
+      "limit deletes nothing: the tasks beyond it stop belonging to the direction and wait outside it (other\n" +
+      "directions or the work outside them take them); a wider one brings them back. --json says so in `effect`\n" +
+      "(a sentence in the research's language and how many tasks moved), only when a limit moved any.",
+    args: [{ name: "research", description: "ID (G0001) or part of the name", required: true }],
+    options: [
+      { name: "name", type: "string", value: "<text>", description: "the new name" },
+      { name: "question", type: "string", value: "<text>", description: "the new question (a question direction)" },
+      { name: "generations", type: "string", value: "<n>|none", description: "stop after n generations; none = no limit" },
+      { name: "before", type: "string", value: "<year>|none", description: "stop at people born before this year; none = no limit" },
+      { name: "reason", type: "string", value: "<text>", description: "why it is paused (a paused direction; kept as a note)" },
+    ],
+    examples: ['strom research edit G0001 --name "Předci Josefa"', "strom research edit G0001 --generations 6 --before none"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseLines(ctx, tree, "strom research edit");
+      const r = resolveResearch(tree, args[0]!);
+      const text = (v: unknown, name: string): string | undefined => {
+        if (v === undefined) return undefined;
+        const t = String(v).normalize("NFC").trim();
+        if (!t) throw new UsageError(`--${name} must not be empty`);
+        return t;
+      };
+      const limit = (v: unknown, name: string): number | null | undefined => {
+        if (v === undefined) return undefined;
+        if (String(v).trim().toLowerCase() === "none") return null;
+        const n = int(v, name)!;
+        if (n < 1) throw new UsageError(`--${name} must be 1 or more, or none`);
+        return n;
+      };
+      const name = text(opts.name, "name");
+      const question = text(opts.question, "question");
+      const generations = limit(opts.generations, "generations");
+      const before = limit(opts.before, "before");
+      const reason = text(opts.reason, "reason");
+      if (question !== undefined && r.direction !== "question") throw new UsageError(`${r.id} is not a question direction: no question to change`, { hint: `strom research show ${r.id}` });
+      if (reason !== undefined && r.state !== "paused") throw new UsageError(`${r.id} is not paused: --reason says why a paused direction waits`, { hint: `strom research pause ${r.id} --reason "<why>"` });
+      if ([name, question, generations, before, reason].every((x) => x === undefined))
+        throw new UsageError("nothing to change", { hint: `strom research edit ${r.id} --name "<name>" | --question "<text>" | --generations <n>|none | --before <year>|none | --reason "<why>"` });
+      const limits = { ...(r.limits ?? {}) };
+      if (generations === null) delete limits.generations;
+      else if (generations !== undefined) limits.generations = generations;
+      if (before === null) delete limits.before;
+      else if (before !== undefined) limits.before = before;
+      const limitsMoved = (r.limits?.generations ?? null) !== (limits.generations ?? null) || (r.limits?.before ?? null) !== (limits.before ?? null);
+      const changed = limitsMoved || (name !== undefined && name !== r.name) || (question !== undefined && question !== r.question) || reason !== undefined;
+      const places = orderNumbers(tree.list<Research>("research"));
+      if (!changed) return { text: `${r.id} has that already`, data: { research: { ...r, order: places.get(r.id)! }, changed: false } };
+      const before0 = limitsMoved ? belonging(tree, r.id) : new Set<string>();
+      const what = [name !== undefined && name !== r.name ? "name" : "", question !== undefined && question !== r.question ? "question" : "", limitsMoved ? "limits" : "", reason ? "reason" : ""].filter(Boolean).join(", ");
+      const next = update<Research>(
+        tree,
+        r.id,
+        "research",
+        (x) => {
+          const y: Research = { ...x, ...(name !== undefined ? { name } : {}), ...(question !== undefined ? { question } : {}) };
+          if (Object.keys(limits).length) y.limits = limits;
+          else delete y.limits;
+          if (reason) y.notes = [...x.notes, { text: `paused: ${reason}`, at: new Date().toISOString(), by: tree.actor }];
+          return y;
+        },
+        { op: "research.edit", summary: `${r.id} ${what}: ${name ?? r.name}`, ...(reason ? { reason } : {}) },
+      );
+      let effect: { said: string; outside: number; back?: number } | undefined;
+      if (limitsMoved) {
+        const after = belonging(tree, r.id);
+        const outside = [...before0].filter((id) => !after.has(id)).length;
+        const back = [...after].filter((id) => !before0.has(id)).length;
+        if (outside || back)
+          effect = {
+            said: [outside ? ui(tree.lang, "ui.dirs.effect.outside", { n: outside }) : "", back ? ui(tree.lang, "ui.dirs.effect.back", { n: back }) : ""].filter(Boolean).join(" "),
+            outside,
+            ...(back ? { back } : {}),
+          };
+      }
+      return {
+        text: lines(...tree.written.map((o) => o.summary), ...(effect ? [effect.said] : [])),
+        data: { research: { ...next, order: places.get(r.id)! }, changed: true, ...(effect ? { effect } : {}) },
+      };
+    },
+  },
+  {
+    path: ["research", "order"],
+    summary: "Put the research directions in the order of work: the first comes first",
+    group: "research",
+    tree: true,
+    writes: true,
+    description:
+      "The user's decision (an agent changes it when the user asks). The directions named come first, in the\n" +
+      "order given; the rest follow in their order until now. Paused and ended directions keep their place too.\n" +
+      "What the order means for the queue: queue.strategy balanced or depth — earlier directions weigh more, none\n" +
+      "starves; priority — the first direction while it has work, then the next.",
+    args: [{ name: "research", description: "IDs (G0001) in the order wanted", required: true, variadic: true }],
+    examples: ["strom research order G0003 G0001"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      refuseLines(ctx, tree, "strom research order");
+      return tree.withTreeLock(() => {
+        const { lines: ordered, ignored } = arranged(tree.list<Research>("research"), args);
+        const order = writeOrder(tree, ordered, { op: "research.order", summary: `order of work: ${ordered.map((r) => r.id).join(" ")}` });
+        return orderResult(tree, order, ignored);
+      });
+    },
+  },
+  {
+    path: ["research", "move"],
+    summary: "Move one research direction in the order of work: to a place, up, down or first",
+    group: "research",
+    tree: true,
+    writes: true,
+    description: "The user's decision (an agent changes it when the user asks); the others keep their order. strom research order\nsets the whole order at once.",
+    args: [{ name: "research", description: "ID (G0001) or part of the name", required: true }],
+    options: [
+      { name: "to", type: "string", value: "<n>", description: "to this place (1 = first)" },
+      { name: "up", type: "boolean", description: "one place up" },
+      { name: "down", type: "boolean", description: "one place down" },
+      { name: "first", type: "boolean", description: "to the first place" },
+    ],
+    examples: ["strom research move G0001 --first", "strom research move G0001 --to 2", "strom research move G0001 --down"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseLines(ctx, tree, "strom research move");
+      const given = [opts.to !== undefined, !!opts.up, !!opts.down, !!opts.first].filter(Boolean).length;
+      if (given !== 1) throw new UsageError("give exactly one of --to <n>, --up, --down or --first");
+      let move: Move;
+      if (opts.to !== undefined) {
+        const to = int(opts.to, "to")!;
+        if (to < 1) throw new UsageError("--to must be 1 or more");
+        move = { to };
+      } else move = opts.up ? { up: true } : opts.down ? { down: true } : { first: true };
+      return tree.withTreeLock(() => {
+        const r = resolveResearch(tree, args[0]!);
+        const all = tree.list<Research>("research");
+        const byId = new Map(all.map((x) => [x.id, x]));
+        const ids = moved(all, r.id, move);
+        const order = writeOrder(tree, ids.map((id) => byId.get(id)!), { op: "research.order", targets: [r.id], summary: `${r.id} moved: ${ids.indexOf(r.id) + 1}. of ${ids.length}` });
+        return orderResult(tree, order, []);
+      });
+    },
+  },
+  {
     path: ["research", "show"],
-    summary: "One research: goal, focus person, known ancestors, what is missing",
+    summary: "One research: goal, focus person, known ancestors (a line of descendants: the descendants), what is missing",
     group: "research",
     tree: true,
     args: [{ name: "research", description: "ID (G0001) or part of the name (default: the one active research)" }],
@@ -190,39 +372,47 @@ register(
         throw new UsageError(active.length ? `${active.length} researches are active: name one` : "no active research", { hint: active.length ? `strom research show ${active[0]!.id} — all: strom research list` : "strom research list" });
       const r = args[0] ? resolveResearch(tree, args[0]) : active[0]!;
       const focus = tree.get<Person>(r.focus);
-      const gens = ancestorGenerations(tree, r.focus, r.limits?.generations ?? 50);
+      // a line of descendants: its person's descendants by generation (core/frontier.ts linePeople), else the ancestors
+      const down = r.direction === "descendants";
+      const gens = down ? linePeople(tree, r) : ancestorGenerations(tree, r.focus, r.limits?.generations ?? 50);
       const byGen = new Map<number, Person[]>();
       for (const [id, g] of gens) {
         const p = tree.get<Person>(id);
         if (p) byGen.set(g, [...(byGen.get(g) ?? []), p]);
       }
-      const missingParents = [...gens.keys()]
-        .map((id) => tree.get<Person>(id)!)
-        .filter((p) => p && parentsOf(tree, p.id).length < 2);
+      // the parents looked for: a line of ancestors' (its descendants have one parent each in the line)
+      const missingParents = down
+        ? []
+        : [...gens.keys()].map((id) => tree.get<Person>(id)!).filter((p) => p && parentsOf(tree, p.id).length < 2);
       const limits = [r.limits?.generations ? `${r.limits.generations} generations` : "", r.limits?.before ? `born after ${r.limits.before}` : ""].filter(Boolean).join(", ");
+      const places = orderNumbers(tree.list<Research>("research"));
       const text = lines(
-        `${r.id} ${r.name}  [${r.state}]  priority ${r.priority}`,
+        `${r.id} ${r.name}  [${r.state}]  ${places.get(r.id)}. of ${places.size} in the order of work`,
         `goal   ${r.direction}${r.question ? `: ${r.question}` : ""} of ${focus ? label(focus) : r.focus}${limits ? ` (${limits})` : ""}`,
         ...r.notes.map((n) => `note   ${n.text}`),
         "",
-        "known ancestors by generation",
+        down ? "known descendants by generation" : "known ancestors by generation",
         table(
           [...byGen.entries()]
             .sort((a, b) => a[0] - b[0])
             .flatMap(([g, ps]) => ps.map((p) => [`  G${g}`, p.id, displayName(p), lifespan(p)])),
         ),
-        "",
-        missingParents.length
-          ? `missing parents (${missingParents.length}): ` + missingParents.slice(0, 10).map((p) => `${p.id} ${displayName(p)}`).join(" · ")
-          : "every person in scope has both parents",
+        ...(down
+          ? []
+          : [
+              "",
+              missingParents.length
+                ? `missing parents (${missingParents.length}): ` + missingParents.slice(0, 10).map((p) => `${p.id} ${displayName(p)}`).join(" · ")
+                : "every person in scope has both parents",
+            ]),
       );
       return {
         text,
         data: {
-          research: r,
+          research: { ...r, order: places.get(r.id)! },
           focus,
           generations: Object.fromEntries([...gens.entries()]),
-          missingParents: missingParents.map((p) => p.id),
+          ...(down ? {} : { missingParents: missingParents.map((p) => p.id) }),
         },
       };
     },

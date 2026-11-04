@@ -1199,11 +1199,14 @@ function answerOne(tree: Tree, p: Place, take: PlaceTake): { place: Place; facts
   const loc = { ...place.locating! };
   delete loc.question;
   const t = now();
-  const pick = take === "first" ? (q.kind === "form" ? "yes" : q.kind === "conflict" ? "keep" : "c1") : take;
+  // first: each question's first candidate (the app's "Always the first candidate (A)") — a conflict's too, moved to it,
+  // but never over the person's own coordinates (asked one by one); yes to a form
+  const pick = take === "first" ? (q.kind === "form" ? "yes" : q.kind === "conflict" && (!q.candidates?.length || p.locating?.by === "person") ? "" : "c1") : take;
   if (q.kind === "form") {
-    if (pick !== "yes" && pick !== "no") return "take";
+    // unknown: the facts left as they write it, the question off (as no)
+    if (pick !== "yes" && pick !== "no" && pick !== "unknown") return "take";
     place.locating = loc;
-    if (pick === "no" || !q.change) return { place };
+    if (pick !== "yes" || !q.change) return { place };
     return { place, facts: formChanges(tree, q.change.from.place, q.change.to).changes };
   }
   if (/^c[1-3]$/u.test(pick)) {
@@ -1219,6 +1222,12 @@ function answerOne(tree: Tree, p: Place, take: PlaceTake): { place: Place; facts
     place.locating = { ...loc, kept: { lat: place.coords.lat, lon: place.coords.lon } };
     return { place };
   }
+  // a conflict the person cannot tell: the coordinates stay, the question off — never kept as the person's (the research
+  // may ask again on something new)
+  if (pick === "unknown" && q.kind === "conflict" && place.coords) {
+    place.locating = { ...loc, checkWhy: "the person could not tell: these coordinates or the research's candidate" };
+    return { place };
+  }
   if (pick === "unknown" || pick === "none") {
     if (place.coords && q.kind === "conflict") return "take";
     place.unlocated = pick === "unknown" ? "the person could not tell which of the candidates" : "none of the candidates, by the person";
@@ -1229,8 +1238,8 @@ function answerOne(tree: Tree, p: Place, take: PlaceTake): { place: Place; facts
 }
 
 /**
- * The person's answers to questions of places (one, or several at once: `first` takes each one's first candidate, keeps
- * a conflict's coordinates, says yes to a form): one operation, undone as one (undoPlaces). `dry`: what it would do.
+ * The person's answers to questions of places (one, or several at once: `first` takes each one's first candidate — a
+ * conflict's too, unless the coordinates are the person's own —, says yes to a form): one operation, undone as one (undoPlaces). `dry`: what it would do.
  * Inside the tree's lock.
  */
 export function answerPlaces(tree: Tree, ids: string[], take: PlaceTake, opts: { dry?: boolean; expect?: Record<string, string> } = {}): AnswerResult {

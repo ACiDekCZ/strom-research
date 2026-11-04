@@ -184,7 +184,7 @@ test("story history: an approved story is never rewritten for it — no task pro
     assert.deepEqual(story.draft.history, ["cz-lhota-0001"]);
     // story show says the history the new version tells, under it (the approved one tells none)
     const shown = (await w.ok(["story", "show", "P1"])).out;
-    assert.match(shown, /── a new version [^\n]*\n\nJan byl mlynář\. Roku 1866 přišla do kraje cholera\.\n\nthe history of the places it tells\n  cz-lhota-0001 1866 Cholera v kraji — Dějiny Lhotska/u);
+    assert.match(shown, /── a new version [^\n]*\n\nJan byl mlynář\. Roku 1866 přišla do kraje cholera\.\n\nrests on\n(?:  .*\n)+the history of the places it tells\n  cz-lhota-0001 1866 Cholera v kraji — Dějiny Lhotska/u);
     assert.equal(shown.match(/the history of the places it tells/g)?.length, 1, "the approved one tells none");
   } finally {
     w.cleanup();

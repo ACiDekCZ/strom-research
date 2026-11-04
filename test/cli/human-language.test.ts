@@ -92,8 +92,11 @@ for (const lang of ["cs", "de"] as const) {
     assert.match(noWhy.err, /--reasoning/);
     assert.doesNotMatch(noWhy.err, /--resolution/, "the side taken gives the resolution: only --reasoning is missing");
     await run(["conflict", "resolve", x, "--reasoning", "rodina"]);
-    // decided through the agent of the conversation: the user's decision, said in their language all the same
-    const took = await run(["conflict", "resolve", x, "--take", "user", "--reasoning", "rodina to ví"], { CLAUDECODE: "1" });
+    // the agent of the conversation does not decide the user's own edit (its refusal is the agent's, in English):
+    // the user decides it, said in their language
+    const agent = await w.run(["conflict", "resolve", x, "--take", "user", "--reasoning", "rodina to ví", "--json"], { env: { CLAUDECODE: "1" } });
+    assert.equal(JSON.parse(agent.out).code, "conflict.users");
+    const took = await run(["conflict", "resolve", x, "--take", "user", "--reasoning", "rodina to ví"]);
     assert.equal(took.code, 0, took.err);
     // a conflict of no edit of the app
     const y = (await w.ok(["conflict", "add", "Dvě data křtu", "--about", "P0001", "--claim", `${(s.id ?? s.source?.id) as string}: 1870`, "--claim", `${(s.id ?? s.source?.id) as string}: 1871`, "--json"])).json.conflict.id as string;

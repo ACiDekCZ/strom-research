@@ -5,6 +5,54 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.26.0
+
+*4. 11. 2026 · patří k aplikaci Strom 3.22.0.*
+
+- **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
+  (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu
+  linii posune nahoru nebo dolů a pozastaví. Práce mimo linie – vedlejší větev, kam žádná linie nesahá, třeba sestra
+  předka a její rodina – teď přijde občas, jeden úkol z deseti sezení, místo jen na konci. Každá taková větev může mít
+  vlastní volbu (občas, na konci, normálně jako práce linií, nikdy, nebo přidat k linii) a u větve, která roste, se v Co
+  čeká navrhne linie: přidat k linii, založit pro ni linii, nechat, jak je, nebo nezkoumat. Manžel nebo manželka předka
+  patří k linii předka a linie s otázkou má v sobě svou osobu. Kterýkoli úkol jde udělat hned nebo dát na konec a každý
+  úkol ve frontě říká, proč stojí tam, kde stojí. V terminálu: Nastavení → Samostatná práce agenta → Práce mimo linie,
+  `strom offline`, `strom task order`.
+
+- **Přepsané vyprávění nic neztratí.** Když výzkum vyprávění napíše znovu – víc údajů, lepší čtení, vyprávění převzaté
+  ze staršího výzkumu – každý údaj, pramen a odkaz předchozí verze zůstane, nebo odejde jen záměrně s důvodem, který se
+  uloží k vyprávění. Prameny, o které se vyprávění opírá, jsou u něj vidět, u každého údaje název a adresa, i když je
+  text nejmenuje, i pramen, který text jmenuje jen kódem; aplikace Strom je dostane s vyprávěním. Údaj z vodítka v textu
+  říká, odkud je.
+
+- Velký rodokmen převzatý ve Windows (zhruba 1 500 osob a víc) už neskončí chybou gitu o příliš dlouhém příkazu
+  (ENAMETOOLONG) bez jediného zapsaného údaje: vše převzaté se zapíše.
+
+- Na velkém výzkumu (stovky úkolů ve frontě, hodně věcí k vyřízení) už aplikace Strom neříká, že výzkum neodpovídá,
+  když jeho agent pracuje: spojení s aplikací spočítá stav výzkumu jednou pro každou změnu, stranou, a aplikaci mezitím
+  odpovídá hned – i během denního úklidu, hledání oprav strom, čtení historie po každé změně a přípravy přehledu pro
+  widget na ploše.
+
+- Vyprávění i poznámka přijdou do aplikace Strom s mezerami, jak jsou napsané: dvě mezery mezi slovy, nezlomitelná
+  ani úzká mezera už se nemění na jednu obyčejnou.
+
+- **Co rozhoduje uživatel, zůstává jeho.** Rozpor výzkumu s úpravou z aplikace Strom, schválení vyprávění nebo jeho nové
+  verze a odpověď u větve, která roste, rozhoduje jen uživatel – v aplikaci nebo v Co čeká; agenta strom odmítne a ten
+  jen řekne, že to čeká. Vzít zpět, co aplikace poslala nebo co se synchronizovalo (`strom sync undo`), a zahodit strom,
+  který čeká, je také jen na uživateli. Volba aplikace „Nechat na agentovi“ takový rozpor agentovi předá; strana vybraná
+  v aplikaci se v terminálu jen potvrdí, důvod je nepovinný. Ztotožnění míst: „Nevím“ jde i u rozporu polohy a u návrhu
+  zápisu názvu a „Vždy první kandidát (A)“ převezme kandidáta i u rozporu – nikdy přes ručně zadané souřadnice. Terminál
+  mluví slovy aplikace: vodítko, doložené, vyvrácené, Nevím, Žádný z nich, stejné volby strany. Takový rozpor, který
+  dřív rozhodl agent, najde `strom fixes show edit-decisions` a znovu ho otevře pro uživatele; rozhodnutí agenta zůstane
+  v poznámce (`strom fixes undo edit-decisions` ho vrátí).
+
+- **Podmínka týdne předplatného bere celá čísla od 0 do 99 a drží strop.** Menu i `strom config set` odmítnou desetinné
+  číslo nebo 100 (dřív se uložilo a každý běh pak skončil) a menu nastavený strop zachová; se stropem se rozběhnuté
+  sezení požádá o dokončení, když týden dosáhne stropu, ne až při 99 %. Úkol odložený do data se vrátí v ten den, jak
+  teď říká i nápověda. Příchozí snímky probudí jen úkoly, které na tu knihu čekají – nikdy kontrolu webu, kterou dělá
+  člověk, a dopis jen tehdy, když čeká na tu knihu.
+  Úkoly takto dřív probuzené najde `strom fixes show woken-waits` a znovu čekají, jak čekaly.
+
 ## 1.25.2
 
 *3. 11. 2026 · patří k aplikaci Strom 3.21.2.*

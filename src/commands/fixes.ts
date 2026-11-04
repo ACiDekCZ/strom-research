@@ -31,6 +31,7 @@ import {
   fixEnv,
   fixStates,
   FIX_CHECKS,
+  quietCheck,
   loadDocResult,
   byReading,
   defaultStage,
@@ -54,6 +55,8 @@ import { VERSION } from "../core/tree.ts";
 import { applyNameRewrites, nameRewritesDone, undoNameRewrites, type NameNote, type NameRewrite } from "../core/participants.ts";
 import { applyAppShapes, appShapesDone, undoAppShapes, type ShapeFix } from "../core/appshapefix.ts";
 import { applyStreetPlaces, forgetTownAnswers, streetPlacesDone, undoStreetPlaces, type StreetFix, type StreetLeft, type StreetTown, type TownAnswers } from "../core/streetfix.ts";
+import { applyEditDecisions, editDecisionsDone, undoEditDecisions, type EditDecisionFix, type EditDecisionLeft } from "../core/editdecisionfix.ts";
+import { applyWokenWaits, undoWokenWaits, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import type { TreeConfig } from "../core/model.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
@@ -110,13 +113,9 @@ const stateText = (t: T, s: FixState) =>
   s.state === "pending"
     ? s.check.unit === "reading"
       ? t("ui.fixes.state.pending.readings", { count: s.found.readings })
-      : s.check.unit === "participant"
-        ? t("ui.fixes.state.pending.participants", { count: foundCount(s.found) })
-        : s.check.unit === "finding"
-          ? t("ui.fixes.state.pending.findings", { count: foundCount(s.found) })
-          : s.check.unit === "fact"
-            ? t("ui.fixes.state.pending.facts", { count: foundCount(s.found) })
-            : t("ui.fixes.state.pending", { count: s.found.items.length })
+      : s.check.unit === "place"
+        ? t("ui.fixes.state.pending", { count: s.found.items.length })
+        : t(`ui.fixes.state.pending.${s.check.unit}s` as UIKey, { count: foundCount(s.found) })
     : s.state === "nothing"
       ? t("ui.fixes.state.nothing")
       : t(`ui.fixes.state.${s.state}` as UIKey, { date: s.decision!.at.slice(0, 10) });
@@ -275,6 +274,48 @@ const REWRITERS: Record<string, Rewriter> = {
     fixed: (key, n, records) => `Fix ${key}: ${n} places of facts set to the municipality, the street and the number to the house, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} places of facts put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
+  "edit-decisions": {
+    // one conflict opened again: its title, its people, what the agent decided
+    example: (t, item) => {
+      const r = item as EditDecisionFix;
+      return t("ui.fixes.edit-decisions.example", { conflict: r.conflict, title: r.title, subject: r.subject.join(", "), resolution: short(r.decided.resolution ?? "") });
+    },
+    left: (t, item) => {
+      const r = item as EditDecisionLeft;
+      return t(`ui.fixes.edit-decisions.kept.${r.why}` as UIKey, { conflict: r.conflict, title: r.title });
+    },
+    apply: (tree, items, config) => applyEditDecisions(tree, items as EditDecisionFix[], VERSION, config),
+    done: (tree) => editDecisionsDone(tree).length,
+    undo: (tree, config) => undoEditDecisions(tree, config),
+    ask: "Open again for the user the disagreements with the user's own edits that an agent decided?",
+    askUndo: "Close again as the agent decided them the disagreements the fix opened?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} disagreements with the user's own edits an agent decided opened again for the user, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} disagreements closed again as the agent decided them${left ? `, ${left} changed since left` : ""}`,
+  },
+  "woken-waits": {
+    // one task set waiting again: what it is, the book whose images woke it, why that was wrong
+    example: (t, item) => {
+      const r = item as WokenWaitFix;
+      return t(`ui.fixes.woken-waits.example.${r.why}` as UIKey, { task: r.task, what: short(r.what), recordset: r.recordset, date: r.woken.slice(0, 10) });
+    },
+    left: (t, item) => {
+      const r = item as WokenWaitLeft;
+      return t("ui.fixes.woken-waits.kept", { task: r.task, what: short(r.what), recordset: r.recordset });
+    },
+    apply: (tree, items, config) => applyWokenWaits(tree, items as WokenWaitFix[], VERSION, config),
+    done: (tree) => wokenWaitsDone(tree).length,
+    undo: (tree, config) => undoWokenWaits(tree, config),
+    ask: "Set waiting again the tasks images woke though they waited for somebody's answer?",
+    askUndo: "Put the tasks the fix set waiting again back in the queue?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} tasks images woke though they waited for somebody's answer set waiting again, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} tasks put back in the queue as images woke them${left ? `, ${left} changed since left` : ""}`,
+  },
+};
+
+/** A text said in one line of an example: at most 80 characters, "…" where cut. */
+const short = (text: string) => {
+  const one = text.replace(/\s+/gu, " ").trim();
+  return one.length > 80 ? `${one.slice(0, 79).trimEnd()}…` : one;
 };
 
 const rewriterOf = (id: string): Rewriter => {
@@ -785,8 +826,20 @@ register(
       "offered where the number names a part: a municipality numbered by its parts (assets/terms/streets.json), a place\n" +
       "record of the name with its number, a street there (Lhota 2, Dlouhá 12). The answers are kept with the research.\n" +
       "One operation, one commit; strom fixes undo street-places puts it back, the answers with it.\n" +
+      "edit-decisions — a disagreement between the research and the user's own edit in the Strom app that an agent\n" +
+      "decided before strom 1.26.0 (since then the user's alone, unless left to the agent: strom conflict leave): set right\n" +
+      "by rules (free) — each opened again for the user's decision, what the agent decided kept in a note on it; no fact\n" +
+      "is touched. One whose user's value the agent took (the fact holds it) or decided again on a new source after the\n" +
+      "user's own decision is left and listed with why. Not in an archive. One operation, one commit; strom fixes undo\n" +
+      "edit-decisions closes each again as it was, where nothing changed since.\n" +
+      "woken-waits — a task waiting for somebody's answer that images of a book registered put back in the queue before\n" +
+      "strom 1.26.0: the person's check of a site, or a letter, the family or a site that waited on another book (its last\n" +
+      "operation that wake): set right by rules (free) — each waiting again as it waited, what it waits on and the site\n" +
+      "kept, a request sent before put back from the history (strom task sent); the wake's note stays. One taken up since\n" +
+      "(changed after the wake, or worked on) is left and listed. Not in an archive. One operation, one commit; strom\n" +
+      "fixes undo woken-waits puts each back in the queue, where nothing changed since.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -814,7 +867,7 @@ register(
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
       const check = fixCheck(args[0]!);
-      if (isArchive(tree) && check?.remedy !== "rewrite") return { text: t("ui.fixes.none"), data: { checks: [] } };
+      if (isArchive(tree) && !(check && quietCheck(check))) return { text: t("ui.fixes.none"), data: { checks: [] } };
       // the estimate is of the agent asked: one that cannot read here said at once
       if (check?.remedy !== "rewrite" && ctx.settings.agent(tree.config).source === "flag") requireReady(ctx, tree, `strom fixes show ${args[0]}`);
       const s = stateOfCheck(ctx, tree, args[0]!);
@@ -841,7 +894,8 @@ register(
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
       "again by the real time they took.\n" +
       "participant-names, app-shapes and street-places read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
-      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back.\n" +
+      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
+      "woken-waits, never in an archive (an agent's work).\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
     options: [
@@ -854,8 +908,9 @@ register(
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
       const asked = args[0] ? fixCheck(args[0]) : undefined;
-      // an archive: what is rewritten by rules only (nobody reads there; with no check, its checks are those alone)
-      if (args[0] && asked?.remedy !== "rewrite") refuseInArchive(tree, "strom fixes run", ctx.settings.agent(tree.config).value);
+      // an archive: what is rewritten by rules only, nothing of an agent's work (nobody reads there; with no check, its
+      // checks are those alone)
+      if (args[0] && !(asked && quietCheck(asked))) refuseInArchive(tree, "strom fixes run", ctx.settings.agent(tree.config).value);
       const set = `strom fixes run${args[0] ? ` ${args[0]}` : ""}`;
       if (ctx.yes) throw new UsageError("--yes never sets a fix right: a person chooses at their terminal", { hint: set });
       // who reads, before anything is offered: the agent asked, or with nothing asked, any here
@@ -943,18 +998,19 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
     description:
       "Each name and note the fix set apart is put back as it was (participant-names); each conflict open again, each fact\n" +
       "withdrawn back and each date and age as the sync left it (app-shapes); each fact's place and house as they were\n" +
-      "(street-places) — where it is still as the fix left it; one\n" +
+      "(street-places); each disagreement closed again as the agent decided it (edit-decisions); each task back in the\n" +
+      "queue as the images woke it (woken-waits) — where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive.",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions and woken-waits not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -963,6 +1019,8 @@ register(
       if (check.remedy !== "rewrite")
         throw new UsageError(`${check.id} reads again and overwrites nothing: there is nothing to put back`, { hint: `strom fixes show ${check.id}` });
       const set = `strom fixes undo ${check.id}`;
+      // an archive says nothing of an agent's work
+      if (check.agentWork) refuseInArchive(tree, set, ctx.settings.agent(tree.config).value);
       const w = rewriterOf(check.id);
       if (!w.done(tree)) return { text: t(`ui.fixes.${check.id}.nothing` as UIKey), data: { id: check.id, restored: 0, left: 0 } };
       if (ctx.yes) throw new UsageError("--yes never puts a fix back: a person chooses at their terminal", { hint: set });

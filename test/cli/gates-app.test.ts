@@ -106,7 +106,9 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   await w.ok(["config", "set", "run.gate", "claude-usage   20"], { tty: true, answers: ["y"] });
   assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "claude-usage 20");
   assert.equal((await w.ok(["gate", "test", "--json"])).json.verdict, "wait");
-  assert.equal((await ask("claude-usage x")).verdict, "stop", "not a number");
+  // not a number: refused before the gate runs, as strom config set refuses it
+  const nan = await w.run(["gate", "test", "claude-usage x", "--json"]);
+  assert.deepEqual([nan.code, nan.json?.code], [2, "gate.points"], "not a number");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'something else'\n", { mode: 0o755 });
   const unread = await ask("claude-usage 10");
   // a form it cannot read: asked again, then a wait — never a session spent blind, never a run ended for one answer

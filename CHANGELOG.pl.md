@@ -5,6 +5,57 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.26.0
+
+*4.11.2026 · współpracuje z aplikacją Strom 3.22.0.*
+
+- **Linie badania z aplikacji Strom: założyć, zmienić, wstrzymać, uporządkować.** Linię można w aplikacji założyć lub
+  zmienić (osoba, kierunek, pytanie, granice), wstrzymać, zakończyć lub wznowić; kolejność linii to kolejność pracy, a
+  strona na telefon przesuwa linię w górę lub w dół i ją wstrzymuje. Praca poza liniami – boczna gałąź, do której nie
+  sięga żadna linia, na przykład siostra przodka i jej rodzina – przychodzi teraz czasem, jedno zadanie na dziesięć
+  sesji, a nie tylko na końcu. Każda taka gałąź może mieć własny wybór (czasem, na końcu, jak praca linii, nigdy albo
+  dodana do linii), a dla rosnącej gałęzi w „Co czeka” proponowana jest linia: dodać do linii, założyć dla niej linię,
+  zostawić bez zmian albo nie badać. Mąż lub żona przodka należą do linii przodka, a linia z pytaniem obejmuje swoją
+  osobę. Każde zadanie można wziąć od razu lub przenieść na koniec, a każde zadanie w kolejce mówi, dlaczego stoi tam,
+  gdzie stoi. W terminalu: Ustawienia → Samodzielna praca agenta → Praca poza liniami, `strom offline`, `strom task
+  order`.
+
+- **Opowieść napisana na nowo niczego nie traci.** Gdy badanie pisze opowieść od nowa – więcej danych, lepszy odczyt,
+  opowieść przejęta ze starszego badania – każda dana, źródło i link poprzedniej wersji zostają albo odchodzą tylko
+  celowo z powodem, zapisanym przy opowieści. Źródła, na których opiera się opowieść, są przy niej widoczne, tytuł i
+  adres pod każdą daną, także gdy tekst ich nie wymienia, również źródło, które tekst wymienia tylko kodem; aplikacja
+  Strom dostaje je z opowieścią. Dana z poszlaki mówi w tekście, skąd pochodzi.
+
+- Duże drzewo przejęte w systemie Windows (około 1500 osób i więcej) nie kończy się już błędem gita o zbyt długim
+  poleceniu (ENAMETOOLONG) bez żadnej zapisanej danej: wszystko, co przejęte, zostaje zapisane.
+
+- Przy dużym badaniu (setki zadań w kolejce, wiele spraw czekających) aplikacja Strom nie zgłasza już, że badanie nie
+  odpowiada, gdy pracuje jego agent: połączenie oblicza stan badania raz dla każdej zmiany, osobno, a aplikacji
+  odpowiada w tym czasie od razu – także podczas codziennego porządkowania, szukania poprawek strom, czytania historii
+  po każdej zmianie i przygotowania przeglądu dla widżetu na pulpicie.
+
+- Opowieść i notatka trafiają do aplikacji Strom ze spacjami takimi, jak zostały zapisane: dwie spacje między
+  słowami ani spacja nierozdzielająca lub wąska nie zamieniają się już w jedną zwykłą.
+
+- **To, o czym decyduje użytkownik, pozostaje jego decyzją.** O sprzeczności badania ze zmianą z aplikacji Strom,
+  o zatwierdzeniu opowieści lub jej nowej wersji i o odpowiedzi dla rosnącej gałęzi decyduje tylko użytkownik – w
+  aplikacji albo w Co czeka; agent zostaje odrzucony i mówi tylko, że to czeka. Cofnięcie tego, co wysłała aplikacja lub
+  co zsynchronizowano (`strom sync undo`), i odrzucenie czekającego drzewa również należy tylko do użytkownika. „Zostaw
+  agentowi” w aplikacji przekazuje mu taką sprzeczność; strona wybrana w aplikacji jest w terminalu tylko potwierdzana,
+  powód jest nieobowiązkowy. Identyfikacja miejsc: „Nie wiem” odpowiada też na sprzeczność położenia i na propozycję
+  zapisu nazwy, a „Zawsze pierwszy kandydat (A)” przyjmuje kandydata także przy sprzeczności – nigdy ponad współrzędne
+  wpisane ręcznie. Terminal mówi słowami aplikacji: wskazówka, udokumentowane, obalone, Nie wiem, Żaden z nich, te same
+  wybory strony. Taką sprzeczność, o której wcześniej zdecydował agent, znajduje `strom fixes show edit-decisions` i
+  otwiera ją ponownie dla użytkownika; decyzja agenta zostaje w notatce (`strom fixes undo edit-decisions` ją
+  przywraca).
+
+- **Warunek tygodnia subskrypcji przyjmuje liczby całkowite od 0 do 99 i trzyma pułap.** Menu i `strom config set`
+  odrzucają ułamek i 100 (wcześniej zapisywały je, a potem każdy przebieg się kończył), a menu zachowuje ustawiony
+  pułap; z pułapem trwająca sesja dostaje prośbę o zakończenie, gdy tydzień osiągnie pułap, nie dopiero przy 99 %.
+  Zadanie odłożone do daty wraca tego dnia, jak teraz mówi też pomoc. Przychodzące skany budzą tylko zadania czekające
+  na tę księgę – nigdy sprawdzenia strony przez człowieka, a list tylko wtedy, gdy czeka na tę księgę.
+  Zadania obudzone tak wcześniej znajduje `strom fixes show woken-waits` i znów czekają tak, jak czekały.
+
 ## 1.25.2
 
 *3.11.2026 · współpracuje z aplikacją Strom 3.21.2.*

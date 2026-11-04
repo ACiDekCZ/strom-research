@@ -135,9 +135,9 @@ export function eventName(kind: string, lang: string, label?: string): string {
   return key ? ui(lang, key) : (label ?? kind);
 }
 
-const STATUS: Record<string, UIKey> = { proven: "ui.st.proven", probable: "ui.st.probable", possible: "ui.st.possible", lead: "ui.st.lead" };
+const STATUS: Record<string, UIKey> = { proven: "ui.st.proven", probable: "ui.st.probable", possible: "ui.st.possible", lead: "ui.st.lead", disproven: "ui.st.disproven" };
 
-/** How sure a fact is: "doloženo", "jen stopa". */
+/** How sure a fact is, in the words of the Strom app: "doložené", "vodítko". */
 export function statusName(status: string, lang: string): string {
   const key = STATUS[status];
   return key ? ui(lang, key) : status;

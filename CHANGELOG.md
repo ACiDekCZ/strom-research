@@ -5,6 +5,56 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.26.0
+
+*2026-11-04 · goes with the Strom app 3.22.0.*
+
+- **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
+  in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the
+  order of work, and the phone's page moves a line up or down and pauses it. Work off the lines – a side branch no line
+  reaches, such as an ancestor's sister and her family – now comes now and then, one task in ten sessions, instead of
+  only at the end. Each such branch can have a choice of its own (now and then, at the end, as the lines' work, never,
+  or added to a line), and a branch that grows gets a line proposed in What waits: add it to a line, create a line for
+  it, leave it as it is, or not research it. The husband or wife of an ancestor belongs to the ancestor's line, and a
+  line asking a question has its person in it. Any task can be taken next or put at the end, and each task in the queue
+  says why it stands where it does. In the terminal: Settings → the agent working alone → Work off the lines, `strom
+  offline`, `strom task order`.
+
+- **A story written again loses nothing.** When the research writes a story anew – more facts, a better reading, a story
+  taken over from older work – each fact, source and link of the version before stays, or goes only on purpose with the
+  reason, kept with the story. The sources a story rests on are shown with it, title and address under each fact, also
+  where the text does not name them, and a source the text names only by its code among them; the Strom app receives
+  them with the story. A fact told from a lead names in the text where it comes from.
+
+- A big family tree taken in on Windows (some 1 500 people and more) no longer fails in git over a command line too long
+  (ENAMETOOLONG) with nothing of it kept: everything taken in is written.
+
+- On a large research (hundreds of tasks in the queue, much waiting) the Strom app no longer says the research does
+  not answer while its agent works: the connection works out the state of the research once for each change, on its
+  own, and answers the app at once meanwhile – also while it keeps its order once a day, finds strom's fixes, reads
+  the history after each change and makes the overview for the desktop widget.
+
+- A story or a note comes to the Strom app with its spaces as written: two between words, a no-break or a narrow
+  space are no longer made one plain space.
+
+- **What is the user's to decide stays the user's.** A disagreement between the research and an edit made in the Strom
+  app, the approval of a story or of its new version, and the answer for a branch that grows are decided by the user
+  alone – in the app or in What waits; the agent is refused and only says that it waits. Taking back what the app sent
+  or a synced tree (`strom sync undo`) and throwing away a tree that waits are the user's alone too. The app's "Leave it
+  to the agent" hands such a disagreement over; a side picked in the app is only confirmed in the terminal, a reason
+  optional. Identifying places: "Don't know" also answers a disagreement about a place's position and a proposed form of
+  its name, and "Always the first candidate (A)" moves a disagreement to its candidate too – never over coordinates set
+  by hand. The terminal uses the app's words: lead, proven, disproven, Don't know, None of them, the same choices of a
+  side. Such a disagreement an agent decided before is found by `strom fixes show edit-decisions` and opened again for
+  the user, the agent's decision kept in a note (`strom fixes undo edit-decisions` puts it back).
+
+- **The gate of the subscription's week takes whole numbers from 0 to 99 and holds its cap.** The menu and `strom
+  config set` refuse a fraction or 100 (before, it was saved and every run then ended) and the menu keeps a cap that
+  is set; under a cap a session at work is asked to finish when the week reaches the cap, not only at 99 %. A task put
+  aside until a date comes back on that day, as its help now says. Images that arrive wake only the tasks waiting for
+  that book – never a check of a site left to the person, and a letter only when it waits for that book.
+  Tasks woken so before are found by `strom fixes show woken-waits` and wait again as they waited.
+
 ## 1.25.2
 
 *2026-11-03 · goes with the Strom app 3.21.2.*

@@ -235,6 +235,7 @@ function checkResearch(r: Partial<Research>, out: Problem[]): void {
   if (!RESEARCH_STATES.includes(r.state as (typeof RESEARCH_STATES)[number]))
     out.push({ path: "state", message: `must be one of ${RESEARCH_STATES.join(", ")}` });
   if (typeof r.priority !== "number" || r.priority < 1 || r.priority > 5) out.push({ path: "priority", message: "must be 1..5" });
+  if (r.order !== undefined && !(Number.isInteger(r.order) && r.order >= 1)) out.push({ path: "order", message: "must be a whole number from 1" });
   if (r.direction === "question" && !str(r.question)) out.push({ path: "question", message: "is required for direction question" });
   if (r.review !== undefined && (!isObj(r.review) || !REVIEW_SCOPES.includes(r.review.scope as (typeof REVIEW_SCOPES)[number])))
     out.push({ path: "review.scope", message: `must be one of ${REVIEW_SCOPES.join(", ")}` });

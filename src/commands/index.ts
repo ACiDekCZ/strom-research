@@ -8,6 +8,7 @@ import "./sync.ts";
 import "./pack.ts";
 import "./backup.ts";
 import "./tasks.ts";
+import "./offline.ts";
 import "./people.ts";
 import "./surname.ts";
 import "./quality.ts";

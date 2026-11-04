@@ -454,6 +454,24 @@ export function ancestorGenerations(tree: Tree, focus: string, max = 50): Map<st
   return gen;
 }
 
+/** Generation numbers of descendants: focus = 1, children = 2, ... (a line of descendants within its generations). */
+export function descendantGenerations(tree: Tree, focus: string, max = 50): Map<string, number> {
+  const gen = new Map<string, number>([[focus, 1]]);
+  let frontier = [focus];
+  for (let g = 2; g <= max && frontier.length > 0; g++) {
+    const next: string[] = [];
+    for (const id of frontier)
+      for (const f of familiesAsPartner(tree, id))
+        for (const c of f.children)
+          if (!gen.has(c.person)) {
+            gen.set(c.person, g);
+            next.push(c.person);
+          }
+    frontier = next;
+  }
+  return gen;
+}
+
 // ── resolving references ───────────────────────────────────────────────────
 
 function candidateLabel(tree: Tree, p: Person): string {

@@ -72,7 +72,7 @@ const CHILDREN: Record<string, string[]> = {
   "EVENT.ASSO": ["RELA", "NOTE"],
   "EVENT.HUSB": ["AGE"],
   "EVENT.WIFE": ["AGE"],
-  _STORY: ["TYPE", "TITL", "STAT", "TEXT", "DATA", "NOTE", "_DRAFT"],
+  _STORY: ["TYPE", "TITL", "STAT", "TEXT", "DATA", "NOTE", "SOUR", "_DRAFT"],
   _WITN: ["RELA", "NOTE"],
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };

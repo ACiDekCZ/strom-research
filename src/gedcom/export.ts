@@ -47,6 +47,7 @@ import { readersOf } from "../core/review.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { humanTask } from "../cli/human.ts";
 import { parseYears } from "../core/years.ts";
+import { storySources } from "../core/storykeep.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -957,8 +958,19 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         w.line(level, "DATA", clipChars([e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" "), 200));
       }
     };
+    // the sources it rests on — those its facts cite, those of its background and those its text names by ID — each a
+    // record of the file, so a reader shows their titles and addresses even where the text names none (found
+    // 2026-11-03); an app that does not read them passes them by
+    const sour = (level: number, v: Pick<Story, "facts" | "sources" | "text" | "title" | "note">) => {
+      for (const s of storySources(tree, v, eventById)) {
+        if (!sourceById.has(s.id)) continue;
+        citedSources.add(s.id);
+        w.line(level, "SOUR", x(s.id));
+      }
+    };
     data(2, st.facts);
     if (st.note) w.text(2, "NOTE", st.note);
+    sour(2, st);
     // the new version of a story the user approved: it waits for them, the approved one stays (an app that shows it)
     if (st.draft && opts.storyDrafts) {
       w.line(2, "_DRAFT");
@@ -966,6 +978,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.text(3, "TEXT", st.draft.text);
       data(3, st.draft.facts);
       if (st.draft.note) w.text(3, "NOTE", st.draft.note);
+      sour(3, st.draft);
       w.line(3, "_AT", st.draft.at.slice(0, 10));
     }
   }
