@@ -5,6 +5,19 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.26.1
+
+*4.11.2026 · współpracuje z aplikacją Strom 3.22.0.*
+
+- **Przerwany zapis już nie blokuje badania na stałe.** Polecenie zatrzymane między `git add` a commitem (zakończone
+  przez agenta albo w Windows z indeksem gita trzymanym przez inny program) mogło zostawić swoje pliki w indeksie gita:
+  każdy kolejny zapis kończył się komunikatem „dane badania zmieniły się poza strom”, choć `strom verify` ani `strom
+  repair` nic nie znalazły. Nowe pliki, które taki zapis zostawia w indeksie (nie ma ich już w folderze, w historii
+  nigdy nie były), nie są niczyją zmianą – następny zapis sam je wycofa i działa dalej. `strom repair` zawsze przywraca
+  cały indeks do zapieczętowanego stanu, także ze zmianą rekordu, która w nim została. Blokadę zostawioną przez git
+  przerwany w trakcie pracy (`.git/index.lock`, starszą niż 10 minut) `strom repair` usuwa, a zapis, który na niej się
+  kończy, mówi o tym. Rekord naprawdę usunięty lub zmieniony poza strom jest zgłaszany jak dotąd.
+
 ## 1.26.0
 
 *4.11.2026 · współpracuje z aplikacją Strom 3.22.0.*

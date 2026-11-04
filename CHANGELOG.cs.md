@@ -5,6 +5,18 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.26.1
+
+*4. 11. 2026 · patří k aplikaci Strom 3.22.0.*
+
+- **Přerušený zápis už výzkum natrvalo nezablokuje.** Příkaz zastavený mezi `git add` a commitem (ukončený agentem, nebo
+  na Windows s indexem gitu drženým jiným programem) mohl nechat své soubory v indexu gitu: každý další zápis pak končil
+  „data výzkumu se změnila mimo strom“, ačkoli `strom verify` ani `strom repair` nic nenašly. Nové soubory, které takový
+  zápis nechá v indexu (ve složce už nejsou a v historii nikdy nebyly), nejsou ničí změna – další zápis je sám vrátí a
+  pokračuje. `strom repair` vrátí vždy celý index k zapečetěnému stavu, i se změnou záznamu, která v něm zůstala. Zámek,
+  který nechal git ukončený uprostřed práce (`.git/index.lock`, starší než 10 minut), `strom repair` odstraní a zápis,
+  který na něm skončí, to řekne. Záznam opravdu smazaný nebo upravený mimo strom se hlásí jako dřív.
+
 ## 1.26.0
 
 *4. 11. 2026 · patří k aplikaci Strom 3.22.0.*

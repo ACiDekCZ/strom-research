@@ -5,6 +5,19 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.26.1
+
+*2026-11-04 · goes with the Strom app 3.22.0.*
+
+- **A write cut short no longer blocks the research for good.** A command stopped between strom's `git add` and its
+  commit (ended by the agent, or git's index held by another program on Windows) could leave its files in git's index:
+  every write after it ended with "data was changed outside strom", while `strom verify` and `strom repair` found
+  nothing. The new files such a write leaves in the index — gone from the folder, never in the history — are no change
+  of anybody's: the next write takes them out by itself and goes on. `strom repair` always puts the whole index back to
+  the sealed state, a record's change left there too. A lock a git ended mid-way left (`.git/index.lock`, older than 10
+  minutes) is taken away by `strom repair`, and a write refused by it says so. A record truly deleted or edited outside
+  strom is said as ever.
+
 ## 1.26.0
 
 *2026-11-04 · goes with the Strom app 3.22.0.*

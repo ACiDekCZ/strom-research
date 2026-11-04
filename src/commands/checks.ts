@@ -153,6 +153,10 @@ interface Repaired {
   from: string;
   /** Commits made outside strom on top: sealed again, whether or not they changed a record. */
   resealed: boolean;
+  /** Paths git's index held otherwise than the sealed state (what an interrupted write staged), put back to it. */
+  unstaged: number;
+  /** A lock of git's index a git that ended mid-way left (stale), taken away. */
+  lock: boolean;
 }
 
 function quarantine(tree: Tree, rel: string, stamp: string): void {
@@ -183,10 +187,19 @@ function repair(tree: Tree): Repaired {
       params: { name: tree.config.name },
     });
   const headSealed = head !== undefined && head.hash === sealed;
+  // a lock of git's index a git that ended mid-way left (killed with the command that ran it): no git holds it any
+  // more — taken away, else nothing could be written again (a fresh one may be a git at work: left)
+  const stale = git.staleIndexLock(tree.root);
+  if (stale) fs.rmSync(stale, { force: true });
 
   // Paths to compare: whatever differs between the sealed commit and the working tree.
   const candidates = new Set<string>();
-  for (const c of git.changes(tree.root, SEALED_PATHS)) candidates.add(c.path);
+  // …and what git's index holds otherwise than the last commit (a write taken back after its git add): back to it
+  const staged: string[] = [];
+  for (const c of git.changes(tree.root, SEALED_PATHS)) {
+    candidates.add(c.path);
+    if (!" ?!".includes(c.code[0] ?? " ")) staged.push(c.path);
+  }
   if (!headSealed) {
     const r = git.runGit(tree.root, ["diff", "--name-only", "-z", sealed, "HEAD", "--", ...SEALED_PATHS]);
     for (const p of r.stdout.split("\0").filter(Boolean)) candidates.add(p);
@@ -212,7 +225,17 @@ function repair(tree: Tree): Repaired {
   // sealed again even when the commits outside strom changed nothing of it (an empty one, notes only): else the last
   // commit stays unsealed and every write refused, with nothing left to repair
   if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS, true);
-  return { restored, quarantined, from: sealed, resealed: !headSealed };
+  // the folder as the sealed commit, HEAD: git's index as HEAD too (a commit above put it so already)
+  else if (staged.length) {
+    const said = git.unstage(tree.root, staged);
+    if (said !== undefined)
+      throw new StromError(`git could not put its index back to the sealed state: ${said}`, {
+        hint: "programs that may hold the research's folder closed (a sync tool, an antivirus scan, another git), then strom repair again",
+        code: "repair.index",
+        details: staged.slice(0, 50),
+      });
+  }
+  return { restored, quarantined, from: sealed, resealed: !headSealed, unstaged: headSealed ? staged.length : 0, lock: !!stale };
 }
 
 register(
@@ -236,12 +259,17 @@ register(
       const after = verifyFast(tree).findings.filter((f) => f.level === "error" && f.code !== OTHER_KEY);
       const unite = !!tree.key && otherKeys(tree.env, tree.config.id, tree.key).length > 0 && keysToUnite(tree).length > 0;
       const next = unite ? ui(lang, "ui.repair.unite") : undefined;
+      // what an interrupted write left (a stale lock of git's index, what it staged): said before the rest
+      const index = [...(r.lock ? [ui(lang, "ui.repair.lock")] : []), ...(r.unstaged ? [ui(lang, "ui.repair.index", { n: r.unstaged })] : [])];
       const text =
         r.restored.length + r.quarantined.length === 0
           ? r.resealed
-            ? lines(ui(lang, "ui.repair.resealed"), next)
-            : lines(ui(lang, "ui.repair.nothing"), next)
+            ? lines(...index, ui(lang, "ui.repair.resealed"), next)
+            : index.length
+              ? lines(...index, after.length ? ui(lang, "ui.repair.still", { n: after.length }) : next)
+              : lines(ui(lang, "ui.repair.nothing"), next)
           : lines(
+              ...index,
               ...r.restored.map((file) => ui(lang, "ui.repair.restored", { file })),
               ...r.quarantined.map((file) => ui(lang, "ui.repair.removed", { file })),
               ui(lang, "ui.repair.from", { commit: r.from.slice(0, 8) }),

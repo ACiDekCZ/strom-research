@@ -53,6 +53,9 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
     const written = new Set<string>(["data/_counters.json"]);
     for (const op of ops) for (const f of op.files) written.add(f.path);
     for (const f of tree.opsFilesTouched()) written.add(f);
+    // what an interrupted write left in git's index (core/integrity.ts leftoverOf): its paths with the commit's own, so
+    // the commit takes the folder as it is there — never a record or log of nobody's into the history
+    for (const f of snap.leftovers) written.add(f);
     // an archive: no agent edits its free-form folders — a person's own file in notes/ is theirs, never swept into a
     // commit of something else (found on Windows: strom mode committed a file of the user's) — nor by the switch itself
     const free = isArchive(tree) || def.path[0] === "mode" ? ["inputs", "output"] : ["notes", "tools", "inputs", "output"];

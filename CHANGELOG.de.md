@@ -5,6 +5,21 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.26.1
+
+*4.11.2026 · gehört zur Strom-App 3.22.0.*
+
+- **Ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.** Ein Befehl, der zwischen `git add` und dem
+  Commit endete (vom Agenten beendet oder unter Windows mit einem Index von git, den ein anderes Programm hielt), konnte
+  seine Dateien im Index von git lassen: jedes weitere Schreiben endete mit „die Daten der Forschung wurden außerhalb
+  von strom geändert“, obwohl `strom verify` und `strom repair` nichts fanden. Die neuen Dateien, die ein solches
+  Schreiben im Index lässt (nicht mehr im Ordner, nie in der Geschichte), sind niemandes Änderung – das nächste
+  Schreiben nimmt sie von selbst heraus und macht weiter. `strom repair` setzt immer den ganzen Index auf den
+  versiegelten Stand zurück, auch mit einer dort gebliebenen Änderung eines Eintrags. Eine Sperre, die ein mitten in der
+  Arbeit beendetes git hinterließ (`.git/index.lock`, älter als 10 Minuten), entfernt `strom repair`, und ein Schreiben,
+  das daran scheitert, sagt es. Ein wirklich außerhalb von strom gelöschter oder geänderter Eintrag wird wie bisher
+  gemeldet.
+
 ## 1.26.0
 
 *4.11.2026 · gehört zur Strom-App 3.22.0.*
