@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.28.0
 
-*Připravuje se: bety do 1.28.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.28.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Jak Strom funguje je přímo ve stromu: `strom doc`.** Dokumentace aplikace a výzkumu v češtině, angličtině, němčině
   a polštině je součástí stromu a čte se i bez internetu: `strom doc` vypíše kapitoly, `strom doc R10.1` jedno pravidlo
@@ -28,10 +28,19 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 - **Kde agent pracuje, pro mapu aplikace Strom.** Během práce agenta strom aplikaci říká, ke kterému místu patří kniha,
   kterou agent zkoumá – farnost nebo obec jejích zápisů, nikdy archiv –, aby ho aplikace při sledování práce mohla
-  ukázat na mapě. Když to výzkum neví, nic neříká a aplikace zůstane u míst osoby.
+  ukázat na mapě. Když to výzkum neví, nic neříká a aplikace zůstane u míst osoby. Práce na rodině uvede pár – manžela,
+  jinak manželku – i rodinu samotnou, aby se aplikace mohla zaměřit na pár.
 
 - **DigiArchiv SOA v Třeboni:** podmínky, jak je archiv potvrdil – ručně jen vybrané snímky, nikdy celá kniha, žádné
   nástroje ke stahování – a jak citovat trvalý odkaz na snímek.
+
+- **Seznam před během ukazuje, co běh vezme.** V položce Nechat agenta pracovat samotného jsou mezi úkoly v pořadí, v jakém je agent
+  vezme, i úkoly dějin míst, když na ně přijde řada – místa údajů k zařazení jdou napřed –, označené jako dějiny.
+
+- **Podmínka běhu na jednom řádku.** Co podmínka (`run.gate`) odpověděla, jak se ptá – před každým sezením, nebo při
+  ručním spuštění jednou – a její strop se před prvním sezením řeknou na jednom řádku, ne na třech. Agent, který čte
+  webové stránky přes vlastního pomocníka, se už nehlásí jako bez nástroje na čtení webu; nástroj, který opravdu
+  chybí, se řekne v jazyce výzkumu.
 
 ## 1.27.0
 

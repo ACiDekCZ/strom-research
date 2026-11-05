@@ -108,3 +108,47 @@ test("working[].place: the book of the task, then of the last record written; a 
   assert.equal(placeOfWork(tree, [op(["S0002"]), op(["S0001"]), op(["P0001"])], undefined), "L0003", "a fact written from the record keeps its place");
   w.cleanup();
 });
+
+test("working[] of work on a family (a couple's story): the person is its husband, else wife, and the family is said; feature working.family", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  w.env.STROM_LIVE_POLL_MS = "100";
+  await w.ok(["person", "add", "Barbora /Lhotáková/", "--sex", "F"]);
+  await w.ok(["person", "add", "Václav /Lhoták/", "--sex", "M"]);
+  await w.ok(["family", "add", "--partner", "P0001", "--partner", "P0002"]);
+  await w.ok(["person", "add", "Anna /Lhotková/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P0003"]);
+  await w.ok(["task", "add", "Vyprávění páru", "--level", "narrate", "--where", "záznamy stromu", "--why", "vyprávění", "--done-when", "napsané", "--about", "F0001"]);
+  await w.ok(["task", "add", "Katalog", "--level", "locate", "--where", "katalog farností", "--why", "přehled", "--done-when", "seznam"]);
+  const info = (await w.ok(["live", "start", "--json"])).json as { url: string };
+  const leave = enterWorker(w.cwd, "run-f", "Claude Code on its own");
+  w.env.STROM_WORKER = "run-f";
+  const status = async () => (await (await fetch(`${info.url}/status`)).json()) as { features: string[]; working: { task?: string; person?: string; family?: string }[] };
+  try {
+    assert.ok((await status()).features.includes("working.family"));
+    // the task's family: its husband though the wife is its first partner
+    await w.ok(["session", "start", "T0001"]);
+    let now = (await status()).working[0]!;
+    assert.equal(now.person, "P0002", JSON.stringify(now));
+    assert.equal(now.family, "F0001");
+    await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
+    // a task about nobody: what the session wrote last — a family of one woman: she, and the family
+    await w.ok(["session", "start", "T0002"]);
+    assert.ok(!("family" in (await status()).working[0]!));
+    await w.ok(["event", "add", "F0002", "MARR", "--date", "1870"]);
+    now = (await status()).working[0]!;
+    assert.equal(now.person, "P0003", JSON.stringify(now));
+    assert.equal(now.family, "F0002");
+    // a person written after: the person alone
+    await w.ok(["event", "add", "P0001", "BIRT", "--date", "1850"]);
+    now = (await status()).working[0]!;
+    assert.equal(now.person, "P0001", JSON.stringify(now));
+    assert.ok(!("family" in now));
+    await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
+  } finally {
+    delete w.env.STROM_WORKER;
+    leave();
+    await w.ok(["live", "stop"]);
+    w.cleanup();
+  }
+});

@@ -100,6 +100,11 @@ export interface RunOptions {
    * it the runner says it in its progress (English).
    */
   onRecover?: (r: { n: number; max: number; waitMs: number; why: string }) => void;
+  /**
+   * Tools a clean session asked for that the agent did not load (runners/claude.ts missingTools). Without it the runner
+   * says it in its progress (English).
+   */
+  onMissingTools?: (tools: string[]) => void;
   /** Stop the agent when this is aborted (the user pressed Ctrl-C). */
   signal?: AbortSignal;
 }

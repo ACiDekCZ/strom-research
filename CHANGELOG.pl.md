@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.28.0
 
-*W przygotowaniu: bety do 1.28.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.28.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Jak działa Strom – w samym stromie: `strom doc`.** Dokumentacja aplikacji i badań po czesku, angielsku, niemiecku i
   polsku jest częścią stromu i czyta się ją także bez internetu: `strom doc` wypisuje rozdziały, `strom doc R10.1` jedną
@@ -31,10 +31,20 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Gdzie pracuje agent – dla mapy aplikacji Strom.** Podczas pracy agenta strom podaje aplikacji, do którego miejsca
   należy księga, którą agent bada – parafia lub wieś jej wpisów, nigdy archiwum – aby aplikacja mogła je pokazać na
   mapie podczas śledzenia pracy. Gdy badania tego nie wiedzą, nic nie podają, a aplikacja pozostaje przy miejscach
-  osoby.
+  osoby. Praca nad rodziną podaje parę – męża, a jeśli go brak, żonę – oraz samą rodzinę, aby aplikacja mogła skupić
+  się na parze.
 
 - **DigiArchiv Archiwum Państwowego w Třeboniu:** jego warunki, tak jak potwierdziło je archiwum – ręcznie tylko wybrane
   skany, nigdy cała księga, żadnych narzędzi do pobierania – i jak cytować stały link do skanu.
+
+- **Lista przed uruchomieniem pokazuje, co weźmie agent.** W pozycji „Pozwól agentowi pracować samodzielnie“ wśród
+  zadań w kolejności, w jakiej bierze je agent, są teraz także zadania historii miejsc, gdy przychodzi ich kolej –
+  miejsca danych najpierw –, oznaczone jako historia.
+
+- **Warunek przebiegu w jednym wierszu.** Co odpowiedział warunek (`run.gate`), jak jest pytany – przed każdą sesją
+  albo raz przy zadaniach uruchomionych ręcznie – i jego pułap są podane przed pierwszą sesją w jednym wierszu, nie w
+  trzech. Agent, który czyta strony internetowe przez własnego pomocnika, nie jest już zgłaszany jako
+  pozbawiony narzędzia do czytania stron; narzędzie, którego naprawdę brak, jest podawane w języku badań.
 
 ## 1.27.0
 

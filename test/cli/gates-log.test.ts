@@ -38,7 +38,7 @@ test("each answer of the gate is recorded: .strom/gate.log, the next session's l
   // the --json answers carry the exit status
   assert.deepEqual(r.json.gate.answers.map((a: { status: number }) => a.status), [0, 0, 2]);
   // one line each, in the research language
-  assert.match(r.err, /· podmínka Zkouška: pokračovat — dost místa \(kód 0; \.strom\/gate\.log\)/);
+  assert.match(r.err, /· podmínka Zkouška \(ptá se před každým sezením\): pokračovat — dost místa \(kód 0; \.strom\/gate\.log\)/);
   assert.match(r.err, /· podmínka Zkouška: zastavit — týden je z 90 % pryč \(kód 2; \.strom\/gate\.log\)/);
   w.cleanup();
 });
@@ -51,7 +51,7 @@ test("a wait past --until and a gate that fails are recorded with what the run d
   await w.ok(["run", "--agent", "script", "--loop", "--until", until, "--json"]);
   await w.run(["run", "--agent", "script", "--loop", "--json"]);
   const yes = await w.ok(["run", "--agent", "script"], { tty: true, answers: ["a"] });
-  assert.match(yes.out, /· podmínka Zkouška: počkat do .+ — sezení je plné \(kód 1; \.strom\/gate\.log\)/);
+  assert.match(yes.out, /· podmínka Zkouška \(ruční spuštění: ptá se jednou\): počkat do .+ — sezení je plné \(kód 1; \.strom\/gate\.log\)/);
   const log = fs.readFileSync(path.join(w.cwd, ".strom", "gate.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert.deepEqual(log.map((l) => [l.status, l.verdict, l.then]), [
     [1, "wait", "stop"],

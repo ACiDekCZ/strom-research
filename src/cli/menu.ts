@@ -30,7 +30,7 @@ import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
 import { loadGate } from "../core/gate.ts";
 import { lacksImages } from "../core/queue.ts";
-import { historyOn } from "../core/pastevents.ts";
+import { forHistory, historyOn } from "../core/pastevents.ts";
 import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { truncate } from "./format.ts";
@@ -302,10 +302,11 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
               await pause(lang);
               return;
             }
-            // What comes next, as the agent working alone takes it (a story now and then), without what others hold.
+            // What comes next, as strom run takes it (commands/session.ts): a story now and then, the tasks of history by
+            // their pace (the places to map before the research), without what others hold.
             const fresh = Tree.open(root!, ctx.env);
             const held = othersAtWork(fresh, fresh.env).tasks;
-            const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), storyTurn: true }).filter((x) => !held.has(x.id));
+            const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), storyTurn: true, history: true }).filter((x) => !held.has(x.id));
             const shown = queue.slice(0, RUN_LIST);
             // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on.
             const history = historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];
@@ -319,7 +320,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             if (shown.length) {
               out(t("ui.run.next"));
               for (const [k, x] of shown.entries())
-                out(`  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`);
+                out(`  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : forHistory(x) ? t("ui.run.ofhistory") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`);
               if (queue.length > shown.length) out(`      ${t("ui.plan.more", { n: queue.length - shown.length })}`);
             }
             out(t("ui.run.limit", { minutes: ctx.settings.number("run.minutes", fresh.config, DEFAULT_RUN_MINUTES) }));

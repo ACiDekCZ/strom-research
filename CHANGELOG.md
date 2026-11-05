@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.28.0
 
-*In preparation: the betas up to 1.28.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.28.0-beta.3. The section is complete with the release.*
 
 - **How Strom works comes with strom: `strom doc`.** The documentation of the app and the research, in Czech, English,
   German and Polish, is part of strom and reads offline: `strom doc` lists its chapters, `strom doc R10.1` shows one rule
@@ -30,10 +30,20 @@ The changes of each version in short. The full notes and the install lines are o
 - **Where the agent works, for the map of the Strom app.** While an agent works, strom tells the app which place the
   book it examines belongs to – the parish or village of its records, never the archive – so the app can show it on the
   map when following the work. When the research does not know it, it says nothing, and the app keeps to the person's
-  own places.
+  own places. Work on a family names the couple – the husband, else the wife – and the family itself, so the app can
+  turn to the pair.
 
 - **DigiArchiv of the regional archive in Třeboň:** its terms as the archive confirmed them – selected images saved by
   hand only, never a whole book, no download tools – and how to cite an image's permanent link.
+
+- **The list before a run shows what the run takes.** Under Let the agent work on its own, the tasks listed in the order
+  the agent takes them now include the tasks of the history of the places in their turn – the places of the facts to
+  map come first – marked as history.
+
+- **The condition of a run in one line.** What the condition (`run.gate`) answered, how it is asked – before each
+  session, once for tasks started by hand – and its cap are said in one line before the first session, not in three.
+  An agent that reads web pages through its own helper is no longer reported as missing its web fetch; a tool
+  really missing is said in the research's language.
 
 ## 1.27.0
 

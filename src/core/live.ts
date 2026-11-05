@@ -14,7 +14,9 @@
 //                          that weigh (waiting; queue, queueMore, queueCounts; offLine; researches), with parts {name:
 //                          rev} instead — the same rev, the same part. Each of working (who is at work; the event
 //                          working too): the place record (L…) of the book the agent examines, when the research knows
-//                          it (place, core/workplace.ts; none: not known) — feature working.place.
+//                          it (place, core/workplace.ts; none: not known) — feature working.place; work on a family
+//                          (a couple's story): the family (family F…) and its husband, else wife, as the person —
+//                          feature working.family.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -370,7 +372,7 @@ import { qrSvg } from "./qr.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
-import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
+import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
@@ -1143,7 +1145,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1389,15 +1391,33 @@ export function whoAtWork(label: string, lang: string): string {
 
 /**
  * The person an agent works on, for the app to follow it in the tree: the first person its task is about (a marriage
- * names both, the one it asks about first), else the last one its session wrote about.
+ * names both, the one it asks about first), else the last one its session wrote about. Work on a family (a couple's
+ * story, its marriage — subject F…, or a record of it written last): its first partner as the person, the husband, else
+ * the wife (an app reading only `person` follows the couple so), and the family itself (feature working.family).
  */
-function workedOn(tree: Tree, ops: Op[], task: Task | undefined): { person?: string } {
-  const known = (id: string) => /^P\d{1,7}$/.test(id) && tree.get(id) !== undefined;
-  const first = (task?.subject ?? []).find(known);
-  if (first) return { person: first };
+function workedOn(tree: Tree, ops: Op[], task: Task | undefined): { person?: string; family?: string } {
+  const of = (id: string): { person?: string; family?: string } | undefined => {
+    if (/^P\d{1,7}$/.test(id)) return tree.get(id) !== undefined ? { person: id } : undefined;
+    if (!/^F\d{1,7}$/.test(id)) return undefined;
+    const fam = tree.get<Family>(id);
+    if (!fam) return undefined;
+    const partners = fam.partners.filter((p) => tree.get(p) !== undefined);
+    const husband = partners.find((p) => tree.get<Person>(p)?.sex === "M") ?? partners.find((p) => p === fam.husb) ?? partners[0];
+    return { ...(husband ? { person: husband } : {}), family: id };
+  };
+  for (const id of task?.subject ?? []) {
+    const found = of(id);
+    if (found) return found;
+  }
+  // a record written: its last person, else its family
   for (let i = ops.length - 1; i >= 0; i--) {
-    const person = (ops[i]!.targets ?? []).findLast(known);
+    const targets = ops[i]!.targets ?? [];
+    const person = targets.findLast((id) => /^P\d{1,7}$/.test(id) && tree.get(id) !== undefined);
     if (person) return { person };
+    for (const id of [...targets].reverse()) {
+      const found = of(id);
+      if (found) return found;
+    }
   }
   return {};
 }
@@ -1422,7 +1442,7 @@ function sessionOps(root: string, s: Session): Op[] {
 }
 
 /** Who is at work now, on which task (an agent strom started, and its open session). */
-function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; place?: string; research?: string; paused?: Paused }[] {
+function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; paused?: Paused }[] {
   const open = openSessions(tree);
   let place: ((t: Task) => Placed) | undefined;
   return liveWorkers(root).map((w) => {
@@ -1441,7 +1461,7 @@ function working(root: string, tree: Tree, all: Scope[]): { who: string; since: 
 }
 
 /** The person and the place (L…, core/workplace.ts) an agent works on, from what its session wrote and its task. */
-function worked(tree: Tree, ops: Op[], task: Task | undefined): { person?: string; place?: string } {
+function worked(tree: Tree, ops: Op[], task: Task | undefined): { person?: string; family?: string; place?: string } {
   const place = placeOfWork(tree, ops, task);
   return { ...workedOn(tree, ops, task), ...(place ? { place } : {}) };
 }

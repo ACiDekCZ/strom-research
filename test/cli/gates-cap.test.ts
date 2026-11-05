@@ -87,7 +87,10 @@ test("a cap: asked before every session of a run the user started (--max), its h
   assert.equal(r.json.stop, "gate.cap", r.err);
   assert.equal(r.json.sessions.length, 1, "no session past the cap");
   assert.match(r.json.stopped, /strop podmínky „Zkouška“ – týden 99 % – strop 95 % \(pevná hranice z run\.gate; „přesto začít“ ji nepřekročí\)/);
-  assert.match(r.err, /Zkouška: nastavený strop – kontroluje se před každým sezením/);
+  // the cap said in the condition's first line, once: no line of its own
+  assert.match(r.err, /· podmínka Zkouška \(strop: hlídá se před každým sezením, žádné „přesto začít“ ho nepřekročí\): pokračovat — týden 80 % \(kód 0; \.strom\/gate\.log\)/);
+  assert.equal(r.err.match(/strop: hlídá se/g)?.length, 1, r.err);
+  assert.equal(r.err.match(/^· podmínka/gm)?.length, 2, r.err);
   assert.match(r.err, /⏳ N0001: limit agenta na 99 % \(týden\) – sezení dostalo žádost zapsat, co našlo, a skončit/);
   // the agent heard it from its next strom command: asked by the limit, which one and how much
   assert.match(w.said(), /"by":"limit","why":"week 99 % used"/);

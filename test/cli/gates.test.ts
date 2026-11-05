@@ -17,7 +17,9 @@ test("a gate is asked before each session: go on, then stop — the run ends and
   assert.match(r.json.stopped, /podmínka „Zkouška“ řekla dost — týden je z 90 % pryč/);
   assert.deepEqual(r.json.gate.answers.map((a: { verdict: string }) => a.verdict), ["go", "go", "stop"]);
   assert.equal(r.json.gate.answers[1].reason, "dost místa");
-  assert.match(r.err, /· podmínka: Zkouška — ptá se před každým sezením/);
+  // how it is asked: in its first answer's line, never a line of its own, never again
+  assert.match(r.err, /^· podmínka Zkouška \(ptá se před každým sezením\): pokračovat \(kód 0; \.strom\/gate\.log\)$/m);
+  assert.equal(r.err.match(/ptá se před každým sezením/g)?.length, 1, r.err);
   // what strom told the gate: sessions so far, the next task, the research language, the agent
   const asked = fs.readFileSync(path.join(w.gate, "asked.txt"), "utf8").trim().split("\n");
   assert.deepEqual(asked.map((l) => l.split(" ")[0]), ["0", "1", "2"]);
@@ -48,9 +50,9 @@ test("tasks the user starts themselves: the gate is asked once, and when it woul
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   // no: nothing starts, and the run says why
   const no = await w.ok(["run", "--agent", "script", "--max", "2"], { tty: true, answers: ["n"] });
-  assert.match(no.out, /podmínka: Zkouška — ruční spuštění: při nesplněné podmínce jedna otázka, zda přesto začít/);
-  // what the condition answered is said once: in its line, and the question below it asks only
-  assert.match(no.out, /· podmínka Zkouška: počkat do [^\n]* — sezení je plné \(kód 1; \.strom\/gate\.log\)\n[^\n]*Spustit přesto\? \(a\/n\)/);
+  // what the condition answered and how it is asked: one line, and the question below it asks only
+  assert.equal(no.out.match(/podmínk/g)?.length, 2, "the condition's line and the closing line — no line of its own before");
+  assert.match(no.out, /· podmínka Zkouška \(ruční spuštění: ptá se jednou\): počkat do [^\n]* — sezení je plné \(kód 1; \.strom\/gate\.log\)\n[^\n]*Spustit přesto\? \(a\/n\)/);
   assert.equal(no.out.match(/sezení je plné/g)?.length, 2, "the condition's line and the closing line — not again in the question");
   assert.doesNotMatch(no.out, /by teď nespouštěla/);
   assert.match(no.out, /nespuštěno — podmínka „Zkouška“: sezení je plné/);

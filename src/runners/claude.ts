@@ -59,10 +59,20 @@ export function cleanTools(reader: boolean | undefined, platform: NodeJS.Platfor
 /**
  * The tools a clean session asked for that Claude Code did not load (its init event's list): a newer Claude Code may
  * have renamed one. The subagent tool is listed as Task; PowerShell only where it is on, Bash's place on Windows.
+ * WebFetch: a newer Claude Code (2.1.318, checked 2026-11-05) leaves it out of the session's own tools and reads a page
+ * through its web-fetch agent (init `agents`), whose WebFetch goes through the same permissions and hooks — no loss.
  */
-export function missingTools(asked: string[], loaded: string[]): string[] {
+export function missingTools(asked: string[], loaded: string[], agents: string[] = []): string[] {
   const has = new Set(loaded);
-  return asked.filter((t) => t !== "PowerShell" && !has.has(t) && !(t === "Agent" && has.has("Task")) && !(t === "Bash" && has.has("PowerShell")));
+  const subagents = has.has("Agent") || has.has("Task");
+  return asked.filter(
+    (t) =>
+      t !== "PowerShell" &&
+      !has.has(t) &&
+      !(t === "Agent" && has.has("Task")) &&
+      !(t === "Bash" && has.has("PowerShell")) &&
+      !(t === "WebFetch" && subagents && agents.includes("web-fetch")),
+  );
 }
 
 const LIMIT_KINDS = ["five_hour", "seven_day"] as const;
@@ -300,10 +310,11 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
       }
       // a tool strom asked for and Claude Code did not load (renamed in a newer version?): said, the session goes on
       if (msg.type === "system" && msg.subtype === "init" && opts.clean && !opts.interactive && Array.isArray(msg.tools)) {
-        const missing = missingTools(cleanTools(opts.reader), msg.tools.map(String));
+        const missing = missingTools(cleanTools(opts.reader), msg.tools.map(String), Array.isArray(msg.agents) ? msg.agents.map(String) : []);
         if (missing.length) {
           const said = `Claude Code did not load ${missing.join(", ")} — the session may not manage without; strom config set agent.addons on runs it with everything, as before`;
-          opts.onProgress?.(said);
+          if (opts.onMissingTools) opts.onMissingTools(missing);
+          else opts.onProgress?.(said);
           log.note(`\n[strom] ${said}\n`);
         }
       }

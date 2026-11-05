@@ -931,7 +931,9 @@ register(
       // --task) are their choice: the gate is asked once, and when it would not start, the user decides.
       const gateHolds = Boolean(opts.loop || until);
       let gateAnswered = false;
-      if (gate) out(ui(lang, gateHolds ? "ui.run.gate" : "ui.run.gate.once", { name: gate.manifest.title ?? gate.name }));
+      // how the gate is asked (before each session, once, its cap) is said in its first answer's line, never a line of its own
+      let gateTold = false;
+      let capTold = false;
       // Claude Code of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir) not logged in there: no session
       // would work — said before the first one, with how to log in (found 2026-11-03)
       const loggedOut = runnerId === "claude" && claudeConfigSet(runEnv) !== undefined && claudeLoggedIn(runEnv, runner.command) === false;
@@ -1031,8 +1033,13 @@ register(
           const name = gate.manifest.title ?? gate.name;
           // what it answered, in one line (a wait the run keeps to says it in its own line below)
           const waits = gateHolds && said.verdict === "wait" && !said.hard && !(until && Date.now() + said.waitMs! > until);
-          if (!waits) out(gateSaid(lang, name, said));
-          if (said.watch && !watch) out(ui(lang, "ui.run.gate.cap", { name }));
+          if (!waits) {
+            // one line: what it answered, and the first time how it is asked (a cap: when it is first said)
+            const how = said.watch && !capTold ? "cap" : !gateTold ? (gateHolds ? "each" : "once") : undefined;
+            out(gateSaid(lang, name, said, how));
+            gateTold = true;
+            if (said.watch) capTold = true;
+          }
           watch = said.watch;
           if (said.hard && said.verdict !== "go") {
             noted("stop");
@@ -1182,6 +1189,8 @@ register(
           onProgress: (l) => out(`  · ${l}`),
           // its connection failed on the way (a passing network error): its session resumed after a wait
           onRecover: (r) => out(ui(lang, "ui.run.recover", { why: r.why, s: Math.round(r.waitMs / 1000), n: r.n, max: r.max })),
+          // a tool it asked for and the agent did not load: said in the research language
+          onMissingTools: (tools) => out(ui(lang, "ui.run.missingtools", { tools: tools.join(", ") })),
           // its use as it says it, per request where it can: the measure of the reading of scans (core/metrics.ts)
           ...usageOpt(tree, session.id, {
             agent: runnerId,
@@ -1423,12 +1432,12 @@ async function runGate(ctx: Context, opts: Record<string, unknown>): Promise<Gat
 
 /** Why the gate would not start, for the user: its own words, else what it answered. */
 /** What the gate answered, in one line of the run's output (the research language): its word, why, its exit status. */
-function gateSaid(lang: string, name: string, said: GateAnswer): string {
+function gateSaid(lang: string, name: string, said: GateAnswer, how?: "each" | "once" | "cap"): string {
   const word =
     said.verdict === "wait"
       ? ui(lang, "ui.gate.test.wait", { at: new Date(Date.now() + said.waitMs!).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }) })
       : ui(lang, said.verdict === "go" ? "ui.gate.test.go" : said.verdict === "stop" ? "ui.gate.test.stop" : "ui.run.gate.noanswer");
-  return ui(lang, "ui.run.gate.said", { name, word, reason: said.reason ? ` — ${said.reason}` : "", status: said.status === undefined || said.status === null ? "–" : String(said.status) });
+  return ui(lang, "ui.run.gate.said", { name, how: how ? ui(lang, `ui.run.gate.how.${how}`) : "", word, reason: said.reason ? ` — ${said.reason}` : "", status: said.status === undefined || said.status === null ? "–" : String(said.status) });
 }
 
 function gateReason(said: GateAnswer, lang: string): string {

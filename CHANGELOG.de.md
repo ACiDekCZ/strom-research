@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.28.0
 
-*In Vorbereitung: die Betas bis 1.28.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.28.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wie Strom funktioniert gehört zu strom: `strom doc`.** Die Dokumentation der App und der Forschung auf Tschechisch,
   Englisch, Deutsch und Polnisch ist Teil von strom und liest sich auch ohne Internet: `strom doc` listet die Kapitel,
@@ -32,11 +32,21 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Wo der Agent arbeitet, für die Karte der Strom-App.** Während ein Agent arbeitet, sagt strom der App, zu welchem
   Ort das Buch gehört, das er untersucht – die Pfarrei oder das Dorf seiner Einträge, nie das Archiv –, damit die App
   ihn beim Verfolgen der Arbeit auf der Karte zeigen kann. Weiß die Forschung es nicht, sagt sie nichts, und die App
-  bleibt bei den Orten der Person.
+  bleibt bei den Orten der Person. Arbeit an einer Familie nennt das Paar – den Ehemann, sonst die Ehefrau – und die
+  Familie selbst, damit die App sich dem Paar zuwenden kann.
 
 - **DigiArchiv des Staatlichen Gebietsarchivs Třeboň:** seine Bedingungen, wie das Archiv sie bestätigt hat – von Hand
   nur ausgewählte Bilder, nie ein ganzes Buch, keine Download-Werkzeuge – und wie der dauerhafte Link eines Bildes
   zitiert wird.
+
+- **Die Liste vor einem Lauf zeigt, was der Lauf nimmt.** Unter „Den Agenten allein arbeiten lassen“ stehen unter den
+  Aufgaben in der Reihenfolge, in der der Agent sie nimmt, nun auch die Aufgaben der Geschichte der Orte, wenn sie an der
+  Reihe sind – die Orte der Angaben zuerst –, als Geschichte gekennzeichnet.
+
+- **Die Bedingung eines Laufs in einer Zeile.** Was die Bedingung (`run.gate`) geantwortet hat, wie sie gefragt wird
+  – vor jeder Sitzung oder bei von Hand gestarteten Aufgaben einmal – und ihre Obergrenze stehen vor der ersten Sitzung
+  in einer Zeile, nicht in dreien. Ein Agent, der Webseiten über seinen eigenen Helfer liest, wird nicht mehr
+  als ohne Werkzeug zum Lesen des Webs gemeldet; ein Werkzeug, das wirklich fehlt, wird in der Sprache der Forschung gesagt.
 
 ## 1.27.0
 
