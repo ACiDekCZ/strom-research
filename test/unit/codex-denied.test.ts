@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { codexRefusedStrom, codexRunner } from "../../src/runners/codex.ts";
+import { codexPolicyRejected, codexRefusedStrom, codexRunner } from "../../src/runners/codex.ts";
 import { deniedStrom, shellUnwrapped } from "../../src/runners/runner.ts";
 import { noPermission, refusalMark, SANDBOX_REFUSAL } from "../../src/core/writable.ts";
 import { agentStandIn } from "../helpers.ts";
@@ -37,8 +37,109 @@ test("deniedStrom: strom by its name or path, first in the command, through any 
     "Bash: strom",
   ])
     assert.ok(deniedStrom(yes), yes);
-  for (const no of ["Bash: git add .", "Bash: stromek brief", "Bash: echo strom brief", "Bash: powershell.exe -Command \"Get-Content x | strom brief\"", "WebFetch: https://strom.example"])
+  for (const no of ["Bash: git add .", "Bash: stromek brief", "Bash: echo strom brief", `Bash: echo "x; strom brief"`, "Bash: Write-Output 'a | strom brief'", "Bash: Get-Content notes.md | Select-String strom", "WebFetch: https://strom.example"])
     assert.ok(!deniedStrom(no), no);
+});
+
+test("deniedStrom: strom first in any part of the command only when it was refused whole before it ran — after ;, &&, ||, a pipe or a new line (#8, Windows: Set-Location .; strom.cmd …)", () => {
+  for (const yes of [
+    "Bash: cd /tmp/Лотаки && strom brief",
+    "Bash: Set-Location .; strom.cmd note add P0001 y",
+    `Bash: powershell.exe -Command "Get-Content x | strom brief"`,
+    `Bash: Set-Location .; & "C:\\Users\\Ondřej\\bin\\strom.cmd" note add P0001 z | Out-String`,
+    "Bash: true || strom-beta brief",
+    "Bash: echo start\nstrom session close --done x",
+  ]) {
+    assert.ok(deniedStrom(yes, true), yes);
+    // refused while it ran (a sandbox): the program before strom was refused, strom never ran
+    assert.ok(!deniedStrom(yes), yes);
+  }
+  for (const no of [`Bash: echo "x; strom brief"`, "Bash: Write-Output 'a | strom brief'", "Bash: Get-Content notes.md | Select-String strom"])
+    assert.ok(!deniedStrom(no, true), no);
+});
+
+// (N1 of the check of a6c26556, 2026-11-05) the sandbox refused another program before strom: no refusal of strom
+test("deniedStrom: a command its sandbox refused with another program first (touch ../x && strom …, npm i; strom brief) is no refusal of strom", () => {
+  for (const no of [
+    `Bash: /bin/zsh -lc "touch ../x && strom note add P0001 x"`,
+    `Bash: /bin/zsh -lc 'git commit -m Lhoták && strom brief'`,
+    "Bash: npm i; strom brief",
+    `Bash: powershell.exe -Command "New-Item ..\\x; strom.cmd note add P0001 'Žofie'"`,
+  ])
+    assert.ok(!deniedStrom(no), no);
+});
+
+// Codex's log line of a command its policy refused before it ran, as `exec` writes it on its stderr (Rust's Debug twice:
+// the error's message, the rejection's reason in it)
+const debug = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+const routerLine = (rendered: string, reason = "blocked by policy") =>
+  `2026-11-05T08:41:20.247392Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: ${debug(`Rejected(${debug(`\`${rendered}\` rejected: ${reason}`)})`)} }`;
+const WINDOWS_ROUTER = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "agents", "codex-0.166-policy-rejected-windows.stderr"), "utf8");
+
+test("codexPolicyRejected: a command Codex's policy refused, from its own log line — Windows (a saved real one) and POSIX", () => {
+  assert.equal(routerLine(`"C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe" -Command 'strom.cmd note add P0001 x | Select-Object -First 5'`), WINDOWS_ROUTER.trim(), "the line as Codex writes it");
+  assert.equal(codexPolicyRejected(WINDOWS_ROUTER.trim()), "strom.cmd note add P0001 x | Select-Object -First 5");
+  const ps = (script: string) => `"C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe" -Command ${script}`;
+  for (const [rendered, command, strom] of [
+    [ps(`'Set-Location .; strom.cmd note add P0001 y'`), "Set-Location .; strom.cmd note add P0001 y", true],
+    // a backslash keeps single quotes out: the shlex crate quotes the script in double quotes, \ before " and \
+    [ps(`"& \\"C:\\\\Users\\\\Ondřej\\\\AppData\\\\Local\\\\Programs\\\\Strom\\\\strom.cmd\\" note add P0001 'Žofie' | Out-String"`), `"C:\\Users\\Ondřej\\AppData\\Local\\Programs\\Strom\\strom.cmd" note add P0001 'Žofie' | Out-String`, true],
+    ["/bin/zsh -lc 'strom note add P0001 Лотак | head -5'", "strom note add P0001 Лотак | head -5", true],
+    [ps(`'Get-Content notes/postup.md | Select-Object -First 5'`), "Get-Content notes/postup.md | Select-Object -First 5", false],
+  ] as const) {
+    const got = codexPolicyRejected(routerLine(rendered));
+    assert.equal(got, command, rendered);
+    assert.equal(deniedStrom(`Bash: ${got}`, true), strom, rendered);
+  }
+  // with colours (a terminal, or --color always): the same
+  const coloured = WINDOWS_ROUTER.trim().replace("ERROR", "\u001b[31mERROR\u001b[0m").replace(/^(\S+)/u, "\u001b[2m$1\u001b[0m");
+  assert.equal(codexPolicyRejected(coloured), "strom.cmd note add P0001 x | Select-Object -First 5");
+});
+
+test("codexPolicyRejected: a refusal by a rule (strom's git, strom login, the person's), rm -f, another error, a line cut short or quoted — none", () => {
+  for (const line of [
+    routerLine("/bin/zsh -lc 'git status'", "strom keeps the history: never git itself"),
+    routerLine("/bin/zsh -lc 'strom login fs'", "a login and the seal are the user's own"),
+    routerLine("/bin/zsh -lc 'strom brief'", "policy forbids commands starting with `strom`"),
+    routerLine("/bin/zsh -lc 'strom brief | xargs rm -rf'", "rm -f style commands are not permitted. Use a safer approach"),
+    `2026-11-05T08:41:20.247392Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "No such file or directory (os error 2)" }`,
+    WINDOWS_ROUTER.trim().slice(0, 200),
+    `notes/postup.md:3: ${WINDOWS_ROUTER.trim()}`,
+    `"${WINDOWS_ROUTER.trim()}"`,
+    "strom: Codex: model gpt-5 — from config.toml",
+  ])
+    assert.equal(codexPolicyRejected(line), undefined, line);
+});
+
+test("Codex: a command its policy refused is a refusal from its stderr alone — the same words in a command's output or the agent's message are none", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom codex-policy ů "));
+  try {
+    const lines = [
+      { type: "thread.started", thread_id: "0199aaaa-bbbb-7ccc-8ddd-000000000010" },
+      { type: "turn.started" },
+      { type: "item.completed", item: { id: "item_0", type: "command_execution", command: "powershell.exe -Command 'strom.cmd grep CreateProcess'", aggregated_output: `notes/postup.md:3: ${WINDOWS_ROUTER}`, exit_code: 0, status: "completed" } },
+      { type: "item.completed", item: { id: "item_1", type: "agent_message", text: `Nelze zapisovat: ${WINDOWS_ROUTER}` } },
+      { type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } },
+    ];
+    const stream = path.join(dir, "stream.jsonl");
+    fs.writeFileSync(stream, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const stderr = path.join(dir, "stderr.txt");
+    const run = async (text: string | undefined) => {
+      if (text === undefined) fs.rmSync(stderr, { force: true });
+      else fs.writeFileSync(stderr, text);
+      const env = { ...agentStandIn(dir, "codex"), FAKE_STREAM: stream, ...(text === undefined ? {} : { FAKE_STDERR: stderr }), STROM_SESSION: "N0001" };
+      return codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log") });
+    };
+    const quoted = await run(undefined);
+    assert.equal(quoted.denied, undefined, "only quoted: nothing refused");
+    const said = await run(`strom: Codex: model gpt-5\r\n${WINDOWS_ROUTER.trim()}\r\n${routerLine("/bin/zsh -lc 'git status'", "strom keeps the history: never git itself")}\n`);
+    assert.deepEqual(said.denied, ["Bash: strom.cmd note add P0001 x | Select-Object -First 5"]);
+    assert.deepEqual(said.deniedWhole, [0], "refused whole before it ran");
+    assert.equal(said.metrics.denied, 1);
+    assert.equal(said.outcome, "ok", "Codex went on and ended its turn");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("Codex: strom refused by its sandbox through PowerShell, and a command it declined, are refusals — said as the agent meant them", async () => {
@@ -61,7 +162,8 @@ test("Codex: strom refused by its sandbox through PowerShell, and a command it d
     const progress: string[] = [];
     const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), onProgress: (l) => progress.push(l) });
     assert.deepEqual(r.denied, ['Bash: strom.cmd note add P0001 "Lhoták"', "Bash: strom.cmd session close --summary x", "Bash: Get-ChildItem"]);
-    assert.deepEqual(r.denied!.map(deniedStrom), [true, true, false]);
+    assert.deepEqual(r.denied!.map((d) => deniedStrom(d)), [true, true, false]);
+    assert.equal(r.deniedWhole, undefined, "refused while they ran, or declined: none refused whole");
     assert.equal(r.metrics.denied, 3);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -89,7 +191,7 @@ test("Codex: strom refused by its sandbox in a pipe (exit code 0, the last progr
     const env = { ...agentStandIn(dir, "codex"), FAKE_STREAM: stream, STROM_SESSION: "N0001" };
     const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log") });
     assert.deepEqual(r.denied, ["Bash: strom note add P0001 'Žofie' | cat", "Bash: strom.cmd note add P0001 x | Select-Object -First 5"]);
-    assert.deepEqual(r.denied!.map(deniedStrom), [true, true]);
+    assert.deepEqual(r.denied!.map((d) => deniedStrom(d)), [true, true]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

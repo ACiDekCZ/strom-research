@@ -114,6 +114,12 @@ export interface RunResult {
   /** Tool calls the permissions refused, e.g. "Bash: strom input show I0001". */
   denied?: string[];
   /**
+   * Which of `denied` (their places in it) the agent refused whole before any of it ran — Codex's policy, said on its
+   * stderr alone (runners/codex.ts codexPolicyRejected): strom counts refused there in any part of the command
+   * (deniedStrom's `whole`).
+   */
+  deniedWhole?: number[];
+  /**
    * Tool calls strom's own hook refused (core/web.ts: a web fetch past WEB_PER_HOST to one server in a run, or while
    * the server is left alone, its limit used up or its hour full), e.g. "WebFetch: https://…" — not the permissions.
    */
@@ -252,11 +258,43 @@ export function shellUnwrapped(command: string): string {
 
 /**
  * Whether a refused tool call ("Bash: …", "PowerShell: …", as a run collects them) ran strom itself: strom, strom.cmd,
- * strom.exe, strom.ps1 or a second installation's strom-<suffix>, by its name or its path, first in the command.
+ * strom.exe, strom.ps1 or a second installation's strom-<suffix>, by its name or its path, first in the command — never
+ * inside quotes (`echo "x; strom brief"`) or as another program's argument. `whole`: the command was refused whole
+ * before any of it ran (Codex's policy, RunResult.deniedWhole): there strom counts first in any part of it too — after
+ * `;`, `&&`, `||`, a pipe or a new line (`Set-Location .; strom.cmd …`: found on Windows, #8). A command refused while
+ * it ran (a sandbox) is strom's only with strom first: in `touch ../x && strom …` the sandbox refused touch, and strom
+ * never ran.
  */
-export function deniedStrom(denied: string): boolean {
+export function deniedStrom(denied: string, whole = false): boolean {
   const command = shellUnwrapped(denied.replace(/^[\p{L}\p{N}_]+: /u, ""));
-  return /^(['"]?)(?:[^\s'"]*[\\/])?strom(?:-[\p{L}\p{N}_.-]+?)?(?:\.cmd|\.exe|\.ps1|\.bat)?\1(?:\s|$)/iu.test(command);
+  return (whole ? commandParts(command) : [command]).some((part) => STROM_FIRST.test(part.replace(/^&\s*/u, "")));
+}
+
+/** strom by its name or path first in a command (its own quotes around it, the same at both ends). */
+const STROM_FIRST = /^(['"]?)(?:[^\s'"]*[\\/])?strom(?:-[\p{L}\p{N}_.-]+?)?(?:\.cmd|\.exe|\.ps1|\.bat)?\1(?:\s|$)/iu;
+
+/** The parts of a command line between `;`, `&&`, `||`, `|` and new lines outside quotes, each trimmed. */
+function commandParts(command: string): string[] {
+  const parts: string[] = [];
+  let part = "";
+  let quote: string | undefined;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!;
+    if (quote) {
+      part += c;
+      if (c === "\\" && quote === '"' && i + 1 < command.length) part += command[++i];
+      else if (c === quote) quote = undefined;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      part += c;
+    } else if (c === ";" || c === "\n" || c === "|" || (c === "&" && command[i + 1] === "&")) {
+      parts.push(part.trim());
+      part = "";
+      if (command[i + 1] === c) i++;
+    } else part += c;
+  }
+  parts.push(part.trim());
+  return parts.filter(Boolean);
 }
 
 /** A command as a run's progress shows it: "$ " and its first line, cut at 140 characters — a cut ends in "…". */

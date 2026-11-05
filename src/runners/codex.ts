@@ -140,6 +140,89 @@ export function codexRefusedStrom(output: string, session: string | undefined): 
   return !!mark && output.replace(/\r?\n/g, "").includes(`${SANDBOX_REFUSAL} ${mark}`);
 }
 
+/**
+ * One string as Rust's Debug writes it (`"…"` with `\"`, `\\`, `\n`, `\u{…}`), read from its opening quote at `at`:
+ * its text and where it ended — undefined when it does not end (a line cut short).
+ */
+function debugString(s: string, at: number): { text: string; end: number } | undefined {
+  if (s[at] !== '"') return undefined;
+  let text = "";
+  for (let i = at + 1; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '"') return { text, end: i + 1 };
+    if (c !== "\\") {
+      text += c;
+      continue;
+    }
+    const e = s[++i];
+    if (e === undefined) return undefined;
+    if (e === "u") {
+      const u = /^\{([0-9a-fA-F]{1,6})\}/u.exec(s.slice(i + 1));
+      if (!u) return undefined;
+      text += String.fromCodePoint(parseInt(u[1]!, 16));
+      i += u[0].length;
+    } else text += ({ n: "\n", r: "\r", t: "\t", "0": "\0" } as Record<string, string>)[e] ?? e;
+  }
+  return undefined;
+}
+
+/**
+ * A command line as Codex renders it (the shlex crate's join: words '…'-quoted, or "…"-quoted with \ before $ ` " \
+ * where a backslash keeps single quotes out — Windows paths) split into its words again.
+ */
+function shlexWords(line: string): string[] {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (/\s/u.test(c)) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else if (c === "'") {
+      const close = line.indexOf("'", i + 1);
+      if (close < 0) return [];
+      word = (word ?? "") + line.slice(i + 1, close);
+      i = close;
+    } else if (c === '"') {
+      word ??= "";
+      for (i++; i < line.length && line[i] !== '"'; i++) word += line[i] === "\\" && i + 1 < line.length ? line[++i] : line[i];
+      if (i >= line.length) return [];
+    } else word = (word ?? "") + (c === "\\" && i + 1 < line.length ? line[++i] : c);
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+/**
+ * A command Codex's own policy refused before it ran, as Codex alone says it — a line of its log on its stderr, never a
+ * command_execution item, never what a command printed or the agent wrote (codex-cli 0.166.0 on Windows, found
+ * 2026-11-05):
+ *   `<time> ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected(\"`<the
+ *   command, its shell around it>` rejected: blocked by policy\")" }`
+ * "Blocked by policy" is an approval nobody gives in `codex exec`: with Codex's own Windows sandbox not in use (as where
+ * it was found) every part of a command no rule allows is refused — `strom.cmd … | Select-Object`, `Set-Location .; strom.cmd …`:
+ * the rule lets strom run, the part after it is refused, and so the whole command (Codex's exec_policy.rs,
+ * render_decision_for_unmatched_command). A refusal by a rule of its own (strom's `git`, `strom login`, the person's:
+ * its justification) or of Codex's `rm -f` is what the rules say: no such refusal here. The command as the agent meant
+ * it (its shell around it taken off); undefined: no such line.
+ */
+export function codexPolicyRejected(line: string): string | undefined {
+  const clean = line.replace(/\u001b\[[0-9;]*m/gu, "");
+  const at = /^\s*(?:\S+\s+)?ERROR\s+codex_core::tools::router:\s+error=[\p{L}\p{N}_.-]+ failed: CreateProcess \{ message: "/u.exec(clean);
+  if (!at) return undefined;
+  const outer = debugString(clean, at.index + at[0].length - 1);
+  if (!outer || !/^\s*\}\s*$/u.test(clean.slice(outer.end)) || !outer.text.startsWith('Rejected("')) return undefined;
+  const reason = debugString(outer.text, "Rejected(".length);
+  if (!reason || outer.text.slice(reason.end) !== ")") return undefined;
+  const said = /^`([\s\S]+)` rejected: blocked by policy$/u.exec(reason.text);
+  if (!said) return undefined;
+  const words = shlexWords(said[1]!);
+  // the agent's own command: what its shell was given (-Command, -c, /c, -lc), else the words as they are
+  const flag = words.findIndex((w, i) => i > 0 && /^(?:-(?:command|c|lc)|\/[ck])$/iu.test(w));
+  const command = flag > 0 && flag < words.length - 1 ? words.slice(flag + 1).join(" ") : words.length ? words.join(" ") : said[1]!;
+  return shellUnwrapped(command);
+}
+
 /** The error Codex said last, kept when an earlier one said the plan's limit (the later one may only say the turn failed). */
 function failure(said: string, had: string): string {
   return looksLikeLimit(had).limit && !looksLikeLimit(said).limit ? had : said || had;
@@ -172,6 +255,16 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
     tellUsage(opts, { total: true, in: usageNumber(u.input_tokens), cr: usageNumber(u.cached_input_tokens), out: usageNumber(u.output_tokens), turns: steps || undefined });
     steps = 0;
   };
+  // a command its policy refused before it ran is said on its stderr alone (codexPolicyRejected): counted like a denial —
+  // strom's own command so refused stops the run as its sandbox's refusal does (#8: on Windows Codex runs every command
+  // through PowerShell, and strom in a pipe, after `;` or `&` was refused so — the run went on and put its tasks aside)
+  const stderrLine = (line: string, heard: Heard) => {
+    const command = codexPolicyRejected(line);
+    if (command === undefined) return;
+    // refused whole before any of it ran: strom counts refused in any part of it (deniedStrom's `whole`)
+    (heard.deniedWhole ??= []).push(heard.denied.length);
+    heard.denied.push(`Bash: ${command.slice(0, 120)}`);
+  };
   return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
     if (msg.type === "thread.started" && typeof msg.thread_id === "string") {
       heard.sessionId = msg.thread_id;
@@ -190,8 +283,9 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
     // "declined"): counted like a denial, the command as the agent meant it (its shell around it taken off). strom's own
     // refusal under an agent counts with the exit code 0 too: in a pipe (`strom … | cat`, `| Select-Object`) the code
     // is the last program's — but then only strom's error with this session's mark, never its words quoted
-    // (codexRefusedStrom). (Codex 0.155's exec_command says nothing at all of a command it refused before it ran — its
-    // rules — or one its sandbox stopped within 150 ms; strom itself starts slower and is always said.)
+    // (codexRefusedStrom). (Codex's exec_command gives no item of a command its policy refused before it ran — said on
+    // its stderr alone: stderrLine above — nor of one its sandbox stopped within 150 ms; strom itself starts slower and
+    // is always said.)
     if (
       msg.type === "item.completed" &&
       item?.type === "command_execution" &&
@@ -222,5 +316,5 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
       const e = msg.error as { message?: string } | undefined;
       heard.text = failure(String(e?.message ?? msg.message ?? ""), heard.text);
     }
-  });
+  }, { stderrLine });
 }

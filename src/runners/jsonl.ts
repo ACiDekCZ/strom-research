@@ -19,6 +19,8 @@ export interface Heard {
   text: string;
   isError: boolean;
   denied: string[];
+  /** Which of `denied` (their places in it) were refused whole before any of it ran (RunResult.deniedWhole). */
+  deniedWhole?: number[];
   /** Tool calls strom's own hook refused (RunResult.refused): not the permissions. */
   refused?: string[];
   /** The agent's own id of this session, when it says it (for resuming it). */
@@ -109,6 +111,11 @@ export interface JsonLinesWays {
   recover?: {
     resume: (sessionId: string, message: string, timeoutMs: number | undefined) => { args: string[]; input: string };
   };
+  /**
+   * Each whole line the agent itself wrote on its stderr, as it comes (Codex says there alone a command its rules refused
+   * before it ran: runners/codex.ts codexPolicyRejected) — never what its commands printed, never its words.
+   */
+  stderrLine?: (line: string, heard: Heard) => void;
 }
 
 /** What an agent resumed after a passing network error is told. */
@@ -157,7 +164,7 @@ export async function runJsonLines(
     heard.deniedBefore = heard.denied.length;
     heard.error = undefined;
     heard.endedNormally = undefined;
-    const a = await attempt(command, args, input, env, opts, timeoutMs, heard, onEvent);
+    const a = await attempt(command, args, input, env, opts, timeoutMs, heard, onEvent, ways.stderrLine);
     lastStderr = a.stderr;
     // (its events set them while it ran)
     const said = heard.responses as Responses | undefined;
@@ -261,6 +268,7 @@ export async function runJsonLines(
     ...(recovered ? { recovered } : {}),
     ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}),
     ...(heard.denied.length ? { denied: heard.denied } : {}),
+    ...(heard.deniedWhole?.length ? { deniedWhole: heard.deniedWhole } : {}),
     ...(heard.refused?.length ? { refused: heard.refused } : {}),
     ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}),
   };
@@ -276,6 +284,7 @@ function attempt(
   timeoutMs: number | undefined,
   heard: Heard,
   onEvent: (msg: Record<string, unknown>, heard: Heard) => void,
+  onStderr?: (line: string, heard: Heard) => void,
 ): Promise<{ code: number | null; signal?: NodeJS.Signals | null; timedOut: boolean; stderr: string; failed?: string }> {
   return new Promise((resolve) => {
     const child = spawnAgent(command, args, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: OWN_GROUP });
@@ -315,9 +324,25 @@ function attempt(
       log.flush();
     });
     let stderr = "";
+    // its stderr a whole line at a time too, for a runner that reads it (a line cut between two chunks read whole)
+    const errText = new StringDecoder("utf8");
+    let errLine = "";
+    const errLines = (chunk: string, end = false) => {
+      if (!onStderr) return;
+      errLine += chunk;
+      let nl: number;
+      while ((nl = errLine.indexOf("\n")) >= 0) {
+        onStderr(errLine.slice(0, nl).replace(/\r$/u, ""), heard);
+        errLine = errLine.slice(nl + 1);
+      }
+      if (end && errLine) onStderr(errLine.replace(/\r$/u, ""), heard);
+      if (end) errLine = "";
+    };
     child.stderr?.on("data", (d: Buffer) => {
-      stderr += d.toString("utf8");
-      appendLog(opts.logFile, d.toString("utf8"));
+      const t = errText.write(d);
+      stderr += t;
+      appendLog(opts.logFile, t);
+      errLines(t);
     });
     const end = () => {
       if (timer) clearTimeout(timer);
@@ -331,6 +356,9 @@ function attempt(
       end();
       buffer += text.end();
       if (buffer) handle(buffer);
+      const errRest = errText.end();
+      stderr += errRest;
+      errLines(errRest, true);
       log.rest(buffer);
       log.flush();
       resolve({ code, signal, timedOut, stderr });

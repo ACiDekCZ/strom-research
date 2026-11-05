@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.27.0
 
-*W przygotowaniu: bety do 1.27.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.27.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Skany zapisane ręcznie same przywracają swoje zadanie.** Tam, gdzie skany archiwum zapisuje się ręcznie – archiwum,
   do którego wolno tylko przeglądarce człowieka, albo takie, którego warunki nie pozwalają na nic innego – badanie
@@ -68,7 +68,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   sprzeczności wśród poleceń człowieka. Badanie z OpenCode toczy się dalej po sesji, którą OpenCode poprawnie zamknął,
   ale zgłosił jako nieudaną, oraz po przejściowym błędzie sieci – ta sama sesja zostaje wznowiona po krótkim
   oczekiwaniu, w ramach czasu sesji. Gdy sandbox Codexa nie dopuści strom do badań – także w potoku, a w Windows
-  także przy poleceniu podanym przez PowerShell –, badanie od razu się zatrzymuje z tym, co pozostaje wyborem
+  także przy poleceniu podanym przez PowerShell – albo gdy polecenie strom odrzucą już reguły Codexa, zanim się
+  uruchomi (w Windows strom w potoku lub po `;`), badanie od razu się zatrzymuje z tym, co pozostaje wyborem
   człowieka, a taka sesja nigdy
   nie odkłada zadania. Dziękujemy za zgłoszenie na GitHubie. Zmiana odczytu skanów, którą badanie wprowadziło samo i po
   której odczyty stały się wyraźnie mniej pewne, zostaje od razu cofnięta – już nie dopiero po 60 dniach – a `strom

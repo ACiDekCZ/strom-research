@@ -862,7 +862,7 @@ register(
     let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
-    const report: { session: string; task?: string; outcome: string; agentExit?: number; recovered?: number; summary?: string; costUsd?: number; agentUsd?: number; readersUsd?: number }[] = [];
+    const report: { session: string; task?: string; outcome: string; agentExit?: number; recovered?: number; denied?: number; stromDenied?: number; summary?: string; costUsd?: number; agentUsd?: number; readersUsd?: number }[] = [];
     // What the gate answered, for the record of the run.
     const gates: { at: string; verdict: string; status: number | null; reason?: string; until?: string; anyway?: boolean }[] = [];
     // The answers since the last session began: written at the head of the next session's log.
@@ -1214,8 +1214,11 @@ register(
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
         // strom itself refused to the agent (its permissions, its sandbox — said through any shell): kept with the
-        // session's metrics, so the session is not counted against its task
-        const stromDenied = result.denied?.filter(deniedStrom).length ?? 0;
+        // session's metrics, so the session is not counted against its task. strom first in the command — in any part
+        // of it only where the agent refused the command whole before any of it ran (Codex's policy: deniedWhole); a
+        // sandbox that refused `touch ../x` in `touch ../x && strom …` refused no strom
+        const whole = new Set(result.deniedWhole ?? []);
+        const stromDenied = result.denied?.filter((d, i) => deniedStrom(d, whole.has(i))).length ?? 0;
         if (stromDenied) result = { ...result, metrics: { ...result.metrics, stromDenied } };
         // the agent closed the session itself and its process then failed by its exit code alone (OpenCode: 1 after its
         // last step ended normally, nothing else said wrong): done, the run goes on — the exit code kept in the log
@@ -1269,7 +1272,7 @@ register(
         // what it cost: the agent's own and its readers', both apart too
         const m = after.get<Session>(s.id)?.metrics ?? withReaders(result.metrics, s.metrics);
         const total = sessionCost(m);
-        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(result.exitOnly && result.outcome === "ok" ? { agentExit: result.exitCode } : {}), ...(result.recovered ? { recovered: result.recovered } : {}), ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
+        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(result.exitOnly && result.outcome === "ok" ? { agentExit: result.exitCode } : {}), ...(result.recovered ? { recovered: result.recovered } : {}), ...(result.denied?.length ? { denied: result.denied.length } : {}), ...(stromDenied ? { stromDenied } : {}), ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
         // what strom's own hook refused (its web limits) is strom's, never the permissions'

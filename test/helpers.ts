@@ -221,7 +221,8 @@ export function agentStandIn(dir: string, command: string): Record<string, strin
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const script = path.join(bin, "agent.mjs");
-  fs.writeFileSync(script, 'import fs from "node:fs";\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
+  // (FAKE_STDERR: what the agent itself says on its stderr — Codex's log lines)
+  fs.writeFileSync(script, 'import fs from "node:fs";\nif (process.env.FAKE_STDERR) process.stderr.write(fs.readFileSync(process.env.FAKE_STDERR, "utf8"));\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
   fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"%FAKE_NODE%" "%~dp0agent.mjs" %*\r\n`);
   return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir, FAKE_NODE: process.execPath };

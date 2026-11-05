@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.27.0
 
-*Připravuje se: bety do 1.27.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.27.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Snímky uložené ručně vrátí svůj úkol samy.** Kde se snímky archivu ukládají ručně – archiv, kam smí jen prohlížeč
   člověka, nebo archiv, jehož podmínky nic jiného nedovolují – výzkum požádá o knihu a čísla snímků a připraví pro ně
@@ -61,7 +61,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom help --human` uvádí pořadí úkolů, práci mimo linie, opravy a ponechání rozporu mezi příkazy člověka. Výzkum s
   OpenCode pokračuje i po sezení, které OpenCode řádně uzavřel, ale ohlásil jako neúspěšné, a po přechodné chybě sítě –
   totéž sezení se po krátkém čekání obnoví, v rámci času sezení. Když sandbox Codexu nepustí strom k výzkumu – i v
-  rouře a na Windows i u příkazu zadaného přes PowerShell –, výzkum se hned zastaví s tím, co zůstává volbou člověka,
+  rouře a na Windows i u příkazu zadaného přes PowerShell –, nebo když příkaz stromu odmítnou už pravidla Codexu, než
+  se spustí (na Windows strom v rouře nebo za `;`), výzkum se hned zastaví s tím, co zůstává volbou člověka,
   a takové
   sezení úkol nikdy neodloží. Díky za hlášení na GitHubu. Změnu čtení snímků, kterou výzkum udělal sám a po které se
   četlo zřetelně méně jistě, hned vrátí – už ne až po 60 dnech – a `strom recent` to uvede.

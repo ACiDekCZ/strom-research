@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.27.0
 
-*In Vorbereitung: die Betas bis 1.27.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.27.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Von Hand gespeicherte Bilder bringen ihre Aufgabe von selbst zurück.** Wo die Bilder eines Archivs von Hand
   gespeichert werden – ein Archiv, das nur der Browser eines Menschen erreicht, oder eines, dessen Bedingungen nichts
@@ -75,7 +75,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Forschung mit OpenCode geht weiter nach einer Sitzung, die es ordnungsgemäß abgeschlossen, aber als fehlgeschlagen
   gemeldet hat, und nach einem vorübergehenden Netzwerkfehler – dieselbe Sitzung wird nach kurzem Warten fortgesetzt,
   innerhalb der Zeit der Sitzung. Hält die Sandbox von Codex strom von der Forschung fern – auch in einer Pipe und
-  unter Windows auch bei einem über PowerShell gegebenen Befehl –, hält die Forschung sofort an und nennt, was die Wahl
+  unter Windows auch bei einem über PowerShell gegebenen Befehl – oder lehnen die Regeln von Codex einen strom-Befehl
+  ab, bevor er läuft (unter Windows strom in einer Pipe oder nach `;`), hält die Forschung sofort an und nennt, was die Wahl
   des Menschen bleibt; eine
   solche Sitzung legt ihre Aufgabe nie beiseite. Danke für die Meldung auf GitHub. Eine Änderung beim Lesen der Scans,
   die die Forschung selbst vorgenommen hat und nach der die Lesungen deutlich unsicherer wurden, wird sofort
