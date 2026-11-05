@@ -89,7 +89,7 @@ test("what waits, in order: decisions, images and sites, letters and the family,
   // the one that waits for that archive's images saved by hand: an item of its own (saved by hand, a conversation about
   // it, whatever the question), at the archive's place beside its question — and still one of what the decision touches
   const byHand = by("T0008");
-  assert.deepEqual([byHand.kind, byHand.group.key, byHand.actions], ["images", `host:${PERMISSION_HOST}`, ["answer", "folder", "chat"]]);
+  assert.deepEqual([byHand.kind, byHand.group.key, byHand.actions], ["images", `host:${PERMISSION_HOST}`, ["answer", "images", "folder", "chat"]]);
   assert.ok((by(`permission:${PERMISSION_HOST}`).tasks as string[]).includes("T0008"));
   assert.equal(items.filter((i) => i.id === "T0008").length, 1);
   assert.deepEqual(by(`permission:${PERMISSION_HOST}`).group, { key: `host:${PERMISSION_HOST}`, name: "Digitální archiv Lhota", kind: "web" });
@@ -98,12 +98,12 @@ test("what waits, in order: decisions, images and sites, letters and the family,
   // images: the archive's place, the folder with how many images are there and how many the task wants
   const images = by("T0001");
   assert.deepEqual([images.kind, images.section, images.phase, images.priority], ["images", "images", "todo", 3]);
-  assert.deepEqual(images.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive" });
+  assert.deepEqual(images.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive", url: "https://www.archiv.example.org/" });
   assert.equal(images.url, "https://www.archiv.example.org/book/17");
   const inbox = images.inbox as { dir: string; have: number; want: number };
   assert.equal(path.dirname(inbox.dir), path.join(shared, "inbox"));
   assert.deepEqual([inbox.have, inbox.want], [2, 4]);
-  assert.deepEqual(images.actions, ["answer", "folder", "chat"]);
+  assert.deepEqual(images.actions, ["answer", "images", "folder", "chat"]);
   // a letter to the same archive: its place, whom, the request's text (it is there)
   const letter = by("T0002");
   assert.deepEqual([letter.kind, letter.section, letter.group.key, letter.to, letter.note], ["letter", "letter", "repo:R0001", "Zkušební archiv", "notes/žádost-lhota.md"]);
@@ -116,7 +116,7 @@ test("what waits, in order: decisions, images and sites, letters and the family,
   assert.deepEqual(sent.actions, ["answer", "file", "chat"]);
   assert.deepEqual([by("T0004").kind, by("T0004").group.key, by("T0004").group.name], ["family", "family", "Rodina"]);
   assert.deepEqual(by("T0004").actions, ["answer", "file", "sent", "chat"]);
-  assert.deepEqual([by("T0005").section, by("T0005").group.key, by("T0005").url], ["web", "host:familysearch.org", "https://www.familysearch.org/search/catalog/1"]);
+  assert.deepEqual([by("T0005").section, by("T0005").group.key, by("T0005").url], ["web", "archive:familysearch", "https://www.familysearch.org/search/catalog/1"]);
   assert.deepEqual(by("T0005").actions, ["answer", "chat"]);
   // a check: a decision, its link and answers as before
   assert.deepEqual([by("T0006").kind, by("T0006").section, by("T0006").url, by("T0006").choices], ["check", "decide", "https://closed.example.com/book/1", ["works", "view", "no"]]);

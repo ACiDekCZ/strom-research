@@ -282,23 +282,34 @@ function worse(w: World, root: string, o: { scope: "key" | "book"; afterUnsure: 
   plant(root, units);
 }
 
-test("strom doctor: worse after a change of strom's — a reset recommended where the readings got less sure, kept where only dearer; --fix on a yes; an archive says nothing", opts, async () => {
+test("strom doctor: worse after a change of strom's — readings less sure: taken back by itself at once (A8), logged, said in strom recent, held back; only dearer: kept, said; an archive says nothing", opts, async () => {
   const w = new World();
   const root = await w.withTree();
-  // (a) the readings less sure since smaller batches: 1 of 60 unsure before, 12 of 36 after
+  // (a) the readings less sure since smaller batches: 1 of 60 unsure before, 12 of 36 after — enough scans since: back
+  // to the default at once (not after TUNING.backAfterDays), never waiting for the person (a Windows user's books got
+  // worse twice in a row under bigger views, 4 Nov 2026)
   worse(w, root, { scope: "key", afterUnsure: 12 });
   const a = await w.run(["doctor"]);
-  assert.match(a.out, /! +po samoladění +model: čte se hůř od změny stromu z \d{4}-\d\d-\d\d \(menší dávky\) — nejistá čtení 2 % → 33 % \(60 skenů před, 36 po\); doporučeno ji vrátit {2}→ strom media calibrate --reset --only batches/);
-  const json = (await w.run(["doctor", "--json"])).json;
-  assert.equal(json.checks.find((c: { name: string }) => c.name === "tuneworse").status, "warn");
-  assert.equal(config(w).tuning[TUNED].batch.value, 3, "doctor runs nothing");
-  // --fix: only on the person's yes (an agent asks: a window)
-  await w.run(["doctor", "--fix"], { dialog: false, env: { CLAUDECODE: "1" } });
-  assert.equal(config(w).tuning[TUNED].batch.value, 3, "no in the window: kept");
-  await w.run(["doctor", "--fix"], { dialog: true, env: { CLAUDECODE: "1" } });
-  assert.equal(config(w).tuning, undefined, "returned on the yes");
-  assert.equal(resets(root).length, 1);
+  assert.doesNotMatch(a.out, /čte se hůř/, a.out);
+  assert.equal(config(w).tuning, undefined, "taken back by itself");
+  const log = fs.readFileSync(tuneFile(root, "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const back = log.filter((e: { action: string }) => e.action === "A8");
+  assert.equal(back.length, 1, JSON.stringify(log));
+  assert.equal(back[0].by, "selftune");
+  assert.equal(back[0].id, "Tggggg1");
+  assert.deepEqual([back[0].from, back[0].to, back[0].scans], [3, 6, 96]);
+  assert.match(back[0].why, /^read worse since it \(M5 2 % → 33 %, 60 scans before, 36 after\) → back to the default at once$/);
+  assert.equal(resets(root).length, 0, "no reset of a person's");
+  // in the history a person reads (strom recent), in the research language
+  assert.match((await w.ok(["recent"])).out, /Claude Code · claude-opus-5-5: menší dávky hned zpět na výchozí — po změně se četlo hůř \(nejistá čtení 2 % → 33 %\)/);
+  // held back as a person's reset: the signal that set it again changes nothing until the data change
+  assert.ok(heldBack(log, { id: "Tggggg1", key: back[0].key, scope: "key", reported: REPORTED }, [], Date.now()));
+  assert.ok(!heldBack(log.map((e: object) => ({ ...e, action: "A6" })), { id: "Tggggg1", key: back[0].key, scope: "key", reported: REPORTED }, [], Date.now()), "A6 holds nothing back");
   assert.doesNotMatch((await w.run(["doctor"])).out, /po samoladění/);
+  // a book's bigger views the same: back at once
+  worse(w, root, { scope: "book", afterUnsure: 12 });
+  await w.run(["doctor"]);
+  assert.equal(readJsonFile(tuneFile(root, "state.json"))[TUNED], undefined, "the book's views taken back");
 
   // (b) a book's bigger views: dearer, the readings no surer — keeping it recommended, no repair
   worse(w, root, { scope: "book", afterUnsure: 0, usdBefore: 0.1, usdAfter: 0.2 });

@@ -4,6 +4,7 @@
 
 import { register } from "../cli/registry.ts";
 import { lines } from "../cli/format.ts";
+import { answerShellEvent, BRIDGE_NOTES, SHELL_TOOLS, shellEvent, shellHookOutput } from "../core/bridgeguard.ts";
 import { answerDelegateEvent, delegateEvent, delegateHookOutput, delegateModel, STROM_DELEGATES } from "../core/delegate.ts";
 
 register({
@@ -36,6 +37,38 @@ register({
         "Call them without `model` — a call that sets another model is refused.",
       ),
       data: { delegates: models },
+    };
+  },
+});
+
+register({
+  path: ["agents", "shell"],
+  summary: "The hook before each shell command of the agent: what would reach the bridge (strom live) is refused",
+  group: "setup",
+  description:
+    "The bridge (strom live) takes what the person writes in the Strom app — an answer to a task that waits for them, a\n" +
+    "scan for it. You never read or call it: the tree's settings run strom agents shell --hook before each shell command\n" +
+    "(Bash, PowerShell; Grok's shell) and refuse one that reads .strom/live.json or .strom/live-last.json or names the\n" +
+    "bridge's address; a web fetch of it is refused as well (strom net web --hook). Without --hook: what it would refuse.",
+  options: [{ name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" }],
+  examples: ["strom agents shell"],
+  run: (ctx, { opts }) => {
+    if (opts.hook) {
+      // never in the way by itself: whatever goes wrong, the command goes on as the agent's own rules say
+      try {
+        const ev = shellEvent(ctx.io.stdinText?.() ?? "");
+        if (!ev) return { text: "" };
+        return { text: shellHookOutput(answerShellEvent(ev, { cwd: ctx.cwd })) };
+      } catch {
+        return { text: "" };
+      }
+    }
+    return {
+      text: lines(
+        `Refused before a shell command (${SHELL_TOOLS.join(", ")}) or a web fetch: reading ${BRIDGE_NOTES.map((n) => `.strom/${n}`).join(", ")}, the bridge's address.`,
+        "What you record goes through strom commands; a task that waits for the person is woken by the person.",
+      ),
+      data: { tools: [...SHELL_TOOLS], notes: BRIDGE_NOTES.map((n) => `.strom/${n}`) },
     };
   },
 });

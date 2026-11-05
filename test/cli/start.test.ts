@@ -224,6 +224,8 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], \["login", "seal"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], "connector", \["add", "remove"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \["git"\], decision = "forbidden"/m);
+  // its desktop app's browser and computer use: nothing of them switched off (strom neither watches nor recommends them)
+  assert.ok(!fs.existsSync(path.join(w.treeDir("Novákovi"), ".codex", "config.toml")));
   // An agent elsewhere (it set strom up from the web page) hands the research over: its own
   // conversation, in a new terminal window (not opened in a test: the user is told how).
   w.env.CLAUDECODE = "1";
@@ -1209,15 +1211,211 @@ test("the shortcut on the desktop starts this strom", { skip: process.platform =
 });
 
 /** A fake headless agent: notes its arguments and the variables that matter, reads the brief, prints events. */
-function fakeHeadless(w: World, name: string, events: object[]): void {
+function fakeHeadless(w: World, name: string, events: object[], stderr?: string): void {
   const bin = path.join(w.dir, "bin");
   const lines = events.map((e) => JSON.stringify(e)).join("\n");
+  // what the agent itself says on its stderr (Codex's log lines), from a file: said before its events
+  const err = path.join(w.dir, `${name}.stderr`);
+  if (stderr !== undefined) fs.writeFileSync(err, stderr);
   fs.writeFileSync(
     path.join(bin, name),
-    `#!/bin/sh\nprintf '%s\\n' "$*" > "${path.join(w.dir, `${name}.args`)}"\necho "session=$STROM_SESSION" > "${path.join(w.dir, `${name}.env`)}"\ncat > "${path.join(w.dir, `${name}.brief`)}"\ncat <<'EOT'\n${lines}\nEOT\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" > "${path.join(w.dir, `${name}.args`)}"\necho "session=$STROM_SESSION" > "${path.join(w.dir, `${name}.env`)}"\ncat > "${path.join(w.dir, `${name}.brief`)}"\n${stderr !== undefined ? `cat "${err}" >&2\n` : ""}cat <<'EOT'\n${lines}\nEOT\n`,
     { mode: 0o755 },
   );
 }
+
+test("strom run with Codex: strom kept away by its sandbox through PowerShell stops the run with Codex's own reason — no second session (GitHub #8)", unix, async () => {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    { type: "item.completed", item: { type: "command_execution", command: `"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'strom.cmd note add P0001 x'`, aggregated_output: "error: no permission to write into .git — run this strom command outside the agent's sandbox", exit_code: 1, status: "failed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Nelze zapisovat." } },
+    { type: "turn.completed", usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 9 } },
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "3", "--json"]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.sessions.length, 1);
+  assert.equal(r.json.stop, "denied.codex");
+  assert.match(r.json.stopped, /sandbox Codexu nepustil strom k výzkumu – mimo sandbox jde strom jen jako samostatný příkaz .* úkol zůstává ve frontě/);
+  w.cleanup();
+});
+
+test("strom run with Codex: strom refused by its sandbox in a pipe (exit code 0) stops the run too — the task not parked", unix, async () => {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  // as codex-cli 0.155.1 said it: the pipe's exit code is cat's
+  const command = `/bin/zsh -lc "strom note add P0001 x | cat"`;
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    { type: "item.started", item: { type: "command_execution", command, aggregated_output: "", exit_code: null, status: "in_progress" } },
+    { type: "item.completed", item: { type: "command_execution", command, aggregated_output: "error: no permission to use: /tmp/Lhotovi/.strom/tree.lock.1.x.tmp — strom runs under an agent, and most likely its sandbox forbids it (strom session N0001)", exit_code: 0, status: "completed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Nelze zapisovat." } },
+    { type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } },
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "3", "--json"]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.stop, "denied.codex");
+  assert.equal(r.json.sessions.length, 1);
+  for (const id of ["T0001", "T0002"]) assert.equal((await w.ok(["task", "show", id, "--json"])).json.task.state, "open", `${id} stays queued`);
+  w.cleanup();
+});
+
+// (found 2026-11-05, Windows Server 2025, codex-cli 0.166.0) strom in a pipe, after `;` or with the call operator:
+// Codex's policy refused the whole command before it ran (Windows sandbox off, approval never), said on its stderr alone
+const ROUTER = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "agents", "codex-0.166-policy-rejected-windows.stderr"), "utf8");
+async function policyRun(stderr: string | undefined, events: object[] = []) {
+  return agentRun(
+    "codex",
+    [
+      { type: "thread.started", thread_id: "01a1aade-a221-7880-9eb3-4cf2c2daf16a" },
+      { type: "turn.started" },
+      ...events,
+      { type: "item.completed", item: { id: "item_1", type: "agent_message", text: "Nelze zapisovat." } },
+      { type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } },
+    ],
+    stderr,
+  );
+}
+/** strom run with a fake headless agent that says these events (and this on its stderr), two tasks queued: the result, the tasks' states. */
+async function agentRun(agent: "codex" | "claude", events: object[], stderr?: string) {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, agent, events, stderr);
+  const r = await w.run(["run", "--agent", agent, "--max", "3", "--json"]);
+  const tasks = [];
+  for (const id of ["T0001", "T0002"]) tasks.push((await w.ok(["task", "show", id, "--json"])).json.task.state);
+  w.cleanup();
+  return { ...r, tasks };
+}
+
+test("strom run with Codex: strom refused by Codex's policy before it ran (its stderr alone, Windows) stops the run — the tasks stay open (#8)", unix, async () => {
+  const r = await policyRun(`strom: Codex: model gpt-5 — from config.toml\r\n${ROUTER.replace(/\n$/u, "\r\n")}`);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.stop, "denied.codex");
+  assert.equal(r.json.sessions.length, 1);
+  assert.equal(r.json.sessions[0].stromDenied, 1);
+  assert.equal(r.json.sessions[0].denied, 1);
+  assert.match(r.json.stopped, /sandbox Codexu nepustil strom k výzkumu – mimo sandbox jde strom jen jako samostatný příkaz .* úkol zůstává ve frontě/);
+  assert.deepEqual(r.tasks, ["open", "open"], "nothing put aside");
+});
+
+test("strom run with Codex: strom after ;, a pipe or the call operator in a command its policy refused whole before it ran stops the run (#8, W7)", unix, async () => {
+  for (const script of ["Set-Location .; strom.cmd note add P0001 x", "Get-Content notes/postup.md | strom.cmd note add P0001 x", "Set-Location .; & strom.cmd note add P0001 x | Out-String"]) {
+    const r = await policyRun(ROUTER.replace(/'strom\.cmd note add P0001 x \| Select-Object -First 5'/u, `'${script}'`));
+    assert.equal(r.json.stop, "denied.codex", script);
+    assert.equal(r.json.sessions.length, 1, script);
+    assert.equal(r.json.sessions[0].stromDenied, 1, script);
+    assert.deepEqual(r.tasks, ["open", "open"], script);
+  }
+});
+
+// (N1 of the check of a6c26556, 2026-11-05) a command refused while it ran, another program before strom: the sandbox
+// refused that program, strom never ran — no refusal of strom, the run goes on as before a6c26556
+test("strom run with Codex: its sandbox refused touch in touch ../x && strom … — no refusal of strom, the run goes on", unix, async () => {
+  const command = `/bin/zsh -lc "touch ../x && strom note add P0001 x"`;
+  const r = await policyRun(undefined, [
+    { type: "item.started", item: { id: "item_0", type: "command_execution", command, aggregated_output: "", exit_code: null, status: "in_progress" } },
+    { type: "item.completed", item: { id: "item_0", type: "command_execution", command, aggregated_output: "touch: ../x: Operation not permitted\n", exit_code: 1, status: "failed" } },
+  ]);
+  assert.notEqual(r.json.stop, "denied.codex");
+  assert.ok(r.json.sessions.length > 1, "the run went on");
+  assert.equal(r.json.sessions[0].denied, 1, "touch counted refused");
+  assert.equal(r.json.sessions[0].stromDenied, undefined);
+});
+
+test("strom run with Claude: its permissions refused git push && strom brief — no refusal of strom, the run goes on; strom brief | head refused stops it", unix, async () => {
+  const session = "00000000-0000-4000-8000-0000000000d1";
+  const claude = (command: string) => [
+    { type: "system", subtype: "init", cwd: "/tree", session_id: session, tools: ["Bash"], model: "claude-model-x" },
+    { type: "assistant", message: { id: "m1", role: "assistant", model: "claude-model-x", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command } }], usage: { input_tokens: 4, output_tokens: 5 } }, parent_tool_use_id: null, session_id: session },
+    { type: "user", message: { role: "user", content: [{ type: "tool_result", content: "Permission to use Bash has been denied.", is_error: true, tool_use_id: "t1" }] }, parent_tool_use_id: null, session_id: session },
+    { type: "result", subtype: "success", is_error: false, result: "Nelze zapisovat.", session_id: session, num_turns: 1, total_cost_usd: 0.01, usage: { input_tokens: 4, output_tokens: 5 }, permission_denials: [{ tool_name: "Bash", tool_use_id: "t1", tool_input: { command } }] },
+  ];
+  const other = await agentRun("claude", claude("git push && strom brief"));
+  assert.notEqual(other.json.stop, "denied");
+  assert.ok(other.json.sessions.length > 1, "the run went on");
+  assert.equal(other.json.sessions[0].denied, 1);
+  assert.equal(other.json.sessions[0].stromDenied, undefined);
+  const strom = await agentRun("claude", claude("strom brief | head -5"));
+  assert.equal(strom.json.stop, "denied");
+  assert.equal(strom.json.sessions.length, 1);
+  assert.equal(strom.json.sessions[0].stromDenied, 1);
+  assert.deepEqual(strom.tasks, ["open", "open"]);
+});
+
+test("strom run with Codex: the router's words without its line on stderr, or another command its rules refused (git), stop nothing", unix, async () => {
+  const quoted = await policyRun(undefined, [
+    { type: "item.completed", item: { id: "item_0", type: "command_execution", command: `/bin/zsh -lc "strom grep CreateProcess"`, aggregated_output: `notes/postup.md:3: ${ROUTER}`, exit_code: 0, status: "completed" } },
+    { type: "item.completed", item: { id: "item_9", type: "agent_message", text: ROUTER } },
+  ]);
+  assert.notEqual(quoted.json.stop, "denied.codex");
+  assert.ok(quoted.json.sessions.length > 1, "the run went on");
+  assert.equal(quoted.json.sessions[0].denied, undefined);
+  const git = ROUTER.replace(/'strom\.cmd note add P0001 x \| Select-Object -First 5'` rejected: blocked by policy/u, "'git status'` rejected: strom keeps the history: never git itself");
+  const other = ROUTER.replace("strom.cmd note add P0001 x", "Get-Content notes/postup.md");
+  const r = await policyRun(`${git}${other}`);
+  assert.notEqual(r.json.stop, "denied.codex");
+  assert.ok(r.json.sessions.length > 1, "the run went on");
+  assert.equal(r.json.sessions[0].denied, 1, "the other command counted refused");
+  assert.equal(r.json.sessions[0].stromDenied, undefined);
+});
+
+// (found 2026-11-05) the refusal's words only printed again with the exit code 0 — the summary of a session that met
+// one, in the next session's strom brief (a saved real one), strom session show, strom grep: no refusal, the run goes on
+async function quotedRefusal(command: string, output: string, tail: object[] = [{ type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } }], before: object[] = []) {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    ...before,
+    { type: "item.completed", item: { type: "command_execution", command, aggregated_output: output, exit_code: 0, status: "completed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Hledám dál." } },
+    ...tail,
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "2", "--json"]);
+  w.cleanup();
+  return r;
+}
+
+test("strom run with Codex: the refusal's words only printed by strom brief, session show or strom grep (exit code 0) stop nothing", unix, async () => {
+  const brief = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "agents", "brief-quotes-sandbox-refusal.txt"), "utf8");
+  const grep = "notes/postup.md:3: zápis odmítnut: no permission to use: /tmp/Лотаки/.strom/tree.lock — strom runs under an agent, and most likely its sandbox forbids it\n";
+  const show = "N0001 closed · T0001\nsummary: note add v rouře odmítnut: strom runs under an agent, and most likely its sandbox forbids it\n";
+  for (const [command, output] of [[`/bin/zsh -lc "strom brief"`, brief], [`/bin/zsh -lc "strom grep sandbox"`, grep], [`/bin/zsh -lc "strom session show N0001"`, show]] as const) {
+    const r = await quotedRefusal(command, output);
+    assert.notEqual(r.json.stop, "denied.codex", command);
+    assert.equal(r.json.sessions.length, 2, command);
+    assert.doesNotMatch(r.err, /oprávnění odmítl|permissions refused/, `${command}: nothing said refused`);
+  }
+});
+
+test("strom run with Codex: the plan's limit comes before a refusal of strom in the same session — said with when it resets", unix, async () => {
+  const limit = [{ type: "turn.failed", error: { message: "You've hit your usage limit. Try again at 9:00 AM." } }];
+  const quoted = await quotedRefusal(`/bin/zsh -lc "strom grep sandbox"`, "notes/postup.md:3: strom runs under an agent, and most likely its sandbox forbids it\n", limit);
+  assert.equal(quoted.json.stop, "limit");
+  // strom really refused in a pipe, then the limit: the limit is what ended the session
+  const refused = await quotedRefusal(`/bin/zsh -lc "strom note add P0001 x | cat"`, "error: no permission to use: /tmp/Lhotovi/.strom/tree.lock — strom runs under an agent, and most likely its sandbox forbids it (strom session N0001)\n", limit);
+  assert.equal(refused.json.stop, "limit");
+  assert.equal(refused.json.sessions.length, 1);
+  assert.match(refused.json.stopped, /9:00 AM/);
+});
 
 test("strom run with Codex, Antigravity and OpenCode: headless, their events read, the level their own switches", unix, async () => {
   const w = new World();

@@ -42,7 +42,7 @@ test("claude-usage right after the reset: a session starts at once, and the firs
   // the reset this moment: 0 % gone, 0 % used — no day of waiting for 15 % of the week to pass
   const fresh = ask(["15"], 0, WEEK);
   assert.equal(fresh.code, 0, fresh.reason);
-  assert.match(fresh.reason, /^week 0 % used, 0 % gone, 0 in hand \(at least 0 needed — half the week gone, early in the week\); weekly reset in 7\.0 days$/);
+  assert.match(fresh.reason, /^week 0 % used, at most 0 % allowed by now \(half the 0 % of the week gone, early in the week\); weekly reset in 7\.0 days$/);
   // half an hour in, a little used: it waits only until half the week gone (and its share of the reserve: 17/15 of
   // it) catches up — about an hour, never a day
   const little = ask(["15"], 0.3, WEEK - H / 2);
@@ -53,13 +53,15 @@ test("claude-usage right after the reset: a session starts at once, and the firs
   assert.equal(ask(["15"], 7, WEEK - DAY).code, 0);
   const day = ask(["15"], 8, WEEK - DAY);
   assert.equal(day.code, 1);
-  assert.match(day.reason, /^week 8 % used, 14 % gone, 6 in hand \(at least 8 needed — half the week gone, early in the week\) — until 9 in hand, then several sessions in a row; weekly reset in 6\.0 days$/);
+  // one number to compare the use with: the most it may be by now, and how that is counted (half of 14.3 less the
+  // reserve's share, 0.95: 6.2)
+  assert.match(day.reason, /^week 8 % used, at most 6 % allowed by now \(half the 14 % of the week gone, early in the week, less 1 more after a wait\) — then several sessions in a row; weekly reset in 6\.0 days$/);
   assert.ok(Math.abs(day.until! - (day.resets - WEEK + (8 / (1 - 17 / 30) / 100) * WEEK)) < 1000, "until 18.5 % of the week is gone");
   // from 2·n % gone on, the full number: 30 % gone, 15 used = 15 in hand
   assert.equal(ask(["15"], 15, WEEK * 0.7 - 60_000).code, 0);
   const full = ask(["15"], 16, WEEK * 0.7 - 60_000);
   assert.equal(full.code, 1);
-  assert.match(full.reason, /\(at least 15 needed\) — until/, "no word of the week's start once the full number holds");
+  assert.match(full.reason, /\(30 % of the week gone, less 15, less 2 more after a wait\) — then/, "no word of the week's start once the full number holds");
   // with no number: no faster than the week, as before
   assert.equal(ask([], 0, WEEK).code, 0);
   assert.equal(ask([], 1, WEEK - H).code, 1);
@@ -69,7 +71,7 @@ test("claude-usage in the middle of the week: the number in hand as before", () 
   // 3 of 7 days gone (~42.9 %)
   const go = ask(["10"], 30, 4 * DAY);
   assert.equal(go.code, 0);
-  assert.match(go.reason, /^week 30 % used, 42 % gone, 12 in hand \(at least 10 needed\); weekly reset in 4\.0 days$/);
+  assert.match(go.reason, /^week 30 % used, at most 32 % allowed by now \(42 % of the week gone, less 10\); weekly reset in 4\.0 days$/);
   const ahead = ask(["20"], 30, 4 * DAY);
   assert.equal(ahead.code, 1);
   assert.ok(Math.abs(ahead.until! - (ahead.resets - WEEK + 0.52 * WEEK)) < 1000, "until 30 + 20 + the reserve 2 = 52 % of the week is gone");
@@ -84,7 +86,7 @@ test("claude-usage before the reset: what is left goes when it holds a session; 
   // too little left for a session: it waits for the reset itself (and a minute), not a day of the new week
   const none = ask(["15"], 95, 1.7 * H);
   assert.equal(none.code, 1);
-  assert.equal(none.reason, "week 95 % used, 98 % gone, 3 in hand (at least 15 needed) — until the weekly reset in 1.7 h");
+  assert.equal(none.reason, "week 95 % used, at most 81 % allowed by now (98 % of the week gone, less 15, less 2 more after a wait) — until the weekly reset in 1.7 h");
   assert.ok(Math.abs(none.until! - (none.resets + 60_000)) < 1000, `${(none.until! - none.resets) / 60_000} min after the reset`);
   // the cap is the end of the week's room: 88 % of a cap of 95 holds no session
   const capped = ask(["15", "--cap", "95"], 88, 1.7 * H);
@@ -109,8 +111,11 @@ test("claude-usage before the reset: what is left goes when it holds a session; 
 
 test("claude-usage says when the week resets — in the research language — and a used-up session waits for its own reset", () => {
   assert.equal(ask(["15"], 85, 1.7 * H, { lang: "cs" }).reason, "týden: využito 85 %, obnoví se za 1,7 h — zbylých 15 % stačí na sezení");
-  assert.equal(ask(["15"], 0, WEEK, { lang: "cs" }).reason, "týden: využito 0 %, uplynulo 0 %, náskok 0 (potřeba aspoň 0 – na začátku týdne polovina uplynulého); týden se obnoví za 7,0 dne");
-  assert.equal(ask(["15"], 95, 1.7 * H, { lang: "de" }).reason, "Woche: 95 % genutzt, 98 % vergangen, Vorsprung 3 (mindestens 15 nötig) — bis zum Wochen-Reset in 1,7 h");
+  assert.equal(ask(["15"], 0, WEEK, { lang: "cs" }).reason, "týden: využito 0 %, teď dovoleno nejvýš 0 % (polovina uplynulých 0 % týdne – začátek týdne); týden se obnoví za 7,0 dne");
+  assert.equal(ask(["15"], 95, 1.7 * H, { lang: "de" }).reason, "Woche: 95 % genutzt, jetzt höchstens 81 % erlaubt (98 % der Woche vergangen, minus 15, nach einer Wartezeit noch minus 2) — bis zum Wochen-Reset in 1,7 h");
+  assert.equal(ask(["10"], 30, 4 * DAY, { lang: "pl" }).reason, "tydzień: wykorzystano 30 %, teraz dozwolone najwyżej 32 % (upłynęło 42 % tygodnia, minus 10); tydzień odnowi się za 4,0 dni");
+  // no number: no faster than the week goes, and nothing of a number in the words
+  assert.match(ask([], 30, 4 * DAY).reason, /^week 30 % used, at most 42 % allowed by now \(42 % of the week gone\); /);
   assert.match(ask(["10"], 30, 30 * H, { lang: "de" }).reason, /; Wochen-Reset in 30,0 h$/);
   const session = ask(["10"], 30, 4 * DAY, { session: 100 });
   assert.equal(session.code, 1);
@@ -135,11 +140,15 @@ test("claude-usage waits for a reserve once it waited, then goes until fewer tha
       said.map((s) => s.reason).join("\n"),
     );
     // the waits say what they wait for, and wait until it is there: 15 + 2 in hand
-    assert.match(said[0]!.reason, /^week 43 % used, 57 % gone, 14 in hand \(at least 15 needed\) — until 17 in hand, then several sessions in a row; weekly reset in 3\.0 days$/);
-    assert.match(said[2]!.reason, /16 in hand \(at least 15 needed\) — until 17 in hand/);
+    assert.match(said[0]!.reason, /^week 43 % used, at most 40 % allowed by now \(57 % of the week gone, less 15, less 2 more after a wait\) — then several sessions in a row; weekly reset in 3\.0 days$/);
+    // 16 in hand, under the reserve: 41.1 % used against 40.1 % allowed — the use shown above the allowed share
+    assert.match(said[2]!.reason, /^week 41 % used, at most 40 % allowed by now \(57 % of the week gone, less 15, less 2 more after a wait\)/);
+    // the go after the wait counts the reserve; the next ones the number alone, until fewer are in hand
+    assert.match(said[3]!.reason, /^week 40 % used, at most 40 % allowed by now \(57 % of the week gone, less 15, less 2 more after a wait\); weekly reset/);
+    assert.match(said[4]!.reason, /^week 41 % used, at most 42 % allowed by now \(57 % of the week gone, less 15\); weekly reset/);
     for (const s of [said[0]!, said[6]!]) assert.ok(Math.abs(s.until! - (s.now + (2.999 / 100) * WEEK)) < 2000, `${(s.until! - s.now) / H} h`);
-    assert.match(at(15, "cs").reason, /náskok 15 \(potřeba aspoň 15\) — čeká na náskok 17, pak víc sezení za sebou; týden se obnoví za 3,0 dne$/);
-    assert.match(at(15, "de").reason, /Vorsprung 15 \(mindestens 15 nötig\) — wartet auf Vorsprung 17, dann mehrere Sitzungen am Stück; Wochen-Reset in 3,0 Tagen$/);
+    assert.match(at(15, "cs").reason, /^týden: využito 42 %, teď dovoleno nejvýš 40 % \(uplynulo 57 % týdne, minus 15, po čekání ještě minus 2\) — pak víc sezení za sebou; týden se obnoví za 3,0 dne$/);
+    assert.match(at(15, "de").reason, /^Woche: 42 % genutzt, jetzt höchstens 40 % erlaubt \(57 % der Woche vergangen, minus 15, nach einer Wartezeit noch minus 2\) — dann mehrere Sitzungen am Stück; Wochen-Reset in 3,0 Tagen$/);
     // what it remembers is the week it waits in: a week that reset holds nothing back
     const hold = JSON.parse(fs.readFileSync(path.join(dir, "hold.json"), "utf8")) as { week: string };
     assert.ok(Math.abs(Date.parse(hold.week) - (Date.now() + 3 * DAY)) < 60_000, hold.week);

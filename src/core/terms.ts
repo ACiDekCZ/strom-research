@@ -788,6 +788,9 @@ export type Allowed = { ok: true; human: boolean } | { ok: false; why: "forbidde
  */
 export function allows(a: Pick<ArchiveLevel, "level" | "permission" | "browserOnly">, activity: "catalogue" | "images" | "pages", route: Route = "direct"): Allowed {
   if (a.level === "forbidden") return { ok: false, why: "forbidden" };
+  // by hand only (its terms, or the person's word) where only a person's browser goes: nothing automated at all — the
+  // catalogue neither, the agent's browser neither; never a permission asked that could not help
+  if (a.browserOnly && (a.level === "manual" || a.permission === "manual")) return { ok: false, why: "manual" };
   // only a person's browser goes there: nothing straight through strom, the catalogue neither
   if (a.browserOnly && (activity === "catalogue" || (activity === "images" && route !== "browser"))) return { ok: false, why: "browser", needs: "browser" };
   if (activity === "catalogue") return { ok: true, human: false };

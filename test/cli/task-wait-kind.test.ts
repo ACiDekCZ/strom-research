@@ -108,13 +108,13 @@ test("task sent only where something is sent: images saved by hand, a site, refu
   // its place: the archive of its book
   const shown = (await w.ok(["task", "show", images, "--json"])).json;
   assert.equal(shown.waitKind, "images");
-  assert.deepEqual(shown.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive" });
+  assert.deepEqual(shown.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive", url: "https://www.archiv.example.org/" });
   // --kind with --images: the images say it
   assert.match((await w.run(["task", "wait", images, "--images", "B0001:40", "--kind", "letter", "--on", "Snímek 40"])).err, /--kind: --images says the kind itself/);
   // a site: its archive by the address (www. aside)
   const family = await idOf(w, "Vzpomínky na Kryštofa");
   const web = (await w.ok(["task", "wait", family, "--on", "Zda je kniha vidět na webu archivu", "--kind", "web", "--url", "https://archiv.example.org/kniha/7", "--json"])).json;
-  assert.deepEqual(web.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive" });
+  assert.deepEqual(web.group, { key: "repo:R0001", name: "Zkušební archiv", kind: "archive", url: "https://www.archiv.example.org/" });
   assert.match((await w.run(["task", "sent", family])).err, /\(kind web\)/);
   // the family: no --kind needed, its words say it; sent
   const fam = (await w.ok(["task", "wait", family, "--on", "Vzpomínky rodiny na Kryštofa", "--json"])).json;

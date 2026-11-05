@@ -4,6 +4,8 @@
 // description), WHY it matters, and WHEN it is done. A task without "where"
 // is a wish; strom refuses it.
 
+import { detectAgent } from "../core/which.ts";
+import { agentBrowserAdvice, bookBrowserArchive } from "../core/browserhelp.ts";
 import { Settings } from "../core/config.ts";
 import { finishRegionOf, forHistory, refuseInHistorySession } from "../core/pastevents.ts";
 import { opsLogs } from "../core/opslog.ts";
@@ -14,7 +16,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { LIST_PAGE_MAX, lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type OffLine, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
+import { ANSWER_MAX, CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type OffLine, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { directionOf, ofResearch, scopes } from "../core/directions.ts";
 import { branchModeOf, lineOf, notTaken, placer, readOffline } from "../core/offline.ts";
@@ -34,6 +36,7 @@ import { storiesToApprove } from "../core/stories.ts";
 import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
+import { inboxState, inboxWaitOf } from "../core/inboxwait.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { conflictsToDecide } from "../core/conflicts.ts";
 import { othersAtWork } from "../core/session.ts";
@@ -102,6 +105,7 @@ function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): stri
 }
 
 /** What the research waits for from outside — mostly from the user: scans to download, a book to find, a reply. */
+
 export function waitingForUser(tree: Tree): { id: string; what: string; on: string }[] {
   return tree
     .list<Task>("task")
@@ -132,12 +136,21 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
   const show = where.display ?? ((p: string) => p);
   const lang = tree.lang;
   const images = (t: Task) => {
-    if (!t.awaits) return [];
+    const st = inboxState(tree, where.shared, t);
+    if (!t.awaits) {
+      // a site the person looks at for the one book of the task: its folder brings it back too
+      const w = inboxWaitOf(tree, t);
+      if (!w) return [];
+      const b = tree.get<RecordSet>(w.recordset);
+      return [`         ${ui(lang, "ui.wait.save.web", { book: `${w.recordset}${b ? ` ${b.title}` : ""}`, dir: `${st ? show(st.dir) : `inbox/${w.folder}`}${path.sep}` })}`];
+    }
     const b = tree.get<RecordSet>(t.awaits.recordset);
     const dir = where.shared ? show(path.join(where.shared, "inbox", t.awaits.folder)) : `inbox/${t.awaits.folder}`;
     return [
       `         ${ui(lang, "ui.wait.images", { images: t.awaits.images, book: `${t.awaits.recordset}${b ? ` ${b.title}` : ""}` })}${b?.url ? ` · ${b.url}` : ""}`,
       `         ${ui(lang, "ui.wait.save", { dir: `${dir}${path.sep}` })}`,
+      // how far it got: saved X of Y, which are missing
+      ...(st && st.want && (st.have || st.lying) ? [`         ${[ui(lang, "ui.wait.saved", { have: st.have, want: st.want }), st.missing.length ? ui(lang, "ui.wait.missing", { missing: runs(st.missing) }) : ""].filter(Boolean).join(" · ")}`] : []),
     ];
   };
   return lines(
@@ -151,6 +164,22 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
     `  ${ui(lang, "ui.wait.how1")}`,
     `  ${ui(lang, "ui.wait.how2")}`,
   );
+}
+
+/**
+ * What brings a waiting task back, for the agent closing its session — as strom does it (core/inboxwait.ts): the
+ * images saved into its folder, the user's answer, a request sent and its reply.
+ */
+export function wakesBy(tree: Tree, shared: string | undefined, t: Task, display: (p: string) => string = (p) => p): string | undefined {
+  if (t.state !== "waiting") return undefined;
+  const w = inboxWaitOf(tree, t);
+  const dir = w ? (shared ? display(path.join(shared, "inbox", w.folder)) : `the inbox folder "${w.folder}"`) : "";
+  if (w?.by === "images")
+    return `${t.id} waits for images ${t.awaits!.images} of ${w.recordset} saved by the user into ${dir}: strom takes them by itself (as they are saved while the bridge runs, else at the next session's start) and the task comes back once all of them are there — a part of them, it waits on; the user's answer brings it back too`;
+  if (w) return `${t.id} waits: the user's answer, or images of ${w.recordset} saved into ${dir}, bring it back by themselves`;
+  if (t.awaitsCheck) return `${t.id} waits for the user's check of ${t.awaitsCheck.url}: their answer brings it back (strom's menu, What waits; the Strom app)`;
+  if (SENDABLE.includes(waitKindOf(t))) return `${t.id} waits: once the user says the request went out (strom task sent ${t.id}), for the reply — their answer brings it back`;
+  return `${t.id} waits for the user: their answer brings it back (strom's menu, What waits; the Strom app) — nothing else does`;
 }
 
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
@@ -342,7 +371,7 @@ function taskDetail(tree: Tree, t: Task): string {
     request ? `text   ${request}` : undefined,
     t.state === "waiting" && t.wait?.url ? `url    ${t.wait.url}` : undefined,
     // the person's own answers (only theirs: strom task wake --answer/--check), apart from the notes
-    ...(t.answers ?? []).map((a) => `person ${a.at.slice(0, 10)} answered${a.check ? ` ${a.check}` : ""}${a.answer ? `: ${a.answer}` : ""} (asked: ${truncate(a.asked, 80)})`),
+    ...(t.answers ?? []).map((a) => `person ${a.at.slice(0, 10)} answered${a.givenIn === "app" ? " in the Strom app" : ""}${a.check ? ` ${a.check}` : ""}${a.answer ? `: ${a.whole ?? a.answer}` : ""} (asked: ${truncate(a.asked, 80)})`),
     // the files that came for what it waited for: only that they came (strom intake --answers, the Strom app)
     ...(t.files ?? []).map((f) => `file   ${f.at.slice(0, 10)} ${f.input} came (${f.by}; asked: ${truncate(f.asked, 80)})`),
   );
@@ -933,10 +962,13 @@ register(
       "(only to be viewed there), no (nothing there). Both are the user's alone: in their own terminal or strom's menu;\n" +
       "from an agent's session a window of the system shows the answer to the person to confirm (none: exit 4). Kept on\n" +
       "the task apart from its notes, with what it asked, so the agent reads it in its brief as the person's answer. A\n" +
-      "task that waits for the user's check of a site comes back only with their answer.",
+      "task that waits for the user's check of a site comes back only with their answer.\n" +
+      "The answer may come from the Strom app too (its What waits, through the bridge: POST /waiting/<T…> {\"do\":\n" +
+      "\"answer\"}) — kept the same, marked as given in the app (via app); the bridge runs this then, never an agent.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
-      { name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for (the user's alone)" },
+      { name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for (the user's alone; at most 4000 characters)" },
+      { name: "expect", type: "string", value: "<at>", description: "only if the task is still as it was then (its updated time): else refused, task.changed (the bridge's answer from the app)" },
       { name: "check", type: "string", value: "works|view|no", description: "the user's answer to a check of a site: works, view (only to be viewed there), no (the user's alone)" },
     ],
     examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"', 'strom task wake T0004 --check view --answer "the book is there, its images only in the viewer"'],
@@ -958,9 +990,12 @@ register(
           hint: "go on with other work; the task comes back with their answer",
           code: "task.check-person",
         });
-      // the person's answer is theirs alone: their terminal, else a window that shows it to them (none: exit 4)
+      if (answer && [...answer].length > ANSWER_MAX) throw new UsageError(`the answer is ${[...answer].length} characters (at most ${ANSWER_MAX})`, { code: "task.answer-long", params: { max: String(ANSWER_MAX) } });
+      // the person's answer is theirs alone: their terminal, else a window that shows it to them (none: exit 4) — or
+      // the Strom app's, whose bridge runs this as the person's (never with an agent's marks)
       let via: PersonAnswer["via"];
-      if (answer || check) {
+      const fromApp = ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env);
+      if (!fromApp && (answer || check)) {
         if (seen.state !== "waiting")
           throw new UsageError(`${id} does not wait for the user (it is ${seen.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });
         const lang = ctx.uiLang();
@@ -980,7 +1015,10 @@ register(
         if (before.state === "done") throw new UsageError(`${id} is done (${truncate(before.result ?? "", 80)}) — what is left is a new task`, { hint: `strom task add "…" --about …`, code: "task.wake-done" });
         // an answer is to what the task waits for: one that waits no more (done, dropped, taken up) is left as it is
         if ((answer || check) && before.state !== "waiting")
-          throw new UsageError(`${id} does not wait for the user (it is ${before.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });
+          throw new UsageError(`${id} does not wait for the user (it is ${before.state}) — the answer is not needed there`, { hint: `strom task show ${id}`, code: "task.not-waiting" });
+        // waiting for something else now than the answer was written to (woken and set waiting again meanwhile)
+        if (typeof opts.expect === "string" && opts.expect !== before.updated)
+          throw new UsageError(`${id} changed since the answer was written (${before.updated}, not ${opts.expect}) — nothing written`, { hint: `strom task show ${id}`, code: "task.changed" });
         const said: PersonAnswer | undefined =
           answer || check
             ? {
@@ -988,9 +1026,10 @@ register(
                 asked: truncate(before.awaitsCheck?.ask || before.waitingOn || before.what, 300),
                 ...(before.awaitsCheck ? { url: before.awaitsCheck.url } : {}),
                 ...(check ? { check } : {}),
-                ...(answer ? { answer: truncate(answer, 500) } : {}),
+                ...(answer ? { answer: truncate(answer, 500), ...(answer.length > 500 ? { whole: answer } : {}) } : {}),
                 at: now(),
                 ...(via ? { via } : {}),
+                ...(fromApp ? { givenIn: "app" as const } : {}),
               }
             : undefined;
         return stateChange(tree, id, "open", said ? { answers: [...(before.answers ?? []), said] } : {}, undefined, "wake");
@@ -1008,9 +1047,13 @@ register(
       "--on says what it waits for, to the user: they read it in strom's menu and the Strom app — impersonal (what\n" +
       "is needed, never addressed to them: \"Images 40–45 of the baptisms to be saved from <link>\", not \"Open … and\n" +
       "save …\"), in the research language. When it is images the user downloads by hand\n" +
-      "(no connector may fetch them), name them with --images B…:<numbers>: strom makes the folder of the shared\n" +
-      "inbox they go into and shows it to the user, checks the numbers of what arrives, and the task comes back\n" +
-      "by itself once they are registered.\n" +
+      "(no connector may fetch them — an archive only a person's browser reaches), name them with --images\n" +
+      "B…:<numbers>: strom makes the folder of the shared inbox they go into and shows it to the user; once all of them\n" +
+      "are saved there the task comes back by itself (the bridge takes them as they are saved, else the next session's\n" +
+      "start: strom media add --inbox --waiting) — a part of them, it waits on and says which are missing. Files named\n" +
+      "otherwise are taken by their order when there are as many as images missing.\n" +
+      "--kind web on a task whose --where names one book: images of that book saved into its folder of the inbox bring it\n" +
+      "back too (which ones not known yet) — with the numbers known, --images.\n" +
       "--check <URL>: the user looks at a site strom and your web tools may not read (it refused strom, or its terms\n" +
       "forbid or restrict automation) — only after another way to the same records was tried and the blocked way recorded\n" +
       "in this session (strom search add … --note \"<host>: …\"); --on says what to check there. They answer in strom's\n" +
@@ -1056,22 +1099,38 @@ register(
       const where = b && task && !task.where.includes(b.id) ? { where: [...task.where, b.id] } : {};
       const t = stateChange(tree, args[0]!, "waiting", { waitingOn: on, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...(awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!)), ...where }, undefined, "wait");
       if (awaitsCheck) return { text: lines(written(tree), `the user checks ${awaitsCheck.url} (strom's menu, What waits; the Strom app): the task comes back with their answer — meanwhile other work`), data: { task: t } };
-      if (!awaits) {
+      const s = ctx.settings.shared()?.value;
+      // a site the person looks at for the one book the task works in: images of it saved into its folder bring it back
+      const byBook = !awaits ? inboxWaitOf(tree, t) : undefined;
+      if (!awaits && !byBook) {
         const sendable = SENDABLE.includes(waitKindOf(t));
         return {
-          text: lines(written(tree), `waits  ${waitSaid(tree, t)}`, sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : undefined),
+          text: lines(written(tree), `waits  ${waitSaid(tree, t)}`, sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : `comes back with the user's answer (strom's menu, What waits; the Strom app)`),
           data: { task: t, ...waitState(tree, t) },
         };
       }
       // the folder is there before the user looks for it
-      const s = ctx.settings.shared()?.value;
-      const dir = s ? path.join(s, "inbox", awaits.folder) : undefined;
+      const folder = awaits?.folder ?? byBook!.folder;
+      const dir = s ? path.join(s, "inbox", folder) : undefined;
       if (dir && !tree.dryRun) fs.mkdirSync(dir, { recursive: true });
+      const shown = dir ? ctx.display(dir) : `the inbox folder "${folder}"`;
+      if (!awaits)
+        return {
+          text: lines(
+            written(tree),
+            `waits  ${waitSaid(tree, t)}`,
+            `images of ${byBook!.recordset} the user saves into ${shown} (each named by its number as the viewer counts it, 40.jpg) bring it back by themselves — as they are saved while the bridge runs, else at the next session's start; so does the user's answer`,
+            `the numbers known: strom task wait ${t.id} --images ${byBook!.recordset}:<numbers> --on "…" — the user sees which images and what is missing`,
+          ),
+          data: { task: t, folder: dir, ...waitState(tree, t) },
+        };
       return {
         text: lines(
           written(tree),
-          `the user saves images ${awaits.images} of ${b!.id} into ${dir ? ctx.display(dir) : `the inbox folder "${awaits.folder}"`}, each named by its number (${parseImageList(awaits.images)![0]}.jpg)`,
-          "they see it in strom's overview; once the images are registered (strom media add --inbox), the task comes back by itself",
+          `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; named otherwise, they are taken by their order when as many as asked for)`,
+          "once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing; the user sees it in strom's menu (What waits) and the Strom app",
+          // an archive only a person's browser goes to: what the agent's own browser would do there (spec 048 K5.2)
+          ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),
         ),
         data: { task: t, folder: dir },
       };

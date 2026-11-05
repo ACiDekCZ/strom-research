@@ -48,8 +48,11 @@ test("tasks the user starts themselves: the gate is asked once, and when it woul
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   // no: nothing starts, and the run says why
   const no = await w.ok(["run", "--agent", "script", "--max", "2"], { tty: true, answers: ["n"] });
-  assert.match(no.out, /podmínka: Zkouška — tyto úkoly jsou spuštěné ručně/);
-  assert.match(no.out, /Podmínka „Zkouška“ by teď nespouštěla — sezení je plné\. Spustit přesto\? \(a\/n\)/);
+  assert.match(no.out, /podmínka: Zkouška — ruční spuštění: při nesplněné podmínce jedna otázka, zda přesto začít/);
+  // what the condition answered is said once: in its line, and the question below it asks only
+  assert.match(no.out, /· podmínka Zkouška: počkat do [^\n]* — sezení je plné \(kód 1; \.strom\/gate\.log\)\n[^\n]*Spustit přesto\? \(a\/n\)/);
+  assert.equal(no.out.match(/sezení je plné/g)?.length, 2, "the condition's line and the closing line — not again in the question");
+  assert.doesNotMatch(no.out, /by teď nespouštěla/);
   assert.match(no.out, /nespuštěno — podmínka „Zkouška“: sezení je plné/);
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")));
   // yes: both sessions run, the gate is not asked again

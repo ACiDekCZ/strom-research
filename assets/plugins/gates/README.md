@@ -125,6 +125,11 @@ In the week's last 2 hours what is left would go with the reset: a session
 starts when the room left (to 100 %, or to the cap) holds one — counted high,
 10 points.
 
+Its answer gives one number to compare the week's use with — the most it may
+be by now, and how that is counted ("week 43 % used, at most 40 % allowed by
+now (57 % of the week gone, less 15, less 2 more after a wait) — then several
+sessions in a row").
+
 Not enough in hand: it waits until the first of — the week has caught up, the
 week's last 2 hours (with room for a session), the reset itself (a new week
 starts at once); never past the reset. Every answer says when the week resets
@@ -134,7 +139,7 @@ than Claude Code: it lets the work go on.
 Once it waited for want of points in hand, it goes again only with 2 more (at
 15: 17 in hand; early in the week its share, as the number's), and then goes
 until fewer than the number are in hand: several sessions in a row instead of
-one after every wait ("until 17 in hand, then several sessions in a row"). It
+one after every wait. It
 remembers the week it waits in (`hold.json` in its folder); a new week starts
 free. A wait is never shorter than 5 minutes.
 

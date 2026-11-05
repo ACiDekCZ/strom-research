@@ -14,6 +14,7 @@
 
 import { WAIT_KINDS, type RecordSet, type Repository, type Task } from "./model.ts";
 import { foldText } from "./text.ts";
+import { shippedTerms, strictestEntry, within, type KnownTerms } from "./knownterms.ts";
 import { phrase } from "./phrases.ts";
 import type { Tree } from "./tree.ts";
 
@@ -25,11 +26,48 @@ export const SENDABLE: readonly WaitKind[] = ["letter", "family", "other"];
 export type WaitPhase = "todo" | "sent";
 
 export interface WaitGroup {
-  /** repo:R…, to:<the addressee folded>, family, host:<host>, other. */
+  /** repo:R…, archive:<an institution strom knows>, to:<the addressee folded>, family, host:<host>, other. */
   key: string;
   /** As a person reads it: the archive's name, the addressee, the host, or a word in the research language. */
   name: string;
   kind: "archive" | "office" | "family" | "web" | "other";
+  /** The archive's site (its repository's address, else the site's own): the app's "Archive's site". */
+  url?: string;
+}
+
+/**
+ * The archive a site belongs to, as strom's list of archives knows it (assets/archives.json): its institution — its
+ * `archive` where it says one, else its name without the part in brackets — so the sites of one archive (its digital
+ * archive and its reading room) are one place: archive:<the institution folded>. None: a site strom does not know.
+ */
+export function archiveOfSite(host: string | undefined): { key: string; name: string } | undefined {
+  if (!host) return undefined;
+  const k = strictestEntry(shippedTerms().filter((x) => within(host, x.host))) as (KnownTerms & { archive?: string }) | undefined;
+  const name = (k?.archive ?? k?.name?.split("(")[0] ?? "").trim();
+  const key = foldText(name).replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/gu, "");
+  return key ? { key: `archive:${key}`, name } : undefined;
+}
+
+/** The place of a site strom knows the archive of (archiveOfSite), its address the site's. */
+export function institutionGroup(host: string | undefined): WaitGroup | undefined {
+  const i = archiveOfSite(host);
+  return i ? { key: i.key, name: i.name, kind: "archive", url: `https://${host}/` } : undefined;
+}
+
+/** A repository of the research at the site, or at another site of the same archive (archiveOfSite). */
+export function repoAtHost(repos: Repository[], sets: RecordSet[], host: string, hostOf: (u: string | undefined) => string | undefined, same: (a: string | undefined, b: string) => boolean = (a, b) => a === b): Repository | undefined {
+  const direct = repos.find((x) => same(hostOf(x.url), host)) ?? (() => {
+    const s = sets.find((x) => x.repository && same(hostOf(x.url), host));
+    return s ? repos.find((x) => x.id === s.repository) : undefined;
+  })();
+  if (direct) return direct;
+  const inst = archiveOfSite(host);
+  if (!inst) return undefined;
+  // another site of the same archive, else the research's archive of that name (its institution and place)
+  return repos.find((x) => archiveOfSite(hostOf(x.url))?.key === inst.key) ?? (() => {
+    const s = sets.find((x) => x.repository && archiveOfSite(hostOf(x.url))?.key === inst.key);
+    return s ? repos.find((x) => x.id === s.repository) : undefined;
+  })() ?? repoOfOffice(repos, inst.name);
 }
 
 /** A word of a folded text starting so (its prefix), not inside another word. */
@@ -239,17 +277,14 @@ export function waitGroupOf(tree: Tree, task: Task, lang: string = tree.lang): W
   const kind = waitKindOf(task);
   const repos = tree.list<Repository>("repository").filter((r) => !r.retracted && !r.mergedInto);
   const sets = tree.list<RecordSet>("recordset").filter((b) => !b.retracted && !b.mergedInto);
-  const archive = (r: Repository | undefined): WaitGroup | undefined => (r ? { key: `repo:${r.id}`, name: r.name, kind: "archive" } : undefined);
+  const archive = (r: Repository | undefined): WaitGroup | undefined => (r ? { key: `repo:${r.id}`, name: r.name, kind: "archive", ...(r.url && /^https?:\/\//iu.test(r.url) ? { url: r.url } : {}) } : undefined);
   const repoNamed = (name: string) => repos.find((r) => foldText(r.name) === foldText(name));
   // an office that is an archive of the research (its name, or its institution and place: SOA Třeboň) is that archive
   const office = (name: string): WaitGroup => archive(repoNamed(name) ?? repoOfOffice(repos, name)) ?? { key: `to:${foldText(name)}`, name: name.trim(), kind: "office" };
   const text = [task.waitingOn ?? "", task.what].join("\n");
   // the archive of a site: a repository's address, else a book's of an archive of the research
-  const repoOfHost = (host: string): Repository | undefined =>
-    repos.find((x) => hostOf(x.url) === host) ?? (() => {
-      const s = sets.find((x) => x.repository && hostOf(x.url) === host);
-      return s ? repos.find((x) => x.id === s.repository) : undefined;
-    })();
+  // (or of another site of the same archive: its digital archive and its reading room)
+  const repoOfHost = (host: string): Repository | undefined => repoAtHost(repos, sets, host, hostOf);
 
   // whom the agent said it waits on
   if (task.wait?.to?.trim()) return office(task.wait.to);
@@ -261,7 +296,7 @@ export function waitGroupOf(tree: Tree, task: Task, lang: string = tree.lang): W
   // a site to look at is the site it names, before the archive of the task's books (another institution's site is its own)
   if (kind === "web") {
     const host = hostOf(task.wait?.url) ?? hostOf(firstUrlIn(text));
-    if (host) return archive(repoOfHost(host)) ?? { key: `host:${host}`, name: host, kind: "web" };
+    if (host) return archive(repoOfHost(host)) ?? institutionGroup(host) ?? { key: `host:${host}`, name: host, kind: "web" };
   }
   // the archive of the task's books
   const book = task.awaits?.recordset ?? task.where.find((w) => /^B\d{4,}$/.test(w));
@@ -275,7 +310,7 @@ export function waitGroupOf(tree: Tree, task: Task, lang: string = tree.lang): W
     if (r) return archive(r)!;
   }
   if (named) return office(named);
-  if (hosts[0]) return { key: `host:${hosts[0]}`, name: kind === "permission" && task.awaitsPermission?.title ? task.awaitsPermission.title : hosts[0], kind: "web" };
+  if (hosts[0]) return institutionGroup(hosts[0]) ?? { key: `host:${hosts[0]}`, name: kind === "permission" && task.awaitsPermission?.title ? task.awaitsPermission.title : hosts[0], kind: "web" };
   return { key: "other", name: phrase(lang, "wait.group.other"), kind: "other" };
 }
 

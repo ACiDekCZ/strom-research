@@ -39,12 +39,16 @@ function tuneLine(e: TuneLogEntry, lang: string): string {
   // a change of several values said by its first (A2: the batch, A3: the stop)
   const one = (v: unknown) => String(v && typeof v === "object" ? Object.values(v)[0] : v);
   const what = t(`ui.tune.what.${e.what}` as UIKey);
+  // A8: the readings' share before and after, as a person reads it
+  const pct = (v: unknown) => `${new Intl.NumberFormat(lang, { maximumFractionDigits: 0 }).format(Math.round(Number(v) * 100))} %`;
   const text =
     e.action === "A6"
       ? t("ui.tune.back", { scope, what })
-      : e.action === "restart"
-        ? t("ui.tune.restart", { scope, what, model: String(e.basis?.model ?? "") })
-        : t(`ui.tune.rec.${e.action}` as UIKey, { scope, from: one(e.from), to: one(e.to) });
+      : e.action === "A8"
+        ? t("ui.tune.worse", { scope, what, metric: t(`ui.tune.m.${String(e.basis?.metric ?? "M5")}` as UIKey), before: pct(e.basis?.before), after: pct(e.basis?.after) })
+        : e.action === "restart"
+          ? t("ui.tune.restart", { scope, what, model: String(e.basis?.model ?? "") })
+          : t(`ui.tune.rec.${e.action}` as UIKey, { scope, from: one(e.from), to: one(e.to) });
   return `  ${humanDay(e.at, lang)} – ${text.trim()}`;
 }
 

@@ -148,7 +148,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     awaitsPermission: { t: "object", of: { hosts: { t: "strings", req: true, min: 1 }, since: S({ req: true }), title: S({ max: 300 }) } },
     wait: { t: "object", of: { kind: S({ enum: WAIT_KINDS }), to: S({ max: 300 }), note: S({ max: 500 }), url: S({ max: 2000 }) } },
     sent: { t: "object", of: { at: S({ req: true }), by: S({ req: true }) } },
-    answers: { t: "array", of: { by: S({ req: true, enum: ["person"] }), asked: S({ req: true }), url: S({ max: 2000 }), check: S({ enum: CHECK_ANSWERS }), answer: S({ max: 500 }), at: S({ req: true }), via: S({ enum: ["terminal", "window"] }) } },
+    answers: { t: "array", of: { by: S({ req: true, enum: ["person"] }), asked: S({ req: true }), url: S({ max: 2000 }), check: S({ enum: CHECK_ANSWERS }), answer: S({ max: 500 }), at: S({ req: true }), via: S({ enum: ["terminal", "window"] }), givenIn: S({ enum: ["app"] }), whole: S({ max: 4000 }) } },
     files: { t: "array", of: { input: R(["input", "media"], true), by: S({ req: true, max: 100 }), asked: S({ req: true }), at: S({ req: true }) } },
     result: S({ max: 1000 }),
     produced: { t: "strings" },

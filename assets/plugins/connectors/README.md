@@ -80,6 +80,13 @@ starts with `.` or `_` are ignored (`_old-version/`).
     such as Imperva or Cloudflare): every request of the connector goes through
     the user's browser (section 5). It needs `"routes": ["browser"]` alone and
     no `login`: the user logs in in their own browser.
+  - `viewer`: `"openseadragon"` for a portal whose terms let an image be saved
+    only by a browser's own means and that shows it in its own viewer
+    (OpenSeadragon, the tiles of an image server behind it). The images are
+    then saved from that viewer in the user's tab: what it shows, never its
+    tiles or image server asked by strom (section 5). `locate` gives the page
+    of each image in the viewer (`page`, also as `url`). It needs `"browser"`
+    in `routes`.
 - `policy`: what the portal allows, found out before the connector was written.
   - `automation`: one of (from the most strom does by itself to the least)
     - `allowed`: the terms allow it or say nothing against it;
@@ -329,6 +336,16 @@ The connector is written as any other: `get()` and `post()`, one after the
 other. Only the headers a page's own script may send reach the portal (Accept,
 Content-Type, X-Requested-With; a Referer becomes the tab's referrer); the
 browser sends its cookies and its own user agent.
+
+**Images from the archive's viewer** (`browser.viewer`): the tab opens the
+book's page that `locate` names for the first image — once; it is never
+reloaded. The script pages through the viewer itself, one image at the time
+strom planned for it (the connector's pace), waits until the viewer has drawn
+it and saves what it drew: the whole image at most 2000 px on its longer side
+(what a viewer shows of a page), a part (`--crop`) at most as sharp as the
+image itself. A tile the viewer could not load stops it; a viewer that shows
+nothing (the check whether a person is there not passed) is said, and the
+user passes it. The script asks the portal for nothing of its own.
 
 ## Where it may write
 

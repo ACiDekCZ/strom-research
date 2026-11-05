@@ -1,0 +1,1 @@
+2026-11-05T08:41:20.247392Z ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected(\"`\\\"C:\\\\\\\\WINDOWS\\\\\\\\System32\\\\\\\\WindowsPowerShell\\\\\\\\v1.0\\\\\\\\powershell.exe\\\" -Command 'strom.cmd note add P0001 x | Select-Object -First 5'` rejected: blocked by policy\")" }

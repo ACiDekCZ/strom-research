@@ -307,6 +307,8 @@ test("the browser in a run: only for a session whose task may need it — never 
   }
   const browser = briefs.get("T0004")!;
   assert.match(browser, /Its sites: archive\.example\.org — no other\./);
+  assert.match(browser, /The only browser strom watches\. The browser, preview and computer use of Claude's and Codex's desktop apps strom does not watch and does not recommend: never of your own accord\. Only when the person explicitly asks for them: the person's choice — say in one sentence that strom does not watch that way and what the site's terms say; never a way round them, never a check whether a person is there\./);
+  assert.doesNotMatch(browser, / (are|stay) off /);
   assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom \(401\/403\/429\) or its terms forbid or restrict automation; images only through strom fetch/);
   // B8: a site closed to automation is never a connector to build nor the browser's — another way first, the person last
   assert.match(browser, /- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" \(strom net web --check <url> says it\): no connector, no browser — another way to the same records .*only if the source stays necessary: strom task wait T0004 --check <url> --on "<what the person checks there>", then close the session\./);

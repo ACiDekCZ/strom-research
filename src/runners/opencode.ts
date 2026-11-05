@@ -5,8 +5,11 @@
 // agent "strom-run" there — the same rules, what would ask refused (OpenCode 2
 // ends a headless run at the first question it cannot ask); full adds --auto
 // (everything the rules do not deny). Events are JSON lines: text, tool_use,
-// step_start, step_finish (tokens and cost of a step), error; each names its
-// session (sessionID), which `--session` resumes.
+// step_start, step_finish (tokens and cost of a step, why it ended), error; each
+// names its session (sessionID), which `--session` resumes. OpenCode may end with
+// exit code 1 after a clean end (its last step "stop", nothing else said wrong):
+// RunResult.exitOnly, strom run decides. A passing network error (a TLS
+// handshake, a reset) resumes the same session after a wait (jsonl.ts recover).
 
 import path from "node:path";
 import { runJsonLines, webUse } from "./jsonl.ts";
@@ -61,6 +64,41 @@ export function opencodeArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "per
   return ["run", "--format", "json", ...level, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), opts.kickoff];
 }
 
+const obj = (v: unknown): Record<string, unknown> | undefined => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined);
+const said = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : undefined);
+
+/**
+ * An error as OpenCode says it, whole (exported for tests): its message and what names it — `{name, data: {message,
+ * statusCode}}` of its first event format, `{type|code, message, cause}` of the newer one (V2), a plain string — with
+ * the cause's, up to three deep. Nothing when it says nothing.
+ */
+export function opencodeErrorText(e: unknown, depth = 0): { message?: string; whole: string } | undefined {
+  if (typeof e === "string") return e.trim() ? { message: e.trim(), whole: e.trim() } : undefined;
+  const o = obj(e);
+  if (!o || depth > 3) return undefined;
+  const data = obj(o.data);
+  const message = said(data?.message) ?? said(o.message) ?? said(data?.error) ?? (typeof o.error === "string" ? said(o.error) : undefined);
+  const status = said(data?.statusCode) ?? said(o.statusCode) ?? said(o.status);
+  const names = [said(o.name), said(o.type), said(o.code), said(data?.code), status ? `HTTP ${status}` : undefined].filter((x): x is string => x !== undefined);
+  const cause = opencodeErrorText(o.cause ?? data?.cause ?? obj(o.error), depth + 1);
+  const whole = [...new Set([...names, message, cause?.whole].filter((x): x is string => x !== undefined))].join(": ");
+  return whole ? { ...(message ?? cause?.message ? { message: message ?? cause?.message } : {}), whole } : undefined;
+}
+
+/**
+ * An error event of OpenCode (exported for tests): `error` (`{type: "error", error}`), or `session.error` with its
+ * error in `properties` (the newer event format, V2), else nothing. Its message and the whole of it.
+ */
+export function opencodeError(msg: Record<string, unknown>): { message: string; whole: string } | undefined {
+  if (msg.type !== "error" && msg.type !== "session.error" && msg.type !== "session_error") return undefined;
+  const props = obj(msg.properties);
+  const e = opencodeErrorText(msg.error ?? props?.error ?? obj(msg.part)?.error ?? msg.message);
+  return { message: e?.message ?? e?.whole ?? "error", whole: e?.whole ?? "error" };
+}
+
+/** How a step of OpenCode ends normally (its last one: the agent has said its last word). */
+const STEP_DONE = new Set(["stop", "end_turn"]);
+
 export const opencodeRunner: Runner = {
   id: "opencode",
   command: "opencode",
@@ -103,6 +141,8 @@ export const opencodeRunner: Runner = {
       }
       if (msg.type === "text" && typeof part.text === "string" && part.text.trim()) heard.text = part.text;
       if (msg.type === "step_finish") {
+        // the run's own session's last step: whether it ended normally (a subagent's says nothing of it)
+        if (!sid || sid === main) heard.endedNormally = typeof part.reason === "string" && STEP_DONE.has(part.reason);
         // One step of the conversation; the run's use is their sum.
         const t = (part.tokens ?? {}) as { input?: number; output?: number; reasoning?: number; cache?: { read?: number; write?: number } };
         // the step's use: its cost and the cache written too (OpenCode's input is what the cache did not hold)
@@ -129,11 +169,12 @@ export const opencodeRunner: Runner = {
         m.cacheReadTokens = tokens.cacheRead;
         m.turns = (m.turns ?? 0) + 1;
       }
-      if (msg.type === "error") {
+      const e = opencodeError(msg);
+      if (e) {
         heard.isError = true;
-        const e = (msg.error ?? {}) as { name?: string; data?: { message?: string } };
-        heard.text = e.data?.message ?? e.name ?? "error";
+        heard.text = e.message;
+        heard.error = heard.error ? `${heard.error}\n${e.whole}` : e.whole;
       }
-    });
+    }, { recover: { resume } }); // a passing network error: the same session and switches (a reader's rules in its env)
   },
 };

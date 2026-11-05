@@ -94,6 +94,12 @@ export interface RunOptions {
    * (core/metrics.ts: fetch.jsonl). Claude Code's are counted by its hook, never from its stream (once, not twice).
    */
   onWeb?: (w: AgentWeb) => void;
+  /**
+   * The agent's connection to its service failed on the way (a passing network error: a TLS handshake, a reset, a name
+   * not resolved) and its session is resumed after `waitMs`, the n-th time of at most `max` (jsonl.ts recover). Without
+   * it the runner says it in its progress (English).
+   */
+  onRecover?: (r: { n: number; max: number; waitMs: number; why: string }) => void;
   /** Stop the agent when this is aborted (the user pressed Ctrl-C). */
   signal?: AbortSignal;
 }
@@ -108,6 +114,12 @@ export interface RunResult {
   /** Tool calls the permissions refused, e.g. "Bash: strom input show I0001". */
   denied?: string[];
   /**
+   * Which of `denied` (their places in it) the agent refused whole before any of it ran — Codex's policy, said on its
+   * stderr alone (runners/codex.ts codexPolicyRejected): strom counts refused there in any part of the command
+   * (deniedStrom's `whole`).
+   */
+  deniedWhole?: number[];
+  /**
    * Tool calls strom's own hook refused (core/web.ts: a web fetch past WEB_PER_HOST to one server in a run, or while
    * the server is left alone, its limit used up or its hour full), e.g. "WebFetch: https://…" — not the permissions.
    */
@@ -120,6 +132,14 @@ export interface RunResult {
   stalls?: number;
   /** It ended so (outcome "error"): its service failed, nothing of the work — never a time limit reached. */
   stalled?: true;
+  /**
+   * It failed by its exit code alone (exactly 1): its last step ended normally, and nothing else said an error — no
+   * error event, no signal, no refusal, no model refused, no error text. Its caller decides what that is (strom run: a
+   * session the agent closed itself goes on as done, the exit code kept in its log); never set for a reader.
+   */
+  exitOnly?: true;
+  /** How many times its session was resumed after a passing network error (RunOptions.onRecover). */
+  recovered?: number;
 }
 
 /**
@@ -214,6 +234,69 @@ export function refusedByStrom(text: string): boolean {
   return /\bhook (?:error|denied): strom: /i.test(text);
 }
 
+/**
+ * The command an agent's shell ran, without the shell around it: `bash -lc '…'` (Codex on macOS and Linux) and on
+ * Windows `powershell.exe -NoProfile -Command "…"`, `pwsh -c …`, `cmd.exe /c "…"` and PowerShell's call operator
+ * (`& 'C:\…\strom.cmd' …`) — the way Codex runs a command there (GitHub #8: strom refused by Codex's sandbox, said
+ * through PowerShell, was not seen as strom refused, and the run went on session after session).
+ */
+export function shellUnwrapped(command: string): string {
+  let c = command.trim();
+  for (let i = 0; i < 3; i++) {
+    const sh = /^\S*sh(?:\.exe)? -l?c (['"])(.*)\1$/su.exec(c);
+    const ps = /^(?:"[^"]*?(?:powershell|pwsh)(?:\.exe)?"|\S*?(?:powershell|pwsh)(?:\.exe)?)\s(?:.*?\s)??-(?:command|c)\s+(.*)$/isu.exec(c);
+    const cmd = /^(?:"[^"]*?cmd(?:\.exe)?"|\S*?\bcmd(?:\.exe)?)\s+\/[ck]\s+(.*)$/isu.exec(c);
+    const inner = sh ? sh[2]! : ps ? ps[1]! : cmd ? cmd[1]! : undefined;
+    if (inner === undefined) break;
+    c = inner.trim();
+    const quoted = /^(['"])(.*)\1$/su.exec(c);
+    if (quoted) c = quoted[2]!.trim();
+  }
+  // PowerShell's call operator before a program given by its path
+  return c.replace(/^&\s*/u, "");
+}
+
+/**
+ * Whether a refused tool call ("Bash: …", "PowerShell: …", as a run collects them) ran strom itself: strom, strom.cmd,
+ * strom.exe, strom.ps1 or a second installation's strom-<suffix>, by its name or its path, first in the command — never
+ * inside quotes (`echo "x; strom brief"`) or as another program's argument. `whole`: the command was refused whole
+ * before any of it ran (Codex's policy, RunResult.deniedWhole): there strom counts first in any part of it too — after
+ * `;`, `&&`, `||`, a pipe or a new line (`Set-Location .; strom.cmd …`: found on Windows, #8). A command refused while
+ * it ran (a sandbox) is strom's only with strom first: in `touch ../x && strom …` the sandbox refused touch, and strom
+ * never ran.
+ */
+export function deniedStrom(denied: string, whole = false): boolean {
+  const command = shellUnwrapped(denied.replace(/^[\p{L}\p{N}_]+: /u, ""));
+  return (whole ? commandParts(command) : [command]).some((part) => STROM_FIRST.test(part.replace(/^&\s*/u, "")));
+}
+
+/** strom by its name or path first in a command (its own quotes around it, the same at both ends). */
+const STROM_FIRST = /^(['"]?)(?:[^\s'"]*[\\/])?strom(?:-[\p{L}\p{N}_.-]+?)?(?:\.cmd|\.exe|\.ps1|\.bat)?\1(?:\s|$)/iu;
+
+/** The parts of a command line between `;`, `&&`, `||`, `|` and new lines outside quotes, each trimmed. */
+function commandParts(command: string): string[] {
+  const parts: string[] = [];
+  let part = "";
+  let quote: string | undefined;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!;
+    if (quote) {
+      part += c;
+      if (c === "\\" && quote === '"' && i + 1 < command.length) part += command[++i];
+      else if (c === quote) quote = undefined;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      part += c;
+    } else if (c === ";" || c === "\n" || c === "|" || (c === "&" && command[i + 1] === "&")) {
+      parts.push(part.trim());
+      part = "";
+      if (command[i + 1] === c) i++;
+    } else part += c;
+  }
+  parts.push(part.trim());
+  return parts.filter(Boolean);
+}
+
 /** A command as a run's progress shows it: "$ " and its first line, cut at 140 characters — a cut ends in "…". */
 export function commandLine(command: string): string {
   const lines = command.split("\n");
@@ -237,6 +320,53 @@ export function looksLikeLimit(text: string): { limit: boolean; resumeAt?: strin
  */
 export function looksLikeModelRejected(text: string): boolean {
   return /\bmodels?\b[^\n]{0,80}?\b(?:not supported|unsupported|not available|no longer (?:available|supported|served)|not found|does not exist|doesn't exist|not valid|invalid|deprecated|retired|gone)\b|\b(?:unsupported|unknown|invalid) model\b|model_not_found|model[_ ]not[_ ]supported/i.test(text);
+}
+
+/** The error codes of a connection that failed on the way and may well work again a few seconds later. */
+const NETWORK_CODES = [
+  "EPROTO",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ECONNREFUSED",
+  "ECONNABORTED",
+  "ENETUNREACH",
+  "ENETDOWN",
+  "EHOSTUNREACH",
+  "EPIPE",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+] as const;
+
+/**
+ * A passing network error in what a failed agent said (its error, its stderr): what to call it ("ECONNRESET", "TLS
+ * handshake"), else nothing. Never one that would fail again the same way: a cancellation, a login or a key, a limit of
+ * the plan, a certificate (not passing: the same certificate next time), a model refused, a permission refused.
+ */
+export function transientNetworkError(text: string): string | undefined {
+  if (!text.trim() || looksLikeLimit(text).limit || looksLikeModelRejected(text)) return undefined;
+  if (/certificate|CERT_|SELF_SIGNED|UNABLE_TO_VERIFY|unable to get (?:local )?issuer/i.test(text)) return undefined;
+  if (/abort|cancel|interrupt/i.test(text)) return undefined;
+  if (/authenticat|unauthori[sz]ed|forbidden|AuthError|api[ _-]?key|log ?in|(?<!\d)(?:401|403)(?!\d)/i.test(text)) return undefined;
+  if (/permission (?:denied|rejected|refused)|rejected permission|not allowed/i.test(text)) return undefined;
+  const code = new RegExp(`(?<![A-Z0-9_])(${NETWORK_CODES.join("|")})(?![A-Z0-9_])`).exec(text)?.[1];
+  if (code) return code;
+  return /TLS handshake|socket hang up|network connection (?:was )?lost/i.exec(text)?.[0];
+}
+
+/**
+ * How long to wait before each resume of a session whose connection failed on the way: 5 s, then 15 s — the waits
+ * count against the session's time (STROM_AGENT_RETRY_MS, comma-separated, only for tests).
+ */
+export function recoverDelays(env: Env): number[] {
+  const given = (env.STROM_AGENT_RETRY_MS ?? "")
+    .split(",")
+    .filter((x) => x.trim() !== "")
+    .map(Number);
+  return given.length && given.every((n) => Number.isFinite(n) && n >= 0) ? given : [5_000, 15_000];
 }
 
 export function appendLog(file: string, chunk: string): void {

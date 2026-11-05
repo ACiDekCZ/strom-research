@@ -9,6 +9,9 @@ import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, 
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
+import { inboxState, inboxWaits } from "../core/inboxwait.ts";
+import { browserOnlyArchive } from "../core/byhand.ts";
+import { browserAdviceFor } from "../core/browserhelp.ts";
 import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lifespan, likelyDuplicates, parentsOf, primaryName, sameFamilyName, surnameForms } from "../core/people.ts";
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
@@ -717,11 +720,13 @@ function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefine
 }
 
 /** How many images of a record set are registered, how to look at them, and how the others come. */
-function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false, waiting?: string): string[] {
+function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false, waiting?: string, handOnly = false): string[] {
   // each image once: its parts and other copies are the same image
   const nums = imagesIndex(tree).sets.get(b.id)?.images ?? [];
   const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
-  const byHand = repo?.automation === "forbidden" || repo?.automation === "manual";
+  // an archive only a person's browser reaches (strom's list of archives, its robots.txt) without the person's
+  // permission "through the browser", or one whose images the person keeps by hand: by hand, never a connector built
+  const byHand = handOnly || repo?.automation === "forbidden" || repo?.automation === "manual";
   // the connector and its book, in the form strom fetch takes them; the whole command once in a brief
   const fetch = route
     ? `    fetch: ${route.connector} ${route.book ?? `<book: its ID on the portal — strom fetch ${route.connector} --find "<place>" lists them>`}${shape ? ` — strom fetch ${route.connector} ${route.book ?? "<book>"} --images <from-to> --recordset ${b.id}` : ""}${
@@ -733,6 +738,8 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
     if (waiting) return [`    no images here yet — ${waiting}`];
     if (route) return [`    no images here yet — the connector fetches the ones you need`, fetch!];
     if (finder && !byHand) return [`    no images here yet — ${finderText(finder, b)}${finder.why === "consent" ? "" : `: ${byHandAsk(b, true)}, then take the next task`}`];
+    // only a person's browser reaches it: never a connector to build, the images by hand with their numbers
+    if (handOnly && !route) return [`    no images here yet — the user saves them by hand (never scrape an archive; only a person's browser reaches this archive): ${byHandAsk(b, true)} — saved into the inbox folder strom makes, they bring the task back by themselves; take the next task meanwhile`];
     if (b.url && !byHand)
       return [`    no images here yet, and no connector for this archive — build one now (strom connector new <name> --url <portal>, then its DISCOVERY.md; tell the user in a sentence), then strom fetch; the user saves them by hand only where the archive does not allow automation`];
     return [`    no images here yet — the user saves them by hand (never scrape an archive): ${byHandAsk(b, true)}, then take the next task`];
@@ -782,15 +789,23 @@ function fetchingLines(tree: Tree): string[] {
 }
 
 /** What the user put in the shared inbox, waiting to be registered — by folder (one download each). */
-function inboxLines(shared: string | undefined): { files: number; lines: string[] } {
+function inboxLines(tree: Tree, shared: string | undefined): { files: number; lines: string[] } {
   if (!shared) return { files: 0, lines: [] };
   try {
     const folders = inboxFolders(path.join(shared, "inbox"));
     const name = (f: string) => path.basename(f);
+    // the folders tasks wait on: strom takes what is saved there itself (the bridge as they come, else a session's start)
+    const waits = inboxWaits(tree);
     return {
       files: folders.reduce((n, f) => n + f.files.length, 0),
       lines: folders.slice(0, 8).map(({ folder, files }) => {
         const shown = files.length > 3 ? `${name(files[0]!)} … ${name(files.at(-1)!)}` : files.map(name).join(", ");
+        const on = waits.filter((w) => w.folder.normalize("NFC") === folder.normalize("NFC"));
+        if (on.length) {
+          const st = inboxState(tree, shared, tree.get<Task>(on[0]!.task)!);
+          const said = st?.problem ? ` — not taken: ${st.problem}` : st?.want ? ` — ${st.have} of ${st.want} images${st.missing.length ? `, missing ${runs(st.missing)}` : ""}` : "";
+          return `  ${folder}/ (${files.length} file${files.length > 1 ? "s" : ""}): ${shown} — ${on.map((w) => w.task).join(", ")} waits on it: strom takes them itself (the bridge as they are saved, else a session's start; now: strom media add --inbox --waiting)${said}`;
+        }
         // a folder strom made for a waiting task names its record set
         const mine = folder && /^[Bb]\d+(?=\s|$)/.test(folder) ? `  → strom media add --inbox ${shellArg(folder)}` : "";
         return folder ? `  ${folder}/ (${files.length} file${files.length > 1 ? "s" : ""}): ${shown}${mine}` : `  ${shown}`;
@@ -862,6 +877,32 @@ function questionsWaiting(tree: Tree, task: string, qs: PendingQuestion[]): stri
   return out;
 }
 
+/**
+ * A book whose archive only a person's browser reaches (strom's list of archives, its robots.txt) and whose person gave
+ * no permission "through the browser": its images come by hand. Derived from strom's list each time, whatever the
+ * book's access says (a book written as online-free before strom knew it).
+ */
+function imagesByHand(tree: Tree, b: RecordSet, repo: Repository | undefined, shared: string | undefined): boolean {
+  return !!browserOnlyArchive(tree, [b.url, repo?.url].find((x) => !!x && URL.canParse(x)), shared);
+}
+
+/**
+ * An archive only a person's browser goes to: what the session's agent's own browser may do there (spec 048 K5.1) —
+ * Claude Code with Claude in Chrome page by page with the person's permission, any other agent never (nor its computer
+ * use): the person saves the images by hand, and is told once what Claude in Chrome would do.
+ */
+function browserLine(tree: Tree, b: RecordSet, repo: Repository | undefined, shared: string | undefined, agent: string, task: string | undefined): string {
+  const url = [b.url, repo?.url].find((x) => !!x && URL.canParse(x));
+  if (!url) return "";
+  const net = shared ? path.join(shared, "net") : undefined;
+  try {
+    const x = browserAdviceFor(tree.env, agent, archiveLevel(tree.env, { url, tree, readOnly: true, ...(net ? { net } : {}) }), task, b.id);
+    return x ? `    your browser: ${x}` : "";
+  } catch {
+    return "";
+  }
+}
+
 function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, shared: string | undefined, installed: Ready, qs: PendingQuestion[] = []): string {
   const url = [b.url, repo?.url].find((x) => !!x && URL.canParse(x));
   if (!url) return "";
@@ -926,7 +967,7 @@ function personAnswers(tree: Tree, task: Task): string[] {
   const all = task.answers ?? [];
   if (!all.length) return [];
   const words = { works: "it works — the book and its images can be seen there", view: "only to be viewed there", no: "it does not work — nothing there" } as const;
-  const out = all.slice(-3).map((a) => `the person answered (${a.at.slice(0, 10)}; asked: ${a.asked}${a.url ? ` — ${a.url}` : ""}): ${[a.check ? words[a.check] : "", a.answer ? `"${a.answer}"` : ""].filter(Boolean).join(" — ")}`);
+  const out = all.slice(-3).map((a) => `the person answered (${a.at.slice(0, 10)}${a.givenIn === "app" ? ", in the Strom app" : ""}; asked: ${a.asked}${a.url ? ` — ${a.url}` : ""}): ${[a.check ? words[a.check] : "", a.answer ? `"${a.whole ?? a.answer}"` : ""].filter(Boolean).join(" — ")}`);
   if (task.notes.length) out.push("(the notes are the research's own; only the lines above are the person's answers)");
   const last = all.at(-1)!;
   const set = task.where.find((w) => /^B\d{4,}$/.test(w) && tree.get<RecordSet>(w)) ?? "B…";
@@ -951,6 +992,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
+    "- The only browser strom watches. The browser, preview and computer use of Claude's and Codex's desktop apps strom does not watch and does not recommend: never of your own accord. Only when the person explicitly asks for them: the person's choice — say in one sentence that strom does not watch that way and what the site's terms say; never a way round them, never a check whether a person is there.",
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
@@ -1326,14 +1368,18 @@ export function buildBrief(
           : "## Record sets",
         ...sets.map((b) => {
           const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+          const hand = imagesByHand(tree, b, repo, opts.shared);
+          // strom's list says what the book's access (written before strom knew it) may not
+          const access = hand && b.access === "online-free" ? "by hand (online, free to view — only through a person's browser)" : b.access;
           return [
             `  ${b.id} ${b.title}`,
-            `    ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ")} · access ${b.access}${b.url ? ` · ${b.url}` : ""}`,
+            `    ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ")} · access ${access}${b.url ? ` · ${b.url}` : ""}`,
             repo ? `    ${repo.name} · automated download: ${repo.automation}${repo.terms ? ` · terms: ${repo.terms}` : ""}` : "",
             archiveLine(tree, b, repo, opts.shared, installed, asked),
+            browserLine(tree, b, repo, opts.shared, tuneAgent, task?.id),
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
-            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b)),
+            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b), hand),
             ...tunedBookLines(tuning, b, routes.get(b.id), opts.shared),
           ].filter(Boolean).join("\n");
         }),
@@ -1351,7 +1397,7 @@ export function buildBrief(
     });
 
   // 7b. what the user put in the shared inbox — scans or documents nobody registered yet
-  const inbox = inboxLines(opts.shared);
+  const inbox = inboxLines(tree, opts.shared);
   if (inbox.files)
     sections.push({
       name: "inbox",

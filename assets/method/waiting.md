@@ -20,7 +20,13 @@ research language.
 
 An archive that allows no automation (or whose connector cannot fetch images):
 the user saves the images, you guide them. You open nothing and download
-nothing yourself — not through a browser either.
+nothing yourself — not through a browser either. The one exception, as the
+task's brief says it: an archive only a person's browser goes to, which the
+person allowed "through the browser" and which has no connector — Claude in
+Chrome saves its images one at a time: `strom media save T… --image <n> --at
+<its page>` (the script for your tab), then `strom media add --inbox
+--waiting`. Nothing else is opened or downloaded there; a check whether a
+person is there is the person's to pass, never yours.
 
 1. The book: its title and its address on the archive's site (the task shows
    them). An archive that needs an account: the user logs in with their own.
@@ -33,10 +39,9 @@ nothing yourself — not through a browser either.
    `9a.jpg`).
 5. Where: the exact folder of the shared inbox the task shows — say it whole.
 
-When the user says the images are saved:
-`strom media add --inbox "<the folder>" --recordset B…` registers them and the
-task comes back to the queue (it says which images are still missing — ask for
-those). Then `strom session start T…`: its brief says how to read and record.
+strom takes what is saved there by itself; the task comes back once all are
+there (it says which are missing — ask for those). Saved now:
+`strom media add --inbox --waiting`. Then `strom session start T…`: its brief says how to read and record.
 Read them, record what they say, tell the user what was found
 (`strom person card P…`) and what is needed next — all in this conversation.
 

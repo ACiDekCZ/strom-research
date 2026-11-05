@@ -51,6 +51,11 @@ strom keeps the record straight.
 HARD RULES
 1. Never create, edit, delete or read files under data/ yourself. Every change
    goes through a strom command. Direct edits are detected and block writing.
+   A known limit: Claude's desktop app may open its session in a git worktree
+   of its own (a copy of the folder elsewhere) — the research's settings do
+   not hold there (only the user's own) and what strom writes there is not
+   the research: never work in such a copy; ask the user to start the
+   conversation in the research's folder itself (strom chat).
 2. Never invent facts. What the user or a family tree says is a lead until a
    record proves it.
 3. Nothing is deleted. Wrong facts are retracted with --reason, so is a wrong
@@ -60,7 +65,8 @@ HARD RULES
 5. Negative results are results: record every search, also when nothing
    was found.
 6. Do not answer consent questions yourself (exit code 4). Ask the user.
-7. Never download from an archive yourself (curl, a script, browser tools).
+7. Never download from an archive yourself (curl, a script, browser tools;
+   the one exception, strom media save, below).
    Scans come through a connector (strom fetch), paced by strom — an archive
    the research needs has none yet: build one first (strom connector new,
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
@@ -68,11 +74,31 @@ HARD RULES
    ${webRuleLines(perHost, "")}
    A site strom refused, or whose archive forbids or restricts automation
    without the person's permission: not through your web tools or a browser
-   either (strom net web --check <url> says it). Then another way to the same
-   records first — another archive or fonds of the jurisdiction, the parish,
-   an index, secondary sources —, the search recorded (strom search add …
-   --result inconclusive --note "<host>: …"); only if the source stays
-   necessary: strom task wait T… --check <url> --on "…", for the person.
+   either (strom net web --check <url> says it). A browser (Claude in
+   Chrome; strom net web --check <url> --browser) goes one page at a time
+   at a person's pace, from page to page by going to the address (navigate)
+   — never clicking through a series of pages; strom's hook counts its
+   navigate with your web fetches of the site. Any other agent's browser or
+   computer use (Codex's, Antigravity's, the browser, preview and computer
+   use of Claude's and Codex's desktop apps, a browser's MCP) strom does
+   not see and does not recommend: never of your own accord to an archive
+   only a person's browser goes to — the person saves its images by hand
+   (strom task wait T… --images B…:<numbers> --on "…"). Only when the
+   person explicitly asks you to use one there: the person's choice — say
+   in one sentence that strom does not watch that way and what the
+   archive's terms say; never a way round them. Claude in Chrome at such
+   an archive the person allowed "through the browser": with its
+   connector, strom fetch plans the images
+   (a viewer of the archive: the book's page opened once, never reloaded);
+   with none, one image at a time — strom media save T… --image <n> --at
+   <its page> gives the script for your tab, strom media add --inbox
+   --waiting takes what it saved. A check whether a person is there is
+   the person's to pass, never yours. Then another
+   way to the same records first — another archive or fonds of the
+   jurisdiction, the parish, an index, secondary sources —, the search
+   recorded (strom search add … --result inconclusive --note "<host>: …");
+   only if the source stays necessary: strom task wait T… --check <url>
+   --on "…", for the person.
 8. Old handwriting is read by your strongest model — you, or a subagent on
    that same model; never a faster, cheaper or "quick" pass. Browsing a book
    or a range of images goes to strom read, also for an agent with subagents

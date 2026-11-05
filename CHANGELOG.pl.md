@@ -5,6 +5,92 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.27.0
+
+*5.11.2026 · współpracuje z aplikacją Strom 3.23.0.*
+
+- **Skany zapisane ręcznie same przywracają swoje zadanie.** Tam, gdzie skany archiwum zapisuje się ręcznie – archiwum,
+  do którego wolno tylko przeglądarce człowieka, albo takie, którego warunki nie pozwalają na nic innego – badanie
+  prosi o księgę i numery skanów i przygotowuje na nie folder w skrzynce (inbox). To, co się tam zapisze, zostaje
+  przejęte samo: od razu, gdy działa most do aplikacji Strom, inaczej przy starcie następnej sesji; pliki nazwane
+  inaczej według kolejności, gdy jest ich tyle, ile brakuje skanów. Zadanie wraca do kolejki, gdy są tam wszystkie
+  skany; przy części z nich „Co czeka“ pokazuje, ile zapisano z ilu i których brakuje. Księga takiego archiwum nie
+  uchodzi już za swobodnie do pobrania, a badanie nie proponuje dla niej budowy pobieracza – także księgi i oczekiwania
+  ze starszych wersji, bez przepisywania czegokolwiek.
+
+- **Na to, co czeka, można odpowiedzieć z aplikacji Strom, a skany, na które czeka zadanie, z niej wysłać.** Odpowiedź
+  napisana w aplikacji przywraca zadanie do kolejki tak samo jak odpowiedź w terminalu; zapisuje się w całości, z
+  adnotacją, że przyszła z aplikacji. Zadanie, które w międzyczasie czeka na coś innego, pozostaje bez zmian. Skany, na
+  które czeka zadanie, trafiają z aplikacji prosto do niego: numerowane według obrazu wskazanego przez aplikację,
+  inaczej według nazwy pliku, inaczej według kolejności brakujących; PDF strona po stronie. Skan o numerze, który
+  badanie już ma, zostaje odrzucony, chyba że ma go zastąpić – poprzedni zostaje wycofany i zachowany, nigdy usunięty.
+  Skan taki sam jak inny, już przejęty obraz zostaje odrzucony ze wskazaniem, z którym jest taki sam; nic nie zostaje
+  przejęte. Są przejmowane tak samo jak obrazy zapisane ręcznie, a zadanie wraca, gdy są już wszystkie. Strona z jedną
+  księgą zadania pokazuje też swój folder i ile ma obrazów. Strony jednego archiwum – na przykład archiwum cyfrowe i
+  czytelnia jednego archiwum krajowego – czekają w jednym miejscu pod nazwą archiwum, z jego adresem.
+
+- **Agent trzyma się z dala od mostu.** To, co aplikacja Strom wysyła przez most, należy do człowieka. Hooki agenta
+  odrzucają polecenie lub pobranie strony, które odczytuje adres mostu lub go wywołuje, a agent nigdy nie poznaje
+  tajnego adresu.
+
+- **Przeglądarka agenta podlega tym samym zasadom co jego pobieranie stron.** Każda strona, którą agent otwiera w
+  Chrome, jest liczona i spowalniana razem z jego innymi żądaniami do tej samej witryny; witryna, której warunki
+  zabraniają automatyzacji, taka, która odmówiła, ścieżka zablokowana w jej robots.txt i most pozostają dla niego
+  zamknięte. Archiwum, do którego wolno tylko przeglądarce człowieka, otwiera się dla niego tylko za zgodą człowieka
+  „przez przeglądarkę”, strona po stronie, w tempie człowieka. Zgoda… w aplikacji Strom przy tym, co czeka na skany
+  takiego archiwum, otwiera to pytanie, także tam, gdzie żaden program do pobierania nie sięga archiwum. Przeglądarka
+  lub sterowanie komputerem innego agenta – Codexa, Antigravity – nie ma takiej kontroli: agent nie wchodzi z nią do
+  takiego archiwum sam z siebie, a skany zapisuje człowiek ręcznie. `strom doctor`, brief agenta i Co czeka mówią raz, z
+  jakim agentem i rozszerzeniem przeglądarki agent zapisałby je sam, albo że brakuje rozszerzenia. Nic nie jest
+  wyłączane: przeglądarki i sterowania komputerem aplikacji desktopowych agentów badanie nie pilnuje i ich nie poleca –
+  pilnuje przeglądarki agenta w Chrome, a innej agent używa tylko wtedy, gdy człowiek wyraźnie o to poprosi. `strom
+  doctor` i brief agenta mówią to wprost, a agent nigdy nie pracuje w kopii badania, którą aplikacja desktopowa agenta
+  otwiera we własnym worktree. Aplikacja Strom dowiaduje się od mostu, czy przeglądarka agenta jest gotowa, brakuje
+  rozszerzenia, czy agent nie ma żadnej, którą badanie pilnuje.
+
+- **Przeglądarka agenta sama zapisuje skany, po jednym.** Tam, gdzie człowiek zezwoli archiwum, do którego wolno tylko
+  przeglądarce człowieka, na dostęp „przez przeglądarkę”, agent otwiera w Chrome jeden skan i zapisuje to, co pokazuje
+  przeglądarka skanów archiwum – nigdy więcej, niż ona daje, nigdy większy niż oryginał, w tempie człowieka. Zapisuje
+  tylko skan, który karta pokazuje pod jego własnym adresem – przeglądarka przewinięta na inny skan zostaje odrzucona i
+  nic się nie zapisuje. Badanie przejmuje zapisany plik z folderu pobranych plików do folderu zadania pod jego numerem,
+  a zadanie wraca, gdy są tam wszystkie jego skany. Zgodę można teraz dać także takiemu archiwum z listy badania, do
+  którego nie prowadzi żaden pobieracz. Pobieracz archiwum, którego przeglądarka pokazuje skany w kafelkach, również
+  zapisuje przez tę przeglądarkę, także część skanu; stronę księgi otwiera raz i nigdy jej nie odświeża. Sprawdzenia,
+  czy przy komputerze jest człowiek, agent nigdy nie przechodzi. Archiwum, którego robots.txt nie wpuszcza żadnych
+  robotów na cały serwis, uznaje się za takie, dokąd wolno tylko przeglądarce człowieka. To, co lista archiwów badania
+  zostawia w rękach człowieka, nadal zapisuje się ręcznie – ścieżka do zapisów zamknięta w robots.txt dla wszystkich
+  robotów, imienny zakaz dla agentów AI (jak w eBadatelnie SOA Praha), warunki, które nie pozwalają na nic innego, albo
+  przeglądarka skanów, która bierze je z serwera obrazów zamkniętego dla wszystkich robotów.
+
+- Warunek samodzielnej pracy agenta, który nie uruchomiłby zadań uruchomionych ręcznie, pada raz, potem już tylko
+  „Uruchomić mimo to?”. Warunek tygodnia subskrypcji podaje wykorzystanie w tygodniu wobec tego, na co dotąd pozwolono,
+  i jak jest liczone. `strom help --human` wymienia kolejność zadań, pracę poza liniami, poprawki i pozostawienie
+  sprzeczności wśród poleceń człowieka. Badanie z OpenCode toczy się dalej po sesji, którą OpenCode poprawnie zamknął,
+  ale zgłosił jako nieudaną, oraz po przejściowym błędzie sieci – ta sama sesja zostaje wznowiona po krótkim
+  oczekiwaniu, w ramach czasu sesji. Gdy sandbox Codexa nie dopuści strom do badań – także w potoku, a w Windows
+  także przy poleceniu podanym przez PowerShell – albo gdy polecenie strom odrzucą już reguły Codexa, zanim się
+  uruchomi (w Windows strom w potoku lub po `;`), badanie od razu się zatrzymuje z tym, co pozostaje wyborem
+  człowieka, a taka sesja nigdy
+  nie odkłada zadania. Dziękujemy za zgłoszenie na GitHubie. Zmiana odczytu skanów, którą badanie wprowadziło samo i po
+  której odczyty stały się wyraźnie mniej pewne, zostaje od razu cofnięta – już nie dopiero po 60 dniach – a `strom
+  recent` to podaje.
+
+- Badanie zna więcej archiwów Czech, Niemiec i Polski wraz z ich warunkami – na co każde pozwala narzędziom
+  automatycznym, jego tempo i dokąd wolno tylko przeglądarce człowieka. Nowe wśród nich: archiwa miejskie Brna i
+  Ostrawy, Wojskowe Archiwum Centralne w Pradze, Arcinsys Hesji, Dolnej Saksonii i Bremy oraz Szlezwika-Holsztynu,
+  invenio i księga pamięci Archiwum Federalnego (tylko przeglądarka człowieka), galerie ksiąg metrykalnych dawnych ziem
+  wschodnich w AGAD, LubGens (tylko przeglądarka człowieka) oraz indeksy polskich towarzystw genealogicznych. Pięć
+  kolejnych czeskich, dokąd wolno tylko przeglądarce człowieka: Acta Publica Morawskiego Archiwum Krajowego (jego skany
+  już nie przez program do pobierania, nawet ze zgodą wydaną wcześniej – pozostaje, jak została dana; przez przeglądarkę
+  co najmniej 4 sekundy odstępu), eBadatelna SOA Praha oraz serwery obrazów SOA Litoměřice, ZA Opava i meldunków
+  policyjnych Archiwum Narodowego (tylko ręcznie). Cyfrowe czytelnie SOA Litoměřice i ZA Opava biorą skany z tych
+  serwerów, więc i ich skany zapisuje się ręcznie – zgody „przez przeglądarkę” się tam nie proponuje. Przy zadaniu,
+  które już czeka na takie skany, mówi się tylko, że czeka na skany zapisane ręcznie, bez nowej rady co do czekania.
+  Program do pobierania zrobiony wcześniej dla takiego archiwum zostaje odrzucony przed jakimkolwiek żądaniem, także
+  jego próba, i mówi, co zostaje: zgoda człowieka „przez przeglądarkę” albo zapis ręczny.
+
+- Wraz z całym 1.26.1: przerwany zapis już nie blokuje badania na stałe.
+
 ## 1.26.1
 
 *4.11.2026 · współpracuje z aplikacją Strom 3.22.0.*

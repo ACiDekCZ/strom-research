@@ -1,0 +1,18 @@
+{
+  "interface": 1,
+  "title": "ACTA PUBLICA — parish registers of the Moravian Land Archives in Brno",
+  "version": "1.0.0",
+  "run": ["node", "connector.ts"],
+  "hosts": ["www.mza.cz"],
+  "can": ["find", "list", "locate"],
+  "routes": ["browser"],
+  "browser": { "open": "https://www.mza.cz/actapublica/", "pages": true, "viewer": "openseadragon" },
+  "policy": {
+    "automation": "restricted",
+    "terms": "https://www.mza.cz/actapublica/page/view/podminky-uziti-sluzeb",
+    "termsSummary": "Its help (https://www.mza.cz/actapublica/page/view/napoveda): an image may be saved, also without an account, \"only by the standard means of web browsers\" (right click, save image); its ICT office, 2 November 2026: no exceptions for tools. So everything goes through the person's own browser, with their permission \"through the browser\": the catalogue pages, and each image saved from the archive's own viewer as it shows it (at most 2000 px on the longer side; a part at most as sharp as the image) — one after the other, at least 4 s apart, never a whole book, never its tiles or image server asked for directly. The images are for the person's own research, never published elsewhere without the owner's written consent (Podmínky užití služeb, 20 May 2024). Census records (/scitacioperaty/) are for viewing only: never.",
+    "robots": "https://www.mza.cz/robots.txt: User-agent: * · Disallow: /wp-admin/ · Disallow: /wp-includes/ — nothing on /actapublica, no Crawl-delay",
+    "officialExport": "None: no API, no download of a volume. The viewer (OpenSeadragon) shows DeepZoom tiles of an IIPImage server whose addresses carry a token of the page and an expiry; a check whether a person is there (Altcha, a proof of work the browser does by itself) comes before the images. Full-quality scans are the archive's paid service (badatelna@mza.cz).",
+    "pace": { "minIntervalMs": 4000 }
+  }
+}

@@ -8,11 +8,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runJsonLines, type Heard } from "./jsonl.ts";
-import { commandLine, looksLikeLimit, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, looksLikeLimit, shellUnwrapped, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { AgentWeb } from "../core/metrics.ts";
-import { codexModel, effortArgs } from "../agents/effort.ts";
+import { codexConfigFile, codexModel, effortArgs } from "../agents/effort.ts";
+import { CODEX_BROWSER_SERVERS } from "../core/browser.ts";
 import { isolated, type Env } from "../core/paths.ts";
 import { inRoom, readerRoom } from "./room.ts";
+import { refusalMark, SANDBOX_REFUSAL } from "../core/writable.ts";
 
 /**
  * What Codex's sandbox lets it write besides the tree folder: the tree's .git — its sandbox keeps a .git
@@ -57,9 +59,29 @@ export function codexTrust(env: Env, cwd: string): string[] {
  * Working alone without the user's add-ons (agent.addons off): Codex's plugins (and the MCP servers they bring), its
  * apps, the user's hooks and memories off for this run — the user's own config, model and login kept (never
  * --ignore-user-config: it drops the model and effort too). An MCP server of the user's own config stays: Codex has no
- * switch for all of them.
+ * switch for all of them — but its desktop app's browser and computer use (codexBrowserOff).
  */
 export const CODEX_CLEAN = ["-c", "features.plugins=false", "-c", "features.apps=false", "-c", "features.hooks=false", "-c", "features.memories=false"] as const;
+
+/**
+ * The browser and the computer use the Codex desktop app adds to the user's own config (MCP servers `node_repl` —
+ * its in-app browser and Chrome extension — and `computer-use`), off with the user's add-ons: strom keeps no hook before
+ * them (an archive only a person's browser goes to stays the person's). Only those the config names: a server it does
+ * not name, switched off on the command line, stops Codex ("invalid transport", checked with 0.155.1). Read only.
+ * With the user's add-ons (a conversation, a run with agent.addons on) they stay as the user has them.
+ */
+export function codexBrowserOff(env: Env | undefined): string[] {
+  if (!env) return [];
+  let text: string;
+  try {
+    text = fs.readFileSync(codexConfigFile(env), "utf8");
+  } catch {
+    return [];
+  }
+  const named = new Set<string>();
+  for (const m of text.matchAll(/^\s*\[\s*mcp_servers\s*\.\s*(?:"([^"\n]+)"|'([^'\n]+)'|([A-Za-z0-9_-]+))\s*\]/gmu)) named.add(m[1] ?? m[2] ?? m[3]!);
+  return CODEX_BROWSER_SERVERS.filter((n) => named.has(n)).flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]);
+}
 
 /** Command-line arguments of a headless run (exported for tests). */
 export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
@@ -68,7 +90,7 @@ export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
+  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
 }
 
 /**
@@ -81,7 +103,7 @@ export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "ef
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
+  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
 }
 
 /**
@@ -101,6 +123,104 @@ export function codexWeb(item: Record<string, unknown> | undefined): AgentWeb | 
   if (action.type === "find_in_page") return undefined;
   if (action.type === "open_page") return typeof action.url === "string" && action.url ? { via: "web", url: action.url, tool: "web_search" } : undefined;
   return { via: "search", tool: "web_search" };
+}
+
+/**
+ * strom's own refusal under an agent in what a command printed with the exit code 0 (strom in a pipe: the code is the
+ * last program's) — only with the mark of the session it ran in (`<SANDBOX_REFUSAL> (strom session N0042)`,
+ * refusalMark): the words quoted — a session's summary in the next strom brief or session show, a note, strom grep,
+ * cat, echo — carry another session's mark or none, whatever their lines look like (#8, found 2026-11-05: an agent
+ * summed up a refusal in its words, and the next session's strom brief stopped the run). The mark is read in whatever
+ * shape a pipe gives strom's error — plain, --json, `jq .` or `jq -r .message`, Windows PowerShell 5.1's own
+ * (`strom.cmd : error: …`, wrapped at the console's width: the lines joined again), a dash spoiled by the console's
+ * code page (the sentence and the mark are ASCII). No session (a run strom did not start): no refusal read here.
+ */
+export function codexRefusedStrom(output: string, session: string | undefined): boolean {
+  const mark = refusalMark(session);
+  return !!mark && output.replace(/\r?\n/g, "").includes(`${SANDBOX_REFUSAL} ${mark}`);
+}
+
+/**
+ * One string as Rust's Debug writes it (`"…"` with `\"`, `\\`, `\n`, `\u{…}`), read from its opening quote at `at`:
+ * its text and where it ended — undefined when it does not end (a line cut short).
+ */
+function debugString(s: string, at: number): { text: string; end: number } | undefined {
+  if (s[at] !== '"') return undefined;
+  let text = "";
+  for (let i = at + 1; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '"') return { text, end: i + 1 };
+    if (c !== "\\") {
+      text += c;
+      continue;
+    }
+    const e = s[++i];
+    if (e === undefined) return undefined;
+    if (e === "u") {
+      const u = /^\{([0-9a-fA-F]{1,6})\}/u.exec(s.slice(i + 1));
+      if (!u) return undefined;
+      text += String.fromCodePoint(parseInt(u[1]!, 16));
+      i += u[0].length;
+    } else text += ({ n: "\n", r: "\r", t: "\t", "0": "\0" } as Record<string, string>)[e] ?? e;
+  }
+  return undefined;
+}
+
+/**
+ * A command line as Codex renders it (the shlex crate's join: words '…'-quoted, or "…"-quoted with \ before $ ` " \
+ * where a backslash keeps single quotes out — Windows paths) split into its words again.
+ */
+function shlexWords(line: string): string[] {
+  const words: string[] = [];
+  let word: string | undefined;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (/\s/u.test(c)) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else if (c === "'") {
+      const close = line.indexOf("'", i + 1);
+      if (close < 0) return [];
+      word = (word ?? "") + line.slice(i + 1, close);
+      i = close;
+    } else if (c === '"') {
+      word ??= "";
+      for (i++; i < line.length && line[i] !== '"'; i++) word += line[i] === "\\" && i + 1 < line.length ? line[++i] : line[i];
+      if (i >= line.length) return [];
+    } else word = (word ?? "") + (c === "\\" && i + 1 < line.length ? line[++i] : c);
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+/**
+ * A command Codex's own policy refused before it ran, as Codex alone says it — a line of its log on its stderr, never a
+ * command_execution item, never what a command printed or the agent wrote (codex-cli 0.166.0 on Windows, found
+ * 2026-11-05):
+ *   `<time> ERROR codex_core::tools::router: error=exec_command failed: CreateProcess { message: "Rejected(\"`<the
+ *   command, its shell around it>` rejected: blocked by policy\")" }`
+ * "Blocked by policy" is an approval nobody gives in `codex exec`: with Codex's own Windows sandbox not in use (as where
+ * it was found) every part of a command no rule allows is refused — `strom.cmd … | Select-Object`, `Set-Location .; strom.cmd …`:
+ * the rule lets strom run, the part after it is refused, and so the whole command (Codex's exec_policy.rs,
+ * render_decision_for_unmatched_command). A refusal by a rule of its own (strom's `git`, `strom login`, the person's:
+ * its justification) or of Codex's `rm -f` is what the rules say: no such refusal here. The command as the agent meant
+ * it (its shell around it taken off); undefined: no such line.
+ */
+export function codexPolicyRejected(line: string): string | undefined {
+  const clean = line.replace(/\u001b\[[0-9;]*m/gu, "");
+  const at = /^\s*(?:\S+\s+)?ERROR\s+codex_core::tools::router:\s+error=[\p{L}\p{N}_.-]+ failed: CreateProcess \{ message: "/u.exec(clean);
+  if (!at) return undefined;
+  const outer = debugString(clean, at.index + at[0].length - 1);
+  if (!outer || !/^\s*\}\s*$/u.test(clean.slice(outer.end)) || !outer.text.startsWith('Rejected("')) return undefined;
+  const reason = debugString(outer.text, "Rejected(".length);
+  if (!reason || outer.text.slice(reason.end) !== ")") return undefined;
+  const said = /^`([\s\S]+)` rejected: blocked by policy$/u.exec(reason.text);
+  if (!said) return undefined;
+  const words = shlexWords(said[1]!);
+  // the agent's own command: what its shell was given (-Command, -c, /c, -lc), else the words as they are
+  const flag = words.findIndex((w, i) => i > 0 && /^(?:-(?:command|c|lc)|\/[ck])$/iu.test(w));
+  const command = flag > 0 && flag < words.length - 1 ? words.slice(flag + 1).join(" ") : words.length ? words.join(" ") : said[1]!;
+  return shellUnwrapped(command);
 }
 
 /** The error Codex said last, kept when an earlier one said the plan's limit (the later one may only say the turn failed). */
@@ -135,6 +255,16 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
     tellUsage(opts, { total: true, in: usageNumber(u.input_tokens), cr: usageNumber(u.cached_input_tokens), out: usageNumber(u.output_tokens), turns: steps || undefined });
     steps = 0;
   };
+  // a command its policy refused before it ran is said on its stderr alone (codexPolicyRejected): counted like a denial —
+  // strom's own command so refused stops the run as its sandbox's refusal does (#8: on Windows Codex runs every command
+  // through PowerShell, and strom in a pipe, after `;` or `&` was refused so — the run went on and put its tasks aside)
+  const stderrLine = (line: string, heard: Heard) => {
+    const command = codexPolicyRejected(line);
+    if (command === undefined) return;
+    // refused whole before any of it ran: strom counts refused in any part of it (deniedStrom's `whole`)
+    (heard.deniedWhole ??= []).push(heard.denied.length);
+    heard.denied.push(`Bash: ${command.slice(0, 120)}`);
+  };
   return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
     if (msg.type === "thread.started" && typeof msg.thread_id === "string") {
       heard.sessionId = msg.thread_id;
@@ -142,15 +272,28 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
       if (model) heard.metrics.model = model;
       tellUsage(opts, { agentSession: msg.thread_id, ...(model ? { model } : {}) });
     }
-    const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string } | undefined;
-    if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(commandLine(item.command.replace(/^\S*sh -lc '(.*)'$/s, "$1")));
+    const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string; status?: string } | undefined;
+    if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(commandLine(shellUnwrapped(item.command)));
     if (msg.type === "item.completed" && item?.type === "agent_message" && item.text) {
       heard.text = item.text;
       opts.onProgress?.(item.text.trim().split("\n")[0]!.slice(0, 160));
     }
-    // The sandbox refused a command (a write outside the tree, the network off): counted like a denial.
-    if (msg.type === "item.completed" && item?.type === "command_execution" && item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system/i.test(item.aggregated_output ?? ""))
-      heard.denied.push(`Bash: ${String(item.command ?? "").replace(/^\S*sh -lc '(.*)'$/s, "$1").slice(0, 120)}`);
+    // The sandbox refused a command (a write outside the tree, .git closed, the network off — strom's own refusal says
+    // "sandbox", Windows "access is denied"), or Codex did not run it (its rules, an approval nobody gives in exec:
+    // "declined"): counted like a denial, the command as the agent meant it (its shell around it taken off). strom's own
+    // refusal under an agent counts with the exit code 0 too: in a pipe (`strom … | cat`, `| Select-Object`) the code
+    // is the last program's — but then only strom's error with this session's mark, never its words quoted
+    // (codexRefusedStrom). (Codex's exec_command gives no item of a command its policy refused before it ran — said on
+    // its stderr alone: stderrLine above — nor of one its sandbox stopped within 150 ms; strom itself starts slower and
+    // is always said.)
+    if (
+      msg.type === "item.completed" &&
+      item?.type === "command_execution" &&
+      (item.status === "declined" ||
+        (item.exit_code !== 0 && ((item.aggregated_output ?? "").includes(SANDBOX_REFUSAL) || /operation not permitted|sandbox|read-only file system|access (?:to the path .{1,200} )?is denied/i.test(item.aggregated_output ?? ""))) ||
+        (item.exit_code === 0 && codexRefusedStrom(item.aggregated_output ?? "", opts.env?.STROM_SESSION)))
+    )
+      heard.denied.push(`Bash: ${shellUnwrapped(String(item.command ?? "")).slice(0, 120)}`);
     // its web search, once its item is done (counted after the fact: core/metrics.ts)
     if (msg.type === "item.completed") {
       const w = codexWeb(msg.item as Record<string, unknown> | undefined);
@@ -173,5 +316,5 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
       const e = msg.error as { message?: string } | undefined;
       heard.text = failure(String(e?.message ?? msg.message ?? ""), heard.text);
     }
-  });
+  }, { stderrLine });
 }

@@ -90,6 +90,20 @@ test("help: the agent's English catalog by default, whoever asks; a person's in 
   w.cleanup();
 });
 
+test("help --human: the person's own commands with a sentence each; one of the user's own never called the agent's", async () => {
+  const w = new World();
+  const person = (await w.ok(["help", "--human"], { tty: true })).out;
+  for (const c of ["task order", "offline list", "offline set", "offline answer", "conflict leave", "fixes", "fixes run", "fixes undo"]) assert.match(person, new RegExp(`^ {2}strom ${c} +\\S`, "m"), c);
+  assert.match((await w.ok(["help", "offline", "--human"], { tty: true })).out, /^ {2}strom offline answer +Odpovědět na návrh/m);
+  // every command refused to an agent (userOnly): a sentence of its own, or its help in English — never "the agent uses it"
+  const catalog = (await w.ok(["commands", "--json"])).json.commands as { command: string; userOnly?: boolean }[];
+  const own = catalog.filter((c) => c.userOnly).map((c) => c.command);
+  assert.ok(own.includes("conflict leave") && own.includes("fixes undo"), own.join(", "));
+  for (const c of own) assert.doesNotMatch((await w.ok(["help", ...c.split(" "), "--human"], { tty: true })).out, /používá agent/, c);
+  assert.match((await w.ok(["help", "brief", "--human"], { tty: true })).out, /^strom brief: příkaz, který používá agent při práci/m);
+  w.cleanup();
+});
+
 test("a person's help ends with where the source code is, in their language; the agent's catalog and --version do not", async () => {
   const w = new World();
   const url = "https://github.com/ACiDekCZ/strom-research";

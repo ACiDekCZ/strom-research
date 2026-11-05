@@ -509,7 +509,7 @@ test("archives through the browser: the way each downloader takes, switched in t
   assert.match(r.out, /3 {2}Testovací archiv: stahovat raději přes prohlížeč/);
   assert.match(r.out, /✓ Testovací archiv: odteď přes prohlížeč\./);
   assert.match(r.out, /• Testovací archiv — snímky přes prohlížeč/);
-  assert.match(r.out, /Chrome k tomu potřebuje rozšíření Claude in Chrome .* tady ho v žádném prohlížeči nevidím: https:\/\/chromewebstore\.google\.com\/detail\//);
+  assert.match(r.out, /Chrome k tomu potřebuje rozšíření Claude in Chrome .* tady není v žádném prohlížeči: https:\/\/chromewebstore\.google\.com\/detail\//);
   assert.match((await w.run(["doctor"])).out, /prohlížeč \(Claude in Chrome\)\s+rozšíření není nainstalované \(potřebuje ho Testovací archiv\)/);
   // the extension in Chrome's profile: found
   const chrome = process.platform === "darwin" ? path.join(w.env.HOME!, "Library", "Application Support", "Google", "Chrome") : path.join(w.env.HOME!, ".config", "google-chrome");

@@ -19,6 +19,7 @@ import { batchRoom, noteBatch, openBatch } from "./batches.ts";
 import { stromLauncher } from "./self.ts";
 import { foldText } from "./text.ts";
 import type { Input, Source } from "./model.ts";
+import { parseImageList } from "./media.ts";
 
 /**
  * The environment of a strom a server runs for the person (a send written, the app's tree taken in, an original, a
@@ -109,6 +110,9 @@ export interface Incoming {
   zip?: boolean;
   /** The waiting task it came for. */
   task?: string | undefined;
+  /** For a task waiting for images of a book: the image's number (X-Strom-Image), and another scan there replaced. */
+  image?: number | undefined;
+  replace?: boolean;
   /** From a paired phone. */
   phone?: boolean;
   /** To be read at once (X-Strom-Read): an input with no intake task. */
@@ -264,6 +268,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         ...(batch ? ["--batch", batch, ...(where ? [`--path=${where}`] : []), ...(zip ? ["--zip"] : [])] : []),
         ...(f.phone ? ["--phone"] : []),
         ...(f.task ? ["--task", f.task] : []),
+        ...(f.task && f.image !== undefined ? ["--image", String(f.image)] : []),
+        ...(f.task && f.replace ? ["--replace"] : []),
         ...(f.read ? ["--read"] : []),
         "--json",
       ];
@@ -306,6 +312,18 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         // the task waits no more (answered meanwhile in the terminal)
         if (f.task && typeof data.code === "string" && ["task.none", "task.not-waiting", "task.no-file"].includes(data.code))
           return reply(409, refusal(why, data.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: f.task }));
+        // images for a task: which numbers it asks for, which are missing, which one is there already
+        if (f.task && typeof data.code === "string" && data.code.startsWith("waiting.image-")) {
+          const p = (data.params ?? {}) as Record<string, unknown>;
+          const list = (k: string) => (typeof p[k] === "string" ? (parseImageList(p[k] as string) ?? []) : []);
+          const str = (k: string) => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+          const extra = data.code === "waiting.image-unwanted" ? { want: list("want") } : data.code === "waiting.image-unknown" ? { missing: list("missing") }
+            : data.code === "waiting.image-same" ? { image: list("image")[0], same: str("same"), as: str("as"), ...(str("sameRecordset") ? { sameRecordset: str("sameRecordset") } : {}), ...(list("sameImage").length ? { sameImage: list("sameImage")[0] } : {}) }
+            : { image: list("image")[0] };
+          return reply(409, { ...refusalOf(why, data, data.code), ...extra, task: f.task });
+        }
+        if (f.task && (data.code === "waiting.pdf" || data.code === "media.type")) return reply(415, { ...refusalOf(why, data, data.code), task: f.task });
+        if (f.task && data.code === "task.no-images") return reply(409, refusalOf(why, data, "waiting.no-images"));
         reply(/not a kind of file/.test(why) ? 415 : /cut short|too small/.test(why) ? 422 : /the most one takes/.test(why) ? 413 : /closed already/.test(why) ? 409 : 400, refusalOf(why, data, "media.refused"));
       });
     }));

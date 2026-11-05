@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readJsonFile } from "../helpers.ts";
 import { opts, world } from "./session.helpers.ts";
+import { CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "../../src/core/browser.ts";
 
 test("an older tree's agent files are refreshed before strom chat (the desktop app's link too) and strom run start an agent", { ...opts, skip: opts.skip || process.platform === "win32" }, async () => {
   const w = await world();
@@ -22,7 +23,7 @@ test("an older tree's agent files are refreshed before strom chat (the desktop a
   };
   const fresh = (what: string) => {
     const hooks = (readJsonFile(settings) as { hooks?: { PreToolUse?: { matcher: string }[] } }).hooks;
-    assert.deepEqual(hooks?.PreToolUse?.map((g) => g.matcher), ["WebFetch|WebSearch", "Task|Agent"], `${what}: Claude Code's hooks`);
+    assert.deepEqual(hooks?.PreToolUse?.map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell"], `${what}: Claude Code's hooks`);
     assert.ok(fs.existsSync(grok), `${what}: Grok's hooks`);
     assert.ok(fs.existsSync(hookShim), `${what}: the hook's shim`);
   };
@@ -36,6 +37,25 @@ test("an older tree's agent files are refreshed before strom chat (the desktop a
   await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
   await w.run(["run", "--agent", "script"]);
   fresh("a run");
+  w.cleanup();
+});
+
+test("a tree of 1.26 (its web hooks without the browser's) gets Claude in Chrome's hooks before an agent starts; the person's own .claude/settings.local.json untouched", { ...opts, skip: opts.skip || process.platform === "win32" }, async () => {
+  const w = await world();
+  const settings = path.join(w.cwd, ".claude", "settings.json");
+  const local = path.join(w.cwd, ".claude", "settings.local.json");
+  type Groups = Record<string, { matcher: string }[]>;
+  const s = readJsonFile(settings) as { hooks: Groups };
+  // as 1.26 wrote it: the web fetch's groups alone
+  for (const ev of ["PreToolUse", "PostToolUse", "PostToolUseFailure"]) s.hooks[ev] = s.hooks[ev]!.filter((g) => !g.matcher.includes("claude-in-chrome"));
+  fs.writeFileSync(settings, JSON.stringify(s, null, 2) + "\n");
+  const own = JSON.stringify({ permissions: { allow: ["Bash(ls:*)"] }, hooks: { Stop: [{ hooks: [{ type: "command", command: "echo Lhoták" }] }] } }, null, 2) + "\n";
+  fs.writeFileSync(local, own);
+  await w.ok(["chat", "--print", "--where", "terminal", "--agent", "claude"]);
+  const after = (readJsonFile(settings) as { hooks: Groups }).hooks;
+  assert.ok(after.PreToolUse!.some((g) => g.matcher === CHROME_HOOK_MATCHER), "before each tool of the browser");
+  for (const ev of ["PostToolUse", "PostToolUseFailure"]) assert.ok(after[ev]!.some((g) => g.matcher === CHROME_NAVIGATE), `${ev}: after its navigate`);
+  assert.equal(fs.readFileSync(local, "utf8"), own, "the person's own settings and hooks: never strom's to write");
   w.cleanup();
 });
 

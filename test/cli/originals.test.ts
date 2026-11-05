@@ -44,8 +44,11 @@ test("originals from the app: material of a person an input outside git with one
   w.env.STROM_MEDIA_MAX_BYTES = String(2 * 1024 * 1024);
   w.env.CLAUDECODE = "1";
   // the bridge started from an agent's shell: what the app sends through it is still the person's
-  const info = (await w.ok(["live", "start", "--json"])).json;
+  const said = (await w.ok(["live", "start", "--json"])).json;
   delete w.env.CLAUDECODE;
+  // the agent is told no secret; the app's address is in the bridge's note
+  const info = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { url: string; token: string };
+  assert.ok(!JSON.stringify(said).includes(info.token), "no secret for an agent");
   try {
     const status = json(await request("GET", `${info.url}/status`));
     assert.equal(status.accepts.media.max, 2 * 1024 * 1024);

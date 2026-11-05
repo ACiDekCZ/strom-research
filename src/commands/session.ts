@@ -26,14 +26,15 @@ import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
 import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
-import { prependPath, type AgentLimit } from "../runners/runner.ts";
+import { appendLog, deniedStrom, prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { create, csvOpt, normId, requireRecord, update } from "../core/records.ts";
-import { finishTask, nextAwake, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { finishTask, nextAwake, offTreeLine, taskQueue, waitingLines, wakesBy } from "./tasks.ts";
+import { takenLines, takeWaiting, type TakenFolder } from "./media.ts";
 import { clockUp } from "../core/net.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
@@ -135,6 +136,20 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
 }
 
 /** Commit behind the same gate as every write. */
+/**
+ * Images the person saved by hand into the folders of waiting tasks, taken (commands/media.ts takeWaiting): at a
+ * session's start and each turn of strom run, where no bridge took them as they came. Never stops the work: a folder
+ * strom cannot read is left for the next look.
+ */
+function takeSaved(tree: Tree, shared: string | undefined): TakenFolder[] {
+  if (!shared || tree.dryRun) return [];
+  try {
+    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem);
+  } catch {
+    return [];
+  }
+}
+
 export function commitNow(tree: Tree, message: string): boolean {
   const snap = snapshot(tree);
   if (hasErrors([...verifyFast(tree, snap).findings, ...guard(tree, snap)])) return false;
@@ -161,6 +176,8 @@ register(
       const tree = ctx.tree();
       refuseInArchive(tree, "strom session start", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
       const research = researchOf(tree, opts.research);
+      // images the person saved for waiting tasks while no bridge ran: taken first, a task they complete back in the queue
+      const taken = takeSaved(tree, ctx.settings.shared()?.value);
       // The next task nobody else is working on (other agents may be at work in this tree).
       const others = othersAtWork(tree).tasks;
       const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
@@ -173,7 +190,7 @@ register(
       // a task the queue holds back, started by its ID: the agent hears why before it begins
       const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
       const held = task && args[0] ? historyLine(tree, task, shared, ctx.settings) : undefined;
-      return { text: lines(written(tree), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
+      return { text: lines(written(tree), ...takenLines(taken), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}), ...(taken.length ? { taken } : {}) } };
     },
   },
   {
@@ -337,6 +354,8 @@ register(
           wrote,
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
+          // its task waits: what brings it back, as strom does it (never a promise strom does not keep)
+          ((t) => (t ? wakesBy(tree, ctx.settings.shared()?.value, t, (p) => ctx.display(p)) : undefined))(s.task ? tree.get<Task>(s.task) : undefined),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${counted(newTasks.length, "new task")} from the research frontier` : undefined,
           offMap(tree),
@@ -729,6 +748,8 @@ function idleSessions(tree: Tree, taskId: string): number {
     if (sessionWrites(tree, x.id) > 0) break;
     // Ended from outside (the user, the run gone) is no failure of the agent; the English summaries are of older sessions.
     if (x.endedBy === "user" || x.endedBy === "run" || x.endedBy === "chat" || x.summary === BY_USER || x.summary === RUN_GONE) continue;
+    // strom itself kept from the agent (its permissions, its sandbox): the run's stop says it, the task waits as it was
+    if ((x.metrics?.stromDenied ?? 0) > 0) continue;
     n++;
   }
   return n;
@@ -841,7 +862,7 @@ register(
     let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
-    const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number; agentUsd?: number; readersUsd?: number }[] = [];
+    const report: { session: string; task?: string; outcome: string; agentExit?: number; recovered?: number; denied?: number; stromDenied?: number; summary?: string; costUsd?: number; agentUsd?: number; readersUsd?: number }[] = [];
     // What the gate answered, for the record of the run.
     const gates: { at: string; verdict: string; status: number | null; reason?: string; until?: string; anyway?: boolean }[] = [];
     // The answers since the last session began: written at the head of the next session's log.
@@ -850,7 +871,7 @@ register(
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -933,6 +954,8 @@ register(
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
         // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
         // (and the places another research on this computer maps so, taken: core/placeadopt.ts)
+        // images the person saved for waiting tasks (the bridge not running): registered, the tasks they complete back
+        if (takeSaved(tree, ctx.settings.shared()?.value).length && tree.uncommitted().length) commitNow(tree, "Images saved for waiting tasks");
         raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
         keepPlacesTask(tree);
         if (tree.uncommitted().length) commitNow(tree, "Tasks of the history of the places");
@@ -1125,14 +1148,15 @@ register(
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
         atWorkOn = session.id;
-        const result = await runner.run({
+        const runLog = path.join(root, ".strom", "runs", `${session.id}.log`);
+        let result = await runner.run({
           cwd: root,
           prompt,
           kickoff,
           env,
           // Found again in the agent's list of sessions: the family, the line, the task.
           name: ["Strom", tree.config.name, tree.get<Research>(task.research ?? research?.id ?? "")?.name, `${truncate(task.what, 50)} (${task.id})`].filter(Boolean).join(" · "),
-          logFile: path.join(root, ".strom", "runs", `${session.id}.log`),
+          logFile: runLog,
           timeoutMs: minutes * 60_000,
           wrapUp: {
             ms: WRAP_UP_MS,
@@ -1156,6 +1180,8 @@ register(
           ...(runnerId === "claude" ? { chrome: Boolean(sites), remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
+          // its connection failed on the way (a passing network error): its session resumed after a wait
+          onRecover: (r) => out(ui(lang, "ui.run.recover", { why: r.why, s: Math.round(r.waitMs / 1000), n: r.n, max: r.max })),
           // its use as it says it, per request where it can: the measure of the reading of scans (core/metrics.ts)
           ...usageOpt(tree, session.id, {
             agent: runnerId,
@@ -1187,6 +1213,20 @@ register(
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
+        // strom itself refused to the agent (its permissions, its sandbox — said through any shell): kept with the
+        // session's metrics, so the session is not counted against its task. strom first in the command — in any part
+        // of it only where the agent refused the command whole before any of it ran (Codex's policy: deniedWhole); a
+        // sandbox that refused `touch ../x` in `touch ../x && strom …` refused no strom
+        const whole = new Set(result.deniedWhole ?? []);
+        const stromDenied = result.denied?.filter((d, i) => deniedStrom(d, whole.has(i))).length ?? 0;
+        if (stromDenied) result = { ...result, metrics: { ...result.metrics, stromDenied } };
+        // the agent closed the session itself and its process then failed by its exit code alone (OpenCode: 1 after its
+        // last step ended normally, nothing else said wrong): done, the run goes on — the exit code kept in the log
+        if (result.outcome === "error" && result.exitOnly && s.state === "closed") {
+          appendLog(runLog, `\n[strom] the agent's process ended with exit code ${result.exitCode} after it closed the session (its last step ended normally, no error said) — taken as done\n`);
+          out(ui(lang, "ui.run.exitOnly", { session: s.id, code: result.exitCode }));
+          result = { ...result, outcome: "ok" };
+        }
         // strom worked for the agent when it closed the session itself or recorded something
         const ranStrom = s.state !== "open" || sessionWrites(after, s.id) > 0;
         // the user asked it to finish (strom session finish, the Strom app's "finish and stop"): no next session
@@ -1232,7 +1272,7 @@ register(
         // what it cost: the agent's own and its readers', both apart too
         const m = after.get<Session>(s.id)?.metrics ?? withReaders(result.metrics, s.metrics);
         const total = sessionCost(m);
-        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
+        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(result.exitOnly && result.outcome === "ok" ? { agentExit: result.exitCode } : {}), ...(result.recovered ? { recovered: result.recovered } : {}), ...(result.denied?.length ? { denied: result.denied.length } : {}), ...(stromDenied ? { stromDenied } : {}), ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
         // what strom's own hook refused (its web limits) is strom's, never the permissions'
@@ -1245,13 +1285,6 @@ register(
           stopCode = "user";
           break;
         }
-        // An agent that may not run strom can do nothing: stop, do not burn session after session.
-        // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
-        // when strom worked for it otherwise.
-        if (!ranStrom && result.denied?.some((d) => /^Bash: (\S*\/)?strom\b/.test(d))) {
-          stopCode = "denied";
-          break;
-        }
         if (result.outcome === "limit") {
           stopCode = "limit";
           stopValues = { resets: result.resumeAt ? ui(lang, "ui.run.stop.resets", { at: result.resumeAt }) : "" };
@@ -1260,6 +1293,16 @@ register(
         if (result.outcome === "auth") {
           stopCode = "auth";
           stopValues = { command: runnerId === "claude" ? claudeLoginCommand(runEnv) : runner.command };
+          break;
+        }
+        // An agent that may not run strom can do nothing: stop, do not burn session after session.
+        // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
+        // when strom worked for it otherwise. (The plan's limit and a login gone come first: they ended the session,
+        // the limit said with when it resets; a refusal is met again by the run after them.)
+        if (!ranStrom && stromDenied) {
+          // Codex: its sandbox (strom out of it only as a command of its own, by the research's rules; on Windows .git
+          // closed inside it) — said with what is the person's choice; nothing more is started, the task stays queued
+          stopCode = runnerId === "codex" && permissions !== "full" ? "denied.codex" : "denied";
           break;
         }
         // the agent does not take its model: said with what to do, never only its raw error
@@ -1287,7 +1330,7 @@ register(
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
-      exitCode: ["failed", "problems", "auth", "model", "denied", "gate.error"].includes(stopCode) ? 1 : 0,
+      exitCode: ["failed", "problems", "auth", "model", "denied", "denied.codex", "gate.error"].includes(stopCode) ? 1 : 0,
     };
   },
   }),
@@ -1399,7 +1442,8 @@ function gateReason(said: GateAnswer, lang: string): string {
  */
 async function startAnyway(ctx: Context, name: string, reason: string, lang: string): Promise<boolean> {
   const question = ui(lang, "ui.run.gate.anyway", { name, reason });
-  if (ctx.interactive && !isAgent(ctx.env)) return ctx.confirm(question, false);
+  // on a terminal the line just above says what the condition answered: the question alone, not said twice
+  if (ctx.interactive && !isAgent(ctx.env)) return ctx.confirm(ui(lang, "ui.run.gate.anyway.here"), false);
   if (!isAgent(ctx.env)) return false;
   try {
     ctx.requireHuman(`Start the tasks although the condition "${name}" would not (${reason})?`, "strom run --no-gate", "run.gate", question);

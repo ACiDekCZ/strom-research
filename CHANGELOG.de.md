@@ -5,6 +5,100 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.27.0
+
+*5.11.2026 · gehört zur Strom-App 3.23.0.*
+
+- **Von Hand gespeicherte Bilder bringen ihre Aufgabe von selbst zurück.** Wo die Bilder eines Archivs von Hand
+  gespeichert werden – ein Archiv, das nur der Browser eines Menschen erreicht, oder eines, dessen Bedingungen nichts
+  anderes erlauben –, nennt die Forschung das Buch und die Nummern seiner Bilder und legt dafür einen Ordner im Eingang
+  (inbox) an. Was dort gespeichert wird, wird von selbst übernommen: sofort, solange die Brücke zur Strom-App läuft,
+  sonst beim Start der nächsten Sitzung; anders benannte Dateien nach ihrer Reihenfolge, wenn es so viele sind, wie
+  Bilder fehlen. Die Aufgabe kehrt in die Warteschlange zurück, sobald alle Bilder da sind; bei einem Teil zeigt „Was
+  wartet“, wie viele von wie vielen gespeichert sind und welche fehlen. Ein Buch eines solchen Archivs gilt nicht mehr
+  als frei abrufbar, und die Forschung bietet dafür keinen Downloader mehr an – auch Bücher und Wartende aus früheren
+  Versionen, ohne dass etwas umgeschrieben wird.
+
+- **Was wartet, lässt sich in der Strom-App beantworten, und die Bilder, auf die eine Aufgabe wartet, lassen sich aus
+  ihr senden.** Eine in der App geschriebene Antwort bringt die Aufgabe zurück in die Warteschlange wie eine im
+  Terminal; sie wird vollständig gespeichert und als in der App gegeben vermerkt. Eine Aufgabe, die inzwischen auf etwas
+  anderes wartet, bleibt unverändert. Scans, auf die eine Aufgabe wartet, gehen aus der App direkt zu ihr: nummeriert
+  nach dem Bild, das die App nennt, sonst nach dem Dateinamen, sonst nach der Reihenfolge der fehlenden; ein PDF Seite
+  für Seite. Ein Scan mit einer Nummer, die die Forschung schon hat, wird abgelehnt, außer er soll ihn ersetzen – der
+  vorherige wird zurückgezogen und bleibt erhalten, nie gelöscht. Ein Scan, der einem schon übernommenen anderen Bild
+  gleicht, wird mit dem Hinweis abgelehnt, welchem er gleicht; nichts wird übernommen. Sie werden genauso übernommen wie
+  von Hand gespeicherte Bilder, und die Aufgabe kommt zurück, sobald alle da sind. Eine Website mit einem Buch der
+  Aufgabe zeigt auch ihren Ordner und wie viele Bilder er hat. Die Websites eines Archivs – etwa das digitale Archiv und
+  der Lesesaal eines Landesarchivs – warten an einem Ort unter dem Namen des Archivs, mit seiner Adresse.
+
+- **Der Agent bleibt der Brücke fern.** Was die Strom-App über die Brücke sendet, gehört dem Menschen. Die Hooks des
+  Agenten lehnen einen Befehl oder Webabruf ab, der die Adresse der Brücke liest oder sie aufruft, und der Agent
+  erfährt die geheime Adresse nie.
+
+- **Der Browser des Agenten folgt denselben Regeln wie sein Abruf von Webseiten.** Jede Seite, die der Agent in Chrome
+  öffnet, wird zusammen mit seinen anderen Anfragen an dieselbe Website gezählt und im Tempo gehalten; eine Website,
+  deren Bedingungen Automatisierung verbieten, eine, die abgelehnt hat, ein Pfad, den ihre robots.txt sperrt, und die
+  Brücke bleiben ihm verschlossen. Ein Archiv, das nur der Browser eines Menschen erreicht, öffnet sich ihm nur mit der
+  Erlaubnis des Menschen „über den Browser“, eine Seite nach der anderen im Tempo eines Menschen. Erlaubnis… in der
+  Strom-App bei dem, was auf Bilder eines solchen Archivs wartet, öffnet diese Frage, auch wo kein Downloader das Archiv
+  erreicht. Der Browser oder die Computersteuerung eines anderen Agenten – Codex, Antigravity – hat keine solche
+  Prüfung: Der Agent geht damit nicht von sich aus in ein solches Archiv, und die Bilder speichert der Mensch von Hand.
+  `strom doctor`, das Briefing des Agenten und Was wartet sagen einmal, mit welchem Agenten und welcher
+  Browser-Erweiterung der Agent sie selbst speichern würde, oder dass die Erweiterung fehlt. Nichts wird ausgeschaltet:
+  Den Browser und die Computersteuerung der Desktop-Apps der Agenten überwacht die Forschung nicht und empfiehlt sie
+  nicht – überwacht wird der Browser des Agenten in Chrome, und einen anderen nutzt der Agent nur, wenn der Mensch
+  ausdrücklich darum bittet. `strom doctor` und das Briefing des Agenten sagen es ausdrücklich, und der Agent arbeitet
+  nie in einer Kopie der Forschung, die die Desktop-App eines Agenten in einem eigenen Worktree öffnet. Die Strom-App
+  erfährt von der Brücke, ob der Browser des Agenten bereit ist, die Erweiterung fehlt oder der Agent keinen hat, den
+  die Forschung überwacht.
+
+- **Der Browser des Agenten speichert die Bilder selbst, eines nach dem anderen.** Wo der Mensch einem Archiv, das nur
+  der Browser eines Menschen erreicht, den Zugang „über den Browser“ erlaubt, öffnet der Agent ein Bild in Chrome und
+  speichert, was der Bildbetrachter des Archivs zeigt – nie mehr, als der Betrachter gibt, nie größer als das Original,
+  im Tempo eines Menschen. Er speichert nur das Bild, das der Tab unter dessen eigener Adresse zeigt – ein auf ein
+  anderes Bild weitergeblätterter Betrachter wird abgelehnt, nichts gespeichert. Die Forschung übernimmt die
+  gespeicherte Datei aus dem Download-Ordner unter ihrer Nummer in den Ordner der Aufgabe, und die Aufgabe kommt zurück,
+  sobald alle ihre Bilder da sind. Die Erlaubnis lässt sich jetzt auch einem solchen Archiv aus der Liste der Forschung
+  geben, das kein Downloader erreicht. Ein Downloader für ein Archiv, dessen Betrachter die Bilder in Kacheln zeigt,
+  speichert ebenfalls über diesen Betrachter, auch einen Teil eines Bildes; die Seite des Buches wird einmal geöffnet
+  und nie neu geladen. Eine Prüfung, ob ein Mensch da ist, besteht der Agent nie. Ein Archiv, dessen robots.txt jeden
+  Roboter von der ganzen Website fernhält, gilt als eines, das nur der Browser eines Menschen erreicht. Was die
+  Archivliste der Recherche der Hand eines Menschen vorbehält, wird weiter von Hand gespeichert – ein Pfad der
+  Aufzeichnungen, den die robots.txt jedem Roboter sperrt, KI-Agenten namentlich ausgeschlossen (wie bei der eBadatelna
+  des SOA Praha), Bedingungen, die nichts anderes erlauben, oder ein Bildbetrachter, der die Bilder von einem für jeden
+  Roboter gesperrten Bildserver zeigt.
+
+- Eine Bedingung der selbstständigen Arbeit des Agenten, die von Hand gestartete Aufgaben nicht starten würde, wird
+  einmal genannt, danach nur noch „Trotzdem starten?“. Die Bedingung der Abo-Woche nennt die Nutzung der Woche gegenüber
+  dem bisher Erlaubten und wie sie gezählt wird. `strom help --human` führt die Reihenfolge der Aufgaben, die Arbeit
+  abseits der Linien, Korrekturen und das Belassen eines Widerspruchs unter den eigenen Befehlen des Menschen. Die
+  Forschung mit OpenCode geht weiter nach einer Sitzung, die es ordnungsgemäß abgeschlossen, aber als fehlgeschlagen
+  gemeldet hat, und nach einem vorübergehenden Netzwerkfehler – dieselbe Sitzung wird nach kurzem Warten fortgesetzt,
+  innerhalb der Zeit der Sitzung. Hält die Sandbox von Codex strom von der Forschung fern – auch in einer Pipe und
+  unter Windows auch bei einem über PowerShell gegebenen Befehl – oder lehnen die Regeln von Codex einen strom-Befehl
+  ab, bevor er läuft (unter Windows strom in einer Pipe oder nach `;`), hält die Forschung sofort an und nennt, was die Wahl
+  des Menschen bleibt; eine
+  solche Sitzung legt ihre Aufgabe nie beiseite. Danke für die Meldung auf GitHub. Eine Änderung beim Lesen der Scans,
+  die die Forschung selbst vorgenommen hat und nach der die Lesungen deutlich unsicherer wurden, wird sofort
+  zurückgenommen – nicht mehr erst nach 60 Tagen –, und `strom recent` sagt es.
+
+- Weitere Archive Tschechiens, Deutschlands und Polens sind mit ihren Bedingungen bekannt – was jedes automatischen
+  Werkzeugen erlaubt, sein Tempo und was nur der Browser eines Menschen erreicht. Neu darunter die Stadtarchive Brno und
+  Ostrava, das Militärische Zentralarchiv Prag, Arcinsys Hessen, Niedersachsen und Bremen sowie Schleswig-Holstein,
+  invenio und das Gedenkbuch des Bundesarchivs (nur der Browser eines Menschen), die Bildgalerien der Kirchenbücher der
+  ehemaligen Ostgebiete im AGAD, LubGens (nur der Browser eines Menschen) und die Indizes polnischer genealogischer
+  Vereine. Fünf weitere tschechische, die nur der Browser eines Menschen erreicht: die Acta Publica des Mährischen
+  Landesarchivs (ihre Bilder nicht mehr über einen Downloader, auch nicht mit einer früher gegebenen Erlaubnis – sie
+  bleibt, wie gegeben; über den Browser mindestens 4 Sekunden auseinander), die eBadatelna des SOA Praha und die
+  Bildserver des SOA Litoměřice, des ZA Opava und der Polizeimeldungen des Nationalarchivs (nur von Hand). Die digitalen
+  Lesesäle des SOA Litoměřice und des ZA Opava zeigen ihre Bilder von diesen Servern, daher werden auch ihre Bilder von
+  Hand gespeichert – eine Erlaubnis „über den Browser“ wird dort nicht angeboten. Bei einer Aufgabe, die schon auf
+  solche Bilder wartet, heißt es nur, dass sie auf von Hand gespeicherte Bilder wartet, ohne neuen Rat zum Warten. Ein
+  früher für ein solches Archiv gebauter Downloader wird vor jeder Anfrage abgewiesen, auch seine Probe, und sagt, was
+  bleibt: die Erlaubnis der Person „über den Browser“ oder das Speichern von Hand.
+
+- Mit allem aus 1.26.1: ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.
+
 ## 1.26.1
 
 *4.11.2026 · gehört zur Strom-App 3.22.0.*

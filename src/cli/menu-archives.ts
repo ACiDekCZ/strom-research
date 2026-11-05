@@ -16,7 +16,7 @@ import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../
 import { claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
 import { connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
-import { archivesOverview, capWords, levelsOf, paceFor } from "../commands/archives.ts";
+import { archivesOverview, bareArchive, capWords, levelsOf, paceFor } from "../commands/archives.ts";
 import type { Pace } from "../core/net.ts";
 
 type T = ReturnType<typeof translator>;
@@ -50,23 +50,26 @@ function givesImages(c: Connector): boolean {
 /**
  * One archive: what its terms say and the ways to get its images — a question that waited (What waits, a link), or
  * the person's look at it in the settings (the current way suggested, its permission to be forgotten). True: decided.
- * `all`: the archive's hosts (its downloader's, the same state on each) — said once, decided for all of them.
+ * `all`: the archive's hosts (its downloader's, the same state on each) — said once, decided for all of them. An archive
+ * of strom's list only a person's browser goes to that no downloader here reaches (the Strom app's Permission… at what
+ * waits for its images): "through the browser" or by hand, as strom allow archive takes it.
  */
 export async function decideArchive(ctx: Context, run: Run, lang: string, root: string | undefined, host: string, q?: PendingQuestion, all?: string[]): Promise<boolean> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const c = connectorFor(connectorsHere(ctx), host, q?.connector);
-  if (!c) {
+  const bare = c ? undefined : bareArchive(ctx, host);
+  if (!c && !bare) {
     out(t("ui.archive.gone"));
     return false;
   }
-  const a = levelHere(ctx, c, host);
-  const title = a?.title ?? q?.title ?? c.manifest.title ?? host;
+  const a = c ? levelHere(ctx, c, host) : bare;
+  const title = a?.title ?? q?.title ?? c?.manifest.title ?? host;
   const tree = root ? Tree.open(root, ctx.env) : undefined;
   const hosts = all && all.length > 1 ? all : [host];
   // the command's target: the downloader for all its hosts at once, else the host — with every host of its question
   // (strom allow archive decides a question of one archive for all its hosts)
-  const target = hosts.length > 1 && hosts.some((h) => !q?.archiveHosts?.includes(h)) ? c.name : host;
+  const target = c && hosts.length > 1 && hosts.some((h) => !q?.archiveHosts?.includes(h)) ? c.name : host;
   out("");
   out(` ${t("ui.archive.item", { title, host: hosts.join(", ") })}`);
   out(`    ${termsText(lang, ctx.env, { host, ...(a?.quote ? { quote: a.quote } : q?.quote ? { quote: q.quote } : {}), ...(a?.terms ?? q?.terms ? { terms: (a?.terms ?? q?.terms)! } : {}), ...(a?.quoteBy ? { quoteBy: a.quoteBy } : q?.quoteBy ? { quoteBy: q.quoteBy } : {}) })}`);
@@ -84,7 +87,7 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   // a level no permission opens (by hand only, nothing at all): said, and who lifts it — only where lifting it would
   // open a way (its downloader gives images, the archive refuses strom nothing); else the images go by hand
   if (a && (a.level === "manual" || a.level === "forbidden")) {
-    out(`    ${t(givesImages(c) && !a.refused ? "ui.archive.closed" : "ui.archive.closed.hand", { title, level: levelWords(lang, a.level, false, a.from), host: target })}`);
+    out(`    ${t(c && givesImages(c) && !a.refused ? "ui.archive.closed" : "ui.archive.closed.hand", { title, level: levelWords(lang, a.level, false, a.from), host: target })}`);
     await pause(ctx, lang);
     return false;
   }
@@ -93,9 +96,10 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const allowed = a?.level === "allowed";
   if (allowed) {
     out(`    ${t("ui.archive.allowed.line", { level: levelWords(lang, "allowed") })}`);
-    out(`    ${t("ui.archive.pace.service", { pace: paceWords(lang, archivesOverview(ctx).find((r) => r.host === host && r.connector === c.name)?.pace ?? slow), host })}`);
+    out(`    ${t("ui.archive.pace.service", { pace: paceWords(lang, archivesOverview(ctx).find((r) => r.host === host && r.connector === c?.name)?.pace ?? slow), host })}`);
   } else out(`    ${t("ui.archive.pace.line", { pace: paceWords(lang, slow), host })}`);
-  const ways: Way[] = allowed ? ["manual"] : waysOffered(c, claudeHere(ctx, tree?.config), q?.way, !!(a?.browserOnly ?? q?.browserOnly));
+  // no downloader: its images through the agent's browser (Claude Code here) or by hand — never slowly through strom
+  const ways: Way[] = allowed ? ["manual"] : c ? waysOffered(c, claudeHere(ctx, tree?.config), q?.way, !!(a?.browserOnly ?? q?.browserOnly)) : [...(claudeHere(ctx, tree?.config) ? (["browser"] as const) : []), "manual"];
   const now = a?.permission;
   const choices: { label: string; way?: Way }[] = ways.map((w) => ({
     way: w,
@@ -116,9 +120,9 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const plan = hosts.flatMap((h) => wakeForArchive(ctx.env, rootsHere(ctx, root), h, { ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}), way: chosen, dry: true }));
   if ((await run(["allow", "archive", target, "--way", chosen], true)) !== 0) return false;
   // the connector's route follows the way chosen: through the browser, or straight through strom
-  const via = routeOf(ctx.env, c).via;
-  if (chosen === "browser" && via !== "browser") await run(["connector", "use", c.name, "--via", "browser"], true);
-  if (chosen === "slow" && via === "browser") await run(["connector", "use", c.name, "--via", "direct"], true);
+  const via = c ? routeOf(ctx.env, c).via : undefined;
+  if (c && chosen === "browser" && via !== "browser") await run(["connector", "use", c.name, "--via", "browser"], true);
+  if (c && chosen === "slow" && via === "browser") await run(["connector", "use", c.name, "--via", "direct"], true);
   out(t("ui.archive.chosen", { title, way: t(chosen === "slow" ? "ui.archive.is.slow" : chosen === "browser" ? "ui.archive.is.browser" : "ui.archive.is.manual") }));
   for (const line of wokenLines(lang, plan, root)) out(line);
   return true;

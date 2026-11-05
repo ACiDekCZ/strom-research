@@ -348,6 +348,11 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   const before = await settings();
   assert.ok(!before.allow.some((r: string) => r.startsWith("mcp__claude-in-chrome")), "no browser without a connector that uses it");
   assert.ok(before.deny.includes("mcp__claude-in-chrome__file_upload"), "never a file of this computer uploaded to a site");
+  // the desktop app's own browser, preview and computer use: strom keeps no hook before them, yet switches none off
+  // (the person's choice, 5 November 2026) — nor the browser strom's hook watches
+  for (const t of ["mcp__Claude_Browser", "mcp__Claude_Preview", "mcp__Claude_in_Chrome", "mcp__computer-use", "mcp__remote-devices", "enable__mcp__remote-devices__Claude_Browser", "enable__mcp__remote-devices__computer"])
+    assert.ok(!before.deny.some((r: string) => r === t || r.startsWith(`${t}__`)), t);
+  assert.ok(!before.deny.some((r: string) => r === "mcp__claude-in-chrome" || r === "mcp__claude-in-chrome__navigate"), "the browser strom watches is not denied");
   assert.ok(before.deny.some((r: string) => /^Read\(.*\/Downloads\/\*\*\)$/.test(r)), "the downloads folder is the user's");
   // agent.browser always (the user's choice, never an agent's): the browser in every session, for the sites of the archives
   w.env.CLAUDECODE = "1";
@@ -358,6 +363,7 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   assert.ok(always.allow.includes("mcp__claude-in-chrome__navigate"));
   assert.ok(always.allow.includes("ClaudeInChromeDomain(127.0.0.1)"), "the connectors' sites without asking");
   assert.ok(always.deny.includes("mcp__claude-in-chrome__file_upload"), "still never an upload");
+  assert.ok(!always.deny.includes("mcp__Claude_Browser") && !always.deny.includes("mcp__computer-use"), "the desktop app's own browser not switched off");
   await w.ok(["config", "unset", "agent.browser"]);
   assert.ok(!(await settings()).allow.some((r: string) => r.startsWith("mcp__claude-in-chrome")), "back: none");
   const m = readJsonFile(path.join(dir, "connector.json"));

@@ -68,3 +68,13 @@ test("a check whether a person is there is a small page with little else — the
   assert.equal(botCheck(`<html><body>${"<p>Matriky farnosti, rok 1850, oddíl Z.</p>".repeat(500)}<script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script></body></html>`), undefined, "Cloudflare's beacon on a real page");
   assert.equal(botCheck("<html><body><form><div class='g-recaptcha'></div></form></body></html>"), "a captcha");
 });
+
+test("Anubis (a proof of work in the browser): its challenge page in any language is a check whether a person is there — a page it guards is not", () => {
+  const challenge = (title: string) =>
+    `<!doctype html><html lang="de"><head><title>${title}</title><link rel="stylesheet" href="/.within.website/x/xess/xess.min.css?cachebuster=v1.27.0"><script id="anubis_version" type="application/json">"v1.27.0"</script><script id="anubis_challenge" type="application/json">{"rules":{"algorithm":"metarefresh","difficulty":1},"challenge":{"id":"0","method":"metarefresh","difficulty":1}}</script></head><body><main><h1 id="title">${title}</h1><img src="/.within.website/x/cmd/anubis/static/img/pensive.webp"><p id="status">…</p></main><footer><p>Geschützt durch <a href="https://github.com/TecharoHQ/anubis">Anubis</a></p></footer></body></html>`;
+  assert.equal(botCheck(challenge("Dein Browser wird geprüft!")), "Anubis");
+  assert.equal(botCheck(challenge("Making sure you&#39;re not a bot!")), "Anubis");
+  assert.equal(botCheck(Buffer.from(challenge("Sprawdzanie przeglądarki – Lhota"))), "Anubis");
+  // a page of the site it guards, once passed: none
+  assert.equal(botCheck(`<html><head><title>Ortsfamilienbuch Lhota</title></head><body>${"<p>Lhoták, Jan, * 1850 in Lhota, ⚭ 1875.</p>".repeat(400)}<a href="/.within.website/x/cmd/anubis/api/logout">Abmelden</a></body></html>`), undefined);
+});

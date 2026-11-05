@@ -28,9 +28,14 @@
 //     or another request under way, only past web.perHost. Past the soft threshold the site's slower pace holds in a
 //     conversation too: a call it cannot take in time is refused as one of many at once (nothing asked).
 //
+//   - the agent's browser (Claude in Chrome's navigate, core/chromehook.ts) goes through the same answer as a web fetch
+//     on the route of a person's browser (webgate.ts browserGate): recorded via "web" under the tool's own name, counted
+//     and paced with the web fetches of the same site; an archive only a person's browser goes to at a person's pace.
+//
 // The hook never stands in the way by itself: anything wrong (no tree, no strom, a line it cannot read) lets the call go
 // without a word. Waiting for its turn at a host is no error. It fetches nothing itself, robots.txt neither.
 
+import { bridgeRefusal, fetchReachesBridge } from "./bridgeguard.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { agentRequest, clock, hostAllowed, type AgentSlot, type HostRefusal } from "./net.ts";
@@ -45,7 +50,9 @@ import { Settings } from "./config.ts";
 import { calibrationKey, viewModel } from "./viewsizes.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
-import { otherWay, webGate, type WebGate } from "./webgate.ts";
+import { browserGate, otherWay, webGate, type WebGate } from "./webgate.ts";
+import { humanPace } from "./terms.ts";
+import { CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "./browser.ts";
 import { searchText } from "./knownterms.ts";
 import { forHistory } from "./pastevents.ts";
 import type { Env } from "./paths.ts";
@@ -101,6 +108,8 @@ export interface WebEvent {
   phase?: "post" | "failed";
   /** What a failed call's agent said of it. */
   error?: string;
+  /** Claude in Chrome's navigate (core/chromehook.ts): the browser's route — counted with the web fetches of its site. */
+  browser?: true;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
@@ -228,6 +237,8 @@ export interface ConnectorWay {
   of?: string;
   /** A session on a task of history: its pages through strom history page — never a connector or a task. */
   history?: true;
+  /** Through the browser (Claude in Chrome): an archive only a person's browser goes to is open to it, one page at a time. */
+  browser?: true;
 }
 
 /**
@@ -295,7 +306,7 @@ const dq = (s: string) => `"${s.replace(/["\\$`]/g, "")}"`;
  * through strom fetch — a task for it only where no time is left (STROM_DEADLINE within CONNECTOR_MIN_MS, or the
  * session asked to finish) or the server does not allow automated access, said why.
  */
-export function connectorWay(o: { host: string; netHost: string; shared: string | undefined; tree: Tree; session?: Session | undefined; env: Env; now?: number; closed?: ConnectorWay["closed"] }): ConnectorWay {
+export function connectorWay(o: { host: string; netHost: string; shared: string | undefined; tree: Tree; session?: Session | undefined; env: Env; now?: number; closed?: ConnectorWay["closed"]; browser?: boolean }): ConnectorWay {
   const have = o.shared ? siteConnector(o.shared, o.netHost) : undefined;
   const name = connectorName(o.netHost);
   const url = `https://${o.host}/`;
@@ -313,7 +324,7 @@ export function connectorWay(o: { host: string; netHost: string; shared: string 
     person ? `--about ${person}` : "",
     research ? `--research ${research}` : "",
   ].filter(Boolean).join(" ");
-  return { ...(have ? { have } : {}), name, url, later, task: add, ...(o.closed ? { closed: o.closed } : {}), ...(task ? { of: task.id } : {}), ...(task && forHistory(task) ? { history: true as const } : {}) };
+  return { ...(have ? { have } : {}), name, url, later, task: add, ...(o.closed ? { closed: o.closed } : {}), ...(task ? { of: task.id } : {}), ...(task && forHistory(task) ? { history: true as const } : {}), ...(o.browser ? { browser: true as const } : {}) };
 }
 
 const NEVER = "Never go round it (curl, another tool, another address of the same server). Single searches stay free.";
@@ -337,6 +348,9 @@ export function wayText(host: string, way: ConnectorWay): string {
     return way.have
       ? `Its connector ${way.have} reads its catalogue (strom fetch ${way.have} --find "<place>", --list <book>); its images by hand only: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>". For the rest another way first. ${GO_ON}`
       : `Its archive allows its images by hand only — no connector to build for its images: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"; its catalogue one page at a time within the limit. ${GO_ON}`;
+  // only a person's browser goes there, and the browser does: one page at a time, its images strom's or by hand
+  if (way.closed === "browser" && way.browser)
+    return `Only a person's browser goes to this archive: its pages one at a time at a person's pace, never a series of them; its images through strom fetch with its connector by the browser route (the person's permission "through the browser"), else by hand: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>". ${GO_ON}`;
   if (way.closed) return `This site lets strom read no more of it (${way.closed === "refused" ? "it refused strom's client" : way.closed === "forbidden" ? "its terms forbid automated access" : "only a person's browser goes there"}): no connector, no browser. ${otherWay(host, way.url, way.of)}`;
   // a session of history: a page of it read by strom itself, once — the same read strom history add checks the quote on
   if (way.history)
@@ -386,8 +400,21 @@ function softText(host: string, site: string, soft: number, perHost: number): st
  * (the command lets the call go then).
  */
 export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; now?: () => number; sleep?: (ms: number) => Promise<void> }): Promise<WebAnswer> {
+  const a = await answerWeb(ev, o);
+  if (!ev.browser) return a;
+  // the browser's navigate counts with the web fetches of its site: the agent hears both named
+  const both = (t: string | undefined) => t?.replace(/the web fetch tool/g, "your web tools (the web fetch tool and the browser)");
+  return { ...a, ...(a.reason ? { reason: both(a.reason)! } : {}), ...(a.context ? { context: both(a.context)! } : {}) };
+}
+
+async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => number; sleep?: (ms: number) => Promise<void> }): Promise<WebAnswer> {
   const root = findTreeUpwards(ev.cwd && path.isAbsolute(ev.cwd) ? ev.cwd : o.cwd);
   if (!root) return {};
+  // the bridge is the person's (core/bridgeguard.ts): never fetched by the agent, whatever the metrics
+  if (!ev.phase && ev.url) {
+    const why = fetchReachesBridge(ev.url, root);
+    if (why) return { decision: "deny", reason: bridgeRefusal(why) };
+  }
   const tree = Tree.open(root, o.env);
   if (!metricsOn(tree)) return {};
   const session = currentSession(tree, o.env);
@@ -436,7 +463,9 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
   // what the archive's terms let the agent's own tool do here (core/webgate.ts; read only, before the host's lock)
   let gate: WebGate | undefined;
   if (!ev.phase && !seen()) {
-    gate = webGate({ env: o.env, tree, url: ev.url!, shared, agent: ev.agent, ...(session?.task ? { task: session.task } : {}), ...(o.now ? { now: o.now() } : {}) });
+    const g = { env: o.env, tree, url: ev.url!, shared, agent: ev.agent, ...(session?.task ? { task: session.task } : {}), ...(o.now ? { now: o.now() } : {}) };
+    // the browser's navigate: the same gate on a person's browser's route (an archive only a browser goes to opens to it)
+    gate = ev.browser ? browserGate(g) : webGate(g);
     if (!gate.allow) {
       const record: AgentWebRecord = { ...base, decision: "deny", why: gate.why ?? "terms", n: webRequestsOf(root, who).domains.get(site) ?? 0 };
       recordWebRequest(tree, o.env, record);
@@ -445,7 +474,7 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
   }
   const lvl = gate?.level;
   const closed: ConnectorWay["closed"] = lvl ? (lvl.refused ? "refused" : lvl.level === "forbidden" ? "forbidden" : lvl.browserOnly ? "browser" : lvl.level === "manual" ? "manual" : undefined) : undefined;
-  const way = () => connectorWay({ host, netHost: ev.netHost ?? host, shared, tree, session, env: o.env, ...(o.now ? { now: o.now() } : {}), ...(closed ? { closed } : {}) });
+  const way = () => connectorWay({ host, netHost: ev.netHost ?? host, shared, tree, session, env: o.env, ...(o.now ? { now: o.now() } : {}), ...(closed ? { closed } : {}), ...(ev.browser ? { browser: true } : {}) });
   /**
    * A call the hard threshold (many) or the host's pace (a slot too far: pace; its turn not had: busy) holds back. The
    * pace: refused in a run (one request at a time) and past the soft threshold (the site's slower pace, in a
@@ -542,6 +571,8 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
       maxWaitMs: WEB_WAIT_MAX_MS,
       wait: !ev.phase,
       lockWaitMs: WEB_LOCK_WAIT_MS,
+      // through a person's browser to an archive that asks it (browserGate): a person's pace, the slower of it and the host's
+      ...(gate?.human ? { human: humanPace(o.env) } : {}),
       // the site's requests kept together: past the soft threshold one per WEB_SOFT_GAP_MS to all its hosts
       site: {
         key: site,
@@ -633,15 +664,16 @@ export function treeHookCommand(root: string, args: string, platform: NodeJS.Pla
 
 /**
  * Claude Code's hooks of the tree (its .claude/settings.json): strom's before each web fetch and search, and after each
- * web fetch ran or failed — where a call the person was asked about went out and is counted.
+ * web fetch ran or failed — where a call the person was asked about went out and is counted; the same for the browser's
+ * navigate (Claude in Chrome), and before each of its tools on a page (core/chromehook.ts).
  */
 export function claudeWebHooks(root: string, platform: NodeJS.Platform = process.platform): Record<string, unknown> {
   const { command, shell } = webHookCommand(root, platform);
   const hooks = [{ type: "command", command, timeout: WEB_HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }];
   return {
-    PreToolUse: [{ matcher: "WebFetch|WebSearch", hooks }],
-    PostToolUse: [{ matcher: "WebFetch", hooks }],
-    PostToolUseFailure: [{ matcher: "WebFetch", hooks }],
+    PreToolUse: [{ matcher: "WebFetch|WebSearch", hooks }, { matcher: CHROME_HOOK_MATCHER, hooks }],
+    PostToolUse: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }],
+    PostToolUseFailure: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }],
   };
 }
 
