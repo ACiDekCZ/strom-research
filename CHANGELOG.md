@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.27.0
 
-*In preparation: the betas up to 1.27.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.27.0-beta.3. The section is complete with the release.*
 
 - **Images saved by hand bring their task back by themselves.** Where an archive's images are saved by hand – an archive
   only a person's browser reaches, or one whose terms allow nothing else – the research asks for its book and the
@@ -38,14 +38,14 @@ The changes of each version in short. The full notes and the install lines are o
   path its robots.txt keeps off and the bridge stay closed to it. An archive only a person's browser reaches opens to it
   only with the person's permission "through the browser", one page at a time at a person's pace. The Strom app's
   Permission… at what waits for such an archive's images opens this question, also where no downloader reaches the
-  archive. The browser or computer use of another agent – Codex, Antigravity – has no such check: it never goes to such
-  an archive, and the person saves the images by hand. `strom doctor`, the agent's brief and What waits say once which
-  agent and browser extension would let the agent save them itself, or that the extension is missing. The browser and
-  computer use of the agents' desktop apps stay off in a research – in a conversation and in the ChatGPT app too; the
-  research watches the agent's browser in Chrome. `strom doctor` and the agent's brief say so in words, and the agent is
-  told never to work in a copy of the research an agent's desktop app opens in a worktree of its own. The Strom app
-  learns from the bridge whether the agent's browser is ready, the extension is missing, or the agent has none the
-  research keeps.
+  archive. The browser or computer use of another agent – Codex, Antigravity – has no such check: the agent does not
+  take it to such an archive on its own, and the person saves the images by hand. `strom doctor`, the agent's brief and
+  What waits say once which agent and browser extension would let the agent save them itself, or that the extension is
+  missing. Nothing is switched off: the browser and computer use of the agents' desktop apps the research does not
+  watch, nor does it recommend them – it watches the agent's browser in Chrome, and the agent uses another only when the
+  person asks for it explicitly. `strom doctor` and the agent's brief say so in words, and the agent is told never to
+  work in a copy of the research an agent's desktop app opens in a worktree of its own. The Strom app learns from the
+  bridge whether the agent's browser is ready, the extension is missing, or the agent has none the research keeps.
 
 - **The agent's browser saves the images itself, one at a time.** Where the person allows an archive only a person's
   browser reaches "through the browser", the agent opens one image in Chrome and saves what the archive's own viewer
@@ -71,13 +71,18 @@ The changes of each version in short. The full notes and the install lines are o
   back at once – no longer only after 60 days – and `strom recent` says so.
 
 - More archives of Czechia, Germany and Poland are known with their terms – what each allows automated tools, its pace
-  and what only a person's browser reaches. Five more of Czechia only a person's browser reaches: the Acta Publica of
-  the Moravian Land Archives (its images no longer through a downloader, even with a permission given before – kept as
-  given; through the browser at least 4 seconds apart), the eBadatelna of SOA Praha and the image servers of SOA
-  Litoměřice, ZA Opava and the National Archives' police registrations (by hand only). The digital reading rooms of SOA
-  Litoměřice and ZA Opava show their images from those servers, so their images are saved by hand too – no permission
-  "through the browser" is offered there. A downloader made earlier for such an archive is refused before any request,
-  its probe too, and says what remains: the person's permission "through the browser", or saving by hand.
+  and what only a person's browser reaches. Among them now the city archives of Brno and Ostrava, the Military Central
+  Archive, Arcinsys of Hesse, of Lower Saxony and Bremen and of Schleswig-Holstein, the Bundesarchiv's invenio and its
+  memorial book (only a person's browser), AGAD's galleries of the registers of the former eastern territories, LubGens
+  (only a person's browser) and the indexes of Polish genealogical societies. Five more of Czechia only a person's
+  browser reaches: the Acta Publica of the Moravian Land Archives (its images no longer through a downloader, even with
+  a permission given before – kept as given; through the browser at least 4 seconds apart), the eBadatelna of SOA Praha
+  and the image servers of SOA Litoměřice, ZA Opava and the National Archives' police registrations (by hand only). The
+  digital reading rooms of SOA Litoměřice and ZA Opava show their images from those servers, so their images are saved
+  by hand too – no permission "through the browser" is offered there. A task waiting for such images already is said
+  only to wait for the images saved by hand, with no new advice to wait. A downloader made earlier for such an archive
+  is refused before any request, its probe too, and says what remains: the person's permission "through the browser", or
+  saving by hand.
 
 - With all of 1.26.1: a write cut short no longer blocks the research for good.
 

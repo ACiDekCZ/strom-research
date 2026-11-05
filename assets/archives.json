@@ -1247,6 +1247,433 @@
       ],
       "scope": "society pages; the database itself is app.geshergalicia.org; no terms of use found",
       "checked": "2026-11-04"
+    },
+    {
+      "host": "na.gov.cz",
+      "name": "Národní archiv (website)",
+      "level": "unknown",
+      "robots": "User-agent: Scrapy · Allow: / · User-agent: * · Disallow: (nothing closed)",
+      "scope": "the archive's website (help, pages on its police registrations and Jewish registers); its records are on portal.nacr.cz, its images on digitalnibadatelna.nacr.cz, vademecum.nacr.cz and digi.nacr.cz — a person's browser only; no terms of use of its images found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.nacr.cz",
+      "name": "Národní archiv (website, old address)",
+      "level": "unknown",
+      "scope": "the same website as na.gov.cz; its images are on digitalnibadatelna.nacr.cz, vademecum.nacr.cz and digi.nacr.cz — a person's browser only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.vuapraha.cz",
+      "name": "Vojenský ústřední archiv (Vojenský historický archiv: databases, military registers)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: /wp-admin/ · Allow: /wp-admin/admin-ajax.php",
+      "scope": "its databases (legionnaires, the fallen of both world wars, Czechoslovak units abroad) and previews of the military registers (death registers of the k.u.k. infantry regiments 1914–1918 and others): one query or one page at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digitalnistudovna.army.cz",
+      "name": "Ministerstvo obrany – Digitální studovna (Kramerius: military registers of VÚA and VHÚ)",
+      "level": "unknown",
+      "robots": "none (the path answers the application's page)",
+      "scope": "the military registers the Military Central Archive publishes step by step: one page at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digiarchiv.brno.cz",
+      "name": "Archiv města Brna (Digitální archiv: census records)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: (nothing closed)",
+      "scope": "Brno's census records 1850, 1857, 1870, 1880, 1890, 1900 and 1921 with their name index, in a JavaScript application: one record at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "archivalie.brno.cz",
+      "name": "Archiv města Brna (Archivní Vademecum)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://archivalie.brno.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "a person's browser only: robots.txt closes it to every robot and its terms are not published; the person opens and saves the record, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "archiv.brno.cz",
+      "name": "Archiv města Brna (website)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: */rest/* (JoobleBot, SemrushBot: Disallow: /)",
+      "scope": "the archive's website; its census records are on digiarchiv.brno.cz, its Vademecum on archivalie.brno.cz (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "badatelna.ostrava.cz",
+      "name": "Archiv města Ostravy (Digitální badatelna)",
+      "level": "restricted",
+      "terms": "https://badatelna.ostrava.cz/vademecum/",
+      "quote": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Archivu města Ostravy a uvedením řádné citace.",
+      "robots": "none (robots.txt redirects to /vademecum/)",
+      "scope": "census records, domicile registers and books of registered residents, cemetery and cremation books, chronicles of Ostrava: one record at a time; nothing published without the archive's consent and a citation; its terms say nothing of downloading or automated tools",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "amo.ostrava.cz",
+      "name": "Archiv města Ostravy (website)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "the archive's website; its records and images are on badatelna.ostrava.cz",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "arcinsys.hessen.de",
+      "name": "Arcinsys Hessen (Hessisches Landesarchiv)",
+      "level": "unknown",
+      "terms": "https://arcinsys.hessen.de/arcinsys/information.action",
+      "robots": "Sitemap only (nothing closed)",
+      "scope": "finding aids of Hesse's archives and the digitised civil registers (Personenstandsnebenregister) released online within the legal periods (births 110, marriages 80, deaths 30 years): one record and one image at a time; no terms of use of its images found (its information page: privacy and Impressum only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "arcinsys.niedersachsen.de",
+      "name": "Arcinsys Niedersachsen und Bremen (Niedersächsisches Landesarchiv, Staatsarchiv Bremen)",
+      "level": "unknown",
+      "terms": "https://www.arcinsys.niedersachsen.de/arcinsys/information.action",
+      "robots": "Sitemap only (nothing closed; arcinsys.niedersachsen.de redirects to www.)",
+      "scope": "finding aids of Lower Saxony's and Bremen's archives and part of their digitised records (Bremen's civil registers 1811–1875 and from 1874/76, pedigree tables, passport registers): one record and one image at a time; no terms of use of its images found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "arcinsys.schleswig-holstein.de",
+      "name": "Arcinsys Schleswig-Holstein (Landesarchiv Schleswig-Holstein)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "finding aids of Schleswig-Holstein's archives: one record at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "landesarchiv.hessen.de",
+      "name": "Hessisches Landesarchiv (website)",
+      "level": "unknown",
+      "robots": "Drupal's own paths; Crawl-delay commented out; BUbiNG, SemrushBot …: Disallow: / (no AI agent named)",
+      "scope": "the archive's website and guides; its records and civil registers are in Arcinsys Hessen (arcinsys.hessen.de)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "invenio.bundesarchiv.de",
+      "name": "Bundesarchiv (invenio)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://invenio.bundesarchiv.de/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "termsPage": "https://www.bundesarchiv.de/im-archiv-recherchieren/archivgut-einsehen-und-nutzen/digitalisate/",
+      "termsPageSays": "Die über invenio bereitgestellten Unterlagen können Sie eigenständig einsehen.",
+      "scope": "a person's browser only: robots.txt closes it to every robot; the person searches and saves the digitised file, the agent reads the saved file; records under legal restrictions only with the person's eID",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "apps.bundesarchiv.de",
+      "name": "Bundesarchiv (Gedenkbuch, applications)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://apps.bundesarchiv.de/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "a person's browser only: robots.txt closes it to every robot; the memorial book of the victims of the persecution of the Jews 1933–1945 — the person searches and saves the record (PDF, CSV), the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.bundesarchiv.de",
+      "name": "Bundesarchiv (website)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: /*? · /suche/ · /typo3/ … · Crawl-delay: 30 (Meta-WebIndexer, Googlebot-News: Disallow: /)",
+      "pace": {
+        "minIntervalMs": 30000
+      },
+      "scope": "the archive's website and guides, at its pace (Crawl-delay 30); its records are on invenio.bundesarchiv.de, the memorial book on apps.bundesarchiv.de (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "bestaende-landesarchiv.saarland.de",
+      "name": "Landesarchiv Saarland (online catalogue)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "part of the archive's finding aids only (civil registers among them): no images of registers online; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "blha.brandenburg.de",
+      "name": "Brandenburgisches Landeshauptarchiv (website)",
+      "level": "unknown",
+      "terms": "https://blha.brandenburg.de/blha/de/rechercheratgeber/familienforschung/",
+      "robots": "crawl-delay: 10 (before the first group) · SemrushBot: Disallow: /",
+      "pace": {
+        "minIntervalMs": 10000
+      },
+      "scope": "the archive's website and guides for family history, at a pace of 10 s; its church-book duplicates (Rep. 5KB) are on blha-recherche.brandenburg.de (a person's browser only); no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "landesarchiv.sachsen-anhalt.de",
+      "name": "Landesarchiv Sachsen-Anhalt",
+      "level": "unknown",
+      "robots": "none (404; recherche. too)",
+      "scope": "its catalogue recherche.landesarchiv.sachsen-anhalt.de (about 4.5 million images of nearly 40,000 records, church books rarely among them): one record and one image at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.archive-in-thueringen.de",
+      "name": "Archive in Thüringen (portal)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "a shared overview of Thuringia's archives (holdings and contacts): no images; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.kulturwerte-mv.de",
+      "name": "Landesamt für Kultur und Denkmalpflege Mecklenburg-Vorpommern (Landesarchiv)",
+      "level": "unknown",
+      "robots": "User-agent: * · Crawl-delay: 1 · Disallow: /datenschutzerklaerung-wisimv-app",
+      "pace": {
+        "minIntervalMs": 1000
+      },
+      "scope": "the office the Landesarchiv belongs to: website and catalogues only; the registers of Mecklenburg and Pomerania are on Archion or in the archive",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "ariadne-portal.uni-greifswald.de",
+      "name": "Ariadne (Archivportal Mecklenburg-Vorpommern)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "finding aids of Mecklenburg-Vorpommern's archives: no images; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.ezab.de",
+      "name": "Evangelisches Zentralarchiv in Berlin (Kirchenbuchstelle)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "information on the Protestant church books of the former eastern provinces it keeps: their images only on Archion (paid; its terms forbid automated reading) or in its reading room",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.staatsarchiv.bremen.de",
+      "name": "Staatsarchiv Bremen (website)",
+      "level": "unknown",
+      "robots": "empty (nothing closed)",
+      "scope": "the archive's website and guides; its images of civil registers and passport registers are in Arcinsys Niedersachsen und Bremen, the passenger lists on www.public-juling.de",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "die-maus-bremen.info",
+      "name": "Die MAUS – Gesellschaft für Familienforschung (Bremen indexes)",
+      "level": "unknown",
+      "robots": "none (robots.txt answers the home page)",
+      "scope": "indexes of Bremen's civil records and marriages, linked to the images in Arcinsys: one query at a time; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "nla.niedersachsen.de",
+      "name": "Niedersächsisches Landesarchiv (website)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: /test/ · /ps/ · /public/ …",
+      "scope": "the archive's website; its records are in Arcinsys Niedersachsen und Bremen",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "agad.gov.pl",
+      "name": "Archiwum Główne Akt Dawnych (AGAD)",
+      "level": "unknown",
+      "terms": "https://agad.gov.pl/inwentarze/uwagigen.html",
+      "robots": "User-agent: * · Disallow: /wp-admin",
+      "scope": "its website, the inventories (XML/HTML) of the registers of the former eastern territories (fonds 298–557) and their links to the image galleries on agadd.home.net.pl and agadd2.home.net.pl; no terms of use of the images found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "agadd.home.net.pl",
+      "name": "Archiwum Główne Akt Dawnych (image galleries of the registers)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "static galleries of the registers of the former eastern territories (Roman and Greek Catholic, Protestant, Jewish), linked from AGAD's inventories: one image at a time, never a whole book; registers younger than 100 (births) or 80 years (marriages, deaths) are not in them; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "agadd2.home.net.pl",
+      "name": "Archiwum Główne Akt Dawnych (image galleries of the registers)",
+      "level": "unknown",
+      "scope": "static galleries of registers linked from AGAD's inventories: one image at a time, never a whole book; no terms of use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "archiwum.mkw.pl",
+      "name": "Archiwum Archidiecezjalne Warszawskie (AAW)",
+      "level": "unknown",
+      "terms": "https://archiwum.mkw.pl/genealogia/",
+      "robots": "User-agent: * · Disallow: /wp-admin/",
+      "scope": "the archive's website and a catalogue of its books; its register images are published on metryki.genealodzy.pl under PTG's terms",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "ank.gov.pl",
+      "name": "Archiwum Narodowe w Krakowie",
+      "level": "unknown",
+      "robots": "comments only (Cloudflare's content signals), no rules",
+      "scope": "the archive's website; its images are on szukajwarchiwach.gov.pl (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "katowice.ap.gov.pl",
+      "name": "Archiwum Państwowe w Katowicach",
+      "level": "unknown",
+      "terms": "https://katowice.ap.gov.pl/ap/online",
+      "robots": "none (404)",
+      "scope": "the archive's website: no images of its own — they are on szukajwarchiwach.gov.pl, sbc.org.pl, siliusradicum.pl and metryki.genealodzy.pl, each under its own terms",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "wroclaw.ap.gov.pl",
+      "name": "Archiwum Państwowe we Wrocławiu",
+      "level": "unknown",
+      "robots": "Drupal's own paths only (wroclaw.ap.gov.pl redirects to www.)",
+      "scope": "the archive's website; its images are on szukajwarchiwach.gov.pl (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "lublin.ap.gov.pl",
+      "name": "Archiwum Państwowe w Lublinie",
+      "level": "unknown",
+      "robots": "calendar paths only",
+      "scope": "its own indexes (residents of Lublin 1930–1950 from house books, of Kock, of Radzyń: a name and the reference only), one query at a time; its images are on szukajwarchiwach.gov.pl; no terms of online use found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "lubgens.eu",
+      "name": "LubGens (Lubelskie Towarzystwo Genealogiczne: regestry.lubgens.eu)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "not read: regestry.lubgens.eu answers 403 to strom's User-Agent, in a headless browser too (2026-11-03)",
+      "scope": "the register abstracts of the Lublin region: only in the person's browser; its terms not read",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "ptg.gda.pl",
+      "name": "Pomorskie Towarzystwo Genealogiczne (PomGenBaza)",
+      "level": "unknown",
+      "robots": "Crawl-Delay: 2 · Disallow: /wp-admin/ · Disallow: /wp-admin/admin-ajax.php (the search goes through it)",
+      "disallow": [
+        "/wp-admin/"
+      ],
+      "pace": {
+        "minIntervalMs": 2000
+      },
+      "scope": "indexes of Pomerania's registers, cemeteries and memorials: its search goes through a path its robots.txt closes — searched by the person; no terms of use found (its \"Regulamin\" is the society's rules)",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "projektmazury.org",
+      "name": "Projekt Mazury",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "indexes of Masuria's and Warmia's registers, civil records, casualty lists and cemeteries: one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "poznan-project.psnc.pl",
+      "name": "Poznan Project (marriages of Greater Poland 1800–1899)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "an index of about 2 million marriages, without images: one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "recesy.wtg-gniazdo.org",
+      "name": "Recesy (WTG Gniazdo)",
+      "level": "unknown",
+      "robots": "none (redirects to /pl/)",
+      "scope": "an index of the enfranchisement records 1823–1910 of seven districts of Greater Poland: one query at a time; only a payment regulation found, no terms of use (its HTTPS certificate does not match)",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "genealodzy.czestochowa.pl",
+      "name": "Towarzystwo Genealogiczne Ziemi Częstochowskiej",
+      "level": "unknown",
+      "robots": "Joomla's own directories only",
+      "scope": "indexes of the registers of the Częstochowa region (/indeksy-metrykalne/wyszukiwarka): one query at a time; its \"Regulamin\" is a privacy policy, no terms of use",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "szukaj.garwolin.org",
+      "name": "Garwolin (spisy pozametrykalne)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "indexes of the Garwolin district beyond the registers (lists, guilds, exhumations): one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "wolyn-metryki.pl",
+      "name": "Wołyń-Metryki",
+      "level": "unknown",
+      "robots": "none (404, www. too)",
+      "scope": "indexes of the registers of the Lutsk diocese, linking to the images at AGAD (agadd.home.net.pl), FamilySearch and Szukaj w Archiwach — each under its own terms: one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "search.jzi.org.pl",
+      "name": "Geneo (Stowarzyszenie JZI)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "an index of Podlasie's registers (/geneo/): one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "twoiprzodkowie.pl",
+      "name": "Twoi Przodkowie",
+      "level": "unknown",
+      "scope": "a small site of the Garwolin region, most pages in preparation; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "e-kartoteka.net",
+      "name": "e-kartoteka (registration cards of Poznań 1870–1931)",
+      "level": "unknown",
+      "robots": "none (robots.txt redirects to /pl/)",
+      "scope": "an index of the residents' registration cards of Poznań (Archiwum Państwowe w Poznaniu): one query at a time; the card's image is on szukajwarchiwach.gov.pl (a person's browser only); no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "indeksrepresjonowanych.pl",
+      "name": "Indeks Represjonowanych (IPN)",
+      "level": "unknown",
+      "robots": "none (404)",
+      "scope": "about 316,000 biographical notes of victims of Soviet repressions: one query at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "pbc.gda.pl",
+      "name": "Pomorska Biblioteka Cyfrowa",
+      "level": "unknown",
+      "robots": "dLibra's standard",
+      "scope": "a regional digital library (dLibra): one object at a time; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "kpbc.umk.pl",
+      "name": "Kujawsko-Pomorska Biblioteka Cyfrowa",
+      "level": "unknown",
+      "robots": "dLibra's standard",
+      "scope": "a regional digital library (dLibra): one object at a time, the rights of each in its field Prawa/AccessRights; no terms of use found (its help only says most publications can be downloaded)",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "polski.mapywig.org",
+      "name": "Mapy WIG (amateur archive of maps 1919–1939)",
+      "level": "unknown",
+      "robots": "Disallow: /administration/ · /locale/ · /themes/ · /print.php",
+      "scope": "maps of the Polish Military Geographical Institute: one map at a time; no terms of use found",
+      "checked": "2026-11-03"
     }
   ]
 }

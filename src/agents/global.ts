@@ -75,8 +75,10 @@ mentions strom, a family tree or the Strom app.
    check with \`strom net web --check <url>\` (a browser: \`--browser\`). A
    browser goes one page at a time at a person's pace, to each address
    directly, never clicking through a series of pages. An archive only a
-   person's browser goes to: only Claude in Chrome (strom's hook before each
-   page) — never another agent's browser or computer use; the person saves
+   person's browser goes to: strom's way is Claude in Chrome (strom's hook
+   before each page) — another agent's browser or computer use strom does not watch:
+   never of your own accord, only on the person's explicit request (said
+   once: strom does not watch it; the archive's terms); the person saves
    its images by hand (\`strom task wait … --images\`), or, allowed
    "through the browser", Claude in Chrome one at a time (\`strom media
    save\`).

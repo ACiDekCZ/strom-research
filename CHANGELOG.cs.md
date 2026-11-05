@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.27.0
 
-*Připravuje se: bety do 1.27.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.27.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Snímky uložené ručně vrátí svůj úkol samy.** Kde se snímky archivu ukládají ručně – archiv, kam smí jen prohlížeč
   člověka, nebo archiv, jehož podmínky nic jiného nedovolují – výzkum požádá o knihu a čísla snímků a připraví pro ně
@@ -35,13 +35,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   který odmítl, cesta, kterou zapovídá jeho robots.txt, i most mu zůstanou zavřené. Archiv, kam smí jen prohlížeč
   člověka, se mu otevře jen se svolením člověka „přes prohlížeč“, po jedné stránce, lidským tempem. Odkaz Svolení… v
   aplikaci Strom u toho, co čeká na snímky takového archivu, otevře tuto otázku, i když k archivu žádný stahovač nevede.
-  Prohlížeč nebo ovládání počítače jiného agenta – Codexu, Antigravity – takovou kontrolu nemá: do takového archivu
-  nikdy nejde a snímky uloží člověk ručně. `strom doctor`, brief agenta a Co čeká jednou řeknou, s jakým agentem a
-  rozšířením prohlížeče by je agent uložil sám, nebo že rozšíření chybí. Prohlížeč a ovládání počítače desktopových
-  aplikací agentů zůstávají ve výzkumu vypnuté – i v konverzaci a v aplikaci ChatGPT; výzkum hlídá prohlížeč agenta v
-  Chrome. `strom doctor` a brief agenta to říkají výslovně a agent ví, že nikdy nepracuje v kopii výzkumu, kterou
-  desktopová aplikace agenta otevře ve vlastním worktree. Aplikace Strom se z mostu dozví, zda je prohlížeč agenta
-  připravený, chybí rozšíření, nebo agent nemá žádný, který výzkum hlídá.
+  Prohlížeč nebo ovládání počítače jiného agenta – Codexu, Antigravity – takovou kontrolu nemá: agent s ním do takového
+  archivu sám nejde a snímky uloží člověk ručně. `strom doctor`, brief agenta a Co čeká jednou řeknou, s jakým agentem a
+  rozšířením prohlížeče by je agent uložil sám, nebo že rozšíření chybí. Nic se nevypíná: prohlížeč a ovládání počítače
+  desktopových aplikací agentů výzkum nehlídá a nedoporučuje – hlídá prohlížeč agenta v Chrome a jiný prohlížeč agent
+  použije, jen když o to člověk výslovně požádá. `strom doctor` a brief agenta to říkají výslovně a agent ví, že nikdy
+  nepracuje v kopii výzkumu, kterou desktopová aplikace agenta otevře ve vlastním worktree. Aplikace Strom se z mostu
+  dozví, zda je prohlížeč agenta připravený, chybí rozšíření, nebo agent nemá žádný, který výzkum hlídá.
 
 - **Prohlížeč agenta uloží snímky sám, po jednom.** Kde člověk archivu, kam smí jen prohlížeč člověka, dovolí přístup
   „přes prohlížeč“, agent otevře v Chrome jeden snímek a uloží to, co ukazuje prohlížeč snímků archivu – nikdy víc, než
@@ -66,13 +66,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   četlo zřetelně méně jistě, hned vrátí – už ne až po 60 dnech – a `strom recent` to uvede.
 
 - Výzkum zná víc archivů Česka, Německa a Polska s jejich podmínkami – co který dovoluje automatickým nástrojům, jeho
-  tempo a kam smí jen prohlížeč člověka. Dalších pět českých, kam smí jen prohlížeč člověka: Acta Publica Moravského
-  zemského archivu (snímky už ne přes stahovač, ani se svolením z dřívějška – to zůstává, jak bylo dané; přes prohlížeč
-  nejméně 4 sekundy od sebe), eBadatelna SOA Praha a obrazové servery SOA Litoměřice, ZA Opava a policejních přihlášek
-  Národního archivu (jen ručně). Digitální badatelny SOA Litoměřice a ZA Opava berou snímky z těchto serverů, takže i
-  jejich snímky se ukládají ručně – svolení „přes prohlížeč“ se u nich nenabízí. Stahovač, vytvořený pro takový archiv
-  dřív, se odmítne před jakýmkoli požadavkem, i jeho zkouška, a řekne, co zbývá: svolení člověka „přes prohlížeč“, nebo
-  ruční uložení.
+  tempo a kam smí jen prohlížeč člověka. Nově mezi nimi archivy měst Brna a Ostravy, Vojenský ústřední archiv, Arcinsys
+  Hesenska, Dolního Saska a Brém a Šlesvicka-Holštýnska, invenio a pamětní kniha Spolkového archivu (jen prohlížeč
+  člověka), galerie matrik bývalých východních území v AGAD, LubGens (jen prohlížeč člověka) a rejstříky polských
+  genealogických spolků. Dalších pět českých, kam smí jen prohlížeč člověka: Acta Publica Moravského zemského archivu
+  (snímky už ne přes stahovač, ani se svolením z dřívějška – to zůstává, jak bylo dané; přes prohlížeč nejméně 4 sekundy
+  od sebe), eBadatelna SOA Praha a obrazové servery SOA Litoměřice, ZA Opava a policejních přihlášek Národního archivu
+  (jen ručně). Digitální badatelny SOA Litoměřice a ZA Opava berou snímky z těchto serverů, takže i jejich snímky se
+  ukládají ručně – svolení „přes prohlížeč“ se u nich nenabízí. U úkolu, který už na takové snímky čeká, se řekne jen,
+  že čeká na snímky uložené ručně, bez nové rady k čekání. Stahovač, vytvořený pro takový archiv dřív, se odmítne před
+  jakýmkoli požadavkem, i jeho zkouška, a řekne, co zbývá: svolení člověka „přes prohlížeč“, nebo ruční uložení.
 
 - Se vším z 1.26.1: přerušený zápis už výzkum natrvalo nezablokuje.
 

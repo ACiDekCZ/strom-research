@@ -2599,7 +2599,7 @@
   "ui.doc.browser.archives.permission": "{names}: tylko przez przeglądarkę człowieka – ze zgodą „przez przeglądarkę” dla archiwum agent zapisze skany sam",
   "ui.doc.browser.archives.ok": "{names}: agent zapisuje skany sam przez przeglądarkę",
   "ui.doc.desktop": "przeglądarka aplikacji desktopowych",
-  "ui.doc.desktop.off": "wbudowana przeglądarka, podgląd i computer use aplikacji desktopowych Claude i ChatGPT/Codex są w badaniu wyłączone – strom pilnuje tylko Claude in Chrome",
+  "ui.doc.desktop.unwatched": "wbudowanej przeglądarki, podglądu i computer use aplikacji desktopowych Claude i ChatGPT/Codex strom nie pilnuje i nie poleca – pilnowany jest tylko Claude in Chrome",
   "ui.waiting.browser.agent": "Z Claude Code i rozszerzeniem Claude in Chrome agent zapisałby je sam (strom nie pilnuje przeglądarki agenta {agent}).",
   "ui.waiting.browser.noext": "Z rozszerzeniem Claude in Chrome agent zapisałby je sam: {url}",
   "ui.waiting.browser.permission": "Ze zgodą „przez przeglądarkę” dla {archive} agent zapisze je sam.",

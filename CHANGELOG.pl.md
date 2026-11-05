@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.27.0
 
-*W przygotowaniu: bety do 1.27.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.27.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Skany zapisane ręcznie same przywracają swoje zadanie.** Tam, gdzie skany archiwum zapisuje się ręcznie – archiwum,
   do którego wolno tylko przeglądarce człowieka, albo takie, którego warunki nie pozwalają na nic innego – badanie
@@ -39,13 +39,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   zamknięte. Archiwum, do którego wolno tylko przeglądarce człowieka, otwiera się dla niego tylko za zgodą człowieka
   „przez przeglądarkę”, strona po stronie, w tempie człowieka. Zgoda… w aplikacji Strom przy tym, co czeka na skany
   takiego archiwum, otwiera to pytanie, także tam, gdzie żaden program do pobierania nie sięga archiwum. Przeglądarka
-  lub sterowanie komputerem innego agenta – Codexa, Antigravity – nie ma takiej kontroli: nigdy nie wchodzi do takiego
-  archiwum, a skany zapisuje człowiek ręcznie. `strom doctor`, brief agenta i Co czeka mówią raz, z jakim agentem i
-  rozszerzeniem przeglądarki agent zapisałby je sam, albo że brakuje rozszerzenia. Przeglądarka i sterowanie komputerem
-  aplikacji desktopowych agentów pozostają w badaniu wyłączone – także w rozmowie i w aplikacji ChatGPT; badanie pilnuje
-  przeglądarki agenta w Chrome. `strom doctor` i brief agenta mówią to wprost, a agent nigdy nie pracuje w kopii
-  badania, którą aplikacja desktopowa agenta otwiera we własnym worktree. Aplikacja Strom dowiaduje się od mostu, czy
-  przeglądarka agenta jest gotowa, brakuje rozszerzenia, czy agent nie ma żadnej, którą badanie pilnuje.
+  lub sterowanie komputerem innego agenta – Codexa, Antigravity – nie ma takiej kontroli: agent nie wchodzi z nią do
+  takiego archiwum sam z siebie, a skany zapisuje człowiek ręcznie. `strom doctor`, brief agenta i Co czeka mówią raz, z
+  jakim agentem i rozszerzeniem przeglądarki agent zapisałby je sam, albo że brakuje rozszerzenia. Nic nie jest
+  wyłączane: przeglądarki i sterowania komputerem aplikacji desktopowych agentów badanie nie pilnuje i ich nie poleca –
+  pilnuje przeglądarki agenta w Chrome, a innej agent używa tylko wtedy, gdy człowiek wyraźnie o to poprosi. `strom
+  doctor` i brief agenta mówią to wprost, a agent nigdy nie pracuje w kopii badania, którą aplikacja desktopowa agenta
+  otwiera we własnym worktree. Aplikacja Strom dowiaduje się od mostu, czy przeglądarka agenta jest gotowa, brakuje
+  rozszerzenia, czy agent nie ma żadnej, którą badanie pilnuje.
 
 - **Przeglądarka agenta sama zapisuje skany, po jednym.** Tam, gdzie człowiek zezwoli archiwum, do którego wolno tylko
   przeglądarce człowieka, na dostęp „przez przeglądarkę”, agent otwiera w Chrome jeden skan i zapisuje to, co pokazuje
@@ -73,14 +74,18 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   recent` to podaje.
 
 - Badanie zna więcej archiwów Czech, Niemiec i Polski wraz z ich warunkami – na co każde pozwala narzędziom
-  automatycznym, jego tempo i dokąd wolno tylko przeglądarce człowieka. Pięć kolejnych czeskich, dokąd wolno tylko
-  przeglądarce człowieka: Acta Publica Morawskiego Archiwum Krajowego (jego skany już nie przez program do pobierania,
-  nawet ze zgodą wydaną wcześniej – pozostaje, jak została dana; przez przeglądarkę co najmniej 4 sekundy odstępu),
-  eBadatelna SOA Praha oraz serwery obrazów SOA Litoměřice, ZA Opava i meldunków policyjnych Archiwum Narodowego (tylko
-  ręcznie). Cyfrowe czytelnie SOA Litoměřice i ZA Opava biorą skany z tych serwerów, więc i ich skany zapisuje się
-  ręcznie – zgody „przez przeglądarkę” się tam nie proponuje. Program do pobierania zrobiony wcześniej dla takiego
-  archiwum zostaje odrzucony przed jakimkolwiek żądaniem, także jego próba, i mówi, co zostaje: zgoda człowieka „przez
-  przeglądarkę” albo zapis ręczny.
+  automatycznym, jego tempo i dokąd wolno tylko przeglądarce człowieka. Nowe wśród nich: archiwa miejskie Brna i
+  Ostrawy, Wojskowe Archiwum Centralne w Pradze, Arcinsys Hesji, Dolnej Saksonii i Bremy oraz Szlezwika-Holsztynu,
+  invenio i księga pamięci Archiwum Federalnego (tylko przeglądarka człowieka), galerie ksiąg metrykalnych dawnych ziem
+  wschodnich w AGAD, LubGens (tylko przeglądarka człowieka) oraz indeksy polskich towarzystw genealogicznych. Pięć
+  kolejnych czeskich, dokąd wolno tylko przeglądarce człowieka: Acta Publica Morawskiego Archiwum Krajowego (jego skany
+  już nie przez program do pobierania, nawet ze zgodą wydaną wcześniej – pozostaje, jak została dana; przez przeglądarkę
+  co najmniej 4 sekundy odstępu), eBadatelna SOA Praha oraz serwery obrazów SOA Litoměřice, ZA Opava i meldunków
+  policyjnych Archiwum Narodowego (tylko ręcznie). Cyfrowe czytelnie SOA Litoměřice i ZA Opava biorą skany z tych
+  serwerów, więc i ich skany zapisuje się ręcznie – zgody „przez przeglądarkę” się tam nie proponuje. Przy zadaniu,
+  które już czeka na takie skany, mówi się tylko, że czeka na skany zapisane ręcznie, bez nowej rady co do czekania.
+  Program do pobierania zrobiony wcześniej dla takiego archiwum zostaje odrzucony przed jakimkolwiek żądaniem, także
+  jego próba, i mówi, co zostaje: zgoda człowieka „przez przeglądarkę” albo zapis ręczny.
 
 - Wraz z całym 1.26.1: przerwany zapis już nie blokuje badania na stałe.
 

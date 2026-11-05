@@ -3,7 +3,9 @@
 // person allowed: the person saves the images by hand, and is told once that with Claude Code and the extension the
 // agent would save them itself. Said by net web --check, strom fetch, task wait, the brief, strom doctor, strom's menu
 // and the bridge's /status (feature browser.state). Codex's own browser and computer use (its desktop app's MCP
-// servers in the person's config) are off with the person's add-ons. No request leaves this computer.
+// servers in the person's config) are off with the person's add-ons only; nothing of the desktop apps' browser or
+// computer use is switched off in a research — strom neither watches nor recommends it (5 November 2026). No request
+// leaves this computer.
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,9 +18,6 @@ import { browserState } from "../../src/core/browserhelp.ts";
 import { CLAUDE_IN_CHROME_URL } from "../../src/core/browser.ts";
 import { BRIDGE_FEATURES, status } from "../../src/core/live.ts";
 import { codexArgs, codexBrowserOff, CODEX_CLEAN } from "../../src/runners/codex.ts";
-import { codexConfig } from "../../src/agents/files.ts";
-import { CODEX_BROWSER_SERVERS } from "../../src/core/browser.ts";
-import type { Tree } from "../../src/core/tree.ts";
 
 const opts = { skip: !hasGit };
 let ahead = 0;
@@ -133,12 +132,12 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
     const cs = ((await w.run(["doctor", "--json"], { env: { STROM_LANG: "cs" } })).json.checks as { name: string; detail: string }[]).filter((c) => c.name === "browser");
     assert.ok(cs.some((c) => /jen přes prohlížeč člověka – s Claude Code a rozšířením Claude in Chrome by snímky uložil agent sám/.test(c.detail)), JSON.stringify(cs));
 
-    // the desktop apps' own browser and computer use: said off in a research, only Claude in Chrome watched (4 languages)
+    // the desktop apps' own browser and computer use: not watched, not recommended — nothing said off (4 languages)
     for (const [lang, said] of [
-      ["en", /built-in browser, preview and computer use of the Claude and ChatGPT\/Codex desktop apps stay off in a research — strom watches only Claude in Chrome/],
-      ["cs", /vestavěný prohlížeč, náhled a computer use desktopových aplikací Claude a ChatGPT\/Codex jsou ve výzkumu vypnuté – strom hlídá jen Claude in Chrome/],
-      ["de", /Computer Use der Desktop-Apps Claude und ChatGPT\/Codex bleiben in einer Forschung aus – strom überwacht nur Claude in Chrome/],
-      ["pl", /computer use aplikacji desktopowych Claude i ChatGPT\/Codex są w badaniu wyłączone – strom pilnuje tylko Claude in Chrome/],
+      ["en", /built-in browser, preview and computer use of the Claude and ChatGPT\/Codex desktop apps strom does not watch and does not recommend — only Claude in Chrome is watched/],
+      ["cs", /vestavěný prohlížeč, náhled a computer use desktopových aplikací Claude a ChatGPT\/Codex strom nehlídá a nedoporučuje – hlídaný je jen Claude in Chrome/],
+      ["de", /Computer Use der Desktop-Apps Claude und ChatGPT\/Codex überwacht strom nicht und empfiehlt sie nicht – überwacht wird nur Claude in Chrome/],
+      ["pl", /computer use aplikacji desktopowych Claude i ChatGPT\/Codex strom nie pilnuje i nie poleca – pilnowany jest tylko Claude in Chrome/],
     ] as const) {
       const all = (await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } })).json.checks as { name: string; status: string; detail: string }[];
       const desk = all.filter((c) => c.name === "desktop");
@@ -187,23 +186,56 @@ test("Codex without the person's add-ons: its desktop app's browser and computer
   }
 });
 
-test("Codex in a conversation and in its desktop app (no switch of strom's reaches them): the tree's .codex/config.toml keeps its browser and computer use off — never a server Codex could not start", () => {
-  const home = fs.mkdtempSync(path.join(process.env.TMPDIR ?? "/tmp", "strom-codex-"));
+// What strom wrote before 1.27.0 left the desktop apps' browser and computer use on (never released): the tree's
+// .codex/config.toml switching them off, and the deny rules in .claude/settings.json.
+const OLD_CODEX = [
+  "# strom: generated (strom agents sync) — Codex's settings for this family tree; changed by strom only",
+  "# The browser and computer use of Codex's desktop app stay off in a research: strom keeps no watch before them,",
+  "# so an archive's terms, robots.txt and pace could not be kept there.",
+  ...["node_repl", "cua_repl", "computer-use", "computer_use"].flatMap((n) => ["", `[mcp_servers.${n}]`, ...(n === "computer-use" ? [] : ['command = "strom-off"']), "enabled = false"]),
+  ...["browser", "chrome", "computer-use", "unified-computer-use"].flatMap((n) => ["", `[plugins."${n}@openai-bundled"]`, "enabled = false"]),
+  "",
+].join("\n");
+const OLD_DENY = ["mcp__Claude_Browser", "mcp__Claude_Preview", "mcp__Claude_in_Chrome", "mcp__computer-use", "mcp__remote-devices", "enable__mcp__remote-devices__Claude_Browser", "enable__mcp__remote-devices__computer"];
+
+test("nothing of the desktop apps' browser or computer use is switched off in a research: strom agents sync takes back what strom wrote off — the person's own lines stay", opts, async () => {
+  const w = new World();
   try {
-    const tree = { env: { CODEX_HOME: home, HOME: home } } as unknown as Tree;
-    const servers = (text: string) => [...text.matchAll(/^\[mcp_servers\.([^\]]+)\]\n((?:[^[\n].*\n)*)/gmu)].map((m) => [m[1], m[2]!.trim()]);
-    // no config of the person's: each server off with a command of its own (without one Codex stops: "invalid transport")
-    const none = codexConfig(tree);
-    assert.match(none, /^# strom: generated/u);
-    assert.deepEqual(servers(none), CODEX_BROWSER_SERVERS.map((n) => [n, 'command = "strom-off"\nenabled = false']));
-    for (const p of ["browser@openai-bundled", "chrome@openai-bundled", "computer-use@openai-bundled", "unified-computer-use@openai-bundled"])
-      assert.ok(none.includes(`[plugins."${p}"]\nenabled = false`), p);
-    // the desktop app's own node_repl: off as it is; one given by an address keeps it (a command beside it stops Codex)
-    fs.writeFileSync(path.join(home, "config.toml"), '[mcp_servers.node_repl]\ncommand = "/x/node_repl"\n[mcp_servers.node_repl.env]\nA = "1"\n\n[ mcp_servers."computer-use" ]\nurl = "http://127.0.0.1:9/mcp"\n');
-    const named = Object.fromEntries(servers(codexConfig(tree)));
-    assert.equal(named["node_repl"], 'command = "strom-off"\nenabled = false');
-    assert.equal(named["computer-use"], "enabled = false");
+    const tree = await w.withTree("Lhotákovi");
+    const conf = path.join(tree, ".codex", "config.toml");
+    const settingsFile = path.join(tree, ".claude", "settings.json");
+    assert.ok(!fs.existsSync(conf), "strom writes no .codex/config.toml");
+    const deny = () => (readJsonFile(settingsFile) as { permissions: { deny: string[] } }).permissions.deny;
+    for (const t of OLD_DENY) assert.ok(!deny().includes(t), t);
+    assert.ok(deny().includes("mcp__claude-in-chrome__file_upload"), "Claude in Chrome's own rules stay");
+
+    // a tree strom wrote before: the old file whole and the deny rules
+    const old = readJsonFile(settingsFile) as { permissions: { deny: string[] } };
+    old.permissions.deny.push(...OLD_DENY);
+    fs.writeFileSync(settingsFile, JSON.stringify(old, null, 2) + "\n");
+    fs.writeFileSync(conf, OLD_CODEX);
+    await w.ok(["agents", "sync"]);
+    assert.ok(!fs.existsSync(conf), "strom's old file goes whole");
+    assert.ok(fs.existsSync(path.join(tree, ".codex", "rules", "strom.rules")), "Codex's rules stay");
+    for (const t of OLD_DENY) assert.ok(!deny().includes(t), t);
+    assert.ok(deny().includes("mcp__claude-in-chrome__file_upload") && deny().includes("mcp__claude-in-chrome__browser_batch"), "Claude in Chrome's own rules stay");
+
+    // the person wrote in strom's old file: only strom's lines go; a section of the person's under strom's name stays
+    const mine = '\n[mcp_servers.my_tool]\ncommand = "my-tool"\n\n[plugins."chrome@openai-bundled"]\nenabled = false\nnote = "mine"\n';
+    fs.writeFileSync(conf, OLD_CODEX + mine);
+    await w.ok(["agents", "sync"]);
+    assert.equal(fs.readFileSync(conf, "utf8"), '[mcp_servers.my_tool]\ncommand = "my-tool"\n\n[plugins."chrome@openai-bundled"]\nenabled = false\nnote = "mine"\n');
+    // a file of the person's own (no header of strom's): never touched, also when it switches the same off
+    const own = '[mcp_servers.node_repl]\ncommand = "strom-off"\nenabled = false\n';
+    fs.writeFileSync(conf, own);
+    await w.ok(["agents", "sync"]);
+    assert.equal(fs.readFileSync(conf, "utf8"), own);
+    // decomposed and non-Latin text of the person's kept as written
+    const text = '# Poznámka: Lhota — česky, Лхота\n[mcp_servers.x]\ncommand = "y"\n';
+    fs.writeFileSync(conf, OLD_CODEX + text);
+    await w.ok(["agents", "sync"]);
+    assert.equal(fs.readFileSync(conf, "utf8"), text);
   } finally {
-    fs.rmSync(home, { recursive: true, force: true });
+    w.cleanup();
   }
 });

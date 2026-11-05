@@ -2599,7 +2599,7 @@
   "ui.doc.browser.archives.permission": "{names}: nur über den Browser eines Menschen – mit der Erlaubnis „über den Browser“ für das Archiv speichert der Agent die Bilder selbst",
   "ui.doc.browser.archives.ok": "{names}: der Agent speichert die Bilder selbst über den Browser",
   "ui.doc.desktop": "Browser der Desktop-Apps",
-  "ui.doc.desktop.off": "der eingebaute Browser, die Vorschau und Computer Use der Desktop-Apps Claude und ChatGPT/Codex bleiben in einer Forschung aus – strom überwacht nur Claude in Chrome",
+  "ui.doc.desktop.unwatched": "den eingebauten Browser, die Vorschau und Computer Use der Desktop-Apps Claude und ChatGPT/Codex überwacht strom nicht und empfiehlt sie nicht – überwacht wird nur Claude in Chrome",
   "ui.waiting.browser.agent": "Mit Claude Code und der Erweiterung Claude in Chrome würde der Agent sie selbst speichern (den Browser von {agent} überwacht strom nicht).",
   "ui.waiting.browser.noext": "Mit der Erweiterung Claude in Chrome würde der Agent sie selbst speichern: {url}",
   "ui.waiting.browser.permission": "Mit der Erlaubnis „über den Browser“ für {archive} speichert der Agent sie selbst.",

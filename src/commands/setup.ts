@@ -509,9 +509,9 @@ function diagnoseInto(
     else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
     else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }));
   }
-  // The desktop apps' own browser, preview and computer use (Claude's, ChatGPT's/Codex's): off in every session of a
-  // research, said where those agents are here — strom keeps watch only before Claude in Chrome (core/browser.ts)
-  if ((found.includes("claude") || found.includes("codex")) && !ctx.archiveHere()) add("desktop", "ok", t("ui.doc.desktop.off"));
+  // The desktop apps' own browser, preview and computer use (Claude's, ChatGPT's/Codex's): nothing switched off, strom
+  // neither watches nor recommends them — said where those agents are here; it watches Claude in Chrome alone
+  if ((found.includes("claude") || found.includes("codex")) && !ctx.archiveHere()) add("desktop", "ok", t("ui.doc.desktop.unwatched"));
 
   // For a person: the shortcut on the desktop, the Strom app.
   const desktop = desktopDir(ctx.env);

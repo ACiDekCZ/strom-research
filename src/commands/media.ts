@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { counted, lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, runs, runsArg, shellArg, table, truncate } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
@@ -1250,9 +1250,16 @@ register(
       // an agent whose browser strom does not keep: never at an archive only a person's browser goes to
       if (runner && !browserKept(runner) && g.level?.browserOnly && (g.allow || g.why === "browser"))
         g = { ...g, allow: false, why: "browser", reason: withoutBrowserReason(g.level, g.level.title ?? g.host, t.id, bookOn(tree, t.id, g.host, u.href), otherWay(g.host, u.href, t.id)) };
-      if (!g.allow) throw new UsageError(g.reason ?? `strom: not through the browser: ${u.href}`, { code: `browser.${g.why ?? "refused"}` });
       // what the script saves is an image of the archive: its images through the browser, as the person allowed
       const may = g.level ? allows(g.level, "images", "browser") : { ok: true as const };
+      // its images by a person's hand only, and the task waits for images of this book already: nothing to tell it to
+      // wait for — only that it waits (and the one image more it is to wait for, when this one is not among them yet)
+      if (!g.allow && !may.ok && may.why === "manual" && w?.by === "images" && w.recordset === b.id) {
+        const want = w.want ?? [];
+        const more = want.includes(n) ? "" : ` Image ${n} too, only if the task needs it: strom task wait ${t.id} --images ${b.id}:${runsArg([...want, n])} --on "<the book, its link, which images — impersonal, in the research language>".`;
+        throw new UsageError(`strom: ${g.level!.title ?? g.host} — its images by a person's hand only, not through your browser: ${t.id} waits for images of ${b.id} saved by hand already${want.length ? ` (${runs(want)})` : ""}.${more} Go on with other work.`, { code: `browser.${g.why ?? "manual"}` });
+      }
+      if (!g.allow) throw new UsageError(g.reason ?? `strom: not through the browser: ${u.href}`, { code: `browser.${g.why ?? "refused"}` });
       if (!may.ok)
         throw new UsageError(
           may.why === "permission"

@@ -19,8 +19,7 @@ import { configDir, ownCommand } from "../core/paths.ts";
 import { oldSettingsDirs, packagedSettingsPattern } from "../core/oldsettings.ts";
 import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
-import { CHROME_ALLOW, CHROME_DENY, CODEX_BROWSER_PLUGINS, CODEX_BROWSER_SERVERS, DESKTOP_BROWSER_DENY, chromeDomain } from "../core/browser.ts";
-import { codexConfigFile } from "./effort.ts";
+import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
@@ -85,9 +84,12 @@ the researcher; \`strom\` is your only way to read and change the research.
     to page by going to the address (navigate), never clicking through a
     series of pages; a site strom refused or whose terms forbid automation
     never. Any other agent's browser or computer use (Codex's, Antigravity's,
-    a browser's MCP) strom does not see: never to an archive only a
-    person's browser goes to — the person saves its images by hand
-    (\`strom task wait T… --images B…:<numbers> --on "…"\`); elsewhere
+    the desktop apps' own, a browser's MCP) strom does not see and does not
+    recommend: never of your own accord to an archive only a person's
+    browser goes to — the person saves its images by hand
+    (\`strom task wait T… --images B…:<numbers> --on "…"\`); only when the
+    person explicitly asks for one there, their choice: say in one sentence
+    that strom does not watch that way, and the archive's terms; elsewhere
     \`strom net web --check <url> --browser\` first. An image of such an
     archive the person allowed "through the browser", with no connector of
     it: one at a time, \`strom media save T… --image <n> --at <its page>\`
@@ -317,8 +319,6 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       // What the browser downloads is strom's to take over; the rest of the folder is the user's.
       `Read(${downloads}/**)`,
       ...(claude ? CHROME_DENY : []),
-      // the desktop app's own browser and computer use: no hook of strom's before them (core/browser.ts)
-      ...(claude ? DESKTOP_BROWSER_DENY : []),
       // With full permissions only the deny rules count: what the allow list kept away is kept away here.
       ...(settings.agentPermissions() === "full" ? BYPASS_DENY : []),
     ],
@@ -399,33 +399,39 @@ export function codexRules(tree: Tree): string {
 export const CODEX_RULES = path.join(".codex", "rules", "strom.rules");
 
 /**
- * Codex's settings for this tree (.codex/config.toml, read once the folder is trusted — also by the desktop app, which
- * takes no switch of strom's): the browser and computer use of its desktop app off in every session, a conversation
- * too (it keeps the user's other add-ons). A server of the user's config is switched off as it is; one it does not
- * name gets a command of its own, since a server without one stops Codex ("invalid transport"), and one given by an
- * address keeps it (a command beside it stops Codex too) — checked 2026-11-04 with codex-cli 0.155.1 and 0.164.
+ * Codex's settings for this tree (.codex/config.toml) as strom's sources wrote them for a while before 1.27.0 (never
+ * released): the browser and computer use of Codex's desktop app switched off. Nothing of them is switched off now
+ * (core/browser.ts): strom agents sync takes back only strom's lines — its header, and the sections of those servers and
+ * plugins with nothing in them but what strom wrote; a line of the person's stays, a file without strom's header is the
+ * person's alone.
  */
-export function codexConfig(tree: Tree): string {
-  let user = "";
-  try {
-    user = fs.readFileSync(codexConfigFile(tree.env), "utf8");
-  } catch {
-    // no config of the user's: every server gets its command
+const OLD_CODEX_HEADER = "# strom: generated (strom agents sync) — Codex's settings for this family tree; changed by strom only";
+const OLD_CODEX_COMMENTS = [
+  OLD_CODEX_HEADER,
+  "# The browser and computer use of Codex's desktop app stay off in a research: strom keeps no watch before them,",
+  "# so an archive's terms, robots.txt and pace could not be kept there.",
+];
+const OLD_CODEX_SECTIONS = new Set([
+  ...["node_repl", "cua_repl", "computer-use", "computer_use"].map((n) => `[mcp_servers.${n}]`),
+  ...["browser", "chrome", "computer-use", "unified-computer-use"].map((p) => `[plugins."${p}@openai-bundled"]`),
+]);
+const OLD_CODEX_LINES = new Set(['command = "strom-off"', "enabled = false"]);
+
+/** What is left of the old .codex/config.toml without strom's lines ("" nothing; undefined: no file of strom's). */
+export function withoutOldCodexConfig(text: string): string | undefined {
+  if (!text.startsWith(OLD_CODEX_HEADER)) return undefined;
+  const parts = text.split(/^(?=\s*\[)/mu);
+  const kept: string[] = [];
+  for (const part of parts) {
+    const lines = part.split(/\r?\n/u);
+    const head = lines[0]!.trim();
+    const theirs = lines.slice(1).filter((l) => l.trim() && !OLD_CODEX_LINES.has(l.trim()));
+    // strom's section: it goes; a comment of the person's below it stays
+    const mine = OLD_CODEX_SECTIONS.has(head) && theirs.every((l) => l.trimStart().startsWith("#")) ? theirs.map((l) => l + "\n") : undefined;
+    kept.push(mine ? mine.join("") : lines.filter((l) => !OLD_CODEX_COMMENTS.includes(l.trimEnd())).join("\n"));
   }
-  const byAddress = new Set<string>();
-  const sections = user.split(/^(?=\s*\[)/mu);
-  for (const part of sections) {
-    const m = /^\s*\[\s*mcp_servers\s*\.\s*(?:"([^"\n]+)"|'([^'\n]+)'|([A-Za-z0-9_-]+))\s*\]/u.exec(part);
-    if (m && /^\s*url\s*=/mu.test(part)) byAddress.add(m[1] ?? m[2] ?? m[3]!);
-  }
-  return [
-    "# strom: generated (strom agents sync) — Codex's settings for this family tree; changed by strom only",
-    "# The browser and computer use of Codex's desktop app stay off in a research: strom keeps no watch before them,",
-    "# so an archive's terms, robots.txt and pace could not be kept there.",
-    ...CODEX_BROWSER_SERVERS.flatMap((n) => ["", `[mcp_servers.${n}]`, ...(byAddress.has(n) ? [] : ['command = "strom-off"']), "enabled = false"]),
-    ...CODEX_BROWSER_PLUGINS.flatMap((n) => ["", `[plugins."${n}"]`, "enabled = false"]),
-    "",
-  ].join("\n");
+  const left = kept.join("").replace(/\n{3,}/gu, "\n\n").trim();
+  return left ? left + "\n" : "";
 }
 
 export const CODEX_CONFIG = path.join(".codex", "config.toml");
@@ -539,6 +545,28 @@ function withUserPart(file: string, generated: string): string {
   return generated;
 }
 
+/** The tree's old .codex/config.toml without strom's lines (withoutOldCodexConfig): the file changed, or gone when nothing is left. */
+function dropOldCodexConfig(tree: Tree): string | undefined {
+  const file = path.join(tree.root, CODEX_CONFIG);
+  let text: string;
+  try {
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+  const left = withoutOldCodexConfig(text);
+  if (left === undefined || left === text) return undefined;
+  if (!tree.dryRun) {
+    if (left) writeFileAtomic(file, left);
+    else {
+      fs.rmSync(file);
+      const dir = path.dirname(file);
+      if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+    }
+  }
+  return CODEX_CONFIG.split(path.sep).join("/");
+}
+
 /** Nothing of strom's left in a JSON value. */
 const GONE = Symbol("gone");
 
@@ -583,8 +611,9 @@ function dropAgentFiles(tree: Tree): string[] {
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
     [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
     [CODEX_RULES, codexRules(tree)],
-    [CODEX_CONFIG, codexConfig(tree)],
   ];
+  const codexOld = dropOldCodexConfig(tree);
+  if (codexOld) gone.push(codexOld);
   for (const [rel, content] of generated) {
     const file = path.join(tree.root, rel);
     let text: string;
@@ -626,7 +655,7 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_CONFIG];
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -659,7 +688,9 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
   write(GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n");
   write(CODEX_RULES, codexRules(tree));
-  write(CODEX_CONFIG, codexConfig(tree));
+  // what strom wrote there before 1.27.0 left the desktop apps' browser on: taken back
+  const codexOld = dropOldCodexConfig(tree);
+  if (codexOld) written.push(codexOld);
   // the strom the agent hooks name (the tree's .strom/bin, never committed) — there also for a conversation strom did not start
   if (!tree.dryRun) {
     try {

@@ -80,12 +80,15 @@ HARD RULES
    — never clicking through a series of pages; strom's hook counts its
    navigate with your web fetches of the site. Any other agent's browser or
    computer use (Codex's, Antigravity's, the browser, preview and computer
-   use of Claude's desktop app, a browser's MCP) strom does not see — those
-   of Claude's and Codex's desktop apps stay off in a research: never
-   to an archive only a person's browser goes to — the person saves its
-   images by hand (strom task wait T… --images B…:<numbers>
-   --on "…"). Claude in Chrome at such an archive the person allowed
-   "through the browser": with its connector, strom fetch plans the images
+   use of Claude's and Codex's desktop apps, a browser's MCP) strom does
+   not see and does not recommend: never of your own accord to an archive
+   only a person's browser goes to — the person saves its images by hand
+   (strom task wait T… --images B…:<numbers> --on "…"). Only when the
+   person explicitly asks you to use one there: the person's choice — say
+   in one sentence that strom does not watch that way and what the
+   archive's terms say; never a way round them. Claude in Chrome at such
+   an archive the person allowed "through the browser": with its
+   connector, strom fetch plans the images
    (a viewer of the archive: the book's page opened once, never reloaded);
    with none, one image at a time — strom media save T… --image <n> --at
    <its page> gives the script for your tab, strom media add --inbox

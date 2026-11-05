@@ -2455,7 +2455,7 @@ export const UI = {
   "ui.doc.browser.archives.permission": "{names}: only through a person's browser – with the permission “through the browser” for the archive the agent saves the images itself",
   "ui.doc.browser.archives.ok": "{names}: the agent saves the images itself through the browser",
   "ui.doc.desktop": "desktop apps' browser",
-  "ui.doc.desktop.off": "the built-in browser, preview and computer use of the Claude and ChatGPT/Codex desktop apps stay off in a research — strom watches only Claude in Chrome",
+  "ui.doc.desktop.unwatched": "the built-in browser, preview and computer use of the Claude and ChatGPT/Codex desktop apps strom does not watch and does not recommend — only Claude in Chrome is watched",
   "ui.waiting.browser.agent": "With Claude Code and the Claude in Chrome extension the agent would save them itself (strom does not watch the browser of {agent}).",
   "ui.waiting.browser.noext": "With the Claude in Chrome extension the agent would save them itself: {url}",
   "ui.waiting.browser.permission": "With the permission “through the browser” for {archive} the agent saves them itself.",

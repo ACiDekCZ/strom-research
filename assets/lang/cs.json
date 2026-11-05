@@ -2599,7 +2599,7 @@
   "ui.doc.browser.archives.permission": "{names}: jen přes prohlížeč člověka – se svolením „přes prohlížeč“ pro archiv uloží snímky agent sám",
   "ui.doc.browser.archives.ok": "{names}: snímky ukládá agent sám přes prohlížeč",
   "ui.doc.desktop": "prohlížeč desktopových aplikací",
-  "ui.doc.desktop.off": "vestavěný prohlížeč, náhled a computer use desktopových aplikací Claude a ChatGPT/Codex jsou ve výzkumu vypnuté – strom hlídá jen Claude in Chrome",
+  "ui.doc.desktop.unwatched": "vestavěný prohlížeč, náhled a computer use desktopových aplikací Claude a ChatGPT/Codex strom nehlídá a nedoporučuje – hlídaný je jen Claude in Chrome",
   "ui.waiting.browser.agent": "S Claude Code a rozšířením Claude in Chrome by je agent uložil sám (prohlížeč agenta {agent} strom nehlídá).",
   "ui.waiting.browser.noext": "S rozšířením Claude in Chrome by je agent uložil sám: {url}",
   "ui.waiting.browser.permission": "Se svolením „přes prohlížeč“ pro {archive} je agent uloží sám.",

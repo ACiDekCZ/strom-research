@@ -167,6 +167,10 @@ test("an archive whose viewer shows its images from a server closed to every rob
     const at = "https://digi.archives.cz/da/permalink?xid=x&scan=3";
     await w.ok(["recordset", "add", "Lhota Z 1850–1870", "--url", "https://digi.archives.cz/da/permalink?xid=x"]); // B1
     await w.ok(["task", "add", "Úmrtí Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+    // a task not waiting yet: the person saves it by hand — what to wait for
+    const first = await w.run(["media", "save", "T1", "--image", "3", "--at", at], { env: CLAUDE });
+    assert.notEqual(first.code, 0);
+    assert.match(first.out + first.err, /strom task wait T0001 --images B0001:/);
     await w.ok(["task", "wait", "T1", "--images", "B1:3", "--on", "snímek 3 knihy Lhota"]);
     // the person's permission could not help: not taken, not asked
     const allow = await w.run(["allow", "archive", "digi.archives.cz", "--way", "browser"], { tty: true });
@@ -175,6 +179,13 @@ test("an archive whose viewer shows its images from a server closed to every rob
     assert.notEqual(r.code, 0);
     assert.match(r.out + r.err, /by hand/);
     assert.doesNotMatch(r.out + r.err, /strom-result|await \(async|--way browser/);
+    // it waits for that image already: only that it waits, nothing to wait for again
+    assert.match(r.out + r.err, /T0001 waits for images of B0001 saved by hand already \(3\)/);
+    assert.doesNotMatch(r.out + r.err, /task wait|--check/);
+    // an image it does not wait for yet: that one only, the images it waits for kept
+    const more = await w.run(["media", "save", "T1", "--image", "4", "--at", at.replace("scan=3", "scan=4")], { env: CLAUDE });
+    assert.notEqual(more.code, 0);
+    assert.match(more.out + more.err, /waits for images of B0001 saved by hand already \(3\)\. Image 4 too, only if the task needs it: strom task wait T0001 --images B0001:3-4 /);
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.awaits.images, "3", "nothing written");
     // the agent's browser neither, at its pages
     const check = await w.run(["net", "web", "--check", at, "--browser", "--json"], { env: CLAUDE });

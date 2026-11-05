@@ -224,10 +224,8 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], \["login", "seal"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], "connector", \["add", "remove"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \["git"\], decision = "forbidden"/m);
-  // and its desktop app's browser and computer use off in every session of the tree, a conversation too
-  const codexConf = fs.readFileSync(path.join(w.treeDir("Novákovi"), ".codex", "config.toml"), "utf8");
-  assert.match(codexConf, /^\[mcp_servers\.node_repl\]\ncommand = "strom-off"\nenabled = false$/m);
-  assert.match(codexConf, /^\[plugins\."browser@openai-bundled"\]\nenabled = false$/m);
+  // its desktop app's browser and computer use: nothing of them switched off (strom neither watches nor recommends them)
+  assert.ok(!fs.existsSync(path.join(w.treeDir("Novákovi"), ".codex", "config.toml")));
   // An agent elsewhere (it set strom up from the web page) hands the research over: its own
   // conversation, in a new terminal window (not opened in a test: the user is told how).
   w.env.CLAUDECODE = "1";

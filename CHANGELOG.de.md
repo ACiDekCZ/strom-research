@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.27.0
 
-*In Vorbereitung: die Betas bis 1.27.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.27.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Von Hand gespeicherte Bilder bringen ihre Aufgabe von selbst zurück.** Wo die Bilder eines Archivs von Hand
   gespeichert werden – ein Archiv, das nur der Browser eines Menschen erreicht, oder eines, dessen Bedingungen nichts
@@ -42,14 +42,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Erlaubnis des Menschen „über den Browser“, eine Seite nach der anderen im Tempo eines Menschen. Erlaubnis… in der
   Strom-App bei dem, was auf Bilder eines solchen Archivs wartet, öffnet diese Frage, auch wo kein Downloader das Archiv
   erreicht. Der Browser oder die Computersteuerung eines anderen Agenten – Codex, Antigravity – hat keine solche
-  Prüfung: Er geht nie in ein solches Archiv, und die Bilder speichert der Mensch von Hand. `strom doctor`, das Briefing
-  des Agenten und Was wartet sagen einmal, mit welchem Agenten und welcher Browser-Erweiterung der Agent sie selbst
-  speichern würde, oder dass die Erweiterung fehlt. Der Browser und die Computersteuerung der Desktop-Apps der Agenten
-  bleiben in der Forschung aus – auch im Gespräch und in der ChatGPT-App; überwacht wird der Browser des Agenten in
-  Chrome. `strom doctor` und das Briefing des Agenten sagen es ausdrücklich, und der Agent arbeitet nie in einer Kopie
-  der Forschung, die die Desktop-App eines Agenten in einem eigenen Worktree öffnet. Die Strom-App erfährt von der
-  Brücke, ob der Browser des Agenten bereit ist, die Erweiterung fehlt oder der Agent keinen hat, den die Forschung
-  überwacht.
+  Prüfung: Der Agent geht damit nicht von sich aus in ein solches Archiv, und die Bilder speichert der Mensch von Hand.
+  `strom doctor`, das Briefing des Agenten und Was wartet sagen einmal, mit welchem Agenten und welcher
+  Browser-Erweiterung der Agent sie selbst speichern würde, oder dass die Erweiterung fehlt. Nichts wird ausgeschaltet:
+  Den Browser und die Computersteuerung der Desktop-Apps der Agenten überwacht die Forschung nicht und empfiehlt sie
+  nicht – überwacht wird der Browser des Agenten in Chrome, und einen anderen nutzt der Agent nur, wenn der Mensch
+  ausdrücklich darum bittet. `strom doctor` und das Briefing des Agenten sagen es ausdrücklich, und der Agent arbeitet
+  nie in einer Kopie der Forschung, die die Desktop-App eines Agenten in einem eigenen Worktree öffnet. Die Strom-App
+  erfährt von der Brücke, ob der Browser des Agenten bereit ist, die Erweiterung fehlt oder der Agent keinen hat, den
+  die Forschung überwacht.
 
 - **Der Browser des Agenten speichert die Bilder selbst, eines nach dem anderen.** Wo der Mensch einem Archiv, das nur
   der Browser eines Menschen erreicht, den Zugang „über den Browser“ erlaubt, öffnet der Agent ein Bild in Chrome und
@@ -80,14 +81,19 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   zurückgenommen – nicht mehr erst nach 60 Tagen –, und `strom recent` sagt es.
 
 - Weitere Archive Tschechiens, Deutschlands und Polens sind mit ihren Bedingungen bekannt – was jedes automatischen
-  Werkzeugen erlaubt, sein Tempo und was nur der Browser eines Menschen erreicht. Fünf weitere tschechische, die nur der
-  Browser eines Menschen erreicht: die Acta Publica des Mährischen Landesarchivs (ihre Bilder nicht mehr über einen
-  Downloader, auch nicht mit einer früher gegebenen Erlaubnis – sie bleibt, wie gegeben; über den Browser mindestens 4
-  Sekunden auseinander), die eBadatelna des SOA Praha und die Bildserver des SOA Litoměřice, des ZA Opava und der
-  Polizeimeldungen des Nationalarchivs (nur von Hand). Die digitalen Lesesäle des SOA Litoměřice und des ZA Opava zeigen
-  ihre Bilder von diesen Servern, daher werden auch ihre Bilder von Hand gespeichert – eine Erlaubnis „über den Browser“
-  wird dort nicht angeboten. Ein früher für ein solches Archiv gebauter Downloader wird vor jeder Anfrage abgewiesen,
-  auch seine Probe, und sagt, was bleibt: die Erlaubnis der Person „über den Browser“ oder das Speichern von Hand.
+  Werkzeugen erlaubt, sein Tempo und was nur der Browser eines Menschen erreicht. Neu darunter die Stadtarchive Brno und
+  Ostrava, das Militärische Zentralarchiv Prag, Arcinsys Hessen, Niedersachsen und Bremen sowie Schleswig-Holstein,
+  invenio und das Gedenkbuch des Bundesarchivs (nur der Browser eines Menschen), die Bildgalerien der Kirchenbücher der
+  ehemaligen Ostgebiete im AGAD, LubGens (nur der Browser eines Menschen) und die Indizes polnischer genealogischer
+  Vereine. Fünf weitere tschechische, die nur der Browser eines Menschen erreicht: die Acta Publica des Mährischen
+  Landesarchivs (ihre Bilder nicht mehr über einen Downloader, auch nicht mit einer früher gegebenen Erlaubnis – sie
+  bleibt, wie gegeben; über den Browser mindestens 4 Sekunden auseinander), die eBadatelna des SOA Praha und die
+  Bildserver des SOA Litoměřice, des ZA Opava und der Polizeimeldungen des Nationalarchivs (nur von Hand). Die digitalen
+  Lesesäle des SOA Litoměřice und des ZA Opava zeigen ihre Bilder von diesen Servern, daher werden auch ihre Bilder von
+  Hand gespeichert – eine Erlaubnis „über den Browser“ wird dort nicht angeboten. Bei einer Aufgabe, die schon auf
+  solche Bilder wartet, heißt es nur, dass sie auf von Hand gespeicherte Bilder wartet, ohne neuen Rat zum Warten. Ein
+  früher für ein solches Archiv gebauter Downloader wird vor jeder Anfrage abgewiesen, auch seine Probe, und sagt, was
+  bleibt: die Erlaubnis der Person „über den Browser“ oder das Speichern von Hand.
 
 - Mit allem aus 1.26.1: ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.
 

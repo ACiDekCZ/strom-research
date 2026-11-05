@@ -54,30 +54,13 @@ export const CHROME_HOOK_MATCHER = `${CHROME_TOOL_PREFIX}(navigate|${CHROME_PAGE
 export const CHROME_DENY = ["file_upload", "upload_image", "shortcuts_execute", "gif_creator", "browser_batch"].map((t) => `mcp__claude-in-chrome__${t}`);
 
 /**
- * Never in a research: the browser built into Claude's desktop app, its preview pane and its computer use — also
- * through a device linked to a session in the cloud — the tools that turn them on, and Claude in Chrome under the name
- * the desktop app may give it (Claude_in_Chrome; the same app also gives it as claude-in-chrome, the name strom keeps).
- * strom keeps no hook before them (its hook watches mcp__claude-in-chrome__ alone), so an archive's terms, robots.txt
- * and pace could not be kept there. A rule of a server's name alone covers each of its tools.
- */
-export const DESKTOP_BROWSER_DENY = [
-  "mcp__Claude_Browser",
-  "mcp__Claude_Preview",
-  "mcp__Claude_in_Chrome",
-  "mcp__computer-use",
-  "mcp__remote-devices",
-  "enable__mcp__remote-devices__Claude_Browser",
-  "enable__mcp__remote-devices__computer",
-];
-
-/**
  * Codex's browser and computer use: the MCP servers its desktop app (ChatGPT, Codex) adds — node_repl runs its in-app
- * browser and its Chrome extension, cua_repl (the plugin unified-computer-use) and computer-use its computer use — and
- * the bundled plugins that bring them. They run JavaScript a hook could not read an address from, so strom keeps no
- * watch before them: off in a research (agents/files.ts codexConfig, runners/codex.ts codexBrowserOff).
+ * browser and its Chrome extension, cua_repl (the plugin unified-computer-use) and computer-use its computer use. They
+ * run JavaScript a hook could not read an address from, so strom keeps no watch before them and recommends none of
+ * them; nothing of them is switched off in a research (the person's choice, Milan 5 November 2026) — only a run
+ * without the person's add-ons (agent.addons off) goes without them, as without the rest (runners/codex.ts).
  */
 export const CODEX_BROWSER_SERVERS = ["node_repl", "cua_repl", "computer-use", "computer_use"];
-export const CODEX_BROWSER_PLUGINS = ["browser", "chrome", "computer-use", "unified-computer-use"].map((p) => `${p}@openai-bundled`);
 
 /** The permission rule of Claude in Chrome for one site. */
 export const chromeDomain = (host: string) => `ClaudeInChromeDomain(${host.replace(/^\*\./, "").toLowerCase()})`;

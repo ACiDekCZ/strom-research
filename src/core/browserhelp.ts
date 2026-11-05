@@ -16,7 +16,8 @@ import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "./browser.ts";
 /**
  * The agents whose browser strom keeps — its hook runs before each page and each tool on a page (count, pace, an
  * archive only a person's browser goes to, the bridge): Claude Code's Claude in Chrome. Any other agent's browser or
- * computer use goes unseen: never to such an archive.
+ * computer use goes unseen: strom does not recommend it — never of the agent's own accord to such an archive; only the
+ * person's explicit request makes it the person's choice (ON_REQUEST).
  */
 export const GUARDED_BROWSER_AGENTS: readonly string[] = ["claude"];
 
@@ -97,13 +98,20 @@ export function agentBrowserAdvice(env: Env, agent: string | undefined, a: Brows
   const wait = withWait ? `: strom task wait ${task} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"` : "";
   const s = browserState(env, agent);
   if (s.state === "agent-without-browser")
-    return `strom does not keep your browser or computer use (no hook of strom's before a page): never use them for ${a.title ?? a.host} — the person saves the images by hand${wait}. ${tellClaude}`;
+    return `strom does not keep your browser or computer use (no hook of strom's before a page) and does not recommend them: not of your own accord for ${a.title ?? a.host} — the person saves the images by hand${wait}. ${ON_REQUEST} ${tellClaude}`;
   if (s.state === "no-extension")
     return `the Claude in Chrome extension is in no browser here — the person saves the images by hand${wait}. Tell the user once: with the extension (${s.url}) and the permission "through the browser" the agent would save them itself.`;
   if (!a.permitted)
     return `your browser goes there only with the person's permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours); until then the person saves the images by hand${wait}.`;
   return `through your browser (Claude in Chrome), one image at a time at a person's pace: strom media save ${task} --image <n> --at <the archive's page of that image> gives the script that saves it in your tab, strom media add --inbox --waiting takes it; else the person saves them by hand${wait}.`;
 }
+
+/**
+ * A browser or computer use strom does not keep, at an archive only a person's browser goes to: never of the agent's own
+ * accord — but nothing is switched off, and the person who asks for it explicitly chooses it (Milan, 5 November 2026).
+ */
+export const ON_REQUEST =
+  "Only if the person explicitly asks you to use them there: the person's choice — say in one sentence that strom does not watch that way and what the archive's terms say; never a way round them, never a check whether a person is there.";
 
 const tellClaude = "Tell the user once: with Claude Code and the Claude in Chrome extension the agent would save them itself (strom agents use claude).";
 
@@ -120,7 +128,7 @@ export function browserHelps(a: ArchiveLevel): boolean {
  */
 export function browserAdviceFor(env: Env, agent: string | undefined, a: ArchiveLevel, task?: string, book?: string): string | undefined {
   if (!agent || !a.browserOnly) return undefined;
-  if (!browserHelps(a)) return browserKept(agent) ? undefined : "strom does not keep your browser or computer use: never use them there.";
+  if (!browserHelps(a)) return browserKept(agent) ? undefined : `strom does not keep your browser or computer use and does not recommend them: not of your own accord there. ${ON_REQUEST}`;
   return agentBrowserAdvice(env, agent, { host: a.host, ...(a.title ? { title: a.title } : {}), permitted: a.permission === "browser" }, task, book, false);
 }
 
@@ -130,7 +138,7 @@ export function browserAdviceFor(env: Env, agent: string | undefined, a: Archive
  */
 export function withoutBrowserReason(a: ArchiveLevel, name: string, task: string | undefined, book: string, otherWay: string): string {
   return (
-    `strom: ${name} lets automated tools in only through a person's browser, and strom does not keep your browser or computer use (no hook of strom's before a page): never use them for it, nor your web fetch. ` +
+    `strom: ${name} lets automated tools in only through a person's browser, and strom does not keep your browser or computer use (no hook of strom's before a page) and does not recommend them: not of your own accord for it, nor your web fetch. ${ON_REQUEST} ` +
     `The person saves what is needed by hand: strom task wait ${task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>" (strom makes the inbox folder they go into; saved there, they bring the task back by themselves). ` +
     `${browserHelps(a) ? `${tellClaude} ` : ""}${otherWay}`
   );

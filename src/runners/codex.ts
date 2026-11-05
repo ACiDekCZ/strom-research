@@ -67,9 +67,8 @@ export const CODEX_CLEAN = ["-c", "features.plugins=false", "-c", "features.apps
  * its in-app browser and Chrome extension — and `computer-use`), off with the user's add-ons: strom keeps no hook before
  * them (an archive only a person's browser goes to stays the person's). Only those the config names: a server it does
  * not name, switched off on the command line, stops Codex ("invalid transport", checked with 0.155.1). Read only.
- * (A conversation, which keeps the user's add-ons, has them off by the tree's .codex/config.toml: agents/files.ts.)
+ * With the user's add-ons (a conversation, a run with agent.addons on) they stay as the user has them.
  */
-
 export function codexBrowserOff(env: Env | undefined): string[] {
   if (!env) return [];
   let text: string;
