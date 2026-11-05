@@ -75,6 +75,11 @@ test("the advice as the sandbox is here: Codex by hand, Codex strom started, Cla
     assert.match(started, /^strom run on its own \(no pipe, no redirection like 2>&1, no cd before it\): the research's \.codex\/rules\/strom\.rules lets that run outside Codex's sandbox\. Run so and refused all the same \(Codex does not trust the research's folder, or its rules are older than this strom: strom agents sync\): ask the user to approve this command outside the sandbox/);
     assert.doesNotMatch(started, /writable_roots/);
     assert.match(started, /the user's choice alone/);
+    // strom run working alone (codex exec): nobody approves there (GitHub #8) — stop, never ask nor retry another way
+    const alone = await hint({ ...AGENT, STROM_SESSION: "N0001", STROM_DEADLINE: new Date(Date.now() + 60_000).toISOString(), STROM_NONINTERACTIVE: "1" });
+    assert.match(alone, /^strom run on its own \(no pipe, no redirection like 2>&1, no cd before it\): .*\. Run so and refused all the same: nobody can approve a command in this session \(strom run, working alone\) — stop here and end your turn/);
+    assert.doesNotMatch(alone, /ask the user to approve/);
+    assert.match(alone, /never another folder, never strom's settings changed$/);
     assert.match(await hint({ CLAUDECODE: "1" }), /^Claude Code's sandbox writes in the folder Claude Code was started in: the user starts it in the research's folder \(strom chat does\), or approves this command outside the sandbox/);
     for (const h of [hand, started]) assert.match(h, /never another folder, never strom's settings changed$/);
     // doctor the agent runs: the same situation, in the research's language

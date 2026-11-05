@@ -89,10 +89,25 @@ export function shippedTerms(): KnownTerms[] {
   return (shipped ??= readPack(assetPath("archives.json")));
 }
 
-/** The strictest of entries (restricted before unknown at the same rank: it is known). */
+/**
+ * How much stricter entry `b` is than `a` at the same rank (> 0: b): only a person's browser before a direct request,
+ * restricted before unknown (it is known), a slower pace, then the more specific host (the archive's own entry before
+ * its site's) — never the order of the list, so a site's entry above a host cannot lift what the host's own says.
+ */
+function stricterAtRank(a: KnownTerms, b: KnownTerms): number {
+  const pace = (k: KnownTerms) => (typeof k.pace?.minIntervalMs === "number" && Number.isFinite(k.pace.minIntervalMs) ? k.pace.minIntervalMs : 0);
+  return (
+    Number(!!b.browserOnly) - Number(!!a.browserOnly) ||
+    Number(b.level === "restricted") - Number(a.level === "restricted") ||
+    pace(b) - pace(a) ||
+    b.host.split(".").length - a.host.split(".").length
+  );
+}
+
+/** The strictest of entries: the highest level, at the same level the stricter entry (stricterAtRank). */
 export function strictestEntry(hits: KnownTerms[]): KnownTerms | undefined {
   if (!hits.length) return undefined;
-  return hits.reduce((a, b) => (RANK[b.level] > RANK[a.level] || (RANK[b.level] === RANK[a.level] && b.level === "restricted" && a.level === "unknown") ? b : a));
+  return hits.reduce((a, b) => (RANK[b.level] > RANK[a.level] || (RANK[b.level] === RANK[a.level] && stricterAtRank(a, b) > 0) ? b : a));
 }
 
 /** The slowest pause strom's list asks of a host (its Crawl-delay; 0: none) — a floor, slower only. */

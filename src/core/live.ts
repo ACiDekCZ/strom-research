@@ -78,11 +78,17 @@
 //                          (strom media original) — of a source an image, else material of people with an intake task;
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
 //                          X-Strom-Task: T… — a file for what a waiting task waits for: an input of its people
-//                          handed to it, the task back in the queue (strom media original --task)
+//                          handed to it, the task back in the queue (strom media original --task); for a task that
+//                          waits for images of a book (accepts.media.taskImages) an image of it, X-Strom-Image: its
+//                          number (else the name's, else the order of those missing), X-Strom-Replace: 1 another
+//                          scan there replaced — put into its folder of the inbox and registered from there
 //   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note}): its files become sorting tasks
 //                          (a batch nobody closes is closed a day after its last file)
 //   POST <token>/waiting/<T…>   a request of a waiting task sent ({"do": "sent" | "unsent"}): strom task sent [--undo],
-//                          the user's — a fact the person gives, never an answer or a decision; the task still waits
+//                          the user's — a fact the person gives, never an answer or a decision; the task still waits.
+//                          {"do": "answer", "text", "expect"?}: the person's answer (strom task wake --answer), kept
+//                          as theirs given in the app, the task back in the queue (feature waiting.answer) — an agent
+//                          here is kept off the bridge's address by its hooks (core/bridgeguard.ts)
 //   POST <token>/group/<key>    the same for one place of What waits ({"do": "sent"}: each of its requests still to be
 //                          sent; {"do": "unsent", "tasks": [T…]}: only those, when they are of it and sent)
 //   GET <token>/group/<key>/note   the request texts of that place's tasks joined for one e-mail ({text, notes, tasks})
@@ -292,6 +298,7 @@
 // written then (a send, an original) is finished; only new requests need the
 // new secret. Nothing is replaced on a timer.
 
+import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
@@ -358,10 +365,11 @@ import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
+import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
-import { HIDE_REASONS, OFF_LINE_CHOICES, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
+import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
-import { requestTexts, waitingFor } from "./waiting.ts";
+import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { agentsHere } from "./apps.ts";
@@ -473,10 +481,22 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `batch.none` 404 {batch} — POST /batch/<id>/done: no such batch here; `batch.bad-body` 400 — its body no JSON
  * - `waiting.none` 409 {id} — X-Strom-Task: the task waits no more; `waiting.no-file` 409 {id} — it waits for the
  *   person's check of a site or decision about an archive (the app offers the inbox folder then)
+ * - images a task waits for (X-Strom-Task, a task waiting for images of a book; accepts.media.taskImages): 200 {task,
+ *   image, images, by: image|name|order, added, same, replaced, aside, woken, back, inbox: {have, want?, missing},
+ *   state, head, parent}, else `waiting.image-unknown` 409 {missing, task} — which image it is is not known (say
+ *   X-Strom-Image); `waiting.image-unwanted` 409 {want, task} — a number the task does not ask for;
+ *   `waiting.image-exists` 409 {image, task} — another scan there already (again with X-Strom-Replace: 1: the old one
+ *   withdrawn and kept); `waiting.image-same` 409 {image, same: M…, as: "B…:n", sameRecordset?, sameImage?, task} —
+ *   the file is the same as another image taken already (another number or book): nothing taken; `waiting.pdf` 415 — a PDF whose pages cannot be made images here; `media.type` 415 — no image
+ *   of a book; `media.bad-header` 400 {header: X-Strom-Image | X-Strom-Replace}
  *
  * A request marked sent (POST /waiting/<T…>, /group/<key>): 200 {sent | unsent: [the tasks it marked], head, task?,
- * phase?, group?}, else
- * - `app.only` 403; `waiting.bad-body` 400 — no JSON {"do": "sent" | "unsent"} (a group's unsent: with its "tasks")
+ * phase?, group?}; the person's answer (POST /waiting/<T…> {"do": "answer"}): 200 {task, state: "open", head, parent};
+ * else
+ * - `app.only` 403; `waiting.bad-body` 400 — no JSON {"do": "sent" | "unsent" | "answer"} (a group's unsent: with its
+ *   "tasks"; an answer: its "text", 1–4000 characters)
+ * - an answer: `waiting.changed` 409 {id, at} — the task waits for something else since the item's `at` the app sent
+ *   as "expect" (nothing written); `waiting.no-answer` 409 {id, kind} — answered in the terminal (a check of a site)
  * - `waiting.none` 404 {id} — no task that waits; `group.none` 404 {group} — nothing waits at that place (also GET
  *   /group/<key>/note); `waiting.not-sendable` 409 {id, kind} — it waits for no request to send
  * - `research.busy` 503 (and Retry-After, `retry`); `locked` 423; `waiting.failed` 500
@@ -1120,7 +1140,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1855,6 +1875,8 @@ function accepts(tree: Tree, settings: Settings, env: Env, seen?: ReadingsSeen):
           tasks: mode === "archive" ? "parked" : "open",
           // a file to a task that waits for one (X-Strom-Task): an archive has none
           task: mode !== "archive",
+          // images a task waits for (X-Strom-Task with X-Strom-Image, -Replace): into its folder of the inbox, registered
+          taskImages: mode !== "archive",
           batch: { ...batchLimits(env), zip: true },
           estimate: batchEstimate(tree),
         }
@@ -1987,6 +2009,10 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     accepts: accepts(tree, settings, env, seen),
     // the documents the app asked to be read and the research's own readings: at work, and ended in the last week
     ...(archive || !seen ? {} : { reads: statusReads(seen, settings.agent(tree.config).value) }),
+    // the agent's browser for archives only a person's browser goes to (spec 048 K5.3): ready (Claude Code with Claude
+    // in Chrome), no extension (its address), or an agent whose browser strom does not keep — and the tree's archives
+    // where it would help, with the person's permission "through the browser" or not (none in an archive)
+    ...(archive ? {} : { browser: browserStatus(tree, env, agent, settings.shared()?.value) }),
     inbox: { trees: inboxTrees(root, env), material: materialWaiting(tree) },
     sends: recentSends(root, tree),
     batches: batchStatus(tree),
@@ -3213,6 +3239,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
     let batch: string | undefined;
     let where: string | undefined;
     let forTask: string | undefined;
+    let image: number | undefined;
+    let replace = false;
     let read = false;
     const zip = header("x-strom-zip") === "1";
     const tree = Tree.open(root, env);
@@ -3244,6 +3272,16 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (task !== undefined && !/^[Tt]\d{1,9}$/.test(task)) throw new Error("X-Strom-Task: the ID of a task of the research that waits (T…)");
       if (task && (batch || source)) throw new Error("X-Strom-Task: a file for a task comes in no batch and is no image of a source");
       forTask = task ? normId(task, "task") : undefined;
+      at = "X-Strom-Image";
+      const n = header("x-strom-image")?.trim();
+      if (n !== undefined && (!/^\p{Nd}{1,6}$/u.test(n) || Number(n) < 1)) throw new Error("X-Strom-Image: the image's number in the book (1 or more)");
+      if (n !== undefined && !task) throw new Error("X-Strom-Image: with X-Strom-Task — an image a task waits for");
+      image = n !== undefined ? Number(n) : undefined;
+      at = "X-Strom-Replace";
+      const again = header("x-strom-replace")?.trim();
+      if (again !== undefined && again !== "1") throw new Error("X-Strom-Replace: 1 — another scan at that image number replaces the one there");
+      if (again && !task) throw new Error("X-Strom-Replace: with X-Strom-Task");
+      replace = again === "1";
       at = "X-Strom-Read";
       const toRead = header("x-strom-read")?.trim();
       if (toRead !== undefined && toRead !== "1") throw new Error("X-Strom-Read: 1 — the file is to be read at once (POST /read)");
@@ -3264,7 +3302,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     // a file to read: its reading shown under the name it came with now — also when the research had it already
     if (read) reads.named(sha, named);
-    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, source: meta.source, region, batch, where, zip, task: forTask, ...(read ? { read } : {}) });
+    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, source: meta.source, region, batch, where, zip, task: forTask, ...(image !== undefined ? { image } : {}), ...(replace ? { replace } : {}), ...(read ? { read } : {}) });
   };
 
   const closeBatchNow = (id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void) => closeBatchBy(receiver, id, extra, reply);
@@ -4768,6 +4806,22 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const groupItems = (tree: Tree, key: string) => waitingFor(tree, { shared: new Settings(env, {}).shared()?.value, stories: false }).filter((w) => w.item.group.key === key);
   /** A sent or not sent from the app: "sent" or "unsent", else none. */
   const sentWord = (body: Record<string, unknown>): "sent" | "unsent" | undefined => (body.do === "sent" || body.do === "unsent" ? body.do : undefined);
+  /**
+   * POST /waiting/<T…> {"do": "answer", "text", "expect"?}: the person's answer to what the task waits for, as strom task
+   * wake T… --answer in their terminal — kept on the task as theirs, given in the app (givenIn app), the task back in the
+   * queue; expect: its item's `at` as the app saw it (it waits for something else since: 409 waiting.changed).
+   */
+  const answerAsk = (tree: Tree, id: string, body: Record<string, unknown>): { args: string[] } | { code: number; body: Record<string, unknown> } => {
+    const text = typeof body.text === "string" ? body.text.normalize("NFC").trim() : "";
+    if (!text || text.includes("\0") || [...text].length > ANSWER_MAX)
+      return { code: 400, body: refusal(`the body: JSON {"do": "answer", "text": "<the answer, 1–${ANSWER_MAX} characters>", "expect"?: "<the item's at>"}`, "waiting.bad-body") };
+    if (body.expect !== undefined && typeof body.expect !== "string") return { code: 400, body: refusal(`the body: "expect" is the item's at`, "waiting.bad-body") };
+    const t = /^T\d+$/.test(id) ? tree.get<Task>(id) : undefined;
+    if (!t || t.type !== "task" || t.retracted || t.state !== "waiting") return { code: 404, body: refusal(`${id} is no task that waits`, "waiting.none", { id }) };
+    if (typeof body.expect === "string" && body.expect !== t.updated) return { code: 409, body: refusal(`${id} waits for something else since (${t.updated}) — nothing written`, "waiting.changed", { id, at: t.updated }) };
+    if (!answersInApp(t)) return { code: 409, body: refusal(`${id} is answered in the terminal (kind ${waitKindOf(t)})`, "waiting.no-answer", { id, kind: waitKindOf(t) }) };
+    return { args: ["task", "wake", id, `--answer=${text}`, `--expect=${t.updated}`] };
+  };
   /** The command's refusal of a request marked sent, as the app is told it. */
   const sentRefused = (code: string, why: string, id: string): { code: number; body: Record<string, unknown> } | undefined =>
     code === "task.not-waiting" || code === "task.none"
@@ -4779,12 +4833,18 @@ export function serveLive(root: string, env: Env): Promise<void> {
   /** POST /waiting/<T…> {"do": "sent" | "unsent"}: strom task sent T… [--undo], the user's — a fact, not a decision. */
   const waitingWrite = (raw: string): AppWrite => {
     const id = /^[Tt]\d{1,9}$/.test(raw) ? normId(raw, "task") : raw.slice(0, 32);
-    let said: "sent" | "unsent" = "sent";
+    let said: "sent" | "unsent" | "answer" = "sent";
     return {
       what: `${id} sent`,
+      // an answer of up to 4000 characters, each up to 4 bytes, in JSON's escapes
+      max: 64 * 1024,
       ask(tree, body) {
+        if (body.do === "answer") {
+          said = "answer";
+          return answerAsk(tree, id, body);
+        }
         const word = sentWord(body);
-        if (!word) return { code: 400, body: refusal(`the body: JSON {"do": "sent" | "unsent"}`, "waiting.bad-body") };
+        if (!word) return { code: 400, body: refusal(`the body: JSON {"do": "sent" | "unsent" | "answer"}`, "waiting.bad-body") };
         said = word;
         const t = /^T\d+$/.test(id) ? tree.get<Task>(id) : undefined;
         if (!t || t.type !== "task" || t.retracted || t.state !== "waiting") return { code: 404, body: refusal(`${id} is no task that waits`, "waiting.none", { id }) };
@@ -4794,10 +4854,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
       },
       done(tree, data, head) {
         const t = tree.get<Task>(id);
+        if (said === "answer") return { task: id, state: t?.state ?? "open", head };
         const marked = Array.isArray(data.marked) ? data.marked.map(String) : [];
         return { [said]: marked, task: id, ...(t ? { phase: waitPhaseOf(t) } : {}), head };
       },
-      refused: (_tree, code, why) => sentRefused(code, why, id),
+      refused: (tree, code, why) =>
+        code === "task.changed" ? { code: 409, body: refusal(why, "waiting.changed", { id, at: tree.get<Task>(id)?.updated ?? "" }) } : code === "task.check-person" ? { code: 409, body: refusal(why, "waiting.no-answer", { id }) } : code === "task.answer-long" ? { code: 400, body: refusal(why, "waiting.bad-body") } : sentRefused(code, why, id),
     };
   };
 
@@ -5069,6 +5131,50 @@ export function serveLive(root: string, env: Env): Promise<void> {
           back("it did not answer in time");
         }, Number(env.STROM_LIVE_RENEW_WAIT_MS ?? 30_000)).unref?.();
       };
+      // the folders of the shared inbox tasks wait on (core/inboxwatch.ts): images the person saves there taken as they
+      // come — a strom of the bridge's, as the person — and a task they complete back in the queue
+      const inbox = watchInbox({
+        root,
+        env,
+        shared: () => new Settings(env, {}).shared()?.value,
+        busy,
+        note: (line) => noteLive(root, line),
+        take: (done) => {
+          const { command, args } = stromLauncher();
+          let child: ChildProcess;
+          try {
+            child = spawn(command, [...args, "media", "add", "--inbox", "--waiting", "--json"], { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+          } catch (e) {
+            noteLive(root, `images saved for waiting tasks not taken now: ${errorText(e)}`);
+            return done(false);
+          }
+          track(child);
+          let out = "";
+          let err = "";
+          child.stdout?.on("data", (d: Buffer) => (out += d.toString("utf8")));
+          child.stderr?.on("data", (d: Buffer) => (err += d.toString("utf8")));
+          child.on("error", (e) => {
+            noteLive(root, `images saved for waiting tasks not taken now: ${errorText(e)}`);
+            done(false);
+          });
+          child.on("close", (code) => {
+            if (code === null) return;
+            if (code !== 0) {
+              noteLive(root, `images saved for waiting tasks not taken now: ${err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`}`);
+              return done(false);
+            }
+            try {
+              const data = JSON.parse(out) as { taken?: { folder: string; added: number[]; problem?: string }[]; woken?: string[] };
+              for (const t of data.taken ?? [])
+                if (t.added.length || t.problem) noteLive(root, `inbox ${t.folder}: ${t.problem ? `nothing taken — ${t.problem}` : `${counted(t.added.length, "image")} registered`}`);
+              if (data.woken?.length) noteLive(root, `back in the queue (images saved): ${data.woken.join(", ")}`);
+            } catch {
+              // said by the exit code
+            }
+            done(true);
+          });
+        },
+      });
       let batchesChecked = 0;
       let incomingCleaned = 0;
       // what GET /history answers, looked at again at most once a minute while the app follows (its rev and the head)
@@ -5205,6 +5311,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         widgetEnds = true;
         endWork();
         keeper.end();
+        inbox.end();
         if (stopWaits) safe("the stop's wait", () => fs.rmSync(liveBusyFile(root), { force: true }));
         safe("the widget", () => widget?.end(reason === "gone"));
         send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });
@@ -5225,4 +5332,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
       process.once("SIGINT", () => stop("SIGINT", "signal"));
     });
   });
+}
+
+/** /status `browser`: the agent's browser here and the tree's archives only a person's browser goes to. */
+function browserStatus(tree: Tree, env: Env, agent: string | undefined, shared: string | undefined): Record<string, unknown> {
+  const s = browserState(env, agent);
+  return {
+    state: s.state,
+    ...(s.url ? { url: s.url } : {}),
+    archives: treeBrowserArchives(tree, shared).map((a) => ({ host: a.host, ...(a.title ? { title: a.title } : {}), permitted: a.permitted })),
+  };
 }

@@ -15,16 +15,21 @@
 //     through a web tool — strom fetch (the person's permission, a person's pace), else by hand; its pages stay open;
 //   · a failure reading what strom keeps of the host: refused where strom's list says the archive forbids automation
 //     or a refusal is kept (D8), else as if nothing were known.
+//
+// The agent's browser (Claude in Chrome's navigate, strom net web --check --browser) goes by browserGate: the same,
+// except that an archive only a person's browser goes to, and the images of one that restricts automation, open to it
+// as the archive's level and the person's permission "through the browser" let them — at a person's pace.
 
 import path from "node:path";
 import type { Env } from "./paths.ts";
-import { archiveLevel, keyHost, loadArchives, termsFor, termsOpen, type ArchiveLevel, type ConnectorLike } from "./terms.ts";
+import { allows, archiveLevel, keyHost, loadArchives, termsFor, termsOpen, type ArchiveLevel, type ConnectorLike } from "./terms.ts";
 import { AGENT_TOOL_TOKENS, clock, hostAllowed, hostState, REFUSED_FOREVER, robotsYields, toolRobotsVerdict, type RobotsState } from "./net.ts";
 import { knownDisallow } from "./knownterms.ts";
 import { listConnectors } from "./connector.ts";
 import { metricsDir, termsPagesToday } from "./metrics.ts";
 import { settingsTrust } from "./trust.ts";
 import type { Tree } from "./tree.ts";
+import type { RecordSet, Task } from "./model.ts";
 
 /** The terms page of a forbidden or refusing archive: at most this many times a day through an agent's web tools. */
 export const TERMS_PER_DAY = 3;
@@ -47,6 +52,8 @@ export interface WebGate {
   blocked?: { until: number; reason?: string };
   /** The terms pages of the host read today through the web tools (a closed archive). */
   termsToday?: number;
+  /** Through a person's browser (browserGate): at a person's pace (terms.ts humanPace), the slower of it and the host's. */
+  human?: true;
 }
 
 /** An address of an image (or a scan's file): what an archive's images are, never a page. */
@@ -126,6 +133,25 @@ export function otherWay(host: string, url: string, task?: string): string {
   );
 }
 
+/** The book of the task (its `where`, else the research's book at that address) on a host: named in the advice, not B…. */
+export function bookOn(tree: Tree | undefined, task: string | undefined, host: string, url: string): string {
+  if (!tree) return "B…";
+  const onHost = (b: RecordSet) => {
+    if (!b.url || b.retracted || b.mergedInto) return false;
+    try {
+      const h = new URL(b.url).hostname.toLowerCase();
+      return h === host || h.endsWith(`.${host}`) || host.endsWith(`.${h}`);
+    } catch {
+      return false;
+    }
+  };
+  const t = task ? tree.get<Task>(task) : undefined;
+  const own = (t?.where ?? []).map((w) => tree.get<RecordSet>(w)).filter((b): b is RecordSet => !!b && b.type === "recordset" && onHost(b));
+  if (own.length === 1) return own[0]!.id;
+  const at = tree.list<RecordSet>("recordset").filter((b) => onHost(b) && samePage(b.url!, url));
+  return at.length === 1 ? at[0]!.id : "B…";
+}
+
 /**
  * What strom would let an agent's own web tool fetch now at an address, and why: read only. `agent`: whose tool (its
  * robots.txt token); none: every tool strom knows (the strictest).
@@ -139,7 +165,7 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
   }
   const host = u.hostname.toLowerCase().replace(/\.$/u, "");
   const now = o.now ?? Date.now();
-  const dir = o.shared ? path.join(o.shared, "net") : o.tree ? path.join(metricsDir(o.tree.root), "net") : undefined;
+  const dir = netDirOf(o.shared, o.tree);
   const target = `${u.pathname}${u.search}`;
   const robotsTxt = u.pathname === "/robots.txt" && !u.search;
   const base = { host, url: o.url };
@@ -181,13 +207,26 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
   // only a person's browser goes there: no web fetch at all (its robots.txt itself aside)
   if (a.browserOnly) {
     if (robotsTxt) return out({ allow: true, why: "robots.txt" });
+    const book = bookOn(o.tree, o.task, host, o.url);
     const by = a.browserOnly.by === "robots" ? `its robots.txt keeps automated tools off the whole site ("${a.browserOnly.line ?? "Disallow: /"}")` : "strom's list of archives' terms says only a person's browser goes there";
+    // by hand only (its terms, the person's word, or a path strom's list keeps every automated tool off): the agent's
+    // browser neither — no permission that could help
+    const known = knownDisallow(host);
+    const listed = known.length > 0 && !toolRobotsVerdict({ at: 0, status: 200, groups: [{ agents: ["*"], allow: [], disallow: known }] }, target, []).allowed;
+    if (a.level === "manual" || a.permission === "manual" || listed)
+      return out({
+        allow: false,
+        why: "browser",
+        reason:
+          `strom: ${name} lets automated tools in only through a person's browser — ${by} — and ${listed && a.level !== "manual" && a.permission !== "manual" ? `strom's list of archives keeps every automated tool off ${target}` : a.permission === "manual" && a.level !== "manual" ? "the person chose its images by hand" : "its terms keep it for a person's hand"}: no web fetch, not through your browser either. ` +
+          `The person saves what is needed by hand: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>" (strom makes the inbox folder they go into; saved there, they bring the task back by themselves). ${otherWay(host, o.url, o.task)}`,
+      });
     return out({
       allow: false,
       why: "browser",
       reason:
         `strom: ${name} lets automated tools in only through a person's browser — ${by}: no web fetch. ` +
-        `Its images through the person's browser only with their permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours), else the person saves what is needed by hand: strom task wait ${o.task ?? "T…"} --images B…:<numbers> --on "…". ${otherWay(host, o.url, o.task)}`,
+        `Its images through the person's browser only with their permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours), else the person saves what is needed by hand: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>" (strom makes the inbox folder they go into; saved there, they bring the task back by themselves). ${otherWay(host, o.url, o.task)}`,
     });
   }
   // the path its robots.txt keeps the agent's tool off (what strom read of it — never read here), and strom's list's paths
@@ -212,19 +251,77 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
     });
   // images of an archive that restricts automation, keeps them by hand, or whose terms are not known: never a web tool's
   if (a.level !== "allowed" && imageUrl(o.url)) {
+    const book = bookOn(o.tree, o.task, host, o.url);
     const way =
       a.level === "manual" || a.permission === "manual"
-        ? `its images by hand only: strom task wait ${o.task ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"`
-        : `its images through strom fetch with its connector, at a person's pace once the person allowed it (strom fetch asks them), else by hand: strom task wait ${o.task ?? "T…"} --images B…:<numbers> --on "…"`;
+        ? `its images by hand only: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"`
+        : `its images through strom fetch with its connector, at a person's pace once the person allowed it (strom fetch asks them), else by hand: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "…"`;
     return out({ allow: false, why: "images", reason: `strom: ${name} — ${a.level === "unknown" || a.termsUnknown ? "its terms are not known" : a.level === "manual" ? "its terms allow its images by hand only" : "its terms restrict automated downloading"}: no image of it through your web tools; ${way}. Its pages stay open to the web fetch tool.` });
   }
-  let blocked: WebGate["blocked"];
+  const blocked = hostBlocked(dir, host, now);
+  return out({ allow: true, ...(blocked ? { blocked } : {}) });
+}
+
+/** The host left alone now (a refusal, its limit used up), as the limiter keeps it: until when, and why. */
+export function hostBlocked(dir: string | undefined, host: string, now: number): WebGate["blocked"] {
   try {
     const s = dir ? hostState(dir, host) : undefined;
-    if (s?.blockedUntil && s.blockedUntil > now) blocked = { until: s.blockedUntil, ...(s.reason ? { reason: s.reason } : {}) };
-    else if (s?.waitUntil && s.waitUntil > now) blocked = { until: s.waitUntil, reason: "its limit is used up" };
+    if (s?.blockedUntil && s.blockedUntil > now) return { until: s.blockedUntil, ...(s.reason ? { reason: s.reason } : {}) };
+    if (s?.waitUntil && s.waitUntil > now) return { until: s.waitUntil, reason: "its limit is used up" };
   } catch {
-    blocked = undefined;
+    // what strom keeps of it cannot be read: nothing known against it here (the limiter puts it right)
   }
-  return out({ allow: true, ...(blocked ? { blocked } : {}) });
+  return undefined;
+}
+
+/** The limiter's folder of the hosts: the shared one's, else the tree's own beside its metrics. */
+export function netDirOf(shared: string | undefined, tree: Tree | undefined): string | undefined {
+  return shared ? path.join(shared, "net") : tree ? path.join(metricsDir(tree.root), "net") : undefined;
+}
+
+/**
+ * What strom would let the agent's browser (Claude in Chrome's navigate) open now at an address, and why: read only.
+ * The web fetch's gate (webGate) on the route of a person's browser — a closed archive, a refusal of strom's client, a
+ * path its robots.txt keeps automated tools off stay closed; an archive only a person's browser goes to, and the images
+ * of one that restricts automation, open only as the archive's level and the person's permission let the browser
+ * (terms.ts allows, route "browser": the permission "through the browser"), at a person's pace (`human`).
+ */
+export function browserGate(o: Parameters<typeof webGate>[0]): WebGate {
+  const g = webGate(o);
+  if (g.allow || !g.level || (g.why !== "browser" && g.why !== "images")) return g;
+  const a = g.level;
+  const image = imageUrl(o.url);
+  const may = allows(a, image ? "images" : "pages", "browser");
+  const name = archiveText(a, g.host);
+  // by hand only: the web fetch's answer says so already (no permission that could help)
+  if (!may.ok && may.why === "manual") return g;
+  // the paths strom's list keeps off stay off, before any permission (none could open them)
+  let u: URL;
+  try {
+    u = new URL(o.url);
+  } catch {
+    return g;
+  }
+  const target = `${u.pathname}${u.search}`;
+  const known = knownDisallow(g.host);
+  if (known.length) {
+    const v = toolRobotsVerdict({ at: 0, status: 200, groups: [{ agents: ["*"], allow: [], disallow: known }] }, target, []);
+    if (!v.allowed)
+      return { ...g, why: "robots", robots: { line: v.line!, path: target }, reason: `strom: strom's list of archives keeps automated tools off ${target} of ${g.host} ("${v.line}") — not through the browser either. ${otherWay(g.host, o.url, o.task)}` };
+  }
+  if (!may.ok) {
+    if (g.why === "images") return g;
+    const book = bookOn(o.tree, o.task, g.host, o.url);
+    return {
+      ...g,
+      reason:
+        `strom: ${name} lets automated tools in only through a person's browser, and the person has not allowed it "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours): not through the browser either. ` +
+        `Else the person saves what is needed by hand: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>". ${otherWay(g.host, o.url, o.task)}`,
+    };
+  }
+  const blocked = hostBlocked(netDirOf(o.shared, o.tree), g.host, o.now ?? Date.now());
+  const rest: WebGate = { ...g };
+  delete rest.why;
+  delete rest.reason;
+  return { ...rest, allow: true, ...(a.browserOnly || may.human ? { human: true as const } : {}), ...(blocked ? { blocked } : {}) };
 }

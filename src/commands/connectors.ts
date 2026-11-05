@@ -45,6 +45,8 @@ import {
   parseResult,
   PLAN_TTL_MS,
   planScript,
+  viewerBatch,
+  viewerScript,
   readSavedPage,
   removePlan,
   savePage,
@@ -111,7 +113,7 @@ import { siteConnector } from "../core/web.ts";
 import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, termsOpen, type ArchiveLevel } from "../core/terms.ts";
 import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
-import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
+import { archivesOverview, browserOnlyRefusal, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
 import { currentSession, othersAtWork } from "../core/session.ts";
 import { refuseInHistorySession } from "../core/pastevents.ts";
 import { askedAgain, noteLeftAlone } from "../core/leftalone.ts";
@@ -1251,6 +1253,10 @@ register(
           hint: "the user saves what the research needs by hand: strom task wait T… --on \"<what to save, impersonal, in the research language>\"",
           code: "archive.forbidden",
         });
+      // only a person's browser goes there: no probe — strom's own request, never the browser's, whatever the connector's
+      // route — its robots.txt alone, as the agent's web fetch (a connector made before strom knew the archive so, a
+      // permission "slowly" given before included)
+      if (level?.browserOnly && !(target!.pathname === "/robots.txt" && !target!.search)) throw browserOnlyRefusal(ctx, c, level);
       const keepImages = !level || allows(level, "images", routeOf(ctx.env, c).via).ok;
       if (!(await ensureAllowed(ctx, c))) return { text: "not allowed — nothing was sent", exitCode: 1 };
       const dir = path.join(c.dir, ".test", "probe");
@@ -1498,7 +1504,9 @@ register(
       }
       const perHour = Math.min(1000, connectorPace(ctx, c).perHour);
       const wantsPart = opts.crop !== undefined || opts.half !== undefined;
-      if (wantsPart && !c.manifest.can.includes("part"))
+      // a part through the archive's viewer in the person's tab: the viewer zooms in on it, nothing more is asked
+      const viewerPart = !!c.manifest.browser?.viewer && c.manifest.can.includes("locate");
+      if (wantsPart && !c.manifest.can.includes("part") && !viewerPart)
         throw new UsageError(`connector ${c.name} fetches whole images only (it cannot: part)`, {
           hint: 'the user saves the part by hand: zoomed in on it in the portal\'s viewer — strom task wait T… --images B…:<n> --on "<the book, its link, the image, the entry to zoom in on; saved as 40a.jpg>"',
         });
@@ -2919,8 +2927,9 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   const pace = connectorPace(ctx, c, human);
   const part = request.cmd === "part";
   const asked = part ? [request.image] : request.images;
-  // one script waits at most SCRIPT_MS: as many images as fit in it, the rest next time
-  const batch = asked.slice(0, Math.max(1, Math.floor(SCRIPT_MS / pace.minIntervalMs)));
+  const viewer = c.manifest.browser?.viewer;
+  // one script waits at most SCRIPT_MS: as many images as fit in it (a viewer's: with its tiles), the rest next time
+  const batch = asked.slice(0, viewer ? viewerBatch(pace.minIntervalMs) : Math.max(1, Math.floor(SCRIPT_MS / pace.minIntervalMs)));
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const pages = pagesOf(ctx, c);
   const meter = new FetchMeter();
@@ -2932,8 +2941,11 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   if (!r.located.length) return { text: lines(describeRun(r, "locate"), r.refused ? refusalAdvice(ctx, c, r.refused) : "no image located — nothing planned"), data: r, exitCode: 1 };
   // one site at a time: the script fetches from the page it runs on
   const first = new URL(r.located[0]!.src);
-  const here = batch.map((n) => r.located.find((l) => l.n === n && new URL(l.src).origin === first.origin)).filter((l) => l !== undefined);
-  const open = c.manifest.browser?.open && new URL(c.manifest.browser.open).origin === first.origin ? c.manifest.browser.open : `${first.origin}/robots.txt`;
+  // a viewer's images: all on the book's page the tab shows (its path), each its page n of the viewer
+  const bookPage = viewer ? new URL(r.located[0]!.url ?? r.located[0]!.src) : undefined;
+  const onPage = (l: { src: string; url?: string }) => !bookPage || (URL.canParse(l.url ?? l.src) && new URL(l.url ?? l.src).origin === bookPage.origin && new URL(l.url ?? l.src).pathname === bookPage.pathname);
+  const here = batch.map((n) => r.located.find((l) => l.n === n && new URL(l.src).origin === first.origin && onPage(l))).filter((l) => l !== undefined);
+  const open = bookPage ? bookPage.href : c.manifest.browser?.open && new URL(c.manifest.browser.open).origin === first.origin ? c.manifest.browser.open : `${first.origin}/robots.txt`;
   let times: number[];
   try {
     const hp = human.get(keyHost(c, first.hostname));
@@ -2951,7 +2963,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     .map((l, i) => ({ n: l.n, src: l.src, url: l.url ?? l.src, ...(l.page ? { page: l.page } : {}), ...(l.region ? { region: l.region } : {}), file: fileBase(c.name, request.book, l.n, part), at: times[i + 1]! }))
     .filter((it, i) => i === 0 || it.at - times[1]! <= SCRIPT_MS);
   const now = Date.now();
-  const plan: BrowserPlan = { id: `${c.name}-${now}`, connector: c.name, book: request.book, ...(recordset ? { recordset } : {}), open, origin: first.origin, host: first.hostname, gap: times.length > 1 ? times[1]! - times[0]! : pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items };
+  const plan: BrowserPlan = { id: `${c.name}-${now}`, connector: c.name, book: request.book, ...(recordset ? { recordset } : {}), open, origin: first.origin, host: first.hostname, gap: times.length > 1 ? times[1]! - times[0]! : pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items, ...(viewer ? { viewer } : {}) };
   // an image planned again replaces its older plan
   for (const old of loadPlans(tree.root, c.name)) {
     const left = old.items.filter((i) => !(old.book === plan.book && items.some((x) => x.file === i.file)));
@@ -2960,7 +2972,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     else removePlan(tree.root, old.id);
   }
   savePlan(tree.root, plan);
-  const script = planScript(plan);
+  const script = viewer ? viewerScript(plan) : planScript(plan);
   const rest = asked.filter((n) => !items.some((i) => i.n === n));
   const secs = Math.max(1, Math.round((items.at(-1)!.at - now) / 1000));
   const take = `strom fetch ${c.name} --take --result "<the line it returned>"`;
@@ -2969,10 +2981,12 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     text: lines(
       describeRun(r, "locate"),
       `browser plan: ${part ? `part ${regionText(request.region)} of image ${request.image}` : `${counted(items.length, "image")} (${runs(items.map((i) => i.n))})`} of book ${request.book} through your browser — about ${secs} s at the pace of ${first.hostname}`,
-      `1. Open a new tab of your own at ${open}${open.endsWith("/robots.txt") ? " — a light page of the site: the script fetches the images from there" : ""}.`,
+      viewer
+        ? `1. Open the book's page in a new tab of your own: ${open} — once (a tab of yours on this book's page already: that one). The script pages through the archive's viewer itself and saves what it shows: never reload the tab or open another page of it while it runs.`
+        : `1. Open a new tab of your own at ${open}${open.endsWith("/robots.txt") ? " — a light page of the site: the script fetches the images from there" : ""}.`,
       '   The browser not connected, a login or a captcha on the way: stop and ask the user (strom task wait T… --on "…") — that is theirs to do.',
       "   (Not connected: Chrome must be running with the Claude extension; after a change of network the extension may need a click on its icon, or Chrome a restart.)",
-      "2. Run this in that tab with the JavaScript tool, exactly as it is — it waits between the images by itself:",
+      `2. Run this in that tab with the JavaScript tool, exactly as it is — it waits between the images by itself${viewer ? " and for the viewer's tiles" : ""}:`,
       "",
       script,
       "",
@@ -3007,10 +3021,12 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
     return { text: `dry run: would take over ${found.length} of ${counted(plans.reduce((n, p) => n + p.items.length, 0), "planned image")} from ${ctx.display(dir)} — nothing was changed`, data: { dryRun: true, found: found.map((i) => i.n) } };
   }
   const notes: string[] = [];
+  // why the script stopped, as it said after its result (a viewer's page that did not come)
+  const why = /\s—\s(.+)$/u.exec(result ?? "")?.[1]?.replace(/["']+$/u, "").slice(0, 300);
   // what the archive said to the browser counts as if it had said it to strom
   for (const g of got) {
     const plan = plans.find((p) => p.items.some((i) => i.n === g.n)) ?? plans.at(-1)!;
-    if (g.failed) notes.push(`image ${g.n}: the browser could not fetch it — no answer, or the site does not let this page fetch it`);
+    if (g.failed) notes.push(plan.viewer ? `image ${g.n}: not saved from the archive's viewer${why ? ` — ${why}` : ""}` : `image ${g.n}: the browser could not fetch it — no answer, or the site does not let this page fetch it`);
     else if (g.status && g.status >= 400) notes.push(refusedBy(netDir(ctx), plan.host, g.status) ?? `image ${g.n}: HTTP ${g.status}`);
   }
   const taken: { plan: BrowserPlan; item: PlanItem; file: string; others: string[] }[] = [];

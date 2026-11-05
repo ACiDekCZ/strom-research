@@ -10,7 +10,7 @@ import type { Env } from "../core/paths.ts";
 import type { AgentWeb } from "../core/metrics.ts";
 import { RunLog } from "../core/logimages.ts";
 import { StringDecoder } from "node:string_decoder";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, recoverDelays, spawnAgent, stopTree, transientNetworkError, type RunOptions, type RunResult } from "./runner.ts";
 
 /** What a runner learns from its agent's events. */
 export interface Heard {
@@ -31,6 +31,10 @@ export interface Heard {
   endedAtRefusal?: string;
   /** How many refusals the processes before this one heard (`denied` holds all of the session's). */
   deniedBefore?: number;
+  /** This process's error as its events said it, whole (its name, code, message, cause): what recover reads. */
+  error?: string;
+  /** The last step of this process's own session ended normally, as its events said it (OpenCode: reason "stop"). */
+  endedNormally?: boolean;
 }
 
 /** The use of one process's responses added up: how many, and the tokens of each kind any of them said. */
@@ -95,6 +99,35 @@ export interface JsonLinesWays {
     /** The process that goes on: the same conversation, the message, the time left. */
     resume: (sessionId: string, message: string, timeoutMs: number | undefined) => { args: string[]; input: string };
   };
+  /**
+   * A process that failed on a passing network error (runner.ts transientNetworkError: of its error event or its
+   * stderr) is resumed in the same session after a wait (recoverDelays: 5 s, then 15 s), while its time is left — the
+   * waits and the work before count against it (GO_ON_MIN_MS left after the wait, else it ends as it failed). Never
+   * after Ctrl-C, its time limit or a signal, nor without its session's id; the same switches, the use of every process
+   * added up.
+   */
+  recover?: {
+    resume: (sessionId: string, message: string, timeoutMs: number | undefined) => { args: string[]; input: string };
+  };
+}
+
+/** What an agent resumed after a passing network error is told. */
+export const RECOVER_PROMPT =
+  "Your connection to the model's service failed on the way ({why}) and strom resumed this same session. Go on exactly where you " +
+  "stopped — do not start over and do not repeat what is already recorded in strom. If your strom session is already closed, just end.";
+
+/** Wait, cut short by Ctrl-C. */
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const done = () => {
+      clearTimeout(t);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const t = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 /** The least time left to go on in after a process ended early (less: the session ends as it ended). */
@@ -114,13 +147,18 @@ export async function runJsonLines(
 ): Promise<RunResult> {
   const started = Date.now();
   const heard: Heard = { metrics: {}, text: "", isError: false, denied: [] };
+  // the stderr of the last process alone (a passing error of one before it is no error of the last)
+  let lastStderr = "";
   // one start of the agent, and what it used when it ended without saying it
   const once = async (args: string[], input: string, timeoutMs: number | undefined) => {
     heard.responses = undefined;
     heard.ended = false;
     heard.endedAtRefusal = undefined;
     heard.deniedBefore = heard.denied.length;
+    heard.error = undefined;
+    heard.endedNormally = undefined;
     const a = await attempt(command, args, input, env, opts, timeoutMs, heard, onEvent);
+    lastStderr = a.stderr;
     // (its events set them while it ran)
     const said = heard.responses as Responses | undefined;
     if (ways.totalsAtEnd && !a.failed && !(heard.ended as boolean)) {
@@ -131,6 +169,31 @@ export async function runJsonLines(
   };
   let a = await once(args, opts.prompt, opts.timeoutMs);
   if (a.failed) return { exitCode: 127, outcome: "error", text: a.failed, metrics: heard.metrics };
+  // a passing network error: the same session resumed after a wait, while its time is left
+  let recovered = 0;
+  const delays = recoverDelays(opts.env);
+  for (let n = 1; ways.recover && n <= delays.length; n++) {
+    if (a.timedOut || a.signal || opts.signal?.aborted || !heard.sessionId) break;
+    if ((a.code ?? 0) === 0 && !heard.isError) break;
+    const why = transientNetworkError(`${heard.error ?? ""}\n${lastStderr}`);
+    if (!why) break;
+    const wait = delays[n - 1]!;
+    const left = opts.timeoutMs === undefined ? undefined : opts.timeoutMs - (Date.now() - started) - wait;
+    if (left !== undefined && left < GO_ON_MIN_MS) break;
+    appendLog(opts.logFile, `\n[strom] the agent's connection failed (${why}, exit code ${a.code ?? a.signal}) — its session ${heard.sessionId} resumed in ${Math.round(wait / 1000)} s (${n}/${delays.length})\n`);
+    if (opts.onRecover) opts.onRecover({ n, max: delays.length, waitMs: wait, why });
+    else opts.onProgress?.(`the agent's connection failed (${why}) — its session resumed in ${Math.round(wait / 1000)} s (${n}/${delays.length})`);
+    await pause(wait, opts.signal);
+    if (opts.signal?.aborted) break;
+    // what the failed process said of its error is no error of the one that goes on
+    if (heard.isError) heard.text = "";
+    heard.isError = false;
+    const r = ways.recover.resume(heard.sessionId, RECOVER_PROMPT.replace("{why}", why), left);
+    const more = await once(r.args, r.input, left);
+    if (more.failed) break;
+    recovered++;
+    a = { ...more, stderr: a.stderr + more.stderr };
+  }
   const goOn = ways.goOn;
   for (let n = 1; goOn && n <= goOn.max && !a.timedOut && !opts.signal?.aborted && heard.sessionId; n++) {
     const message = goOn.message(heard);
@@ -162,22 +225,40 @@ export async function runJsonLines(
   if (heard.refused?.length) heard.metrics.refused = heard.refused.length;
   const all = `${heard.text}\n${a.stderr}`;
   const limit = looksLikeLimit(all);
+  // ended by a signal strom did not send (no exit code): failed, never a clean end
+  const failedCode = (code ?? (a.signal ? 1 : 0)) !== 0;
   const outcome: RunResult["outcome"] = opts.signal?.aborted
     ? "stopped"
     : timedOut
       ? "timeout"
       : limit.limit
         ? "limit"
-        : /log ?in|authenticat|api[ _]?key|unauthori[sz]ed|GEMINI_API_KEY/i.test(all) && ((code ?? 0) !== 0 || heard.isError)
+        : /log ?in|authenticat|api[ _]?key|unauthori[sz]ed|GEMINI_API_KEY/i.test(all) && (failedCode || heard.isError)
           ? "auth"
-          : (code ?? 0) !== 0 || heard.isError
+          : failedCode || heard.isError
             ? "error"
             : "ok";
+  // failed by its exit code alone (exactly 1, OpenCode after a clean end): said, the caller decides — never a reader's
+  const exitOnly =
+    outcome === "error" &&
+    code === 1 &&
+    !a.signal &&
+    !opts.reader &&
+    !opts.readerFiles &&
+    heard.endedNormally === true &&
+    !heard.isError &&
+    !heard.error &&
+    !heard.denied.length &&
+    !heard.refused?.length &&
+    !looksLikeModelRejected(all) &&
+    !/error|exception|fatal|panic|fail|traceback/i.test(lastStderr);
   return {
     exitCode: code ?? 1,
     outcome,
     text: heard.text || a.stderr.trim(),
     metrics: heard.metrics,
+    ...(exitOnly ? { exitOnly: true as const } : {}),
+    ...(recovered ? { recovered } : {}),
     ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}),
     ...(heard.denied.length ? { denied: heard.denied } : {}),
     ...(heard.refused?.length ? { refused: heard.refused } : {}),
@@ -195,7 +276,7 @@ function attempt(
   timeoutMs: number | undefined,
   heard: Heard,
   onEvent: (msg: Record<string, unknown>, heard: Heard) => void,
-): Promise<{ code: number | null; timedOut: boolean; stderr: string; failed?: string }> {
+): Promise<{ code: number | null; signal?: NodeJS.Signals | null; timedOut: boolean; stderr: string; failed?: string }> {
   return new Promise((resolve) => {
     const child = spawnAgent(command, args, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: OWN_GROUP });
     feedStdin(child, input);
@@ -246,13 +327,13 @@ function attempt(
       end();
       resolve({ code: 127, timedOut, stderr, failed: String(err.message) });
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       end();
       buffer += text.end();
       if (buffer) handle(buffer);
       log.rest(buffer);
       log.flush();
-      resolve({ code, timedOut, stderr });
+      resolve({ code, signal, timedOut, stderr });
     });
   });
 }

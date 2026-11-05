@@ -42,8 +42,42 @@ export const CHROME_ALLOW = [
   "resize_window",
 ].map((t) => `mcp__claude-in-chrome__${t}`);
 
+/** The tools of Claude in Chrome, by the names Claude Code gives them. */
+export const CHROME_TOOL_PREFIX = "mcp__claude-in-chrome__";
+export const CHROME_NAVIGATE = `${CHROME_TOOL_PREFIX}navigate`;
+/** The tools that act on the page a tab shows (no address of their own): kept off a host strom must leave alone (core/chromehook.ts). */
+export const CHROME_PAGE_TOOLS = ["computer", "find", "read_page", "get_page_text", "form_input", "javascript_tool", "read_network_requests", "read_console_messages"] as const;
+/** Claude Code's matcher of strom's hook before the browser's navigate and its page tools (agents/files.ts). */
+export const CHROME_HOOK_MATCHER = `${CHROME_TOOL_PREFIX}(navigate|${CHROME_PAGE_TOOLS.join("|")})`;
+
 /** Never: a file of this computer uploaded to a web site, the user's own browser shortcuts, a batch the rules cannot see into. */
 export const CHROME_DENY = ["file_upload", "upload_image", "shortcuts_execute", "gif_creator", "browser_batch"].map((t) => `mcp__claude-in-chrome__${t}`);
+
+/**
+ * Never in a research: the browser built into Claude's desktop app, its preview pane and its computer use — also
+ * through a device linked to a session in the cloud — the tools that turn them on, and Claude in Chrome under the name
+ * the desktop app may give it (Claude_in_Chrome; the same app also gives it as claude-in-chrome, the name strom keeps).
+ * strom keeps no hook before them (its hook watches mcp__claude-in-chrome__ alone), so an archive's terms, robots.txt
+ * and pace could not be kept there. A rule of a server's name alone covers each of its tools.
+ */
+export const DESKTOP_BROWSER_DENY = [
+  "mcp__Claude_Browser",
+  "mcp__Claude_Preview",
+  "mcp__Claude_in_Chrome",
+  "mcp__computer-use",
+  "mcp__remote-devices",
+  "enable__mcp__remote-devices__Claude_Browser",
+  "enable__mcp__remote-devices__computer",
+];
+
+/**
+ * Codex's browser and computer use: the MCP servers its desktop app (ChatGPT, Codex) adds — node_repl runs its in-app
+ * browser and its Chrome extension, cua_repl (the plugin unified-computer-use) and computer-use its computer use — and
+ * the bundled plugins that bring them. They run JavaScript a hook could not read an address from, so strom keeps no
+ * watch before them: off in a research (agents/files.ts codexConfig, runners/codex.ts codexBrowserOff).
+ */
+export const CODEX_BROWSER_SERVERS = ["node_repl", "cua_repl", "computer-use", "computer_use"];
+export const CODEX_BROWSER_PLUGINS = ["browser", "chrome", "computer-use", "unified-computer-use"].map((p) => `${p}@openai-bundled`);
 
 /** The permission rule of Claude in Chrome for one site. */
 export const chromeDomain = (host: string) => `ClaudeInChromeDomain(${host.replace(/^\*\./, "").toLowerCase()})`;
@@ -161,6 +195,11 @@ export interface BrowserPlan {
   host: string;
   /** The pause between two images (ms). */
   gap: number;
+  /**
+   * The images are saved from the portal's own viewer in the tab (browser.viewer): its page n shown, what the
+   * browser drew of it kept — the viewer's own requests, none of strom's.
+   */
+  viewer?: Viewer;
   created: number;
   /** The script refuses to run after this. */
   until: number;
@@ -181,6 +220,21 @@ export function downloadsDir(env: Env, platform: NodeJS.Platform = process.platf
   }
   return path.join(home, "Downloads");
 }
+
+/** The image viewers strom saves an image from (browser.viewer): OpenSeadragon (2.x–4.x, its canvas). */
+export const VIEWERS = ["openseadragon"] as const;
+export type Viewer = (typeof VIEWERS)[number];
+
+/** How many images one script of the viewer saves: each waits its turn and for the viewer's tiles. */
+export function viewerBatch(paceMs: number): number {
+  return Math.max(1, Math.floor(SCRIPT_MS / (paceMs + VIEWER_LOAD_MS)));
+}
+/** About how long the viewer takes to show a page whole. */
+const VIEWER_LOAD_MS = 6000;
+/** The longer side of a whole image saved from a viewer (device pixels; never above the image's own): what a viewer shows of a page. */
+export const VIEWER_WHOLE_PX = 2000;
+/** The longer side of a part saved from a viewer: as sharp as the image, never more than this. */
+export const VIEWER_PART_PX = 2400;
 
 const safe = (s: string) => s.normalize("NFC").replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_").replace(/^[._]+/, "") || "x";
 
@@ -364,7 +418,7 @@ export function readSavedPage(file: string): PageAnswer | string {
 }
 
 /**
- * A page that is a check whether a person is there (Imperva/Incapsula, Cloudflare, a captcha), not
+ * A page that is a check whether a person is there (Imperva/Incapsula, Cloudflare, DDoS-Guard, Anubis, a captcha), not
  * the page asked for: its name, or undefined. The services put their scripts into every page they
  * guard, so a script alone is no check: a check is a small page with little else (found live).
  */
@@ -379,6 +433,8 @@ export function botCheck(body: Buffer | string, headers: Record<string, string> 
   if (/incapsula incident id|request unsuccessful\. incapsula/.test(text) || (bare && /_incapsula_resource/.test(text))) return "Imperva (Incapsula)";
   if (/^challenge/i.test(header("cf-mitigated") ?? "") || /<title>(just a moment\.\.\.|attention required! \| cloudflare)<\/title>/.test(text) || (bare && /cf-challenge|cf_chl_|challenge-platform/.test(text))) return "Cloudflare";
   if (bare && /ddos-guard/.test(text)) return "DDoS-Guard";
+  // Anubis (a proof of work in the browser, set up against AI companies' crawlers): its challenge page in any language
+  if (/id="anubis_challenge"/.test(text) || (bare && /\/\.within\.website\/x\/cmd\/anubis\//.test(text))) return "Anubis";
   if (bare && /g-recaptcha|h-captcha|hcaptcha\.com|recaptcha\/api\.js/.test(text)) return "a captcha";
   return undefined;
 }
@@ -428,5 +484,203 @@ export function pageScript(plan: BrowserPlan): string {
     if (res.status === 401 || res.status === 403 || res.status === 429) break;
   }
   return "strom-result " + out.join(" ");
+})()`;
+}
+
+// ── images saved from what the tab shows (a viewer, an image) ───────────────
+
+/**
+ * The functions both scripts share (plain JavaScript of the tab): the viewer found on the page; one of its pages shown
+ * whole or in part, at most as sharp as the image, waited for until every tile is there; what the browser drew of it
+ * cut out and saved as a JPEG under a name. No request of its own: the tiles are the ones the viewer asks for.
+ */
+const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const until = async (ok, ms) => {
+    const end = Date.now() + ms;
+    for (;;) {
+      try {
+        if (ok()) return true;
+      } catch (e) {}
+      if (Date.now() > end) return false;
+      await sleep(200);
+    }
+  };
+  const findViewer = () => {
+    const OSD = window.OpenSeadragon;
+    if (!OSD || !OSD.Viewer) return undefined;
+    for (const k of Object.keys(window)) {
+      try {
+        if (window[k] instanceof OSD.Viewer) return window[k];
+      } catch (e) {}
+    }
+    if (OSD._viewers && OSD._viewers.values) for (const v of OSD._viewers.values()) return v;
+    return undefined;
+  };
+  const save = (blob, name) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  };
+  const jpeg = (canvas) => new Promise((r) => { try { canvas.toBlob((b) => r(b), "image/jpeg", 0.92); } catch (e) { r(undefined); } });
+  // the viewer's page idx (0: the first; -1: the one it shows), whole or the region, cut out of what it drew
+  const capture = async (v, idx, region, target) => {
+    const pages = Array.isArray(v.tileSources) ? v.tileSources.length : 1;
+    if (idx >= 0 && idx >= pages) return { why: "the viewer has " + pages + " page" + (pages === 1 ? "" : "s") + ", not " + (idx + 1) };
+    // the addresses a viewer's page holds of its images may expire (the archive answers 410): the viewer opens nothing then
+    let gone = false;
+    const onGone = () => (gone = true);
+    const stale = { why: "the viewer could not open its page " + (idx + 1) + ": the book's page in this tab is out of date (the archive's addresses of its images expire) — open the book's page again, once, then run strom fetch again", stale: true };
+    v.addHandler("open-failed", onGone);
+    try {
+      if (idx >= 0 && pages > 1 && v.currentPage() !== idx) {
+        const before = v.world.getItemAt(0);
+        v.goToPage(idx);
+        if (!(await until(() => gone || (v.currentPage() === idx && v.world.getItemCount() > 0 && v.world.getItemAt(0) !== before), 30000))) return { why: "the viewer did not show page " + (idx + 1) + " in 30 s" };
+        if (gone) return stale;
+      }
+      if (!(await until(() => gone || v.world.getItemCount() > 0, 30000))) return { why: "the viewer shows no image after 30 s — a check whether a person is there is the user's to pass", check: true };
+      if (gone) return stale;
+    } finally {
+      v.removeHandler("open-failed", onGone);
+    }
+    const item = v.world.getItemAt(0);
+    const canvas = v.drawer && v.drawer.canvas;
+    if (!canvas || !canvas.getContext || (v.drawer.getType && v.drawer.getType() === "webgl")) return { why: "this viewer does not draw on a canvas strom can save" };
+    const dim = item.source && item.source.dimensions ? item.source.dimensions : item.getContentSize();
+    const r = region || { x: 0, y: 0, w: 1, h: 1 };
+    const rw = dim.x * r.w, rh = dim.y * r.h;
+    const dpr = window.devicePixelRatio || 1;
+    const scale = Math.min(1, target / Math.max(rw, rh));
+    const cw = Math.max(64, Math.round((rw * scale) / dpr)), ch = Math.max(64, Math.round((rh * scale) / dpr));
+    const el = v.element;
+    const style = el.getAttribute("style");
+    let failed = 0;
+    const onFail = () => failed++;
+    v.addHandler("tile-load-failed", onFail);
+    try {
+      el.style.cssText = (style || "") + ";position:fixed;left:0;top:0;width:" + cw + "px;height:" + ch + "px;max-width:none;max-height:none;z-index:2147483646";
+      await until(() => { const s = v.viewport.getContainerSize(); return Math.abs(s.x - cw) < 2 && Math.abs(s.y - ch) < 2; }, 5000);
+      const rect = item.imageToViewportRectangle(r.x * dim.x, r.y * dim.y, rw, rh);
+      v.viewport.fitBounds(rect, true);
+      await frames();
+      await sleep(300);
+      const done = () => (typeof item.getFullyLoaded === "function" ? item.getFullyLoaded() : true) && (!v.imageLoader || v.imageLoader.jobsInProgress === 0);
+      if (!(await until(done, 30000))) return { why: "the viewer's tiles did not all come in 30 s" };
+      await frames();
+      if (failed) return { why: failed + " tile" + (failed === 1 ? "" : "s") + " of the image did not come — the archive may be busy", stop: true };
+      const ratio = canvas.width / (canvas.clientWidth || cw) || dpr;
+      const a = v.viewport.pixelFromPoint(rect.getTopLeft(), true), b = v.viewport.pixelFromPoint(rect.getBottomRight(), true);
+      const sx = Math.max(0, Math.round(a.x * ratio)), sy = Math.max(0, Math.round(a.y * ratio));
+      const ex = Math.min(canvas.width, Math.round(b.x * ratio)), ey = Math.min(canvas.height, Math.round(b.y * ratio));
+      if (ex - sx < 64 || ey - sy < 64) return { why: "the viewer drew too little of the image" };
+      const out = document.createElement("canvas");
+      out.width = ex - sx;
+      out.height = ey - sy;
+      out.getContext("2d").drawImage(canvas, sx, sy, out.width, out.height, 0, 0, out.width, out.height);
+      const blob = await jpeg(out);
+      if (!blob) return { why: "the browser does not let this page save what its viewer drew (images of another site)" };
+      return { blob };
+    } finally {
+      v.removeHandler("tile-load-failed", onFail);
+      if (style === null) el.removeAttribute("style");
+      else el.setAttribute("style", style);
+      try { v.viewport.goHome(true); } catch (e) {}
+    }
+  };`;
+
+/**
+ * The script that saves the plan's images from the portal's own viewer in the tab (browser.viewer; top-level await):
+ * the tab on the book's page, each image its page n of the viewer, shown and saved at its time, one after the other.
+ * Never a reload, never a request of its own. It returns "strom-result 9:200:412918 10:failed".
+ */
+export function viewerScript(plan: BrowserPlan): string {
+  const open = new URL(plan.open);
+  const data = { origin: plan.origin, path: open.pathname, open: plan.open, until: plan.until, gap: plan.gap, items: plan.items.map((i) => ({ n: i.n, file: i.file, at: i.at, ...(i.region ? { region: i.region } : {}) })) };
+  return `await (async () => {
+  const plan = ${JSON.stringify(data)};
+  if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on the book's page — open " + plan.open + " (once; then page through it, never reload it)";
+  if (Date.now() > plan.until) return "strom: this plan is over — run strom fetch again for a new one";
+  ${CAPTURE_JS}
+  const v = findViewer();
+  if (!v) return "strom: no image viewer on this page yet — wait until it shows an image; a check whether a person is there is the user's to pass";
+  const out = [];
+  let last = 0;
+  for (const it of plan.items) {
+    const wait = Math.max(it.at, last + plan.gap) - Date.now();
+    if (wait > 0) await sleep(wait);
+    last = Date.now();
+    const got = await capture(v, it.n - 1, it.region, it.region ? ${VIEWER_PART_PX} : ${VIEWER_WHOLE_PX});
+    if (!got.blob) {
+      out.push(it.n + ":failed");
+      return "strom-result " + out.join(" ") + " — image " + it.n + ": " + got.why;
+    }
+    save(got.blob, it.file + ".jpg");
+    out.push(it.n + ":200:" + got.blob.size);
+  }
+  return "strom-result " + out.join(" ");
+})()`;
+}
+
+/** The name an image saved from the tab for a waiting task is saved under: strom-T0007-0040 (taken by strom media add --inbox --waiting). */
+export function waitFileBase(task: string, n: number): string {
+  return `strom-${safe(task)}-${String(n).padStart(4, "0")}`;
+}
+
+/**
+ * The script that saves the one image the tab shows (top-level await), for a task waiting for it: a viewer's page as
+ * it shows it, else the largest image of the page as the browser has it. Only on the page strom was told of — its
+ * site, path, parameters and anchor, so a viewer paged to another image is refused, nothing saved (`other`: that
+ * said for the person, in the research language). It returns "strom-result 40:200:412918", or why not.
+ */
+export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string }): string {
+  const u = new URL(o.url);
+  const data = { origin: u.origin, path: u.pathname, search: u.search, hash: u.hash, url: o.url, until: o.until, n: o.n, file: o.file, ...(o.other ? { other: o.other } : {}) };
+  return `await (async () => {
+  const plan = ${JSON.stringify(data)};
+  if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on " + plan.url + " — that page was allowed, no other";
+  // the page of image n, as the viewer keeps it in the address: the same parameters and anchor, or another image shown
+  const params = (q) => [...new URLSearchParams(q)].map((kv) => kv.join("=")).sort().join("&");
+  const anchor = (h) => (h === "#" ? "" : h);
+  if (params(location.search || "") !== params(plan.search) || anchor(location.hash || "") !== anchor(plan.hash))
+    return "strom: this tab shows " + location.href + ", not " + plan.url + " — another image than " + plan.n + " (the viewer was paged); nothing saved. Page the viewer back to image " + plan.n + " or open " + plan.url + " (once), then run the script again; else tell the user" + (plan.other ? ": " + plan.other : "");
+  if (Date.now() > plan.until) return "strom: this script is over — run strom media save again";
+  ${CAPTURE_JS}
+  const v = findViewer();
+  if (v) {
+    const got = await capture(v, -1, undefined, ${VIEWER_WHOLE_PX});
+    if (!got.blob) return "strom-result " + plan.n + ":failed — " + got.why;
+    save(got.blob, plan.file + ".jpg");
+    return "strom-result " + plan.n + ":200:" + got.blob.size;
+  }
+  // the largest image of the page, as the browser has it (an image opened on its own is one too)
+  let best;
+  for (const img of document.images) if (img.complete && img.naturalWidth && (!best || img.naturalWidth * img.naturalHeight > best.naturalWidth * best.naturalHeight)) best = img;
+  if (!best || Math.max(best.naturalWidth, best.naturalHeight) < 400) return "strom: no image of a page shown here (a viewer strom does not know, or it is still loading) — the person saves it by hand";
+  let blob;
+  try {
+    const c = document.createElement("canvas");
+    c.width = best.naturalWidth;
+    c.height = best.naturalHeight;
+    c.getContext("2d").drawImage(best, 0, 0);
+    blob = await jpeg(c);
+  } catch (e) {}
+  if (!blob) {
+    // another site's image: as the browser keeps it, as "save image as" would
+    try {
+      const res = await fetch(best.currentSrc || best.src, { cache: "force-cache", credentials: "include" });
+      if (!res.ok) return "strom-result " + plan.n + ":" + res.status;
+      blob = await res.blob();
+    } catch (e) {
+      return "strom-result " + plan.n + ":failed — the browser does not let this page save the image";
+    }
+  }
+  const ext = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/tiff": ".tif" }[(blob.type || "").split(";")[0].trim()] || ".jpg";
+  save(blob, plan.file + ext);
+  return "strom-result " + plan.n + ":200:" + blob.size;
 })()`;
 }

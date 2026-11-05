@@ -40,6 +40,14 @@ export function sandboxHint(env: Env, where?: string): string {
   const root = where ? researchOf(where) : undefined;
   const never = "never another folder, never strom's settings changed";
   const alone = "strom run on its own (no pipe, no redirection like 2>&1, no cd before it): the research's .codex/rules/strom.rules lets that run outside Codex's sandbox";
+  // strom run working alone (codex exec): nobody approves anything there — Codex's approval is "never" whatever is
+  // asked (GitHub #8) — so the agent stops instead of waiting for an approval, and strom run tells the person
+  if (here === "codex-strom" && env.STROM_DEADLINE && env.STROM_NONINTERACTIVE === "1")
+    return (
+      `${alone}. Run so and refused all the same: nobody can approve a command in this session (strom run, working alone) — ` +
+      "stop here and end your turn: do not retry it another way, do not wait; strom run tells the user what kept strom " +
+      `away (Codex's trust of the folder, its rules: strom agents sync, or the level without the sandbox — the user's choice alone); ${never}`
+    );
   if (here === "codex-strom")
     return (
       `${alone}. Run so and refused all the same (Codex does not trust the research's folder, or its rules are older than ` +

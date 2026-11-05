@@ -36,7 +36,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.25.2";
+export const VERSION = "1.26.1";
 
 export interface Op {
   at: string;
@@ -433,7 +433,8 @@ export class Tree {
         failed ??= e;
       }
     }
-    // what a commit that did not happen staged (its git add done): back to HEAD, nothing seen as changed outside strom
+    // what a commit that did not happen staged (its git add done): back to HEAD, nothing seen as changed outside strom —
+    // what git could not take out now (its index held, the process ending) the next write or strom repair takes out
     if (restored.length && !this.dryRun) git.unstage(this.root, restored);
     this.undo.clear();
     this.lineUndo = undefined;

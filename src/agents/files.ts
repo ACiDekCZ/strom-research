@@ -19,9 +19,11 @@ import { configDir, ownCommand } from "../core/paths.ts";
 import { oldSettingsDirs, packagedSettingsPattern } from "../core/oldsettings.ts";
 import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
-import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
+import { CHROME_ALLOW, CHROME_DENY, CODEX_BROWSER_PLUGINS, CODEX_BROWSER_SERVERS, DESKTOP_BROWSER_DENY, chromeDomain } from "../core/browser.ts";
+import { codexConfigFile } from "./effort.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
+import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
 
@@ -78,6 +80,18 @@ the researcher; \`strom\` is your only way to read and change the research.
     either — check with \`strom net web --check <url>\`. Another way to the
     same records first; a task for the user (\`strom task wait T… --check
     <url> --on "…"\`) only if the source stays necessary.
+    A browser (Claude in Chrome — strom's hook before each page): only
+    through strom's rules, one page at a time at a person's pace, from page
+    to page by going to the address (navigate), never clicking through a
+    series of pages; a site strom refused or whose terms forbid automation
+    never. Any other agent's browser or computer use (Codex's, Antigravity's,
+    a browser's MCP) strom does not see: never to an archive only a
+    person's browser goes to — the person saves its images by hand
+    (\`strom task wait T… --images B…:<numbers> --on "…"\`); elsewhere
+    \`strom net web --check <url> --browser\` first. An image of such an
+    archive the person allowed "through the browser", with no connector of
+    it: one at a time, \`strom media save T… --image <n> --at <its page>\`
+    (the script for your tab), then \`strom media add --inbox --waiting\`.
     What a task waits for (\`--on\`) is a sentence the user reads in strom's
     menu: impersonal, what is needed and from whom, never addressed to them;
     say its kind (\`--kind letter|family|web|other\`) and, when known,
@@ -283,6 +297,9 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       "Edit(data/**)",
       "Edit(strom.json)",
       "Edit(.git/**)",
+      // the bridge's notes (its secret address): what the Strom app sends there is the person's (core/bridgeguard.ts)
+      "Read(.strom/live.json)",
+      "Read(.strom/live-last.json)",
       ...shell("git:*"),
       // A password is typed by the user in their own terminal, and so is installing a plugin; the seal is strom's.
       // (Consents the agent may ask for — strom allow …: strom asks the person in a window.)
@@ -300,16 +317,24 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       // What the browser downloads is strom's to take over; the rest of the folder is the user's.
       `Read(${downloads}/**)`,
       ...(claude ? CHROME_DENY : []),
+      // the desktop app's own browser and computer use: no hook of strom's before them (core/browser.ts)
+      ...(claude ? DESKTOP_BROWSER_DENY : []),
       // With full permissions only the deny rules count: what the allow list kept away is kept away here.
       ...(settings.agentPermissions() === "full" ? BYPASS_DENY : []),
     ],
   };
 }
 
-/** Claude Code's hooks of the tree: strom's web hook and its delegate hook. */
+/** Claude Code's hooks of the tree: strom's web hook, its delegate hook and the shell hook that keeps it off the bridge. */
 function claudeHooks(root: string): Record<string, unknown> {
   const web = claudeWebHooks(root) as Record<string, unknown[]>;
-  return { ...web, PreToolUse: [...(web.PreToolUse ?? []), ...claudeDelegateHooks(root).PreToolUse] };
+  return { ...web, PreToolUse: [...(web.PreToolUse ?? []), ...claudeDelegateHooks(root).PreToolUse, ...claudeShellHooks(root).PreToolUse] };
+}
+
+/** Grok Build's own hooks of the tree: the web hooks and the shell hook that keeps it off the bridge (core/bridgeguard.ts). */
+function grokHooks(root: string): Record<string, unknown> {
+  const web = grokWebHooks(root) as { hooks: Record<string, unknown[]> };
+  return { hooks: { ...web.hooks, PreToolUse: [...(web.hooks.PreToolUse ?? []), grokShellHook(root)] } };
 }
 
 /** Permissions for Claude Code in this tree (paths of this computer). */
@@ -372,6 +397,38 @@ export function codexRules(tree: Tree): string {
 }
 
 export const CODEX_RULES = path.join(".codex", "rules", "strom.rules");
+
+/**
+ * Codex's settings for this tree (.codex/config.toml, read once the folder is trusted — also by the desktop app, which
+ * takes no switch of strom's): the browser and computer use of its desktop app off in every session, a conversation
+ * too (it keeps the user's other add-ons). A server of the user's config is switched off as it is; one it does not
+ * name gets a command of its own, since a server without one stops Codex ("invalid transport"), and one given by an
+ * address keeps it (a command beside it stops Codex too) — checked 2026-11-04 with codex-cli 0.155.1 and 0.164.
+ */
+export function codexConfig(tree: Tree): string {
+  let user = "";
+  try {
+    user = fs.readFileSync(codexConfigFile(tree.env), "utf8");
+  } catch {
+    // no config of the user's: every server gets its command
+  }
+  const byAddress = new Set<string>();
+  const sections = user.split(/^(?=\s*\[)/mu);
+  for (const part of sections) {
+    const m = /^\s*\[\s*mcp_servers\s*\.\s*(?:"([^"\n]+)"|'([^'\n]+)'|([A-Za-z0-9_-]+))\s*\]/u.exec(part);
+    if (m && /^\s*url\s*=/mu.test(part)) byAddress.add(m[1] ?? m[2] ?? m[3]!);
+  }
+  return [
+    "# strom: generated (strom agents sync) — Codex's settings for this family tree; changed by strom only",
+    "# The browser and computer use of Codex's desktop app stay off in a research: strom keeps no watch before them,",
+    "# so an archive's terms, robots.txt and pace could not be kept there.",
+    ...CODEX_BROWSER_SERVERS.flatMap((n) => ["", `[mcp_servers.${n}]`, ...(byAddress.has(n) ? [] : ['command = "strom-off"']), "enabled = false"]),
+    ...CODEX_BROWSER_PLUGINS.flatMap((n) => ["", `[plugins."${n}"]`, "enabled = false"]),
+    "",
+  ].join("\n");
+}
+
+export const CODEX_CONFIG = path.join(".codex", "config.toml");
 
 /** Denied as well when the user lets the agent do everything else (agent.permissions full). */
 export const BYPASS_DENY = [
@@ -524,8 +581,9 @@ function dropAgentFiles(tree: Tree): string[] {
     ["opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n"],
     [path.join(".grok", "config.toml"), grokConfig(tree)],
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
-    [GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n"],
+    [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
     [CODEX_RULES, codexRules(tree)],
+    [CODEX_CONFIG, codexConfig(tree)],
   ];
   for (const [rel, content] of generated) {
     const file = path.join(tree.root, rel);
@@ -568,7 +626,7 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES];
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_CONFIG];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -599,8 +657,9 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write("opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n");
   write(path.join(".grok", "config.toml"), grokConfig(tree));
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
-  write(GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n");
+  write(GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n");
   write(CODEX_RULES, codexRules(tree));
+  write(CODEX_CONFIG, codexConfig(tree));
   // the strom the agent hooks name (the tree's .strom/bin, never committed) — there also for a conversation strom did not start
   if (!tree.dryRun) {
     try {

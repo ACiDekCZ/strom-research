@@ -35,7 +35,7 @@ const ARCHIVE_COMMANDS = new Set([
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
   "find", "stats", "pedigree", "recent", "history", "history back",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
-  "check", "verify", "repair", "seal adopt",
+  "check", "verify", "repair", "seal adopt", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
   "setup", "doctor", "update", "config where", "config get", "config set", "config unset", "uninstall", "shortcut",
   "hook list", "hook on", "hook off", "hook test", "link on", "link off", "link status",
@@ -216,9 +216,11 @@ export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
-  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "task list", "task wake", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "task list", "task wake", "task order", "story approve", "story discard",
+  "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find",
-  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check", "media calibrate",
+  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check",
+  "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "media calibrate",
   "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 
@@ -258,7 +260,7 @@ function humanOverview(as: HelpAs): string {
 function humanCommand(def: CommandDef, as: HelpAs): string {
   const name = def.path.join(" ");
   const said = humanOf(name, as);
-  if (!said) return ui(as.lang, notSaid(name, as), { cmd: name });
+  if (!said) return ui(as.lang, notSaid(def, as), { cmd: name });
   const examples = as.archive ? archiveExamples(def) : (def.examples ?? []);
   // an archive says nothing of an agent: the English details not pointed to there
   return [usageLine(def), "", said, ...(examples.length ? ["", ui(as.lang, "ui.help.examples"), ...examples.map((e) => `  ${e}`)] : []), ...(as.archive ? [] : ["", ui(as.lang, "ui.help.details", { cmd: name })])].join("\n");
@@ -268,9 +270,11 @@ function humanCommand(def: CommandDef, as: HelpAs): string {
  * Why a person's help has no sentence for a command: not used here (an archive; a research waiting for its agent), a
  * command an archive uses with its help in English only (never "the agent's" there), or the agent's own.
  */
-function notSaid(name: string, as: HelpAs): UIKey {
+function notSaid(def: CommandDef, as: HelpAs): UIKey {
+  const name = def.path.join(" ");
   if (as.archive && !ARCHIVE_COMMANDS.has(name)) return as.waiting ? "ui.help.notwaiting" : "ui.help.notarchive";
-  return as.archive ? "ui.help.english" : "ui.help.agentonly";
+  // the user's own (refused to an agent): never called the agent's, though its help is in English only
+  return as.archive || def.person ? "ui.help.english" : "ui.help.agentonly";
 }
 
 function humanGroup(prefix: string[], as: HelpAs): string {

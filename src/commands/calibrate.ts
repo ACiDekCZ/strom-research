@@ -421,7 +421,9 @@ register({
     "its questions — listed first (what, scope, now → default, source, date, why), returned only on a person's yes (their\n" +
     "terminal, Enter says no; a window of the system when an agent asks); --dry-run and --json only list. The research\n" +
     "itself is never touched: tasks an answer added stay, the measurements stay. What was returned strom does not set again\n" +
-    "by itself for 30 days or until new readings come. strom doctor says when the reading got worse after a change of strom's.",
+    "by itself for 30 days or until new readings come. A change of strom's after which the readings got clearly less sure\n" +
+    "(enough scans since) it takes back by itself at once, held back the same (strom recent says it); one only dearer stays,\n" +
+    "strom doctor says it.",
   options: [
     { name: "model", type: "string", value: "<model>", description: "the model to tune for (default: the research's model, else the one it reads scans with)" },
     { name: "sizes", type: "string", value: "<px,px,…>", description: "the long sides compared (default 1400,1568,2000 — those the model takes)" },

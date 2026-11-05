@@ -108,8 +108,11 @@ async function setUp(env: Record<string, string> = {}) {
     STROM_LIVE_POLL_MS: "150",
     ...env,
   });
-  const info = (await w.ok(["live", "start", "--json"])).json;
-  return { w, dir, url: info.url as string };
+  const said = (await w.ok(["live", "start", "--json"])).json;
+  // started from an agent's shell (env): the agent is told no secret; the app's address is in the bridge's note
+  const info = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { url: string; token: string };
+  if (Object.keys(env).length) assert.ok(!JSON.stringify(said).includes(info.token), "no secret for an agent");
+  return { w, dir, url: info.url };
 }
 
 const marks = (dir: string) => (fs.existsSync(path.join(dir, "readers.log")) ? fs.readFileSync(path.join(dir, "readers.log"), "utf8").trim().split("\n") : []);

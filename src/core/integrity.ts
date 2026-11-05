@@ -28,6 +28,8 @@ import { counted } from "../cli/format.ts";
 export interface Snapshot {
   changes: git.Change[];
   head: Map<string, string | undefined>;
+  /** What an interrupted write left in git's index alone (leftoverOf): no change, never among `changes`. */
+  leftovers: string[];
 }
 
 /**
@@ -46,9 +48,52 @@ export function isHistoryPath(p: string): boolean {
 }
 
 export function snapshot(tree: Tree): Snapshot {
-  if (!git.hasHead(tree.root)) return { changes: [], head: new Map() };
-  const changes = git.changes(tree.root, SEALED_PATHS);
-  return { changes, head: git.showFiles(tree.root, "HEAD", changes.map((c) => c.path)) };
+  if (!git.hasHead(tree.root)) return { changes: [], head: new Map(), leftovers: [] };
+  const all = git.changes(tree.root, SEALED_PATHS);
+  const head = git.showFiles(tree.root, "HEAD", all.map((c) => c.path));
+  const leftovers = all.filter((c) => leftoverOf(tree.root, c, head.get(c.path))).map((c) => c.path);
+  const changes = leftovers.length ? all.filter((c) => !leftovers.includes(c.path)) : all;
+  return { changes, head, leftovers };
+}
+
+/**
+ * What a write taken back after its git add left in git's index (found on Windows, 1.26.0: its files put back, the
+ * process ended or git's index held by another program before they were taken out of it — every write after it refused,
+ * "data was changed outside strom", its new log and record said deleted): a path the index holds while it is neither
+ * in the last commit nor in the folder. Nothing of it was ever in the history and nothing of it is in the folder: no
+ * change of anybody's. Only that: a file of the last commit deleted or edited (staged or not), or the index alone
+ * differing from a file of the last commit, is still said — strom repair puts that back (its index with it).
+ */
+function leftoverOf(root: string, c: git.Change, committed: string | undefined): boolean {
+  // added to the index ("AD": a path the last commit does not have, so git says) — never a deletion or a change of a
+  // path of the last commit, whatever was read of it
+  if (c.code[0] !== "A") return false;
+  const abs = path.join(root, c.path);
+  return committed === undefined && !fs.existsSync(abs) && !inCloudOnly(abs);
+}
+
+/**
+ * Take what an interrupted write left in git's index out of it (back to the last commit) before strom writes: else its
+ * next commit would hold it — a record or a log in the history that is in no folder. Under the tree's lock. git's words
+ * when it could not (its index held, a lock left), else undefined.
+ */
+export function settleLeftovers(tree: Tree, snap: Snapshot): string | undefined {
+  if (!snap.leftovers.length || tree.dryRun) return undefined;
+  return git.unstage(tree.root, snap.leftovers);
+}
+
+/**
+ * Writing refused while git's index holds what an interrupted write left and git could not take it out: the way is
+ * strom repair (it takes away a lock no git holds any more), never "changed outside strom".
+ */
+export function leftoversError(files: string[], said: string): StromError {
+  const first = files[0] ?? "data/";
+  return new StromError(`git's index still holds what an interrupted write left (${counted(Math.max(1, files.length), "file")}, the first: ${first}) and git could not take it out — nothing written`, {
+    hint: "strom repair   (puts git's index back to the last sealed state; then run the command again)",
+    code: "tree.index-leftovers",
+    params: { n: String(Math.max(1, files.length)), first },
+    details: [said, ...files.slice(0, 50)],
+  });
 }
 
 export interface Integrity {
@@ -490,7 +535,10 @@ export function verifyFull(tree: Tree, o: { trust?: Buffer[] } = {}): Integrity 
 export function writableUnasked(tree: Tree): boolean {
   if (!tree.key) return false;
   try {
-    return !verifyFast(tree).findings.some((f) => f.level === "error");
+    const snap = snapshot(tree);
+    // what an interrupted write left in git's index: out of it first, or no write (its commit would hold it)
+    if (settleLeftovers(tree, snap) !== undefined) return false;
+    return !verifyFast(tree, snap).findings.some((f) => f.level === "error");
   } catch {
     return false;
   }
@@ -513,10 +561,14 @@ export const REPAIR_IN_TERMINAL_HINT = "the user runs in their terminal: strom r
 
 /** Refuse to write on top of data that was changed outside strom. */
 export function assertIntact(tree: Tree): void {
-  const { findings } = verifyFast(tree);
+  const snap = snapshot(tree);
+  const { findings } = verifyFast(tree, snap);
   const errors = findings.filter((f) => f.level === "error");
   if (errors.length === 0) {
     tree.requireKey();
+    // what an interrupted write left in git's index (no change of anybody's): out of it before this write commits
+    const said = settleLeftovers(tree, snap);
+    if (said !== undefined) throw leftoversError(snap.leftovers, said);
     return;
   }
   // the last commit sealed with another key of this computer: the person unites them (never strom repair)

@@ -33,8 +33,9 @@ import { HYPOTHESIS_LINKS_ORIGIN } from "./hypolinks.ts";
 import type { Tree } from "./tree.ts";
 import { decodeImage, encodeImage, imageSize, imageSizeOfFile } from "../image/index.ts";
 import { blank, paste, toRgb, type RawImage } from "../image/image.ts";
-import { botCheck, type PageAnswer, type PageRequest } from "./browser.ts";
+import { botCheck, VIEWERS, type PageAnswer, type PageRequest, type Viewer } from "./browser.ts";
 import { allows, archiveLevel, browserPermitted, termsOpen } from "./terms.ts";
+import { bookBrowserArchive, treeBrowserArchives } from "./browserhelp.ts";
 
 /** The newest version of the contract. */
 export const INTERFACE = 1;
@@ -85,9 +86,11 @@ export interface ConnectorManifest {
   /**
    * Through the browser: the page a tab opens first (where the user's login lives; default: a light page of
    * the image's site). pages: the portal answers a real browser only (a bot check) — every request goes
-   * through the user's browser, planned by strom.
+   * through the user's browser, planned by strom. viewer: the images are saved from the portal's own viewer in the
+   * tab (its page n: image n; `locate` gives the book's page as `url`), what the browser drew of them — never fetched
+   * again (a portal whose tiles are meant for its viewer alone).
    */
-  browser?: { open?: string; pages?: boolean };
+  browser?: { open?: string; pages?: boolean; viewer?: Viewer };
   /** What the portal allows — found out before the connector was written. */
   policy: {
     /**
@@ -249,6 +252,10 @@ export function readManifest(dir: string, env: Env = process.env): ConnectorMani
         problems.push('browser.pages: every request goes through the browser — routes must be ["browser"] alone');
       else if (m.browser.pages && m.login !== undefined) problems.push("browser.pages: the user logs in in their own browser — no login in connector.json");
     }
+    if (m.browser && typeof m.browser === "object" && m.browser.viewer !== undefined) {
+      if (!VIEWERS.includes(m.browser.viewer)) problems.push(`browser.viewer: one of ${VIEWERS.join(", ")}`);
+      else if (!Array.isArray(m.routes) || !m.routes.includes("browser")) problems.push('browser.viewer: the images come from the viewer in the browser — routes must include "browser"');
+    }
   }
   if (m.login !== undefined) {
     const l = m.login;
@@ -348,7 +355,8 @@ function treeSites(tree: Tree): string[] {
 
 /**
  * Browser tools for the tree's agent (Claude in Chrome): whether its sessions get them, and for which sites.
- * `agent.browser` archives (default): only where a connector of the tree fetches through the browser, for its sites;
+ * `agent.browser` archives (default): only where a connector of the tree fetches through the browser, or an archive of
+ * the tree only a person's browser goes to has the person's permission "through the browser" — for their sites;
  * always (the user's choice): every session, for the sites of the tree's archives and of the connectors — a
  * conversation asks about any other, a run nobody watches uses none other.
  */
@@ -356,6 +364,9 @@ export function agentBrowser(tree: Tree, shared: string | undefined): { on: bool
   const via = treeBrowserConnectors(tree, shared);
   const always = new Settings(tree.env, {}).resolve("agent.browser", tree.config)?.value === "always";
   const hosts = new Set(via.flatMap((c) => c.manifest.hosts));
+  // an archive of the tree only a person's browser goes to, which the person allowed "through the browser"
+  const archives = treeBrowserArchives(tree, shared).filter((a) => a.permitted);
+  for (const a of archives) hosts.add(a.host);
   const net = shared ? path.join(shared, "net") : undefined;
   if (always) {
     // never the sites whose terms allow no automation, nor those that restrict it without the person's "through the browser",
@@ -374,7 +385,7 @@ export function agentBrowser(tree: Tree, shared: string | undefined): { on: bool
       return false;
     }
   };
-  return { on: always || via.length > 0, hosts: [...hosts].filter((h) => !paused(h)), always };
+  return { on: always || via.length > 0 || archives.length > 0, hosts: [...hosts].filter((h) => !paused(h)), always };
 }
 
 /** The site of an address, or nothing when it is none. */
@@ -414,6 +425,7 @@ export function sessionBrowser(tree: Tree, shared: string | undefined, task: Pic
     const sites = [urlSite(b.url), urlSite(b.repository ? tree.get<Repository>(b.repository)?.url : undefined)].filter((x): x is string => !!x);
     const fetched = fetchedBy.get(b.id) ?? new Set<string>();
     if (via.some((c) => fetched.has(c.name) || c.manifest.hosts.some((h) => sites.includes(siteOf(h))))) return { on: true, why: `${b.id} is served through the browser` };
+    if (bookBrowserArchive(tree, b.url, shared)?.permitted) return { on: true, why: `${b.id} is of an archive only a person's browser goes to, allowed "through the browser"` };
     if (!sites.length && !fetched.size) unknown = true;
   }
   return unknown ? { on: true, why: "a record set whose archive is not known: it may be one served through the browser" } : { on: false, why: "its record sets are served without the browser" };

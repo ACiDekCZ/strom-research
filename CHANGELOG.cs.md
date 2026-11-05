@@ -5,9 +5,87 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.27.0
+
+*Připravuje se: bety do 1.27.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Snímky uložené ručně vrátí svůj úkol samy.** Kde se snímky archivu ukládají ručně – archiv, kam smí jen prohlížeč
+  člověka, nebo archiv, jehož podmínky nic jiného nedovolují – výzkum požádá o knihu a čísla snímků a připraví pro ně
+  složku ve schránce (inbox). Co se tam uloží, se převezme samo: hned, když běží most do aplikace Strom, jinak při
+  startu dalšího sezení; jinak pojmenované soubory podle pořadí, když jich je tolik, kolik snímků chybí. Úkol se vrátí
+  do fronty, až jsou tam všechny snímky; u části z nich Co čeká ukazuje, kolik je uloženo z kolika a které chybí. Kniha
+  takového archivu už neplatí za volně stažitelnou a výzkum k ní nenabízí stavbu stahovače – i knihy a čekání ze
+  starších verzí, bez přepisu čehokoli.
+
+- **Na to, co čeká, jde odpovědět z aplikace Strom a snímky, na které úkol čeká, z ní poslat.** Odpověď napsaná v
+  aplikaci vrátí úkol do fronty stejně jako odpověď v terminálu; uloží se celá a s poznámkou, že přišla z aplikace.
+  Úkol, který mezitím čeká na něco jiného, zůstane beze změny. Snímky, na které úkol čeká, jdou z aplikace rovnou k
+  němu: očíslované podle snímku, který aplikace uvede, jinak podle jména souboru, jinak podle pořadí chybějících; PDF
+  stránku po stránce. Snímek s číslem, které výzkum už má, se odmítne, pokud ho nemá nahradit – ten předchozí se stáhne
+  a zůstane uložený, nikdy se nesmaže. Snímek shodný s jiným, už převzatým snímkem se odmítne s tím, kterému je shodný,
+  a nic se nepřevezme. Převezmou se stejně jako snímky uložené ručně a úkol se vrátí, až jsou tam všechny. Web s jednou
+  knihou úkolu ukazuje také svou složku a kolik snímků v ní je. Weby jednoho archivu – třeba digitální archiv a
+  badatelna jednoho zemského archivu – čekají na jednom místě pod jménem archivu i s jeho adresou.
+
+- **Agent se mostu nedotkne.** Co aplikace Strom posílá mostem, patří člověku. Hooky agenta odmítnou příkaz nebo
+  stažení webu, které čte adresu mostu nebo ho volá, a agent se tajnou adresu nikdy nedozví.
+
+- **Prohlížeč agenta se řídí stejnými pravidly jako jeho stahování webu.** Každá stránka, kterou agent otevře v Chrome,
+  se počítá a zpomaluje spolu s jeho ostatními požadavky na týž web; web, jehož podmínky automatizaci zakazují, web,
+  který odmítl, cesta, kterou zapovídá jeho robots.txt, i most mu zůstanou zavřené. Archiv, kam smí jen prohlížeč
+  člověka, se mu otevře jen se svolením člověka „přes prohlížeč“, po jedné stránce, lidským tempem. Odkaz Svolení… v
+  aplikaci Strom u toho, co čeká na snímky takového archivu, otevře tuto otázku, i když k archivu žádný stahovač nevede.
+  Prohlížeč nebo ovládání počítače jiného agenta – Codexu, Antigravity – takovou kontrolu nemá: do takového archivu
+  nikdy nejde a snímky uloží člověk ručně. `strom doctor`, brief agenta a Co čeká jednou řeknou, s jakým agentem a
+  rozšířením prohlížeče by je agent uložil sám, nebo že rozšíření chybí. Prohlížeč a ovládání počítače desktopových
+  aplikací agentů zůstávají ve výzkumu vypnuté – i v konverzaci a v aplikaci ChatGPT; výzkum hlídá prohlížeč agenta v
+  Chrome. `strom doctor` a brief agenta to říkají výslovně a agent ví, že nikdy nepracuje v kopii výzkumu, kterou
+  desktopová aplikace agenta otevře ve vlastním worktree. Aplikace Strom se z mostu dozví, zda je prohlížeč agenta
+  připravený, chybí rozšíření, nebo agent nemá žádný, který výzkum hlídá.
+
+- **Prohlížeč agenta uloží snímky sám, po jednom.** Kde člověk archivu, kam smí jen prohlížeč člověka, dovolí přístup
+  „přes prohlížeč“, agent otevře v Chrome jeden snímek a uloží to, co ukazuje prohlížeč snímků archivu – nikdy víc, než
+  prohlížeč dává, nikdy větší než originál, lidským tempem. Uloží jen snímek, který karta ukazuje na jeho vlastní adrese
+  – prohlížeč posunutý na jiný snímek se odmítne a nic se neuloží. Výzkum uložený soubor převezme ze složky stažených
+  souborů do složky úkolu pod jeho číslem a úkol se vrátí, až jsou tam všechny jeho snímky. Svolení jde nově dát i
+  takovému archivu ze seznamu výzkumu, ke kterému nevede žádný stahovač. Stahovač archivu, jehož prohlížeč ukazuje
+  snímky po dlaždicích, ukládá přes tento prohlížeč také, i část snímku; stránku knihy otevře jednou a nikdy ji
+  neobnovuje. Kontrolu, zda je u počítače člověk, agent nikdy neprochází. Archivy, jejichž robots.txt automatickým
+  nástrojům brání, se dál ukládají ručně.
+
+- Podmínka samostatné práce agenta, která by nespustila úkoly spuštěné ručně, se řekne jednou, pak už jen „Přesto
+  spustit?“. Podmínka týdne předplatného uvádí využití za týden proti tomu, co je zatím dovoleno, a jak se počítá.
+  `strom help --human` uvádí pořadí úkolů, práci mimo linie, opravy a ponechání rozporu mezi příkazy člověka. Výzkum s
+  OpenCode pokračuje i po sezení, které OpenCode řádně uzavřel, ale ohlásil jako neúspěšné, a po přechodné chybě sítě –
+  totéž sezení se po krátkém čekání obnoví, v rámci času sezení. Když sandbox Codexu nepustí strom k výzkumu – na
+  Windows i u příkazu zadaného přes PowerShell –, výzkum se hned zastaví s tím, co zůstává volbou člověka, a takové
+  sezení úkol nikdy neodloží. Díky za hlášení na GitHubu. Změnu čtení snímků, kterou výzkum udělal sám a po které se
+  četlo zřetelně méně jistě, hned vrátí – už ne až po 60 dnech – a `strom recent` to uvede.
+
+- Výzkum zná víc archivů Česka, Německa a Polska s jejich podmínkami – co který dovoluje automatickým nástrojům, jeho
+  tempo a kam smí jen prohlížeč člověka. Dalších pět českých, kam smí jen prohlížeč člověka: Acta Publica Moravského
+  zemského archivu (snímky už ne přes stahovač, ani se svolením z dřívějška – to zůstává, jak bylo dané; přes prohlížeč
+  nejméně 4 sekundy od sebe), eBadatelna SOA Praha a obrazové servery SOA Litoměřice, ZA Opava a policejních přihlášek
+  Národního archivu (jen ručně). Stahovač, vytvořený pro takový archiv dřív, se odmítne před jakýmkoli požadavkem, i
+  jeho zkouška, a řekne, co zbývá: svolení člověka „přes prohlížeč“, nebo ruční uložení.
+
+- Se vším z 1.26.1: přerušený zápis už výzkum natrvalo nezablokuje.
+
+## 1.26.1
+
+*4. 11. 2026 · patří k aplikaci Strom 3.22.0.*
+
+- **Přerušený zápis už výzkum natrvalo nezablokuje.** Příkaz zastavený mezi `git add` a commitem (ukončený agentem, nebo
+  na Windows s indexem gitu drženým jiným programem) mohl nechat své soubory v indexu gitu: každý další zápis pak končil
+  „data výzkumu se změnila mimo strom“, ačkoli `strom verify` ani `strom repair` nic nenašly. Nové soubory, které takový
+  zápis nechá v indexu (ve složce už nejsou a v historii nikdy nebyly), nejsou ničí změna – další zápis je sám vrátí a
+  pokračuje. `strom repair` vrátí vždy celý index k zapečetěnému stavu, i se změnou záznamu, která v něm zůstala. Zámek,
+  který nechal git ukončený uprostřed práce (`.git/index.lock`, starší než 10 minut), `strom repair` odstraní a zápis,
+  který na něm skončí, to řekne. Záznam opravdu smazaný nebo upravený mimo strom se hlásí jako dřív.
+
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.8. Oddíl bude úplný s vydáním.*
+*4. 11. 2026 · patří k aplikaci Strom 3.22.0.*
 
 - **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
   (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu

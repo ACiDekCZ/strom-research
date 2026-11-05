@@ -130,6 +130,22 @@ test("strom run: an agent not allowed to run strom stops the loop at once", opts
   w.cleanup();
 });
 
+test("strom run: strom refused through PowerShell (Codex on Windows) stops the loop too, and never parks its task (GitHub #8)", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "denied-ps";
+  for (let i = 0; i < 3; i++) {
+    const r = await w.run(["run", "--agent", "script", "--max", "5", "--json"]);
+    assert.equal(r.code, 1);
+    assert.equal(r.json.sessions.length, 1, "no second session after strom was refused");
+    assert.equal(r.json.stop, "denied");
+  }
+  const shown = (await w.ok(["task", "show", "T0001", "--json"])).json;
+  assert.equal((shown.task ?? shown).state, "open", "three sessions kept from strom: no failure of the research, the task stays queued");
+  w.cleanup();
+});
+
 test("strom run: one refused command that starts with strom does not stop a loop the agent otherwise worked in", opts, async () => {
   const w = await world();
   await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);

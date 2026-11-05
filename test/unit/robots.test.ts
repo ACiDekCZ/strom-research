@@ -8,7 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { hostPace, parseRobots, politeGet, readHostState, refusalKind, REFUSED_FOREVER, robotsAll, robotsVerdict, stamp, NetError, type RobotsState } from "../../src/core/net.ts";
+import { hostPace, parseAiRobots, parseRobots, politeGet, readHostState, refusalKind, REFUSED_FOREVER, robotsAll, robotsIsPage, robotsNamesAi, robotsVerdict, robotsYields, stamp, NetError, type RobotsState } from "../../src/core/net.ts";
+import { knownDisallow } from "../../src/core/knownterms.ts";
 import { allows, archiveLevel } from "../../src/core/terms.ts";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "strom robots "));
@@ -141,4 +142,75 @@ test("a site only a browser goes to: nothing straight through strom, its images 
   fs.writeFileSync(path.join(config, "archives.json"), JSON.stringify({ archives: { "archiv.example.org": { refused: { host: "archiv.example.org", at: new Date().toISOString() } } }, pending: [] }));
   fs.rmSync(path.join(net, "archiv.example.org.json"));
   assert.equal(archiveLevel(env, { connector: c, url: "archiv.example.org", net, readOnly: true }).level, "forbidden");
+});
+
+test("Grok by name (GrokBot, xAI-Grok, Grok-DeepSearch): a robots.txt that keeps AI agents off — no terms make it yield", () => {
+  const text = "User-agent: GrokBot\nDisallow: /\nUser-agent: xAI-Grok\nDisallow: /\nUser-agent: Grok-DeepSearch/1.0\nDisallow: /\n\nUser-agent: *\nAllow: /\n";
+  const r: RobotsState = { at: Date.now(), status: 200, groups: parseRobots(text), ai: parseAiRobots(text) };
+  assert.deepEqual(r.ai, ["grokbot", "xai-grok", "grok-deepsearch"]);
+  assert.equal(robotsNamesAi(r), "grokbot");
+  assert.equal(robotsYields(r, true), false);
+});
+
+test("a web page in place of robots.txt (redirected to a page about it, or the home page answering): no robots.txt — its text never read as rules", async () => {
+  // a wiki page "Robots.txt" with an example in it, and a home page that happens to quote one
+  const example = "<pre>\nUser-agent: *\nDisallow: /\n</pre>";
+  const page = `<!DOCTYPE html>\n<html lang="de"><head><title>Robots.txt – Wiki Lhota</title></head><body>\n${example}\n</body></html>`;
+  const paths: string[] = [];
+  const srv = http.createServer((q, r) => {
+    paths.push(q.url ?? "");
+    if (q.url === "/robots.txt") r.writeHead(301, { location: "/Robots.txt" }).end();
+    else if (q.url === "/Robots.txt") r.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(page);
+    else r.writeHead(200, { "content-type": "application/json" }).end('{"ok":true}');
+  });
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  try {
+    const origin = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    const dir = tmp();
+    const res = await politeGet(`${origin}/matriky/Lhota?rok=1850`, { stateDir: dir, hosts: ["127.0.0.1"], robots: true, sleep: async () => {} });
+    assert.equal(res.status, 200);
+    assert.deepEqual(paths, ["/robots.txt", "/Robots.txt", "/matriky/Lhota?rok=1850"]);
+    assert.deepEqual(readHostState(dir, "127.0.0.1").state.robots?.groups, [], "kept as none");
+  } finally {
+    srv.close();
+  }
+  // the home page answering 200 itself (any type said); a robots.txt is never a page — and one sent as text/html is read
+  assert.equal(robotsIsPage({ body: Buffer.from(`﻿  \n${page}`) }), true);
+  assert.equal(robotsIsPage({ body: Buffer.from("<html><body>Strona główna – Lhota</body></html>") }), true);
+  assert.equal(robotsIsPage({ body: Buffer.from("# robots.txt\nUser-agent: *\nDisallow: /книги\n") }), false);
+  assert.equal(robotsIsPage({ body: Buffer.from("") }), false);
+});
+
+test("a User-agent line commented out: its rules belong to no group — nothing kept off by robots.txt, the paths strom's list keeps off still are", async () => {
+  const text = "# User-agent: *\nDisallow: /docs_view/\nDisallow: /members/*\nDisallow: /*?\n\nUser-agent: Yandex\nDisallow: /\n";
+  assert.deepEqual(parseRobots(text), []);
+  const r: RobotsState = { at: Date.now(), status: 200, groups: parseRobots(text), ai: parseAiRobots(text) };
+  assert.deepEqual(robotsVerdict(r, "/docs_view/1"), { allowed: true });
+  // what the archive keeps off is in its entry of strom's list (assets/archives.json), and holds whatever robots.txt says
+  assert.ok(knownDisallow("www.geshergalicia.org").includes("/docs_view/"));
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, "www.geshergalicia.org.json"), JSON.stringify({ recent: [], robots: r }));
+  await assert.rejects(
+    politeGet("https://www.geshergalicia.org/docs_view/1", { stateDir: dir, hosts: ["www.geshergalicia.org"], robots: true, fetchImpl: (() => Promise.reject(new Error("no request may leave"))) as typeof fetch }),
+    (e: unknown) => e instanceof NetError && e.failure === "robots" && /docs_view/.test(e.message),
+  );
+});
+
+test("a redirect to an archive's paths strom's list keeps off (ÚAZK's old maps): refused at the host it leads to — no request goes there", async () => {
+  const dir = tmp();
+  // each host's robots.txt read a moment ago, keeping nothing off: nothing goes out to read it again
+  for (const h of ["services.cuzk.gov.cz", "ags.cuzk.gov.cz", "archivnimapy.cuzk.cz"]) fs.writeFileSync(path.join(dir, `${h}.json`), JSON.stringify({ recent: [], robots: { at: Date.now(), status: 404, groups: [], ai: [] } }));
+  const asked: string[] = [];
+  const fetchImpl = (async (url: string | URL | Request) => {
+    const u = String(url);
+    asked.push(u);
+    if (u === "https://services.cuzk.gov.cz/mapy/Lhota") return new Response(null, { status: 302, headers: { location: "https://ags.cuzk.gov.cz/archiv/MapaArchiv/" } });
+    throw new Error(`no request may go to ${u}`);
+  }) as typeof fetch;
+  const opts = { stateDir: dir, hosts: ["services.cuzk.gov.cz", "ags.cuzk.gov.cz", "archivnimapy.cuzk.cz"], robots: true, fetchImpl, sleep: async () => {} };
+  await assert.rejects(politeGet("https://services.cuzk.gov.cz/mapy/Lhota", opts), (e: unknown) => e instanceof NetError && e.failure === "robots" && e.host === "ags.cuzk.gov.cz");
+  assert.deepEqual(asked, ["https://services.cuzk.gov.cz/mapy/Lhota"], "the archive's address never asked");
+  // the address that leads there itself: kept off whole, not asked at all
+  await assert.rejects(politeGet("https://archivnimapy.cuzk.cz/", opts), (e: unknown) => e instanceof NetError && e.failure === "robots" && e.host === "archivnimapy.cuzk.cz");
+  assert.equal(asked.length, 1);
 });

@@ -114,8 +114,8 @@ never open again a view cleared from your context — your notes hold it.
   portal's viewer counts them (or the pages and years, where you know only
   those), each saved named by its number (40.jpg). Where the portal gives only
   a small image, add: the entry zoomed in, that view saved too (40a.jpg); a full-resolution scan can be
-  ordered from the archive. Then take the next task; when the images are
-  registered the task comes back by itself.
+  ordered from the archive. Then take the next task; once all are saved
+  the task comes back by itself.
   A portal that refused strom or does not allow automation: another way
   first, the search recorded; the user's check (`strom task wait T… --check
   <url>`) only if the source stays necessary.

@@ -181,6 +181,12 @@ test("the sheet says --reason wherever the command asks it: source edit, input s
   assert.doesNotMatch(guide, /task park\|wait/u);
 });
 
+test("the guide: a session Claude's desktop app opens in a git worktree of its own is a known limit — never worked in", () => {
+  const guide = guideText("en", "https://stromapp.info/");
+  assert.match(guide, /A known limit: Claude's desktop app may open its session in a git worktree\n {3}of its own/u);
+  assert.match(guide, /never work in such a copy; ask the user to start the\n {3}conversation in the research's folder itself \(strom chat\)/u);
+});
+
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels

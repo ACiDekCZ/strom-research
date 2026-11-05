@@ -147,7 +147,24 @@ export function runGitLater(cwd: string, args: string[], timeoutMs = 60_000): Pr
 /** A git that failed: interrupted, refused writing into the research (git.unwritable), or its own words. */
 function gitFailed(cwd: string, args: string[], r: GitResult, what = `git ${args[0]}`): StromError {
   const said = r.stderr.trim() || r.stdout.trim();
-  return gitInterrupted(args, r) ?? (gitRefusedWords(said) ? gitUnwritable(gitRefusedWhere(cwd, said), said) : new StromError(`${what} failed: ${said}`));
+  return gitInterrupted(args, r) ?? (gitRefusedWords(said) ? gitUnwritable(gitRefusedWhere(cwd, said), said) : indexLocked(said) ? indexLockedError(what, said) : new StromError(`${what} failed: ${said}`));
+}
+
+/** git refused because its index is locked ("Unable to create '…/index.lock': File exists"). */
+function indexLocked(said: string): boolean {
+  return /index\.lock['"]?: File exists/u.test(said);
+}
+
+/**
+ * git's index locked: another git at work in the research, or the lock a git that ended mid-way left (killed with the
+ * command that ran it). Never "remove the file manually" for a person: strom repair takes a stale one away.
+ */
+function indexLockedError(what: string, said: string): StromError {
+  return new StromError(`${what} failed: git's index is locked (.git/index.lock) — another git is at work in the research, or one that ended mid-way left its lock`, {
+    hint: "strom repair   (takes away a lock no git has held for 10 minutes; then run the command again)",
+    code: "git.index-locked",
+    details: [said],
+  });
 }
 
 function git(cwd: string, args: string[], input?: string): string {
@@ -449,14 +466,40 @@ export function changes(dir: string, pathspec: string[] = []): Change[] {
 
 /**
  * Take these paths out of what is staged, back to HEAD (a command taken back after its git add, its commit not made:
- * nothing it wrote stays staged, seen as changed outside strom). Best effort: what fails stays as git left it.
+ * nothing it wrote stays staged, seen as changed outside strom). Each path on the command line, in parts (pathParts —
+ * never --pathspec-from-file, which a git before 2.25 does not know). Never throws: git's words when it could not (its
+ * index held by another program, a lock a git that ended mid-way left), else undefined — the next write, or strom
+ * repair, takes the rest out (core/integrity.ts settleLeftovers).
  */
-export function unstage(dir: string, paths: string[]): void {
-  if (paths.length === 0 || !hasHead(dir)) return;
+export function unstage(dir: string, paths: string[]): string | undefined {
+  if (paths.length === 0 || !hasHead(dir)) return undefined;
+  let said: string | undefined;
+  for (const part of pathParts(paths.map((p) => p.replace(/\\/g, "/")))) {
+    try {
+      const r = runGit(dir, ["reset", "-q", "--", ...part]);
+      if (r.status !== 0) said ??= r.stderr.trim() || r.stdout.trim() || `git reset ended with ${r.status}`;
+    } catch (e) {
+      said ??= (e as Error).message;
+    }
+  }
+  return said;
+}
+
+/** The lock git keeps on its index while it writes it ('.git/index.lock'). */
+export function indexLock(dir: string): string {
+  return path.join(dir, ".git", "index.lock");
+}
+
+/** How old a lock of git's index is stale: no git holds its index for minutes (it writes it in a moment). */
+export const STALE_INDEX_LOCK_MS = 10 * 60_000;
+
+/** A lock of git's index a git that ended mid-way left (stale: STALE_INDEX_LOCK_MS old), else undefined. */
+export function staleIndexLock(dir: string, now = Date.now()): string | undefined {
+  const lock = indexLock(dir);
   try {
-    runGit(dir, ["reset", "-q", "--pathspec-from-file=-", "--pathspec-file-nul"], paths.map((p) => p.replace(/\\/g, "/")).join("\0") + "\0");
+    return now - fs.statSync(lock).mtimeMs >= STALE_INDEX_LOCK_MS ? lock : undefined;
   } catch {
-    // git gone or ended: the next command's check says what is left
+    return undefined;
   }
 }
 

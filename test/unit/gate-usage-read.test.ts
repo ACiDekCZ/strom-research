@@ -66,11 +66,11 @@ test("claude-usage reads the shapes /usage prints: no session line, a model's we
   const late = resetText(3 * 24 * H, 24);
   const cases: [string, string, RegExp][] = [
     // as Claude Code 2.1 prints it now: a line of its own first, no session line, the model's week after all models'
-    ["now", `You are currently using your subscription to power your Claude Code usage\n\nCurrent week (all models): 20% used · resets ${week.text}\nCurrent week (Fable): 0% used · resets ${week.text}\n\nWhat's contributing to your usage?\n`, /^week 20 % used, 5[67] % gone/],
+    ["now", `You are currently using your subscription to power your Claude Code usage\n\nCurrent week (all models): 20% used · resets ${week.text}\nCurrent week (Fable): 0% used · resets ${week.text}\n\nWhat's contributing to your usage?\n`, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\)/],
     // the model's own week before all models': all models' counts
     ["model first", `Current session: 5% used · resets ${week.text}\nCurrent week (Fable): 90% used · resets ${week.text}\nCurrent week (all models): 20% used · resets ${week.text}\n`, /^week 20 % used/],
     // a 24-hour clock
-    ["24 h", `Current week (all models): 20% used · resets ${late.text}\n`, /^week 20 % used, 5[67] % gone, 3[67] in hand \(at least 10 needed\); weekly reset in 3\.0 days$/],
+    ["24 h", `Current week (all models): 20% used · resets ${late.text}\n`, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\); weekly reset in 3\.0 days$/],
     // only a model's week: it counts
     ["one model", `Current week (Fable): 30% used · resets ${week.text}\n`, /^week 30 % used/],
   ];

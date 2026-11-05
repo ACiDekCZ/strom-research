@@ -11,6 +11,8 @@
 //   A5  a book whose portal gave no sharper part (M7): no more parts of it offered
 //   A7  images fetched and never read (M11): only what a task reads fetched, the next batch once the last is read
 //   A6  any of these back to the default once its signal has been gone TUNING.backAfterDays and new readings came
+//   A8  a change of the key or a book after which the reading got clearly less sure (core/tunereset.ts worsenings, 8.4
+//       of the method: enough scans since) back to the default at once, held back as a person's reset holds it
 //
 // Decided after each session (with the summary, core/tidy.ts autoTidy), at strom media calibrate --report and at strom
 // doctor — never within a session: a session goes by the values of its start (each change keeps the value before it,
@@ -32,6 +34,7 @@ import { defaultViewSizes, researchKey, viewSizes, type ViewSizes } from "./view
 import { aliasPairsOf, canonicalUnits, groups, keepBeforeKeys, otherUnits, READING_DEFAULTS, readJournal, refreshRollup, stopContext, summarize, THRESHOLDS, TUNING, UNKNOWN_KEY, type KeyReport, type Recommendation, type Rollup, type Signal, type TunedItem, type Unit } from "./readstats.ts";
 import { keyed, keyOf, keysFor, loadAliases, modelId, noteAliases, resolveKey, splitKey, type Aliases } from "./modelkey.ts";
 import type { TreeConfig } from "./model.ts";
+import { worsenings } from "./tunereset.ts";
 import type { Tree } from "./tree.ts";
 
 const DAY = 24 * 3600_000;
@@ -104,6 +107,10 @@ export interface TuneLogEntry {
   why: string;
   basis?: Record<string, number | string>;
   by: "selftune" | "reset";
+  /** A8: the scans of its scope when it was taken back (enough readings since set it free again, RESET_HOLD). */
+  scans?: number;
+  /** A8: the model said when the change was set. */
+  reported?: string;
 }
 
 /** One value a person returned to the default (strom media calibrate --reset, core/tunereset.ts). */
@@ -731,6 +738,38 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
         back(ht, `host:${h}`, false);
         if (!Object.keys(ht).length) delete tt.hosts[h];
       }
+      // A8: a change after which the reading got clearly less sure (enough scans since, core/tunereset.ts) — back to the
+      // default at once, not after TUNING.backAfterDays; held back afterwards as a person's reset is (heldBack). A change
+      // only dearer stays (it went towards accuracy); a calibration is a person's, never returned by itself.
+      for (const w of worsenings(tree.root, settings.config, key, rollup.units, state)) {
+        if (w.kind !== "accuracy") continue;
+        const onKey = w.scope === "key";
+        const store = (onKey ? kt : tt.books[w.scope.slice(5)]) as Slots | undefined;
+        if (!store) continue;
+        let first: Tuned | undefined;
+        const from: Record<string, unknown> = {};
+        const to: Record<string, unknown> = {};
+        for (const [f, t] of Object.entries(store)) {
+          if (!t || typeof t !== "object" || !("id" in t) || t.id !== w.id) continue;
+          first ??= t;
+          from[f] = t.value;
+          to[f] = t.default;
+          delete store[f];
+        }
+        if (!first) continue;
+        if (onKey) cfgChanged = true;
+        else {
+          stateChanged = true;
+          if (!Object.keys(store).length) delete tt.books[w.scope.slice(5)];
+        }
+        const pct = (v: number) => Math.round(v * 100);
+        changes.push({
+          ...entry(first, key, at, single(from), single(to), `${onKey ? "" : `${w.scope.slice(5)}: `}read worse since it (${w.metric} ${pct(w.before)} % → ${pct(w.after)} %, ${w.nb} scans before, ${w.na} after) → back to the default at once`, "selftune", "A8"),
+          basis: { metric: w.metric, before: w.before, after: w.after, nb: w.nb, na: w.na },
+          scans: scopeScans(rollup.units, key, w.scope),
+          ...(first.reported ? { reported: first.reported } : {}),
+        });
+      }
       // the model said kept beside what was set for it (a new one under the same alias begins again); nothing set: nothing kept
       for (const [store, mark] of [
         [kt, () => (cfgChanged = true)],
@@ -781,7 +820,8 @@ export function scopeScans(units: Unit[], key: string, scope: string, after?: nu
 export function heldBack(log: readonly unknown[], t: { id: string; key: string; scope: string; reported?: string; what?: string }, units: Unit[], now: number): boolean {
   for (const raw of log) {
     const e = raw as Partial<TuneLogEntry> & { items?: unknown };
-    if (e.by !== "reset" || typeof e.at !== "string") continue;
+    // a person's reset, or strom's own A8 (taken back as worse): held back alike
+    if ((e.by !== "reset" && !(e.by === "selftune" && e.action === "A8")) || typeof e.at !== "string") continue;
     const at = Date.parse(e.at);
     if (!(now - at < TUNING.heldDays * DAY)) continue;
     const items = (Array.isArray(e.items) ? e.items : [e]) as Partial<ResetLogItem>[];

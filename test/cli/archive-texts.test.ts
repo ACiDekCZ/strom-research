@@ -357,6 +357,8 @@ test("M12 an archive's help names the phone and switches research on where the r
   const h = await archive.ok(["help", "--human"]);
   assert.match(h.out, /strom phone\s+Propojení s telefonem/, h.out);
   assert.doesNotMatch(h.out, NO_AI, h.out);
+  // strom's fixes work in an archive too (those that read nothing): named, nothing paid said
+  assert.match(h.out, /^ {2}strom fixes run +Napravit, co oprava našla \(zdarma\)$/m, h.out);
   const agentOnly = await archive.ok(["help", "--human", "brief"]);
   assert.match(agentOnly.out, /v Archivu Stromu se nepoužívá \(výzkum se zapíná v menu, první položka\)/, agentOnly.out);
   const catalog = await archive.ok(["help"]);

@@ -44,6 +44,7 @@ import { archiveQuestions } from "../core/archiveasks.ts";
 import { questionHosts } from "../core/terms.ts";
 import { bareHost, listConnectors } from "../core/connector.ts";
 import { decideArchive } from "./menu-archives.ts";
+import { bareArchive } from "../commands/archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
 import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
@@ -128,7 +129,7 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
     return true;
   }
   if (what === "folder") {
-    const inbox = inboxOf(ctx.settings.shared()?.value, task);
+    const inbox = inboxOf(tree, ctx.settings.shared()?.value, task);
     if (!inbox) return stop(ctx, t("ui.link.folder.none", { task: task.id }));
     openForUser(inbox.dir, ctx.env);
     out(ctx, t("ui.waiting.opened", { dir: ctx.display(inbox.dir) }));
@@ -168,14 +169,17 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
 
 /**
  * The question about an archive's images a link of the Strom app opens: only an archive that waits for the person's
- * decision, or one a downloader here reaches (its permission looked at again) — anything else only said.
+ * decision, one a downloader here reaches (its permission looked at again), or one of strom's list only a person's
+ * browser goes to (through the browser or by hand) — anything else only said.
  */
 export async function archiveAsked(ctx: Context, run: Run, lang: string, root: string, host: string): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
   const q = archiveQuestions(tree).find((p) => p.kind === "permission" && questionHosts(p).includes(host));
-  const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host));
+  // a question that waits, a downloader here, or an archive of strom's list only a person's browser goes to that the
+  // agent's browser would help at (the app's Permission… at what waits for its images, no downloader needed)
+  const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host)) || !!bareArchive(ctx, host);
   if (!known) return stop(ctx, t("ui.link.archive.none"));
   return decideArchive(ctx, run, lang, root, host, q, q?.archiveHosts);
 }

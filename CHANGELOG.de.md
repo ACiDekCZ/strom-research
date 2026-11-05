@@ -5,9 +5,105 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.27.0
+
+*In Vorbereitung: die Betas bis 1.27.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Von Hand gespeicherte Bilder bringen ihre Aufgabe von selbst zurück.** Wo die Bilder eines Archivs von Hand
+  gespeichert werden – ein Archiv, das nur der Browser eines Menschen erreicht, oder eines, dessen Bedingungen nichts
+  anderes erlauben –, nennt die Forschung das Buch und die Nummern seiner Bilder und legt dafür einen Ordner im Eingang
+  (inbox) an. Was dort gespeichert wird, wird von selbst übernommen: sofort, solange die Brücke zur Strom-App läuft,
+  sonst beim Start der nächsten Sitzung; anders benannte Dateien nach ihrer Reihenfolge, wenn es so viele sind, wie
+  Bilder fehlen. Die Aufgabe kehrt in die Warteschlange zurück, sobald alle Bilder da sind; bei einem Teil zeigt „Was
+  wartet“, wie viele von wie vielen gespeichert sind und welche fehlen. Ein Buch eines solchen Archivs gilt nicht mehr
+  als frei abrufbar, und die Forschung bietet dafür keinen Downloader mehr an – auch Bücher und Wartende aus früheren
+  Versionen, ohne dass etwas umgeschrieben wird.
+
+- **Was wartet, lässt sich in der Strom-App beantworten, und die Bilder, auf die eine Aufgabe wartet, lassen sich aus
+  ihr senden.** Eine in der App geschriebene Antwort bringt die Aufgabe zurück in die Warteschlange wie eine im
+  Terminal; sie wird vollständig gespeichert und als in der App gegeben vermerkt. Eine Aufgabe, die inzwischen auf etwas
+  anderes wartet, bleibt unverändert. Scans, auf die eine Aufgabe wartet, gehen aus der App direkt zu ihr: nummeriert
+  nach dem Bild, das die App nennt, sonst nach dem Dateinamen, sonst nach der Reihenfolge der fehlenden; ein PDF Seite
+  für Seite. Ein Scan mit einer Nummer, die die Forschung schon hat, wird abgelehnt, außer er soll ihn ersetzen – der
+  vorherige wird zurückgezogen und bleibt erhalten, nie gelöscht. Ein Scan, der einem schon übernommenen anderen Bild
+  gleicht, wird mit dem Hinweis abgelehnt, welchem er gleicht; nichts wird übernommen. Sie werden genauso übernommen wie
+  von Hand gespeicherte Bilder, und die Aufgabe kommt zurück, sobald alle da sind. Eine Website mit einem Buch der
+  Aufgabe zeigt auch ihren Ordner und wie viele Bilder er hat. Die Websites eines Archivs – etwa das digitale Archiv und
+  der Lesesaal eines Landesarchivs – warten an einem Ort unter dem Namen des Archivs, mit seiner Adresse.
+
+- **Der Agent bleibt der Brücke fern.** Was die Strom-App über die Brücke sendet, gehört dem Menschen. Die Hooks des
+  Agenten lehnen einen Befehl oder Webabruf ab, der die Adresse der Brücke liest oder sie aufruft, und der Agent
+  erfährt die geheime Adresse nie.
+
+- **Der Browser des Agenten folgt denselben Regeln wie sein Abruf von Webseiten.** Jede Seite, die der Agent in Chrome
+  öffnet, wird zusammen mit seinen anderen Anfragen an dieselbe Website gezählt und im Tempo gehalten; eine Website,
+  deren Bedingungen Automatisierung verbieten, eine, die abgelehnt hat, ein Pfad, den ihre robots.txt sperrt, und die
+  Brücke bleiben ihm verschlossen. Ein Archiv, das nur der Browser eines Menschen erreicht, öffnet sich ihm nur mit der
+  Erlaubnis des Menschen „über den Browser“, eine Seite nach der anderen im Tempo eines Menschen. Erlaubnis… in der
+  Strom-App bei dem, was auf Bilder eines solchen Archivs wartet, öffnet diese Frage, auch wo kein Downloader das Archiv
+  erreicht. Der Browser oder die Computersteuerung eines anderen Agenten – Codex, Antigravity – hat keine solche
+  Prüfung: Er geht nie in ein solches Archiv, und die Bilder speichert der Mensch von Hand. `strom doctor`, das Briefing
+  des Agenten und Was wartet sagen einmal, mit welchem Agenten und welcher Browser-Erweiterung der Agent sie selbst
+  speichern würde, oder dass die Erweiterung fehlt. Der Browser und die Computersteuerung der Desktop-Apps der Agenten
+  bleiben in der Forschung aus – auch im Gespräch und in der ChatGPT-App; überwacht wird der Browser des Agenten in
+  Chrome. `strom doctor` und das Briefing des Agenten sagen es ausdrücklich, und der Agent arbeitet nie in einer Kopie
+  der Forschung, die die Desktop-App eines Agenten in einem eigenen Worktree öffnet. Die Strom-App erfährt von der
+  Brücke, ob der Browser des Agenten bereit ist, die Erweiterung fehlt oder der Agent keinen hat, den die Forschung
+  überwacht.
+
+- **Der Browser des Agenten speichert die Bilder selbst, eines nach dem anderen.** Wo der Mensch einem Archiv, das nur
+  der Browser eines Menschen erreicht, den Zugang „über den Browser“ erlaubt, öffnet der Agent ein Bild in Chrome und
+  speichert, was der Bildbetrachter des Archivs zeigt – nie mehr, als der Betrachter gibt, nie größer als das Original,
+  im Tempo eines Menschen. Er speichert nur das Bild, das der Tab unter dessen eigener Adresse zeigt – ein auf ein
+  anderes Bild weitergeblätterter Betrachter wird abgelehnt, nichts gespeichert. Die Forschung übernimmt die
+  gespeicherte Datei aus dem Download-Ordner unter ihrer Nummer in den Ordner der Aufgabe, und die Aufgabe kommt zurück,
+  sobald alle ihre Bilder da sind. Die Erlaubnis lässt sich jetzt auch einem solchen Archiv aus der Liste der Forschung
+  geben, das kein Downloader erreicht. Ein Downloader für ein Archiv, dessen Betrachter die Bilder in Kacheln zeigt,
+  speichert ebenfalls über diesen Betrachter, auch einen Teil eines Bildes; die Seite des Buches wird einmal geöffnet
+  und nie neu geladen. Eine Prüfung, ob ein Mensch da ist, besteht der Agent nie. Archive, deren robots.txt automatische
+  Werkzeuge fernhält, werden weiter von Hand gespeichert.
+
+- Eine Bedingung der selbstständigen Arbeit des Agenten, die von Hand gestartete Aufgaben nicht starten würde, wird
+  einmal genannt, danach nur noch „Trotzdem starten?“. Die Bedingung der Abo-Woche nennt die Nutzung der Woche gegenüber
+  dem bisher Erlaubten und wie sie gezählt wird. `strom help --human` führt die Reihenfolge der Aufgaben, die Arbeit
+  abseits der Linien, Korrekturen und das Belassen eines Widerspruchs unter den eigenen Befehlen des Menschen. Die
+  Forschung mit OpenCode geht weiter nach einer Sitzung, die es ordnungsgemäß abgeschlossen, aber als fehlgeschlagen
+  gemeldet hat, und nach einem vorübergehenden Netzwerkfehler – dieselbe Sitzung wird nach kurzem Warten fortgesetzt,
+  innerhalb der Zeit der Sitzung. Hält die Sandbox von Codex strom von der Forschung fern – unter Windows auch bei einem
+  über PowerShell gegebenen Befehl –, hält die Forschung sofort an und nennt, was die Wahl des Menschen bleibt; eine
+  solche Sitzung legt ihre Aufgabe nie beiseite. Danke für die Meldung auf GitHub. Eine Änderung beim Lesen der Scans,
+  die die Forschung selbst vorgenommen hat und nach der die Lesungen deutlich unsicherer wurden, wird sofort
+  zurückgenommen – nicht mehr erst nach 60 Tagen –, und `strom recent` sagt es.
+
+- Weitere Archive Tschechiens, Deutschlands und Polens sind mit ihren Bedingungen bekannt – was jedes automatischen
+  Werkzeugen erlaubt, sein Tempo und was nur der Browser eines Menschen erreicht. Fünf weitere tschechische, die nur der
+  Browser eines Menschen erreicht: die Acta Publica des Mährischen Landesarchivs (ihre Bilder nicht mehr über einen
+  Downloader, auch nicht mit einer früher gegebenen Erlaubnis – sie bleibt, wie gegeben; über den Browser mindestens 4
+  Sekunden auseinander), die eBadatelna des SOA Praha und die Bildserver des SOA Litoměřice, des ZA Opava und der
+  Polizeimeldungen des Nationalarchivs (nur von Hand). Ein früher für ein solches Archiv gebauter Downloader wird vor
+  jeder Anfrage abgewiesen, auch seine Probe, und sagt, was bleibt: die Erlaubnis der Person „über den Browser“ oder das
+  Speichern von Hand.
+
+- Mit allem aus 1.26.1: ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.
+
+## 1.26.1
+
+*4.11.2026 · gehört zur Strom-App 3.22.0.*
+
+- **Ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.** Ein Befehl, der zwischen `git add` und dem
+  Commit endete (vom Agenten beendet oder unter Windows mit einem Index von git, den ein anderes Programm hielt), konnte
+  seine Dateien im Index von git lassen: jedes weitere Schreiben endete mit „die Daten der Forschung wurden außerhalb
+  von strom geändert“, obwohl `strom verify` und `strom repair` nichts fanden. Die neuen Dateien, die ein solches
+  Schreiben im Index lässt (nicht mehr im Ordner, nie in der Geschichte), sind niemandes Änderung – das nächste
+  Schreiben nimmt sie von selbst heraus und macht weiter. `strom repair` setzt immer den ganzen Index auf den
+  versiegelten Stand zurück, auch mit einer dort gebliebenen Änderung eines Eintrags. Eine Sperre, die ein mitten in der
+  Arbeit beendetes git hinterließ (`.git/index.lock`, älter als 10 Minuten), entfernt `strom repair`, und ein Schreiben,
+  das daran scheitert, sagt es. Ein wirklich außerhalb von strom gelöschter oder geänderter Eintrag wird wie bisher
+  gemeldet.
+
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*4.11.2026 · gehört zur Strom-App 3.22.0.*
 
 - **Die Linien der Forschung aus der Strom-App: anlegen, ändern, pausieren, ordnen.** Eine Linie lässt sich in der App
   anlegen oder ändern (Person, Richtung, Frage, Grenzen), pausieren, beenden oder wieder aufnehmen; die Reihenfolge der

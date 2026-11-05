@@ -77,6 +77,7 @@ import { ensurePluginsDir } from "../core/connector.ts";
 import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
+import { browserState, treeBrowserArchives } from "../core/browserhelp.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
 import { appReadLimits } from "../core/live-read.ts";
 import { markWidget } from "../core/widget.ts";
@@ -496,6 +497,21 @@ function diagnoseInto(
     else if (ext.length) add("browser", "ok", t("ui.doc.browser.ok", { browsers: ext.join(", ") }));
     else add("browser", "warn", t("ui.doc.browser.noext", { names }), CLAUDE_IN_CHROME_URL);
   }
+  // Archives only a person's browser goes to, named by the tree's records: the agent saves their images itself only
+  // with Claude Code, the extension and the person's permission "through the browser" — else by hand (spec 048 K5.1)
+  // (a research a newer strom wrote: none read)
+  const only = tree && !ctx.archiveHere() ? timed("doctor.browser.archives", () => treeBrowserArchives(ctx.tree(), shared)) : [];
+  if (only.length) {
+    const names = only.map((a) => a.title ?? a.host).join(", ");
+    const s = browserState(ctx.env, chosen);
+    if (s.state === "agent-without-browser") add("browser", "warn", t("ui.doc.browser.archives.agent", { names, agent: PROFILES[chosen]?.name ?? chosen }), found.includes("claude") ? "strom agents use claude" : undefined);
+    else if (s.state === "no-extension") add("browser", "warn", t("ui.doc.browser.archives.noext", { names }), CLAUDE_IN_CHROME_URL);
+    else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
+    else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }));
+  }
+  // The desktop apps' own browser, preview and computer use (Claude's, ChatGPT's/Codex's): off in every session of a
+  // research, said where those agents are here — strom keeps watch only before Claude in Chrome (core/browser.ts)
+  if ((found.includes("claude") || found.includes("codex")) && !ctx.archiveHere()) add("desktop", "ok", t("ui.doc.desktop.off"));
 
   // For a person: the shortcut on the desktop, the Strom app.
   const desktop = desktopDir(ctx.env);
@@ -574,8 +590,9 @@ function diagnoseInto(
     // free, local, never failing; a session at work goes on by the values of its start
     progress("views");
     const tuned = timed("doctor.tune", () => selfTune(tr, { settings: ctx.settings }));
-    // …and a change of strom's after which the reading got clearly worse (core/tunereset.ts): its way back said, a reset
-    // recommended only where the readings got less sure — never run here (strom doctor --fix: on the person's yes)
+    // …and a change of strom's after which the reading got clearly worse (core/tunereset.ts): the readings less sure —
+    // taken back by selfTune itself at once (A8), said here only where it could not be (another strom held the moment);
+    // only dearer — kept, its way back said (strom doctor --fix: on the person's yes)
     for (const w of tuneWorse(tr, ctx, tuned.rollup?.units)) add("tuneworse", w.kind === "accuracy" ? "warn" : "ok", worseText(w, lang), w.command, w.kind === "accuracy" ? "tune" : undefined);
     // a site an agent asked many pages of in one session with its own web tools, lately: a connector is the gentle way
     // (an archive: nobody works there, nothing said of an agent)

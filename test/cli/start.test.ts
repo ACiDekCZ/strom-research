@@ -224,6 +224,10 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], \["login", "seal"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], "connector", \["add", "remove"\]\], decision = "forbidden"/m);
   assert.match(rules, /^prefix_rule\(pattern = \["git"\], decision = "forbidden"/m);
+  // and its desktop app's browser and computer use off in every session of the tree, a conversation too
+  const codexConf = fs.readFileSync(path.join(w.treeDir("Novákovi"), ".codex", "config.toml"), "utf8");
+  assert.match(codexConf, /^\[mcp_servers\.node_repl\]\ncommand = "strom-off"\nenabled = false$/m);
+  assert.match(codexConf, /^\[plugins\."browser@openai-bundled"\]\nenabled = false$/m);
   // An agent elsewhere (it set strom up from the web page) hands the research over: its own
   // conversation, in a new terminal window (not opened in a test: the user is told how).
   w.env.CLAUDECODE = "1";
@@ -1218,6 +1222,27 @@ function fakeHeadless(w: World, name: string, events: object[]): void {
     { mode: 0o755 },
   );
 }
+
+test("strom run with Codex: strom kept away by its sandbox through PowerShell stops the run with Codex's own reason — no second session (GitHub #8)", unix, async () => {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    { type: "item.completed", item: { type: "command_execution", command: `"C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'strom.cmd note add P0001 x'`, aggregated_output: "error: no permission to write into .git — run this strom command outside the agent's sandbox", exit_code: 1, status: "failed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Nelze zapisovat." } },
+    { type: "turn.completed", usage: { input_tokens: 100, cached_input_tokens: 0, output_tokens: 9 } },
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "3", "--json"]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.sessions.length, 1);
+  assert.equal(r.json.stop, "denied.codex");
+  assert.match(r.json.stopped, /sandbox Codexu nepustil strom k výzkumu – mimo sandbox jde strom jen jako samostatný příkaz .* úkol zůstává ve frontě/);
+  w.cleanup();
+});
 
 test("strom run with Codex, Antigravity and OpenCode: headless, their events read, the level their own switches", unix, async () => {
   const w = new World();

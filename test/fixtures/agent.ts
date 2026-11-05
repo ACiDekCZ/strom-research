@@ -97,6 +97,11 @@ if (mode === "denied") {
   console.log("denied: Bash: strom input show I0001");
   process.exit(0);
 }
+if (mode === "denied-ps") {
+  // Codex on Windows: strom said through PowerShell, refused by its sandbox (.git closed) — GitHub #8
+  console.log(`denied: Bash: "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command 'strom.cmd note add P0001 "Lhoták z Lhoty"'`);
+  process.exit(0);
+}
 // a session handed back at once, its time hardly begun: with the reason (strom says the time left otherwise)
 if (mode === "denied-once") {
   // one compound command refused (strom … && a loop), the rest of its work through strom as usual

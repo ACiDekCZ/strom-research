@@ -33,10 +33,9 @@ nothing yourself — not through a browser either.
    `9a.jpg`).
 5. Where: the exact folder of the shared inbox the task shows — say it whole.
 
-When the user says the images are saved:
-`strom media add --inbox "<the folder>" --recordset B…` registers them and the
-task comes back to the queue (it says which images are still missing — ask for
-those). Then `strom session start T…`: its brief says how to read and record.
+strom takes what is saved there by itself; the task comes back once all are
+there (it says which are missing — ask for those). Saved now:
+`strom media add --inbox --waiting`. Then `strom session start T…`: its brief says how to read and record.
 Read them, record what they say, tell the user what was found
 (`strom person card P…`) and what is needed next — all in this conversation.
 

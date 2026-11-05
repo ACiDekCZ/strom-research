@@ -15,13 +15,15 @@
 // The answer is kept with the task, nothing more: the agent takes it up in its next work (strom task wake --answer).
 // An archive: only what an archive has — no agent, no conversation.
 
+import { inboxState, inboxWaitOf, type InboxState } from "../core/inboxwait.ts";
+import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, pickClaim, waitingDo } from "./menu-links.ts";
-import { truncate } from "./format.ts";
+import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, RecordSet, Research, Task } from "../core/model.ts";
@@ -33,6 +35,8 @@ import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
 import { listConnectors } from "../core/connector.ts";
+import { bookBrowserArchive, personBrowserNote } from "../core/browserhelp.ts";
+import { PROFILES } from "../agents/profiles.ts";
 import { placeQuestions } from "../core/placesview.ts";
 import { inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
 import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
@@ -395,7 +399,7 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
     const it = cur.item;
     const kind = it.kind;
     const sent = it.phase === "sent";
-    const inbox = it.inbox as { dir: string; have: number; want: number } | undefined;
+    const inbox = it.inbox as InboxState | undefined;
     const url = typeof it.url === "string" ? it.url : undefined;
     const lines = ["", ` ${x.id} · ${kindWord(t, kind)} · ${t("ui.wait.prio", { n: x.priority })}`, ` ${humanTask(tree, x.what, lang, { asWritten: true })}`];
     if (x.waitingOn) lines.push(`    ${t("ui.wait.d.on", { on: x.waitingOn })}`);
@@ -403,6 +407,7 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
     lines.push(`    ${t("ui.wait.d.place", { place: it.group.name })}`);
     lines.push(`    ${t("ui.wait.d.since", { day: humanDay(it.at, lang) })}${sent ? ` · ${sentWords(t, lang, sentAtOf(cur))}` : ""}`);
     if (x.awaits) lines.push(...imagesToSave(ctx, lang, tree, x), "", `    ${t("ui.wait.how1")}`, `    ${t("ui.wait.how2")}`);
+    else lines.push(...imagesToSave(ctx, lang, tree, x));
     out(lines.join("\n"));
 
     // what makes sense for its kind: true leaves (it waits no more here), else it is shown again
@@ -448,6 +453,17 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
       file();
     } else {
       if (url) open(kind === "web" ? "ui.wait.a.web" : "ui.wait.a.link", url);
+      // a site of the one book of the task: its images saved into its folder bring it back
+      if (inbox)
+        choices.push({
+          label: t("ui.wait.a.folder", { have: inbox.have, want: inbox.want || "?" }),
+          act: async () => {
+            fs.mkdirSync(inbox.dir, { recursive: true });
+            openForUser(inbox.dir, ctx.env);
+            out(t("ui.waiting.opened", { dir: ctx.display(inbox.dir) }));
+            return false;
+          },
+        });
       answer();
     }
     if (canChat(ctx, tree)) choices.push({ label: t("ui.wait.a.chat"), act: () => waitingDo(ctx, run, lang, root, x.id, "chat", "", true) });
@@ -639,12 +655,41 @@ async function decidePlace(ctx: Context, run: Run, lang: string, root: string, i
 /** The images to save by hand and where (a task waiting for an archive's images). */
 function imagesToSave(ctx: Context, lang: string, tree: Tree, x: Task): string[] {
   const t = translator(lang);
-  if (!x.awaits) return [];
+  const st = inboxState(tree, ctx.settings.shared()?.value, x);
+  // a site the person looks at for the one book of the task: what is saved into its folder brings it back
+  if (!x.awaits) {
+    const w = inboxWaitOf(tree, x);
+    if (!w) return [];
+    const b = tree.get<RecordSet>(w.recordset);
+    const dir = `${ctx.display(st?.dir ?? `inbox/${w.folder}`)}${path.sep}`;
+    return [`    ${t("ui.wait.save.web", { book: b?.title ?? w.recordset, dir })}`, ...(st?.problemCode ? [`    ${problemWords(t, st)}`] : st?.lying ? [`    ${t("ui.wait.saved", { have: st.lying, want: "?" })}`] : [])];
+  }
   const b = tree.get<RecordSet>(x.awaits.recordset);
   return [
     `    ${t("ui.waiting.images", { images: x.awaits.images, book: b?.title ?? x.awaits.recordset })}${b?.url ? ` · ${b.url}` : ""}`,
     `    ${t("ui.wait.save", { dir: `${ctx.display(inbox(ctx, x) ?? `inbox/${x.awaits.folder}`)}${path.sep}` })}`,
+    // how far it got: saved X of Y, which are missing, why what lies there is not taken
+    ...(st && st.want ? [`    ${[t("ui.wait.saved", { have: st.have, want: st.want }), st.missing.length ? t("ui.wait.missing", { missing: runs(st.missing) }) : ""].filter(Boolean).join(" · ")}`] : []),
+    ...(st?.problemCode ? [`    ${problemWords(t, st)}`] : []),
+    // an archive only a person's browser goes to: whether the agent could save them itself (spec 048 K5.2)
+    ...browserWords(ctx, t, tree, b?.url),
   ];
+}
+
+/** Beside images of an archive only a person's browser goes to: how the agent would save them itself, if it could. */
+function browserWords(ctx: Context, t: ReturnType<typeof translator>, tree: Tree, url: string | undefined): string[] {
+  if (isArchive(tree) || ctx.archiveHere()) return [];
+  const a = bookBrowserArchive(tree, url, ctx.settings.shared()?.value);
+  if (!a) return [];
+  const agent = ctx.settings.agent(tree.config).value;
+  const note = personBrowserNote(ctx.env, agent, a);
+  if (!note) return [];
+  return [`    ${t(note.key, note.key === "ui.waiting.browser.agent" ? { agent: PROFILES[agent]?.name ?? agent } : note.params)}`];
+}
+
+/** Why the files saved for a task are not taken, in the person's words. */
+function problemWords(t: ReturnType<typeof translator>, st: InboxState): string {
+  return st.problemCode === "inbox.unnamed" ? t("ui.wait.inbox.unnamed") : t("ui.wait.inbox.count", { files: st.lying, n: st.missing.length || st.want, first: st.missing[0] ?? "40" });
 }
 
 /** What to do for a task that waits: the images to save and where, or what it asks. */

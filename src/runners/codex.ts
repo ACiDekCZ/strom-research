@@ -8,9 +8,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runJsonLines, type Heard } from "./jsonl.ts";
-import { commandLine, looksLikeLimit, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, looksLikeLimit, shellUnwrapped, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { AgentWeb } from "../core/metrics.ts";
-import { codexModel, effortArgs } from "../agents/effort.ts";
+import { codexConfigFile, codexModel, effortArgs } from "../agents/effort.ts";
+import { CODEX_BROWSER_SERVERS } from "../core/browser.ts";
 import { isolated, type Env } from "../core/paths.ts";
 import { inRoom, readerRoom } from "./room.ts";
 
@@ -57,9 +58,30 @@ export function codexTrust(env: Env, cwd: string): string[] {
  * Working alone without the user's add-ons (agent.addons off): Codex's plugins (and the MCP servers they bring), its
  * apps, the user's hooks and memories off for this run — the user's own config, model and login kept (never
  * --ignore-user-config: it drops the model and effort too). An MCP server of the user's own config stays: Codex has no
- * switch for all of them.
+ * switch for all of them — but its desktop app's browser and computer use (codexBrowserOff).
  */
 export const CODEX_CLEAN = ["-c", "features.plugins=false", "-c", "features.apps=false", "-c", "features.hooks=false", "-c", "features.memories=false"] as const;
+
+/**
+ * The browser and the computer use the Codex desktop app adds to the user's own config (MCP servers `node_repl` —
+ * its in-app browser and Chrome extension — and `computer-use`), off with the user's add-ons: strom keeps no hook before
+ * them (an archive only a person's browser goes to stays the person's). Only those the config names: a server it does
+ * not name, switched off on the command line, stops Codex ("invalid transport", checked with 0.155.1). Read only.
+ * (A conversation, which keeps the user's add-ons, has them off by the tree's .codex/config.toml: agents/files.ts.)
+ */
+
+export function codexBrowserOff(env: Env | undefined): string[] {
+  if (!env) return [];
+  let text: string;
+  try {
+    text = fs.readFileSync(codexConfigFile(env), "utf8");
+  } catch {
+    return [];
+  }
+  const named = new Set<string>();
+  for (const m of text.matchAll(/^\s*\[\s*mcp_servers\s*\.\s*(?:"([^"\n]+)"|'([^'\n]+)'|([A-Za-z0-9_-]+))\s*\]/gmu)) named.add(m[1] ?? m[2] ?? m[3]!);
+  return CODEX_BROWSER_SERVERS.filter((n) => named.has(n)).flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]);
+}
 
 /** Command-line arguments of a headless run (exported for tests). */
 export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
@@ -68,7 +90,7 @@ export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
+  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
 }
 
 /**
@@ -81,7 +103,7 @@ export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "ef
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
+  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
 }
 
 /**
@@ -142,15 +164,21 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
       if (model) heard.metrics.model = model;
       tellUsage(opts, { agentSession: msg.thread_id, ...(model ? { model } : {}) });
     }
-    const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string } | undefined;
-    if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(commandLine(item.command.replace(/^\S*sh -lc '(.*)'$/s, "$1")));
+    const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string; status?: string } | undefined;
+    if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(commandLine(shellUnwrapped(item.command)));
     if (msg.type === "item.completed" && item?.type === "agent_message" && item.text) {
       heard.text = item.text;
       opts.onProgress?.(item.text.trim().split("\n")[0]!.slice(0, 160));
     }
-    // The sandbox refused a command (a write outside the tree, the network off): counted like a denial.
-    if (msg.type === "item.completed" && item?.type === "command_execution" && item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system/i.test(item.aggregated_output ?? ""))
-      heard.denied.push(`Bash: ${String(item.command ?? "").replace(/^\S*sh -lc '(.*)'$/s, "$1").slice(0, 120)}`);
+    // The sandbox refused a command (a write outside the tree, .git closed, the network off — strom's own refusal says
+    // "sandbox", Windows "access is denied"), or Codex did not run it (its rules, an approval nobody gives in exec:
+    // "declined"): counted like a denial, the command as the agent meant it (its shell around it taken off)
+    if (
+      msg.type === "item.completed" &&
+      item?.type === "command_execution" &&
+      (item.status === "declined" || (item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system|access (?:to the path .{1,200} )?is denied/i.test(item.aggregated_output ?? "")))
+    )
+      heard.denied.push(`Bash: ${shellUnwrapped(String(item.command ?? "")).slice(0, 120)}`);
     // its web search, once its item is done (counted after the fact: core/metrics.ts)
     if (msg.type === "item.completed") {
       const w = codexWeb(msg.item as Record<string, unknown> | undefined);

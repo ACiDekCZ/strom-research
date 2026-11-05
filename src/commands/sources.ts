@@ -1,5 +1,6 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
+import { browserOnlyAccess, browserOnlyArchive } from "../core/byhand.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { addPlaceName, nameWithSyntax, otherNames, parseAltName, personsHand } from "../core/placeid.ts";
 import { isAgent } from "../core/which.ts";
@@ -527,7 +528,13 @@ register(
         },
         (id) => `+${id} record set "${truncate(args[0]!, 60)}"`,
       );
-      return { text: lines(written(tree), ...said), data: { recordset: b } };
+      // an archive only a person's browser reaches: what strom's list says, whatever access was given (nothing rewritten)
+      const only = browserOnlyArchive(tree, b.url, ctx.settings.shared()?.value);
+      if (only)
+        said.push(
+          `${b.id}: ${only.title ?? only.host} lets automated tools in only through a person's browser (strom's list of archives) — no connector, no web fetch; its images by the person's hand: strom task wait T… --images ${b.id}:<numbers> --on "…"${b.access === "online-free" ? " (access online-free: free to view, by a person)" : ""}`,
+        );
+      return { text: lines(written(tree), ...said), data: { recordset: b, ...(only ? { browserOnly: only } : {}) } };
     },
   },
   {
@@ -592,11 +599,12 @@ register(
       const b = requireRecord<RecordSet>(tree, args[0]!, "recordset");
       const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
       const here = imagesHere(tree, b.id);
+      const only = browserOnlyArchive(tree, b.url ?? repo?.url, ctx.settings.shared()?.value);
       const text = lines(
         `${b.id} ${b.title}`,
         repo ? `in          ${repo.id} ${repo.name}${b.callNumber ? ` · ${b.callNumber}` : ""} · automation ${repo.automation}` : b.callNumber ? `call number ${b.callNumber}` : undefined,
         `covers      ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ") || "(not described)"}`,
-        `access      ${b.access}${b.url ? ` · ${b.url}` : ""}${b.images ? ` · ${b.images} images` : ""}`,
+        `access      ${only ? browserOnlyAccess(b.access, only).replace("B…", b.id) : b.access}${b.url ? ` · ${b.url}` : ""}${b.images ? ` · ${b.images} images` : ""}`,
         ...imagesLines(here, b, opts.images === true),
         b.layout ? `layout      ${b.layout}` : undefined,
         calibrationLine(b),
@@ -604,7 +612,7 @@ register(
         "",
         `searched in it: strom searched ${b.id}`,
       );
-      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration), images: here } };
+      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration), images: here, ...(only ? { browserOnly: only } : {}) } };
     },
   },
   {

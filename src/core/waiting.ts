@@ -16,11 +16,12 @@
 // of its own (the person can save them by hand, or talk about them, whatever the question): in the question's `tasks`
 // too, as what the decision touches, yet each task one item at most.
 
+import { inboxState, type InboxState } from "./inboxwait.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { CHECK_ANSWERS, type Conflict, type Family, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { SENDABLE, firstUrlIn, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
+import { SENDABLE, firstUrlIn, institutionGroup, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
 import { archiveQuestions, archiveWaitingItems, levelWords } from "./archiveasks.ts";
 import type { PendingQuestion } from "./terms.ts";
 import { onHost } from "./archivewait.ts";
@@ -30,7 +31,6 @@ import { tuneQuestions, type Question } from "./tuneask.ts";
 import { Settings } from "./config.ts";
 import { scopes, type Scope } from "./directions.ts";
 import { lineOf, offLineView, type BranchView } from "./offline.ts";
-import { collectFiles, IMAGE_FILE_EXT, parseImageList } from "./media.ts";
 import { conflictTitle, displayName } from "./people.ts";
 import { conflictsToDecide } from "./conflicts.ts";
 import { phrase } from "./phrases.ts";
@@ -43,10 +43,10 @@ import { humanDay } from "../cli/human.ts";
 export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
-export type WaitAction = "answer" | "file" | "note" | "folder" | "sent" | "chat";
+export type WaitAction = "answer" | "file" | "note" | "folder" | "images" | "sent" | "chat";
 
 /** The actions links do now (each one strom-research://task?…&do= takes). */
-export const ACTIONS_OFFERED: readonly WaitAction[] = ["answer", "file", "note", "folder", "sent", "chat"];
+export const ACTIONS_OFFERED: readonly WaitAction[] = ["answer", "file", "note", "folder", "images", "sent", "chat"];
 
 const SECTION: Record<string, WaitSection> = {
   permission: "decide",
@@ -76,16 +76,28 @@ const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1
 const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, tune: 6 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
-function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean): WaitAction[] {
+function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: boolean): WaitAction[] {
+  // images of a book (asked by their numbers, or a site with one book): sent from the app (images: PUT /media with
+  // X-Strom-Task) or saved into its folder (folder) — only where the shared inbox is
   const all: WaitAction[] =
-    kind === "images"
-      ? ["answer", "folder", "chat"]
-      : kind === "letter" || kind === "family" || kind === "other"
-        ? ["answer", "file", ...(note ? (["note"] as const) : []), ...(phase === "todo" ? (["sent"] as const) : []), "chat"]
-        : kind === "web" || kind === "check"
-          ? ["answer", "chat"]
+    (kind === "images" || kind === "web") && inbox
+      ? ["answer", "images", "folder", "chat"]
+      : kind === "images" || kind === "web" || kind === "check"
+        ? ["answer", "chat"]
+        : kind === "letter" || kind === "family" || kind === "other"
+          ? ["answer", "file", ...(note ? (["note"] as const) : []), ...(phase === "todo" ? (["sent"] as const) : []), "chat"]
           : [];
   return all.filter((a) => ACTIONS_OFFERED.includes(a));
+}
+
+/**
+ * A task the person may answer in the Strom app (POST /waiting/<T…> {"do": "answer"}): one whose item offers an answer —
+ * never a check of a site (its answers are the terminal's: works, view, no) nor an archive's decision.
+ */
+export function answersInApp(t: Task): boolean {
+  if (t.state !== "waiting" || t.awaitsCheck || (t.awaitsPermission && !t.awaits)) return false;
+  const kind = waitKindOf(t);
+  return kind !== "check" && actionsOf(kind, "todo", false, false).includes("answer");
 }
 
 /** An item as the Strom app reads it (/status `waiting[]`): what the bridge sent before, and the fields of the groups. */
@@ -261,17 +273,31 @@ export function requestTexts(tree: Tree, tasks: Task[]): { text: string; notes: 
   return { text: texts.join("\n\n-----\n\n"), notes, tasks: tasks.map((t) => t.id) };
 }
 
-/** The folder of a task's images saved by hand: where, how many images are there, how many it wants. */
-export function inboxOf(shared: string | undefined, t: Task): { dir: string; have: number; want: number } | undefined {
-  if (!shared || !t.awaits) return undefined;
-  const dir = path.join(shared, "inbox", t.awaits.folder);
-  let have = 0;
-  try {
-    if (fs.existsSync(dir)) have = collectFiles([dir]).filter((f) => IMAGE_FILE_EXT.has(path.extname(f).toLowerCase())).length;
-  } catch {
-    // a folder strom cannot read: none counted
-  }
-  return { dir, have, want: parseImageList(t.awaits.images)?.length ?? 0 };
+/**
+ * The folder of a task's images saved by hand (core/inboxwait.ts): where, how many of the images it asked for are
+ * there (registered, or lying in the folder), how many it wants, which are missing, why the files there cannot be taken.
+ * A site the person looks at for the one book of its task has the book's folder too (`want` 0: which images not known).
+ */
+export function inboxOf(tree: Tree, shared: string | undefined, t: Task): InboxState | undefined {
+  return inboxState(tree, shared, t);
+}
+
+/**
+ * A task's inbox as the app reads it: of the images asked for how many are there (have) of how many (want — none when
+ * which ones is not known), those missing (at most 50, in order), the book (its title, for the eye) and the images asked
+ * for as said (57–58); the folder (dir) and what lies there for the terminal's menu.
+ */
+function inboxJson(tree: Tree, t: Task, st: InboxState): Record<string, unknown> {
+  const { want, missing, ...rest } = st;
+  const book = tree.get<RecordSet>(st.recordset);
+  const title = book?.title ? [...book.title] : [];
+  return {
+    ...rest,
+    ...(want ? { want } : {}),
+    missing: missing.slice(0, 50),
+    ...(title.length ? { book: title.length > 120 ? `${title.slice(0, 119).join("")}…` : title.join("") } : {}),
+    ...(t.awaits?.images ? { images: t.awaits.images } : {}),
+  };
 }
 
 /** The site of a task: what it names, the check's, its book's or archive's, the first address in its words. */
@@ -292,14 +318,12 @@ function personOf(t: Task): { person?: string } {
 function archiveGroup(tree: Tree, host: string, title: string | undefined): WaitGroup {
   const hostOf = (u: string | undefined) => (u && URL.canParse(u) ? new URL(u).hostname.toLowerCase() : undefined);
   const repos = tree.list<Repository>("repository").filter((r) => !r.retracted && !r.mergedInto);
-  const r =
-    repos.find((x) => onHost(hostOf(x.url), host)) ??
-    (() => {
-      const b = tree.list<RecordSet>("recordset").find((x) => !x.retracted && !x.mergedInto && x.repository && onHost(hostOf(x.url), host));
-      return b ? repos.find((x) => x.id === b.repository) : undefined;
-    })();
+  const sets = tree.list<RecordSet>("recordset").filter((x) => !x.retracted && !x.mergedInto);
+  // the research's archive at that site or another site of the same archive, else the archive strom knows of it
+  const r = repoAtHost(repos, sets, host, hostOf, onHost);
   const bare = host.toLowerCase().replace(/^www\./u, "");
-  return r ? { key: `repo:${r.id}`, name: r.name, kind: "archive" } : { key: `host:${bare}`, name: title ?? bare, kind: "web" };
+  if (r) return { key: `repo:${r.id}`, name: r.name, kind: "archive", ...(r.url && /^https?:\/\//iu.test(r.url) ? { url: r.url } : {}) };
+  return institutionGroup(bare) ?? { key: `host:${bare}`, name: title ?? bare, kind: "web" };
 }
 
 /** Everything that waits for the person, ordered (see the top of this file). */
@@ -331,7 +355,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     const note = requestNote(tree, t);
     const url = urlOf(tree, t, group);
     const to = t.wait?.to?.trim() || (group.kind === "office" ? group.name : undefined);
-    const inbox = kind === "images" ? inboxOf(o.shared, t) : undefined;
+    const inbox = inboxOf(tree, o.shared, t);
     all ??= scopes(tree);
     // its direction, else the one it helps (core/offline.ts)
     line ??= lineOf(tree, all);
@@ -355,8 +379,8 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         ...(kind === "check" ? { choices: [...CHECK_ANSWERS] } : {}),
         ...(note ? { note } : {}),
         ...(to ? { to } : {}),
-        ...(inbox ? { inbox } : {}),
-        actions: actionsOf(kind, phase, !!note),
+        ...(inbox ? { inbox: inboxJson(tree, t, inbox) } : {}),
+        actions: actionsOf(kind, phase, !!note, !!inbox),
         ...personOf(t),
         ...(research ? { research } : {}),
       },

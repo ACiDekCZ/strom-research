@@ -16,13 +16,14 @@ import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
+import { withoutSecret } from "../core/bridgeguard.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
 import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
-import { dropLiveSecret, forgetLive, liveRunning, notStartedWhy, serveLive, startLive, stopLive } from "../core/live.ts";
+import { dropLiveSecret, forgetLive, liveRunning, notStartedWhy, serveLive, startLive, stopLive, type LiveInfo } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
 import { browserKind, openFileWith, revealFile } from "../core/chromium.ts";
@@ -96,6 +97,18 @@ function liveAppLine(ctx: Context, lang: string, bridge: string): string {
   if (url) return ui(lang, "ui.live.app", { url });
   const bad = appUrlSetting(ctx.settings).invalid!;
   return ui(lang, bad.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: bad.value });
+}
+
+/**
+ * The bridge as an agent is told of it: that it runs, never its secret address (what the Strom app sends there is the
+ * person's — core/bridgeguard.ts); the person opens the app with strom app.
+ */
+function liveForAgent(lang: string, info: LiveInfo, more?: string): { text: string; data: Record<string, unknown> } {
+  const url = `http://127.0.0.1:${info.port}/…`;
+  return {
+    text: lines(ui(lang, "ui.live.runs", { url }), "The address is the Strom app's (strom app opens it); you never call the bridge.", more),
+    data: { running: true, port: info.port, pid: info.pid, url, started: info.started, ...(info.version ? { version: info.version } : {}), ...(info.moved ? { moved: true } : {}) },
+  };
 }
 
 function liveAppData(ctx: Context, bridge: string): { app?: string } {
@@ -357,7 +370,9 @@ register(
             movedText = ui(lang, "ui.app.moved", { browser: win.browser.name, from: fromWords((k) => ui(lang, k), browserKind(moved.from) ?? "other"), file: ctx.display(moved.file) });
           }
           const text = lines(goneText, movedText, opened ? ui(lang, follow ? "ui.app.following" : "ui.app.research", { name, where }) : ui(lang, "ui.app.url", { url }), withImages);
-          return { text, data: { opened, via: via ?? "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow } };
+          const said = { text, data: { opened, via: via ?? "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow } };
+          // an agent opens the app for the person, never learns where the bridge takes what the person sends
+          return isAgent(ctx.env) ? withoutSecret(said, info.token) : said;
         }
         // A: no such browser to hand it over, but the Strom app installed from one takes the file itself (its file handler).
         if (!follow && installed && /Chrome|Edge|Brave|Chromium|Vivaldi/.test(installed.kind) && openFileWith(installed.path, file, ctx.env))
@@ -376,7 +391,8 @@ register(
         if (!info) throw notStarted(ctx.tree().root, since);
         const url = liveAppUrl(info.url, ctx.settings);
         const opened = openForUser(url, ctx.env);
-        return { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, bridge: info.url } };
+        const said = { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, bridge: info.url } };
+        return isAgent(ctx.env) ? withoutSecret(said, info.token) : said;
       }
       const app = noticeStromApp(ctx.settings, ctx.env, { look: true }) ?? installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
       const opened = openForUser(app?.path ?? stromAppUrl(ctx.settings), ctx.env);
@@ -398,12 +414,15 @@ register(
       "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
       "(its port while free), so the app following it goes on by itself; one that ended without a word or when idle is\n" +
       "started again when a session starts (idle: only one the app was given, never in an archive). Stopped with strom\n" +
-      "live stop, the next one gets a new secret address.",
+      "live stop, the next one gets a new secret address.\n" +
+      "The person answers a task that waits for them and sends its scans from the Strom app through the bridge (strom task\n" +
+      "wake as theirs, strom media original --task): an agent never reads or calls the bridge (strom agents shell).",
     examples: ["strom live", "strom live start", "strom live stop"],
     run(ctx) {
       const tree = bridgeTree(ctx);
       const lang = tree.lang;
       const info = liveRunning(tree.root);
+      if (info && isAgent(ctx.env)) return liveForAgent(lang, info, ui(lang, "ui.live.stophow"));
       return info
         ? { text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), ui(lang, "ui.live.stophow")), data: { running: true, ...info, ...liveAppData(ctx, info.url) } }
         : { text: ui(lang, "ui.live.none"), data: { running: false } };
@@ -421,6 +440,7 @@ register(
       const since = Date.now();
       const info = startLive(tree.root, ctx.env, { current: !!opts.current });
       if (!info) throw notStarted(tree.root, since);
+      if (isAgent(ctx.env)) return liveForAgent(lang, info, info.moved ? ui(lang, "ui.live.moved") : undefined);
       return {
         text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), info.moved ? ui(lang, "ui.live.moved") : undefined),
         data: { ...info, ...liveAppData(ctx, info.url) },

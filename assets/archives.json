@@ -6,19 +6,28 @@
       "name": "Moravský zemský archiv (Acta Publica)",
       "level": "restricted",
       "terms": "https://www.mza.cz/actapublica/page/view/napoveda",
+      "termsPage": "https://www.mza.cz/scitacioperaty/page/view/help",
+      "termsPageSays": "Aplikace sčítacích operátů je určena výhradně pro prohlížení pořízených snímků, pro pořízení kopie prohlíženého digitalizátu využijte funkci PrintScreen na svém počítači.",
       "quote": "Lze stáhnout snímek? Ano, lze, i pro neregistrované uživatele, ale pouze standardními prostředky webových prohlížečů - pravé tlačítko myši a uložit obrázek.",
       "robots": "User-agent: * · Disallow: /wp-admin/ · Disallow: /wp-includes/ (nothing on /actapublica)",
-      "checked": "2026-11-03",
-      "scope": "one image at a time, as a browser saves it, for the person's own research; never a whole book; its images never published elsewhere without the owner's written consent (its Podmínky užití služeb of 20 May 2024: https://www.mza.cz/actapublica/page/view/podminky-uziti-sluzeb)"
+      "disallow": [
+        "/scitacioperaty/"
+      ],
+      "scope": "a person's browser only (its terms: an image saved \"only by the standard means of web browsers\"; its ICT office, 2 November 2026: no exceptions for tools): no request straight through strom, no image through strom fetch even with a permission; the agent's browser, with the person's permission \"through the browser\", one image at a time at a person's pace (at least 4 s apart), else the person saves the image and the agent reads the saved file. Parish registers (/actapublica): for the person's own research; never a whole book; its images never published elsewhere without the owner's written consent (its Podmínky užití služeb of 20 May 2024: https://www.mza.cz/actapublica/page/view/podminky-uziti-sluzeb). Census records (/scitacioperaty, 1857–1921): for viewing only by its help — the person takes a screenshot, the agent reads the saved file",
+      "checked": "2026-11-04",
+      "browserOnly": true,
+      "pace": {
+        "minIntervalMs": 4000
+      }
     },
     {
       "host": "ebadatelna.soapraha.cz",
       "name": "Státní oblastní archiv v Praze (eBadatelna)",
-      "level": "restricted",
+      "level": "manual",
       "terms": "https://ebadatelna.soapraha.cz/robots.txt",
       "quote": "# Ostatní roboty - zákaz stahování digitalizátů / User-agent: * / Disallow: /d/ / Disallow: /a/",
       "robots": "User-agent: rodokmen · Disallow: / · User-agent: ClaudeBot · Disallow: / · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: / · User-agent: * · Disallow: /d/ · Disallow: /a/ (since 2 November 2026)",
-      "checked": "2026-11-03",
+      "checked": "2026-11-04",
       "quoteFrom": "robots",
       "browserOnly": true,
       "termsPage": "https://soapraha.gov.cz/castokladenedotazy/",
@@ -27,7 +36,7 @@
         "/d/",
         "/a/"
       ],
-      "scope": "a person's browser only: its robots.txt names AI agents and keeps every robot off its digitised records (/d/, /a/); the person opens and saves the image, the agent reads the saved file"
+      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file"
     },
     {
       "host": "digi.ceskearchivy.cz",
@@ -50,19 +59,19 @@
       "host": "aron.vychodoceskearchivy.cz",
       "name": "Východočeské archivy (ARchiv ONline)",
       "level": "allowed",
-      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
-      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku … Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
+      "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
       "robots": "none (/robots.txt answers the application's page)",
-      "checked": "2026-11-03"
+      "checked": "2026-11-04"
     },
     {
       "host": "imgx.vychodoceskearchivy.cz",
       "name": "Východočeské archivy (ARchiv ONline)",
       "level": "allowed",
-      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
-      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku … Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
+      "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
       "robots": "none (404)",
-      "checked": "2026-11-03"
+      "checked": "2026-11-04"
     },
     {
       "host": "katalog.ahmp.cz",
@@ -71,11 +80,12 @@
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://katalog.ahmp.cz/robots.txt",
-      "quote": "User-agent: * / Disallow: /",
       "termsPage": "https://katalog.ahmp.cz/pragapublica/pages/podminky_uziti.jsp",
       "termsPageSays": "Text se připravuje.",
+      "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: /",
-      "checked": "2026-11-03"
+      "scope": "the old catalogue, which points to the new one on digi.ahmp.cz (more records and images there); a person's browser only",
+      "checked": "2026-11-04"
     },
     {
       "host": "szukajwarchiwach.gov.pl",
@@ -91,21 +101,23 @@
     {
       "host": "content.landesarchiv-berlin.de",
       "name": "Landesarchiv Berlin (Standesamtsabfrage)",
-      "level": "allowed",
-      "terms": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
-      "quote": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
+      "level": "restricted",
+      "terms": "https://landesarchiv-berlin.de/impressum",
+      "termsPage": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
+      "termsPageSays": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
+      "quote": "Die Webseite des Landesarchivs Berlin ist urheberrechtlich geschützt. Eine Verwendung, Vervielfältigung oder Verbreitung bedarf der Zustimmung des Landesarchivs Berlin.",
       "robots": "none (404)",
-      "scope": "the name indexes' PDF files the portal offers, one year at a time",
-      "checked": "2026-10-11"
+      "scope": "the name indexes' PDF files the portal offers, one year at a time, read for the person's own research; never the whole index set, nothing passed on",
+      "checked": "2026-11-04"
     },
     {
       "host": "www.landesarchiv-berlin.de",
       "name": "Landesarchiv Berlin",
-      "level": "allowed",
-      "terms": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
-      "quote": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
-      "robots": "Disallow: /wp-admin/",
-      "checked": "2026-10-11"
+      "level": "restricted",
+      "terms": "https://landesarchiv-berlin.de/impressum",
+      "quote": "Die Webseite des Landesarchivs Berlin ist urheberrechtlich geschützt. Eine Verwendung, Vervielfältigung oder Verbreitung bedarf der Zustimmung des Landesarchivs Berlin.",
+      "robots": "301 to landesarchiv-berlin.de (User-agent: * · Disallow: /wp-admin/)",
+      "checked": "2026-11-04"
     },
     {
       "host": "digi.soalitomerice.cz",
@@ -128,6 +140,21 @@
       "checked": "2026-11-03"
     },
     {
+      "host": "images.soalitomerice.cz",
+      "name": "Státní oblastní archiv v Litoměřicích (image server)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://images.soalitomerice.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "disallow": [
+        "/"
+      ],
+      "scope": "its image server: robots.txt closes it to every robot, terms for its scans not found — no automated request, the agent's browser neither; the person views the register on digi.soalitomerice.cz and saves the image, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
       "host": "portal.nacr.cz",
       "name": "Národní archiv (Národní archivní portál)",
       "level": "allowed",
@@ -144,26 +171,28 @@
       "level": "allowed",
       "terms": "https://data.matricula-online.eu/de/nutzungsbedingungen/",
       "quote": "Sämtliche Bilder von und aus Kirchen- bzw. Matrikenbüchern stehen unter der Lizenz CC BY-NC-ND 2.0 zur Verfügung. Eine kommerzielle Weiterverwertung der Bilder ist demnach nicht gestattet.",
-      "robots": "User-agent: * · Disallow: /*?pg= · Disallow: /*/suchen · Disallow: /*/landkarte-features · Disallow: /*/accounts (and Disallow: / for AI crawlers)",
+      "license": "https://creativecommons.org/licenses/by-nc-nd/2.0/",
+      "robots": "User-agent: * · Disallow: /*?pg= · Disallow: /*/suchen · Disallow: /*/landkarte-features · Disallow: /*/accounts · User-agent: GPTBot, ClaudeBot, CCBot, Google-Extended, Applebot-Extended, meta-externalagent, Amazonbot, Bytespider · Disallow: / (served from cdn-static.matricula-online.eu/static/robots.txt)",
       "disallow": [
         "/*?pg=",
         "/*/suchen",
         "/*/landkarte-features",
         "/*/accounts"
       ],
-      "scope": "the fonds and parishes browsed and their images — never its search (/…/suchen)",
-      "checked": "2026-10-11"
+      "scope": "the fonds and parishes browsed and their images — never its search (/…/suchen); its images CC BY-NC-ND 2.0 (non-commercial, credited); the group of its robots.txt for AI crawlers (ClaudeBot, GPTBot…) is not an agent's own web tool (Claude-User)",
+      "checked": "2026-11-04"
     },
     {
       "host": "digital.martin-opitz-bibliothek.de",
       "name": "Martin-Opitz-Bibliothek (digital)",
       "level": "unknown",
       "terms": "https://digital.martin-opitz-bibliothek.de/index.php?id=8",
-      "robots": "User-agent: * · Allow: /",
-      "checked": "2026-10-11"
+      "robots": "none (404)",
+      "scope": "address books and church/civil registers of the former eastern territories: no terms of use found (its Impressum only) — one image at a time",
+      "checked": "2026-11-04"
     },
     {
-      "host": "www.portafontium.eu",
+      "host": "portafontium.eu",
       "name": "Porta fontium",
       "level": "restricted",
       "terms": "https://www.portafontium.eu/terms-of-use",
@@ -172,19 +201,22 @@
       "pace": {
         "minIntervalMs": 10000
       },
-      "checked": "2026-11-03",
-      "scope": "the person's own research only: one page at a time (its viewer saves the part shown), each image cited with its source and address; never the database or a whole book downloaded"
+      "scope": "the person's own research only: one page at a time (its viewer saves the part shown), each image cited with its source and address; never the database or a whole book downloaded",
+      "checked": "2026-11-03"
     },
     {
       "host": "digi.archives.cz",
-      "name": "Zemský archiv v Opavě (Digitální archiv)",
+      "name": "Zemský archiv v Opavě (Digitální badatelna)",
       "level": "restricted",
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://digi.archives.cz/robots.txt",
+      "termsPage": "https://www.archives.cz/web/digitalni_badatelna/",
+      "termsPageSays": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
       "quote": "User-agent: * / Disallow: /",
-      "robots": "User-agent: * · Disallow: / (and a bot check)",
-      "checked": "2026-11-03"
+      "robots": "User-agent: * · Disallow: / (and a Radware Bot Manager CAPTCHA)",
+      "scope": "a person's browser only: robots.txt closes it to every robot and a CAPTCHA guards it; the person opens the register image and saves it, the agent reads the saved file; nothing published without the archive's consent and a citation; its registers are not shown in its reading rooms at all — online is the only way",
+      "checked": "2026-11-04"
     },
     {
       "host": "digi2.archives.cz",
@@ -193,9 +225,27 @@
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://digi2.archives.cz/robots.txt",
+      "termsPage": "https://www.archives.cz/web/digitalni_badatelna/",
+      "termsPageSays": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
       "quote": "User-agent: * / Disallow: /",
-      "robots": "User-agent: * · Disallow: / (leads to digi.archives.cz's)",
-      "checked": "2026-11-03"
+      "robots": "User-agent: * · Disallow: / (leads to digi.archives.cz's; a Radware CAPTCHA there)",
+      "scope": "a person's browser only, as digi.archives.cz",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "images.archives.cz",
+      "name": "Zemský archiv v Opavě (image server)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://images.archives.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "disallow": [
+        "/"
+      ],
+      "scope": "its image server: robots.txt closes it to every robot (a CAPTCHA and a daily cap on digi.archives.cz) — no automated request, the agent's browser neither; the person views the register on digi.archives.cz and saves the image, the agent reads the saved file",
+      "checked": "2026-11-04"
     },
     {
       "host": "kramerius.mzk.cz",
@@ -559,6 +609,634 @@
           "url": "https://dir.icm.edu.pl/?find_in=fulltext&volume_id=13&find_text={q}&search_volume=all"
         }
       ]
+    },
+    {
+      "host": "soapraha.gov.cz",
+      "name": "Státní oblastní archiv v Praze (website)",
+      "level": "restricted",
+      "terms": "https://soapraha.gov.cz/castokladenedotazy/",
+      "quote": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích a vkládání uživatelských poznámek.",
+      "robots": "none (/robots.txt redirects to /robots.txt/, 404)",
+      "scope": "the archive's information pages only; its digitised records are on ebadatelna.soapraha.cz (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.soapraha.cz",
+      "name": "Státní oblastní archiv v Praze (old address)",
+      "level": "restricted",
+      "terms": "https://soapraha.gov.cz/castokladenedotazy/",
+      "quote": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích a vkládání uživatelských poznámek.",
+      "robots": "redirects (301) to soapraha.gov.cz",
+      "scope": "the archive's old address, redirects to soapraha.gov.cz; its digitised records are on ebadatelna.soapraha.cz (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "portafontium.cz",
+      "name": "Porta fontium (Czech address)",
+      "level": "restricted",
+      "terms": "https://www.portafontium.eu/terms-of-use",
+      "quote": "Jakékoli užívání těchto kopií nebo jejich rozmnoženin mimo uvedený informační systém není dovoleno. … Výjimku z užívání těchto kopií nebo jejich rozmnoženin mimo databázi poskytuje § 92 autorského zákona, který umožňuje takové užívání pro svou osobní potřebu, pro účely vědecké nebo vyučovací v rozsahu odůvodněném sledovaným nevýdělečným účelem za podmínky, že je uveden konkrétní zdroj těchto kopií včetně internetové adresy",
+      "robots": "redirects (302) to www.portafontium.eu",
+      "pace": {
+        "minIntervalMs": 10000
+      },
+      "scope": "a second address of Porta fontium, redirects to www.portafontium.eu; the same rules",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "soaplzen.gov.cz",
+      "name": "Státní oblastní archiv v Plzni (website)",
+      "level": "restricted",
+      "terms": "https://www.portafontium.eu/terms-of-use",
+      "quote": "Jakékoli užívání těchto kopií nebo jejich rozmnoženin mimo uvedený informační systém není dovoleno. … Výjimku z užívání těchto kopií nebo jejich rozmnoženin mimo databázi poskytuje § 92 autorského zákona, který umožňuje takové užívání pro svou osobní potřebu, pro účely vědecké nebo vyučovací v rozsahu odůvodněném sledovaným nevýdělečným účelem za podmínky, že je uveden konkrétní zdroj těchto kopií včetně internetové adresy",
+      "robots": "User-agent: * · Disallow: /wp-admin/ (and WooCommerce paths)",
+      "scope": "the archive's information pages only (list of registers, FAQ); its scans are on Porta fontium (portafontium.eu)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.ceskearchivy.cz",
+      "name": "Státní oblastní archiv v Třeboni (website)",
+      "level": "manual",
+      "terms": "https://digi.ceskearchivy.cz/DA?subject=2&menu=8",
+      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech apod. je zakázáno.",
+      "robots": "User-agent: * · Disallow: /administrator/ · /images/ · /media/ … (Joomla default)",
+      "scope": "the archive's information pages only; its scans are on digi.ceskearchivy.cz (a person's browser only, viewing only); the research rules and price lists lie under /images/, which robots.txt keeps off (the terms quoted as read on 2026-10-11)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "www.soalitomerice.cz",
+      "name": "Státní oblastní archiv v Litoměřicích (website)",
+      "level": "restricted",
+      "terms": "https://www.soalitomerice.cz/?lang=cs",
+      "quote": "Toto dílo podléhá licenci Creative Commons",
+      "license": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "robots": "none (/robots.txt redirects to the home page)",
+      "scope": "the archive's own web pages (CC BY-NC-ND 4.0); its scans and the Vademecum are on digi.soalitomerice.cz and vademecum.soalitomerice.cz, behind a bot check (a person's browser only)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "vychodoceskearchivy.cz",
+      "name": "Východočeské archivy (old address)",
+      "level": "allowed",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
+      "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
+      "robots": "the site redirects (301) to soahradec.gov.cz",
+      "scope": "the archive's old address, redirects to soahradec.gov.cz; its records and images are on aron. and imgx.vychodoceskearchivy.cz",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "soahradec.gov.cz",
+      "name": "Státní oblastní archiv v Hradci Králové (website, ARON help)",
+      "level": "allowed",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
+      "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
+      "robots": "User-agent: * · Disallow: /wp-content/uploads/wpforms/",
+      "scope": "the archive's website and the help to ARON; its records and images are on aron. and imgx.vychodoceskearchivy.cz",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digi.ahmp.cz",
+      "name": "Archiv hlavního města Prahy (Archivní katalog, since 25 August 2026)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digi.ahmp.cz/robots.txt",
+      "termsPage": "https://www.ahmp.cz/index.html?mid=87",
+      "termsPageSays": "Zveřejnění archivního materiálu na internetu povolujeme jen v nízké kvalitě (delší strana nesmí přesáhnout 500 pixelů) a reprodukce musí být označeny vodoznakem Archivu hl. města Prahy. Toto využití musí být výslovně uvedeno ve výše uvedené Dohodě nebo je nutné uzavřít novou smlouvu pro tento účel.",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: / (and /pragapublica/ redirects to a bot check, /pragapublica/human/challenge)",
+      "scope": "a person's browser only: robots.txt keeps every robot off and the catalogue opens behind a bot check; the person opens and saves the image, the agent reads the saved file; images never published (online only 500 px with the archive's watermark, under an agreement)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.ahmp.cz",
+      "name": "Archiv hlavního města Prahy (website)",
+      "level": "restricted",
+      "terms": "https://www.ahmp.cz/index.html?mid=87",
+      "quote": "Zveřejnění archivního materiálu na internetu povolujeme jen v nízké kvalitě (delší strana nesmí přesáhnout 500 pixelů) a reprodukce musí být označeny vodoznakem Archivu hl. města Prahy.",
+      "robots": "none (404)",
+      "scope": "the archive's information pages only; its digitised records are in the catalogue on digi.ahmp.cz (the old one: katalog.ahmp.cz), a person's browser only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.archives.cz",
+      "name": "Zemský archiv v Opavě (web)",
+      "level": "restricted",
+      "terms": "https://www.archives.cz/web/digitalni_badatelna/",
+      "quote": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
+      "robots": "none (robots.txt redirects to the home page)",
+      "scope": "the archive's own web only (news, help, contacts, finding aids in PDF); its records and register images are on digi.archives.cz — a person's browser only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "matriky.archives.cz",
+      "name": "Zemský archiv v Opavě (old address of the registers)",
+      "level": "restricted",
+      "terms": "https://www.archives.cz/web/digitalni_badatelna/",
+      "quote": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
+      "robots": "none (the host redirects, 301, to https://www.archives.cz/web/digitalni_badatelna/)",
+      "scope": "a signpost only: it leads to the archive's page on its Digitální badatelna; the registers are on digi.archives.cz — a person's browser only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "vademecum.archives.cz",
+      "name": "Zemský archiv v Opavě (old Vademecum address)",
+      "level": "restricted",
+      "terms": "https://www.archives.cz/web/digitalni_badatelna/",
+      "quote": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
+      "robots": "none (the host redirects, 301, to https://www.archives.cz/web/digitalni_badatelna/)",
+      "scope": "a signpost only: it leads to the archive's page on its Digitální badatelna; the records are on digi.archives.cz — a person's browser only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digitalnibadatelna.nacr.cz",
+      "name": "Národní archiv (Digitální badatelna)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digitalnibadatelna.nacr.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "a person's browser only: robots.txt closes it to every robot and its terms are not published; the person opens and saves the image, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digi.nacr.cz",
+      "name": "Národní archiv (policejní přihlášky)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digi.nacr.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "disallow": [
+        "/"
+      ],
+      "scope": "robots.txt closes it to every robot and its terms are not published — no automated request, the agent's browser neither; the person searches, opens and saves the record, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "vademecum.nacr.cz",
+      "name": "Národní archiv (VadeMeCum: Jewish registers HBMa)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://vademecum.nacr.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "a person's browser only: the registers of the Jewish communities of Bohemia and Moravia 1784–1949 (HBMa) and other records; the person opens and saves the image, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "ags.cuzk.cz",
+      "name": "ČÚZK – Archiv ÚAZK (old address)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "robots": "none (404); the old address of ags.cuzk.gov.cz, whose /archiv/ holds the archive's old cadastral maps",
+      "disallow": [
+        "/archiv/",
+        "/arcgis4/rest/services/Archiv/"
+      ],
+      "scope": "never automated: the archive's old maps are no open data — a person looks at them in the browser; RÚIAN goes through ags.cuzk.gov.cz",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "archivnimapy.cuzk.cz",
+      "name": "ČÚZK – Archiv ÚAZK (archivní mapy)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "robots": "the host redirects (302) to ags.cuzk.gov.cz/archiv/ (its /robots.txt too)",
+      "disallow": [
+        "/"
+      ],
+      "scope": "never automated: old cadastral maps of the Archiv ÚAZK — a person looks at them in the browser and saves a screenshot, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "hosted-images.matricula-online.eu",
+      "name": "Matricula (image server)",
+      "level": "allowed",
+      "terms": "https://data.matricula-online.eu/de/nutzungsbedingungen/",
+      "quote": "Sämtliche Bilder von und aus Kirchen- bzw. Matrikenbüchern stehen unter der Lizenz CC BY-NC-ND 2.0 zur Verfügung. Eine kommerzielle Weiterverwertung der Bilder ist demnach nicht gestattet.",
+      "license": "https://creativecommons.org/licenses/by-nc-nd/2.0/",
+      "robots": "none (404); the portal's robots.txt (data.matricula-online.eu) keeps AI agents off by name",
+      "scope": "Matricula's register images (data.matricula-online.eu/…/image/… points here): one image at a time, as the portal links it, credited (CC BY-NC-ND 2.0); never in bulk",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.archion.de",
+      "name": "Archion (Protestant church registers)",
+      "level": "forbidden",
+      "terms": "https://www.archion.de/de/agb/",
+      "quote": "5.1 Der Nutzer verpflichtet sich, es zu unterlassen, a) Informationen aus der Plattform oder der Datenbank von Archion systematisch oder automatisiert auszulesen …",
+      "robots": "User-agent: * · Disallow: /de/viewer/churchRegister/ · Disallow: /de/browse/ · Disallow: /de/login · (en the same) · Allow: /",
+      "disallow": [
+        "/de/viewer/churchRegister/",
+        "/en/viewer/churchRegister/",
+        "/de/browse/",
+        "/en/browse/"
+      ],
+      "scope": "paid (a time pass) and behind the person's login: no automated request at all — the person downloads a page as PDF within their pass, the agent reads the saved file; links and a task for the person",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "lagis.hessen.de",
+      "name": "LAGIS Hessen (Landesgeschichtliches Informationssystem)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.lagis-hessen.de/de/index/legal",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: GrokBot, xAI-Grok, Grok-DeepSearch, meta-externalagent, Amazonbot, ImagesiftBot … · Disallow: / · User-agent: * · Allow: /",
+      "scope": "a person's browser only: its robots.txt keeps AI agents off by name; its gazetteer, maps and records for private, non-commercial use — the person opens and saves, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.lagis-hessen.de",
+      "name": "LAGIS Hessen (former address)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.lagis-hessen.de/de/index/legal",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: * · Disallow: /lagis1/, /img/…/zoomify/, /img/hkw/dzi/, /de/mapmaker/, /de/subjects/gsearch, …/xsearch, …/xsrec · User-agent: GrokBot, xAI-Grok, Grok-DeepSearch, meta-externalagent, Amazonbot, ImagesiftBot … · Disallow: /",
+      "disallow": [
+        "/lagis1/",
+        "/img/ga/zoomify/",
+        "/img/hkw/zoomify/",
+        "/img/statl/zoomify/",
+        "/img/hkw/dzi/"
+      ],
+      "scope": "the former address of LAGIS (moving to lagis.hessen.de): a person's browser only, as there",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.deutsche-digitale-bibliothek.de",
+      "name": "Deutsche Digitale Bibliothek (portal, Deutsches Zeitungsportal)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "User-agent: * · Disallow: /login · Disallow: /search · Disallow: /searchresults · Crawl-delay: 2",
+      "scope": "its pages, terms included, behind a browser check (Anubis proof-of-work): only a person's browser; its metadata through its API (api.deutsche-digitale-bibliothek.de) with the person's own key",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "api.deutsche-digitale-bibliothek.de",
+      "name": "Deutsche Digitale Bibliothek API",
+      "level": "restricted",
+      "terms": "https://api.deutsche-digitale-bibliothek.de/OpenAPI",
+      "quote": "It allows the development of a range of applications that uses material in the DDB … In general all metadata provided via the API is licensed CC0. … If a reuse of this data is allowed must be checked in every case according to the information provided by the metadata.",
+      "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "robots": "none (404)",
+      "scope": "its metadata (CC0) by its interface for programs, with the person's own API key from \"My DDB\" (strom login) — one query at a time; an image or other binary only under the licence its metadata names; its API terms (api-nutzungsbedingungen) sit behind a bot check and were not read — restricted until a person reads them",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.archivportal-d.de",
+      "name": "Archivportal-D",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "User-agent: * · Disallow: /login · Disallow: /objekte · Disallow: /personen · Disallow: /organisationen · Disallow: /struktur",
+      "disallow": [
+        "/objekte",
+        "/personen",
+        "/organisationen",
+        "/struktur"
+      ],
+      "scope": "German archives' finding aids: its search closed to robots and its pages (terms included) behind a browser check (Anubis) — a person's browser only; the same metadata through the DDB API (api.deutsche-digitale-bibliothek.de) with the person's key",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "gov.genealogy.net",
+      "name": "GOV – Geschichtliches Orts-Verzeichnis (CompGen)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.compgen.de/impressum/",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: * · Disallow: /item/editQuicktext/, /item/history/, /item/geoJson/, /kml/, /search/distanceSearch/ … · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: /",
+      "scope": "a historical gazetteer (places, parishes, jurisdictions over time): its robots.txt keeps AI agents off by name — the person looks a place up in their own browser, the agent reads what was saved; private, non-commercial use",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "adressbuecher.genealogy.net",
+      "name": "Datenbank Historischer Adressbücher (CompGen)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.compgen.de/impressum/",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "transcribed historical address books: its robots.txt keeps every robot off — only the person's browser, private use",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "des.genealogy.net",
+      "name": "DES – Daten-Eingabe-System (CompGen; Verlustlisten 1914–1919 and other indexes)",
+      "level": "restricted",
+      "terms": "https://www.compgen.de/impressum/",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: * · Disallow: /search/suggest/",
+      "scope": "volunteers' indexes (records with a UUID): one query at a time for the person's own research, private and non-commercial; an index leads to the source — never bulk",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "online-ofb.de",
+      "name": "Online-Ortsfamilienbücher (CompGen)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.compgen.de/impressum/",
+      "quote": "Downloads und Kopien dieser Seite sind nur für den privaten, nicht kommerziellen Gebrauch gestattet.",
+      "robots": "User-agent: * · Disallow: /superduperdoku/ · User-agent: GPTBot · Disallow: / (and YandexBot, SEO bots)",
+      "scope": "village family books (compiled, a lead to the registers): its robots.txt keeps AI agents off by name — only the person's browser, private use",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "wiki.genealogy.net",
+      "name": "GenWiki (CompGen)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "/robots.txt redirects to a wiki page (no robots.txt)",
+      "scope": "behind a browser check (Anubis, set up against AI companies' crawlers): only a person's browser",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "ancestry.com",
+      "name": "Ancestry",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "403 — Cloudflare \"Access denied … Browser Validation\" even for robots.txt (2026-11-04)",
+      "scope": "paid subscription behind the person's login and a bot check that refuses strom even its robots.txt: only the person's browser; the person saves an image, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "ancestry.de",
+      "name": "Ancestry (Germany)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "403 — Cloudflare \"Access denied … Browser Validation\" even for robots.txt (2026-11-04)",
+      "scope": "as ancestry.com: paid, behind the person's login and a bot check — only the person's browser",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "myheritage.com",
+      "name": "MyHeritage",
+      "level": "manual",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://www.myheritage.com/robots.txt",
+      "quote": "# BLOCK AI & CHATBOT CRAWLERS / User-agent: Anthropic-ai / User-agent: ChatGPT-User / User-agent: ClaudeBot / … / User-agent: GPTBot / … / Disallow: /names / Disallow: /family-trees/ …",
+      "robots": "AI agents by name (Anthropic-ai, ClaudeBot, Claude-Web, ChatGPT-User, GPTBot, Google-Extended …) · Disallow: /names, /last-name, /FP/API, /family-sites/, /family-trees/, /name-directory/, /pedigree-tree; Imperva in front",
+      "scope": "its robots.txt keeps AI agents off by name; paid, behind the person's login: only the person, by hand in the browser",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www2.landesarchiv-bw.de",
+      "name": "Landesarchiv Baden-Württemberg (Online-Findmittelsystem)",
+      "level": "allowed",
+      "browserOnly": true,
+      "terms": "https://www.landesarchiv-bw.de/de/recherche/rechtsgrundlagen---nutzungsbedingungen/auf-einen-blick/46047",
+      "quote": "Die Nutzung des im Landesarchiv verwahrten Archivguts über das Online-Findmittelsystem in der bereitgestellten Form ist gebührenfrei. … Public Domain : Das Archivgut ist gemeinfrei oder unterliegt nicht dem Urheberrecht und steht unter der Public Domain Mark 1.0 . CC-BY : Das Archivgut steht unter der Lizenz Creative Commons CC-BY. Der Urheber muss genannt werden.",
+      "license": "Public Domain Mark 1.0 / CC BY (per digital copy)",
+      "robots": "User-agent: * · Disallow: / (only Googlebot and Yahoo allowed)",
+      "scope": "the catalogue and its digital copies, a person's browser only; the civil and church-register duplicates (Baden 1810-1870, Württemberg/Hohenzollern 1808-1875) are the same images on data.matricula-online.eu (Landesarchiv Baden-Württemberg)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.landesarchiv-bw.de",
+      "name": "Landesarchiv Baden-Württemberg",
+      "level": "restricted",
+      "terms": "https://www.landesarchiv-bw.de/de/recherche/rechtsgrundlagen---nutzungsbedingungen/auf-einen-blick/46047",
+      "quote": "Eine Weiterverwendung der Inhalte der Homepage des Landesarchivs https://www.landesarchiv-bw.de bedarf stets einer Genehmigung (siehe Impressum ).",
+      "robots": "User-agent: * · Disallow: /sixcms/admin",
+      "scope": "the website (guides, terms); the catalogue and images are on www2.landesarchiv-bw.de and on Matricula",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.la-bw.de",
+      "name": "Landesarchiv Baden-Württemberg",
+      "level": "restricted",
+      "terms": "https://www.landesarchiv-bw.de/de/recherche/rechtsgrundlagen---nutzungsbedingungen/auf-einen-blick/46047",
+      "quote": "Eine Weiterverwendung der Inhalte der Homepage des Landesarchivs https://www.landesarchiv-bw.de bedarf stets einer Genehmigung (siehe Impressum ).",
+      "robots": "not read (alias of www.landesarchiv-bw.de)",
+      "scope": "another address of the archive's website",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.gda.bayern.de",
+      "name": "Staatliche Archive Bayerns",
+      "level": "allowed",
+      "terms": "https://www.gda.bayern.de/de/footer/nutzungsbedingungen/index.html",
+      "quote": "Die Staatlichen Archive Bayerns verfügen über die entsprechenden Nutzungsrechte und stellen diese Digitalisate unter die Lizenz CC0. Sie dürfen, soweit technisch möglich, kostenlos heruntergeladen, weiterverwendet und weitergegeben werden. Im Übrigen sind die veröffentlichten Digitalisate gemeinfrei ( Public Domain Mark ) und dürfen kostenlos heruntergeladen, weiterverwendet und weitergegeben werden. … Die UUID ist der wesentliche Parameter bei den meisten API-Aufrufen.",
+      "license": "CC0 / Public Domain Mark",
+      "automatedUse": true,
+      "robots": "none (404)",
+      "scope": "the published digital copies and finding aids by their documented addresses (/findmittel/, /show/, /digitalisat/jpeg/, /mets/ with the UUID); cite archive and shelfmark; no parish or civil registers here",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.bavarikon.de",
+      "name": "bavarikon",
+      "level": "restricted",
+      "terms": "https://www.bavarikon.de/de/nutzungsbedingungen",
+      "quote": "Ausdrucke und Downloads dürfen nur für private, schulische und wissenschaftliche Zwecke, nicht aber für den kommerziellen Gebrauch hergestellt werden.",
+      "robots": "User-agent: * · Disallow: /api/ (and system folders)",
+      "scope": "single objects for private research, never commercial use; each object's own rights note decides",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "digitale-sammlungen.de",
+      "name": "Bayerische Staatsbibliothek – Digitale Sammlungen (MDZ, digiPress)",
+      "level": "allowed",
+      "terms": "https://www.digitale-sammlungen.de/de/faq",
+      "quote": "Digitalisate, die unter dem Rechtehinweis \"Public Domain Mark 1.0\" bereitgestellt werden, dürfen Sie kopieren, verändern, verbreiten und aufführen, auch zu kommerziellen Zwecken, ohne um Erlaubnis bitten zu müssen.",
+      "license": "Public Domain Mark 1.0 (per object)",
+      "robots": "www: User-agent: * · Disallow: (none); digipress: Disallow: /de/ · /kalender/ · /search/simple · /search/extended",
+      "scope": "digital copies marked Public Domain Mark 1.0 (most historical newspapers); never those marked In Copyright with the text and data mining reservation (§ 44b UrhG)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.landesarchiv-nrw.de",
+      "name": "Landesarchiv Nordrhein-Westfalen (Digitalisate)",
+      "level": "allowed",
+      "terms": "https://www.landesarchiv-nrw.de/digitalisate/LAV_NRW_Nutzungsbedingungen_Digitalisate.pdf",
+      "quote": "Digitalisate von Archivgut des Landesarchivs Nordrhein-Westfalen dürfen von der Webseite in der bereitgestellten Auflösung kostenlos heruntergeladen werden (andere Auflösungen siehe 4.). … Die Digitalisate von Archivgut unterliegen der Creative Commons Lizenz CC-BY-SA.",
+      "license": "CC BY-SA 4.0",
+      "robots": "none (404)",
+      "scope": "the archive's METS files (/digitalisate/…/mets.xml) and their images (/data01/…jpg) in the resolution offered; cite the shelfmark",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.archive.nrw.de",
+      "name": "Archivportal NRW (Landesarchiv Nordrhein-Westfalen)",
+      "level": "allowed",
+      "terms": "https://www.landesarchiv-nrw.de/digitalisate/LAV_NRW_Nutzungsbedingungen_Digitalisate.pdf",
+      "quote": "Digitalisate von Archivgut des Landesarchivs Nordrhein-Westfalen dürfen von der Webseite in der bereitgestellten Auflösung kostenlos heruntergeladen werden (andere Auflösungen siehe 4.). … Die Digitalisate von Archivgut unterliegen der Creative Commons Lizenz CC-BY-SA.",
+      "license": "CC0 (finding aids), CC BY-SA (digital copies of the Landesarchiv)",
+      "robots": "User-agent: * · Disallow: /search/ · /search? · /user/ · /media/oembed",
+      "scope": "the finding aids and the Landesarchiv NRW's own digital copies; the many municipal and church archives in the portal have their own terms and servers",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.lav.nrw.de",
+      "name": "Landesarchiv Nordrhein-Westfalen",
+      "level": "allowed",
+      "terms": "https://www.landesarchiv-nrw.de/digitalisate/LAV_NRW_Nutzungsbedingungen_Digitalisate.pdf",
+      "quote": "Die Digitalisate von Archivgut unterliegen der Creative Commons Lizenz CC-BY-SA.",
+      "robots": "redirects (301) to https://www.archive.nrw.de/landesarchiv-nrw",
+      "scope": "old address of the archive's website, now on www.archive.nrw.de",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "dfg-viewer.de",
+      "name": "DFG-Viewer",
+      "level": "manual",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://dfg-viewer.de/robots.txt",
+      "quote": "User-agent: ClaudeBot Disallow: / … User-agent: GPTBot Disallow: / … User-agent: * Disallow: /show",
+      "robots": "User-agent: * · Disallow: /show · /v1 · /v2 · /v3 · Crawl-delay: 6 (and Disallow: / for ClaudeBot, GPTBot and other AI crawlers)",
+      "scope": "its robots.txt keeps AI agents off by name: only the person, by hand in the browser; the METS file it shows is the archive's own, fetched from the archive's server under the archive's terms",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "apertus.rlp.de",
+      "name": "APERTUS – Landesarchivverwaltung Rheinland-Pfalz",
+      "level": "allowed",
+      "terms": "https://apertus.rlp.de/hilfe.php",
+      "termsPage": "https://lav.rlp.de/geschichte-entdecken/familienforschung/personenstandsarchiv/digitalisierung",
+      "termsPageSays": "Das Digitalisat ist jeweils mit dem entsprechenden Erschließungsdatensatz in APERTUS verknüpft und kann dort abgerufen und heruntergeladen werden.",
+      "quote": "Doch APERTUS bietet Ihnen noch mehr als nur Einsichtnahme: Sie können digital vorliegendes Archivgut hier nicht nur recherchieren, sondern einfach und bequem kostenlos downloaden.",
+      "robots": "none (404)",
+      "scope": "the civil registers and name indexes put online (registers older than 130 years), one image after another; publishing pictures of sources younger than 150 years needs the archive's approval",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "lav.rlp.de",
+      "name": "Landesarchivverwaltung Rheinland-Pfalz",
+      "level": "allowed",
+      "terms": "https://lav.rlp.de/geschichte-entdecken/familienforschung/personenstandsarchiv/digitalisierung",
+      "quote": "Das Digitalisat ist jeweils mit dem entsprechenden Erschließungsdatensatz in APERTUS verknüpft und kann dort abgerufen und heruntergeladen werden.",
+      "robots": "User-Agent: * · Disallow: /t3lib/ · /typo3/ · /vendor/ · /typo3temp/",
+      "scope": "the website (guides, lists of digitised fonds); the registers themselves are on apertus.rlp.de",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.landeshauptarchiv.de",
+      "name": "Landeshauptarchiv Koblenz",
+      "level": "allowed",
+      "terms": "https://lav.rlp.de/geschichte-entdecken/familienforschung/personenstandsarchiv/digitalisierung",
+      "quote": "Das Digitalisat ist jeweils mit dem entsprechenden Erschließungsdatensatz in APERTUS verknüpft und kann dort abgerufen und heruntergeladen werden.",
+      "robots": "redirects (307) to https://lav.rlp.de/",
+      "scope": "old address of the archive's website, now lav.rlp.de",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "landesarchiv-berlin.de",
+      "name": "Landesarchiv Berlin",
+      "level": "restricted",
+      "terms": "https://landesarchiv-berlin.de/impressum",
+      "termsPage": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
+      "termsPageSays": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
+      "quote": "Die Webseite des Landesarchivs Berlin ist urheberrechtlich geschützt. Eine Verwendung, Vervielfältigung oder Verbreitung bedarf der Zustimmung des Landesarchivs Berlin.",
+      "robots": "User-agent: * · Disallow: /wp-admin/ (www. redirects here)",
+      "scope": "the name indexes of the civil registry offices (content.), one year's PDF at a time for the person's own research; nothing republished or passed on without the archive's consent",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "blha-recherche.brandenburg.de",
+      "name": "Brandenburgisches Landeshauptarchiv (Online-Zugang)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://blha-recherche.brandenburg.de/robots.txt",
+      "termsPage": "https://blha.brandenburg.de/blha/de/rechercheratgeber/familienforschung/",
+      "termsPageSays": "Sie befinden sich im Bestand Rep. 5KB Kirchenbuchduplikate und stehen in unserer Datenbank sowie auf den Internetseiten von Ancestry und Familysearch als Digitalisate zur Verfügung.",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "a person's browser only: its robots.txt keeps every robot off the whole database (its church-book duplicates, Rep. 5KB); the person opens and saves an image, the agent reads the saved file",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "archiv.sachsen.de",
+      "name": "Sächsisches Staatsarchiv (Archivgut online)",
+      "level": "allowed",
+      "terms": "https://www.archiv.sachsen.de/archivgut-online-8409.html",
+      "quote": "Sie können das angezeigte Digitalisat herunterladen. … Die Digitalisate sind gemeinfrei. Eine Veröffentlichungsgenehmigung des Staatsarchivs benötigen Sie nicht.",
+      "robots": "User-agent: FSSachsenBot · Disallow: /cps/suche.html · /archiv/bestand.jsp (nothing for others)",
+      "scope": "its digitised records one image at a time, as its viewer offers them (no bulk download is offered); each image cited with the archive and its reference",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "landesarchiv.thueringen.de",
+      "name": "Landesarchiv Thüringen",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://landesarchiv.thueringen.de/robots.txt",
+      "quote": "Link11 - CAPTCHA",
+      "robots": "answered by a bot check (Link11 CAPTCHA) for strom's User-Agent, robots.txt too (2026-11-04)",
+      "scope": "behind a bot check: its pages only through the person's browser, the check passed by the person; the terms not found",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.public-juling.de",
+      "name": "Bremer Passagierlisten (database)",
+      "level": "allowed",
+      "terms": "https://www.public-juling.de/passagierlisten/",
+      "quote": "Dieses Werk ist lizenziert unter einer Creative Commons Namensnennung 4.0 International Lizenz.",
+      "license": "http://creativecommons.org/licenses/by/4.0/",
+      "robots": "none (404)",
+      "scope": "the Bremen passenger-list database (/passagierlisten/): one surname query at a time on a private server, each result cited with its source (Handelskammer and Staatsarchiv Bremen lists)",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.passagierlisten.de",
+      "name": "Bremer Passagierlisten (address leading to www.public-juling.de/passagierlisten/)",
+      "level": "allowed",
+      "terms": "https://www.public-juling.de/passagierlisten/",
+      "quote": "Dieses Werk ist lizenziert unter einer Creative Commons Namensnennung 4.0 International Lizenz.",
+      "license": "http://creativecommons.org/licenses/by/4.0/",
+      "robots": "none (404)",
+      "scope": "only a link onward to www.public-juling.de/passagierlisten/",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "geneszukacz.genealodzy.pl",
+      "name": "Polskie Towarzystwo Genealogiczne (Geneszukacz)",
+      "level": "allowed",
+      "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
+      "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych zawartych w jej bazach i serwisach internetowych w celach opracowań naukowych, edukacyjnych oraz popularyzatorskich i hobbystycznych … · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
+      "robots": "none (robots.txt answers the home page, 200 text/html)",
+      "pace": {
+        "minIntervalMs": 120000
+      },
+      "scope": "counts of a surname per region and record type, linking into Geneteka: single queries only, at Geneteka's pace (its Crawl-delay 120), never a list of surnames or a substantial part of the database",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "app.geshergalicia.org",
+      "name": "Gesher Galicia (All Galicia Database)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://app.geshergalicia.org/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: /",
+      "scope": "the All Galicia Database (shown in a frame of www.geshergalicia.org): its robots.txt closes the whole application and no terms of use were found; only in the person's browser; images for paying members only",
+      "checked": "2026-11-04"
+    },
+    {
+      "host": "www.geshergalicia.org",
+      "name": "Gesher Galicia",
+      "level": "unknown",
+      "robots": "the line '# User-agent: *' is commented out, so its Disallow lines (/docs_view/, /members/*, /*?* …) belong to no group; Yandex, Yahoo! Slurp, MJ12bot: Disallow: /",
+      "disallow": [
+        "/docs/TheGalitzianerBackIssues/",
+        "/docs_view/",
+        "/members/",
+        "/wp-admin/",
+        "/*?"
+      ],
+      "scope": "society pages; the database itself is app.geshergalicia.org; no terms of use found",
+      "checked": "2026-11-04"
     }
   ]
 }

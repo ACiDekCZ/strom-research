@@ -4,6 +4,8 @@
 // (the agent neither sees nor clicks it), and when nobody can be asked the question waits in strom's menu while the
 // work goes on with other sources. An agent may make an archive stricter; nothing milder is ever its to decide.
 
+import { browserAdviceFor, browserHelps, browserKept } from "../core/browserhelp.ts";
+import { detectAgent } from "../core/which.ts";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
@@ -22,9 +24,11 @@ import type { Session } from "../core/model.ts";
 import { noteSessionWait, wakeForArchive, type Woken } from "../core/archivewait.ts";
 import { connectorFor, levelWords, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { claudeHere } from "../cli/menu-parts.ts";
+import { shippedTerms, within } from "../core/knownterms.ts";
 import {
   acceptConnectors,
   allows,
+  archiveLevel,
   keepReadings,
   askLater,
   claimOf,
@@ -390,6 +394,40 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
 }
 
 /**
+ * The refusal of a connector's direct request to an archive only a person's browser goes to (strom fetch, connector
+ * test, connector probe) — a connector made before strom knew it so, a permission "slowly" given before included: the
+ * permission stays as given, the direct way is never taken. Its ways for the agent, in words and in --json (details):
+ * the person's permission "through the browser" where the agent's browser could help (one strom keeps), else by hand.
+ */
+export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, images?: string, pages = false): UsageError {
+  const agent = detectAgent(ctx.env);
+  // what the agent's own browser may do there (none for an agent whose browser strom does not keep)
+  const advice = browserAdviceFor(ctx.env, agent, a);
+  // the person's "through the browser" opens it to an agent's browser strom keeps — said to the person running it too
+  const browser = browserHelps(a) && (!agent || browserKept(agent));
+  const allow = `strom allow archive ${a.host} --way browser`;
+  const manual = byHand(ctx, images);
+  const kept = a.permission === "slow" ? ` — the person's permission "slowly" from before is kept as given, and takes no direct request there` : "";
+  return new UsageError(`${a.title ?? a.host} lets automated tools in only through a person's browser (${browserWhy(a)}) — no direct request through ${c.name}, a probe or your web tools${kept}`, {
+    hint:
+      `go on with another way to the same records (another archive, the parish, an index, a catalogue), or the user saves what the research needs by hand: ${manual}` +
+      `${pages ? "" : " — only a connector whose pages come from the person's browser (browser.pages) goes there, with the person's permission"}` +
+      `${advice ? `; ${advice}` : browser && a.permission !== "browser" ? `; its images through the agent's browser, one at a time, only with the person's permission "through the browser" (${allow} — the person's)` : ""}`,
+    code: "archive.browser",
+    details: {
+      host: a.host,
+      ...(a.title ? { title: a.title } : {}),
+      connector: c.name,
+      by: a.browserOnly?.by ?? "terms",
+      ways: browser ? ["browser", "manual"] : ["manual"],
+      ...(a.permission ? { permission: a.permission } : {}),
+      ...(browser && a.permission !== "browser" ? { browser: allow } : {}),
+      manual,
+    },
+  });
+}
+
+/**
  * The gate: may this activity go to a connector's archive now? Refused where the terms forbid it (forbidden: no
  * request; manual: no images — by hand), and where they restrict it without the person's permission the person is
  * asked (their terminal, a window) — nobody to ask, or no answer: the question waits in strom's menu and the command
@@ -422,19 +460,15 @@ export async function gateArchive(
     });
   const manual = (ls: ArchiveLevel[]) => ls.find((a) => !allows(a, activity, route).ok && (allows(a, activity, route) as { why: string }).why === "manual");
   const refuseManual = (a: ArchiveLevel) =>
-    new UsageError(`${a.permission !== "manual" && treeSaid(a) ? `${treeSaid(a)} — no images downloaded through a connector` : `${a.title ?? a.host} does not allow automated download (${a.permission === "manual" && a.level !== "manual" ? "the user chose: images by hand" : levelText(a)}) — no images through a connector`}${activity === "pages" || route === "browser" ? ", through the browser neither" : ""}`, {
-      hint: `the user saves them by hand: ${byHand(ctx, o.images)} (finding books and their links still works — the link: strom fetch ${c.name} ${o.book ? shellArg(o.book) : "<book>"} --list)`,
+    new UsageError(`${a.permission !== "manual" && treeSaid(a) ? `${treeSaid(a)} — no images downloaded through a connector` : `${a.title ?? a.host} does not allow automated download (${a.permission === "manual" && a.level !== "manual" ? "the user chose: images by hand" : levelText(a)}) — no images through a connector`}${activity === "pages" || route === "browser" || a.browserOnly ? ", through the browser neither" : ""}`, {
+      hint: `the user saves them by hand: ${byHand(ctx, o.images)}${a.browserOnly ? " (only a person's browser goes there: no request through strom, finding books neither — the person finds the book on its site)" : ` (finding books and their links still works — the link: strom fetch ${c.name} ${o.book ? shellArg(o.book) : "<book>"} --list)`}`,
       code: "archive.manual",
     });
   const m = manual(levels);
   if (m) throw refuseManual(m);
   // only a person's browser goes there: nothing straight through strom — a connector without the browser's pages has no way
   const browserOnly = levels.find((a) => a.browserOnly && (!pages || !allows(a, activity, route).ok && (allows(a, activity, route) as { why: string }).why === "browser"));
-  if (browserOnly)
-    throw new UsageError(`${browserOnly.title ?? browserOnly.host} lets automated tools in only through a person's browser (${browserWhy(browserOnly)}) — no direct request through ${c.name}, a probe or your web tools`, {
-      hint: `go on with another way to the same records (another archive, the parish, an index, a catalogue), or the user saves what the research needs by hand: ${byHand(ctx, o.images)}${pages ? "" : " — only a connector whose pages come from the person's browser (browser.pages) goes there, with the person's permission"}`,
-      code: "archive.browser",
-    });
+  if (browserOnly) throw browserOnlyRefusal(ctx, c, browserOnly, o.images, pages);
   if (o.closedOnly) return { levels, human: new Map() };
   const missing = levels.filter((a) => {
     const r = allows(a, activity, route);
@@ -513,13 +547,19 @@ export function syncTrees(ctx: Context): string[] {
  * The hosts a name stands for: a connector's (its name), else the connector hosts on that host or site — never wider,
  * but for the other hosts of one archive whose question waits with it (one archive, one decision).
  */
-function targetHosts(ctx: Context, target: string): { hosts: string[]; connectors: Connector[] } {
+function targetHosts(ctx: Context, target: string): { hosts: string[]; connectors: Connector[]; bare?: ArchiveLevel } {
   const all = listConnectors(shared(ctx), ctx.env);
   const byName = all.find((c) => c.name === target);
   if (byName) return { hosts: [...new Set(byName.manifest.hosts.map(bareHost))], connectors: [byName] };
   const given = hostOf(target);
   const connectors = all.filter((c) => c.manifest.hosts.some((h) => hostAllowed(bareHost(h), [given]) || hostAllowed(given, [bareHost(h)])));
   const hosts = [...new Set(connectors.flatMap((c) => c.manifest.hosts.map(bareHost).filter((h) => hostAllowed(h, [given]) || hostAllowed(given, [h]))))];
+  // no connector: an archive of strom's list only a person's browser goes to — its images through the agent's
+  // browser, one at a time (strom media save), as the person allows
+  if (!hosts.length) {
+    const bare = bareArchive(ctx, given);
+    if (bare) return { hosts: [bare.host], connectors: [], bare };
+  }
   if (!hosts.length)
     throw new UsageError(`no connector reaches ${given}`, { hint: all.length ? `connectors: ${all.map((c) => `${c.name} (${c.manifest.hosts.join(", ")})`).join(", ")}` : "none yet: strom connector list" });
   const reached = new Set(connectors.flatMap((c) => c.manifest.hosts.map(bareHost)));
@@ -587,9 +627,11 @@ register({
       acceptConnectors(ctx.env, all);
       return { text: `accepted as they say: ${all.map((c) => `${c.name} ${claimOf(c)}`).join(", ")}`, data: { accepted: all.map((c) => c.name) } };
     }
-    const { hosts, connectors } = targetHosts(ctx, target!);
+    const { hosts, connectors, bare } = targetHosts(ctx, target!);
     const named = connectors.length === 1 ? connectors[0] : connectors.find((c) => c.name === target);
-    const title = (named ?? connectors[0])?.manifest.title ?? hosts[0]!;
+    const title = (named ?? connectors[0])?.manifest.title ?? bare?.title ?? hosts[0]!;
+    if (bare && (opts.keep || opts.accept || level))
+      throw new UsageError(`${title} has no connector here: only its way is the person's to decide (--way browser|manual, --revoke)`, { hint: `strom allow archive ${hosts[0]} --way browser` });
     if (opts.keep) {
       const milder = loadArchives(ctx.env).pending.filter((p) => p.kind === "milder" && connectors.some((c) => c.name === p.connector) && hosts.includes(p.host ?? ""));
       if (!milder.length) return { text: `${hosts.join(", ")}: no connector says it may do more than strom keeps — nothing to keep`, data: { hosts, kept: [] } };
@@ -632,7 +674,7 @@ register({
     }
     if (!way) throw new UsageError("what to decide: --way slow|browser|manual, --revoke, --level <level> or --accept", { hint: `strom allow archive ${target} --way slow` });
     // the levels: a permission does nothing where the terms give no images (manual, forbidden) — that is a level to lift
-    const levels = connectors.flatMap((c) => levelsOf(ctx, c, true).filter((a) => hosts.includes(a.host)));
+    const levels = bare ? [bare] : connectors.flatMap((c) => levelsOf(ctx, c, true).filter((a) => hosts.includes(a.host)));
     const closed = levels.find((a) => a.level === "manual" || a.level === "forbidden");
     if (closed && way !== "manual")
       throw new UsageError(`${closed.title ?? closed.host} is ${levelText(closed)} — a permission does not open it`, { hint: closed.refused ? `only the person lifts the refusal: strom allow host ${closed.refused.host} --unblock` : `only the person lifts its level: strom allow archive ${target} --level restricted` });
@@ -647,13 +689,17 @@ register({
     // the tasks that waited for the archive, in every research here (by hand: those for images by hand keep waiting)
     const woken = wakeAfterDecision(ctx, hosts, way);
     const synced = way === "browser" || levels.some((x) => x.permission === "browser") ? syncTrees(ctx) : [];
+    const switchable = connectors.filter((c) => routesOf(c).includes("browser") && routeOf(ctx.env, c).via !== "browser");
     const p = paceFor(ctx, hosts[0]!, named);
     const needed = way === "manual" || levels.some((x) => x.level === "restricted" || x.level === "unknown");
     return {
       text: lines(
         ui(lang, "ui.archive.granted", { title: a.title ?? title, way: ui(lang, way === "slow" ? "ui.archive.is.slow" : way === "browser" ? "ui.archive.is.browser" : "ui.archive.is.manual"), host: hosts[0]! }),
         way === "slow" ? `  images ${paceText(p)} (the service's pace stays the slowest; the person's own for the host: strom allow host ${hosts[0]} --pace <s> --per-hour <n>)` : undefined,
-        way === "browser" && connectors.some((c) => routeOf(ctx.env, c).via !== "browser") ? `  through the browser: strom connector use ${(named ?? connectors[0]!).name} --via browser` : undefined,
+        // a connector that can go through the browser follows it; one that goes only directly never goes to an archive
+        // only a person's browser reaches — the agent's browser saves its images there, one at a time
+        way === "browser" && switchable.length ? `  through the browser: strom connector use ${(switchable.find((c) => c === named) ?? switchable[0]!).name} --via browser` : undefined,
+        way === "browser" && viaBrowser && !switchable.length && connectors.length ? `  ${connectors.map((c) => c.name).join(", ")} ${connectors.length === 1 ? "goes" : "go"} only directly: never there — the agent's browser saves its images one at a time (strom media save)` : undefined,
         !needed ? "  (its terms need no permission now — kept for when they do)" : undefined,
         synced.length ? `  permissions of ${synced.join(", ")} updated` : undefined,
         ...wokenLines(lang, woken, rootHere(ctx)),
@@ -662,6 +708,21 @@ register({
     };
   },
 });
+
+/**
+ * An archive with no connector here that strom's list keeps as only a person's browser's (the host itself, or its
+ * site's entry) and where the agent's browser could help: its level as strom reads it now. Others without a connector:
+ * none (nothing to allow there).
+ */
+export function bareArchive(ctx: Context, host: string): ArchiveLevel | undefined {
+  const entry = shippedTerms().filter((k) => k.browserOnly && within(host, k.host));
+  if (!entry.length) return undefined;
+  const tree = ctx.hasTree() ? ctx.tree() : undefined;
+  const net = netHere(ctx);
+  const a = archiveLevel(ctx.env, { url: `https://${host}/`, ...(tree ? { tree } : {}), ...(net ? { net } : {}), readOnly: true });
+  // where no permission could help (by hand only, robots.txt keeping automated tools off it all): nothing to allow
+  return a.browserOnly && browserHelps(a) ? a : undefined;
+}
 
 /** The archives for strom consents: each connector host with its level, the person's permission and its pace. */
 export function archivesOverview(ctx: Context): { host: string; connector: string; level: string; from: string[]; robots?: boolean; browserOnly?: boolean; refused?: string; way?: Way; pace: { minIntervalMs: number; perHour: number | null } }[] {

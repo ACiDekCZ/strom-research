@@ -110,6 +110,9 @@ export const AI_ROBOTS_TOKENS: readonly string[] = [
   "duckassistbot",
   "amazonbot",
   "novaact",
+  "grokbot",
+  "xai-grok",
+  "grok-deepsearch",
 ];
 /** The longest strom waits by itself (an hourly cap, a Retry-After) before it gives up for now — unless its caller waits longer (waitMs). */
 export const MAX_WAIT_MS = 2 * 60_000;
@@ -1006,6 +1009,14 @@ function told(opts: NetOptions, v: NetVerdict): void {
 }
 
 /**
+ * An answer to /robots.txt that is a web page, not a robots.txt: it begins with a tag (a robots.txt never does). Its
+ * type alone decides nothing — a real robots.txt sent as text/html is still read (the stricter side).
+ */
+export function robotsIsPage(res: Pick<NetResponse, "body">): boolean {
+  return res.body.subarray(0, 512).toString("utf8").replace(/^﻿/u, "").trimStart().startsWith("<");
+}
+
+/**
  * A host's robots.txt for a request to it: the one kept when read within ROBOTS_MS, else read now — one request,
  * paced and counted as any (politeRequest, purpose robots), on a day a request goes to the host anyway. 2xx: its
  * groups for strom; 404 and 410: nothing kept off; anything else (5xx, 401/403, no answer, another status): unknown —
@@ -1022,7 +1033,10 @@ async function readRobots(u: URL, opts: NetOptions): Promise<RobotsState | undef
   try {
     const { onRequest: _, ...rest } = opts;
     const res = await politeRequest(`${u.origin}/robots.txt`, { ...rest, purpose: "robots", method: "GET", headers: {}, body: undefined, private: { headers: [], body: false } });
-    if (res.status >= 200 && res.status < 300) {
+    // a web page in its place (robots.txt answered by the home page, or redirected to a page about robots.txt): no
+    // robots.txt — as 404; never its text read as rules (an example "Disallow: /" on a page is none of the site's)
+    if (res.status >= 200 && res.status < 300 && robotsIsPage(res)) got = { at, status: res.status, groups: [], ai: [], origin: u.origin };
+    else if (res.status >= 200 && res.status < 300) {
       const text = res.body.toString("utf8");
       const tools = parseToolRobots(text);
       got = { at, status: res.status, groups: parseRobots(text), ...(tools.length ? { tools } : {}), ai: parseAiRobots(text), origin: u.origin };
@@ -1460,6 +1474,8 @@ export async function agentRequest<T>(
     wait?: boolean;
     lockWaitMs: number;
     site?: { key: string; gapMs: () => number };
+    /** A person's pace for this request (core/terms.ts humanPace: an archive only a person's browser goes to): the slower of it and the host's. */
+    human?: Pace;
     /**
      * The host's state found broken: the times of its requests in the last hour as the caller's own journal tells them
      * (ms), put into the fresh state written at once — the hour and the pace go on from what is known.
@@ -1514,7 +1530,7 @@ export async function agentRequest<T>(
       s.recent = [...new Set([...s.recent, ...known])].sort((a, b) => a - b);
       if (s.recent.length) s.last = Math.max(s.last ?? 0, ...s.recent);
     }
-    const pace = hostPace(s, asked, undefined, host);
+    const pace = hostPace(s, asked, o.human, host);
     s.recent = s.recent.filter((x) => x > t - 3600_000);
     const refused: HostRefusal | undefined =
       s.blockedUntil && s.blockedUntil > t

@@ -522,6 +522,9 @@ export type OffLine = (typeof OFF_LINE_CHOICES)[number];
 export const CHECK_ANSWERS = ["works", "view", "no"] as const;
 export type CheckAnswer = (typeof CHECK_ANSWERS)[number];
 
+/** The longest answer of the person to a waiting task (strom task wake --answer, the Strom app's answer). */
+export const ANSWER_MAX = 4000;
+
 /** The person's answer to what a task waited for (Task.answers). */
 export interface PersonAnswer {
   by: "person";
@@ -535,6 +538,13 @@ export interface PersonAnswer {
   at: string;
   /** Where they gave it: their terminal (strom's menu too), a window of the system. */
   via?: "terminal" | "window";
+  /**
+   * Given in the Strom app (its What waits, through the bridge): no via then. Optional, a field of its own — an older
+   * strom keeps it and reads the answer as the person's (a new value of via it would refuse).
+   */
+  givenIn?: "app";
+  /** The whole answer when it is longer than `answer` holds (500 characters: an older strom's limit), at most 4000. */
+  whole?: string;
 }
 
 /** A file that came for what a task waited for (Task.files). */
@@ -831,6 +841,11 @@ export interface SessionMetrics {
   durationMs?: number;
   /** Tool calls the agent's permissions refused. */
   denied?: number;
+  /**
+   * Of them, calls of strom itself (its permissions or its sandbox kept strom away — GitHub #8): a session with nothing
+   * written and strom refused is no failure of the research, its task never parked for it.
+   */
+  stromDenied?: number;
   /** Tool calls strom's own hook refused (an agent's web fetch past strom's limits for one server: core/web.ts). */
   refused?: number;
 }

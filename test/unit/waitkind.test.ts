@@ -113,7 +113,7 @@ test("the group: the addressee, the family, the archive of its books or of its s
   const g = (t: Partial<Task>) => waitGroupOf(tree, task(t), "cs");
   // the addressee: an office, or an archive of the research by its name
   assert.deepEqual(g({ wait: { kind: "letter", to: "Matrika Lhota" } }), { key: "to:matrika lhota", name: "Matrika Lhota", kind: "office" });
-  assert.deepEqual(g({ wait: { to: "SOA Třeboň".normalize("NFD") } }), { key: "repo:R0001", name: "SOA Třeboň", kind: "archive" });
+  assert.deepEqual(g({ wait: { to: "SOA Třeboň".normalize("NFD") } }), { key: "repo:R0001", name: "SOA Třeboň", kind: "archive", url: "https://www.digi.example.cz/" });
   // the family, in the research language
   assert.deepEqual(g({ waitingOn: "Vzpomínky rodiny" }), { key: "family", name: "Rodina", kind: "family" });
   assert.equal(waitGroupOf(tree, task({ wait: { kind: "family" } }), "de").name, "Familie");
@@ -153,7 +153,7 @@ test("an office that is an archive of the research joins its group: SOA and SOkA
   ]);
   const g = (t: Partial<Task>) => waitGroupOf(tree, task(t), "cs");
   for (const f of [(s: string) => s, (s: string) => s.normalize("NFD")]) {
-    assert.deepEqual(g({ waitingOn: f("Odpověď SOA Třeboň na žádost o opis") }), { key: "repo:R0001", name: "Státní oblastní archiv v Třeboni (DigiArchiv)", kind: "archive" });
+    assert.deepEqual(g({ waitingOn: f("Odpověď SOA Třeboň na žádost o opis") }), { key: "repo:R0001", name: "Státní oblastní archiv v Třeboni (DigiArchiv)", kind: "archive", url: "https://digi.example.cz/" });
     assert.equal(g({ wait: { kind: "letter", to: f("SOkA Kolín") } }).key, "repo:R0002");
     assert.equal(g({ waitingOn: f("Odpověď ze Státní okresní archiv Kolín na dotaz") }).key, "repo:R0002", "the full form as written");
     assert.equal(g({ wait: { kind: "letter", to: f("Státní oblastní archiv v Třeboni") } }).key, "repo:R0001");

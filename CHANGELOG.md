@@ -5,9 +5,94 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.27.0
+
+*In preparation: the betas up to 1.27.0-beta.1. The section is complete with the release.*
+
+- **Images saved by hand bring their task back by themselves.** Where an archive's images are saved by hand – an archive
+  only a person's browser reaches, or one whose terms allow nothing else – the research asks for its book and the
+  numbers of its images, and makes a folder for them in the inbox. What is saved there is taken by itself: at once while
+  the bridge to the Strom app runs, else when the next session starts; files named otherwise are taken by their order
+  when there are as many as images missing. The task comes back to the queue once all its images are there; with a part
+  of them, What waits says how many are saved of how many and which are missing. A book of such an archive is no longer
+  treated as free to fetch, and the research no longer offers to build a downloader for it – books and waits from
+  earlier versions included, with nothing rewritten.
+
+- **What waits is answered from the Strom app, and the images a task waits for are sent from it.** An answer written in
+  the app brings the task back to the queue just as one typed in the terminal, kept whole and marked as given in the
+  app; a task that has waited for something else since the app last looked is left as it is. Scans a task waits for go
+  from the app straight to that task: numbered by the image the app names, else by the file's name, else by the order of
+  those missing; a PDF page by page. A scan at a number the research has already is refused unless it replaces it – the
+  one before withdrawn and kept, never deleted. A scan the same as another image taken already is refused, saying which
+  one it is the same as; nothing is taken. They are taken the same way as images saved by hand, and the task comes back
+  once all of them are there. A site with one book of its task shows its folder too, and how many images it has. The
+  sites of one archive – such as the digital archive and the reading room of one regional archive – wait in one place
+  under the archive's name, with its address.
+
+- **The agent keeps off the bridge.** What the Strom app sends through the bridge is the person's own. The agent's
+  hooks refuse a command or a web fetch that reads the bridge's address or calls it, and the agent is never told the
+  secret address.
+
+- **The agent's browser keeps the same rules as its web fetch.** Each page the agent opens in Chrome is counted and
+  paced together with its other requests to the same site; a site whose terms forbid automation, one that refused, a
+  path its robots.txt keeps off and the bridge stay closed to it. An archive only a person's browser reaches opens to it
+  only with the person's permission "through the browser", one page at a time at a person's pace. The Strom app's
+  Permission… at what waits for such an archive's images opens this question, also where no downloader reaches the
+  archive. The browser or computer use of another agent – Codex, Antigravity – has no such check: it never goes to such
+  an archive, and the person saves the images by hand. `strom doctor`, the agent's brief and What waits say once which
+  agent and browser extension would let the agent save them itself, or that the extension is missing. The browser and
+  computer use of the agents' desktop apps stay off in a research – in a conversation and in the ChatGPT app too; the
+  research watches the agent's browser in Chrome. `strom doctor` and the agent's brief say so in words, and the agent is
+  told never to work in a copy of the research an agent's desktop app opens in a worktree of its own. The Strom app
+  learns from the bridge whether the agent's browser is ready, the extension is missing, or the agent has none the
+  research keeps.
+
+- **The agent's browser saves the images itself, one at a time.** Where the person allows an archive only a person's
+  browser reaches "through the browser", the agent opens one image in Chrome and saves what the archive's own viewer
+  shows – never more than the viewer gives, never larger than the original, at a person's pace. It saves only the image
+  the tab shows at that image's own address – a viewer paged on to another image is refused, nothing saved. The research
+  takes the saved file from the downloads folder into the task's folder under its number, and the task comes back once
+  all its images are there. The permission can now be given for such an archive of the research's list that no
+  downloader reaches. A downloader built for an archive whose viewer shows the images in tiles saves them through that
+  viewer as well, a part of an image included, with the book's page opened once and never reloaded. A check whether a
+  person is there is never passed by the agent. Archives whose robots.txt keeps automated tools off stay saved by hand.
+
+- A condition of the agent working alone that would not start tasks started by hand is said once, then only "Start
+  anyway?". The gate of the subscription's week says the week's use against the most allowed by now, and how it is
+  counted. `strom help --human` lists the order of tasks, work off the lines, fixes and leaving a conflict among the
+  person's own commands. OpenCode's research goes on after a session it closed properly but reported as failed, and
+  after a passing network error – the same session resumed after a short wait, within the session's time. Codex kept
+  away from strom by its sandbox – on Windows also with a command said through PowerShell – stops the research at once
+  with what remains the person's choice, and such a session never puts its task aside. Thanks for the report on GitHub.
+  A change the research made by itself in reading the scans, after which the readings got clearly less sure, is taken
+  back at once – no longer only after 60 days – and `strom recent` says so.
+
+- More archives of Czechia, Germany and Poland are known with their terms – what each allows automated tools, its pace
+  and what only a person's browser reaches. Five more of Czechia only a person's browser reaches: the Acta Publica of
+  the Moravian Land Archives (its images no longer through a downloader, even with a permission given before – kept as
+  given; through the browser at least 4 seconds apart), the eBadatelna of SOA Praha and the image servers of SOA
+  Litoměřice, ZA Opava and the National Archives' police registrations (by hand only). A downloader made earlier for
+  such an archive is refused before any request, its probe too, and says what remains: the person's permission "through
+  the browser", or saving by hand.
+
+- With all of 1.26.1: a write cut short no longer blocks the research for good.
+
+## 1.26.1
+
+*2026-11-04 · goes with the Strom app 3.22.0.*
+
+- **A write cut short no longer blocks the research for good.** A command stopped between strom's `git add` and its
+  commit (ended by the agent, or git's index held by another program on Windows) could leave its files in git's index:
+  every write after it ended with "data was changed outside strom", while `strom verify` and `strom repair` found
+  nothing. The new files such a write leaves in the index — gone from the folder, never in the history — are no change
+  of anybody's: the next write takes them out by itself and goes on. `strom repair` always puts the whole index back to
+  the sealed state, a record's change left there too. A lock a git ended mid-way left (`.git/index.lock`, older than 10
+  minutes) is taken away by `strom repair`, and a write refused by it says so. A record truly deleted or edited outside
+  strom is said as ever.
+
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.8. The section is complete with the release.*
+*2026-11-04 · goes with the Strom app 3.22.0.*
 
 - **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
   in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the

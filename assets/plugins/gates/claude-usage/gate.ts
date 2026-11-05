@@ -90,10 +90,13 @@ const T: Record<string, Record<string, string>> = {
   en: {
     other: "the agent is not Claude Code — nothing to check",
     api: "Claude Code runs on an API key, not a subscription — no plan limits",
-    head: "week {used} % used, {gone} % gone, {behind} in hand (at least {min} needed{early})",
-    early: " — half the week gone, early in the week",
+    head: "week {used} % used, at most {allowed} % allowed by now ({why})",
+    full: "{gone} % of the week gone, less {min}",
+    early: "half the {gone} % of the week gone, early in the week",
+    pace: "{gone} % of the week gone",
+    reserve: ", less {reserve} more after a wait",
     resetIn: "; weekly reset in {reset}",
-    hold: " — until {target} in hand, then several sessions in a row; weekly reset in {reset}",
+    hold: " — then several sessions in a row; weekly reset in {reset}",
     last: " — until the last {window} before the weekly reset in {reset}",
     reset: " — until the weekly reset in {reset}",
     end: "week {used} % used, weekly reset in {reset} — the {room} % left is enough for a session",
@@ -117,10 +120,13 @@ const T: Record<string, Record<string, string>> = {
   cs: {
     other: "agent není Claude Code — není co hlídat",
     api: "Claude Code běží na API klíči, ne na předplatném — žádné limity plánu",
-    head: "týden: využito {used} %, uplynulo {gone} %, náskok {behind} (potřeba aspoň {min}{early})",
-    early: " – na začátku týdne polovina uplynulého",
+    head: "týden: využito {used} %, teď dovoleno nejvýš {allowed} % ({why})",
+    full: "uplynulo {gone} % týdne, minus {min}",
+    early: "polovina uplynulých {gone} % týdne – začátek týdne",
+    pace: "uplynulo {gone} % týdne",
+    reserve: ", po čekání ještě minus {reserve}",
     resetIn: "; týden se obnoví za {reset}",
-    hold: " — čeká na náskok {target}, pak víc sezení za sebou; týden se obnoví za {reset}",
+    hold: " — pak víc sezení za sebou; týden se obnoví za {reset}",
     last: " — do posledních {window} před obnovením týdne za {reset}",
     reset: " — do obnovení týdne za {reset}",
     end: "týden: využito {used} %, obnoví se za {reset} — zbylých {room} % stačí na sezení",
@@ -144,10 +150,13 @@ const T: Record<string, Record<string, string>> = {
   de: {
     other: "der Agent ist nicht Claude Code — nichts zu prüfen",
     api: "Claude Code läuft mit einem API-Schlüssel, nicht im Abo — keine Planlimits",
-    head: "Woche: {used} % genutzt, {gone} % vergangen, Vorsprung {behind} (mindestens {min} nötig{early})",
-    early: " – am Wochenanfang die Hälfte des Vergangenen",
+    head: "Woche: {used} % genutzt, jetzt höchstens {allowed} % erlaubt ({why})",
+    full: "{gone} % der Woche vergangen, minus {min}",
+    early: "die Hälfte der vergangenen {gone} % der Woche – Wochenanfang",
+    pace: "{gone} % der Woche vergangen",
+    reserve: ", nach einer Wartezeit noch minus {reserve}",
     resetIn: "; Wochen-Reset in {reset}",
-    hold: " — wartet auf Vorsprung {target}, dann mehrere Sitzungen am Stück; Wochen-Reset in {reset}",
+    hold: " — dann mehrere Sitzungen am Stück; Wochen-Reset in {reset}",
     last: " — bis zu den letzten {window} vor dem Wochen-Reset in {reset}",
     reset: " — bis zum Wochen-Reset in {reset}",
     end: "Woche: {used} % genutzt, Wochen-Reset in {reset} — die übrigen {room} % reichen für eine Sitzung",
@@ -171,10 +180,13 @@ const T: Record<string, Record<string, string>> = {
   pl: {
     other: "agent to nie Claude Code — nie ma czego pilnować",
     api: "Claude Code działa na kluczu API, nie w subskrypcji — bez limitów planu",
-    head: "tydzień: wykorzystano {used} %, upłynęło {gone} %, zapas {behind} (potrzeba co najmniej {min}{early})",
-    early: " – na początku tygodnia połowa tego, co upłynęło",
+    head: "tydzień: wykorzystano {used} %, teraz dozwolone najwyżej {allowed} % ({why})",
+    full: "upłynęło {gone} % tygodnia, minus {min}",
+    early: "połowa z {gone} % tygodnia, które upłynęły – początek tygodnia",
+    pace: "upłynęło {gone} % tygodnia",
+    reserve: ", po oczekiwaniu jeszcze minus {reserve}",
     resetIn: "; tydzień odnowi się za {reset}",
-    hold: " — czeka na zapas {target}, potem kilka sesji z rzędu; tydzień odnowi się za {reset}",
+    hold: " — potem kilka sesji z rzędu; tydzień odnowi się za {reset}",
     last: " — do ostatnich {window} przed odnowieniem tygodnia za {reset}",
     reset: " — do odnowienia tygodnia za {reset}",
     end: "tydzień: wykorzystano {used} %, odnowi się za {reset} — pozostałe {room} % wystarczy na sesję",
@@ -280,23 +292,34 @@ const gone = Math.max(0, Math.min(100, ((now - start) / WEEK) * 100));
 const behind = gone - week.used;
 // the number needed in hand: half the week gone early in the week, the full number from 2·n % gone on
 const need = Math.min(min, gone / 2);
-const early = need < min ? say("early") : "";
 const reset = inTime(resets - now);
-// shown rounded down: never "15 in hand (at least 15 needed)" for 14.6 — and gone − used stays what it says; the
-// need early in the week is a fraction: rounded down when it goes, up when it waits, so the two never seem to disagree
-const v = { used: Math.floor(week.used), gone: Math.floor(gone), behind: Math.floor(behind), early, reset };
 // the reserve once it waited: grown with the week as the number is (its share of the need), whole with no number
 const reserve = min > 0 ? (RESERVE * need) / min : RESERVE;
 const held = holding(resets);
+/**
+ * What it answered, as one number a person compares: the week used against the most it may be by now (the week gone
+ * less the number — early in the week half the week gone; after a wait less the reserve too), and in brackets how
+ * that is counted. Shown rounded down; a wait never shows the used share at or under the allowed one (43.6 % used
+ * against 43.2 % allowed: 44 and 43).
+ */
+function head(going: boolean, withReserve: boolean): string {
+  const allowed = Math.max(0, gone - need - (withReserve ? reserve : 0));
+  const shownAllowed = Math.floor(allowed);
+  const used = going ? Math.floor(week!.used) : Math.max(Math.floor(week!.used), shownAllowed + 1);
+  const why =
+    (need < min ? say("early", { gone: Math.floor(gone) }) : min > 0 ? say("full", { gone: Math.floor(gone), min }) : say("pace", { gone: Math.floor(gone) })) +
+    (withReserve ? say("reserve", { reserve: Math.ceil(reserve) }) : "");
+  return say("head", { used, allowed: shownAllowed, why });
+}
 if (session && session.used >= 100) answer(1, say("session", { reset }), session.resets ? new Date(session.resets.getTime() + AFTER_RESET) : undefined);
 if (behind >= need + (held ? reserve : 0)) {
   hold(undefined);
-  answer(0, say("head", { ...v, min: Math.floor(need) }) + say("resetIn", { reset }));
+  answer(0, head(true, held) + say("resetIn", { reset }));
 }
 // what is left before the reset: (to the cap, else to 100 %) enough for a session — in the week's last stretch it goes
 const room = (cap ?? 100) - week.used;
 const fits = room >= SESSION_POINTS;
-if (fits && resets - now <= END_WINDOW) answer(0, say("end", { used: v.used, reset, room: Math.floor(room) }));
+if (fits && resets - now <= END_WINDOW) answer(0, say("end", { used: Math.floor(week.used), reset, room: Math.floor(room) }));
 // it waits for want of points in hand: from now on it goes again only with the reserve too
 if (!held) hold(resets);
 // else it waits for the first of: the week caught up with the reserve (gone − used ≥ need + reserve = k·need,
@@ -310,8 +333,9 @@ const last = fits ? resets - END_WINDOW : Infinity;
 const after = resets + AFTER_RESET;
 const at = Math.min(caught, last, after);
 const tail =
-  at === caught ? say("hold", { reset, target: Math.ceil(need + reserve) }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
-answer(1, say("head", { ...v, min: Math.ceil(need) }) + tail, new Date(Math.max(at, now + 5 * 60_000)));
+  at === caught ? say("hold", { reset }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
+// a wait counts the reserve: once it waited it goes again only with the reserve more
+answer(1, head(false, true) + tail, new Date(Math.max(at, now + 5 * 60_000)));
 
 /**
  * `claude -p /usage` once: the session's and the week's use, an API key's answer, or why it was not read — with the

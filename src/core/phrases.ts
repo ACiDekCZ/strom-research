@@ -266,6 +266,8 @@ export const PHRASES = {
   "wait.group.other": "Other",
   "wait.group.stories": "Stories",
   "wait.group.connectors": "Downloaders",
+  "browser.wait": "images {images} of {book}, saved by the agent's browser from {url}",
+  "browser.save.other": "the browser's tab shows another image than {n} ({url}), nothing was saved",
   "wait.group.app": "The Strom app",
   "wait.group.tune": "The reading of scans",
   "wait.group.conflicts": "Conflicts to decide",

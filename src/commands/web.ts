@@ -8,9 +8,12 @@ import { webDomain, webRequestsOf } from "../core/metrics.ts";
 import { currentSession } from "../core/session.ts";
 import { requireRecord } from "../core/records.ts";
 import type { Session } from "../core/model.ts";
-import { webGate } from "../core/webgate.ts";
-import { knownSearch } from "../core/knownterms.ts";
-import { termsFor } from "../core/terms.ts";
+import { bookOn, browserGate, otherWay, webGate, type WebGate } from "../core/webgate.ts";
+import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
+import { detectAgent } from "../core/which.ts";
+import { answerChromeEvent, chromeEvent, navigateUrl } from "../core/chromehook.ts";
+import { knownPaceMs, knownSearch } from "../core/knownterms.ts";
+import { humanPace, termsFor } from "../core/terms.ts";
 import { clock } from "../core/net.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Context } from "../cli/context.ts";
@@ -36,21 +39,36 @@ register({
     "--check <url>: whether strom would let your web tools fetch that address now, and why — the archive's level, the\n" +
     "person's permission, the robots.txt line, a refusal of strom's client, the host left alone — read only, nothing sent;\n" +
     "a digital library strom knows: its own search addresses too, to fetch as given (the words URL-encoded).\n" +
+    "--check <url> --browser: the same for your browser (Claude in Chrome, another agent's browser): an archive only a\n" +
+    "person's browser goes to opens to Claude in Chrome within its level and the person's permission \"through the\n" +
+    "browser\", at a person's pace (about 10 s between pages unless the person set another, or its own slower one) —\n" +
+    "never to another agent's browser or computer use (strom keeps no hook before them): the person saves its images.\n" +
     "An agent without strom's hook (Codex, OpenCode, Antigravity) runs it before its own web fetch of an archive's site\n" +
-    "and keeps to its answer.",
+    "and keeps to its answer.\n" +
+    "Claude in Chrome: the same hook runs before its navigate — counted, paced and refused with the web fetches of the\n" +
+    "same site — and before each tool on a page (refused while the tab's host is closed or left alone; not counted).\n" +
+    "It knows a tab's site from navigate alone: a click or a typed address that leads elsewhere it does not see. Go from\n" +
+    "page to page of an archive by navigate to the address, one page at a time — never click through a series of pages.",
   options: [
     { name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" },
     { name: "session", type: "string", value: "<N…>", description: "this session's requests (a strom session, or the agent's own id of one); default: the open one, else the last with web requests" },
     { name: "check", type: "string", value: "<url>", description: "may your web tools fetch this address now, and why (read only: no request sent)" },
+    { name: "browser", type: "boolean", description: "with --check: may your browser open it (a person's browser's route: an archive only a browser goes to, a person's pace)" },
   ],
-  examples: ["strom net web", "strom net web --session N0001", "strom net web --check https://archive.example.org/book/5359"],
+  examples: ["strom net web", "strom net web --session N0001", "strom net web --check https://archive.example.org/book/5359", "strom net web --check https://archive.example.org/book/5359 --browser"],
   run: async (ctx, { opts }) => {
-    if (opts.check !== undefined) return checkUrl(ctx, String(opts.check));
+    if (opts.check !== undefined) return checkUrl(ctx, String(opts.check), opts.browser === true);
+    if (opts.browser === true) throw new UsageError("--browser goes with --check <url>", { hint: "strom net web --check https://archive.example.org/book/5359 --browser" });
     if (opts.hook) {
       let ev: ReturnType<typeof webEvent>;
+      let chrome: ReturnType<typeof chromeEvent>;
       // never in the way by itself: whatever goes wrong, the call goes on as the agent's own rules say
       try {
-        ev = webEvent(ctx.io.stdinText?.() ?? "");
+        const stdin = ctx.io.stdinText?.() ?? "";
+        ev = webEvent(stdin);
+        // the browser's navigate and its page tools (Claude in Chrome): core/chromehook.ts
+        chrome = ev ? undefined : chromeEvent(stdin);
+        if (chrome) return { text: hookOutput(await answerChromeEvent(chrome, { env: ctx.env, cwd: ctx.cwd })) };
         if (!ev) return { text: "" };
         const answer = await answerWebEvent(ev, { env: ctx.env, cwd: ctx.cwd });
         return { text: hookOutput(answer) };
@@ -59,6 +77,9 @@ register({
         try {
           if (ev?.via === "web" && ev.netHost && !ev.phase && termsFor(ctx.env, ev.netHost)?.level === "forbidden")
             return { text: hookOutput({ decision: "deny", reason: `strom: the terms of ${ev.netHost} allow no automated access — not through your web tools either.` }) };
+          const at = chrome?.name === "navigate" && !chrome.phase && chrome.url ? new URL(navigateUrl(chrome.url)).hostname.toLowerCase() : undefined;
+          if (at && termsFor(ctx.env, at)?.level === "forbidden")
+            return { text: hookOutput({ decision: "deny", reason: `strom: the terms of ${at} allow no automated access — not through the browser either.` }) };
         } catch {
           // nothing more to say
         }
@@ -109,7 +130,7 @@ register({
 
 
 /** strom net web --check <url>: what the tree's hook would answer the agent's web fetch of it now, read only. */
-function checkUrl(ctx: Context, url: string) {
+function checkUrl(ctx: Context, url: string, browser = false) {
   let u: URL;
   try {
     u = new URL(url.trim());
@@ -120,7 +141,19 @@ function checkUrl(ctx: Context, url: string) {
   const tree = ctx.hasTree() ? ctx.tree() : undefined;
   const shared = ctx.settings.shared()?.value;
   const session = tree ? currentSession(tree, ctx.env, ctx.refs) : undefined;
-  const g = webGate({ env: ctx.env, ...(tree ? { tree } : {}), url: u.href, shared, ...(session?.task ? { task: session.task } : {}) });
+  const gateOf = browser ? browserGate : webGate;
+  let g: WebGate = gateOf({ env: ctx.env, ...(tree ? { tree } : {}), url: u.href, shared, ...(session?.task ? { task: session.task } : {}) });
+  // an agent whose browser strom does not keep (no hook of strom's before a page): an archive only a person's browser
+  // goes to never through its browser or computer use, whatever the person allowed — the person's hand (Milan's
+  // decision, 4 November 2026)
+  const runner = detectAgent(ctx.env);
+  if (runner && !browserKept(runner) && g.level?.browserOnly && (g.allow || g.why === "browser")) {
+    const book = bookOn(tree, session?.task, g.host, u.href);
+    const rest: WebGate = { ...g };
+    delete rest.human;
+    delete rest.blocked;
+    g = { ...rest, allow: false, why: "browser", reason: withoutBrowserReason(g.level, g.level.title ?? g.host, session?.task, book, otherWay(g.host, u.href, session?.task)) };
+  }
   const ok = g.allow && !g.blocked;
   const search = knownSearch(u.hostname);
   const a = g.level;
@@ -131,7 +164,9 @@ function checkUrl(ctx: Context, url: string) {
       ? `strom: ${g.host} is left alone until ${clock(g.blocked.until)}${g.blocked.reason ? ` — ${g.blocked.reason}` : ""}; nothing goes to it before then, through your web tools either. Go on with other work.`
       : g.why === "terms"
         ? `its archive is closed to automated tools; its terms page only, at most a few times a day`
-        : "pages of it through your web tools within the web rule (strom guide); images of an archive through strom fetch";
+        : browser
+          ? `pages of it through your browser within the web rule (strom guide), counted with your web fetches of the site${g.human ? `; at a person's pace — one page at a time, at least ${Math.max(humanPace(ctx.env).minIntervalMs, knownPaceMs(g.host)) / 1000} s apart` : ""}`
+          : "pages of it through your web tools within the web rule (strom guide); images of an archive through strom fetch";
   return {
     text: lines(
       `${u.href}: ${answer}`,
@@ -144,7 +179,9 @@ function checkUrl(ctx: Context, url: string) {
     data: {
       url: u.href,
       host: g.host,
+      ...(browser ? { route: "browser" } : {}),
       allow: ok,
+      ...(g.human ? { human: true } : {}),
       answer: !g.allow ? "refused" : g.blocked ? "wait" : "ok",
       ...(g.why ? { why: g.why } : {}),
       ...(a ? { level: a.level, from: a.from, ...(a.permission ? { permission: a.permission } : {}), ...(a.refused ? { refused: a.refused } : {}), ...(a.browserOnly ? { browserOnly: a.browserOnly } : {}) } : {}),
