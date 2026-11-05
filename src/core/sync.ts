@@ -23,7 +23,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Source, type Task, type Union } from "./model.ts";
-import { isWeak } from "./evidence.ts";
+import { isCompiled } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
@@ -2239,7 +2239,7 @@ function recordBacked(tree: Tree, e: Event | undefined): boolean {
   if (!e || (e.status !== "proven" && e.status !== "probable")) return false;
   return e.citations.some((c) => {
     const s = tree.get<Source>(c.source);
-    return !!s && s.kind !== "family-tree" && s.kind !== "family-memory" && s.form !== "authored";
+    return !!s && !isCompiled(s);
   });
 }
 
@@ -2260,7 +2260,7 @@ function noteText(tree: Tree, id: string, at: unknown): string {
 function nameBacked(tree: Tree, n: Name): boolean {
   return (n.citations ?? []).some((c) => {
     const s = tree.get<Source>(c.source);
-    return !!s && !s.retracted && s.kind !== "family-tree" && s.kind !== "family-memory" && s.form !== "authored";
+    return !!s && !s.retracted && !isCompiled(s);
   });
 }
 
@@ -3376,7 +3376,7 @@ function readsFor(tree: Tree, incoming: Snapshot, sources: Map<string, string>, 
       return !!inc && inc.quay !== 0 && (evidence || !!inc.verified);
     }
     const s = tree.get<Source>(id)!;
-    if (isWeak(s)) return false;
+    if (isCompiled(s)) return false;
     if (!s.app) return evidence;
     const now = changes.some((c) => c.sourceId === id && (c.kind === "source.verified" || (c.kind === "source.changed" && evidence)));
     return s.app.read || now;
@@ -3870,7 +3870,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     const s = tree.get<Source>(id);
     // a reading of the research's readers: its facts by what they read (graded), unless the person's words changed
     // there count now (verified)
-    return !!s && !isWeak(s) && (s.app ? s.app.read : !s.reading && evidence);
+    return !!s && !isCompiled(s) && (s.app ? s.app.read : !s.reading && evidence);
   };
   /** A source that is an entry of a reading of the research (made now, or by a sync before): the reading as checked. */
   const checkOf = (id: string): ReadingCheck | undefined => {
@@ -3937,7 +3937,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     const unread = cits.filter((c) => {
       const s = tree.get<Source>(c.source);
       // a reading of the user's that counts is the first reading: read again only by the usual rules
-      return !!s?.app && !s.app.read && !s.reading && !isWeak(s) && !researchRead(tree, s, (read ??= readByResearch(tree)));
+      return !!s?.app && !s.app.read && !s.reading && !isCompiled(s) && !researchRead(tree, s, (read ??= readByResearch(tree)));
     });
     if (!unread.length) return;
     const people = owner.startsWith("F") ? (tree.get<Family>(owner)?.partners ?? []) : [owner];

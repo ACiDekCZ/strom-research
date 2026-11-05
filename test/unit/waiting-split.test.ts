@@ -21,7 +21,7 @@ test("the split: all, only here in the terminal, waiting for a reply, the app's 
   assert.deepEqual(mixed.filter(inApp).map((w) => w.item.kind), ["letter", "images", "letter"]);
   assert.deepEqual(waitingSplit([]), { all: 0, here: 0, sent: 0, app: 0 });
   // the options the bridge never asks for: each kind of the terminal's own
-  assert.deepEqual([...TERMINAL_ONLY].sort(), ["conflicts", "milder", "sends", "tune"]);
+  assert.deepEqual([...TERMINAL_ONLY].sort(), ["conflicts", "hypotheses", "milder", "sends", "tune"]);
 });
 
 test("the line of the menu: what is only here and what waits for a reply said, each on its own, in every language; neither: as it was", () => {

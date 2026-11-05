@@ -5,9 +5,33 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.28.0
+
+*Připravuje se: bety do 1.28.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Jak Strom funguje je přímo ve stromu: `strom doc`.** Dokumentace aplikace a výzkumu v češtině, angličtině, němčině
+  a polštině je součástí stromu a čte se i bez internetu: `strom doc` vypíše kapitoly, `strom doc R10.1` jedno pravidlo
+  i s tím, proč tak je, `strom doc <slova>` hledá v nadpisech, rejstříku pojmů a textu (bez ohledu na diakritiku a
+  velikost písmen). U každého pravidla je odkaz na stejnou stránku na stromapp.info. Na otázku, jak nebo proč Strom
+  něco dělá, odpovídá agent podle ní s číslem pravidla. Nápověda pro člověka (`strom help --human`) na ni odkazuje.
+
+- **Hypotézu rozhoduje jen uživatel.** Agent už mezi soupeřícími vysvětleními nerozhoduje sám: navrhne verzi s důvody
+  a hypotéza čeká v menu stromu v Co čeká – rozhodne se podle návrhu, jinak, nebo zůstane otevřená. Co rozhodnutí
+  spojí, zapíše agent do stromu v další session. Dříve rozhodnuté hypotézy zůstávají, jak byly. Hypotéza, jejíž verze
+  říkají, co by spojily, se rozhoduje jen s uvedenou verzí.
+
+- **Rejstřík je vodítko, nikdy doklad.** Údaj, který cituje jen rejstřík, zůstane vodítkem, dokud se nepřečte a
+  necituje samotný zápis – stejně jako u rodokmenu nebo vzpomínky.
+
+- **Překlad vedle přepisu.** Záznam v jiném jazyce nebo písmu, než je jazyk výzkumu – latina, kurent, polština,
+  azbuka –, dostane vedle doslovného přepisu i překlad do jazyka výzkumu.
+
+- **DigiArchiv SOA v Třeboni:** podmínky, jak je archiv potvrdil – ručně jen vybrané snímky, nikdy celá kniha, žádné
+  nástroje ke stahování – a jak citovat trvalý odkaz na snímek.
+
 ## 1.27.0
 
-*Připravuje se: bety do 1.27.0-beta.5. Oddíl bude úplný s vydáním.*
+*5. 11. 2026 · patří k aplikaci Strom 3.23.0.*
 
 - **Snímky uložené ručně vrátí svůj úkol samy.** Kde se snímky archivu ukládají ručně – archiv, kam smí jen prohlížeč
   člověka, nebo archiv, jehož podmínky nic jiného nedovolují – výzkum požádá o knihu a čísla snímků a připraví pro ně

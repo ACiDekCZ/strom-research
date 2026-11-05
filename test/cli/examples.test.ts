@@ -113,6 +113,9 @@ async function seeded(): Promise<World> {
   // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
+  // the agent's proposal the person decides (hypothesis decide --proposed|--keep-open), a second one to propose
+  await w.ok(["hypothesis", "propose", "H0001", "--variant", "A", "--decision", "kmotři jsou sourozenci"], { env: { AI_AGENT: "1" } });
+  await w.ok(["hypothesis", "add", "Kde se Josef narodil?", "--about", "P0006", "--variant", "A: v Týnci", "--variant", "B: jinde"]); // H0002
   // a name and a note taken back, a task's note to correct (name retract|restore, note edit|retract|restore)
   await w.ok(["name", "add", "P0002", "Josef /Nowak/", "--kind", "alias"]);
   await w.ok(["name", "add", "P0002", "Josef /Nowack/", "--kind", "alias"]);

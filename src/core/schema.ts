@@ -201,6 +201,11 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     state: S({ req: true, enum: ["open", "decided", "abandoned"] }),
     decision: S({ max: 1000 }),
     chosen: S({ max: 20 }),
+    decidedBy: S({ enum: ["user"] }),
+    proposal: {
+      t: "object",
+      of: { variant: S({ max: 20 }), decision: S({ req: true, max: 1000 }), abandon: { t: "any" }, reason: S({ max: 1000 }), by: S({ req: true }), at: S({ req: true }) },
+    },
   },
   lesson: {
     scope: S({ req: true, enum: LESSON_SCOPES }),

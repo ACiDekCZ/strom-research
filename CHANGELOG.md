@@ -5,9 +5,34 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.28.0
+
+*In preparation: the betas up to 1.28.0-beta.1. The section is complete with the release.*
+
+- **How Strom works comes with strom: `strom doc`.** The documentation of the app and the research, in Czech, English,
+  German and Polish, is part of strom and reads offline: `strom doc` lists its chapters, `strom doc R10.1` shows one rule
+  with why it is so, `strom doc <words>` searches its titles, its index of terms and its text (accents and case aside).
+  Each rule carries its link to the same page on stromapp.info. Asked how or why Strom does something, the agent answers
+  from it with the rule's number. A person's help (`strom help --human`) ends with it.
+
+- **Only the user decides a hypothesis.** The agent no longer decides between competing explanations itself: it proposes
+  a variant with its reasons, and the hypothesis waits in strom's menu under What waits, to be decided as proposed,
+  otherwise, or left open. What the decision connects, the agent records on the tree in its next session. Hypotheses
+  decided earlier stay as they were. A hypothesis whose variants say what they would connect is decided only with the
+  variant named.
+
+- **An index is a lead, never proof.** A fact that only an index cites stays a lead until the entry itself is read and
+  cited, as with a family tree or a memory.
+
+- **A translation beside the transcript.** A record in another language or script than the research's – Latin, German
+  Kurrent, Polish, Cyrillic – gets a translation into the research's language beside its word-for-word transcript.
+
+- **DigiArchiv of the regional archive in Třeboň:** its terms as the archive confirmed them – selected images saved by
+  hand only, never a whole book, no download tools – and how to cite an image's permanent link.
+
 ## 1.27.0
 
-*In preparation: the betas up to 1.27.0-beta.5. The section is complete with the release.*
+*2026-11-05 · goes with the Strom app 3.23.0.*
 
 - **Images saved by hand bring their task back by themselves.** Where an archive's images are saved by hand – an archive
   only a person's browser reaches, or one whose terms allow nothing else – the research asks for its book and the

@@ -101,15 +101,20 @@ test("a hypothesis decided: the sources it names that its person's facts do not 
   await w.ok(["event", "add", "P1", "OCCU", "--value", "rolník", "--date", "1907", "--place", "Dubí", "--cite", "S2"]);
   await w.ok(["hypothesis", "add", "Je padlý Mikuláš z pomníku (S0001) náš Mikuláš?", "--about", "P1", "--variant", "A: týž", "--variant", "B: jmenovec"]);
   await w.ok(["hypothesis", "argue", "H1", "A", "--for", "S0002: oddavky 1907, otec Josef"]);
-  const d = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — oddavky S0002 a pomník S0001 se shodují"]);
-  assert.match(d.out, /P0001: S0001 — named by H0001, cited by none of P0001's facts: what they say of P0001 goes on P0001 now \(event add P0001 … --cite S0001\)/);
-  assert.doesNotMatch(d.out, /S0002 —|S0001, S0002/, "the marriage is on him already");
+  // the user decides it (strom hypothesis decide is the person's): told it goes on the tree in the agent's next work
+  const d = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — oddavky S0002 a pomník S0001 se shodují", "--json"]);
+  assert.deepEqual(d.json.unrecorded, [{ person: "P0001", sources: ["S0001"] }], "the marriage is on him already");
+  // the agent's next session: the brief says what to record on him
+  const brief = (await w.ok(["brief"])).out;
+  assert.match(brief, /## Decided by the user — record it on the tree first\n {2}H0001 .* — decided: A — oddavky S0002 a pomník S0001 se shodují\n {4}P0001: S0001 named, cited by none of P0001's facts — what they say of P0001 goes on P0001 \(event add P0001 … --cite S0001\)/u);
   // written on him: nothing to say; abandoned: nothing either
   await w.ok(["event", "add", "P1", "DEAT", "--date", "1915", "--cite", "S1"]);
-  const again = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — týž", "--reason", "the death written"]);
-  assert.doesNotMatch(again.out, /cited by none/);
+  const again = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — týž", "--reason", "the death written", "--json"]);
+  assert.equal(again.json.unrecorded, undefined);
+  assert.doesNotMatch((await w.ok(["brief"])).out, /Decided by the user/u);
   await w.ok(["hypothesis", "add", "Kdo je Jan z pomníku (S0001)?", "--about", "P1", "--variant", "A: syn", "--variant", "B: bratr"]);
-  assert.doesNotMatch((await w.ok(["hypothesis", "decide", "H2", "--decision", "nelze", "--abandon"])).out, /cited by none/);
+  assert.equal((await w.ok(["hypothesis", "decide", "H2", "--decision", "nelze", "--abandon", "--json"])).json.unrecorded, undefined);
+  assert.doesNotMatch((await w.ok(["brief"])).out, /Decided by the user/u);
   w.cleanup();
 });
 

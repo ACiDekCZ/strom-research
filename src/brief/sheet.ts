@@ -15,9 +15,9 @@ const SCANS = ["media view", "read", "fetch"];
 // what an entry read in a record writes: its source, its facts and names, the people and families it names
 const ENTRY = ["source add", "event add", "event edit", "cite", "name add", "person add", "family add", "family child"];
 const LEVELS: Record<string, string[]> = {
-  link: [...ALL, ...SCANS, ...ENTRY, "family edit", "recordset add", "hypothesis add", "hypothesis argue", "conflict add", "task wait"],
-  verify: [...ALL, ...SCANS, "source add", "source edit", "event edit", "cite", "name add", "conflict add", "hypothesis add", "hypothesis argue"],
-  enrich: [...ALL, ...SCANS, ...ENTRY, "hypothesis add", "task wait"],
+  link: [...ALL, ...SCANS, ...ENTRY, "family edit", "recordset add", "hypothesis add", "hypothesis argue", "hypothesis propose", "conflict add", "task wait"],
+  verify: [...ALL, ...SCANS, "source add", "source edit", "event edit", "cite", "name add", "conflict add", "hypothesis add", "hypothesis argue", "hypothesis propose"],
+  enrich: [...ALL, ...SCANS, ...ENTRY, "hypothesis add", "hypothesis propose", "task wait"],
   locate: [...ALL, "place add", "place jurisdiction", "repo add", "recordset add", "fetch", "task edit", "task wait"],
   intake: [...ALL, "input sort", "input skip", "media view", ...ENTRY.filter((c) => c !== "event edit"), "person merge", "recordset add", "conflict add"],
   request: [...ALL, "task wait", "task sent"],

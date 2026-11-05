@@ -5,9 +5,35 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.28.0
+
+*W przygotowaniu: bety do 1.28.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Jak działa Strom – w samym stromie: `strom doc`.** Dokumentacja aplikacji i badań po czesku, angielsku, niemiecku i
+  polsku jest częścią stromu i czyta się ją także bez internetu: `strom doc` wypisuje rozdziały, `strom doc R10.1` jedną
+  regułę wraz z tym, dlaczego tak jest, `strom doc <słowa>` szuka w tytułach, indeksie pojęć i tekście (bez względu na
+  znaki diakrytyczne i wielkość liter). Każda reguła ma link do tej samej strony na stromapp.info. Na pytanie, jak lub
+  dlaczego Strom coś robi, agent odpowiada według niej z numerem reguły. Pomoc dla człowieka (`strom help --human`)
+  do niej odsyła.
+
+- **O hipotezie decyduje tylko użytkownik.** Agent nie rozstrzyga już sam między konkurencyjnymi wyjaśnieniami:
+  proponuje wariant z uzasadnieniem, a hipoteza czeka w menu stromu w „Co czeka” – rozstrzygnięta zgodnie z propozycją,
+  inaczej albo pozostawiona otwarta. To, co decyzja łączy, agent zapisuje w drzewie w następnej sesji. Hipotezy
+  rozstrzygnięte wcześniej pozostają bez zmian. Hipotezę, której warianty mówią, co by połączyły, rozstrzyga się tylko
+  ze wskazanym wariantem.
+
+- **Indeks to wskazówka, nigdy dowód.** Fakt, który cytuje tylko indeks, pozostaje wskazówką, dopóki nie zostanie
+  odczytany i zacytowany sam wpis – tak jak przy drzewie genealogicznym czy wspomnieniu.
+
+- **Tłumaczenie obok transkrypcji.** Wpis w innym języku lub piśmie niż język badań – łacina, kurrenta, niemiecki,
+  cyrylica – otrzymuje obok dosłownej transkrypcji tłumaczenie na język badań.
+
+- **DigiArchiv Archiwum Państwowego w Třeboniu:** jego warunki, tak jak potwierdziło je archiwum – ręcznie tylko wybrane
+  skany, nigdy cała księga, żadnych narzędzi do pobierania – i jak cytować stały link do skanu.
+
 ## 1.27.0
 
-*W przygotowaniu: bety do 1.27.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*5.11.2026 · współpracuje z aplikacją Strom 3.23.0.*
 
 - **Skany zapisane ręcznie same przywracają swoje zadanie.** Tam, gdzie skany archiwum zapisuje się ręcznie – archiwum,
   do którego wolno tylko przeglądarce człowieka, albo takie, którego warunki nie pozwalają na nic innego – badanie

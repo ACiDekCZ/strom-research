@@ -5,7 +5,8 @@
 //   a new person (person.add, person.import) · a name of a person found (person.name) · a new family, a child found in
 //   one (family.add, family.import, family.child) · a fact found, corrected or newly cited (event.add, event.edit,
 //   event.cite — not a citation taken off or put back by an undo) · a new source (source.add) · a conflict resolved
-//   (conflict.resolve) · a hypothesis decided (hypothesis.decide — not abandoned)
+//   (conflict.resolve) · a hypothesis decided (hypothesis.decide — not abandoned; the person decides it, as an agent
+//   proposed it: " as proposed")
 //
 // Tasks, sessions, images, readings, notes, places, settings, stories and what waits are none. Read from the logs of
 // each day (data/ops/<yyyy-mm>/<dd>/…, never written again once committed), never from git: an agent at work makes a
@@ -85,7 +86,9 @@ const KEPT = 16;
 
 /** Is it a find: an agent's (or a session's), of a kind that is one, not an undo. */
 function isFind(o: Op): boolean {
-  if (!FIND_OPS.has(o.op) || o.by === "user") return false;
+  // a hypothesis is the person's to decide: one decided as an agent proposed it is the research's find
+  const proposed = o.op === "hypothesis.decide" && / as proposed$/u.test(o.summary);
+  if (!FIND_OPS.has(o.op) || (o.by === "user" && !proposed)) return false;
   if (/^\S+ cites no more /u.test(o.summary) || (o.op === "event.cite" && /^\S+ cites \S+(?:, \S+)* again: /u.test(o.summary))) return false;
   if (o.op === "hypothesis.decide" && / abandoned/u.test(o.summary)) return false;
   return true;

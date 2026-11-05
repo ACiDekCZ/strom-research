@@ -5,7 +5,7 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
-import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
@@ -39,7 +39,7 @@ import { neverPeople } from "../core/offline.ts";
 import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
-import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
+import { decidedToRecord, HYPOTHESIS_LINKS_ORIGIN, linkText, recordedLinks, recordedText } from "../core/hypolinks.ts";
 import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 import { placesIdentifySections } from "./places.ts";
@@ -281,6 +281,15 @@ function relativeBlock(tree: Tree, p: Person, role: string, short = false): stri
 const NOTE_LINE = 100;
 /** An open question the task is not about, in short: its start. */
 const QUESTION_SHORT = 120;
+
+/** How a link of a variant the user decided goes on the tree: the command, with the record that decided it. */
+function recordHow(l: VariantLink): string {
+  if (l.kind === "child")
+    return l.family ? `strom family child ${l.family} ${l.person} --cite S…` : `strom family add ${(l.parents ?? []).map((p) => `--partner ${p} `).join("")}--child ${l.person} --cite S…`;
+  if (l.kind === "partners") return `strom family add ${l.persons.map((p) => `--partner ${p}`).join(" ")} --cite S…`;
+  if (l.kind === "siblings") return `strom family add ${l.persons.map((p) => `--child ${p}`).join(" ")} --cite S…`;
+  return `strom person merge ${l.persons.join(" ")} --reason "…"`;
+}
 
 /** A variant saying what the tree records already, marked: no link to make (strom hypothesis link refuses it). */
 function variantRecorded(tree: Tree, h: Hypothesis, v: HypothesisVariant): string {
@@ -1053,7 +1062,7 @@ export function buildBrief(
       `Tree "${tree.config.name}"${research ? ` · research ${research.id} "${research.name}" (${research.direction} of ${focus ? label(focus) : research.focus})` : ""}.`,
       research?.question ? `Research question: ${research.question}` : "",
       ...(research?.notes ?? []).slice(-3).map((n) => `From the user: ${n.text}`),
-      `Research language: ${langName(lang)} — ${alone ? "" : "talk to the user and "}write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
+      `Research language: ${langName(lang)} — ${alone ? "" : "talk to the user and "}write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language — a record in another language or script gets a translation into ${langName(lang)} too (--translation).`,
       // the user may read a run afterwards (its output, its log): every word in the research language, impersonal (N0288,
       // N0292, N0295: a last message in English, "it waits for you")
       alone
@@ -1329,10 +1338,36 @@ export function buildBrief(
         head: ["## Open conflicts and hypotheses" + (conflicts.some((c) => own(c.id)) || hyps.some((h) => own(h.id)) ? " (→ this task is about it)" : "")],
         parts: [
           ...first(conflicts).map((c) => question(c.id, `${mark(c.id, c.state)} ${c.title}: ${c.claims.map((x) => `${x.source ? `${x.source} ` : ""}${x.value}`).join(" | ")}${c.resolution ? ` — resolved: ${c.resolution}` : ""}`)),
-          ...first(hyps).map((h) => question(h.id, `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}${variantRecorded(tree, h, v)}`).join("; ")}${h.decision ? ` — ${h.state}: ${h.decision}` : ""}`)),
+          ...first(hyps).map((h) =>
+            question(
+              h.id,
+              `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}${variantRecorded(tree, h, v)}`).join("; ")}${h.decision ? ` — ${h.state}: ${h.decision}` : ""}${h.proposal ? ` — proposed${h.proposal.abandon ? " to abandon" : h.proposal.variant ? ` for ${h.proposal.variant}` : ""}, the user decides it` : ""}`,
+            ),
+          ),
         ],
         tail: [],
         more: "strom conflict show X… · strom hypothesis show H…",
+      }),
+    );
+
+  // 6b. what the user decided and the tree does not record yet: the links of the variant decided, the sources it names
+  // — the agent's to record (strom hypothesis decide is the person's; the work of a decision is the agent's)
+  const toRecord = decidedToRecord(tree);
+  if (toRecord.length)
+    sections.push(
+      layered("decided by the user", "strom hypothesis list --all", {
+        head: ["## Decided by the user — record it on the tree first"],
+        parts: toRecord.map(({ hypothesis: h, links, sources }) => {
+          const whole = [
+            `  ${h.id} ${h.question} — decided${h.chosen ? ` for ${h.chosen}` : ""}: ${h.decision ?? ""}`,
+            ...links.map((l) => `    ⇢ ${linkText(l)}: ${recordHow(l)}`),
+            ...sources.map((s) => `    ${s.person}: ${s.sources.join(", ")} named, cited by none of ${s.person}'s facts — what they say of ${s.person} goes on ${s.person} (event add ${s.person} … --cite ${s.sources[0]})`),
+          ].join("\n");
+          // the agent's work to do, whole whatever the room
+          return { short: whole, whole };
+        }),
+        tail: ["  (each with the record that decided it; a note or the diary does not reach the tree)"],
+        more: "strom hypothesis show H…",
       }),
     );
 

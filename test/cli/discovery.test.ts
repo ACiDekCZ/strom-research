@@ -104,12 +104,14 @@ test("help --human: the person's own commands with a sentence each; one of the u
   w.cleanup();
 });
 
-test("a person's help ends with where the source code is, in their language; the agent's catalog and --version do not", async () => {
+test("a person's help ends with where the source code is and how Strom works, in their language; the agent's catalog and --version do not", async () => {
   const w = new World();
   const url = "https://github.com/ACiDekCZ/strom-research";
   for (const [lang, line] of [["en", "Source code (GNU AGPL 3.0 or later)"], ["cs", "Zdrojový kód (GNU AGPL 3.0 nebo pozdější)"], ["de", "Quellcode (GNU AGPL 3.0 oder später)"]] as const) {
     const own = (await w.ok(["help", "--human"], { tty: true, env: { STROM_LANG: lang } })).out;
-    assert.ok(own.trimEnd().endsWith(`${line}: ${url}`), `${lang}:\n${own}`);
+    const lines = own.trimEnd().split("\n");
+    assert.equal(lines.at(-2), `${line}: ${url}`, `${lang}:\n${own}`);
+    assert.match(lines.at(-1)!, new RegExp(`: strom doc · stromapp\\.info/doc/${lang}/$`, "u"), `${lang}: how Strom works, last`);
     assert.equal(own.split(url).length, 2, `${lang}: once`);
   }
   for (const args of [["help"], ["help", "--agent"], ["--version"], ["guide"]]) assert.doesNotMatch((await w.ok(args, { tty: true, env: { STROM_LANG: "en" } })).out, /GNU AGPL|Source code \(/, args.join(" "));

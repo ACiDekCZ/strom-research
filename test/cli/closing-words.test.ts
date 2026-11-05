@@ -38,7 +38,7 @@ test("working alone the brief says to end after strom session close, without /cl
   assert.doesNotMatch(closing(talk), /a question in the summary/);
   // its head: nobody reads it live — the user is not talked to (a conversation's brief talks to them)
   const head = (text: string) => text.slice(0, text.indexOf("\n\n"));
-  assert.match(head(run), /\nResearch language: Czech — write notes, tasks and summaries in Czech; transcripts stay in the original language\.\nWorking alone \(strom run\): nobody answers here, but the user may read this session afterwards \(the run's output, its log\) — every message of yours, the last one too, in Czech, about the work and never addressed to the user \("waits for a check", never "waits for you"\); a step only the user can take goes into strom task wait\.\n/);
+  assert.match(head(run), /\nResearch language: Czech — write notes, tasks and summaries in Czech; transcripts stay in the original language — a record in another language or script gets a translation into Czech too \(--translation\)\.\nWorking alone \(strom run\): nobody answers here, but the user may read this session afterwards \(the run's output, its log\) — every message of yours, the last one too, in Czech, about the work and never addressed to the user \("waits for a check", never "waits for you"\); a step only the user can take goes into strom task wait\.\n/);
   assert.match(head(talk), /Research language: Czech — talk to the user and write notes/);
   assert.doesNotMatch(head(talk), /Working alone/);
 

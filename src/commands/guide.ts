@@ -37,7 +37,7 @@ export const HISTORY_GUIDE = `THE HISTORY OF THE PLACES (the user has it on: wha
 export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform, history = false): string {
   const ps = powershellUtf8Rule("", platform);
   const language = lang
-    ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language.`
+    ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language; a record in another language or script gets a translation into ${langName(lang)} too (--translation).`
     : "Talk to the user in their language. Set it as the research language: strom setup --lang <code> (cs, en, de, pl, …).";
   return `STROM — genealogical research with an AI agent
 
@@ -227,8 +227,8 @@ evidence quality = what the record is (source --form original | derivative |
 authored) and what it knew about THIS fact (--information primary: written at
 the time by someone who knew | secondary). A baptism entry is primary for the
 date of the baptism, secondary for the age of a parent: say so on the citation
-(--information on cite/event add). A family tree, a memory or a compiled work
-never makes a fact more than a lead; proven needs primary information.
+(--information on cite/event add). A family tree, a memory, a compiled work or an
+index never makes a fact more than a lead; proven needs primary information.
 An age gives a birth estimate: aged 25 at a marriage in 1910 →
   strom event add P0001 BIRT --date "CAL 1885" --cite S0001 --quote "25 let" --information secondary
 Ages as the record gives them: --age "25 let", "annorum 25", "3 months" (a

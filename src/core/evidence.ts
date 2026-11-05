@@ -23,9 +23,21 @@ export function searchedAs(s: Pick<Search, "result" | "method">): string {
   return s.result === "negative" && s.method === "index" ? "negative in the index only" : s.result;
 }
 
-/** Sources that are leads by nature: compiled by someone, not a record of the event. */
-export function isWeak(src: Source | undefined): boolean {
+/**
+ * Sources compiled by someone, not a record of the event: a family tree, someone's memory, an authored work. The sync
+ * with the Strom app weighs the user's edits by it (a fact a record backs is a conflict, one only these back is
+ * corrected) — an index stays a record there, as it always was.
+ */
+export function isCompiled(src: Source | undefined): boolean {
   return !src || src.kind === "family-tree" || src.kind === "family-memory" || src.form === "authored";
+}
+
+/**
+ * Sources that are leads by nature, proving nothing: compiled ones, and an index — a later copy by another hand that
+ * only leads to the entry (the entry itself is what proves it). A fact they alone cite stays a lead.
+ */
+export function isWeak(src: Source | undefined): boolean {
+  return isCompiled(src) || src!.kind === "index";
 }
 
 /** The information of a source for one fact: the citation's own assessment wins. */
@@ -58,8 +70,8 @@ export function checkStatus(tree: Tree, status: Status, citations: Citation[]): 
     throw new UsageError(`status ${status} needs a citation`, { hint: 'cite the record: --cite S0001 --locator "fol. 12" (or keep it a lead: --status lead)' });
   const strong = citations.filter((c) => !isWeak(tree.get<Source>(c.source)));
   if (strong.length === 0)
-    throw new UsageError(`a family tree, a memory or a compiled work cannot make a fact ${status}`, {
-      hint: "keep it a lead (or --status possible) until a record says it: cite that record",
+    throw new UsageError(`a family tree, a memory, a compiled work or an index cannot make a fact ${status}`, {
+      hint: "keep it a lead (or --status possible) until a record says it: cite that record (an index leads to the entry — read the entry itself)",
     });
   if (status === "proven" && !strong.some((c) => informationOf(tree.get<Source>(c.source), c) === "primary"))
     throw new UsageError("proven needs a record written at the time by someone who knew (primary information)", {

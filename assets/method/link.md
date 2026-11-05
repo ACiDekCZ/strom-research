@@ -22,7 +22,8 @@
 6. **Extract the whole entry** (see core). Godparents and witnesses are often
    relatives and prove the next link.
 7. **Record** (see "recording an entry"): source (with transcript in the
-   original language), facts with citations, names, family links, the search
+   original language, and a translation into the research language when the
+   record is in another language or script), facts with citations, names, family links, the search
    (found or negative), lessons about the book. `proven` only for what you read
    yourself and the entry states directly.
 8. Done when the entry is found and recorded — or the agreed range was searched

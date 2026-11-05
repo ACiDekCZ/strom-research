@@ -406,7 +406,7 @@ test("D3b-a: a person's help in any language begins with the installation's own 
     const own = (await w.ok(["help", "--human"], { env: { ...beta, STROM_LANG: lang } })).out;
     assert.ok(own.startsWith(`strom-beta ${word} `), `${lang}: ${own.split("\n")[0]}`);
     assert.doesNotMatch(own, /^ *strom |(^|\s)strom </mu, `${lang}: never strom as the command`);
-    assert.match(own, /: https:\/\/github\.com\/ACiDekCZ\/strom-research\n?$/, `${lang}: the source code's address as it is`);
+    assert.match(own, /: https:\/\/github\.com\/ACiDekCZ\/strom-research\n[^\n]*: strom-beta doc · stromapp\.info\/doc\/(en|cs|de)\/\n?$/, `${lang}: the source code's address as it is, then how Strom works with the installation's own command`);
     assert.ok((await w.ok(["help", "research", "--human"], { env: { ...beta, STROM_LANG: lang } })).out.startsWith(`strom-beta research ${word}`), lang);
     const plain = (await w.ok(["help", "--human"], { env: { STROM_LANG: lang } })).out;
     assert.ok(plain.startsWith(`strom ${word} `), `${lang}: ${plain.split("\n")[0]}`);
