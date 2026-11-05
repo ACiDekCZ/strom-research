@@ -158,3 +158,29 @@ test("never where strom's list keeps automated tools off: an archive whose robot
     w.cleanup();
   }
 });
+
+test("an archive whose viewer shows its images from a server closed to every robot (ZA Opava's digi.archives.cz): no permission \"through the browser\" to give, no script — the person saves the image by hand", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  try {
+    await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+    const at = "https://digi.archives.cz/da/permalink?xid=x&scan=3";
+    await w.ok(["recordset", "add", "Lhota Z 1850–1870", "--url", "https://digi.archives.cz/da/permalink?xid=x"]); // B1
+    await w.ok(["task", "add", "Úmrtí Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+    await w.ok(["task", "wait", "T1", "--images", "B1:3", "--on", "snímek 3 knihy Lhota"]);
+    // the person's permission could not help: not taken, not asked
+    const allow = await w.run(["allow", "archive", "digi.archives.cz", "--way", "browser"], { tty: true });
+    assert.notEqual(allow.code, 0, allow.out + allow.err);
+    const r = await w.run(["media", "save", "T1", "--image", "3", "--at", at], { env: CLAUDE });
+    assert.notEqual(r.code, 0);
+    assert.match(r.out + r.err, /by hand/);
+    assert.doesNotMatch(r.out + r.err, /strom-result|await \(async|--way browser/);
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.awaits.images, "3", "nothing written");
+    // the agent's browser neither, at its pages
+    const check = await w.run(["net", "web", "--check", at, "--browser", "--json"], { env: CLAUDE });
+    assert.equal(JSON.parse(check.out).allow, false);
+    assert.doesNotMatch(JSON.parse(check.out).reason, /--way browser/);
+  } finally {
+    w.cleanup();
+  }
+});

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.27.0
 
-*W przygotowaniu: bety do 1.27.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.27.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Skany zapisane ręcznie same przywracają swoje zadanie.** Tam, gdzie skany archiwum zapisuje się ręcznie – archiwum,
   do którego wolno tylko przeglądarce człowieka, albo takie, którego warunki nie pozwalają na nic innego – badanie
@@ -55,8 +55,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   a zadanie wraca, gdy są tam wszystkie jego skany. Zgodę można teraz dać także takiemu archiwum z listy badania, do
   którego nie prowadzi żaden pobieracz. Pobieracz archiwum, którego przeglądarka pokazuje skany w kafelkach, również
   zapisuje przez tę przeglądarkę, także część skanu; stronę księgi otwiera raz i nigdy jej nie odświeża. Sprawdzenia,
-  czy przy komputerze jest człowiek, agent nigdy nie przechodzi. Archiwa, których robots.txt nie wpuszcza automatycznych
-  narzędzi, nadal zapisuje się ręcznie.
+  czy przy komputerze jest człowiek, agent nigdy nie przechodzi. Archiwum, którego robots.txt nie wpuszcza żadnych
+  robotów na cały serwis, uznaje się za takie, dokąd wolno tylko przeglądarce człowieka. To, co lista archiwów badania
+  zostawia w rękach człowieka, nadal zapisuje się ręcznie – ścieżka do zapisów zamknięta w robots.txt dla wszystkich
+  robotów, imienny zakaz dla agentów AI (jak w eBadatelnie SOA Praha), warunki, które nie pozwalają na nic innego, albo
+  przeglądarka skanów, która bierze je z serwera obrazów zamkniętego dla wszystkich robotów.
 
 - Warunek samodzielnej pracy agenta, który nie uruchomiłby zadań uruchomionych ręcznie, pada raz, potem już tylko
   „Uruchomić mimo to?”. Warunek tygodnia subskrypcji podaje wykorzystanie w tygodniu wobec tego, na co dotąd pozwolono,
@@ -74,8 +77,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   przeglądarce człowieka: Acta Publica Morawskiego Archiwum Krajowego (jego skany już nie przez program do pobierania,
   nawet ze zgodą wydaną wcześniej – pozostaje, jak została dana; przez przeglądarkę co najmniej 4 sekundy odstępu),
   eBadatelna SOA Praha oraz serwery obrazów SOA Litoměřice, ZA Opava i meldunków policyjnych Archiwum Narodowego (tylko
-  ręcznie). Program do pobierania zrobiony wcześniej dla takiego archiwum zostaje odrzucony przed jakimkolwiek żądaniem,
-  także jego próba, i mówi, co zostaje: zgoda człowieka „przez przeglądarkę” albo zapis ręczny.
+  ręcznie). Cyfrowe czytelnie SOA Litoměřice i ZA Opava biorą skany z tych serwerów, więc i ich skany zapisuje się
+  ręcznie – zgody „przez przeglądarkę” się tam nie proponuje. Program do pobierania zrobiony wcześniej dla takiego
+  archiwum zostaje odrzucony przed jakimkolwiek żądaniem, także jego próba, i mówi, co zostaje: zgoda człowieka „przez
+  przeglądarkę” albo zapis ręczny.
 
 - Wraz z całym 1.26.1: przerwany zapis już nie blokuje badania na stałe.
 

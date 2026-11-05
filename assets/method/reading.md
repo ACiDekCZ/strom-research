@@ -101,7 +101,9 @@ never open again a view cleared from your context — your notes hold it.
   built once per archive and serves every later task.
 <!-- end -->
 - You never download from an archive yourself (curl, a script, your browser
-  tools) — only through a connector, paced by strom.
+  tools) — only through a connector, paced by strom; the one exception, where
+  the brief names it: `strom media save`, one image at a time, at an archive
+  the person allowed "through the browser".
 <!-- for link verify enrich no-connector by-hand -->
   The user saves images by
   hand only where the archive does not allow automation (the connector then

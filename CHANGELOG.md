@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.27.0
 
-*In preparation: the betas up to 1.27.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.27.0-beta.2. The section is complete with the release.*
 
 - **Images saved by hand bring their task back by themselves.** Where an archive's images are saved by hand – an archive
   only a person's browser reaches, or one whose terms allow nothing else – the research asks for its book and the
@@ -55,7 +55,10 @@ The changes of each version in short. The full notes and the install lines are o
   all its images are there. The permission can now be given for such an archive of the research's list that no
   downloader reaches. A downloader built for an archive whose viewer shows the images in tiles saves them through that
   viewer as well, a part of an image included, with the book's page opened once and never reloaded. A check whether a
-  person is there is never passed by the agent. Archives whose robots.txt keeps automated tools off stay saved by hand.
+  person is there is never passed by the agent. An archive whose robots.txt keeps every robot off the whole site counts
+  as one only a person's browser reaches. What strom's list keeps for a person's hand stays saved by hand – a path of
+  the records its robots.txt closes to every robot, AI agents kept off by name (as at the eBadatelna of SOA Praha),
+  terms that allow nothing else, or a viewer that shows the images from an image server closed to every robot.
 
 - A condition of the agent working alone that would not start tasks started by hand is said once, then only "Start
   anyway?". The gate of the subscription's week says the week's use against the most allowed by now, and how it is
@@ -71,9 +74,10 @@ The changes of each version in short. The full notes and the install lines are o
   and what only a person's browser reaches. Five more of Czechia only a person's browser reaches: the Acta Publica of
   the Moravian Land Archives (its images no longer through a downloader, even with a permission given before – kept as
   given; through the browser at least 4 seconds apart), the eBadatelna of SOA Praha and the image servers of SOA
-  Litoměřice, ZA Opava and the National Archives' police registrations (by hand only). A downloader made earlier for
-  such an archive is refused before any request, its probe too, and says what remains: the person's permission "through
-  the browser", or saving by hand.
+  Litoměřice, ZA Opava and the National Archives' police registrations (by hand only). The digital reading rooms of SOA
+  Litoměřice and ZA Opava show their images from those servers, so their images are saved by hand too – no permission
+  "through the browser" is offered there. A downloader made earlier for such an archive is refused before any request,
+  its probe too, and says what remains: the person's permission "through the browser", or saving by hand.
 
 - With all of 1.26.1: a write cut short no longer blocks the research for good.
 

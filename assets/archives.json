@@ -122,13 +122,17 @@
     {
       "host": "digi.soalitomerice.cz",
       "name": "Státní oblastní archiv v Litoměřicích (Digitální badatelna)",
-      "level": "restricted",
+      "level": "manual",
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://digi.soalitomerice.cz/robots.txt",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (and a bot check on every page)",
-      "checked": "2026-11-03"
+      "imagesFrom": [
+        "images.soalitomerice.cz"
+      ],
+      "checked": "2026-11-03",
+      "scope": "by hand only: robots.txt closes it to every robot and a bot check guards every page; its viewer shows the register images from images.soalitomerice.cz, which robots.txt closes too — not through the agent's browser either, no permission \"through the browser\" could help; the person opens the register image and saves it (the task waits for its images), the agent reads the saved file"
     },
     {
       "host": "vademecum.soalitomerice.cz",
@@ -207,7 +211,7 @@
     {
       "host": "digi.archives.cz",
       "name": "Zemský archiv v Opavě (Digitální badatelna)",
-      "level": "restricted",
+      "level": "manual",
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://digi.archives.cz/robots.txt",
@@ -215,13 +219,16 @@
       "termsPageSays": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (and a Radware Bot Manager CAPTCHA)",
-      "scope": "a person's browser only: robots.txt closes it to every robot and a CAPTCHA guards it; the person opens the register image and saves it, the agent reads the saved file; nothing published without the archive's consent and a citation; its registers are not shown in its reading rooms at all — online is the only way",
+      "imagesFrom": [
+        "images.archives.cz"
+      ],
+      "scope": "by hand only: robots.txt closes it to every robot and a CAPTCHA guards it; its viewer shows the register images from images.archives.cz, which robots.txt closes too — not through the agent's browser either, no permission \"through the browser\" could help; the person opens the register image and saves it (the task waits for its images), the agent reads the saved file; nothing published without the archive's consent and a citation; its registers are not shown in its reading rooms at all — online is the only way",
       "checked": "2026-11-04"
     },
     {
       "host": "digi2.archives.cz",
       "name": "Zemský archiv v Opavě (Digitální badatelna)",
-      "level": "restricted",
+      "level": "manual",
       "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://digi2.archives.cz/robots.txt",
@@ -229,7 +236,10 @@
       "termsPageSays": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Zemského archivu v Opavě a uvedením řádné citace.",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (leads to digi.archives.cz's; a Radware CAPTCHA there)",
-      "scope": "a person's browser only, as digi.archives.cz",
+      "imagesFrom": [
+        "images.archives.cz"
+      ],
+      "scope": "by hand only, as digi.archives.cz (its images from images.archives.cz, closed to every robot)",
       "checked": "2026-11-04"
     },
     {

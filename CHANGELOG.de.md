@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.27.0
 
-*In Vorbereitung: die Betas bis 1.27.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.27.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Von Hand gespeicherte Bilder bringen ihre Aufgabe von selbst zurück.** Wo die Bilder eines Archivs von Hand
   gespeichert werden – ein Archiv, das nur der Browser eines Menschen erreicht, oder eines, dessen Bedingungen nichts
@@ -60,8 +60,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   sobald alle ihre Bilder da sind. Die Erlaubnis lässt sich jetzt auch einem solchen Archiv aus der Liste der Forschung
   geben, das kein Downloader erreicht. Ein Downloader für ein Archiv, dessen Betrachter die Bilder in Kacheln zeigt,
   speichert ebenfalls über diesen Betrachter, auch einen Teil eines Bildes; die Seite des Buches wird einmal geöffnet
-  und nie neu geladen. Eine Prüfung, ob ein Mensch da ist, besteht der Agent nie. Archive, deren robots.txt automatische
-  Werkzeuge fernhält, werden weiter von Hand gespeichert.
+  und nie neu geladen. Eine Prüfung, ob ein Mensch da ist, besteht der Agent nie. Ein Archiv, dessen robots.txt jeden
+  Roboter von der ganzen Website fernhält, gilt als eines, das nur der Browser eines Menschen erreicht. Was die
+  Archivliste der Recherche der Hand eines Menschen vorbehält, wird weiter von Hand gespeichert – ein Pfad der
+  Aufzeichnungen, den die robots.txt jedem Roboter sperrt, KI-Agenten namentlich ausgeschlossen (wie bei der eBadatelna
+  des SOA Praha), Bedingungen, die nichts anderes erlauben, oder ein Bildbetrachter, der die Bilder von einem für jeden
+  Roboter gesperrten Bildserver zeigt.
 
 - Eine Bedingung der selbstständigen Arbeit des Agenten, die von Hand gestartete Aufgaben nicht starten würde, wird
   einmal genannt, danach nur noch „Trotzdem starten?“. Die Bedingung der Abo-Woche nennt die Nutzung der Woche gegenüber
@@ -80,9 +84,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Browser eines Menschen erreicht: die Acta Publica des Mährischen Landesarchivs (ihre Bilder nicht mehr über einen
   Downloader, auch nicht mit einer früher gegebenen Erlaubnis – sie bleibt, wie gegeben; über den Browser mindestens 4
   Sekunden auseinander), die eBadatelna des SOA Praha und die Bildserver des SOA Litoměřice, des ZA Opava und der
-  Polizeimeldungen des Nationalarchivs (nur von Hand). Ein früher für ein solches Archiv gebauter Downloader wird vor
-  jeder Anfrage abgewiesen, auch seine Probe, und sagt, was bleibt: die Erlaubnis der Person „über den Browser“ oder das
-  Speichern von Hand.
+  Polizeimeldungen des Nationalarchivs (nur von Hand). Die digitalen Lesesäle des SOA Litoměřice und des ZA Opava zeigen
+  ihre Bilder von diesen Servern, daher werden auch ihre Bilder von Hand gespeichert – eine Erlaubnis „über den Browser“
+  wird dort nicht angeboten. Ein früher für ein solches Archiv gebauter Downloader wird vor jeder Anfrage abgewiesen,
+  auch seine Probe, und sagt, was bleibt: die Erlaubnis der Person „über den Browser“ oder das Speichern von Hand.
 
 - Mit allem aus 1.26.1: ein unterbrochenes Schreiben sperrt die Forschung nicht mehr auf Dauer.
 

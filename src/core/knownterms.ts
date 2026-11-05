@@ -41,6 +41,12 @@ export interface KnownTerms {
   /** What its robots.txt said when it was checked. */
   robots?: string;
   /**
+   * The hosts its viewer shows its images from (an image server of its own). One the list keeps every automated tool
+   * off whole (`disallow` "/") makes the archive's images the person's by hand: the entry's level is "manual" then —
+   * the agent's browser would ask that server for every image it shows (test/unit/known-terms.test.ts keeps it so).
+   */
+  imagesFrom?: string[];
+  /**
    * Its terms (the quote, word for word, at `terms`) expressly allow automated use — open data, a licence for any use,
    * an interface for programs: a Disallow of its robots.txt alone yields (core/net.ts robotsYields), carefully — one
    * request after another, at least its Crawl-delay, strom's User-Agent, its limits and backoff as ever. Never a

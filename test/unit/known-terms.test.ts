@@ -9,7 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hostPace, politeGet, robotsVerdict, NetError } from "../../src/core/net.ts";
-import { knownDisallow, knownPaceMs, shippedTerms, strictestEntry, within, type KnownTerms } from "../../src/core/knownterms.ts";
+import { knownDisallow, knownPaceMs, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "../../src/core/knownterms.ts";
+import { assetPath } from "../../src/core/assets.ts";
 import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, termsOpen, type ConnectorLike } from "../../src/core/terms.ts";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "strom known terms "));
@@ -31,8 +32,14 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
   assert.equal(level("photos.szukajwarchiwach.gov.pl"), "restricted");
   for (const h of ["aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz", "portal.nacr.cz", "data.matricula-online.eu", "kramerius.mzk.cz", "kramerius5.nkp.cz", "ndk.cz", "geneteka.genealodzy.pl", "metryki.genealodzy.pl", "skanoteka.genealodzy.pl", "polona.pl", "www.sbc.org.pl", "dir.icm.edu.pl"])
     assert.equal(level(h), "allowed", h);
-  for (const h of ["digi.soalitomerice.cz", "digi.archives.cz", "digi2.archives.cz", "katalog.ahmp.cz", "www.mza.cz", "mza.cz", "images.soalitomerice.cz", "images.archives.cz", "digi.nacr.cz", "www.szukajwarchiwach.gov.pl", "swietogen.genbaza.pl", "www.basia.famula.pl", "www.metrikai.lt"]) {
+  for (const h of ["katalog.ahmp.cz", "www.mza.cz", "mza.cz", "images.soalitomerice.cz", "images.archives.cz", "digi.nacr.cz", "www.szukajwarchiwach.gov.pl", "swietogen.genbaza.pl", "www.basia.famula.pl", "www.metrikai.lt"]) {
     assert.equal(level(h), "restricted", h);
+    assert.equal(termsFor({}, h)?.browserOnly, true, h);
+  }
+  // the digital reading rooms of ZA Opava and SOA Litoměřice show their images from an image server closed to every
+  // robot: by hand only, a person's browser only — no permission "through the browser" could help
+  for (const h of ["digi.soalitomerice.cz", "digi.archives.cz", "digi2.archives.cz"]) {
+    assert.equal(level(h), "manual", h);
     assert.equal(termsFor({}, h)?.browserOnly, true, h);
   }
   // Landesarchiv Berlin: its Impressum asks its consent for any use — restricted, not for a person's browser only
@@ -229,4 +236,21 @@ test("at the same level the stricter entry holds, whatever the order of the list
     const got = strictestEntry(hits)!;
     assert.ok(!hits.some((x) => x.browserOnly && x.level === got.level) || got.browserOnly, `${k.host}: a person's browser only`);
   }
+});
+
+test("the list: an archive whose viewer shows its images from a server the list closes whole is by hand only", () => {
+  const list = readPack(assetPath("archives.json"));
+  const closedWhole = (h: string) => knownDisallow(h).includes("/");
+  let seen = 0;
+  for (const a of list) {
+    for (const from of a.imagesFrom ?? []) {
+      assert.ok(list.some((x) => within(from, x.host)), `${a.host}: ${from} is not in the list`);
+      if (!closedWhole(from)) continue;
+      seen++;
+      assert.ok(a.level === "manual" || a.level === "forbidden", `${a.host}: its images come from ${from}, closed to every robot — ${a.level}, not by hand`);
+      assert.ok(a.browserOnly, `${a.host}: a person's browser only`);
+      assert.match(a.scope ?? "", /by hand only/u, `${a.host}: its scope says so for the agent`);
+    }
+  }
+  assert.ok(seen >= 3, "the reading rooms of ZA Opava and SOA Litoměřice");
 });

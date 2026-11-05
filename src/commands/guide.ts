@@ -65,7 +65,8 @@ HARD RULES
 5. Negative results are results: record every search, also when nothing
    was found.
 6. Do not answer consent questions yourself (exit code 4). Ask the user.
-7. Never download from an archive yourself (curl, a script, browser tools).
+7. Never download from an archive yourself (curl, a script, browser tools;
+   the one exception, strom media save, below).
    Scans come through a connector (strom fetch), paced by strom — an archive
    the research needs has none yet: build one first (strom connector new,
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
