@@ -1242,6 +1242,74 @@ test("strom run with Codex: strom kept away by its sandbox through PowerShell st
   w.cleanup();
 });
 
+test("strom run with Codex: strom refused by its sandbox in a pipe (exit code 0) stops the run too — the task not parked", unix, async () => {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  // as codex-cli 0.155.1 said it: the pipe's exit code is cat's
+  const command = `/bin/zsh -lc "strom note add P0001 x | cat"`;
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    { type: "item.started", item: { type: "command_execution", command, aggregated_output: "", exit_code: null, status: "in_progress" } },
+    { type: "item.completed", item: { type: "command_execution", command, aggregated_output: "error: no permission to use: /tmp/Lhotovi/.strom/tree.lock.1.x.tmp — strom runs under an agent, and most likely its sandbox forbids it (strom session N0001)", exit_code: 0, status: "completed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Nelze zapisovat." } },
+    { type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } },
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "3", "--json"]);
+  assert.equal(r.code, 1);
+  assert.equal(r.json.stop, "denied.codex");
+  assert.equal(r.json.sessions.length, 1);
+  for (const id of ["T0001", "T0002"]) assert.equal((await w.ok(["task", "show", id, "--json"])).json.task.state, "open", `${id} stays queued`);
+  w.cleanup();
+});
+
+// (found 2026-11-05) the refusal's words only printed again with the exit code 0 — the summary of a session that met
+// one, in the next session's strom brief (a saved real one), strom session show, strom grep: no refusal, the run goes on
+async function quotedRefusal(command: string, output: string, tail: object[] = [{ type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } }], before: object[] = []) {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  for (const what of ["Křest Jana", "Křest Josefa"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "farnost Lhota", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, "codex", [
+    { type: "thread.started", thread_id: "t" },
+    ...before,
+    { type: "item.completed", item: { type: "command_execution", command, aggregated_output: output, exit_code: 0, status: "completed" } },
+    { type: "item.completed", item: { type: "agent_message", text: "Hledám dál." } },
+    ...tail,
+  ]);
+  const r = await w.run(["run", "--agent", "codex", "--max", "2", "--json"]);
+  w.cleanup();
+  return r;
+}
+
+test("strom run with Codex: the refusal's words only printed by strom brief, session show or strom grep (exit code 0) stop nothing", unix, async () => {
+  const brief = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "agents", "brief-quotes-sandbox-refusal.txt"), "utf8");
+  const grep = "notes/postup.md:3: zápis odmítnut: no permission to use: /tmp/Лотаки/.strom/tree.lock — strom runs under an agent, and most likely its sandbox forbids it\n";
+  const show = "N0001 closed · T0001\nsummary: note add v rouře odmítnut: strom runs under an agent, and most likely its sandbox forbids it\n";
+  for (const [command, output] of [[`/bin/zsh -lc "strom brief"`, brief], [`/bin/zsh -lc "strom grep sandbox"`, grep], [`/bin/zsh -lc "strom session show N0001"`, show]] as const) {
+    const r = await quotedRefusal(command, output);
+    assert.notEqual(r.json.stop, "denied.codex", command);
+    assert.equal(r.json.sessions.length, 2, command);
+    assert.doesNotMatch(r.err, /oprávnění odmítl|permissions refused/, `${command}: nothing said refused`);
+  }
+});
+
+test("strom run with Codex: the plan's limit comes before a refusal of strom in the same session — said with when it resets", unix, async () => {
+  const limit = [{ type: "turn.failed", error: { message: "You've hit your usage limit. Try again at 9:00 AM." } }];
+  const quoted = await quotedRefusal(`/bin/zsh -lc "strom grep sandbox"`, "notes/postup.md:3: strom runs under an agent, and most likely its sandbox forbids it\n", limit);
+  assert.equal(quoted.json.stop, "limit");
+  // strom really refused in a pipe, then the limit: the limit is what ended the session
+  const refused = await quotedRefusal(`/bin/zsh -lc "strom note add P0001 x | cat"`, "error: no permission to use: /tmp/Lhotovi/.strom/tree.lock — strom runs under an agent, and most likely its sandbox forbids it (strom session N0001)\n", limit);
+  assert.equal(refused.json.stop, "limit");
+  assert.equal(refused.json.sessions.length, 1);
+  assert.match(refused.json.stopped, /9:00 AM/);
+});
+
 test("strom run with Codex, Antigravity and OpenCode: headless, their events read, the level their own switches", unix, async () => {
   const w = new World();
   w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;

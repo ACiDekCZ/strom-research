@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.27.0
 
-*In preparation: the betas up to 1.27.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.27.0-beta.4. The section is complete with the release.*
 
 - **Images saved by hand bring their task back by themselves.** Where an archive's images are saved by hand – an archive
   only a person's browser reaches, or one whose terms allow nothing else – the research asks for its book and the
@@ -65,8 +65,9 @@ The changes of each version in short. The full notes and the install lines are o
   counted. `strom help --human` lists the order of tasks, work off the lines, fixes and leaving a conflict among the
   person's own commands. OpenCode's research goes on after a session it closed properly but reported as failed, and
   after a passing network error – the same session resumed after a short wait, within the session's time. Codex kept
-  away from strom by its sandbox – on Windows also with a command said through PowerShell – stops the research at once
-  with what remains the person's choice, and such a session never puts its task aside. Thanks for the report on GitHub.
+  away from strom by its sandbox – also in a pipe, and on Windows with a command said through PowerShell – stops the
+  research at once with what remains the person's choice, and such a session never puts its task aside. Thanks for the
+  report on GitHub.
   A change the research made by itself in reading the scans, after which the readings got clearly less sure, is taken
   back at once – no longer only after 60 days – and `strom recent` says so.
 

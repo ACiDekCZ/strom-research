@@ -1282,15 +1282,6 @@ register(
           stopCode = "user";
           break;
         }
-        // An agent that may not run strom can do nothing: stop, do not burn session after session.
-        // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
-        // when strom worked for it otherwise.
-        if (!ranStrom && stromDenied) {
-          // Codex: its sandbox (strom out of it only as a command of its own, by the research's rules; on Windows .git
-          // closed inside it) — said with what is the person's choice; nothing more is started, the task stays queued
-          stopCode = runnerId === "codex" && permissions !== "full" ? "denied.codex" : "denied";
-          break;
-        }
         if (result.outcome === "limit") {
           stopCode = "limit";
           stopValues = { resets: result.resumeAt ? ui(lang, "ui.run.stop.resets", { at: result.resumeAt }) : "" };
@@ -1299,6 +1290,16 @@ register(
         if (result.outcome === "auth") {
           stopCode = "auth";
           stopValues = { command: runnerId === "claude" ? claudeLoginCommand(runEnv) : runner.command };
+          break;
+        }
+        // An agent that may not run strom can do nothing: stop, do not burn session after session.
+        // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
+        // when strom worked for it otherwise. (The plan's limit and a login gone come first: they ended the session,
+        // the limit said with when it resets; a refusal is met again by the run after them.)
+        if (!ranStrom && stromDenied) {
+          // Codex: its sandbox (strom out of it only as a command of its own, by the research's rules; on Windows .git
+          // closed inside it) — said with what is the person's choice; nothing more is started, the task stays queued
+          stopCode = runnerId === "codex" && permissions !== "full" ? "denied.codex" : "denied";
           break;
         }
         // the agent does not take its model: said with what to do, never only its raw error

@@ -92,6 +92,24 @@ export function agentName(id: string): string {
 }
 
 /**
+ * How strom says it was refused under an agent (fs.sandboxed), word for word: a run reads it in what the agent's command
+ * printed — also when the command's exit code is 0 (strom in a pipe: the code is the last program's; found with
+ * codex-cli 0.155.1, `strom … | cat` refused by Codex's sandbox ended with 0).
+ */
+export const SANDBOX_REFUSAL = "strom runs under an agent, and most likely its sandbox forbids it";
+
+/**
+ * The mark of the session strom refused in, after SANDBOX_REFUSAL: `(strom session N0042)`, from STROM_SESSION (set by
+ * strom run for the agent it starts; Codex hands its commands the environment it was started with). A run reads a
+ * refusal where the exit code is 0 (strom in a pipe) only with its own session's mark: the words quoted from another
+ * session — a summary in the next strom brief, a note, strom grep — carry that session's mark or none (#8). Undefined:
+ * no session, or an id that is none of strom's.
+ */
+export function refusalMark(session: string | undefined): string | undefined {
+  return session && /^[\p{L}\p{N}_-]{1,40}$/u.test(session) ? `(strom session ${session})` : undefined;
+}
+
+/**
  * A refusal to use a file or folder: under an agent most likely its sandbox (fs.sandboxed) — else no right to write
  * there (fs.no-permission; on Windows OneDrive and the controlled folder access named as what may also do it). `above`:
  * an agent found among strom's parent processes though none of its marks is here — its sandbox named first, as the
@@ -101,8 +119,10 @@ export function agentName(id: string): string {
 export function noPermission(where: string | undefined, agent: Env | false, platform: NodeJS.Platform = process.platform, above?: string): UsageError {
   const at = where ? `: ${where}` : "";
   const params = where ? { where } : undefined;
-  if (agent)
-    return new UsageError(`no permission to use${at} — strom runs under an agent, and most likely its sandbox forbids it`, { hint: sandboxHint(agent, where), code: "fs.sandboxed", ...(params ? { params } : {}) });
+  if (agent) {
+    const mark = refusalMark(agent.STROM_SESSION);
+    return new UsageError(`no permission to use${at} — ${SANDBOX_REFUSAL}${mark ? ` ${mark}` : ""}`, { hint: sandboxHint(agent, where), code: "fs.sandboxed", ...(params ? { params } : {}) });
+  }
   if (above === "?")
     return new UsageError(`no permission to use${at}`, {
       hint: `strom could not see the programs that started it, as in an agent's sandbox: if an agent started strom, most likely its sandbox forbids it — the command approved outside the sandbox; else ${platform === "win32" ? WINDOWS_HINT : FOLDER_HINT}`,

@@ -14,6 +14,7 @@ import { codexConfigFile, codexModel, effortArgs } from "../agents/effort.ts";
 import { CODEX_BROWSER_SERVERS } from "../core/browser.ts";
 import { isolated, type Env } from "../core/paths.ts";
 import { inRoom, readerRoom } from "./room.ts";
+import { refusalMark, SANDBOX_REFUSAL } from "../core/writable.ts";
 
 /**
  * What Codex's sandbox lets it write besides the tree folder: the tree's .git — its sandbox keeps a .git
@@ -124,6 +125,21 @@ export function codexWeb(item: Record<string, unknown> | undefined): AgentWeb | 
   return { via: "search", tool: "web_search" };
 }
 
+/**
+ * strom's own refusal under an agent in what a command printed with the exit code 0 (strom in a pipe: the code is the
+ * last program's) — only with the mark of the session it ran in (`<SANDBOX_REFUSAL> (strom session N0042)`,
+ * refusalMark): the words quoted — a session's summary in the next strom brief or session show, a note, strom grep,
+ * cat, echo — carry another session's mark or none, whatever their lines look like (#8, found 2026-11-05: an agent
+ * summed up a refusal in its words, and the next session's strom brief stopped the run). The mark is read in whatever
+ * shape a pipe gives strom's error — plain, --json, `jq .` or `jq -r .message`, Windows PowerShell 5.1's own
+ * (`strom.cmd : error: …`, wrapped at the console's width: the lines joined again), a dash spoiled by the console's
+ * code page (the sentence and the mark are ASCII). No session (a run strom did not start): no refusal read here.
+ */
+export function codexRefusedStrom(output: string, session: string | undefined): boolean {
+  const mark = refusalMark(session);
+  return !!mark && output.replace(/\r?\n/g, "").includes(`${SANDBOX_REFUSAL} ${mark}`);
+}
+
 /** The error Codex said last, kept when an earlier one said the plan's limit (the later one may only say the turn failed). */
 function failure(said: string, had: string): string {
   return looksLikeLimit(had).limit && !looksLikeLimit(said).limit ? had : said || had;
@@ -171,11 +187,17 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
     }
     // The sandbox refused a command (a write outside the tree, .git closed, the network off — strom's own refusal says
     // "sandbox", Windows "access is denied"), or Codex did not run it (its rules, an approval nobody gives in exec:
-    // "declined"): counted like a denial, the command as the agent meant it (its shell around it taken off)
+    // "declined"): counted like a denial, the command as the agent meant it (its shell around it taken off). strom's own
+    // refusal under an agent counts with the exit code 0 too: in a pipe (`strom … | cat`, `| Select-Object`) the code
+    // is the last program's — but then only strom's error with this session's mark, never its words quoted
+    // (codexRefusedStrom). (Codex 0.155's exec_command says nothing at all of a command it refused before it ran — its
+    // rules — or one its sandbox stopped within 150 ms; strom itself starts slower and is always said.)
     if (
       msg.type === "item.completed" &&
       item?.type === "command_execution" &&
-      (item.status === "declined" || (item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system|access (?:to the path .{1,200} )?is denied/i.test(item.aggregated_output ?? "")))
+      (item.status === "declined" ||
+        (item.exit_code !== 0 && ((item.aggregated_output ?? "").includes(SANDBOX_REFUSAL) || /operation not permitted|sandbox|read-only file system|access (?:to the path .{1,200} )?is denied/i.test(item.aggregated_output ?? ""))) ||
+        (item.exit_code === 0 && codexRefusedStrom(item.aggregated_output ?? "", opts.env?.STROM_SESSION)))
     )
       heard.denied.push(`Bash: ${shellUnwrapped(String(item.command ?? "")).slice(0, 120)}`);
     // its web search, once its item is done (counted after the fact: core/metrics.ts)
