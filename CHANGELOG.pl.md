@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.28.0
 
-*W przygotowaniu: bety do 1.28.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.28.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Jak działa Strom – w samym stromie: `strom doc`.** Dokumentacja aplikacji i badań po czesku, angielsku, niemiecku i
   polsku jest częścią stromu i czyta się ją także bez internetu: `strom doc` wypisuje rozdziały, `strom doc R10.1` jedną
@@ -27,6 +27,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 - **Tłumaczenie obok transkrypcji.** Wpis w innym języku lub piśmie niż język badań – łacina, kurrenta, niemiecki,
   cyrylica – otrzymuje obok dosłownej transkrypcji tłumaczenie na język badań.
+
+- **Gdzie pracuje agent – dla mapy aplikacji Strom.** Podczas pracy agenta strom podaje aplikacji, do którego miejsca
+  należy księga, którą agent bada – parafia lub wieś jej wpisów, nigdy archiwum – aby aplikacja mogła je pokazać na
+  mapie podczas śledzenia pracy. Gdy badania tego nie wiedzą, nic nie podają, a aplikacja pozostaje przy miejscach
+  osoby.
 
 - **DigiArchiv Archiwum Państwowego w Třeboniu:** jego warunki, tak jak potwierdziło je archiwum – ręcznie tylko wybrane
   skany, nigdy cała księga, żadnych narzędzi do pobierania – i jak cytować stały link do skanu.

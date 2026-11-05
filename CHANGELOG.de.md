@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.28.0
 
-*In Vorbereitung: die Betas bis 1.28.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.28.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wie Strom funktioniert gehört zu strom: `strom doc`.** Die Dokumentation der App und der Forschung auf Tschechisch,
   Englisch, Deutsch und Polnisch ist Teil von strom und liest sich auch ohne Internet: `strom doc` listet die Kapitel,
@@ -28,6 +28,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Eine Übersetzung neben der Abschrift.** Ein Eintrag in einer anderen Sprache oder Schrift als der der Forschung –
   Latein, Kurrent, Polnisch, Kyrillisch – bekommt neben der wörtlichen Abschrift eine Übersetzung in die Sprache der
   Forschung.
+
+- **Wo der Agent arbeitet, für die Karte der Strom-App.** Während ein Agent arbeitet, sagt strom der App, zu welchem
+  Ort das Buch gehört, das er untersucht – die Pfarrei oder das Dorf seiner Einträge, nie das Archiv –, damit die App
+  ihn beim Verfolgen der Arbeit auf der Karte zeigen kann. Weiß die Forschung es nicht, sagt sie nichts, und die App
+  bleibt bei den Orten der Person.
 
 - **DigiArchiv des Staatlichen Gebietsarchivs Třeboň:** seine Bedingungen, wie das Archiv sie bestätigt hat – von Hand
   nur ausgewählte Bilder, nie ein ganzes Buch, keine Download-Werkzeuge – und wie der dauerhafte Link eines Bildes

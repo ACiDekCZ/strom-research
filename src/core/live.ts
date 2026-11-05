@@ -12,7 +12,9 @@
 //                          Made once for a state of the research on a thread of its own (core/livestatus.ts) and
 //                          answered from it while the state lasts. ?parts=1 (feature status.parts): without the parts
 //                          that weigh (waiting; queue, queueMore, queueCounts; offLine; researches), with parts {name:
-//                          rev} instead — the same rev, the same part.
+//                          rev} instead — the same rev, the same part. Each of working (who is at work; the event
+//                          working too): the place record (L…) of the book the agent examines, when the research knows
+//                          it (place, core/workplace.ts; none: not known) — feature working.place.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -300,6 +302,7 @@
 
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
+import { placeOfWork } from "./workplace.ts";
 import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
 import os from "node:os";
@@ -1140,7 +1143,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1388,31 +1391,38 @@ export function whoAtWork(label: string, lang: string): string {
  * The person an agent works on, for the app to follow it in the tree: the first person its task is about (a marriage
  * names both, the one it asks about first), else the last one its session wrote about.
  */
-function workedOn(root: string, tree: Tree, s: Session, task: Task | undefined): { person?: string } {
+function workedOn(tree: Tree, ops: Op[], task: Task | undefined): { person?: string } {
   const known = (id: string) => /^P\d{1,7}$/.test(id) && tree.get(id) !== undefined;
   const first = (task?.subject ?? []).find(known);
   if (first) return { person: first };
-  let lines: string[] = [];
-  try {
-    lines = opsLogsOf(path.join(root, "data"), s.id).flatMap((file) => fs.readFileSync(file, "utf8").split("\n"));
-  } catch {
-    return {};
-  }
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let op: Op;
-    try {
-      op = JSON.parse(lines[i]!) as Op;
-    } catch {
-      continue; // empty, or a line being written
-    }
-    const person = (op.targets ?? []).findLast(known);
+  for (let i = ops.length - 1; i >= 0; i--) {
+    const person = (ops[i]!.targets ?? []).findLast(known);
     if (person) return { person };
   }
   return {};
 }
 
+/** What a session wrote, in its order (a line being written, or a log not readable: left out). */
+function sessionOps(root: string, s: Session): Op[] {
+  let lines: string[] = [];
+  try {
+    lines = opsLogsOf(path.join(root, "data"), s.id).flatMap((file) => fs.readFileSync(file, "utf8").split("\n"));
+  } catch {
+    return [];
+  }
+  const ops: Op[] = [];
+  for (const line of lines) {
+    try {
+      if (line.trim()) ops.push(JSON.parse(line) as Op);
+    } catch {
+      // a line being written
+    }
+  }
+  return ops;
+}
+
 /** Who is at work now, on which task (an agent strom started, and its open session). */
-function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; research?: string; paused?: Paused }[] {
+function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; place?: string; research?: string; paused?: Paused }[] {
   const open = openSessions(tree);
   let place: ((t: Task) => Placed) | undefined;
   return liveWorkers(root).map((w) => {
@@ -1424,10 +1434,16 @@ function working(root: string, tree: Tree, all: Scope[]): { who: string; since: 
       who: whoAtWork(w.label, tree.lang),
       since: w.since,
       ...(w.paused ? { paused: w.paused } : {}),
-      ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...workedOn(root, tree, s, task) } : {}),
+      ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...worked(tree, sessionOps(root, s), task) } : {}),
       ...(research ? { research } : {}),
     };
   });
+}
+
+/** The person and the place (L…, core/workplace.ts) an agent works on, from what its session wrote and its task. */
+function worked(tree: Tree, ops: Op[], task: Task | undefined): { person?: string; place?: string } {
+  const place = placeOfWork(tree, ops, task);
+  return { ...workedOn(tree, ops, task), ...(place ? { place } : {}) };
 }
 
 /** The direction a session worked on: its own, else its task's. */

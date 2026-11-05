@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.28.0
 
-*In preparation: the betas up to 1.28.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.28.0-beta.2. The section is complete with the release.*
 
 - **How Strom works comes with strom: `strom doc`.** The documentation of the app and the research, in Czech, English,
   German and Polish, is part of strom and reads offline: `strom doc` lists its chapters, `strom doc R10.1` shows one rule
@@ -26,6 +26,11 @@ The changes of each version in short. The full notes and the install lines are o
 
 - **A translation beside the transcript.** A record in another language or script than the research's – Latin, German
   Kurrent, Polish, Cyrillic – gets a translation into the research's language beside its word-for-word transcript.
+
+- **Where the agent works, for the map of the Strom app.** While an agent works, strom tells the app which place the
+  book it examines belongs to – the parish or village of its records, never the archive – so the app can show it on the
+  map when following the work. When the research does not know it, it says nothing, and the app keeps to the person's
+  own places.
 
 - **DigiArchiv of the regional archive in Třeboň:** its terms as the archive confirmed them – selected images saved by
   hand only, never a whole book, no download tools – and how to cite an image's permanent link.
