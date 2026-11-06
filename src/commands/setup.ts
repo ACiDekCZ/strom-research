@@ -519,7 +519,7 @@ function diagnoseInto(
   const only = tree && !ctx.archiveHere() ? timed("doctor.browser.archives", () => treeBrowserArchives(ctx.tree(), shared)) : [];
   if (only.length) {
     const names = only.map((a) => a.title ?? a.host).join(", ");
-    const s = browserState(ctx.env, chosen);
+    const s = browserState(ctx.env, chosen, rootHere(ctx));
     if (s.state === "agent-without-browser") add("browser", "warn", t("ui.doc.browser.archives.agent", { names, agent: PROFILES[chosen]?.name ?? chosen }), found.includes("claude") ? "strom agents use claude" : undefined);
     else if (s.state === "no-extension") add("browser", "warn", t("ui.doc.browser.archives.noext", { names }), CLAUDE_IN_CHROME_URL);
     else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
@@ -1116,7 +1116,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "stories.history": () => "yes",
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
-  "hypotheses.decide": () => "person",
+  "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,
   "excerpts.mb": (s, tree) => s.excerpts(tree).mb,
@@ -1217,11 +1217,13 @@ function layerChange(ctx: Context, key: string, value: string | number | undefin
 /** What only the user decides: their edits in the Strom app winning over records, sends written unasked, the agent deciding the hypotheses. */
 function syncDecisions(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
   if (key === "hypotheses.decide") {
+    // undefined is the default (the agent): storing agent where the person is set, or removing the person, lets the agent
+    // decide — the person's yes alone; agent stored where nothing is set changes nothing of who decides now, still the person's
     const { now, next } = layerChange(ctx, key, value, scope);
-    if (next === "agent" && now !== "agent")
+    if (next !== now && (next ?? "agent") === "agent" && now !== "agent")
       ctx.requireHuman(
         "Let the agent decide the hypotheses (the uncertain links between people) itself, once a cited record points to one variant?",
-        `strom config set hypotheses.decide agent${scope === "tree" ? " --for-tree" : ""}`,
+        next === undefined ? `strom config unset hypotheses.decide${scope === "tree" ? " --for-tree" : ""}` : `strom config set hypotheses.decide agent${scope === "tree" ? " --for-tree" : ""}`,
         "hypotheses.decide",
         ui(ctx.uiLang(), "ui.consent.hypotheses.agent"),
       );
@@ -1699,10 +1701,11 @@ register(
     description: [
       "A setting of choices takes one of its values:",
       ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
-      "hypotheses.decide: person (default) — the agent proposes a decision (strom hypothesis propose), the user decides it",
-      "in What waits; agent — the agent decides once a cited record points to one variant (strom hypothesis decide), never",
-      "changing the user's decision. Only the user sets agent (in their own terminal, or strom setup); person again at any",
-      "time: strom config set hypotheses.decide person (--for-tree: this tree only). strom config where shows each one.",
+      "hypotheses.decide: agent (default where nothing is set, a research of 1.28 or older too) — the agent decides once a",
+      "cited record points to one variant (strom hypothesis decide), never changing the user's decision; person — the agent",
+      "proposes a decision (strom hypothesis propose), the user decides it in What waits. Back to the person at any time:",
+      "strom config set hypotheses.decide person (--for-tree: this tree only); agent again only by the user (in their own",
+      "terminal, or strom setup — it recommends agent). strom config where shows each one.",
     ].join("\n"),
     options: [{ name: "for-tree", type: "boolean", description: "only for the current tree (saved in its strom.json)" }],
     examples: ["strom config set lang cs", 'strom config set shared "/Volumes/Big/strom-shared"', "strom config set model.vision opus --for-tree", "strom config set run.minutes 45", "strom config set hypotheses.decide person --for-tree"],

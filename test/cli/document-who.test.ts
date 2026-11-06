@@ -14,7 +14,8 @@ import { now, Tree } from "../../src/core/tree.ts";
 import { readersOf } from "../../src/core/review.ts";
 import { confirmedOn, transcriptMark } from "../../src/core/readers.ts";
 import { clipMark } from "../../src/core/excerpt.ts";
-import { compareWithSource } from "../../src/core/sourceread.ts";
+import { compareWithSource, joinedClips } from "../../src/core/sourceread.ts";
+import { parseDocReport } from "../../src/core/document.ts";
 import type { Source, Task } from "../../src/core/model.ts";
 
 // a reader that says who it read as, and writes the report it is given
@@ -190,4 +191,46 @@ test("K3.2: a new reading held against a transcript — any script, however comp
   const r = (x: string) => ({ entries: [{ transcript: x }] }) as never;
   assert.deepEqual(compareWithSource({ transcript: t }, r("Křest Vojtěcha Lhotáka".normalize("NFC"))), { agree: "same", variants: [] });
   assert.equal(compareWithSource({ transcript: "Войтех Лхотак" }, r("Войтех Лготак")).agree, "differ");
+});
+
+test("P3: words of the transcript outside the excerpt read (a heading above it, a word in its margin) are no place that differs", () => {
+  // a reader's report as it is written (a made-up entry): its excerpt begins below the page's heading
+  const read = parseDocReport(fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "readings", "document-excerpt-reader.md"), "utf8"));
+  assert.equal(read.entries.length, 1);
+  const report = { entries: read.entries.map((e) => ({ transcript: e.transcript })) } as never;
+  const clips = [{ media: "M0001", region: { x: 0.1, y: 0.5, w: 0.4, h: 0.2 } }];
+  const transcript = "Anno 1801. Mense Majo. Die 3. P. Petr Lhoták Capl. Pavel Lhoták honestus juvenis fil. def. Jan Lhoták rustici de Lhota, cum sua honesta sponsa Anna fil. Matěj Brůža villici ibidem. Testes Jan Lhota et Petr Lhota ambo de Lhota";
+  assert.deepEqual(compareWithSource({ transcript, clips }, report), { agree: "differ", variants: [{ at: "Brůža", other: "Brož[?]" }] });
+  // its heading alone apart: alike; the same words read from the whole image (no excerpt) still differ
+  const same = transcript.replace("Brůža", "Brož");
+  assert.deepEqual(compareWithSource({ transcript: same, clips }, report), { agree: "same", variants: [] });
+  assert.deepEqual(compareWithSource({ transcript: same }, report).variants, [{ at: "Anno 1801. Mense Majo.", other: "" }]);
+  // a word the reader has alone at the end (the next entry in the margin) is outside too; one missing inside counts
+  const r = (x: string) => ({ entries: [{ transcript: x }] }) as never;
+  assert.equal(compareWithSource({ transcript: "Křest Vojtěcha Lhotáka", clips }, r("Křest Vojtěcha Lhotáka Die")).agree, "same");
+  assert.deepEqual(compareWithSource({ transcript: "Křest Vojtěcha Lhotáka z Lhoty", clips }, r("Křest Lhotáka z Lhoty")).variants, [{ at: "Vojtěcha", other: "" }]);
+  // both sides at the edge differ: read, never outside
+  assert.deepEqual(compareWithSource({ transcript: "Войтех Лхотак", clips }, r("Войтех Лготак")).variants, [{ at: "Лхотак", other: "Лготак" }]);
+});
+
+test("P3: excerpts of one image that overlap or touch are read as one view; apart, or of other images, each its own", () => {
+  const two = joinedClips([
+    { media: "M0007", region: { x: 0.027, y: 0.727, w: 0.445, h: 0.145 } },
+    { media: "M0007", region: { x: 0.051, y: 0.771, w: 0.318, h: 0.168 } },
+  ]);
+  assert.equal(two.length, 1);
+  const [x, y, w, h] = two[0]!.region;
+  assert.ok(x <= 0.027 && y <= 0.727 && x + w >= 0.472 && y + h >= 0.939 && y + h <= 1, String(two[0]!.region));
+  // apart on the page, another image, and one that joins the first two only through a third: as they fall
+  const many = joinedClips([
+    { media: "M0001", region: { x: 0.1, y: 0.1, w: 0.3, h: 0.1 } },
+    { media: "M0001", region: { x: 0.1, y: 0.6, w: 0.3, h: 0.1 } },
+    { media: "M0002", region: { x: 0.1, y: 0.1, w: 0.3, h: 0.1 } },
+    { media: "M0001", region: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 } },
+  ]);
+  assert.deepEqual(many.map((v) => v.media), ["M0001", "M0002"]);
+  assert.deepEqual(joinedClips([
+    { media: "M0001", region: { x: 0.1, y: 0.1, w: 0.3, h: 0.1 } },
+    { media: "M0001", region: { x: 0.1, y: 0.6, w: 0.3, h: 0.1 } },
+  ]).length, 2);
 });

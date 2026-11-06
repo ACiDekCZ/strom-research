@@ -855,6 +855,11 @@ function partOf(r: Region | undefined, entry: Region | undefined): Region | unde
 
 /** The hunks where two transcripts differ, word by word (their keys; the marks [?] are no difference). */
 export function wordDiff(a: string, b: string): { at: string; other: string }[] {
+  return wordHunks(a, b).map(({ at, other }) => ({ at, other }));
+}
+
+/** As wordDiff, each place saying whether it lies at the start or the end of both texts (edge): nothing alike before it, or after it. */
+export function wordHunks(a: string, b: string): { at: string; other: string; edge: boolean }[] {
   // letters one reader spaced out joined as the other wrote the word
   const x = words(a, nameKeys(b));
   const y = words(b, nameKeys(a));
@@ -862,12 +867,12 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
   const m = y.length;
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i]![j] = x[i]!.key === y[j]!.key ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
-  const out: { at: string; other: string }[] = [];
+  const out: { at: string; other: string; edge: boolean }[] = [];
   let i = 0;
   let j = 0;
-  let hunk: { at: Word[]; other: Word[] } | undefined;
+  let hunk: { at: Word[]; other: Word[]; start: boolean } | undefined;
   const flush = () => {
-    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" ") });
+    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" "), edge: hunk.start || (i >= n && j >= m) });
     hunk = undefined;
   };
   while (i < n || j < m) {
@@ -876,9 +881,9 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
       i++;
       j++;
     } else if (j < m && (i >= n || lcs[i]![j + 1]! >= lcs[i + 1]![j]!)) {
-      (hunk ??= { at: [], other: [] }).other.push(y[j++]!);
+      (hunk ??= { at: [], other: [], start: i === 0 && j === 0 }).other.push(y[j++]!);
     } else {
-      (hunk ??= { at: [], other: [] }).at.push(x[i++]!);
+      (hunk ??= { at: [], other: [], start: i === 0 && j === 0 }).at.push(x[i++]!);
     }
   }
   flush();

@@ -997,6 +997,7 @@
   "ui.setup.hypotheses": "Kto rozstrzyga hipotezy – niepewne powiązania osób? Gdy rozstrzyga człowiek, agent tylko proponuje, a rozstrzygnięcie czeka w „Co czeka”; gdy rozstrzyga AI, agent rozstrzyga sam, gdy tylko cytowany zapis wskazuje na jeden wariant.",
   "ui.hypotheses.decide.person": "Rozstrzyga człowiek",
   "ui.hypotheses.decide.agent": "Rozstrzyga AI",
+  "ui.setup.hypotheses.recommended": "Zalecane: rozstrzyga AI – badanie toczy się dalej, a hipotezy nie czekają; każde jej rozstrzygnięcie jest oznaczone i można je zmienić.",
   "ui.setup.stories.yes": "Tak (zalecane)",
   "ui.setup.stories.no": "Nie – tylko drzewo i źródła",
   "ui.setup.stories.history": "Uwzględniać w opowieściach także historię miejsc – wydarzenia epoki w miejscowościach przodków, każde z jego źródłem, jako tło życia? Zatwierdzona opowieść pozostanie bez zmian; historia pojawi się dopiero w jej kolejnej wersji.",

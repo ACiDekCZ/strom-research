@@ -806,6 +806,7 @@ export const UI = {
   "ui.setup.hypotheses": "Who decides the hypotheses — the uncertain links between people? When the user decides, the agent only proposes and the decision waits in What waits; when the AI decides, the agent decides once a cited record points to one variant.",
   "ui.hypotheses.decide.person": "The user decides",
   "ui.hypotheses.decide.agent": "The AI decides",
+  "ui.setup.hypotheses.recommended": "Recommended: the AI decides – the research goes on without hypotheses waiting; each of its decisions is marked and can be changed.",
   "ui.setup.stories.yes": "Yes (recommended)",
   "ui.setup.stories.no": "No — just the family tree and its sources",
   "ui.setup.stories.history": "In the stories also the history of the places — the events of the time at the ancestors' places, each with its source, as the background of the life? An approved story stays as it is; the history comes only with its next version.",

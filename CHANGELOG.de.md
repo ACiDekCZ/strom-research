@@ -7,17 +7,20 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
-  von strom, die Forschungseinstellungen der Strom-App): *der Mensch entscheidet* (Standard, wie in 1.28) oder
-  *die KI entscheidet*. Entscheidet die KI, entscheidet der Agent eine Hypothese selbst, sobald ein zitierter Eintrag eine
+  von strom, die Forschungseinstellungen der Strom-App): *die KI entscheidet* oder *der Mensch entscheidet*.
+  Entscheidet die KI, entscheidet der Agent eine Hypothese selbst, sobald ein zitierter Eintrag eine
   Variante stützt, stets mit Variante und Begründung; die Entscheidung des Menschen ändert er nie, und einen Zweig von
   zehn oder mehr Personen außerhalb des Stammbaums verbindet er nur auf zwei Quellen ohne Einwand – sonst schlägt er
   vor. Jede seiner Entscheidungen ist als die des Agenten markiert, steht in der Übersicht der Änderungen und lässt
-  sich jederzeit ändern; ein Wechsel der Einstellung ändert nichts bereits Entschiedenes. Nur ein Mensch schaltet das
-  Entscheiden der KI ein.
+  sich jederzeit ändern; ein Wechsel der Einstellung ändert nichts bereits Entschiedenes. Wo nichts gewählt ist,
+  entscheidet die KI – auch in einer früher angelegten Forschung; zurück zum Entscheiden des Menschen:
+  `strom config set hypotheses.decide person`. Die Ersteinrichtung von strom empfiehlt das Entscheiden der KI und bietet
+  es zuerst an, *der Mensch entscheidet* wird dort gespeichert; entscheidet der Mensch, schaltet nur ein Mensch das
+  Entscheiden der KI wieder ein, mit einem zweiten Ja.
 
 - **Jede Hypothese lässt sich im Menü entscheiden.** „Was wartet“ bietet auch offene Hypothesen ohne Vorschlag des
   Agenten an – mit Variante und Begründung entscheiden oder offen lassen –, und eine entschiedene oder zurückgestellte
@@ -41,8 +44,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   abgeschaltet. Das Terminal der App erkennt strom unter jedem seiner Namen – den eines anderen Kanals, einer zweiten
   Installation, das Paket über einen Paketstarter, einen Pfad dorthin. Der Browser von Codex (in der App ChatGPT) hält
   dieselben Regeln anhand der Adressen in seinem Code ein, sobald die Hooks von strom in Codex bestätigt sind –
-  `strom doctor` und `strom chat` sagen, wann sie warten; Code ohne Adresse wird nie abgelehnt, nur verzeichnet. Computer
-  Use bleibt unüberwacht. Was strom bei welchem Agenten und welcher App überwacht: `strom doc R12`; ein Agent mit Computer
+  `strom doctor` und `strom chat` sagen, wann sie warten; Code ohne Adresse wird nie abgelehnt, nur verzeichnet. Mit
+  bestätigten Hooks lässt ein Archiv, das nur den Browser eines Menschen zulässt, mit der Erlaubnis „über den Browser“
+  auch den Browser von Codex zu, wie den Browser des Agenten in Chrome (`strom net web --check --browser`, `strom doctor`, die Unterlagen
+  des Agenten, die Strom-App); unbestätigt wie bisher. Computer Use bleibt unüberwacht. Was strom bei welchem Agenten und welcher App überwacht: `strom doc R12`; ein Agent mit Computer
   Use wird angewiesen, die Strom-App über die Seitenwerkzeuge eines Browsers zu bedienen und die Forschung über strom.
 
 - **Die App des Agenten ohne den Agenten im Terminal.** strom sagt jetzt, was geht und was nicht: Das Gespräch in der App geht weiter,
@@ -69,7 +74,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   erneut aus dem Original auf diesem Computer gelesen (`strom document read --source S… [--clip …]` oder aus der
   Strom-App), ohne dass die Leser die Abschrift sehen; die neue Lesung bleibt neben der Quelle, und wo sie abweicht,
   stellt eine Aufgabe beide gegenüber – die Abschrift, wer sie las, und die Bestätigung des Benutzers bleiben, wie sie
-  waren.
+  waren. Ausschnitte eines Bildes, die sich überlappen oder berühren, werden als eine Ansicht gelesen, und Wörter der
+  Abschrift außerhalb des gelesenen Ausschnitts (eine Kopfzeile der Seite darüber) zählen nicht als Abweichung. `strom
+  fixes` nimmt eine Lesung zweier Leser als die des ersten: ein blinder Leser mit einem anderen Modell ist nie ein
+  früheres Modell, mit dem erneut zu lesen wäre, und eine Lesung, von deren Lesern einer mit dem heutigen Modell las,
+  gilt als damit gelesen.
 
 - **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
   Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein

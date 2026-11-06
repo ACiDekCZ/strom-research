@@ -7,16 +7,19 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.4. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
-  *rozstrzyga człowiek* (domyślnie, jak w 1.28) lub *rozstrzyga AI*. Gdy rozstrzyga AI, agent sam rozstrzyga hipotezę, gdy
+  *rozstrzyga AI* lub *rozstrzyga człowiek*. Gdy rozstrzyga AI, agent sam rozstrzyga hipotezę, gdy
   tylko cytowany zapis potwierdzi jeden wariant, zawsze z wariantem i uzasadnieniem; decyzji użytkownika nigdy nie
   zmienia, a gałąź dziesięciu lub więcej osób spoza drzewa dołącza tylko na podstawie dwóch źródeł bez zastrzeżeń –
   w przeciwnym razie proponuje. Każda jego decyzja jest oznaczona jako decyzja agenta, pojawia się w przeglądzie zmian
-  i można ją w każdej chwili zmienić; zmiana ustawienia nie zmienia niczego już rozstrzygniętego. Rozstrzyganie przez
-  AI włącza tylko człowiek.
+  i można ją w każdej chwili zmienić; zmiana ustawienia nie zmienia niczego już rozstrzygniętego. Gdzie nic nie
+  wybrano, rozstrzyga AI – także w badaniu założonym wcześniej; powrót do rozstrzygania przez człowieka:
+  `strom config set hypotheses.decide person`. Konfiguracja początkowa stroma zaleca rozstrzyganie przez AI i proponuje
+  je jako pierwsze, wybrane tam *rozstrzyga człowiek* zostaje zapisane; gdy rozstrzyga człowiek, rozstrzyganie przez AI
+  włącza ponownie tylko człowiek, po drugim „tak”.
 
 - **Każdą hipotezę można rozstrzygnąć z menu.** „Co czeka“ oferuje także otwarte hipotezy bez propozycji agenta –
   rozstrzygnąć z wariantem i uzasadnieniem albo zostawić otwarte –, a hipotezę rozstrzygniętą lub odłożoną można
@@ -38,7 +41,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   aplikacji rozpoznaje strom pod każdą jego nazwą – innego kanału, drugiej instalacji, pakiet przez program
   uruchamiający pakiety, ścieżkę do niego. Przeglądarka Codexa (w aplikacji ChatGPT) trzyma się tych samych reguł według
   adresów w jej kodzie, gdy hooki stroma są potwierdzone w Codexie – `strom doctor` i `strom chat` mówią, kiedy czekają;
-  kod bez adresu nigdy nie jest odrzucany, tylko zapisywany. Computer use pozostaje niepilnowane. Co strom pilnuje u
+  kod bez adresu nigdy nie jest odrzucany, tylko zapisywany. Z potwierdzonymi hookami archiwum, które wpuszcza tylko
+  przeglądarkę człowieka, wpuszcza za zgodą „przez przeglądarkę” także przeglądarkę Codexa, tak jak przeglądarkę agenta w Chrome
+  (`strom net web --check --browser`, `strom doctor`, materiały agenta, aplikacja Strom); bez potwierdzenia bez zmian.
+  Computer use pozostaje niepilnowane. Co strom pilnuje u
   którego agenta i aplikacji: `strom doc R12`; agent z computer use dostaje polecenie obsługiwać aplikację Strom przez
   narzędzia strony w przeglądarce, a badania przez strom.
 
@@ -65,7 +71,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   terminalu, w pliku odczytu i w aplikacji Strom. Źródło czyta się ponownie z oryginału na tym komputerze (`strom
   document read --source S… [--clip …]` albo z aplikacji Strom), a czytelnicy nie widzą transkrypcji; nowy odczyt
   zostaje obok źródła, a gdzie się różni, zadanie zestawia oba brzmienia – transkrypcja, kto ją czytał, i potwierdzenie
-  użytkownika zostają bez zmian.
+  użytkownika zostają bez zmian. Wycinki jednego skanu, które się nakładają lub stykają, czyta się jako jeden widok, a
+  słowa transkrypcji spoza przeczytanego wycinka (nagłówek strony nad nim) nie liczą się jako różnica. `strom fixes`
+  traktuje odczyt dwóch czytelników jako odczyt pierwszego z nich: czytelnik na ślepo z innym modelem nigdy nie jest
+  wcześniejszym modelem, z którym czytać ponownie, a odczyt, którego któryś czytelnik czytał dzisiejszym modelem, liczy
+  się jako nim przeczytany.
 
 - **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
   hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w

@@ -72,8 +72,9 @@ export const CHROME_DENY = ["file_upload", "upload_image", "shortcuts_execute", 
 /**
  * Codex's browser and computer use: the MCP servers its desktop app (ChatGPT, Codex) adds — node_repl runs its in-app
  * browser and its Chrome extension, cua_repl (the plugin unified-computer-use) and computer-use its computer use. They
- * run JavaScript a hook could not read an address from, so strom keeps no watch before them and recommends none of
- * them; nothing of them is switched off in a research (the person's choice, Milan 5 November 2026) — only a run
+ * run JavaScript: strom's hook reads only the addresses node_repl's code names, and only once the person confirmed the
+ * tree's hooks in Codex (core/codexhook.ts, core/browserhelp.ts); computer use it neither watches nor recommends.
+ * Nothing of them is switched off in a research (the person's choice, Milan 5 November 2026) — only a run
  * without the person's add-ons (agent.addons off) goes without them, as without the rest (runners/codex.ts).
  */
 export const CODEX_BROWSER_SERVERS = ["node_repl", "cua_repl", "computer-use", "computer_use"];

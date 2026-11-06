@@ -471,9 +471,10 @@ export function headKey(head: string, aliases: Aliases, at?: string): string | u
 const DOC_ID = /D\d{14}-[0-9a-f]{4}/u;
 
 /** Of the readers here (readers.jsonl, this computer): the key each report and each document was read with, its crop. */
-function readerRecords(root: string, aliases: Aliases): { reports: Map<string, { key: string; crop?: string; at?: number }>; documents: Map<string, string> } {
+function readerRecords(root: string, aliases: Aliases): { reports: Map<string, { key: string; crop?: string; at?: number }>; documents: Map<string, Map<number, string>> } {
   const reports = new Map<string, { key: string; crop?: string; at?: number }>();
-  const documents = new Map<string, string>();
+  // of each document: the key each of its readers (1 the first, 2 the blind one) read with
+  const documents = new Map<string, Map<number, string>>();
   for (const r of readJournal(path.join(metricsDir(root), "readers.jsonl"))) {
     if (typeof r.reader !== "string" || typeof r.agent !== "string") continue;
     const at = typeof r.at === "string" ? r.at : undefined;
@@ -482,9 +483,13 @@ function readerRecords(root: string, aliases: Aliases): { reports: Map<string, {
       const t = at ? Date.parse(at) - (num(r.wallMs) ?? num(r.ms) ?? 0) : NaN;
       reports.set(r.reader.replace(/^read-/u, ""), { key, ...(typeof r.crop === "string" ? { crop: r.crop } : {}), ...(Number.isFinite(t) ? { at: t } : {}) });
     } else if (r.kind === "document") {
-      const id = DOC_ID.exec(r.reader)?.[0];
-      // the model the reader said beats the one asked: the newest reader of it
-      if (id && (!documents.has(id) || typeof r.reported === "string")) documents.set(id, key);
+      const m = DOC_ID.exec(r.reader);
+      if (!m) continue;
+      const n = Number(/^-(\d+)/u.exec(r.reader.slice(m.index + m[0].length))?.[1] ?? 1);
+      const of = documents.get(m[0]) ?? new Map<number, string>();
+      // the model the reader said beats the one asked: the newest record of that reader
+      if (!of.has(n) || typeof r.reported === "string") of.set(n, key);
+      documents.set(m[0], of);
     }
   }
   return { reports, documents };
@@ -732,9 +737,14 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
     const state = loadState(tree.root, d.id);
     const agent = r.agent ?? state?.agent;
     const model = r.model ?? state?.model;
-    const key = recs.documents.get(d.id) ?? (agent ? keyOf(calibrationKey(agent, model), undefined, aliases, r.at) : UNKNOWN_KEY);
+    // a reading of several readers is the first one's: a blind reader only checks it, never "an earlier model"
+    const blindN = new Set((state?.reports ?? []).filter((x) => x.blind).map((x) => x.n));
+    const readers = [...(recs.documents.get(d.id) ?? [])].sort((a, b) => a[0] - b[0]);
+    const lead = readers.find(([n]) => !blindN.has(n))?.[1];
+    const key = lead ?? (agent ? keyOf(calibrationKey(agent, model), undefined, aliases, r.at) : UNKNOWN_KEY);
     const t = Date.parse(r.at);
-    if (isNow(key)) {
+    // any reader of it read with the model now: read now already
+    if (isNow(key) || readers.some(([, k]) => isNow(k))) {
       noteNow(`doc|${pagesKey(r)}`, t);
       continue;
     }

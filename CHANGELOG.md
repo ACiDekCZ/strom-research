@@ -7,15 +7,18 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.4. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
-  the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the user decides*
-  (the default, as in 1.28) or *the AI decides*. With the AI deciding, the agent decides a hypothesis itself once a cited
+  the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
+  or *the user decides*. With the AI deciding, the agent decides a hypothesis itself once a cited
   record supports one variant, with the variant and its reason; it never overturns the user's own decision, and a branch
   of ten or more people off the tree it joins only on two sources with nothing against them – otherwise it proposes.
   Each of its decisions is marked as the agent's, listed among the changes and changeable at any time; switching the
-  setting changes no decision made. Only a person turns the AI's deciding on.
+  setting changes no decision made. Where nothing is chosen, the AI decides – in a research made before too; back to the
+  user deciding: `strom config set hypotheses.decide person`. strom's setup recommends the AI's deciding and offers it
+  first, *the user decides* chosen there is kept; once the user decides, only a person turns the AI's deciding on again,
+  with a second yes.
 
 - **Every hypothesis can be decided from the menu.** What waits offers also the open hypotheses without the agent's
   proposal – decided with a variant and a reason, or left open –, and a decided or set-aside hypothesis can be decided
@@ -37,7 +40,9 @@ The changes of each version in short. The full notes and the install lines are o
   terminal knows strom under any of its names – another channel's, a second installation's, the package through a
   package runner, a path to it. Codex's browser (in the ChatGPT app) keeps the same rules by the addresses its code names,
   once strom's hooks are confirmed in Codex – `strom doctor` and `strom chat` say when they wait; code naming no address
-  is never refused, only recorded. Computer use stays unwatched. What strom watches in each agent and app: `strom doc R12`;
+  is never refused, only recorded. With them confirmed, an archive that lets in only a person's browser opens to Codex's
+  browser too with the person's permission "through the browser", as to the agent's browser in Chrome (`strom net web --check
+  --browser`, `strom doctor`, the brief, the Strom app); unconfirmed, as before. Computer use stays unwatched. What strom watches in each agent and app: `strom doc R12`;
   an agent with computer use is told to drive the Strom app through a browser's page tools and the research through strom.
 
 - **The agent's desktop app without the agent in the terminal.** strom now says what goes and what does not: the conversation in the app
@@ -62,7 +67,10 @@ The changes of each version in short. The full notes and the install lines are o
   in the terminal, in the reading's file and in the Strom app. A source is read again from its original on this computer
   (`strom document read --source S… [--clip …]`, or from the Strom app), its readers never shown the transcript; the new
   reading is kept beside the source, and where it differs a task holds the two against each other – the transcript, who
-  read it and the user's confirmation stay as they were.
+  read it and the user's confirmation stay as they were. Excerpts of one image that overlap or touch are read as one
+  view, and words of the transcript outside the excerpt read (a heading of the page above it) count as no difference.
+  `strom fixes` takes a reading of two readers as its first reader's: a blind reader of another model is never an
+  earlier model to read again with, and a reading one of whose readers read with today's model counts as read with it.
 
 - **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
   hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a

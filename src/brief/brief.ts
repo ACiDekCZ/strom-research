@@ -900,15 +900,16 @@ function imagesByHand(tree: Tree, b: RecordSet, repo: Repository | undefined, sh
 
 /**
  * An archive only a person's browser goes to: what the session's agent's own browser may do there (spec 048 K5.1) —
- * Claude Code with Claude in Chrome page by page with the person's permission, any other agent never (nor its computer
- * use): the person saves the images by hand, and is told once what Claude in Chrome would do.
+ * Claude Code with Claude in Chrome page by page with the person's permission (Codex's browser too, its hooks confirmed
+ * in Codex for this tree), any other agent never (nor any computer use): the person saves the images by hand, and is
+ * told once what Claude in Chrome would do.
  */
 function browserLine(tree: Tree, b: RecordSet, repo: Repository | undefined, shared: string | undefined, agent: string, task: string | undefined): string {
   const url = [b.url, repo?.url].find((x) => !!x && URL.canParse(x));
   if (!url) return "";
   const net = shared ? path.join(shared, "net") : undefined;
   try {
-    const x = browserAdviceFor(tree.env, agent, archiveLevel(tree.env, { url, tree, readOnly: true, ...(net ? { net } : {}) }), task, b.id);
+    const x = browserAdviceFor(tree.env, agent, archiveLevel(tree.env, { url, tree, readOnly: true, ...(net ? { net } : {}) }), task, b.id, tree.root);
     return x ? `    your browser: ${x}` : "";
   } catch {
     return "";

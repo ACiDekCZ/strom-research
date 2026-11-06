@@ -997,6 +997,7 @@
   "ui.setup.hypotheses": "Wer entscheidet die Hypothesen – die unsicheren Verbindungen zwischen Personen? Entscheidet der Mensch, schlägt der Agent nur vor und die Entscheidung wartet unter „Was wartet“; entscheidet die KI, entscheidet der Agent selbst, sobald ein zitierter Eintrag auf eine Variante zeigt.",
   "ui.hypotheses.decide.person": "Der Mensch entscheidet",
   "ui.hypotheses.decide.agent": "Die KI entscheidet",
+  "ui.setup.hypotheses.recommended": "Empfohlen: Die KI entscheidet – die Forschung geht weiter, ohne dass Hypothesen warten; jede ihrer Entscheidungen ist gekennzeichnet und lässt sich ändern.",
   "ui.setup.stories.yes": "Ja (empfohlen)",
   "ui.setup.stories.no": "Nein – nur der Stammbaum und seine Quellen",
   "ui.setup.stories.history": "In den Geschichten auch die Geschichte der Orte – die Ereignisse der Zeit an den Orten der Vorfahren, jedes mit seiner Quelle, als Hintergrund des Lebens? Eine genehmigte Geschichte bleibt, wie sie ist; die Geschichte der Orte kommt erst mit ihrer nächsten Fassung.",

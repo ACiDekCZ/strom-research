@@ -1130,7 +1130,7 @@ register(
           `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; named otherwise, they are taken by their order when as many as asked for)`,
           "once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing; the user sees it in strom's menu (What waits) and the Strom app",
           // an archive only a person's browser goes to: what the agent's own browser would do there (spec 048 K5.2)
-          ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),
+          ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false, tree.root)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),
         ),
         data: { task: t, folder: dir },
       };

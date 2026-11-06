@@ -11,7 +11,7 @@ import type { Input, Media, Source, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { inputPath } from "./media.ts";
 import { clipMark, INPUT_MARK, withMargin } from "./excerpt.ts";
-import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, wordDiff, type ReadResult, type Region, type SourceRead } from "./document.ts";
+import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, wordHunks, type ReadResult, type Region, type SourceRead } from "./document.ts";
 import { create, update } from "./records.ts";
 import { phrase } from "./phrases.ts";
 
@@ -39,8 +39,8 @@ function sourceOk(s: Source | undefined): s is Source {
 }
 
 /**
- * The pages of a source's original on this computer (`clip`: one excerpt alone, by its mark): each clip of it on its
- * image (with an excerpt's margin), else its images whole, else the scan the person gave — at most a reading's pages.
+ * The pages of a source's original on this computer (`clip`: one excerpt alone, by its mark): its clips on their
+ * images (with an excerpt's margin, the clips of an image that meet as one view: joinedClips), else its images whole, else the scan the person gave — at most a reading's pages.
  * None here (an image not on this computer, a clip it has not): an empty list.
  */
 export function originalPages(tree: Tree, shared: string | undefined, s: Source, clip?: string): OriginalPage[] {
@@ -61,18 +61,50 @@ export function originalPages(tree: Tree, shared: string | undefined, s: Source,
   if (clip === INPUT_MARK) input();
   else if (clip) {
     const c = s.clips?.find((x) => clipMark(x) === clip);
-    if (c) {
-      const r = withMargin(c.region);
-      media(c.media, [r.x, r.y, r.w, r.h].map((n) => Math.round(n * 1000) / 1000) as Region);
-    }
-  } else if (s.clips?.length) {
-    for (const c of s.clips) {
-      const r = withMargin(c.region);
-      media(c.media, [r.x, r.y, r.w, r.h].map((n) => Math.round(n * 1000) / 1000) as Region);
-    }
-  } else if (s.media?.length) for (const m of s.media) media(m);
+    if (c) media(c.media, margined(c.region));
+  } else if (s.clips?.length) for (const c of joinedClips(s.clips)) media(c.media, c.region); else if (s.media?.length) for (const m of s.media) media(m);
   else input();
   return out.slice(0, DOC_PAGES);
+}
+
+/** A region with an excerpt's margin, its fractions to three places. */
+function margined(r: { x: number; y: number; w: number; h: number }): Region {
+  const m = withMargin(r);
+  return [m.x, m.y, m.w, m.h].map((n) => Math.round(n * 1000) / 1000) as Region;
+}
+
+/**
+ * The views of a source's excerpts for its readers: the excerpts of one image that overlap or touch (each with its
+ * margin) one view of all of them — one entry cut in parts is read as one, never as pages of its own; excerpts apart
+ * and other images each a view of its own, in the order of the excerpts.
+ */
+export function joinedClips(clips: { media: string; region: { x: number; y: number; w: number; h: number } }[]): { media: string; region: Region }[] {
+  const views: { media: string; box: Region }[] = [];
+  const meet = (a: Region, b: Region) => a[0] <= b[0] + b[2] && b[0] <= a[0] + a[2] && a[1] <= b[1] + b[3] && b[1] <= a[1] + a[3];
+  const join = (a: Region, b: Region): Region => {
+    const x = Math.min(a[0], b[0]);
+    const y = Math.min(a[1], b[1]);
+    return [x, y, Math.max(a[0] + a[2], b[0] + b[2]) - x, Math.max(a[1] + a[3], b[1] + b[3]) - y];
+  };
+  for (const c of clips) {
+    let box = margined(c.region);
+    // a view this one meets takes it in — and any other view of the image the larger one meets then
+    let at = views.findIndex((v) => v.media === c.media && meet(v.box, box));
+    if (at < 0) {
+      views.push({ media: c.media, box });
+      continue;
+    }
+    for (;;) {
+      box = join(views[at]!.box, box);
+      views[at]!.box = box;
+      const other = views.findIndex((v, k) => k !== at && v.media === c.media && meet(v.box, box));
+      if (other < 0) break;
+      box = join(views[other]!.box, box);
+      views.splice(other, 1);
+      if (other < at) at--;
+    }
+  }
+  return views.map((v) => ({ media: v.media, region: v.box.map((n) => Math.round(n * 1000) / 1000) as Region }));
 }
 
 /** Why a source (one excerpt of it) cannot be read again here, or none: it can. */
@@ -98,10 +130,17 @@ export function readsAgain(tree: Tree, shared: string | undefined, s: Source): b
   return sourceOk(s) && !!s.transcript?.trim() && originalPages(tree, shared, s).length > 0;
 }
 
-/** The new reading against the source's transcript (at: the transcript, other: the new reading): its words alike, or where they differ. */
-export function compareWithSource(s: Pick<Source, "transcript">, r: Pick<ReadResult, "entries">): { agree: "same" | "differ"; variants: { at: string; other: string }[] } {
+/**
+ * The new reading against the source's transcript (at: the transcript, other: the new reading): its words alike, or
+ * where they differ. Read from its excerpts, words one side has alone at the very start or end of both (a heading of
+ * the page above the excerpt, a word of the next entry in its margin) are outside what was read: no place that differs.
+ */
+export function compareWithSource(s: Pick<Source, "transcript" | "clips">, r: Pick<ReadResult, "entries">): { agree: "same" | "differ"; variants: { at: string; other: string }[] } {
   const read = r.entries.map((e) => e.transcript).join("\n");
-  const variants = wordDiff((s.transcript ?? "").normalize("NFC"), read.normalize("NFC"));
+  const clipped = !!s.clips?.length;
+  const variants = wordHunks((s.transcript ?? "").normalize("NFC"), read.normalize("NFC"))
+    .filter((v) => !(clipped && v.edge && (!v.at || !v.other)))
+    .map(({ at, other }) => ({ at, other }));
   return { agree: variants.length ? "differ" : "same", variants };
 }
 

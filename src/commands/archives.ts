@@ -402,9 +402,10 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
 export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, images?: string, pages = false): UsageError {
   const agent = detectAgent(ctx.env);
   // what the agent's own browser may do there (none for an agent whose browser strom does not keep)
-  const advice = browserAdviceFor(ctx.env, agent, a);
+  const root = ctx.hasTree() ? ctx.tree().root : undefined;
+  const advice = browserAdviceFor(ctx.env, agent, a, undefined, undefined, root);
   // the person's "through the browser" opens it to an agent's browser strom keeps — said to the person running it too
-  const browser = browserHelps(a) && (!agent || browserKept(agent));
+  const browser = browserHelps(a) && (!agent || browserKept(agent, root, ctx.env));
   const allow = `strom allow archive ${a.host} --way browser`;
   const manual = byHand(ctx, images);
   const kept = a.permission === "slow" ? ` — the person's permission "slowly" from before is kept as given, and takes no direct request there` : "";

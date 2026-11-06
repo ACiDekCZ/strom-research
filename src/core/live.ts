@@ -5585,7 +5585,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
 /** /status `browser`: the agent's browser here and the tree's archives only a person's browser goes to. */
 function browserStatus(tree: Tree, env: Env, agent: string | undefined, shared: string | undefined): Record<string, unknown> {
-  const s = browserState(env, agent);
+  const s = browserState(env, agent, tree.root);
   return {
     state: s.state,
     ...(s.url ? { url: s.url } : {}),

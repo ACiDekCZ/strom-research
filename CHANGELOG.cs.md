@@ -7,15 +7,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
-  *rozhoduje člověk* (výchozí, jako v 1.28) nebo *rozhoduje AI*. Když rozhoduje AI, agent hypotézu rozhodne sám, jakmile
+  *rozhoduje AI* nebo *rozhoduje člověk*. Když rozhoduje AI, agent hypotézu rozhodne sám, jakmile
   citovaný záznam podpoří jednu verzi, vždy s verzí a důvodem; rozhodnutí uživatele nikdy nemění a větev deseti a více
   lidí mimo strom připojí jen na dva prameny bez námitky – jinak navrhne. Každé jeho rozhodnutí je označené jako
   rozhodnutí agenta, objeví se v přehledu změn a dá se kdykoli změnit; přepnutí volby nemění nic už rozhodnutého.
-  Rozhodování AI zapíná jen člověk.
+  Kde nic zvoleno není, rozhoduje AI – i v dříve založeném výzkumu; zpět na rozhodování člověka:
+  `strom config set hypotheses.decide person`. Úvodní nastavení stromu doporučí rozhodování AI a nabídne ho jako první,
+  zvolené *rozhoduje člověk* se uloží; kde rozhoduje člověk, zapne rozhodování AI znovu jen člověk, po druhém ano.
 
 - **Každou hypotézu jde rozhodnout z menu.** Co čeká nabízí i otevřené hypotézy bez návrhu agenta – rozhodnout s verzí
   a důvodem, nebo nechat otevřenou –, a rozhodnutou či odloženou hypotézu jde rozhodnout znovu s důvodem, staré
@@ -36,7 +38,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   příkazovou řádku. Z aplikace se nic nevypíná. Terminál aplikace pozná strom pod jakýmkoli jménem – jiného kanálu,
   druhé instalace, balíček spuštěný přes spouštěč balíčků, cestu k němu. Prohlížeč Codexu (v aplikaci ChatGPT) drží stejná
   pravidla podle adres v jeho kódu, jakmile jsou hooky stromu v Codexu potvrzené – `strom doctor` a `strom chat` řeknou,
-  když čekají; kód bez adresy se nikdy neodmítne, jen zapíše. Computer use zůstává nehlídané. Co strom u kterého agenta
+  když čekají; kód bez adresy se nikdy neodmítne, jen zapíše. S potvrzenými hooky pustí archiv, který pouští jen
+  prohlížeč člověka, se svolením „přes prohlížeč“ i prohlížeč Codexu, stejně jako prohlížeč agenta v Chrome (`strom net web
+  --check --browser`, `strom doctor`, podklady agenta, aplikace Strom); bez potvrzení beze změny. Computer use zůstává
+  nehlídané. Co strom u kterého agenta
   a aplikace hlídá: `strom doc R12`; agent s computer use dostane pokyn ovládat aplikaci Strom přes nástroje stránky
   v prohlížeči a výzkum přes strom.
 
@@ -59,7 +64,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   volby čte podle nastavení výzkumu, nikdy levnějším modelem. Výsledek říká, kdo četl – v terminálu, v souboru čtení i v
   aplikaci Strom. Zdroj se přečte znovu z originálu na tomto počítači (`strom document read --source S… [--clip …]` nebo
   z aplikace Strom), čtenáři přepis nevidí; nové čtení zůstane vedle zdroje, a kde se liší, postaví úkol obě znění vedle
-  sebe – přepis, kdo ho četl, i potvrzení uživatele zůstanou, jak byly.
+  sebe – přepis, kdo ho četl, i potvrzení uživatele zůstanou, jak byly. Výřezy jednoho snímku, které se překrývají nebo
+  dotýkají, se čtou jako jeden pohled a slova přepisu mimo přečtený výřez (záhlaví strany nad ním) se za rozdíl
+  nepočítají. `strom fixes` bere čtení dvou čtenářů jako čtení prvního z nich: slepý čtenář s jiným modelem není nikdy
+  dřívější model, se kterým číst znovu, a čtení, jehož některý čtenář četl dnešním modelem, se počítá jako přečtené jím.
 
 - **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku

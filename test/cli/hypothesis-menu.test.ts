@@ -1,5 +1,5 @@
-// Who decides the hypotheses, for a person (spec 060): the setup asks it (a person at a terminal only), the menu's
-// settings change it (the agent deciding: on the person's second yes), What waits shows the open hypotheses with no
+// Who decides the hypotheses, for a person (spec 060): the AI where nothing is set (K1.9), the setup asks it (a person
+// at a terminal only), the menu's settings change it (the agent deciding where the person was: on the person's second yes), What waits shows the open hypotheses with no
 // proposal where the person decides them (left open: gone from it), one screen decides one, leaves it open or changes
 // its decision (the reason asked, an agent's decision said so) — from What waits, a person's review and the Strom app's
 // links (strom-research://hypothesis, strom-research://hypotheses). An archive says nothing of an agent.
@@ -48,6 +48,10 @@ test("What waits: the open hypotheses with no proposal where the person decides 
   try {
     const kinds = (o: { hypothesesOpen?: boolean }) => waitingFor(Tree.open(w.cwd, w.env), { hypotheses: true, ...o }).filter((x) => x.item.kind === "hypothesis").map((x) => x.item.id);
     assert.deepEqual(kinds({}), [], "without the person deciding them: only proposals");
+    // nothing set: the AI decides them — What waits shows none of the open ones
+    const item0 = itemOf((await w.ok([], { tty: true, answers: ["0"] })).out, "Co čeká");
+    assert.match((await w.ok([], { tty: true, answers: [item0!, "0"] })).out, /Nic nečeká\./u);
+    await w.ok(["config", "set", "hypotheses.decide", "person"]);
     assert.deepEqual(kinds({ hypothesesOpen: true }), ["H0001", "H0002"]);
     // a proposal comes first
     await w.ok(["hypothesis", "propose", "H2", "--variant", "A", "--decision", "křest S0001 v Lhotě"], AGENT);
@@ -130,7 +134,10 @@ test("the links: an unknown hypothesis said, nothing done; who decides them — 
   try {
     const none = await link(w, "hypothesis?tree=<id>&id=H9&do=decide", []);
     assert.match(none.out + none.err, /Hypotéza H9 v tomto výzkumu není\. Nic se nestalo\./u, none.out + none.err);
-    // the agent: asked, what it means said — no: nothing changed
+    // nothing set: the AI decides already
+    assert.match((await link(w, "hypotheses?tree=<id>&decide=agent", [])).out, /Hypotézy tohoto výzkumu už rozhoduje AI\. Nic se nezměnilo\./u);
+    await w.ok(["config", "set", "hypotheses.decide", "person"]);
+    // the person decides — the agent: asked, what it means said — no: nothing changed
     const no = await link(w, "hypotheses?tree=<id>&decide=agent", ["n"]);
     assert.match(no.out, /Aplikace Strom žádá: nechat hypotézy tohoto výzkumu rozhodovat AI/u, no.out);
     assert.match(no.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, no.out);
@@ -156,9 +163,14 @@ test("the links: an unknown hypothesis said, nothing done; who decides them — 
 test("the menu's settings: who decides the hypotheses — the agent only on the person's second yes, back to the person; nothing of it in an archive", opts, async () => {
   const w = await world();
   try {
+    // nothing set: the AI; the person chosen — no second question, this computer's
     const first = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    const n = itemOf(first.out, "Kdo rozhoduje hypotézy: Rozhoduje člověk");
+    const n = itemOf(first.out, "Kdo rozhoduje hypotézy: Rozhoduje AI");
     assert.ok(n, first.out);
+    const toPerson = await w.ok([], { tty: true, answers: ["8", "1", n, "1", "0", "0"] });
+    assert.match(toPerson.out, /^ {3}2 {2}Rozhoduje AI$\n {3}0 {2}[^\n]+\nVybrat \[2\]/mu, toPerson.out);
+    assert.equal(await decide(w), "person");
+    assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"))["hypotheses.decide"], "person", "this computer's");
     // the AI · the consent: no — nothing changed
     const no = await w.ok([], { tty: true, answers: ["8", "1", n, "2", "n", "0", "0"] });
     assert.match(no.out, /Kdo rozhoduje hypotézy – nejistá spojení lidí\?/u, no.out);
@@ -185,27 +197,41 @@ test("the menu's settings: who decides the hypotheses — the agent only on the 
   }
 });
 
-test("the setup asks who decides the hypotheses only a person at a terminal: no terminal or an agent — not asked, nothing written (the person decides)", opts, async () => {
+test("the setup asks who decides the hypotheses only a person at a terminal: no terminal or an agent — not asked, nothing written (the AI decides)", opts, async () => {
   const w = await world();
   try {
     const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
     // without a terminal: nothing asked, nothing written
     const quiet = await w.ok(["setup", "--yes"]);
     assert.doesNotMatch(quiet.out, /Kdo rozhoduje hypotézy/u);
-    assert.equal(await decide(w), "person");
+    assert.equal(await decide(w), "agent");
+    assert.equal(config()["hypotheses.decide"], undefined, "nothing written");
     const asAgent = await w.run(["setup"], { tty: true, answers: Array(12).fill(""), ...AGENT });
     assert.doesNotMatch(asAgent.out, /Kdo rozhoduje hypotézy/u, asAgent.out);
-    // a person: asked after the stories; Enter keeps the person
+    // a person: asked after the stories, nothing chosen yet — the AI recommended and offered (spec 060 K1.6), the
+    // default (K1.9): Enter takes it with no second yes
     const keep = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
-    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\n {3}1 {2}Rozhoduje člověk\n {3}2 {2}Rozhoduje AI\n {3}0 {2}[^\n]+\nVybrat \[1\]/u, keep.out);
+    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\nDoporučeno: rozhoduje AI – [^\n]+\n {3}1 {2}Rozhoduje člověk\n {3}2 {2}Rozhoduje AI \(doporučeno\)\n {3}0 {2}[^\n]+\nVybrat \[2\]/u, keep.out);
+    assert.doesNotMatch(keep.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, "no second yes");
     impersonal(keep.out);
+    assert.equal(await decide(w), "agent");
+    // the person chosen: written as chosen, offered first the next time
+    // language, folder, research, agent, model, effort, stories · the person · the rest kept
+    await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "1", "", "", "", "", "", ""] });
+    assert.equal(config()["hypotheses.decide"], "person");
+    const again = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
+    assert.match(again.out, /Rozhoduje AI \(doporučeno\)\n {3}0 {2}[^\n]+\nVybrat \[1\]/u, again.out);
     assert.equal(await decide(w), "person");
-    assert.equal(config()["hypotheses.decide"], undefined, "nothing written");
-    // the AI, with the second yes: this computer's
-    // language, folder, research, agent, model, effort, stories · the AI · yes · the rest kept
+    // the AI where the person was chosen: the second yes — no: the person stays
+    // language, folder, research, agent, model, effort, stories · the AI · no · the rest kept
+    const not = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "2", "n", "", "", "", "", "", ""] });
+    assert.match(not.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, not.out);
+    assert.equal(await decide(w), "person");
+    // yes: this computer's
     const ai = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "2", "a", "", "", "", "", "", ""] });
     assert.match(ai.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, ai.out);
     assert.equal(await decide(w), "agent");
+    assert.equal(config()["hypotheses.decide"], "agent");
   } finally {
     w.cleanup();
   }

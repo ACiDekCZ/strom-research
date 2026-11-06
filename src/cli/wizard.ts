@@ -196,20 +196,24 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     cfg.stories = (si ?? (cfg.stories === "no" ? 1 : 0)) === 1 ? "no" : "yes";
   }
 
-  // 5c. Who decides the hypotheses (the uncertain links between people): the person (default — the agent proposes) or
-  // the agent (on a cited record, its decisions marked and changeable). Only a person at a terminal answers it — asked
-  // nowhere else (no terminal, an agent running the setup: nothing written, the person decides); kept as this
-  // computer's, like the stories. The tree here with a value of its own (the Strom app set it for it): the person's
-  // answer takes its place.
+  // 5c. Who decides the hypotheses (the uncertain links between people): the person (the agent proposes) or the agent
+  // (on a cited record, its decisions marked and changeable) — the AI recommended, offered first where the person is not
+  // chosen (spec 060 K1.6), and the default where nothing is set (K1.9): Enter keeps it with no second yes; the second
+  // yes only where the person was chosen. Only a person at a terminal answers it — asked nowhere else (no terminal, an
+  // agent running the setup: nothing written, the default holds, K1.7); kept as this computer's, like the stories, the
+  // person's choice written as it is, so a setup run again offers it. The tree here with a value of its own (the Strom
+  // app set it for it): the person's answer takes its place.
   let ownHypotheses = false;
   if (agent && ctx.interactive && !isAgent(ctx.env)) {
     const tree = ctx.hasTree() ? ctx.tree().config : undefined;
     ownHypotheses = readStored(tree, "hypotheses.decide", agent) !== undefined;
-    const was = (ownHypotheses ? readStored(tree, "hypotheses.decide", agent) : readStored(cfg, "hypotheses.decide", agent)) === "agent" ? 1 : 0;
-    const hi = await ctx.choose(ui(lang, "ui.setup.hypotheses"), [{ label: ui(lang, "ui.hypotheses.decide.person") }, { label: ui(lang, "ui.hypotheses.decide.agent") }], was, keep);
-    // the agent deciding them anew: what it means, and the person's second yes (no: as it was)
+    const stored = ownHypotheses ? readStored(tree, "hypotheses.decide", agent) : readStored(cfg, "hypotheses.decide", agent);
+    const was = stored === "person" ? 0 : 1;
+    const ai = ui(lang, "ui.setup.model.recommended", { model: ui(lang, "ui.hypotheses.decide.agent") });
+    const hi = await ctx.choose(`${ui(lang, "ui.setup.hypotheses")}\n${ui(lang, "ui.setup.hypotheses.recommended")}`, [{ label: ui(lang, "ui.hypotheses.decide.person") }, { label: ai }], was, keep);
+    // the agent deciding them where the person decided: what it means, and the person's second yes (no: as it was)
     if (hi === undefined || (hi === 1 && was !== 1 && !(await ctx.confirm(ui(lang, "ui.consent.hypotheses.agent"), false)))) ownHypotheses = false;
-    else writeStored(cfg, "hypotheses.decide", agent, hi === 1 ? "agent" : undefined);
+    else writeStored(cfg, "hypotheses.decide", agent, hi === 1 ? "agent" : "person");
   }
 
   // 6. What the agent may do without asking (none here: nothing to ask).

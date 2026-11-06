@@ -1,5 +1,6 @@
 // The agent's browser at an archive only a person's browser goes to (spec 048 story 5, 4 November 2026): only Claude
-// Code's Claude in Chrome goes through strom's hook — any other agent's browser or computer use never, whatever the
+// Code's Claude in Chrome goes through strom's hook, and Codex's browser once the person confirmed strom's hooks of the
+// tree in Codex (spec 062) — any other agent's browser or computer use never, whatever the
 // person allowed: the person saves the images by hand, and is told once that with Claude Code and the extension the
 // agent would save them itself. Said by net web --check, strom fetch, task wait, the brief, strom doctor, strom's menu
 // and the bridge's /status (feature browser.state). Codex's own browser and computer use (its desktop app's MCP
@@ -14,7 +15,8 @@ import path from "node:path";
 import { World, fakeConnector, hasGit, pluginDir, readJsonFile } from "../helpers.ts";
 import { testHooks } from "../../src/core/net.ts";
 import { grantWay } from "../../src/core/terms.ts";
-import { browserState } from "../../src/core/browserhelp.ts";
+import { browserKept, browserState } from "../../src/core/browserhelp.ts";
+import { CODEX_HOOKS, codexHookHash, codexHooks } from "../../src/core/codexhook.ts";
 import { CLAUDE_IN_CHROME_URL } from "../../src/core/browser.ts";
 import { BRIDGE_FEATURES, status } from "../../src/core/live.ts";
 import { codexArgs, codexBrowserOff, CODEX_CLEAN } from "../../src/runners/codex.ts";
@@ -143,6 +145,50 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
       const desk = all.filter((c) => c.name === "desktop");
       assert.ok(desk.length === 1 && desk[0]!.status === "ok" && said.test(desk[0]!.detail), `${lang}: ${JSON.stringify(desk)}`);
     }
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("Codex's browser once the person confirmed strom's hooks of the tree in Codex: kept like Claude in Chrome — net web --check, the brief, strom doctor and /status; not confirmed, as before", opts, async () => {
+  const w = new World();
+  const tree = await mzaTree(w);
+  try {
+    const home = path.join(w.dir, "codex-home");
+    fs.mkdirSync(home, { recursive: true });
+    w.env.CODEX_HOME = home;
+    fs.mkdirSync(path.join(tree, ".codex"), { recursive: true });
+    fs.writeFileSync(path.join(tree, CODEX_HOOKS), JSON.stringify(codexHooks(tree), null, 2) + "\n");
+    const project = `[projects.${JSON.stringify(tree)}]\ntrust_level = "trusted"\n`;
+    const key = `${path.join(tree, CODEX_HOOKS)}:pre_tool_use:0:0`;
+    const config = (text: string) => fs.writeFileSync(path.join(home, "config.toml"), text);
+    grantWay(w.env, ["www.mza.cz"], "browser", { by: "terminal" });
+    // the folder trusted, the hooks not confirmed yet: Codex does not run them — as before
+    config(project);
+    assert.equal(browserKept("codex", tree, w.env), false);
+    assert.match((await check(w, BOOK, codex)).reason, /strom does not keep your browser or computer use/);
+    // confirmed as they are: through its browser at a person's pace
+    config(`${project}\n[hooks.state.${JSON.stringify(key)}]\ntrusted_hash = "${codexHookHash(tree)}"\n`);
+    assert.equal(browserKept("codex", tree, w.env), true);
+    assert.equal(browserKept("codex", undefined, w.env), false, "no tree: never kept");
+    assert.deepEqual(browserState(w.env, "codex", tree), { state: "ready" });
+    assert.equal(browserState(w.env, "codex").state, "agent-without-browser");
+    for (const a of ["grok", "opencode", "antigravity"]) assert.equal(browserKept(a, tree, w.env), false, a);
+    const k = await check(w, BOOK, { ...codex, STROM_TEST_HUMAN_PACE_MS: "1000" });
+    assert.deepEqual([k.allow, k.route], [true, "browser"]);
+    // its web fetch: never at such an archive (a person's browser only)
+    assert.equal((await check(w, BOOK, codex, false)).allow, false);
+    await w.ok(["config", "set", "agent", "codex"]);
+    const b = (await w.ok(["brief", "T1"])).out;
+    assert.match(b, /your browser: through your browser \(its address written out in your code, tab\.goto/);
+    assert.doesNotMatch(b, /Claude in Chrome|strom agents use claude/);
+    const d = ((await w.run(["doctor", "--json"], { env: { STROM_LANG: "en" } })).json.checks as { name: string; status: string; detail: string }[]).filter((c) => c.name === "browser");
+    assert.ok(d.some((c) => c.status === "ok" && /the agent saves the images itself through the browser/.test(c.detail)), JSON.stringify(d));
+    assert.equal((status(tree, w.env) as { browser: { state: string } }).browser.state, "ready");
+    // turned off by the person in Codex: not kept
+    config(`${project}\n[hooks.state.${JSON.stringify(key)}]\nenabled = false\n`);
+    assert.equal(browserKept("codex", tree, w.env), false);
+    assert.equal((status(tree, w.env) as { browser: { state: string } }).browser.state, "agent-without-browser");
   } finally {
     w.cleanup();
   }

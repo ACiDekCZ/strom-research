@@ -997,6 +997,7 @@
   "ui.setup.hypotheses": "Kdo rozhoduje hypotézy – nejistá spojení lidí? Když rozhoduje člověk, agent jen navrhne a rozhodnutí čeká v Co čeká; když rozhoduje AI, agent rozhodne sám, jakmile citovaný záznam ukazuje na jednu variantu.",
   "ui.hypotheses.decide.person": "Rozhoduje člověk",
   "ui.hypotheses.decide.agent": "Rozhoduje AI",
+  "ui.setup.hypotheses.recommended": "Doporučeno: rozhoduje AI – výzkum pokračuje, aniž by hypotézy čekaly; každé její rozhodnutí je označené a dá se změnit.",
   "ui.setup.stories.yes": "Ano (doporučeno)",
   "ui.setup.stories.no": "Ne – jen rodokmen a prameny",
   "ui.setup.stories.history": "Brát do vyprávění i dějiny míst – události doby v místech předků, každou s jejím zdrojem, jako pozadí života? Schválené vyprávění zůstane, jak je; dějiny přijdou až s jeho další verzí.",

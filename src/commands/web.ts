@@ -41,10 +41,11 @@ register({
     "person's permission, the robots.txt line, a refusal of strom's client, the host left alone — read only, nothing sent;\n" +
     "a digital library strom knows: its own search addresses too, to fetch as given (the words URL-encoded).\n" +
     "--check <url> --browser: the same for your browser (Claude in Chrome, another agent's browser): an archive only a\n" +
-    "person's browser goes to opens to Claude in Chrome within its level and the person's permission \"through the\n" +
-    "browser\", at a person's pace (about 10 s between pages unless the person set another, or its own slower one) —\n" +
-    "never of its own accord to another agent's browser or computer use (strom keeps no hook before them, recommends\n" +
-    "none; only the person's explicit request makes it the person's choice): the person saves its images.\n" +
+    "person's browser goes to opens to Claude in Chrome — and to Codex's browser once the person confirmed the tree's\n" +
+    "hooks in Codex — within its level and the person's permission \"through the browser\", at a person's pace (about\n" +
+    "10 s between pages unless the person set another, or its own slower one) — never of its own accord to another\n" +
+    "agent's browser or to computer use (strom keeps no hook before them, recommends none; only the person's explicit\n" +
+    "request makes it the person's choice): the person saves its images.\n" +
     "An agent without strom's hook (Codex, OpenCode, Antigravity) runs it before its own web fetch of an archive's site\n" +
     "and keeps to its answer.\n" +
     "Claude in Chrome: the same hook runs before its navigate — counted, paced and refused with the web fetches of the\n" +
@@ -162,7 +163,7 @@ function checkUrl(ctx: Context, url: string, browser = false) {
   // (Milan's decision, 4 November 2026); nothing is switched off: the person's explicit request is the person's choice
   // (5 November 2026, ON_REQUEST)
   const runner = detectAgent(ctx.env);
-  if (runner && !browserKept(runner) && g.level?.browserOnly && (g.allow || g.why === "browser")) {
+  if (runner && !browserKept(runner, tree?.root, ctx.env) && g.level?.browserOnly && (g.allow || g.why === "browser")) {
     const book = bookOn(tree, session?.task, g.host, u.href);
     const rest: WebGate = { ...g };
     delete rest.human;

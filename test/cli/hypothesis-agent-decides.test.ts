@@ -1,5 +1,6 @@
-// Who decides the hypotheses (hypotheses.decide, the person's setting; spec 060): by default the person — an agent
-// proposes. Set to "agent" (the person's yes: an agent asking is refused for the consent), the agent decides one itself
+// Who decides the hypotheses (hypotheses.decide, the person's setting; spec 060): where nothing is set the agent (K1.9);
+// "person" — an agent proposes, anyone may set it. "agent" again where the person is set (the person's yes: an agent
+// asking, or removing the person, is refused for the consent), the agent decides one itself
 // once a support of the variant cites a source; never a decision of the person's, never a big branch off the tree on one
 // source. The decision is marked as the agent's (decidedByAgent, decidedAt), recorded on the tree by the brief like the
 // person's, said in the change lines; the person deciding again takes the mark away. The bridge says the setting
@@ -59,11 +60,17 @@ const ops = (w: World): string =>
     .map((f) => fs.readFileSync(path.join(w.cwd, "data", "ops", f), "utf8"))
     .join("");
 
-test("hypotheses.decide: the person's by default; an agent turning it to agent is refused for the person's consent, the person sets it, back to person free to anyone", opts, async () => {
+test("hypotheses.decide: the agent's where nothing is set (a research of 1.28 too); the person set by anyone; an agent turning it back to agent is refused for the person's consent, the person sets it", opts, async () => {
   const w = await world();
   try {
+    // nothing set: the AI decides (K1.9), strom.json untouched
+    assert.equal((await w.ok(["config", "get", "hypotheses.decide"])).out.trim(), "agent");
+    assert.equal(readJsonFile(path.join(w.cwd, "strom.json")).settings?.["hypotheses.decide"], undefined);
+    assert.match((await w.ok(["config", "where"])).out, /hypotheses\.decide[^\n]*agent[^\n]*default/u);
+    // the person: anyone, at once
+    await w.ok(["config", "set", "hypotheses.decide", "person"], AGENT);
     assert.equal((await w.ok(["config", "get", "hypotheses.decide"])).out.trim(), "person");
-    // the default: the agent proposes, deciding refused as before (the catalog says when it may)
+    // the person decides: the agent proposes, deciding refused as before (the catalog says when it may)
     const r = await w.run(["hypothesis", "decide", "H2", "--decision", "S1 v Lhotě"], AGENT);
     assert.equal(r.code, 4, r.out + r.err);
     const cat = (await w.ok(["commands", "--json"])).json;
@@ -78,6 +85,10 @@ test("hypotheses.decide: the person's by default; an agent turning it to agent i
     }
     // a script without a terminal neither
     assert.equal((await w.run(["config", "set", "hypotheses.decide", "agent", "--for-tree"])).code, 4);
+    // removing the person's choice would let the agent decide: the person's consent too
+    const unset = await w.run(["config", "unset", "hypotheses.decide"], AGENT);
+    assert.equal(unset.code, 4, unset.out + unset.err);
+    assert.match(unset.out + unset.err, /strom config unset hypotheses\.decide/u);
     assert.equal((await w.ok(["config", "get", "hypotheses.decide"])).out.trim(), "person");
     // the person in the terminal
     await w.ok(["config", "set", "hypotheses.decide", "agent", "--for-tree"], { tty: true });
@@ -87,6 +98,9 @@ test("hypotheses.decide: the person's by default; an agent turning it to agent i
     await w.ok(["config", "set", "hypotheses.decide", "person", "--for-tree"], AGENT);
     assert.equal((await w.ok(["config", "get", "hypotheses.decide"])).out.trim(), "person");
     assert.equal((await w.run(["config", "set", "hypotheses.decide", "nobody", "--for-tree"], { tty: true })).code, 2);
+    // the tree's own value removed by the person: the user's person holds
+    await w.ok(["config", "unset", "hypotheses.decide", "--for-tree"], { tty: true });
+    assert.equal((await w.ok(["config", "get", "hypotheses.decide"])).out.trim(), "person");
   } finally {
     w.cleanup();
   }
@@ -221,7 +235,7 @@ test("--keep-open without a proposal: an open hypothesis left open by the person
   }
 });
 
-test("the agent's texts say the setting: the guide, the sheet, AGENTS.md — the person's by default", opts, async () => {
+test("the agent's texts say the setting: the guide, the sheet, AGENTS.md — the agent's where nothing is set", opts, async () => {
   assert.match(guideText(undefined, APP), /here: person\)\n {2}The user decides them: .*strom hypothesis propose/u);
   assert.match(guideText(undefined, APP, 1, "linux", false, "agent"), /here: agent\)\n {2}The user lets you decide them/u);
   const sheet = commandSheet("verify", { decides: true });
@@ -229,13 +243,17 @@ test("the agent's texts say the setting: the guide, the sheet, AGENTS.md — the
   assert.doesNotMatch(commandSheet("verify"), /hypothesis decide/u);
   const w = await world();
   try {
-    assert.match(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"), /A hypothesis is theirs to decide/u);
-    await w.ok(["config", "set", "hypotheses.decide", "agent", "--for-tree"], { tty: true });
+    assert.match(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"), /The user lets you decide the hypotheses/u);
     assert.match((await w.ok(["guide"])).out, /here: agent\)\n {2}The user lets you decide them/u);
+    await w.ok(["config", "set", "hypotheses.decide", "person", "--for-tree"]);
+    assert.match((await w.ok(["guide"])).out, /here: person\)\n {2}The user decides them/u);
+    await w.ok(["agents", "sync"]);
+    assert.match(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"), /A hypothesis is theirs to decide/u);
     // the help says both choices and how to change them; propose says the agent's mode
     const set = (await w.ok(["help", "config", "set"])).out;
     assert.match(set, /hypotheses\.decide {2}person \| agent/u);
     assert.match(set, /strom config set hypotheses\.decide person/u);
+    assert.match(set, /hypotheses\.decide: agent \(default where nothing is set/u);
     assert.match((await w.ok(["help", "hypothesis", "propose"])).out, /hypotheses\.decide agent.*\n?.*strom hypothesis decide/su);
   } finally {
     w.cleanup();
@@ -309,7 +327,12 @@ test("bridge: /status says who decides; POST /hypotheses sets the person at once
     const status = async () => (await ask(`${info.url}/status`)).body;
     const s = await status();
     assert.ok(s.features.includes("hypotheses.decide"));
-    assert.deepEqual(s.hypotheses, { decide: "person" });
+    // nothing set: the AI decides (K1.9); the person from the app at once
+    assert.deepEqual(s.hypotheses, { decide: "agent" });
+    const toPerson = await post(`${info.url}/hypotheses`, { decide: "person" });
+    assert.equal(toPerson.status, 200, JSON.stringify(toPerson.body));
+    assert.notEqual(toPerson.body.head, toPerson.body.parent);
+    assert.deepEqual((await status()).hypotheses, { decide: "person" });
     const url = `${info.url}/hypotheses`;
     for (const bad of [{}, { decide: "nobody" }, { decide: "agent", extra: 1 }, "x"]) {
       const r = await post(url, bad);

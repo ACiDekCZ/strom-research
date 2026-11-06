@@ -811,7 +811,7 @@ function browserWords(ctx: Context, t: ReturnType<typeof translator>, tree: Tree
   const a = bookBrowserArchive(tree, url, ctx.settings.shared()?.value);
   if (!a) return [];
   const agent = ctx.settings.agent(tree.config).value;
-  const note = personBrowserNote(ctx.env, agent, a);
+  const note = personBrowserNote(ctx.env, agent, a, tree.root);
   if (!note) return [];
   return [`    ${t(note.key, note.key === "ui.waiting.browser.agent" ? { agent: PROFILES[agent]?.name ?? agent } : note.params)}`];
 }
