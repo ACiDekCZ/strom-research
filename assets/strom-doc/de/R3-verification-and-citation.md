@@ -38,7 +38,7 @@ Schlussfolgerung aus allen Quellen der Angabe ist, nicht, wie gut eine einzelne 
 ### R3.1.1 Standardgrad und die Zitation, die ihn hebt
 
 - Eine ohne `--status` erfasste Angabe: ohne Zitation **Hinweis**; mit Zitation mindestens einer Quelle, die nicht
-  schwach ist ([R3.3](#R3.3)), **Wahrscheinlich**; sonst Hinweis.
+  schwach ist ([R3.3](#R3.3)), **Wahrscheinlich**; sonst Hinweis. Ab Forschung 1.28.0 ist auch ein Register schwach.
 - `strom cite` ohne `--status` hebt Hinweis auf Wahrscheinlich, wenn die neue Quelle nicht schwach ist. Einen anderen
   Grad ändert es nicht.
 - Eine Änderung des Grades über `strom event edit --status` braucht `--reason`; eine Zitation mit Grad
@@ -56,19 +56,21 @@ eines Grades: `event add`, `cite`, `event edit` und auch bei Angaben, die aus de
 - **Grenzen (prüft der Code),** in dieser Reihenfolge:
   1. Wahrscheinlich und Belegt brauchen mindestens eine Zitation.
   2. Mindestens eine Zitation muss aus einer Quelle stammen, die nicht schwach ist. Schwach sind ein Stammbaum
-     (`--kind family-tree`), eine Erinnerung (`--kind family-memory`) und ein verfasstes Werk (`--form authored`).
+     (`--kind family-tree`), eine Erinnerung (`--kind family-memory`), ein verfasstes Werk (`--form authored`) und ab
+     Forschung 1.28.0 ein Register (`--kind index`).
   3. Belegt braucht zusätzlich unter den Zitationen aus nicht schwachen Quellen mindestens eine mit
      Primärinformation (`--information primary`): ein Eintrag, zur Zeit des Ereignisses geschrieben von jemandem,
      der es wusste. Die Information bei der Zitation hat Vorrang vor der Information bei der Quelle.
 - **Nur Methodik:** der Code prüft nicht, dass die Quelle eine Originalquelle ist (`--form original`), dass der Agent
   sie selbst gelesen hat, dass der Eintrag die Angabe direkt nennt, und auch nicht die blinde zweite Lesung
-  ([R3.5](#R3.5)). Belegt geht darum auch bei einer Kopie oder einem Register mit Primärinformation durch.
+  ([R3.5](#R3.5)). Belegt geht darum auch bei einer Kopie mit Primärinformation durch (bei einem Register bis
+  Forschung 1.27.0 ebenfalls).
 - **Bedienung:** Terminal: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   Die Ablehnung nennt den Grund und was stattdessen geht (Hinweis lassen, `--status possible` oder
   `--status probable`).
 - **Gilt seit:** Forschung 1.0.0
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 Quelle: Form und Information
@@ -95,18 +97,21 @@ eines Grades: `event add`, `cite`, `event edit` und auch bei Angaben, die aus de
 Stammbaum, Erinnerung, Register, Katalog und Online-Stammbaum sagen, wo zu suchen ist. Sie sind kein Nachweis einer
 Angabe. Eine Angabe aus ihnen bleibt Hinweis, bis ein Eintrag sie belegt.
 
-- **Prüft der Code:** Stammbaum, Erinnerung und verfasstes Werk sind schwache Quellen: eine Angabe nur aus ihnen ist
-  nie Wahrscheinlich oder Belegt ([R3.2](#R3.2)). Ein übernommener Stammbaum:
-  [R11.3](R11-material-from-the-user.md#R11.3).
-- **Nur Methodik:** das Register. Der Code hält es nicht für schwach: mit seiner Zitation bekommt eine Angabe ohne
-  `--status` den Grad Wahrscheinlich, und mit `--information primary` geht auch Belegt durch. Die Methodik will das
-  Register nur zum Finden der Seite; der Eintrag wird im Kirchenbuch gelesen. Auch ein fehlender Eintrag im Register
-  ist nur ein Hinweis: eine ähnliche Form des Familiennamens ist ein Kandidat.
+- **Prüft der Code:** Stammbaum, Erinnerung, verfasstes Werk und Register (`--kind index`) sind schwache Quellen: eine
+  Angabe nur aus ihnen ist nie Wahrscheinlich oder Belegt ([R3.2](#R3.2)). Eine Angabe, die nur ein Register zitiert,
+  bleibt Hinweis, bis der Eintrag selbst gelesen und zitiert ist; mit der Zitation des Eintrags ist es eine Angabe des
+  Eintrags. Ein übernommener Stammbaum: [R11.3](R11-material-from-the-user.md#R11.3).
+- **Grenzen:** bei Änderungen aus der App zählt ein Register als Eintrag: die Änderung einer Angabe, die ein Register
+  belegt, wird zu einem Widerspruch ([R5.2](R5-conflicts.md#R5.2)), nichts wird stillschweigend überschrieben.
+- **Nur Methodik:** das Register dient nur zum Finden der Seite; der Eintrag wird im Kirchenbuch gelesen. Auch ein
+  fehlender Eintrag im Register ist nur ein Hinweis: eine ähnliche Form des Familiennamens ist ein Kandidat.
 - Unterlagen vom Benutzer (Urkunde, Foto, Brief, was der Benutzer sagt):
   [R11.2](R11-material-from-the-user.md#R11.2).
 - **Gilt seit:** Forschung 1.0.0
+- **Ab Forschung 1.28.0:** das Register prüft der Code als schwache Quelle (früher nur Methodik: mit seiner Zitation
+  bekam eine Angabe Wahrscheinlich, und mit `--information primary` ging auch Belegt durch).
 
-<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts:27 isWeak · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 -->
+<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts isWeak (kind index od v1.28.0), isCompiled (sync) · src/core/sync.ts isCompiled · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 · test/cli/index-weak.test.ts · commit 9685fcbe -->
 
 <a id="R3.4"></a>
 ## R3.4 Zitation: Ausschnitt und Abschrift
@@ -119,19 +124,24 @@ Seite sind mehrere Quellen.
   `--locator` (Folio, Seite, Nummer des Eintrags) und bei der Angabe `--quote`. In ein Feld (`--date`, `--house`,
   `--age`, Name) kommt nur, was sicher gelesen ist; Unsicheres kommt mit `[?]` in die Abschrift und in die Notiz der
   Angabe.
+- **Nur Methodik, ab Forschung 1.28.0:** ein Eintrag in einer anderen Sprache oder Schrift als der Sprache der
+  Forschung (Latein, Kurrent, Polnisch, Kyrillisch…) bekommt neben der wörtlichen Abschrift auch eine Übersetzung in
+  die Sprache der Forschung (`--translation`). Die Abschrift bleibt in der Sprache des Eintrags. Die App zeigt die
+  Übersetzung zugeklappt unter der Abschrift ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)).
 - **Prüft der Code:** höchstens 3 Ausschnitte je Quelle (der Eintrag und seine Fortsetzung über einen Seitenumbruch).
   Einen fehlenden Ausschnitt oder eine fehlende Abschrift lehnt der Code nicht ab, er erinnert nur bei einer Quelle
   auf einem Scan daran: nach `strom source add`, nach `strom source edit` mit Bild oder Ausschnitt und bei
   `strom task done` bei den Quellen, die die Aufgabe erfasst hat.
 - Ältere Quellen: den Ausschnitt ergänzt `strom clips`, die Abschrift `strom transcripts` (Leser, ein zweiter Blick
   prüft sie).
-- **Bedienung:** Terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --locator "…"`.
+- **Bedienung:** Terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --translation
+  @notes/preklad.txt --locator "…"`; Ergänzung `strom source edit S… --translation "…"`.
   Die App zeigt den Ausschnitt des Eintrags neben der Abschrift.
 - **Gilt seit:** Forschung 1.1.0 (Ausschnitt, `strom clips`, `strom transcripts`); Abschrift 1.0.0
 - **Ab Forschung 1.26.0:** die Hilfe der Option `--clip` sagt „ein weiterer bei jedem Seitenumbruch, höchstens 3“ (in 1.25.2
   „ein zweiter“). Die Regel ändert sich nicht.
 
-<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b -->
+<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
 <a id="R3.5"></a>
 ## R3.5 Blinde zweite Lesung
@@ -303,6 +313,16 @@ Eine Erzählung wird aus den Angaben für die Familie geschrieben. Was nicht bel
     Sprache der Forschung;
   - Format des Textes: nur Absätze, Zwischenüberschriften, Aufzählungspunkte, Fettdruck und Kursivschrift. Anderes
     (Links, Tabellen, Zitate, nummerierte Listen) zeigt die App nach der Methodik als einfachen Text.
+- **Warum:**
+  - nichts wird hinzugedacht: eine Erzählung ist für die Familie und stützt sich auf Belege. Was wahrscheinlich
+    klänge, aber nicht belegt ist, würde in der Familie bald als Tatsache gelten;
+  - Hintergrund: er ist für den Ort belegt, nicht für die Person; als Ursache dessen, was die Person tat, wäre er eine
+    als Tatsache ausgegebene Vermutung. Die Erzählung nennt die Quelle des Hintergrunds (`--source`), damit sie sich
+    prüfen lässt;
+  - Erzählung eines Paares: das gemeinsame Leben wird einmal erzählt, beim Paar, damit dasselbe Leben nicht zweimal
+    erzählt wird und die Fassungen nicht auseinandergehen;
+  - Format: die Strom-App zeigt nur Absätze, Zwischenüberschriften, Aufzählungspunkte, Fettdruck und Kursivschrift;
+    alles andere sähen die Lesenden als einfachen Text mit Zeichen.
 - Freigabe und neue Fassung einer freigegebenen Erzählung: [R6.3.2](R6-awaiting-action.md#R6.3.2).
 - **Bedienung:** Terminal: `strom story set P… --text @notes/… --fact E… --source S… --note "co je odvozené"`
   (Erzählung eines Paares bei der Familie F…).

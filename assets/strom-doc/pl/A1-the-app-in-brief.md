@@ -2,7 +2,7 @@
 # A1 Aplikacja w skrócie
 
 Jak aplikacja Strom działa jako całość, na jednej stronie. Każda sekcja prowadzi do rozdziału z dokładnymi zasadami.
-Opisuje aplikację Strom 3.21.2 i badanie 1.25.2.
+Opisuje aplikację Strom 3.21.2 i badanie 1.25.2; zmiany z nowszej wersji mają przy sobie jej numer.
 
 <a id="A1.1"></a>
 ## A1.1 Drzewo genealogiczne w przeglądarce, dane na urządzeniu
@@ -62,3 +62,26 @@ pracę i to, co badanie wie o osobach, a zmiany wysyła z powrotem do badania ([
 - Połączenie: [S1](S1-connecting-app-and-research.md). Zmiany z aplikacji: [S2](S2-edits-from-the-app.md).
   Co wie badanie: [S3](S3-what-the-research-knows.md). Badanie sterowane z aplikacji:
   [S4](S4-research-from-the-app.md). Telefon: [S5](S5-phone.md).
+
+<a id="A1.7"></a>
+## A1.7 Jak działa Strom w aplikacji
+
+Ta dokumentacja jest dołączona do aplikacji i czyta się ją także bez internetu. Okno **Jak działa Strom** ma spis
+treści części A, R i S, **Słowniczek pojęć** i wyszukiwanie według słowa lub numeru zasady.
+
+- **Granice:**
+  - otwarcie okna niczego nie wysyła i niczego nie wczytuje z sieci;
+  - numer zasady i Enter przechodzą prosto do zasady (`R4.3`); nieznany numer pokazuje spis treści;
+  - odnośniki między zasadami mają **Wstecz**; **W sieci** otwiera tę samą zasadę na stromapp.info;
+  - zasada nowsza niż połączone badanie mówi o tym („Badania połączone z tym drzewem mają wersję …, to obowiązuje
+    od …”).
+- **Obsługa:** aplikacja: **Akcje → Jak działa Strom**, na telefonie **Więcej → Jak działa Strom** albo **O aplikacji
+  → Jak działa Strom**. Kółko **?** w nagłówku otwiera pomoc od razu przy zasadzie: w Przeglądzie badania i małym
+  panelu przy sekcjach **Kolejka** ([R2.4](R2-lines-and-queue.md#R2.4)), **Czeka na decyzję** ([R6.4](R6-awaiting-action.md#R6.4))
+  i **Teraz** ([R7](R7-when-the-agent-works.md), przy wstrzymaniu [R7.6](R7-when-the-agent-works.md#R7.6)), w oknie **Miejsca** ([R4.5](R4-places.md#R4.5)), w menedżerze miejsc
+  ([R4.4](R4-places.md#R4.4)), w panelu sprzeczności ([R5.3](R5-conflicts.md#R5.3)) i w **Co wie badanie → Sprzeczności**
+  ([R5.6](R5-conflicts.md#R5.6)). W oknie jest też **Przewodnik po aplikacji**. W badaniu: `strom doc`
+  ([R1.8](R1-research-in-brief.md#R1.8)).
+- **Obowiązuje od:** aplikacja 3.24.0
+
+<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics; tour.menu · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->

@@ -25,10 +25,19 @@
 // never to an archive only a person's browser goes to (core/browserhelp.ts; checked 4 November 2026: none of them has a
 // hook before its browser strom could read an address from).
 // The hook never stands in the way by itself: anything wrong lets the call go.
+//
+// The built-in browser of Claude's desktop app (its browser pane: mcp__Claude_Browser__*, mcp__remote-devices__…) is
+// kept the same way (seen 6 November 2026, the app 2.1.317 runs the tree's hooks before its tools): navigate,
+// preview_start and tabs_create go to an address (tool_input.url) and are answered as navigate; its page tools by the
+// host of their tab (tool_input.tabId — a word like "seed", none: the active one). preview_start opens a new tab and says
+// its tabId only after it ran: the hook after it keeps the tab under that id, and the tabs its answer lists (its "Tab
+// Context": each tab with its address) by their address now. Its tabs are kept apart from Chrome's (their own key: the
+// same tabId never stands for both). An address of this computer (localhost, 127.0.0.1) is nothing of an archive's: let
+// go uncounted — the bridge refused first, as everywhere.
 
 import fs from "node:fs";
 import path from "node:path";
-import { CHROME_NAVIGATE, CHROME_PAGE_TOOLS, CHROME_TOOL_PREFIX } from "./browser.ts";
+import { APP_BROWSER_NAVIGATE, APP_BROWSER_PAGE_TOOLS, APP_BROWSER_PREFIXES, CHROME_NAVIGATE, CHROME_PAGE_TOOLS, CHROME_TOOL_PREFIX } from "./browser.ts";
 import { bridgeMarks, bridgeRefusal, reachesBridge } from "./bridgeguard.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { metricsDir, webHost } from "./metrics.ts";
@@ -40,13 +49,19 @@ import { answerWebEvent, type WebAnswer, type WebEvent } from "./web.ts";
 import { browserGate } from "./webgate.ts";
 import type { Env } from "./paths.ts";
 
-/** One call of a tool of Claude in Chrome as Claude Code's hook gives it. */
+/** One call of a tool of Claude in Chrome (or of the desktop app's built-in browser) as Claude Code's hook gives it. */
 export interface ChromeEvent {
   /** The tool's full name (mcp__claude-in-chrome__navigate). */
   tool: string;
   /** Its own name (navigate, computer, …). */
   name: string;
+  /** The built-in browser of Claude's desktop app (mcp__Claude_Browser__…), not Claude in Chrome. */
+  app?: true;
   tab?: string;
+  /** After a call of the built-in browser: the tab it ran in or opened (its answer's tabId). */
+  opened?: string;
+  /** After a call of the built-in browser: the tabs its answer lists, each with its address now. */
+  tabs?: { tab: string; url: string }[];
   /** navigate: the address as given (back, forward too). */
   url?: string;
   /** javascript_tool: its script. */
@@ -71,14 +86,22 @@ export function chromeEvent(text: string): ChromeEvent | undefined {
     return undefined;
   }
   const tool = str(j.tool_name);
-  if (!tool?.startsWith(CHROME_TOOL_PREFIX)) return undefined;
-  const name = tool.slice(CHROME_TOOL_PREFIX.length);
-  if (tool !== CHROME_NAVIGATE && !(CHROME_PAGE_TOOLS as readonly string[]).includes(name)) return undefined;
+  if (!tool) return undefined;
+  const appPrefix = APP_BROWSER_PREFIXES.find((p) => tool.startsWith(p));
+  let name: string;
+  if (tool.startsWith(CHROME_TOOL_PREFIX)) {
+    name = tool.slice(CHROME_TOOL_PREFIX.length);
+    if (tool !== CHROME_NAVIGATE && !(CHROME_PAGE_TOOLS as readonly string[]).includes(name)) return undefined;
+  } else if (appPrefix) {
+    name = tool.slice(appPrefix.length);
+    if (!(APP_BROWSER_NAVIGATE as readonly string[]).includes(name) && !(APP_BROWSER_PAGE_TOOLS as readonly string[]).includes(name)) return undefined;
+  } else return undefined;
   const input = (j.tool_input ?? {}) as Record<string, unknown>;
-  const ev: ChromeEvent = { tool, name };
-  const tab = input.tabId;
-  if ((typeof tab === "number" && Number.isFinite(tab)) || (typeof tab === "string" && /^\d+$/.test(tab))) ev.tab = String(tab);
-  if (name === "navigate") {
+  const ev: ChromeEvent = { tool, name, ...(appPrefix ? { app: true as const } : {}) };
+  const tab = appTab(input.tabId);
+  // Claude in Chrome's tabs are numbers; the built-in browser's words ("seed")
+  if (tab && (appPrefix || /^\d+$/.test(tab))) ev.tab = tab;
+  if (isNavigate(ev)) {
     const url = str(input.url);
     if (!url) return undefined;
     ev.url = url;
@@ -100,7 +123,57 @@ export function chromeEvent(text: string): ChromeEvent | undefined {
   if (use) ev.toolUse = use;
   const cwd = str(j.cwd);
   if (cwd) ev.cwd = cwd;
+  // after a call of the built-in browser: the tab it opened or ran in, and the tabs it lists with their addresses
+  if (appPrefix && ev.phase === "post") {
+    const said = responseText(j.tool_response);
+    const opened = /"tabId"\s*:\s*(?:"([^"\\]{1,80})"|(\d{1,15}))/u.exec(said) ?? /Executed on tabId:\s*([^\s,;]{1,80})/u.exec(said);
+    const id = appTab(opened?.[1] ?? opened?.[2]);
+    if (id) ev.opened = id;
+    const tabs: { tab: string; url: string }[] = [];
+    for (const m of said.matchAll(/^[ \t]*[•*-][ \t]*tabId[ \t]+([^\s:]{1,80}):.*\("([^"\s]+)"\)[ \t]*$/gmu)) {
+      const t = appTab(m[1]);
+      if (t) tabs.push({ tab: t, url: m[2]! });
+    }
+    if (tabs.length) ev.tabs = tabs;
+  }
   return ev;
+}
+
+/** A call that goes to an address: Claude in Chrome's navigate; the built-in browser's navigate, preview_start, tabs_create. */
+export function isNavigate(ev: Pick<ChromeEvent, "name" | "app">): boolean {
+  return ev.name === "navigate" || (!!ev.app && (APP_BROWSER_NAVIGATE as readonly string[]).includes(ev.name));
+}
+
+/** A tab's id as a tool gives it: a number, or a word of the built-in browser's ("seed"); else nothing. */
+function appTab(v: unknown): string | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v !== "string") return undefined;
+  const t = v.trim();
+  return /^[\p{L}\p{N}_.:-]{1,80}$/u.test(t) ? t : undefined;
+}
+
+/** The text of a tool's answer as the hook after it gives it (a list of text parts, a string, an object of them). */
+function responseText(r: unknown, depth = 0): string {
+  if (depth > 3 || r === undefined || r === null) return "";
+  if (typeof r === "string") return r;
+  if (Array.isArray(r)) return r.map((x) => responseText(x, depth + 1)).join("\n");
+  if (typeof r === "object") {
+    const o = r as Record<string, unknown>;
+    if (typeof o.text === "string") return o.text;
+    if (o.content !== undefined) return responseText(o.content, depth + 1);
+    try {
+      return JSON.stringify(o);
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
+/** An address of this computer: nothing of an archive's (the bridge is refused before this). */
+function loopbackHost(host: string): boolean {
+  const h = host.replace(/^\[|\]$/g, "").toLowerCase();
+  return h === "localhost" || h.endsWith(".localhost") || /^127\./.test(h) || h === "::1" || h === "0.0.0.0" || /^::ffff:127\./.test(h);
 }
 
 /** The browser's tabs as the hook last let them go: the agent's session and tab → the address and its host. */
@@ -116,7 +189,8 @@ const TAB_KEEP_MS = 24 * 3600_000;
 /** At most this many tabs kept (the newest). */
 const TABS_MAX = 200;
 
-const tabKey = (ev: ChromeEvent, tab = ev.tab) => `${ev.agentSession ?? "-"}#${tab ?? "?"}`;
+/** A tab's key: the agent's session and the tab — the built-in browser's apart from Chrome's (the same id never both). */
+const tabKey = (ev: ChromeEvent, tab = ev.tab) => `${ev.agentSession ?? "-"}#${ev.app ? "app:" : ""}${tab ?? "?"}`;
 
 function readTabs(root: string): Record<string, TabNote> {
   try {
@@ -136,9 +210,21 @@ export function tabOf(root: string, ev: ChromeEvent): TabNote | undefined {
 
 /** Keep the tab's address (written whole, atomically; old tabs forgotten). */
 function keepTab(root: string, ev: ChromeEvent, url: string, host: string, now: number): void {
+  keepTabs(root, ev, [{ url, host }], now);
+}
+
+/**
+ * Keep the addresses of tabs (each its own tab, else the event's): one of no host strom keeps (this computer's, a page of
+ * the browser itself) forgets what the tab showed before — its page tools go by nothing known against them.
+ */
+function keepTabs(root: string, ev: ChromeEvent, notes: { tab?: string; url: string; host?: string }[], now: number): void {
   if (!fs.existsSync(path.join(root, ".strom"))) return;
   const tabs = readTabs(root);
-  tabs[tabKey(ev)] = { url, host, at: now };
+  for (const n of notes) {
+    const key = tabKey(ev, n.tab ?? ev.tab);
+    if (n.host) tabs[key] = { url: n.url, host: n.host, at: now };
+    else delete tabs[key];
+  }
   const kept = Object.entries(tabs)
     .filter(([, n]) => typeof n?.at === "number" && now - n.at < TAB_KEEP_MS)
     .sort((a, b) => b[1].at - a[1].at)
@@ -151,15 +237,48 @@ export function navigateUrl(given: string): string {
   return /^[\p{L}][\p{L}\p{N}+.-]*:/u.test(given) && !/^[^/:]+:\d+(?:[/?#]|$)/u.test(given) ? given : `https://${given}`;
 }
 
+/** The host a tab's address keeps (core/net.ts: no port), else nothing: a page of the browser itself, a file, this computer. */
+function keptHost(url: string): string | undefined {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol) || !u.hostname || loopbackHost(u.hostname)) return undefined;
+    return webHost(url) ? u.hostname.toLowerCase().replace(/\.$/, "") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * The hook's work for one call of Claude in Chrome: navigate as a web fetch on the browser's route, a page tool kept
- * off a host strom must leave alone. Throws on anything unexpected (the command lets the call go then).
+ * After a call of the built-in browser: the tab it opened (preview_start says its tabId only now) at the address it went
+ * to, and every tab its answer lists at its address now (a click that led elsewhere too).
+ */
+function noteAppTabs(root: string, ev: ChromeEvent, now: number): void {
+  const notes: { tab: string; url: string; host?: string }[] = [];
+  if (ev.opened && isNavigate(ev) && ev.url && !/^(back|forward)$/i.test(ev.url)) {
+    const url = navigateUrl(ev.url);
+    notes.push({ tab: ev.opened, url, ...(keptHost(url) ? { host: keptHost(url)! } : {}) });
+  }
+  for (const t of ev.tabs ?? []) notes.push({ tab: t.tab, url: t.url, ...(keptHost(t.url) ? { host: keptHost(t.url)! } : {}) });
+  if (notes.length) keepTabs(root, ev, notes, now);
+}
+
+/**
+ * The hook's work for one call of Claude in Chrome (or of the desktop app's built-in browser): navigate as a web fetch on
+ * the browser's route, a page tool kept off a host strom must leave alone. Throws on anything unexpected (the command
+ * lets the call go then).
  */
 export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: string; now?: () => number; sleep?: (ms: number) => Promise<void> }): Promise<WebAnswer> {
   const root = findTreeUpwards(ev.cwd && path.isAbsolute(ev.cwd) ? ev.cwd : o.cwd);
   if (!root) return {};
   const now = o.now ?? Date.now;
-  if (ev.name === "navigate") {
+  if (ev.app && ev.phase === "post") {
+    try {
+      noteAppTabs(root, ev, now());
+    } catch {
+      // the tabs not kept: their page tools go by nothing known against them
+    }
+  }
+  if (isNavigate(ev)) {
     const given = ev.url!;
     let url: string;
     if (/^(back|forward)$/i.test(given)) {
@@ -182,6 +301,8 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
     }
     // a page of this computer's browser itself (chrome://, about:) or a file: nothing of an archive's
     if (!/^https?:$/.test(u.protocol) || !u.hostname) return {};
+    // the built-in browser at a page of this computer (a preview of the agent's own): nothing of an archive's
+    if (ev.app && loopbackHost(u.hostname)) return {};
     const host = webHost(url);
     if (!host) return {};
     const web: WebEvent = {

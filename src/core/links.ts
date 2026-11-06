@@ -58,12 +58,14 @@ function handlerName(env: Env): string {
  * looked for (the estimate and the person's question in the terminal); the places to identify, the queue or one place
  * (the queue and the estimate, the session on the person's yes in the terminal); strom's fixes of the research, one of them, or one
  * put back (shown, then set right or put back only on the person's word in the terminal); the research back in time (the
- * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal).
+ * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal);
+ * a hypothesis decided, left open or its decision changed (the person's, in the terminal), and who decides the hypotheses
+ * (the agent only on the person's yes in the terminal).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -96,7 +98,7 @@ export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
  * strom's fixes a link names (commands/fixchecks.ts FIX_CHECKS, the same ids — a test holds them together): only one of
  * these, never a name the link brings.
  */
-export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits"] as const;
+export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits", "readers", "proven-originals"] as const;
 /** What a link does with a fix besides showing it: put back what it set right (strom fixes undo asks the person). */
 export const LINK_FIX_DOS = ["undo"] as const;
 /** For whom a link sets the kinds of history looked for: this research, or this computer (the researches without their own). */
@@ -105,6 +107,10 @@ export const LINK_KINDS_SCOPES = ["tree", "default"] as const;
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 /** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
 export const LINK_CONFLICT_TAKES = ["user", "research"] as const;
+/** What a link does with a hypothesis: the person decides it in the terminal (open, proposed or decided — changed). */
+export const LINK_HYPOTHESIS_DOS = ["decide"] as const;
+/** Who decides the hypotheses of the research (hypotheses.decide): the agent only on the person's yes in the terminal. */
+export const LINK_HYPOTHESES_DECIDE = ["agent", "person"] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SOURCE = /^S\d{1,9}$/;
@@ -112,6 +118,7 @@ const PERSON = /^P\d{1,9}$/;
 const TASK = /^T\d{1,9}$/;
 const PLACE = /^L\d{1,9}$/;
 const CONFLICT = /^X\d{1,9}$/;
+const HYPOTHESIS = /^H\d{1,9}$/;
 const INPUT = /^I\d{1,9}$/;
 /** A tree the app sent, as the bridge marked it (core/sync.ts receiveTree). */
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
@@ -188,6 +195,8 @@ export type Link =
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
   | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number]; take?: (typeof LINK_CONFLICT_TAKES)[number] }
+  | { action: "hypothesis"; tree: string; id: string; do: (typeof LINK_HYPOTHESIS_DOS)[number] }
+  | { action: "hypotheses"; tree: string; decide: (typeof LINK_HYPOTHESES_DECIDE)[number] }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
@@ -297,6 +306,12 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const take = how === "decide" && q.has("take") ? oneOf(q, "take", LINK_CONFLICT_TAKES) : undefined;
       return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: how, ...(take ? { take } : {}) };
     }
+    case "hypothesis":
+      // one hypothesis, by its ID only: its screen in the terminal (decided there, left open, or its decision changed)
+      return { action, tree: id, id: idOf(q, "id", HYPOTHESIS, true)!, do: oneOf(q, "do", LINK_HYPOTHESIS_DOS, "decide") };
+    case "hypotheses":
+      // who decides the hypotheses: a fixed value only — the agent on the person's yes in the terminal
+      return { action, tree: id, decide: oneOf(q, "decide", LINK_HYPOTHESES_DECIDE) };
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
     case "sync": {

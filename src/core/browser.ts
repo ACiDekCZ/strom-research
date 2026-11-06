@@ -50,6 +50,22 @@ export const CHROME_PAGE_TOOLS = ["computer", "find", "read_page", "get_page_tex
 /** Claude Code's matcher of strom's hook before the browser's navigate and its page tools (agents/files.ts). */
 export const CHROME_HOOK_MATCHER = `${CHROME_TOOL_PREFIX}(navigate|${CHROME_PAGE_TOOLS.join("|")})`;
 
+/**
+ * The built-in browser of Claude's desktop app (its browser pane), by the names Claude Code gives its tools there: in
+ * the app itself, and in a session elsewhere linked to the person's computer (the same names after either prefix).
+ * Seen 6 November 2026 (Claude desktop 2.1.317): the app runs the tree's hooks before them too.
+ */
+export const APP_BROWSER_PREFIXES = ["mcp__Claude_Browser__", "mcp__remote-devices__Claude_Browser__"] as const;
+/** Its tools that go to an address (tool_input.url): preview_start opens a new tab at it, tabs_create one too. */
+export const APP_BROWSER_NAVIGATE = ["navigate", "preview_start", "tabs_create"] as const;
+/** Its tools on the page a tab shows (tool_input.tabId; none: the active tab) — the same as Claude in Chrome's. */
+export const APP_BROWSER_PAGE_TOOLS = CHROME_PAGE_TOOLS;
+const APP_BROWSER_PREFIX_RE = "mcp__(remote-devices__)?Claude_Browser__";
+/** Claude Code's matcher of strom's hook before the built-in browser's tools to an address and on a page. */
+export const APP_BROWSER_HOOK_MATCHER = `${APP_BROWSER_PREFIX_RE}(${[...APP_BROWSER_NAVIGATE, ...APP_BROWSER_PAGE_TOOLS].join("|")})`;
+/** After those to an address ran or failed: the tab it opened (its tabId) and the person's yes counted. */
+export const APP_BROWSER_NAVIGATE_MATCHER = `${APP_BROWSER_PREFIX_RE}(${APP_BROWSER_NAVIGATE.join("|")})`;
+
 /** Never: a file of this computer uploaded to a web site, the user's own browser shortcuts, a batch the rules cannot see into. */
 export const CHROME_DENY = ["file_upload", "upload_image", "shortcuts_execute", "gif_creator", "browser_batch"].map((t) => `mcp__claude-in-chrome__${t}`);
 

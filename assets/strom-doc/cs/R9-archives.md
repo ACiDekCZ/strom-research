@@ -400,7 +400,8 @@ Kroky u úkolu, který čeká na snímky archivu, kam agent nesmí:
 <a id="R9.10"></a>
 ## R9.10 Příklady
 
-Úrovně a meze jsou ze seznamu archivů výzkumu 1.27.0. Rodina Horákových je vymyšlená.
+Úrovně a meze jsou ze seznamu archivů výzkumu 1.27.0, DigiArchiv SOA Třeboň z výzkumu 1.28.0. Rodina Horákových je
+vymyšlená.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -464,3 +465,20 @@ Kroky u úkolu, který čeká na snímky archivu, kam agent nesmí:
 - **Platí od:** výzkum 1.27.0
 
 <!-- zdroj: research:assets/archives.json szukajwarchiwach.gov.pl (restricted, browserOnly) -->
+
+<a id="R9.10.6"></a>
+### R9.10.6 DigiArchiv SOA Třeboň
+
+- Archiv: jen ručně, jen přes prohlížeč člověka. Podmínky na úvodní stránce DigiArchivu (`/Uvod`): „Snímky jsou
+  poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování,
+  prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.“ Server požadavky stromu odmítá (403),
+  podle archivu záměrně.
+- Archiv potvrdil: člověk smí ručně uložit jen vybrané snímky, nikdy celou knihu ani její podstatnou část. Nástroje ke
+  stahování nejsou dovolené, ani prohlížeč agenta.
+- Úkol: zápis Marie Horákové v matrice v DigiArchivu. Úkol vždy čeká na snímky, které vybere a uloží člověk. Svolení
+  to neotevře; stahovač, stažení webu ani prohlížeč agenta tam nesmí.
+- Citace: trvalý odkaz na snímek je adresa jeho stránky `https://digi.ceskearchivy.cz/<kniha>/<snímek>`, nebo
+  **Odkaz na snímek** v panelu **POPIS**.
+- **Platí od:** výzkum 1.28.0
+
+<!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->

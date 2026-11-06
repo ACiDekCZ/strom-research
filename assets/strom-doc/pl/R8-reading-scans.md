@@ -398,6 +398,8 @@ i wyszukiwanie, które go znalazło.
   - źródło ze skanu dostaje `--clip` (wycinek, w którym wpis czytano), `--transcript` (słowa wpisu wiersz po
     wierszu, nieodczytane `[?]`) i `--locator` (folio, strona, numer wpisu); szczegółowo
     [R3.4](R3-verification-and-citation.md#R3.4);
+  - wpis w innym języku lub piśmie niż język badania dostaje obok dosłownej transkrypcji także tłumaczenie na język
+    badania (`--translation`), od badania 1.28.0;
   - do pól (`--date`, `--house`, `--age`, imię) tylko to, co odczytano pewnie. Niepewne trafia do transkrypcji z `[?]`
     i do notatki danej („dom 21 lub 27”). Co czytelnik zgłosił jako nieczytelne, zostaje nieczytelne, dopóki agent nie
     odczyta tego sam. Pusta kolumna jest pusta; niczego nie uzupełnia się według tego, co zwykle;
@@ -413,7 +415,7 @@ i wyszukiwanie, które go znalazło.
   ([A3.3](A3-evidence-in-the-app.md#A3.3)).
 - **Obowiązuje od:** badanie 1.0.0; wycinek 1.1.0
 
-<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ -->
+<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ · překlad: recording.md "--translation", link.md krok 7 (od v1.28.0) -->
 
 <a id="R8.7"></a>
 ## R8.7 Pewność i weryfikacja odczytu

@@ -397,6 +397,8 @@ it and the search that found it.
   - a source from a scan gets `--clip` (the crop in which the entry was read), `--transcript` (the words of the entry
     line by line, what was not read `[?]`) and `--locator` (folio, page, order of the entry); in detail
     [R3.4](R3-verification-and-citation.md#R3.4);
+  - an entry in a language or script other than the language of the research gets, beside the literal
+    transcription, a translation into the language of the research (`--translation`), from research 1.28.0;
   - into the fields (`--date`, `--house`, `--age`, the name) only what was read with certainty. What is uncertain goes
     into the transcription with `[?]` and into the fact's note ("house 21 or 27"). What a reader reported as illegible
     stays illegible until the agent reads it itself. An empty column is empty; nothing is filled in by what is usual;
@@ -413,7 +415,7 @@ it and the search that found it.
   ([A3.3](A3-evidence-in-the-app.md#A3.3)).
 - **Since:** research 1.0.0; the clip 1.1.0
 
-<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ -->
+<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ · překlad: recording.md "--translation", link.md krok 7 (od v1.28.0) -->
 
 <a id="R8.7"></a>
 ## R8.7 Certainty and verification of what was read

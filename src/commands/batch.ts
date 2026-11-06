@@ -187,6 +187,7 @@ register({
     const batch = parseBatch(source);
     if (batch.length === 0) throw new UsageError("no commands in the batch", { hint: "strom help batch" });
     const tree = ctx.tree();
+    ctx.inBatch = true;
     const labels = new Map<string, string>();
     // the labels of lines that failed: a line using one is skipped, said with the line it waits for
     const failedLabels = new Map<string, number>();
@@ -222,7 +223,7 @@ register({
         if (parsed.values["dry-run"]) throw new UsageError("--dry-run applies to the whole batch: strom batch --dry-run …");
         checkArgs(def, parsed.positionals, parsed.fix, "", parsed.values);
         // the person's own (a hypothesis decided, a conflict left): never an agent's, in a batch as on its own (main.ts)
-        if (def.person && isAgent(ctx.env)) ctx.requireHuman(def.person, ["strom", ...def.path, ...rest].join(" "), def.path[0]!, undefined, { window: false });
+        if (def.person && isAgent(ctx.env) && !def.agentMay?.check(ctx, { args: parsed.positionals, opts: parsed.values })) ctx.requireHuman(def.person, ["strom", ...def.path, ...rest].join(" "), def.path[0]!, undefined, { window: false });
         const before = tree.written.length;
         const r = await def.run(ctx, { args: parsed.positionals, opts: parsed.values });
         if (r.exitCode) throw new StromError(r.text.split("\n")[0] ?? "failed");

@@ -3,7 +3,7 @@
 
 How the research recognises that an entry belongs to the person sought, what it does with two records of one person,
 how it keeps competing explanations (hypotheses), and how it records names and the people an entry names. Describes
-the research 1.27.0 and the Strom app 3.23.0. Each rule says what is **enforced by the code** and what is only a
+the research 1.27.0 and the Strom app 3.23.0; changes from a later version carry its number. Each rule says what is **enforced by the code** and what is only a
 **rule of the method**.
 
 <a id="R10.1"></a>
@@ -46,6 +46,8 @@ it stays retracted, with a note saying into whom it was merged.
     records, the families are merged first (`strom family merge`).
 - **Method only:** a person from an imported family tree who is already researched in the research is merged **into**
   the researched person; that person keeps their documents ([R11.3](R11-material-from-the-user.md#R11.3)).
+- **Why:** strom never chooses quietly between two facts: the evidence decides which one stands. The other is retracted
+  with a reason, so what stood where stays visible.
 - **Controls:** terminal: `strom person merge`, `strom family merge`. Possible duplicates in the tree are reported by
   the app in the Tree check ([A5.6](A5-tree-check.md#A5.6)).
 - **Since:** research 1.0.0
@@ -79,22 +81,38 @@ A, B, C… with what speaks for each and what against.
 <a id="R10.3.1"></a>
 ### R10.3.1 Deciding a hypothesis
 
-A hypothesis is decided for one version, or abandoned when none can be decided. It is decided in the research; the
-app does not let a hypothesis be decided.
+A hypothesis is decided for one version, or abandoned when none can be decided. Only a person decides, in the
+research; the agent proposes the decision. The app does not let a hypothesis be decided.
 
 - **Enforced by the code:**
-  - a decision needs the text of the decision (`--decision`); abandoning is `--abandon`;
-  - deciding again is possible only with a reason (`--reason`). The previous decision stays in a note of the
-    hypothesis;
-  - after a decision strom lists the sources the hypothesis names that no fact of its persons cites: what they say
-    should be recorded at the persons.
-- **Method only:** a hypothesis whose versions carry connections is decided with the choice of a version
-  (`--variant B`). A decided hypothesis that a new record overturns is decided again by the agent, with a reason. What
-  the agent held back while the person was only a hypothesis it records at the person after the decision.
-- **Controls:** terminal: `strom hypothesis decide H… --variant B --decision "…"` (again with `--reason "…"`).
+  - a decision is a person's step. When the agent runs `strom hypothesis decide` (also inside `strom batch`), strom
+    refuses it;
+  - the agent proposes the decision: a version and the text of the decision (`strom hypothesis propose`), or
+    abandoning (`--abandon`). A new proposal replaces the previous one. The work does not wait for the answer;
+  - the proposal waits in **What waits** in the group **Hypotheses to decide** ([R6.3.4](R6-awaiting-action.md#R6.3.4)):
+    a person decides as proposed, otherwise (another version or none, with a reason), or leaves the hypothesis as it
+    is. A proposal not taken stays in a note of the hypothesis;
+  - a decision and a proposal need the text of the decision (`--decision`); abandoning is `--abandon`;
+  - a hypothesis whose versions say what they would connect is decided and proposed only with the version named
+    (`--variant B`). Without it strom refuses and writes nothing;
+  - deciding again (and proposing again) is possible only with a reason (`--reason`). The previous decision stays in
+    a note of the hypothesis;
+  - what a person's decision connects, and the sources the hypothesis names that no fact of its persons cites, the
+    agent gets at the start of its next work as the first task to record on the tree.
+- **Method only:** the agent proposes a decision when the records point to one version, and tells the person in one
+  sentence. A decided hypothesis that a new record overturns the agent proposes again, with a reason. What the agent
+  held back while the person was only a hypothesis it records at the person once a person decides the hypothesis.
+- **Why:** a new decision needs a reason because decisions change in the open: the previous one stays readable and
+  the new one says what changed it (usually a new record).
+- **Controls:** terminal: the `strom` menu → **What waits** → **Hypotheses to decide** → **Decide as proposed**,
+  **Decide otherwise**, **Leave it as it is (the proposal not taken)**; by command `strom hypothesis decide H…
+  --proposed`, `--keep-open`, or `--variant B --decision "…"` (again with `--reason "…"`). The agent: `strom
+  hypothesis propose H… --variant B --decision "…"`.
 - **Since:** research 1.0.0; the list of sources not recorded 1.12.0
+- **From research 1.28.0:** only a person decides, the agent proposes; the code enforces the named version (formerly
+  method only). Hypotheses the agent decided before stay as they were.
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis decide (earlier decision in a note, "deciding again needs --reason", sourcesNotOnPeople od v1.12.0) · research:assets/method/core.md "Write as you go", "Say what a hypothesis would connect" · research:assets/method/recording.md "A decided hypothesis that a new record overturns" -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, --proposed, --keep-open, againNeedsReason, decidedVariant) · src/cli/main.ts:288 def.person && isAgent · src/commands/batch.ts (def.person) · src/core/waiting.ts (hypotheses, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.* · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0 · commit 9b12256a -->
 
 <a id="R10.4"></a>
 ## R10.4 A family outside the tree waits for a proven link
@@ -138,6 +156,9 @@ own record. Names are recorded as they stand in the entry; only dates are standa
   - a person whom a weaker record named differently keeps that name as a variant; the correct name is marked as the
     main one. Nothing is deleted;
   - a name read only in part: [R8.6](R8-reading-scans.md#R8.6).
+- **Why:** a description in place of a name (“stillborn son”) would be shown and searched as a given name by the app
+  and by GEDCOM, and name matching would take it for a name. That the child died without a name is a fact (a death,
+  a note).
 - **Controls:** terminal: `strom name add P… "Marie /Vlková/" --kind birth --cite S…`, `strom name primary P…
   "…"` (`--clear` returns the birth name). Surname forms in the app: [A4.5](A4-surnames-and-families.md#A4.5),
   [A4.6](A4-surnames-and-families.md#A4.6).

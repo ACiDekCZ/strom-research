@@ -163,7 +163,8 @@ B*, *abandoned*, the number of versions and a note. Open ones are expanded.
   to people in the tree", for a decided one *chosen*, "Now linked for real", "No longer valid: …".
 - **Which hypotheses the research sends:** open ones; decided and abandoned ones only those whose versions carry
   links. Withdrawn ones never.
-- **Limits:** a hypothesis cannot be decided from the app; it is decided in the research.
+- **Limits:** a hypothesis cannot be decided from the app; a person decides it in the research, in the terminal
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Controls:** app: the switch **Show** at a version ([S3.5.1](#S3.5.1)).
 - **Since:** app 3.11.0 with research 1.14.0 (versions, state, **Show**); the list of hypotheses from app 3.4.0
 

@@ -281,6 +281,8 @@ na niego. Do tego czasu zachowuje się jak Archiwum Strom.
   - zapisany tryb się nie zmienia, a zadania nie są odkładane. Po instalacji agenta badanie samo kontynuuje
     z zadaniami, które miało;
   - agent, który właśnie pracuje w badaniu (także inny niż ustawiony), czyni je badaniem.
+- **Dlaczego:** archiwum to wybór człowieka i strom go za niego nie zapisze. Badanie bez agenta tylko zachowuje się
+  jak archiwum, więc po instalacji agenta samo kontynuuje z zadaniami, które miało; żadne nie jest odłożone.
 - **Obsługa:** terminal: menu, pierwsza pozycja (**Zostaw tylko jako Archiwum Strom: przechowywanie danych z aplikacji
   Strom** albo instalacja agenta); `strom mode` pokazuje stan. Aplikacja pokazuje takie badanie jako **Archiwum**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).

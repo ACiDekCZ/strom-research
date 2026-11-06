@@ -25,7 +25,8 @@ function once(opts: RunOptions, prompt: string, timeoutMs: number | undefined, w
     if (!script) return resolve({ exitCode: 2, outcome: "error", text: "STROM_RUNNER_SCRIPT is not set", metrics: {} });
     const child = spawn(process.execPath, [script, ...(opts.extraArgs ?? [])], {
       cwd: opts.cwd,
-      env: { ...(opts.env as NodeJS.ProcessEnv), STROM_PROMPT: prompt, ...(wrapUp ? { STROM_WRAP_UP: "1" } : {}) },
+      // (the model and effort it was asked to read with, so a script tells readers apart: STROM_RUNNER_MODEL, STROM_RUNNER_EFFORT)
+      env: { ...(opts.env as NodeJS.ProcessEnv), STROM_PROMPT: prompt, ...(wrapUp ? { STROM_WRAP_UP: "1" } : {}), ...(opts.model ? { STROM_RUNNER_MODEL: opts.model } : {}), ...(opts.effort ? { STROM_RUNNER_EFFORT: opts.effort } : {}) },
       stdio: ["pipe", "pipe", "pipe"],
       detached: OWN_GROUP,
     });

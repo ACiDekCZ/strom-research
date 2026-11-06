@@ -2,7 +2,7 @@
 # A1 Aplikace v kostce
 
 Jak aplikace Strom pracuje jako celek, na jedné stránce. Každý oddíl vede na kapitolu s přesnými pravidly. Popisuje
-aplikaci Strom 3.21.2 a výzkum 1.25.2.
+aplikaci Strom 3.21.2 a výzkum 1.25.2; změny z novější verze mají u sebe její číslo.
 
 <a id="A1.1"></a>
 ## A1.1 Rodokmen v prohlížeči, data na zařízení
@@ -61,3 +61,25 @@ a to, co výzkum o osobách ví, a úpravy posílá zpět do výzkumu ([R1.6](R1
 - Propojení: [S1](S1-connecting-app-and-research.md). Úpravy z aplikace: [S2](S2-edits-from-the-app.md).
   Co ví výzkum: [S3](S3-what-the-research-knows.md). Výzkum řízený z aplikace:
   [S4](S4-research-from-the-app.md). Telefon: [S5](S5-phone.md).
+
+<a id="A1.7"></a>
+## A1.7 Jak Strom funguje v aplikaci
+
+Tato dokumentace je přibalená v aplikaci a čte se i bez internetu. Okno **Jak Strom funguje** má obsah částí A, R
+a S, **Rejstřík pojmů** a hledání podle slova nebo čísla pravidla.
+
+- **Hranice:**
+  - otevření okna nic neposílá a nic nenačítá ze sítě;
+  - číslo pravidla a Enter skočí přímo na pravidlo (`R4.3`); neznámé číslo ukáže obsah;
+  - odkazy mezi pravidly mají **Zpět**; **Na webu** otevře stejné pravidlo na stromapp.info;
+  - pravidlo novější než připojený výzkum to řekne („Výzkum připojený k tomuto stromu má verzi …, tohle platí od …“).
+- **Ovládání:** aplikace: **Akce → Jak Strom funguje**, na telefonu **Další → Jak Strom funguje**, nebo **O aplikaci
+  → Jak Strom funguje**. Kroužek **?** v záhlaví otevře nápovědu přímo u pravidla: v Přehledu výzkumu a malém panelu
+  u oddílů **Fronta** ([R2.4](R2-lines-and-queue.md#R2.4)), **Čeká na vyřízení** ([R6.4](R6-awaiting-action.md#R6.4))
+  a **Teď** ([R7](R7-when-the-agent-works.md), při pozastavení [R7.6](R7-when-the-agent-works.md#R7.6)), v okně **Místa** ([R4.5](R4-places.md#R4.5)), ve správci míst
+  ([R4.4](R4-places.md#R4.4)), v panelu rozporů ([R5.3](R5-conflicts.md#R5.3)) a v **Co ví výzkum → Rozpory**
+  ([R5.6](R5-conflicts.md#R5.6)). V okně je i **Prohlídka aplikace**. Ve výzkumu: `strom doc`
+  ([R1.8](R1-research-in-brief.md#R1.8)).
+- **Platí od:** aplikace 3.24.0
+
+<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics; tour.menu · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->

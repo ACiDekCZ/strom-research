@@ -3,7 +3,7 @@
 
 Jak výzkum pozná, že zápis patří hledané osobě, co udělá se dvěma záznamy jedné osoby, jak vede soupeřící
 vysvětlení (hypotézy) a jak zapisuje jména a lidi, které zápis jmenuje. Popisuje výzkum 1.27.0 a aplikaci Strom
-3.23.0. U pravidel je rozlišeno, co **hlídá kód** a co je jen **pravidlo metodiky**.
+3.23.0; změny z novější verze mají u sebe její číslo. U pravidel je rozlišeno, co **hlídá kód** a co je jen **pravidlo metodiky**.
 
 <a id="R10.1"></a>
 ## R10.1 Jmenovec není hledaná osoba
@@ -43,6 +43,8 @@ s poznámkou, do koho byl sloučen.
     (`strom family merge`).
 - **Jen metodika:** osoba z převzatého rodokmenu, která už je ve výzkumu zkoumaná, se slučuje **do** zkoumané
   osoby; ta si drží své doklady ([R11.3](R11-material-from-the-user.md#R11.3)).
+- **Proč:** strom mezi dvěma údaji nevybírá potichu: který platí, rozhodne doklad. Druhý se odvolá s důvodem, takže
+  zůstane vidět, co kde stálo.
 - **Ovládání:** terminál: `strom person merge`, `strom family merge`. Možné duplicity ve stromu hlásí aplikace v
   Kontrole stromu ([A5.6](A5-tree-check.md#A5.6)).
 - **Platí od:** výzkum 1.0.0
@@ -74,21 +76,38 @@ nevybírá potichu. Zapíše hypotézu: otázku a její verze A, B, C… s tím,
 <a id="R10.3.1"></a>
 ### R10.3.1 Rozhodnutí hypotézy
 
-Hypotéza se rozhodne pro jednu verzi, nebo se zruší, když žádnou rozhodnout nejde. Rozhoduje se ve výzkumu; aplikace
-hypotézu rozhodnout nedá.
+Hypotéza se rozhodne pro jednu verzi, nebo se zruší, když žádnou rozhodnout nejde. Rozhoduje jen člověk, ve výzkumu;
+agent rozhodnutí navrhne. Aplikace hypotézu rozhodnout nedá.
 
 - **Hlídá kód:**
-  - rozhodnutí potřebuje text rozhodnutí (`--decision`); zrušení je `--abandon`;
-  - rozhodnout znovu jde jen s důvodem (`--reason`). Předchozí rozhodnutí zůstane v poznámce hypotézy;
-  - po rozhodnutí strom vypíše prameny, které hypotéza jmenuje a které žádný údaj jejích osob necituje: co
-    říkají, se má zapsat k osobám.
-- **Jen metodika:** hypotéza, jejíž verze nesou spojení, se rozhoduje s volbou verze (`--variant B`). Rozhodnutou
-  hypotézu, kterou nový záznam vyvrátí, agent rozhodne znovu s důvodem. Co agent zadržel, dokud byla osoba jen
-  hypotéza, zapíše k osobě po rozhodnutí.
-- **Ovládání:** terminál: `strom hypothesis decide H… --variant B --decision "…"` (znovu s `--reason "…"`).
+  - rozhodnutí je krok člověka. Když `strom hypothesis decide` spustí agent (i uvnitř `strom batch`), strom ho
+    odmítne;
+  - agent rozhodnutí navrhne: verzi a text rozhodnutí (`strom hypothesis propose`), nebo zrušení (`--abandon`). Nový
+    návrh nahradí předchozí. Na odpověď se nečeká, práce jde dál;
+  - návrh čeká v **Co čeká** ve skupině **Hypotézy k rozhodnutí** ([R6.3.4](R6-awaiting-action.md#R6.3.4)): člověk
+    rozhodne podle návrhu, jinak (jiná verze nebo žádná, s důvodem), nebo hypotézu nechá, jak je. Nepřijatý návrh
+    zůstane v poznámce hypotézy;
+  - rozhodnutí i návrh potřebují text rozhodnutí (`--decision`); zrušení je `--abandon`;
+  - hypotéza, jejíž verze říkají, co by spojily, se rozhoduje i navrhuje jen s uvedenou verzí (`--variant B`). Bez
+    ní strom odmítne a nic nezapíše;
+  - rozhodnout znovu (i navrhnout znovu) jde jen s důvodem (`--reason`). Předchozí rozhodnutí zůstane v poznámce
+    hypotézy;
+  - co rozhodnutí člověka spojuje, a prameny, které hypotéza jmenuje a které žádný údaj jejích osob necituje,
+    dostane agent na začátku příští práce jako první úkol k zapsání do stromu.
+- **Jen metodika:** agent navrhne rozhodnutí, když záznamy ukazují na jednu verzi, a řekne to člověku jednou větou.
+  Rozhodnutou hypotézu, kterou nový záznam vyvrátí, agent navrhne znovu s důvodem. Co agent zadržel, dokud byla
+  osoba jen hypotéza, zapíše k osobě, až člověk hypotézu rozhodne.
+- **Proč:** nové rozhodnutí potřebuje důvod, protože se rozhodnutí mění otevřeně: předchozí zůstane čitelné a nové
+  řekne, co ho změnilo (obvykle nový záznam).
+- **Ovládání:** terminál: menu `strom` → **Co čeká** → **Hypotézy k rozhodnutí** → **Rozhodnout podle návrhu**,
+  **Rozhodnout jinak**, **Nechat, jak je (návrh nepřijat)**; příkazem `strom hypothesis decide H… --proposed`,
+  `--keep-open`, nebo `--variant B --decision "…"` (znovu s `--reason "…"`). Agent: `strom hypothesis propose H…
+  --variant B --decision "…"`.
 - **Platí od:** výzkum 1.0.0; výpis nezapsaných pramenů 1.12.0
+- **Od výzkumu 1.28.0:** rozhoduje jen člověk, agent navrhuje; uvedenou verzi hlídá kód (dřív jen metodika).
+  Hypotézy, které dřív rozhodl agent, zůstávají, jak byly.
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis decide (earlier decision in a note, "deciding again needs --reason", sourcesNotOnPeople od v1.12.0) · research:assets/method/core.md "Write as you go", "Say what a hypothesis would connect" · research:assets/method/recording.md "A decided hypothesis that a new record overturns" -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, --proposed, --keep-open, againNeedsReason, decidedVariant) · src/cli/main.ts:288 def.person && isAgent · src/commands/batch.ts (def.person) · src/core/waiting.ts (hypotheses, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.* · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0 · commit 9b12256a -->
 
 <a id="R10.4"></a>
 ## R10.4 Rodina mimo strom čeká na doloženou vazbu
@@ -130,6 +149,8 @@ stojí v záznamu; sjednocují se jen data.
   - osoba, kterou slabší záznam jmenoval jinak, si to jméno nechá jako variantu; správné jméno se označí jako
     hlavní. Nic se nemaže;
   - jméno přečtené jen zčásti: [R8.6](R8-reading-scans.md#R8.6).
+- **Proč:** popis místo jména („mrtvě narozený syn“) by aplikace i GEDCOM ukazovaly a hledaly jako křestní jméno
+  a párování jmen by ho za jméno bralo. To, že dítě zemřelo bez jména, je údaj (úmrtí, poznámka).
 - **Ovládání:** terminál: `strom name add P… "Marie /Vlková/" --kind birth --cite S…`, `strom name primary P…
   "…"` (`--clear` vrátí rodné jméno). Tvary příjmení v aplikaci: [A4.5](A4-surnames-and-families.md#A4.5),
   [A4.6](A4-surnames-and-families.md#A4.6).

@@ -25,7 +25,8 @@ The list is worked out from the research each time; nothing is written into it.
 - The line **Waiting: N (of these X only here in the terminal, Y waiting for a reply)** splits the count the way the
   app does. The app's number is N without the items for the terminal only and without requests sent.
 - Only in the terminal are trees sent from the app (**The Strom app**), questions about reading scans (**The reading
-  of scans**), conflicts (**Conflicts to decide**, see [R5](R5-conflicts.md)) and milder terms of an archive. In the
+  of scans**), conflicts (**Conflicts to decide**, see [R5](R5-conflicts.md)), hypotheses to decide (from research 1.28.0) and
+  milder terms of an archive. In the
   overview **What waits** they come first under the heading **Only here in the terminal (not in the Strom app)**,
   followed by **Also in the Strom app**.
 - The page for the phone only reads: without the items for the terminal only, with stories, 20 items first, at most
@@ -87,11 +88,11 @@ and its images can be seen**, **Only to be viewed there** or **It does not work*
 
 The section **decisions** gathers the questions that hold the agent up: an archive's permission, downloaders to
 confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)), a conflict (see
-[R5](R5-conflicts.md)), trees from the app and the reading of scans. Decisions come first in the list.
+[R5](R5-conflicts.md)), a hypothesis (see [R6.3.4](#R6.3.4)), trees from the app and the reading of scans. Decisions come first in the list.
 
 - **Controls:** terminal: **What waits** → the item; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0.
+- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0, hypotheses from 1.28.0.
 
 <!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
 
@@ -133,6 +134,20 @@ confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)
 - **Since:** research 1.26.0
 
 <!-- zdroj: research:HEAD src/core/waiting.ts:428-451 (group branches) · src/cli/menu-waiting.ts decideBranch · assets/lang/cs.json:2359 wait.group.branches -->
+
+<a id="R6.3.4"></a>
+### R6.3.4 Hypotheses to decide
+
+- A hypothesis whose decision the agent proposed ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)) waits in the
+  group **Hypotheses to decide**: the question, the versions and the proposal (“Proposed: variant B — …”). The
+  choice: **Decide as proposed**, **Decide otherwise** (another version, or none, with a reason), **Leave it as it is
+  (the proposal not taken)**.
+- **Limits:** only a person decides ([R6.6](#R6.6)). It is only in the terminal; the Strom app does not show it
+  ([R6.1.1](#R6.1.1)). In a Strom archive the group does not exist.
+- **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`.
+- **Since:** research 1.28.0
+
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
 
 <a id="R6.4"></a>
 ## R6.4 Groups and order
@@ -196,8 +211,10 @@ asks the person in a system window, or refuses the command.
   research also refuses the agent `strom story set --final`), the answer to a growing branch (`strom offline
   answer`), leaving a conflict from an edit to the agent (`strom conflict leave`), undoing and discarding a send from
   the app (`strom sync undo|discard`) and the fixes `strom fixes … edit-decisions|woken-waits`.
+- **From research 1.28.0:** only a person also decides a hypothesis (`strom hypothesis decide`, also inside
+  `strom batch`); the agent only proposes it ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
 
 <a id="R6.7"></a>
 ## R6.7 Sent, the answer and the return to the queue

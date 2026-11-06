@@ -363,6 +363,8 @@ Nalezený zápis se zapíše najednou: pramen s výřezem, přepisem a místem v
   - pramen ze skenu dostane `--clip` (výřez, ve kterém se zápis četl), `--transcript` (slova zápisu po řádcích,
     nepřečtené `[?]`) a `--locator` (folio, strana, pořadí zápisu); podrobně
     [R3.4](R3-verification-and-citation.md#R3.4);
+  - zápis v jiném jazyce nebo písmu, než je jazyk výzkumu, dostane vedle doslovného přepisu i překlad do jazyka
+    výzkumu (`--translation`), od výzkumu 1.28.0;
   - do polí (`--date`, `--house`, `--age`, jméno) jen jistě přečtené. Nejisté jde do přepisu s `[?]` a do poznámky
     údaje („dům 21 nebo 27“). Co čtenář nahlásil jako nečitelné, zůstane nečitelné, dokud to agent nepřečte sám.
     Prázdný sloupec je prázdný; nic se nedoplňuje podle obvyklého;
@@ -376,7 +378,7 @@ Nalezený zápis se zapíše najednou: pramen s výřezem, přepisem a místem v
 - **Ovládání:** terminál (agent). Aplikace: stránka pramene ukazuje výřez a přepis ([A3.3](A3-evidence-in-the-app.md#A3.3)).
 - **Platí od:** výzkum 1.0.0; výřez 1.1.0
 
-<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ -->
+<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ · překlad: recording.md "--translation", link.md krok 7 (od v1.28.0) -->
 
 <a id="R8.7"></a>
 ## R8.7 Jistota a ověření přečteného

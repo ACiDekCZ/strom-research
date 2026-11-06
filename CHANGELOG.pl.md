@@ -5,9 +5,70 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.29.0
+
+*W przygotowaniu: bety do 1.29.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
+  pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
+  *rozstrzyga człowiek* (domyślnie, jak w 1.28) lub *rozstrzyga AI*. Gdy rozstrzyga AI, agent sam rozstrzyga hipotezę, gdy
+  tylko cytowany zapis potwierdzi jeden wariant, zawsze z wariantem i uzasadnieniem; decyzji użytkownika nigdy nie
+  zmienia, a gałąź dziesięciu lub więcej osób spoza drzewa dołącza tylko na podstawie dwóch źródeł bez zastrzeżeń –
+  w przeciwnym razie proponuje. Każda jego decyzja jest oznaczona jako decyzja agenta, pojawia się w przeglądzie zmian
+  i można ją w każdej chwili zmienić; zmiana ustawienia nie zmienia niczego już rozstrzygniętego. Rozstrzyganie przez
+  AI włącza tylko człowiek.
+
+- **Każdą hipotezę można rozstrzygnąć z menu.** „Co czeka“ oferuje także otwarte hipotezy bez propozycji agenta –
+  rozstrzygnąć z wariantem i uzasadnieniem albo zostawić otwarte –, a hipotezę rozstrzygniętą lub odłożoną można
+  rozstrzygnąć ponownie z uzasadnieniem, wcześniejsza decyzja pozostaje czytelna; tak samo z przeglądu osoby i z linku
+  aplikacji Strom. Gdy rozstrzyga użytkownik, agent proponuje decyzję wszędzie, gdzie zapisy wskazują na jeden wariant.
+
+- **Zakończona rozmowa nie pozostaje już w aplikacji Strom „przy pracy“**, także na obciążonym komputerze i po zmianie
+  nazwy komputera.
+
+- **Aplikacja agenta pilnowana tak jak agent w terminalu.** Jej wbudowana przeglądarka przestrzega warunków archiwów tak
+  jak przeglądarka agenta w Chrome: archiwum, które wpuszcza tylko przeglądarkę człowieka, bez jego zgody zostaje
+  odrzucone z tą samą radą, dozwolone zostaje zapisane i trzyma swoje tempo; strony lokalne nie są ograniczane.
+  Polecenia stroma w terminalu aplikacji obowiązują tak samo jak w powłoce (to, co robi tylko człowiek, most aplikacji
+  Strom); agent dostaje polecenie uruchamiać stroma przez swoją powłokę. Nic w aplikacji nie jest wyłączane. Terminal
+  aplikacji rozpoznaje strom pod każdą jego nazwą – innego kanału, drugiej instalacji, pakiet przez program
+  uruchamiający pakiety, ścieżkę do niego.
+
+- **Aplikacja agenta bez agenta w terminalu.** strom mówi teraz, co działa, a co nie: rozmowa w aplikacji trwa dalej, praca
+  samodzielna, czytanie skanów i praca z aplikacji Strom potrzebują agenta w terminalu – powiedziane, zanim padnie
+  jakiekolwiek pytanie lub szacunek kosztu. Ustawienia i `strom doctor --fix` proponują jego instalację (można
+  odmówić); `strom doctor` odróżnia przeglądarkę w rozmowie i w pracy samodzielnej. Rozmowa bez niego czyta skany
+  własnym czytnikiem skanów stroma.
+
+- **Źródło jest przeczytane przez użytkownika tylko wtedy, gdy je przeczytał, a dana udowodniona tylko z oryginału
+  zapisu.** Czytelnikiem jest użytkownik przy transkrypcji wpisanej ręcznie w terminalu lub potwierdzonej w aplikacji
+  Strom; to, co pod jego kontem zapisały importy, konwersje i partie, już nie. Dana jest udowodniona tylko z cytowanym
+  oryginałem zapisu z informacją pierwotną; bez niego staje się prawdopodobna, a powód zostaje w jej historii, ta zaś,
+  którą udowodnił użytkownik, zostaje i czeka w Co czeka na pozostawienie albo zmianę na prawdopodobną (`strom fixes
+  review proven-originals keep|lower`). Istniejące badania poprawią się same jeden raz, zmiany są w przeglądzie zmian
+  (`strom fixes undo readers|proven-originals` je przywraca). GEDCOM z innego programu nigdy nie czyni użytkownika
+  czytelnikiem ani danej udowodnioną. Potwierdzenie w aplikacji obowiązuje dla brzmienia, do którego zostało dane, i
+  można je tam cofnąć; z oryginałem zapisu z informacją pierwotną dana może wtedy być udowodniona, inaczej najwyżej
+  prawdopodobna.
+
+- **Każdy czytelnik dokumentu z własnym agentem, modelem i głębokością rozumowania, a źródło przeczytane ponownie z
+  oryginału.** `strom document read|again --agent/--model/--effort` (i `--blind-…` dla czytelnika na ślepo) albo wybór w
+  aplikacji Strom; bez wyboru czyta według ustawień badania, nigdy tańszym modelem. Wynik mówi, kto czytał – w
+  terminalu, w pliku odczytu i w aplikacji Strom. Źródło czyta się ponownie z oryginału na tym komputerze (`strom
+  document read --source S… [--clip …]` albo z aplikacji Strom), a czytelnicy nie widzą transkrypcji; nowy odczyt
+  zostaje obok źródła, a gdzie się różni, zadanie zestawia oba brzmienia – transkrypcja, kto ją czytał, i potwierdzenie
+  użytkownika zostają bez zmian.
+
+- **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
+  hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w
+  badaniu poza folderem badań aktualizuje też instrukcje agenta tego badania, a podana witryna (example.org) obejmuje
+  też adresy, których używają księgi badania. Warunki Archiwum Głównego Akt Dawnych w Warszawie według odpowiedzi
+  archiwum: skany do swobodnego użytku, każdy cytowany miejscem oryginału – archiwum, zespół, sygnatura, strona lub
+  karta.
+
 ## 1.28.0
 
-*W przygotowaniu: bety do 1.28.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*6.11.2026 · współpracuje z aplikacją Strom 3.24.0.*
 
 - **Jak działa Strom – w samym stromie: `strom doc`.** Dokumentacja aplikacji i badań po czesku, angielsku, niemiecku i
   polsku jest częścią stromu i czyta się ją także bez internetu: `strom doc` wypisuje rozdziały, `strom doc R10.1` jedną

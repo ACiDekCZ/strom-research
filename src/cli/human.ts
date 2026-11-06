@@ -129,6 +129,9 @@ const EVENTS: Record<string, UIKey> = {
   WILL: "ui.ev.WILL",
 };
 
+/** The catalog key of a kind of fact; none for a kind it has no word for (an EVEN, a custom tag). */
+export const eventKey = (kind: string): UIKey | undefined => EVENTS[kind];
+
 /** The name of a kind of fact: "narození", "křest"; an EVEN by its own label. */
 export function eventName(kind: string, lang: string, label?: string): string {
   const key = EVENTS[kind];

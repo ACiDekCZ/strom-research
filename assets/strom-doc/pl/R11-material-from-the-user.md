@@ -22,12 +22,18 @@ to, co w nim rzeczywiście stoi.
     odłożone ([R7.8](R7-when-the-agent-works.md#R7.8)).
 - **Tylko metodyka:** imiona, nazwiska i miejsca zapisuje się tak, jak są napisane; ujednolica się tylko daty. Zadanie
   zamyka się z tym, co z materiału wynikło, i z kolejnymi zadaniami: gdzie szukać aktów, które udokumentują wskazówki.
+- **Dlaczego:**
+  - 20 obrazów: skany księgi metrykalnej nie należą do historii drzewa jako setki zadań materiały. Dokumenty rodzinne
+    jednego folderu to zwykle od kilku do kilkudziesięciu plików; więcej niż 20 obrazów to zwykle skany księgi
+    i zapisuje się je jako księgę;
+  - 20 MB: historii drzewa nigdy się nie przepisuje i idzie ona z drzewem przy kopii zapasowej i przeniesieniu. Duże
+    pliki (wideo, nieskompresowane skany) powiększyłyby ją na trwałe, dlatego leżą we wspólnym magazynie mediów.
 - **Obsługa:** terminal: `strom intake <soubory nebo složky>`, `strom intake --text "…"` (to, co powie użytkownik),
   `strom input list`, `strom input show I…`. Aplikacja: **Wyślij materiał…**, **Dodaj materiały…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Obowiązuje od:** badanie 1.0.0
 
-<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
+<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · commit ff18ac678 "a folder full of images is a book of scans" · commit e9386db84 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
 <a id="R11.2"></a>
 ## R11.2 Dokument jest źródłem, reszta jest wskazówką
@@ -79,7 +85,8 @@ Folder, ZIP albo pudło dokumentów wysłane z aplikacji badanie przyjmuje jako 
 na zadania.
 
 - **Pilnuje kod:**
-  - partia zamyka się, gdy aplikacja zgłosi, że jest kompletna, albo dzień po ostatnim pliku;
+  - partia zamyka się, gdy aplikacja zgłosi, że jest kompletna, albo dzień po ostatnim pliku (partia
+    z telefonu godzinę po ostatnim zdjęciu, [S5.4](S5-phone.md#S5.4));
   - potem powstają z niej zadania materiały po mniej więcej 25 plików, według folderów, w których pliki przyszły.
     W Archiwum Strom zadania czekają odłożone;
   - pliki partii zapisuje się jako oryginały we wspólnym magazynie mediów, nie w historii drzewa. Czego agent z nich
@@ -93,10 +100,15 @@ na zadania.
   - skanów jednej księgi (wiele numerowanych skanów) nie czyta się plik po pliku: zapisuje się je jako księgę i czyta
     się z niej wpisy jak z każdej księgi ([R8](R8-reading-scans.md));
   - zadanie zamyka się, gdy każdy jego plik jest sklasyfikowany; kolejna część partii to osobne zadanie.
-- **Dlaczego:** ścieżka pliku w partii wiele mówi (`Babička/Dopisy/1946.jpg`); to, co do rodziny nie należy, nie
-  powinno trafić do drzewa (metodyka).
+- **Dlaczego:**
+  - dzień po ostatnim pliku: aplikacja wysyła pliki pojedynczo. Partia, o której nikt nie powiedział, że jest
+    kompletna, zamyka się z tym, co przyszło, żeby nic nie czekało dłużej; dzień bez kolejnego pliku oznacza, że
+    wysyłanie się skończyło. Stronę w telefonie łatwo zamknąć bez przekazania partii, dlatego tam wystarczy godzina;
+  - 25 plików: jedno zadanie materiały czyta jedna sesja agenta i mieści się w niej mniej więcej 25 plików;
+  - ścieżka pliku w partii wiele mówi (`Babička/Dopisy/1946.jpg`); to, co do rodziny nie należy, nie powinno trafić
+    do drzewa (metodyka).
 - **Obsługa:** terminal: `strom input batch` (partie i ile z nich posortowano), `strom input sort I… --as
   source|document|photo|unrelated --person P…`. Aplikacja: **Dodaj materiały…** w menu badania.
-- **Obowiązuje od:** badanie 1.12.0
+- **Obowiązuje od:** badanie 1.12.0; partia z telefonu 1.18.0
 
-<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->

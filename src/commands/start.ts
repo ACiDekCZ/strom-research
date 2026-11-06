@@ -262,23 +262,25 @@ register({
       commitNow(t, `${s.id} interrupted: its ${s.runner ? "run had stopped" : "conversation had ended"}`);
     }
     const worker = `${agent}-${process.pid}-${Date.now().toString(36)}`;
-    const leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
-    ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
-    const browserSays = browserNote(ctx, tree, agent);
-    if (browserSays) ctx.io.stdout(browserSays + "\n");
-    // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
-    if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
-    delete env.STROM_HANDOVER;
     let code: number;
+    // present from here to the end, whatever fails between (else the app shows a conversation that never ends)
+    let leave: (() => void) | undefined;
     try {
+      leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
+      ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
+      const browserSays = browserNote(ctx, tree, agent);
+      if (browserSays) ctx.io.stdout(browserSays + "\n");
+      // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
+      if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
+      const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
+      delete env.STROM_HANDOVER;
       const started = Date.now();
       code = await waitFor(spawnAgent(profile.command, args, { cwd: tree.root, env, stdio: "inherit" }));
       // A Claude Code without the auto mode (an older one, or a plan without it) stops at once: go on in its own mode.
       if (code !== 0 && agent === "claude" && level === "auto" && Date.now() - started < 5000)
         code = await waitFor(spawnAgent(profile.command, conversationArgs(agent, { ...base, level: "ask" }), { cwd: tree.root, env, stdio: "inherit" }));
     } finally {
-      leave();
+      leave?.();
       unpinShim(tree.root);
     }
     // A session the agent left open goes back: its task returns to the queue.

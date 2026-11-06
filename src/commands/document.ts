@@ -23,7 +23,12 @@ import { verifyFast } from "../core/integrity.ts";
 import { addReaders } from "../core/session.ts";
 import { READER_MINUTES_HELP } from "../core/reader.ts";
 import { stamp } from "../core/net.ts";
-import { readers } from "./readers.ts";
+import { readerAgent, readers, type Readers } from "./readers.ts";
+import { RUNNERS } from "../runners/index.ts";
+import { EFFORTS } from "../agents/effort.ts";
+import { readerDefault } from "../core/readchoice.ts";
+import { keepSourceReading, notAgain, originalPages, readingOfSource } from "../core/sourceread.ts";
+import type { Source } from "../core/model.ts";
 import {
   alive,
   APP_READ_FROM,
@@ -51,9 +56,11 @@ import {
   withoutDocNext,
   type DocPageView,
   type ReadPage,
+  type ReaderWho,
   type ReadResult,
   type ReadState,
   type Region,
+  type SourceRead,
 } from "../core/document.ts";
 
 /** How often a reading at work looks whether it was cancelled (strom document cancel, from another process). */
@@ -134,6 +141,43 @@ function readersOf(said: unknown, dflt: number): number {
   return n;
 }
 
+/** Whether two readers read alike: the same agent, model and effort (none of either: as the research reads). */
+function sameReader(a: ReaderWho | undefined, b: ReaderWho | undefined): boolean {
+  return (a?.agent ?? "") === (b?.agent ?? "") && (a?.model ?? "") === (b?.model ?? "") && (a?.effort ?? "") === (b?.effort ?? "");
+}
+
+/**
+ * Who reads, as asked: the first reader (--agent, --model, --effort; each left out as the research's settings say), the
+ * blind one (--blind-agent, --blind-model, --blind-effort; left out as the first, or that agent's own default) — "" for a
+ * model or an effort: the agent's own. A choice holds for this reading alone: nothing of it is kept in the settings.
+ */
+function withOf(ctx: Context, tree: Tree, opts: Record<string, unknown>): ReaderWho[] {
+  const research = readerAgent(ctx, tree);
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+  const one = (at: 0 | 1, agent: string, model: string | undefined, effort: string | undefined, like?: ReaderWho): ReaderWho => {
+    const pre = at ? "--blind-" : "--";
+    if (!RUNNERS[agent]) throw new UsageError(`no reader of the agent "${agent.slice(0, 40)}"`, { code: "read.with", params: { at: String(at), field: "agent" }, hint: `${pre}agent ${Object.keys(RUNNERS).filter((a) => a !== "script").join("|")}` });
+    const dflt = like && like.agent === agent ? { model: like.model ?? "", effort: like.effort ?? "" } : readerDefault(tree, ctx.settings, agent, research);
+    const m = model ?? dflt.model;
+    const e = effort ?? dflt.effort;
+    // (the script runner of tests takes any effort: it only hands it on)
+    if (e && !(EFFORTS[agent]?.includes(e) ?? agent === "script")) throw new UsageError(`${agent} takes no effort "${e.slice(0, 20)}"`, { code: "read.with", params: { at: String(at), field: "effort" }, hint: EFFORTS[agent] ? `${pre}effort ${EFFORTS[agent]!.join("|")}` : `${agent} has no effort to set: leave ${pre}effort out` });
+    return { agent, ...(m ? { model: m } : {}), ...(e ? { effort: e } : {}) };
+  };
+  const first = one(0, research, str(opts.model), str(opts.effort));
+  const blindAgent = str(opts["blind-agent"]) || first.agent;
+  return [first, one(1, blindAgent, str(opts["blind-model"]), str(opts["blind-effort"]), first)];
+}
+
+/** The options naming who reads (as `strom document read` and `again` take them). */
+const WITH_OPTIONS = [
+  { name: "model", type: "string" as const, value: "<model>", description: "the readers' model (default: model.vision — never weaker for handwriting; \"\": the agent's own)" },
+  { name: "effort", type: "string" as const, value: "<level>", description: "the readers' reasoning effort (default: model.effort; \"\": the agent's own)" },
+  { name: "blind-agent", type: "string" as const, value: "<agent>", description: "the second, blind reader's agent (default: the first reader's; --agent sets the first)" },
+  { name: "blind-model", type: "string" as const, value: "<model>", description: "the blind reader's model (default: the first reader's, or that agent's own default)" },
+  { name: "blind-effort", type: "string" as const, value: "<level>", description: "the blind reader's effort (default: the first reader's, or that agent's own default)" },
+];
+
 /**
  * What a reading reads: each argument an input (I…), an image (M…) or a file — a file the research has not got
  * becomes an input of it (as strom intake keeps it, without a task of its own: the reading is what it is for).
@@ -187,7 +231,7 @@ function filesOf(ctx: Context, tree: Tree, args: string[], persons: string[], no
 }
 
 /** The pages of the files, upright, at most DOC_PAGES (a PDF's own pages counted). */
-function pagesOf(tree: Tree, records: { id: string; file: string; name: string; sha?: string }[], regions: Map<number, Region>): ReadPage[] {
+function pagesOf(tree: Tree, records: { id: string; file: string; name: string; sha?: string; region?: Region }[], regions: Map<number, Region>): ReadPage[] {
   const pages: ReadPage[] = [];
   for (const r of records) {
     const first = readableFile(tree.root, r.file, { env: tree.env });
@@ -196,7 +240,7 @@ function pagesOf(tree: Tree, records: { id: string; file: string; name: string; 
       const readable = p === 1 ? first : readableFile(tree.root, r.file, { env: tree.env, page: p });
       const size = shownSize(new Uint8Array(fs.readFileSync(readable.file)));
       const n = pages.length + 1;
-      const region = regions.get(n);
+      const region = regions.get(n) ?? (p === 1 ? r.region : undefined);
       pages.push({ n, file: r.id, ...(r.sha ? { sha: r.sha } : {}), name: r.name, page: p, ...(size ? { w: size.width, h: size.height } : {}), ...(region ? { region } : {}) });
     }
   }
@@ -278,9 +322,18 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     saveState(tree.root, s);
     return finish(ctx, tree, s, []);
   }
-  const team = readers(ctx, tree, shared, "document", "1", opts, undefined, { stem: s.id });
-  const views = s.pages.map((p) => viewsOf(tree, shared, p, team.viewMax));
-  s = { ...s, groups: groupsOf(views), state: "reading", since: now(), pid: process.pid, agent: team.agent, ...(team.model ? { model: team.model } : {}) };
+  // each reader as asked (s.with: the first, the blind one — its own agent, model, effort), else the research's readers
+  const teamOf = (r: ReaderWho | undefined): Readers => readers(ctx, tree, shared, "document", "1", opts, undefined, { stem: s.id, ...(r ? { with: r } : {}) });
+  const first = only === "blind" ? undefined : teamOf(s.with?.[0]);
+  const blind = s.readers > 1 ? (first && sameReader(s.with?.[0], s.with?.[1]) ? first : teamOf(s.with?.[1])) : undefined;
+  const team = (first ?? blind)!;
+  const teams = [...new Set([first, blind].filter((x): x is Readers => !!x))];
+  const viewsBy = new Map(teams.map((x) => [x, s.pages.map((p) => viewsOf(tree, shared, p, x.viewMax))] as const));
+  const views = viewsBy.get(team)!;
+  // only the blind one after the first: the pages grouped as the first reader read them
+  const groups = only === "blind" && s.groups.length ? s.groups : groupsOf(views);
+  s = { ...s, groups, state: "reading", since: now(), pid: process.pid, ...(first || !s.agent ? { agent: team.agent, ...(team.model ? { model: team.model } : {}) } : {}) };
+  if (first && !team.model) delete s.model;
   saveState(tree.root, s);
   const stop = new AbortController();
   const look = setInterval(() => {
@@ -296,12 +349,13 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
   const runOne = async (job: { group: number; blind: boolean }) => {
     if (stop.signal.aborted) return;
     const n = next++;
-    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version }] };
+    const by = (job.blind ? blind : first)!;
+    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version, agent: by.agent, ...(by.model ? { model: by.model } : {}), ...(by.effort ? { effort: by.effort } : {}) }] };
     saveState(tree.root, s);
-    const mine = views.filter((v) => s.groups[job.group]!.includes(v.n));
+    const mine = viewsBy.get(by)!.filter((v) => s.groups[job.group]!.includes(v.n));
     const files = mine.flatMap((v) => [v.view, ...(v.parts ?? []).map((x) => x.view)]);
     const head = `# Document ${s.id} · reader ${n}${job.blind ? " (blind)" : ""}\n\nPages: ${mine.map((v) => v.n).join(", ")}\n\n${DOC_NEXT}\n`;
-    const r = await team.read(String(n), files, `Document ${s.id}`, (report) => docPrompt({ pages: mine, report, lang: s.lang, note: s.note, blind: job.blind }), { head, signal: stop.signal });
+    const r = await by.read(String(n), files, `Document ${s.id}`, (report) => docPrompt({ pages: mine, report, lang: s.lang, note: s.note, blind: job.blind }), { head, signal: stop.signal });
     try {
       fs.writeFileSync(r.report, withoutDocNext(fs.readFileSync(r.report, "utf8")).replace(/\n*$/u, "\n"));
     } catch {
@@ -326,7 +380,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
   const cancelled = stop.signal.aborted || fs.existsSync(cancelPath(tree.root, s.id));
   fs.rmSync(cancelPath(tree.root, s.id), { force: true });
   const ran = s.reports.filter((r) => r.version === s.version);
-  const spent = { usd: team.cost(), runs: team.runs(), partial: team.partial() };
+  const spent = { usd: teams.reduce((n, x) => n + x.cost(), 0), runs: teams.reduce((n, x) => n + x.runs(), 0), partial: teams.some((x) => x.partial()) };
   // read again and cancelled: the reading before stands (what the new readers wrote stays, their cost counted)
   const back = cancelled ? backBefore(s) : undefined;
   if (back) return finish(ctx, tree, back, ran, spent, true);
@@ -348,16 +402,44 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
   }
   delete s.pid;
   delete s.before;
-  saveState(tree.root, s);
-  const result = buildResult(tree, s);
-  fs.mkdirSync(path.dirname(resultPath(tree.root, s.id)), { recursive: true });
-  fs.writeFileSync(resultPath(tree.root, s.id), JSON.stringify(result, null, 2) + "\n");
-  if (!tree.dryRun && verifyFast(tree).findings.every((f) => f.level !== "error"))
-    tree.withTreeLock(() => {
-      const session = spent?.runs ? addReaders(tree, ctx.env, ctx.refs, { usd: spent.usd, runs: spent.runs, partial: spent.partial }) : undefined;
-      const files = [resultPath(tree.root, s.id), ...s.reports.map((r) => reportPath(tree.root, s.id, r.n))].filter((f) => fs.existsSync(f)).map((f) => tree.relative(f));
-      tree.commit(`Reading of a document ${s.id}${back ? ", read again and cancelled" : ""}${s.version > 1 ? `, version ${s.version}` : ""}: ${s.state}${result.entries.length ? `, ${counted(result.entries.length, "entry", "entries")}` : ""}`, [...files, ...(session ? ["data"] : [])]);
-    });
+  let result = buildResult(tree, s);
+  const write = () => {
+    fs.mkdirSync(path.dirname(resultPath(tree.root, s.id)), { recursive: true });
+    fs.writeFileSync(resultPath(tree.root, s.id), JSON.stringify(result, null, 2) + "\n");
+  };
+  const verified = !tree.dryRun && verifyFast(tree).findings.every((f) => f.level !== "error");
+  // a source read again from its original: ended only once it is held against the transcript — the app takes the
+  // result when it says done, so the state stays as it was until the comparison is in it
+  const keeps = verified && !back && !!s.source && s.state === "done" && result.entries.length > 0;
+  let persisted = false;
+  const persist = () => {
+    saveState(tree.root, s);
+    write();
+    persisted = true;
+  };
+  if (!keeps) persist();
+  if (verified)
+    try {
+      tree.withTreeLock(() => {
+        // the new reading kept beside the source, held against its transcript (a task where they differ) — the source
+        // itself, who read it and the user's confirmation never changed
+        let kept: SourceRead | undefined;
+        if (keeps)
+          try {
+            kept = keepSourceReading(tree, s.source!, result);
+            s = { ...s, source: kept };
+            result = buildResult(tree, s);
+          } finally {
+            persist();
+          }
+        const session = spent?.runs ? addReaders(tree, ctx.env, ctx.refs, { usd: spent.usd, runs: spent.runs, partial: spent.partial }) : undefined;
+        const files = [resultPath(tree.root, s.id), ...s.reports.map((r) => reportPath(tree.root, s.id, r.n))].filter((f) => fs.existsSync(f)).map((f) => tree.relative(f));
+        tree.commit(`Reading of a document ${s.id}${back ? ", read again and cancelled" : ""}${s.version > 1 ? `, version ${s.version}` : ""}: ${s.state}${result.entries.length ? `, ${counted(result.entries.length, "entry", "entries")}` : ""}${kept ? ` — ${kept.id} read again from its original, ${kept.agree === "same" ? "alike its transcript" : "differs from its transcript"}` : ""}`, [...files, ...(session || kept ? ["data"] : [])]);
+      });
+    } finally {
+      // the tree's lock not had (or the comparison failed): the reading ends all the same, its source not compared
+      if (!persisted) persist();
+    }
   return s;
 }
 
@@ -368,7 +450,7 @@ function said(ctx: Context, r: ReadResult): string {
   const files = [...new Set(r.pages.map((p) => p.file))];
   const head = `${r.id} · ${r.state}${r.version > 1 ? ` · version ${r.version}` : ""} · ${counted(r.pages.length, "page")} of ${files.join(", ")} · ${counted(r.readers.ran, "reader")} of ${r.readers.asked}${r.readers.agree ? ` · ${r.readers.agree === "same" ? "they agree" : "they differ"}` : ""}${cost}`;
   const doc = [r.doc.kind, r.doc.language?.join("+"), r.doc.script, r.doc.date, r.doc.legible ? `legible: ${r.doc.legible}` : undefined, r.doc.why ? `why: ${r.doc.why}` : undefined].filter(Boolean).join(" · ");
-  const out: (string | undefined)[] = [head, doc ? `document: ${doc}` : undefined];
+  const out: (string | undefined)[] = [head, whoSaid(r), sourceSaid(r), doc ? `document: ${doc}` : undefined];
   for (const e of r.entries) {
     out.push("", `${e.id} · page ${e.page}${e.region ? ` · region ${e.region.join(",")}` : ""}${e.agree ? ` · ${e.agree === "same" ? "both readers alike" : "readers differ"}` : ""}`);
     out.push(`  transcript: ${e.transcript.replace(/\s*\n\s*/g, " | ")}`);
@@ -394,9 +476,38 @@ function said(ctx: Context, r: ReadResult): string {
   return lines(...out);
 }
 
+/** Who read: each reader's agent · model · effort (as readers.who), the blind one said so; none kept: nothing said. */
+function whoSaid(r: ReadResult): string | undefined {
+  const who = r.readers.who;
+  if (!who?.length) return undefined;
+  const one = (w: ReaderWho, i: number) => `${[w.agent, w.model, w.effort].filter(Boolean).join(" · ")}${i > 0 ? " (blind)" : ""}${w.ran === false ? " — not read to an end" : ""}`;
+  return `who: ${who.map(one).join(" / ")}`;
+}
+
+/** A source read again from its original: whether the new reading is alike its transcript, where not and the task. */
+function sourceSaid(r: ReadResult): string | undefined {
+  const src = r.source;
+  if (!src) return undefined;
+  const of = `${src.id}${src.clip ? ` (excerpt ${src.clip})` : ""}`;
+  if (src.agree === "same") return `source: ${of} read again from its original — alike its transcript`;
+  if (src.agree === "differ") {
+    const v = src.variants ?? [];
+    const shown = v.slice(0, 3).map((x) => `"${x.at || "—"}" / "${x.other || "—"}"`).join(", ");
+    const more = v.length > 3 ? ` and ${v.length - 3} more` : "";
+    return `source: ${of} read again from its original — differs from its transcript${shown ? ` (transcript / reading: ${shown}${more})` : ""}${src.task ? ` → task ${src.task}` : ""}`;
+  }
+  return `source: ${of} read again from its original — ${FINAL_STATES.includes(r.state) ? "not held against its transcript" : "held against its transcript once read"}`;
+}
+
 function nextOf(r: ReadResult): string[] {
   switch (r.state) {
     case "done": {
+      if (r.source) {
+        const src = r.source;
+        if (src.agree === "differ" && src.task) return ["", `next: strom task show ${src.task} — hold this reading against the transcript of ${src.id} there with the person; the source stays as it is, no new source of it`];
+        if (src.agree === "same") return ["", `next: tell the person the reading again of ${src.id} from its original is alike its transcript — nothing to record, no new source of it`];
+        return ["", `next: look at it yourself against the transcript of ${src.id} (strom source show ${src.id}) — no new source of it`];
+      }
       const e = r.entries[0];
       const page = r.pages.find((p) => p.n === e?.page) ?? r.pages[0];
       // the page as strom media view takes it: an image, an input, a page of a PDF (I…:<page>)
@@ -435,7 +546,7 @@ function cancelQueued(ctx: Context, tree: Tree, s: ReadState): ReadState {
 }
 
 /** The options a queued reading was asked with: never given again when it is read. */
-const ASKED_OPTIONS = ["readers", "into", "region", "note", "person", "queue"];
+const ASKED_OPTIONS = ["readers", "into", "region", "note", "person", "queue", "effort", "blind-agent", "blind-model", "blind-effort", "source", "clip"];
 
 /** A reading queued (--queue) read now, as it was asked: its readers, language, pages; only the blind one when so queued. */
 async function readQueued(ctx: Context, tree: Tree, id: string, opts: Record<string, unknown>) {
@@ -449,7 +560,11 @@ async function readQueued(ctx: Context, tree: Tree, id: string, opts: Record<str
     fs.rmSync(cancelPath(tree.root, id), { force: true });
     s = cancelQueued(ctx, tree, s);
   } else {
-    s = { ...s, pid: process.pid };
+    // its readers as asked; a --model given now is the model of those of the first reader's agent
+    const model = typeof opts.model === "string" ? opts.model.trim() : undefined;
+    const lead = s.with?.[0]?.agent;
+    const withNow = model === undefined || !s.with ? s.with : s.with.map((r) => (r.agent === lead ? { agent: r.agent, ...(model ? { model } : {}), ...(r.effort ? { effort: r.effort } : {}) } : r));
+    s = { ...s, pid: process.pid, ...(withNow ? { with: withNow } : {}) };
     saveState(tree.root, s);
     s = await readNow(ctx, tree, s, opts, s.only);
   }
@@ -478,8 +593,14 @@ register({
     "Nothing enters the tree by itself: look at it yourself and record a source as usual. It waits for its reader\n" +
     "(a few minutes): run it in the foreground. The result: strom document show D…; again: strom document again D….\n" +
     "--queue: only kept to be read, nothing read now (the bridge of the Strom app reads its queue one at a time); a\n" +
-    "reading queued so is read by strom document read D… — as it was asked.",
-  args: [{ name: "files", description: "the document: a photo, scan or PDF, or its input I… or image M… (several: its pages, in order); or a reading queued: D…", variadic: true, required: true }],
+    "reading queued so is read by strom document read D… — as it was asked.\n" +
+    "Who reads: --agent, --model, --effort the first reader, --blind-agent, --blind-model, --blind-effort the blind one\n" +
+    "(left out: as the research's settings say); the result says who read (readers.who). Nothing of it is kept as a setting.\n" +
+    "--source S…: the record of a source read again from its original here (its excerpts, else its images or its scan;\n" +
+    "--clip <mark>: one excerpt), its readers never shown its transcript. The new reading is kept beside the source and\n" +
+    "held against its transcript: where they differ, a task to hold the two against each other — the source, who read\n" +
+    "it and a transcript the user confirmed stay as they are.",
+  args: [{ name: "files", description: "the document: a photo, scan or PDF, or its input I… or image M… (several: its pages, in order); or a reading queued: D…", variadic: true }],
   options: [
     { name: "readers", type: "string", value: "1|2", description: "readers: 1 (default), or 2 — the second blind, where they differ is said" },
     { name: "into", type: "string", value: "<code>", description: "the language of the translation and the explanations (default: the research's)" },
@@ -487,16 +608,23 @@ register({
     { name: "note", type: "string", value: "<text>", description: "what the person says the document is (\"the back of a photo\") — a description only, never names to find" },
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of, as the person says (repeatable)" },
     { name: "name", type: "string", multiple: true, value: "[<file>:]<name>", description: "the name a file is shown under in the reading (default: its input's name, an image's original file name; repeatable, 2:<name> for the second file)" },
-    { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
+    ...WITH_OPTIONS,
+    { name: "source", type: "string", value: "<S…>", description: "read a source's record again from its original here, never from its transcript" },
+    { name: "clip", type: "string", value: "<mark>", description: "with --source: only this excerpt of it (its mark: c…, or input)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
   ],
-  examples: ["strom document read photo.jpg", "strom document read I0004 --readers 2", 'strom document read back.heic --note "the back of a photo"', "strom document read letter.pdf --into en"],
+  examples: ["strom document read photo.jpg", "strom document read I0004 --readers 2", 'strom document read back.heic --note "the back of a photo"', "strom document read letter.pdf --into en", "strom document read I0004 --readers 2 --blind-model <model>", "strom document read --source S0012 --readers 2"],
   run: async (ctx: Context, { args, opts }) => {
     const tree = ctx.tree();
     refuseInArchive(tree, "strom document read");
     if (args.length === 1 && READ_ID.test(args[0]!.trim())) return readQueued(ctx, tree, args[0]!.trim(), opts);
+    const source = typeof opts.source === "string" ? normId(opts.source.trim()) : undefined;
+    if (source && args.length) throw new UsageError("--source reads the source's own original: no file is given with it", { hint: `strom document read --source ${source}` });
+    if (!source && opts.clip !== undefined) throw new UsageError("--clip is an excerpt of a source: only with --source", { hint: "strom document read --source S… --clip <mark>" });
+    if (!source && !args.length) throw new UsageError("what to read: a file, an input I… or image M…, a reading queued D…, or --source S…", { hint: "strom document read <file>" });
     const asked = readersOf(opts.readers, 1);
+    const readWho = withOf(ctx, tree, opts);
     const into = typeof opts.into === "string" ? opts.into.trim().toLowerCase() : tree.lang;
     if (!isValidLang(into)) throw new UsageError(`invalid --into "${String(opts.into)}"`, { hint: "a language code: cs, de, en, pl …" });
     const regions = regionsOf(opts.region);
@@ -505,6 +633,18 @@ register({
     const id = newReadId();
     // the files first (a new one kept as an input), each input saying it was read — committed before a reader starts
     let pages: ReadPage[] = [];
+    // a source read again: its original as the research has it here (nothing added to the research to read it)
+    const clip = typeof opts.clip === "string" ? opts.clip.trim() : undefined;
+    if (source) {
+      const shared = ctx.settings.shared()?.value;
+      const no = notAgain(tree, shared, source, clip);
+      if (no === "none") throw new UsageError(`no source ${source} to read again`, { code: "read.source.none", params: { source }, hint: "strom source list" });
+      if (no === "notext") throw new StromError(`${source} has no transcript to hold a new reading against`, { code: "read.source.notext", params: { source }, hint: `read its record as a document: strom document read <its image>` });
+      if (no === "noscan") throw new StromError(`${source} has no original here to read${clip ? ` (excerpt ${clip})` : ""}: no image of its record on this computer`, { code: "read.source.noscan", params: { source, ...(clip ? { clip } : {}) }, hint: `strom source show ${source}` });
+      const running = readingOfSource(tree.root, source);
+      if (running) throw new StromError(`${source} is being read again now (${running})`, { code: "read.source.running", params: { source, read: running }, hint: `strom document show ${running}` });
+      pages = pagesOf(tree, originalPages(tree, shared, tree.get<Source>(source)!, clip), regions);
+    } else
     tree.withTreeLock(() => {
       try {
         const { records, added } = filesOf(ctx, tree, args, persons, note);
@@ -522,7 +662,7 @@ register({
     // whoever asked: the Strom app (its bridge runs this as the person's), else the agent's worker
     const from = ctx.env.STROM_FOR_APP ? APP_READ_FROM : ctx.env.STROM_WORKER;
     // queued to be read later: no process of its own until it is read; read now: this one's (never taken for gone)
-    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
+    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], with: readWho, ...(source ? { source: { id: source, ...(clip ? { clip } : {}) } } : {}), ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     saveState(tree.root, s);
     if (opts.queue) return queuedSaid(ctx, tree, s);
     s = await readNow(ctx, tree, s, opts);
@@ -544,7 +684,7 @@ register({
   args: [{ name: "reading", description: "the reading: D…", required: true }],
   options: [
     { name: "readers", type: "string", value: "1|2", description: "readers: as before, or 2 — after one, the blind second reader alone" },
-    { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision)" },
+    ...WITH_OPTIONS,
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
   ],
@@ -557,7 +697,10 @@ register({
     const asked = readersOf(opts.readers, before.readers);
     // one reader read it to an end: only the blind one, against it
     const firstOk = before.state === "done" && before.readers === 1 && asked === 2 && before.reports.some((r) => r.version === before.version && !r.blind && r.outcome === "ok");
-    let s: ReadState = { ...before, state: "queued", version: nextVersion(before), readers: asked, since: now(), before: beforeOf(before), ...(opts.queue ? {} : { pid: process.pid }) };
+    // who reads now: as asked now (the first reader's, when only the blind one reads, as it read)
+    const asWho = withOf(ctx, tree, opts);
+    const readWho = firstOk ? [before.with?.[0] ?? { agent: before.agent ?? asWho[0]!.agent, ...(before.model ? { model: before.model } : {}) }, asWho[1]!] : asWho;
+    let s: ReadState = { ...before, state: "queued", version: nextVersion(before), readers: asked, since: now(), before: beforeOf(before), with: readWho, ...(before.source ? { source: { id: before.source.id, ...(before.source.clip ? { clip: before.source.clip } : {}), ...(before.source.task ? { task: before.source.task } : {}) } } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     delete s.why;
     delete s.error;
     delete s.only;

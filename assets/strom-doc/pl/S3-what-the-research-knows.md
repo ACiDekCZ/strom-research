@@ -160,7 +160,8 @@ liczba wersji i uwaga. Otwarte są rozwinięte.
   drzewa”, przy rozstrzygniętej *wybrana*, „Teraz połączone naprawdę”, „Już nieważne: …”.
 - **Które hipotezy badanie wysyła:** otwarte; rozstrzygnięte i porzucone tylko te, których wersje niosą powiązania.
   Odwołane nigdy.
-- **Granice:** rozstrzygnąć hipotezy z aplikacji nie można; rozstrzyga się w badaniu.
+- **Granice:** rozstrzygnąć hipotezy z aplikacji nie można; rozstrzyga ją człowiek w badaniu, w terminalu
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Obsługa:** aplikacja: przełącznik **Pokaż** przy wersji ([S3.5.1](#S3.5.1)).
 - **Obowiązuje od:** aplikacja 3.11.0 z badaniem 1.14.0 (wersje, stan, **Pokaż**); lista hipotez od aplikacji 3.4.0
 

@@ -78,8 +78,8 @@ test("the setup wizard: the history of the places — the first setup suggests i
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // language, folder, research, model, effort, stories, level, add-ons, history (Enter: sometimes), no shortcut, no app
-  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "n", "3"] });
+  // language, folder, research, model, effort, stories, who decides the hypotheses, level, add-ons, history (Enter: sometimes), no shortcut, no app
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "", "n", "3"] });
   assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}vypnuto – dějiny se nehledají\nVybrat \[1\]/u);
   assert.doesNotMatch(r.out.slice(r.out.indexOf("Hledat i události dějin"), r.out.indexOf("Vybrat [1]", r.out.indexOf("Hledat i události dějin"))), /(^|[^\p{L}])(vy|váš|ty|tvůj|experiment|pokus)([^\p{L}]|$)/iu);
   assert.equal(config().experimentsHistory, "on");
@@ -91,15 +91,15 @@ test("the setup wizard: the history of the places — the first setup suggests i
   delete older.experimentsHistory;
   delete older.experimentsHistoryPace;
   fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(older, null, 2));
-  const before = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "n"] });
+  const before = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "", "n"] });
   assert.match(before.out, /vypnuto – dějiny se nehledají\n {3}0 {2}Nechat, jak je\nVybrat \[4\]/u);
   assert.equal(config().experimentsHistory, undefined);
   // run again: rare — on, at that pace
-  await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "2", "n"] });
+  await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "2", "n"] });
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // and again: what is now suggested, Enter keeps it
-  const kept = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "n"] });
+  const kept = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "", "n"] });
   assert.match(kept.out, /Vybrat \[2\]/u);
   assert.equal(config().experimentsHistory, "on");
   // no terminal (setup --yes, an agent): nothing of it
@@ -202,8 +202,8 @@ test("the setup wizard: several agents — the user picks; full needs a second y
   const w = new World();
   w.env.PATH = pathWith(w, ["claude", "codex"]);
   // language, folder, agent 2 (Codex in the terminal), its model: 3 the agent's own (a word on the model), its effort 1
-  // (high), no stories, level 3 (full) — then "no" to the warning, no shortcut
-  const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "3", "1", "2", "3", "n", "", "n"] });
+  // (high), no stories, who decides the hypotheses (Enter), level 3 (full) — then "no" to the warning, no shortcut
+  const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "3", "1", "2", "", "3", "n", "", "n"] });
   assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?/);
   assert.match(r.out, /Which AI agent, and where to talk with it\?\n {3}1 {2}Claude Code — in the terminal \(for experienced users\)\n {3}2 {2}OpenAI Codex CLI — in the terminal/);
   assert.match(r.out, /The research needs a strong model .* in OpenAI Codex CLI, choose its best model/);

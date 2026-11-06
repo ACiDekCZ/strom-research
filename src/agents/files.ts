@@ -34,6 +34,22 @@ export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platfor
   const ps = powershellUtf8Rule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
+  // who decides the hypotheses (hypotheses.decide — the user's; refreshed when a conversation or a run starts)
+  const hypotheses =
+    new Settings(tree.env, {}).hypothesesDecide(tree.config) === "agent"
+      ? `- **The user lets you decide the hypotheses**: once a cited record points
+  to one variant, decide it (\`strom hypothesis decide H… --variant B
+  --decision "…"\`, the variant's support citing the source S…) and tell them
+  in a sentence what and why. One that joins a branch of ten or more people
+  off the tree only on two sources and no objection — else propose it
+  (\`strom hypothesis propose …\`) for them to decide. A decision of theirs
+  you never change: a record that overturns it is proposed again with
+  \`--reason\`. What is decided you then record on the tree (the brief lists it).`
+      : `- **A hypothesis is theirs to decide**: once the records point to one
+  variant (or show none can be), propose it (\`strom hypothesis propose H…
+  --variant B --decision "…"\`) and tell them in a sentence what and why —
+  they decide it in strom's menu (What waits); the work goes on meanwhile.
+  What they decided you then record on the tree (the brief lists it).`;
   return `# Family research: ${tree.config.name}
 
 This folder is a family tree researched with **strom**, a command-line tool
@@ -85,13 +101,15 @@ the researcher; \`strom\` is your only way to read and change the research.
     through strom's rules, one page at a time at a person's pace, from page
     to page by going to the address (navigate), never clicking through a
     series of pages; a site strom refused or whose terms forbid automation
-    never. Any other agent's browser or computer use (Codex's, Antigravity's,
-    the desktop apps' own, a browser's MCP) strom does not see and does not
-    recommend: never of your own accord to an archive only a person's
+    never. The built-in browser of Claude's desktop app strom watches the
+    same way, yet does not recommend it. Any other agent's browser or
+    computer use (Codex's, Antigravity's, the desktop apps' computer use, a
+    browser's MCP) strom does not see and does not recommend: never of your
+    own accord — that built-in browser neither — to an archive only a person's
     browser goes to — the person saves its images by hand
     (\`strom task wait T… --images B…:<numbers> --on "…"\`); only when the
     person explicitly asks for one there, their choice: say in one sentence
-    that strom does not watch that way, and the archive's terms; elsewhere
+    whether strom watches that way, and the archive's terms; elsewhere
     \`strom net web --check <url> --browser\` first. An image of such an
     archive the person allowed "through the browser", with no connector of
     it: one at a time, \`strom media save T… --image <n> --at <its page>\`
@@ -120,11 +138,7 @@ says how it ends.)
   documents, photos, a family tree file.
 - **The user decides**: whom to research, what next, anything that costs
   money, what you may do. Suggest; do not decide for them.
-- **A hypothesis is theirs to decide**: once the records point to one
-  variant (or show none can be), propose it (\`strom hypothesis propose H…
-  --variant B --decision "…"\`) and tell them in a sentence what and why —
-  they decide it in strom's menu (What waits); the work goes on meanwhile.
-  What they decided you then record on the tree (the brief lists it).
+${hypotheses}
 - **Ways of working** — explain them when it helps:
   - this conversation: the two of you together;
   - the agent working on its own: they start it from strom's menu ("Let the
@@ -199,8 +213,10 @@ function claudeMd(tree: Tree): string {
   const models = new Settings(tree.env, {}).models("claude", tree.config);
   return `@AGENTS.md
 
-Claude Code: use Bash for \`strom\` commands only; read images and documents
-with the Read tool. You can choose a model for a subagent: delegate reading as
+Claude Code: use Bash for \`strom\` commands only — in Claude's desktop app
+too, never its terminal (run_in_terminal): strom's rules hold for Bash, and
+in that terminal strom refuses what is the person's. Read images and
+documents with the Read tool. You can choose a model for a subagent: delegate reading as
 below, not the way "Reading scans" in AGENTS.md says for other agents.
 
 ${PROFILES.claude!.instructions({ ...models, vision: scanReaderModel(tree, "claude") }, treeReading(tree, "claude"))}

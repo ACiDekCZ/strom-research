@@ -2,7 +2,7 @@
 # A1 The app in brief
 
 How the Strom app works as a whole, on one page. Each section leads to a chapter with the exact rules. Describes the
-Strom app 3.21.2 and the research 1.25.2.
+Strom app 3.21.2 and the research 1.25.2; changes from a later version carry its number.
 
 <a id="A1.1"></a>
 ## A1.1 A family tree in the browser, data on the device
@@ -64,3 +64,27 @@ work and what the research knows about people, and it sends edits back to the re
 - Connection: [S1](S1-connecting-app-and-research.md). Edits from the app: [S2](S2-edits-from-the-app.md).
   What the research knows: [S3](S3-what-the-research-knows.md). The research run from the app:
   [S4](S4-research-from-the-app.md). Phone: [S5](S5-phone.md).
+
+<a id="A1.7"></a>
+## A1.7 How Strom works in the app
+
+This documentation is carried in the app and can be read offline too. The window **How Strom works** has the contents
+of parts A, R and S, the **Glossary** and a search by a word or by the number of a rule.
+
+- **Limits:**
+  - opening the window sends nothing and loads nothing from the network;
+  - the number of a rule and Enter jump straight to the rule (`R4.3`); an unknown number shows the contents;
+  - links between rules have **Back**; **On the web** opens the same rule on stromapp.info;
+  - a rule newer than the connected research says so (“The research connected to this tree is version …; this
+    applies from …”).
+- **Controls:** app: **Actions → How Strom works**, on the phone **More → How Strom works**, or **About Strom → How
+  Strom works**. The circle **?** in a header opens the help right at the rule: in the Research overview and the small
+  panel at the sections **Queue** ([R2.4](R2-lines-and-queue.md#R2.4)), **Awaiting action**
+  ([R6.4](R6-awaiting-action.md#R6.4)) and **Now** ([R7](R7-when-the-agent-works.md), when paused
+  [R7.6](R7-when-the-agent-works.md#R7.6)), in the window **Places** ([R4.5](R4-places.md#R4.5)), in the places
+  manager ([R4.4](R4-places.md#R4.4)), in the conflicts panel ([R5.3](R5-conflicts.md#R5.3)) and in **What the
+  research knows → Conflicts** ([R5.6](R5-conflicts.md#R5.6)). The window also has the **App tour**. In the research:
+  `strom doc` ([R1.8](R1-research-in-brief.md#R1.8)).
+- **Since:** app 3.24.0
+
+<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics; tour.menu · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->

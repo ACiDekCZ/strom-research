@@ -5,9 +5,68 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.29.0
+
+*In preparation: the betas up to 1.29.0-beta.1. The section is complete with the release.*
+
+- **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
+  the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the user decides*
+  (the default, as in 1.28) or *the AI decides*. With the AI deciding, the agent decides a hypothesis itself once a cited
+  record supports one variant, with the variant and its reason; it never overturns the user's own decision, and a branch
+  of ten or more people off the tree it joins only on two sources with nothing against them – otherwise it proposes.
+  Each of its decisions is marked as the agent's, listed among the changes and changeable at any time; switching the
+  setting changes no decision made. Only a person turns the AI's deciding on.
+
+- **Every hypothesis can be decided from the menu.** What waits offers also the open hypotheses without the agent's
+  proposal – decided with a variant and a reason, or left open –, and a decided or set-aside hypothesis can be decided
+  again with a reason, the earlier decision kept readable; the same from one person's review and from a link of the
+  Strom app. With the user deciding, the agent proposes a decision wherever the records point to one variant.
+
+- **A conversation that ended no longer stays at work in the Strom app**, even on a busy computer or after the
+  computer's name changed.
+
+- **The agent's desktop app watched as the agent in the terminal is.** Its built-in browser keeps the archives' terms as
+  the agent's browser in Chrome does: an archive that lets in only a person's browser without the person's yes is
+  refused with the same advice, an allowed one is recorded and kept to its pace; local pages are left alone. strom's
+  commands typed into the app's own terminal follow the same rules as in the shell (what only a person does, the bridge
+  of the Strom app); the agent is told to run strom through its shell. Nothing of the app is switched off. The app's
+  terminal knows strom under any of its names – another channel's, a second installation's, the package through a
+  package runner, a path to it.
+
+- **The agent's desktop app without the agent in the terminal.** strom now says what goes and what does not: the conversation in the app
+  goes on, while working alone, reading scans and the work from the Strom app need the agent in the terminal – said
+  before any question or estimate of the cost. The settings and `strom doctor --fix` offer to install it (it can be
+  declined); `strom doctor` tells the browser in a conversation from the browser of a run alone. A conversation without it
+  reads scans with strom's own scan reader.
+
+- **A source counts as read by the user only when the user read it, and a fact is proven only from the original
+  record.** A transcript typed by hand at the terminal, or confirmed in the Strom app, makes the user its reader; what
+  imports, conversions and batches wrote under the user's account no longer does. A fact is proven only on a cited
+  original record with primary information; one without it becomes probable, the reason kept in its history, while one
+  the user made proven stays and waits in What waits to be kept or made probable (`strom fixes review proven-originals
+  keep|lower`). Existing researches are set right once by themselves, listed among the changes (`strom fixes undo
+  readers|proven-originals` puts it back). A GEDCOM of another program never makes the user a reader nor a fact proven.
+  A confirmation in the app holds for the wording it was given to and can be taken back there; on an original record
+  with primary information a fact may then be proven, otherwise at most probable.
+
+- **Each reader of a document with its own agent, model and effort, and a source read again from its original.** `strom
+  document read|again --agent/--model/--effort` (and `--blind-…` for the blind reader), or the choice in the Strom app;
+  with nothing chosen it reads as the research's settings say, never with a cheaper model. The result says who read it –
+  in the terminal, in the reading's file and in the Strom app. A source is read again from its original on this computer
+  (`strom document read --source S… [--clip …]`, or from the Strom app), its readers never shown the transcript; the new
+  reading is kept beside the source, and where it differs a task holds the two against each other – the transcript, who
+  read it and the user's confirmation stay as they were.
+
+- **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
+  hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a
+  research outside the folder of the research updates that research's agent instructions too, and a site given
+  (example.org) covers the addresses of it the research's books use. The terms of the Central Archives of Historical
+  Records in Warsaw as the archive answered: the scans used freely, each cited by the original's place – archive, fonds,
+  signature, page or folio.
+
 ## 1.28.0
 
-*In preparation: the betas up to 1.28.0-beta.3. The section is complete with the release.*
+*2026-11-06 · goes with the Strom app 3.24.0.*
 
 - **How Strom works comes with strom: `strom doc`.** The documentation of the app and the research, in Czech, English,
   German and Polish, is part of strom and reads offline: `strom doc` lists its chapters, `strom doc R10.1` shows one rule

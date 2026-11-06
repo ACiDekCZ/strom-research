@@ -2,7 +2,7 @@
 # R1 Badanie w skrócie
 
 Jak badanie działa jako całość, na jednej stronie. Każda sekcja prowadzi do rozdziału z dokładnymi zasadami. Opisuje
-badanie 1.25.2 i aplikację Strom 3.21.2.
+badanie 1.25.2 i aplikację Strom 3.21.2; zmiany z nowszej wersji mają przy sobie jej numer.
 
 <a id="R1.1"></a>
 ## R1.1 Badanie to zapis, nie rozmowa
@@ -53,8 +53,8 @@ Agent pracuje według **Genealogical Proof Standard** (GPS): rzetelne wyszukiwan
 i porównanie dowodów, rozwiązywanie sprzeczności i spisany wniosek, który zrozumie kolejny badacz.
 
 - Każda dana ma stopień pewności: **Wskazówka**, **Możliwe**, **Prawdopodobne**, **Udokumentowane**. Drzewo
-  genealogiczne i pamięć rodzinna są zawsze tylko wskazówką, indeks służy do odnalezienia wpisu. Szczegółowo:
-  [R3](R3-verification-and-citation.md).
+  genealogiczne, pamięć rodzinna i indeks są zawsze tylko wskazówką: indeks prowadzi do wpisu, dokumentuje dopiero
+  sam wpis (indeksu pilnuje kod od badania 1.28.0). Szczegółowo: [R3](R3-verification-and-citation.md).
 - Imiennik nie jest szukaną osobą. Osobę wyznacza rok, miejsce, dom, zawód, mąż lub żona i rodzice. Dwa akty
   z tym samym imieniem i innymi rodzicami to dwie osoby. Identyfikacja osób, ich imiona i nazwiska oraz konkurujące
   hipotezy: [R10](R10-people-and-hypotheses.md).
@@ -63,7 +63,7 @@ i porównanie dowodów, rozwiązywanie sprzeczności i spisany wniosek, który z
 - Gdy akty się różnią, agent nie wybiera po cichu: zapisuje **sprzeczność**. Szczegółowo: [R5](R5-conflicts.md).
 - Miejsce dostaje położenie na mapie tylko wtedy, gdy jest pewne, które to miejsce. Szczegółowo: [R4](R4-places.md).
 
-<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) -->
+<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) · src/core/evidence.ts isWeak (rejstřík od 1.28.0) -->
 
 <a id="R1.5"></a>
 ## R1.5 Co rozstrzyga człowiek
@@ -71,14 +71,16 @@ i porównanie dowodów, rozwiązywanie sprzeczności i spisany wniosek, który z
 Niektóre decyzje należą tylko do człowieka. Badanie pyta o nie w **Czeka na decyzję**, a agent nie odpowiada za
 człowieka.
 
-- Co czeka na człowieka (listy, skany do pobrania, pytania o miejsca, sprzeczności, opowieści do zatwierdzenia)
-  i gdzie się to załatwia: [R6](R6-awaiting-action.md).
+- Co czeka na człowieka (listy, skany do pobrania, pytania o miejsca, sprzeczności, hipotezy, opowieści do
+  zatwierdzenia) i gdzie się to załatwia: [R6](R6-awaiting-action.md).
+- Hipotezę rozstrzyga tylko człowiek; agent proponuje rozstrzygnięcie (od badania 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
 - Decyzja człowieka obowiązuje. Agent zmienia ją tylko na podstawie nowego źródła: [R5.4](R5-conflicts.md#R5.4).
 - Położenie miejsca wprowadzone przez człowieka się nie zmienia: [R4.3](R4-places.md#R4.3).
 - Ustawienia, które zmieniają, co wolno agentowi, potwierdza człowiek (na przykład warunek samodzielnej pracy,
   [R7](R7-when-the-agent-works.md)).
 
-<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate -->
+<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate · src/commands/analysis.ts hypothesis decide (person, od 1.28.0) -->
 
 <a id="R1.6"></a>
 ## R1.6 Badanie i aplikacja Strom
@@ -103,3 +105,28 @@ najlepiej sprawdzić jeszcze człowiek.
 - **Obowiązuje od:** badanie 1.0.0
 
 <!-- zdroj: research:assets/method/reading.md · assets/method/locate.md · assets/method/recording.md · src/commands/read.ts:183-200 -->
+
+<a id="R1.8"></a>
+## R1.8 Jak działa Strom: `strom doc`
+
+Ta dokumentacja jest dołączona do badania i czyta się ją także bez internetu. `strom doc` wypisuje spis treści,
+`strom doc R10.1` jedną zasadę razem z zasadami pod nią, a `strom doc <słowa>` szuka w nagłówkach, słowniczku pojęć
+i tekście.
+
+- **Granice:**
+  - numer można napisać także małymi literami lub z myślnikiem (`r4.3`, `R4-3`). Nieznany numer kończy się błędem,
+    który podaje najbliższe numery;
+  - wyszukiwanie nie zwraca uwagi na znaki diakrytyczne ani wielkość liter. Pokazuje najwyżej 10 zasad, najlepsze
+    pierwsze, i ile jest dalszych (`--limit` inna liczba);
+  - tekst jest w języku badania (`--lang` inny). Język, na który dokumentacja nie jest przetłumaczona, dostaje
+    angielski z uwagą;
+  - przy zasadzie jest odnośnik do tej samej zasady na stromapp.info;
+  - działa także poza badaniem i w Archiwum Strom i niczego nie zapisuje.
+- **Tylko metodyka:** na pytanie człowieka, jak lub dlaczego Strom coś robi, agent odpowiada według `strom doc`:
+  z numerem zasady i z odnośnikiem, który `strom doc` wypisuje.
+- **Obsługa:** terminal: `strom doc`, `strom doc R2.3`, `strom doc hypotéza --lang en`, `--json`. Pomoc dla
+  człowieka (`strom help --human`) kończy się odnośnikiem do `strom doc`. Aplikacja ma tę samą dokumentację w **Jak
+  działa Strom** ([A1.7](A1-the-app-in-brief.md#A1.7)).
+- **Obowiązuje od:** badanie 1.28.0
+
+<!-- zdroj: research:src/commands/doc.ts (SEARCH_ROWS=10, --limit, ui.docs.fallback, docUrl) · src/core/doc.ts · assets/strom-doc/ (PIN) · src/agents/files.ts:188 "answer from `strom doc`" · src/cli/help.ts (help --human, poslední řádek) · CHANGELOG.cs.md 1.28.0 · commity 314ab218, 4acfb170 -->

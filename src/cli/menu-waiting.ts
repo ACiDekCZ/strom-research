@@ -27,9 +27,12 @@ import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Task } from "../core/model.ts";
-import { decidedToRecord } from "../core/hypolinks.ts";
+import { agentDecided, decidedToRecord } from "../core/hypolinks.ts";
+import { normId } from "../core/records.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { branchOf } from "../core/offline.ts";
-import { humanDay, humanTask } from "./human.ts";
+import { eventName, humanDay, humanTask } from "./human.ts";
+import { provenReviewSince, provenToReview } from "../core/provenfix.ts";
 import { conflictTitle, displayName, lifespan } from "../core/people.ts";
 import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
 import { openForUser } from "../core/open.ts";
@@ -56,7 +59,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "hypothesis", "place", "branch", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "hypothesis", "place", "branch", "proven", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -69,8 +72,10 @@ export function waitingHere(ctx: Context, tree: Tree): Waiting[] {
     milder: true,
     // the open conflicts the person decides: every one in an archive, their own edits' in research
     conflicts: true,
-    // the hypotheses an agent proposes how to decide: only the person decides one (an archive: none)
+    // the hypotheses an agent proposes how to decide: only the person decides one (an archive: none) — and where the
+    // person decides them, the open ones with no proposal (until left open)
     hypotheses: true,
+    hypothesesOpen: ctx.settings.hypothesesDecide(tree.config) === "person",
     // the questions about the reading of scans: an archive asks none
     ...(isArchive(tree) ? {} : { tune: ctx.settings }),
   });
@@ -98,7 +103,8 @@ function waitingCounted(ctx: Context, tree: Tree): Waiting[] {
 
 function stampOf(ctx: Context, tree: Tree): string {
   const agent = ctx.settings.agent(tree.config).value;
-  return waitingStamp(tree, ctx.env, ctx.settings.shared()?.value, `${agent} ${viewModel(ctx.settings, agent, tree.config) ?? ""} ${claudeHere(ctx, tree.config)}`);
+  // who decides the hypotheses: the open ones with no proposal wait only where the person does
+  return waitingStamp(tree, ctx.env, ctx.settings.shared()?.value, `${agent} ${viewModel(ctx.settings, agent, tree.config) ?? ""} ${claudeHere(ctx, tree.config)} ${ctx.settings.hypothesesDecide(tree.config)}`);
 }
 
 /** The keys of the overview in the person's language: next, previous, all, and a letter per section. */
@@ -479,9 +485,10 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
 /** A decision: its own screen — an archive's question, a story's new version, the app's send, the reading of scans, a site to check. */
 async function decide(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
   if (w.conflict) return decideConflictHere(ctx, run, lang, root, w.conflict.id);
-  if (w.hypothesis) return decideHypothesis(ctx, run, lang, root, w.hypothesis.id);
+  if (w.hypothesis) return void (await decideHypothesis(ctx, run, lang, root, w.hypothesis.id));
   if (w.place) return decidePlace(ctx, run, lang, root, w.place.place.id);
   if (w.branch) return decideBranch(ctx, run, lang, root, w.branch.id);
+  if (w.proven) return decideProven(ctx, run, lang, root);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
   const tree = Tree.open(root, ctx.env);
@@ -533,52 +540,121 @@ async function decideConflictHere(ctx: Context, run: Run, lang: string, root: st
 }
 
 /**
- * A hypothesis an agent proposes how to decide — only the person decides one: its question, its variants and the
- * proposal; decided as proposed, decided otherwise (another variant, or none holds — and why), or left as it is (the
- * proposal into its notes). 0 leaves the proposal waiting. What the decision connects goes on the tree in the agent's
- * next work (the brief says so).
+ * A hypothesis the person decides — one screen for What waits, a person's review and the Strom app's link
+ * (strom-research://hypothesis): its question and its variants, then what it is.
+ *   proposed by an agent   decided as proposed, decided otherwise (another variant, or none holds — and why), or left as
+ *                          it is (the proposal into its notes)
+ *   open, no proposal      decided (a variant, or none holds — and why), or left open (What waits no longer shows it)
+ *   decided or set aside   the decision shown (and that an agent made it), changed: a variant or none, and why — the
+ *                          reason of the change, required; the earlier decision stays readable in its notes
+ * 0 changes nothing. An archive (or a research waiting for its agent): nothing of an agent — no proposal, no mark. What
+ * the decision connects goes on the tree in the agent's next work (the brief says so). True when something was written.
  */
-async function decideHypothesis(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<void> {
+export async function decideHypothesis(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const tree = Tree.open(root, ctx.env);
-  const h = tree.get<Hypothesis>(id);
-  const p = h?.type === "hypothesis" ? h.proposal : undefined;
-  // meanwhile decided (another terminal) or proposed no more: said, nothing asked
-  if (!h || !p) return void out(t("ui.waiting.gone"));
-  const proposed = p.abandon ? t("ui.wait.hypothesis.proposed.abandon", { decision: p.decision }) : t(p.variant ? "ui.wait.hypothesis.proposed" : "ui.wait.hypothesis.proposed.plain", { variant: p.variant ?? "", decision: p.decision });
+  const h = tree.get<Hypothesis>(normId(id, "hypothesis"));
+  // meanwhile withdrawn or merged (another terminal): said, nothing asked
+  if (!h || h.type !== "hypothesis" || h.retracted || h.mergedInto) return (out(t("ui.link.hypothesis.none", { id: normId(id, "hypothesis") })), false);
+  const archive = actsAsArchive(tree);
+  const p = archive ? undefined : h.proposal;
+  const decision = h.decision ?? "";
+  const now =
+    h.state === "open"
+      ? []
+      : p
+        ? [`    ${t("ui.wait.hypothesis.was", { decision })}`]
+        : [`    ${h.state === "abandoned" ? t("ui.wait.hypothesis.setAside", { decision }) : h.chosen ? t("ui.wait.hypothesis.decidedFor", { variant: h.chosen, decision }) : t("ui.wait.hypothesis.decidedPlain", { decision })}`];
+  // who decided it: an agent the person let decide them — said, so the person may change it (never in an archive)
+  if (h.state !== "open" && !archive && agentDecided(h)) now.push(`    ${t("ui.wait.hypothesis.byAgent", { day: humanDay(h.decidedAt ?? h.updated, lang) })}`);
+  const since = p ? p.at : h.state === "open" ? h.created : undefined;
+  const proposed = p ? (p.abandon ? t("ui.wait.hypothesis.proposed.abandon", { decision: p.decision }) : t(p.variant ? "ui.wait.hypothesis.proposed" : "ui.wait.hypothesis.proposed.plain", { variant: p.variant ?? "", decision: p.decision })) : undefined;
   out(
     [
       "",
-      ` ${h.id} · ${kindWord(t, "hypothesis")} · ${t("ui.wait.since", { day: humanDay(p.at, lang) })}`,
+      ` ${h.id} · ${kindWord(t, "hypothesis")}${since ? ` · ${t("ui.wait.since", { day: humanDay(since, lang) })}` : ""}`,
       ` ${h.question}`,
-      ...(h.state === "open" ? [] : [`    ${t("ui.wait.hypothesis.was", { decision: h.decision ?? "" })}`]),
+      ...now,
       ...h.variants.map((v) => `    ${v.label}) ${v.claim}`),
-      "",
-      `    ${proposed}`,
-      ...(p.reason ? [`    ${t("ui.wait.hypothesis.again", { reason: p.reason })}`] : []),
+      ...(proposed ? ["", `    ${proposed}`, ...(p!.reason ? [`    ${t("ui.wait.hypothesis.again", { reason: p!.reason })}`] : [])] : []),
     ].join("\n"),
   );
-  const i = await ctx.choose("", [{ label: t("ui.wait.hypothesis.accept") }, { label: t("ui.wait.hypothesis.other") }, { label: t("ui.wait.hypothesis.keep") }], 3, { back: t("ui.browse.back") });
-  if (i === undefined) return;
-  if (i === 2) {
-    if ((await run(["hypothesis", "decide", id, "--keep-open"], true)) !== 0) return;
-    return void out(t("ui.wait.hypothesis.kept"));
-  }
-  let argv = ["hypothesis", "decide", id, "--proposed"];
-  let abandon = !!p.abandon;
-  if (i === 1) {
-    // another variant, or none holds — and why (a decided one decided again: why, too)
+  // another variant, or none holds — and why: the decision's words; a decided one decided again: the reason too
+  const otherwise = async (): Promise<{ argv: string[]; abandon: boolean } | undefined> => {
     const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(x.claim, 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
-    if (v === undefined) return;
+    if (v === undefined) return undefined;
     const why = await askWhy(ctx, lang);
-    if (!why) return;
-    abandon = v === h.variants.length;
-    argv = ["hypothesis", "decide", id, ...(abandon ? ["--abandon"] : [`--variant=${h.variants[v]!.label}`]), `--decision=${why}`, ...(h.state === "open" ? [] : [`--reason=${why}`])];
+    if (!why) return undefined;
+    const abandon = v === h.variants.length;
+    return { abandon, argv: ["hypothesis", "decide", h.id, ...(abandon ? ["--abandon"] : [`--variant=${h.variants[v]!.label}`]), `--decision=${why}`, ...(h.state === "open" ? [] : [`--reason=${why}`])] };
+  };
+  let picked: { argv: string[]; abandon: boolean } | undefined;
+  if (p) {
+    const i = await ctx.choose("", [{ label: t("ui.wait.hypothesis.accept") }, { label: t("ui.wait.hypothesis.other") }, { label: t("ui.wait.hypothesis.keep") }], 3, { back: t("ui.browse.back") });
+    if (i === undefined) return false;
+    if (i === 2) {
+      if ((await run(["hypothesis", "decide", h.id, "--keep-open"], true)) !== 0) return false;
+      out(t("ui.wait.hypothesis.kept"));
+      return true;
+    }
+    picked = i === 0 ? { argv: ["hypothesis", "decide", h.id, "--proposed"], abandon: !!p.abandon } : await otherwise();
+  } else if (h.state === "open") {
+    const i = await ctx.choose("", [{ label: t("ui.wait.hypothesis.decide") }, { label: t("ui.wait.hypothesis.leave") }], 2, { back: t("ui.browse.back") });
+    if (i === undefined) return false;
+    if (i === 1) {
+      if ((await run(["hypothesis", "decide", h.id, "--keep-open"], true)) !== 0) return false;
+      out(t("ui.wait.hypothesis.leftOpen"));
+      return true;
+    }
+    picked = await otherwise();
+  } else {
+    const i = await ctx.choose("", [{ label: t("ui.wait.hypothesis.change") }], 1, { back: t("ui.browse.back") });
+    if (i === undefined) return false;
+    picked = await otherwise();
   }
-  if ((await run(argv, true)) !== 0) return;
-  out(t(abandon ? "ui.wait.hypothesis.abandoned" : "ui.wait.hypothesis.decided"));
-  if (!abandon && decidedToRecord(Tree.open(root, ctx.env)).some((x) => x.hypothesis.id === id)) out(t("ui.hypothesis.decided.next"));
+  if (!picked || (await run(picked.argv, true)) !== 0) return false;
+  out(t(picked.abandon ? "ui.wait.hypothesis.abandoned" : "ui.wait.hypothesis.decided"));
+  if (!picked.abandon && !archive && decidedToRecord(Tree.open(root, ctx.env)).some((x) => x.hypothesis.id === h.id)) out(t("ui.hypothesis.decided.next"));
+  return true;
+}
+
+/**
+ * The facts the user made proven without the original record (the fix proven-originals left them as they are): a few
+ * of them, why proven needs the original — kept proven (asked no more), or made probable (strom fixes review). Nothing
+ * spent; 0 leaves them waiting.
+ */
+async function decideProven(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const facts = provenToReview(tree);
+  // meanwhile answered (another terminal) or the facts changed: said, nothing asked
+  if (!facts.length) return void out(t("ui.wait.proven.gone"));
+  const at = provenReviewSince(tree);
+  const owner = (id: string) => {
+    const o = tree.get<Person | Family>(id);
+    if (!o) return id;
+    if (o.id.startsWith("F")) {
+      const f = o as Family;
+      const names = f.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map((x) => displayName(x));
+      return names.length ? `${names.join(" & ")} (${o.id})` : o.id;
+    }
+    return `${displayName(o as Person)} (${o.id})`;
+  };
+  out(
+    [
+      "",
+      ` W-proven · ${kindWord(t, "proven")}${at ? ` · ${t("ui.wait.since", { day: humanDay(at, lang) })}` : ""}`,
+      ` ${t("ui.waiting.proven", { n: facts.length })}`,
+      `    ${t("ui.wait.proven.why")}`,
+      ...facts.slice(0, 5).map((f) => `    • ${f.event} · ${eventName(f.kind, lang)}${f.date ? ` ${f.date}` : ""} · ${truncate(owner(f.owner), 60)}`),
+      ...(facts.length > 5 ? [`    ${t("ui.wait.proven.more", { n: facts.length - 5 })}`] : []),
+    ].join("\n"),
+  );
+  const i = await ctx.choose("", [{ label: t("ui.wait.proven.keep") }, { label: t("ui.wait.proven.lower") }], 2, { back: t("ui.browse.back") });
+  if (i === undefined) return;
+  await run(["fixes", "review", "proven-originals", i === 0 ? "keep" : "lower"], true);
 }
 
 /**

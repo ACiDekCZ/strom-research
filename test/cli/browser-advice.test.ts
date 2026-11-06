@@ -132,12 +132,13 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
     const cs = ((await w.run(["doctor", "--json"], { env: { STROM_LANG: "cs" } })).json.checks as { name: string; detail: string }[]).filter((c) => c.name === "browser");
     assert.ok(cs.some((c) => /jen přes prohlížeč člověka – s Claude Code a rozšířením Claude in Chrome by snímky uložil agent sám/.test(c.detail)), JSON.stringify(cs));
 
-    // the desktop apps' own browser and computer use: not watched, not recommended — nothing said off (4 languages)
+    // the Claude desktop app's built-in browser watched like Claude in Chrome, yet not recommended; the desktop apps'
+    // computer use and Codex's browser: not watched, not recommended — nothing said off (4 languages)
     for (const [lang, said] of [
-      ["en", /built-in browser, preview and computer use of the Claude and ChatGPT\/Codex desktop apps strom does not watch and does not recommend — only Claude in Chrome is watched/],
-      ["cs", /vestavěný prohlížeč, náhled a computer use desktopových aplikací Claude a ChatGPT\/Codex strom nehlídá a nedoporučuje – hlídaný je jen Claude in Chrome/],
-      ["de", /Computer Use der Desktop-Apps Claude und ChatGPT\/Codex überwacht strom nicht und empfiehlt sie nicht – überwacht wird nur Claude in Chrome/],
-      ["pl", /computer use aplikacji desktopowych Claude i ChatGPT\/Codex strom nie pilnuje i nie poleca – pilnowany jest tylko Claude in Chrome/],
+      ["en", /built-in browser of the Claude desktop app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude desktop app and the browser and computer use of the ChatGPT\/Codex app strom does not watch and does not recommend/],
+      ["cs", /vestavěný prohlížeč desktopové aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use desktopové aplikace Claude a prohlížeč a computer use aplikace ChatGPT\/Codex strom nehlídá a nedoporučuje/],
+      ["de", /eingebauten Browser der Desktop-App Claude überwacht strom wie Claude in Chrome, empfiehlt ihn aber nicht; Computer Use der Desktop-App Claude sowie Browser und Computer Use der App ChatGPT\/Codex überwacht strom nicht/],
+      ["pl", /wbudowanej przeglądarki aplikacji desktopowej Claude strom pilnuje jak Claude in Chrome, ale jej nie poleca; computer use aplikacji desktopowej Claude oraz przeglądarki i computer use aplikacji ChatGPT\/Codex strom nie pilnuje i nie poleca/],
     ] as const) {
       const all = (await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } })).json.checks as { name: string; status: string; detail: string }[];
       const desk = all.filter((c) => c.name === "desktop");

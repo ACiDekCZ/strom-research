@@ -299,6 +299,9 @@ anderen Computer übertragen), wartet auf ihn. Bis dahin verhält sie sich wie e
   - der gespeicherte Modus ändert sich nicht, und die Aufgaben werden nicht zurückgestellt. Nach der Installation des
     Agenten macht die Forschung von selbst mit den Aufgaben weiter, die sie hatte;
   - ein Agent, der gerade in der Forschung arbeitet (auch ein anderer als der eingestellte), macht sie zur Forschung.
+- **Warum:** ein Archiv ist die Wahl des Menschen, und strom erfasst sie nicht für ihn. Eine Forschung ohne Agenten
+  verhält sich nur wie ein Archiv, deshalb macht sie nach der Installation des Agenten von selbst mit den Aufgaben
+  weiter, die sie hatte; keine ist zurückgestellt.
 - **Bedienung:** Terminal: Menü, erster Punkt (**Nur als Strom-Archiv behalten: die Daten aus der Strom-App
   speichern** oder die Installation des Agenten); `strom mode` zeigt den Zustand. Die App zeigt eine solche Forschung
   als **Archiv** ([S1.3](S1-connecting-app-and-research.md#S1.3)).

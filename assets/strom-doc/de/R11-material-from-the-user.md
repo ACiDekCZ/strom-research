@@ -23,12 +23,19 @@ erfasst daraus nur, was wirklich darin steht.
 - **Nur Methodik:** Namen und Orte werden so erfasst, wie sie geschrieben sind; vereinheitlicht werden nur Daten. Die
   Aufgabe wird mit dem geschlossen, was aus der Unterlage hervorging, und mit weiteren Aufgaben: wo nach Einträgen zu
   suchen ist, die die Hinweise belegen.
+- **Warum:**
+  - 20 Bilder: Scans einer Matrik gehören nicht als Hunderte Aufgaben Unterlagen in die Historie des Stammbaums.
+    Familienunterlagen eines Ordners sind meist einige bis einige Dutzend Dateien; mehr als 20 Bilder sind meist
+    Scans eines Buches und werden als Buch erfasst;
+  - 20 MB: die Historie des Stammbaums wird nie umgeschrieben und geht mit dem Stammbaum in Sicherungen und
+    Übertragungen mit. Große Dateien (Video, unkomprimierte Scans) würden sie dauerhaft vergrößern, deshalb liegen
+    sie im gemeinsamen Medienspeicher.
 - **Bedienung:** Terminal: `strom intake <soubory nebo složky>`, `strom intake --text "…"` (was der Benutzer sagt),
   `strom input list`, `strom input show I…`. App: **Material senden…**, **Materialien hinzufügen…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Gilt seit:** Forschung 1.0.0
 
-<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
+<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · commit ff18ac678 "a folder full of images is a book of scans" · commit e9386db84 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
 <a id="R11.2"></a>
 ## R11.2 Eine Urkunde ist eine Quelle, der Rest ist ein Hinweis
@@ -85,7 +92,8 @@ Einen Ordner, eine ZIP-Datei oder eine Schachtel Dokumente, aus der App gesendet
 Stapel an. Der Agent sortiert ihn dann nach Aufgaben.
 
 - **Prüft der Code:**
-  - ein Stapel wird geschlossen, wenn die App meldet, dass er vollständig ist, oder einen Tag nach der letzten Datei;
+  - ein Stapel wird geschlossen, wenn die App meldet, dass er vollständig ist, oder einen Tag nach der letzten Datei
+    (ein Stapel vom Telefon eine Stunde nach dem letzten Foto, [S5.4](S5-phone.md#S5.4));
   - dann werden daraus Aufgaben Unterlagen zu je etwa 25 Dateien, nach den Ordnern, in denen die Dateien kamen. Im
     Strom-Archiv warten die Aufgaben zurückgestellt;
   - die Dateien eines Stapels werden als Originale im gemeinsamen Medienspeicher gespeichert, nicht in der Historie
@@ -101,10 +109,16 @@ Stapel an. Der Agent sortiert ihn dann nach Aufgaben.
     erfasst, und die Einträge werden daraus gelesen wie aus jedem Buch ([R8](R8-reading-scans.md));
   - die Aufgabe wird geschlossen, wenn jede ihrer Dateien eingeordnet ist; ein weiterer Teil des Stapels ist eine
     eigene Aufgabe.
-- **Warum:** der Pfad einer Datei im Stapel sagt viel (`Babička/Dopisy/1946.jpg`); was nicht zur Familie gehört, soll
-  nicht in den Stammbaum gelangen (Methodik).
+- **Warum:**
+  - einen Tag nach der letzten Datei: die App sendet die Dateien einzeln. Ein Stapel, von dem niemand gesagt hat, dass
+    er vollständig ist, wird mit dem geschlossen, was kam, damit nichts länger wartet; ein Tag ohne weitere Datei
+    heißt, dass das Senden vorbei ist. Die Seite auf dem Telefon wird leicht geschlossen, ohne den Stapel zu
+    übergeben, deshalb genügt dort eine Stunde;
+  - 25 Dateien: eine Aufgabe Unterlagen liest eine Sitzung des Agenten, und etwa 25 Dateien passen hinein;
+  - der Pfad einer Datei im Stapel sagt viel (`Babička/Dopisy/1946.jpg`); was nicht zur Familie gehört, soll nicht in
+    den Stammbaum gelangen (Methodik).
 - **Bedienung:** Terminal: `strom input batch` (Stapel und wie viel eingeordnet ist), `strom input sort I… --as
   source|document|photo|unrelated --person P…`. App: **Materialien hinzufügen…** im Menü der Forschung.
-- **Gilt seit:** Forschung 1.12.0
+- **Gilt seit:** Forschung 1.12.0; Stapel vom Telefon 1.18.0
 
-<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->

@@ -261,6 +261,8 @@ Do té doby se chová jako Archiv Stromu.
     výzkum čeká na agenta, a kde ho nainstalovat nebo vybrat jiného;
   - uložený režim se nemění a úkoly se neodkládají. Po instalaci agenta výzkum pokračuje sám s úkoly, které měl;
   - agent, který ve výzkumu právě pracuje (i jiný než nastavený), ho dělá výzkumem.
+- **Proč:** archiv je volba člověka a strom ji za něj nezapíše. Výzkum bez agenta se jen chová jako archiv, takže po
+  instalaci agenta sám pokračuje s úkoly, které měl; žádný není odložený.
 - **Ovládání:** terminál: menu, první položka (**Nechat jen jako Archiv Stromu: ukládat data z aplikace Strom**,
   nebo instalace agenta); `strom mode` ukáže stav. Aplikace ukazuje takový výzkum jako **Archiv**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).

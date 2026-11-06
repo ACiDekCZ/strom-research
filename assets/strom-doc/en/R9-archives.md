@@ -434,7 +434,8 @@ The steps for a task that waits for images of an archive where the agent may not
 <a id="R9.10"></a>
 ## R9.10 Examples
 
-The levels and limits are from the list of archives of the research 1.27.0. The Horák family is made up.
+The levels and limits are from the list of archives of the research 1.27.0, DigiArchiv SOA Třeboň from the research
+1.28.0. The Horák family is made up.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -504,3 +505,22 @@ The levels and limits are from the list of archives of the research 1.27.0. The 
 - **Since:** research 1.27.0
 
 <!-- zdroj: research:assets/archives.json szukajwarchiwach.gov.pl (restricted, browserOnly) -->
+
+<a id="R9.10.6"></a>
+### R9.10.6 DigiArchiv SOA Třeboň
+
+- Archive: by hand only, only through a person's browser. The terms on DigiArchiv's opening page (`/Uvod`): “Snímky
+  jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování,
+  prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.” (The images are provided only for online
+  viewing in DigiArchiv of SOA Třeboň; copying, distributing, selling and using them in other projects and on other
+  sites is forbidden.) The server refuses strom's requests (403), on purpose according to the archive.
+- The archive confirmed: a person may save by hand only selected images, never a whole book or a substantial part of
+  it. Download tools are not allowed, nor is the agent's browser.
+- Task: the entry of Marie Horáková in a register in DigiArchiv. The task always waits for images that a person
+  selects and saves. Permission does not open it; neither a downloader, a web fetch nor the agent's browser may go
+  there.
+- Citation: the permanent link to an image is the address of its page `https://digi.ceskearchivy.cz/<book>/<image>`,
+  or **Odkaz na snímek** (link to the image) in the panel **POPIS**.
+- **Since:** research 1.28.0
+
+<!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->

@@ -9,7 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { claudeDelegateHooks, delegateEvent, sameModel, transcriptModel } from "../../src/core/delegate.ts";
-import { CHROME_HOOK_MATCHER } from "../../src/core/browser.ts";
+import { APP_BROWSER_HOOK_MATCHER, CHROME_HOOK_MATCHER } from "../../src/core/browser.ts";
+import { DESKTOP_TERMINAL_MATCHER } from "../../src/core/desktopterminal.ts";
 
 const opts = { skip: !hasGit };
 
@@ -45,7 +46,7 @@ test("the tree's Claude Code settings run strom's delegate hook before each suba
   type Group = { matcher: string; hooks: { type: string; command: string; timeout: number }[] };
   const pre = () => (readJsonFile(file) as { hooks: { PreToolUse: Group[] } }).hooks.PreToolUse;
   const groups = pre();
-  assert.deepEqual(groups.map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell"]);
+  assert.deepEqual(groups.map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, APP_BROWSER_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell", DESKTOP_TERMINAL_MATCHER]);
   const h = groups.find((g) => g.matcher === "Task|Agent")!.hooks[0]!;
   assert.equal(h.type, "command");
   assert.ok(h.timeout > 0 && h.timeout <= 30, "a short time limit of its own");
@@ -60,7 +61,7 @@ test("the tree's Claude Code settings run strom's delegate hook before each suba
   old.hooks.PreToolUse = old.hooks.PreToolUse.filter((g) => g.matcher !== "Task|Agent");
   fs.writeFileSync(file, JSON.stringify(old, null, 2) + "\n");
   await w.ok(["agents", "sync"]);
-  assert.deepEqual(pre().map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell"]);
+  assert.deepEqual(pre().map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, APP_BROWSER_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell", DESKTOP_TERMINAL_MATCHER]);
   w.cleanup();
 });
 

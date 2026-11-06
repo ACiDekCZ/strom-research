@@ -66,6 +66,8 @@ export class Context {
    * to this strom's schema meanwhile — reading one that needs it says why, as writing does.
    */
   backupFailed: StromError | undefined;
+  /** Running the lines of strom batch: what they write is no reading the person typed (core/readers.ts handReading). */
+  inBatch = false;
 
   constructor(opts: {
     env: Env;

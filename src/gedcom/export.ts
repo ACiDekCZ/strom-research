@@ -28,7 +28,7 @@
 import { GedWriter, clipChars, lineValue } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
+import { agentDecided, linkInTree, recordedLinks } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, currentName, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -44,6 +44,7 @@ import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { readersOf } from "../core/review.ts";
+import { confirmedOn, markOf } from "../core/readers.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { humanTask } from "../cli/human.ts";
 import { parseYears } from "../core/years.ts";
@@ -123,6 +124,11 @@ export interface ExportOptions {
   coupleResi?: boolean;
   /** For a Strom app that shows who read a source (APP_SHOWS_SOURCE_READS): _STROM_READ, and _STROM_VERIFIED on the app's. */
   sourceReads?: boolean;
+  /**
+   * …and, for an app that confirms a transcript (appConfirmsTranscripts), under _STROM_READ the mark of each wording
+   * (2 _TXT, none on a source taken out) and the day the user confirmed it while that holds (2 _CONF).
+   */
+  confirms?: boolean;
   /** For a Strom app that keeps parents who are no couple (APP_KNOWS_NO_COUPLE): _STROM_NO_COUPLE on such a family. */
   noCouple?: boolean;
   /** The Strom profile, an app that shows it (APP_SHOWS_FACT_STATUS): how sure each fact is as 2 _STROM_STATUS, not as a note. */
@@ -141,6 +147,11 @@ export interface ExportOptions {
    */
   hypothesisLinks?: boolean;
   /**
+   * The Strom profile, for an app that shows who decided a hypothesis (APP_SHOWS_HYPOTHESIS_DECIDER): under a decided or
+   * abandoned _STROM_HYPO, 2 _BY agent (an agent's decision only), 2 DECI and 2 _AT; an agent's decision sent always.
+   */
+  hypothesisDecider?: boolean;
+  /**
    * The Strom profile, for an app that decides a conflict of the user's edit by side (APP_DECIDES_CONFLICTS): under an
    * open one it may, 2 _STROM_TAKE Y; under each of its values the side (3 _STROM_SIDE user|research), the value empty
    * when the side's is (a title taken off), a sex also as 3 _STROM_RAW M|F|U.
@@ -151,6 +162,11 @@ export interface ExportOptions {
    * made of a reading confirmed in the app carries 1 _STROM_READING D… with 2 _STROM_ENTRY e….
    */
   readings?: boolean;
+  /**
+   * The Strom profile, for an app that reads a source again from its original (appReadsSourcesAgain): whether a source
+   * can be read again here (core/sourceread.ts readsAgain), as 1 _STROM_ORIG Y. Never given in an archive.
+   */
+  original?: (s: Source) => boolean;
   /**
    * The Strom profile, for an app that says why a source has no image and asks the research for it
    * (APP_SHOWS_OMITTED_IMAGES): a source whose excerpts the file leaves out, though the research has them, carries
@@ -315,7 +331,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     hypotheses: opts.research
       ? tree
           .list<Hypothesis>("hypothesis")
-          .filter((h) => !h.retracted && (h.state === "open" || (opts.hypothesisLinks && h.variants.some((v) => v.links?.length))))
+          .filter((h) => !h.retracted && (h.state === "open" || (opts.hypothesisLinks && h.variants.some((v) => v.links?.length)) || (opts.hypothesisDecider && agentDecided(h))))
           .map((h) => ({ h, people: hypothesisPeople(tree, h) }))
       : [],
     // a search is of the people of the task it served
@@ -567,9 +583,21 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       const who = readers.get(s.id) ?? new Set<string>();
       const user = who.has("user");
       const research = [...who].some((x) => x !== "user");
-      if (user || research) w.line(1, "_STROM_READ", user && research ? "both" : user ? "user" : "research");
+      if (user || research) {
+        w.line(1, "_STROM_READ", user && research ? "both" : user ? "user" : "research");
+        // the wording the research has (the app gives it back confirming it) and the day the user confirmed it; a
+        // source taken out none (nothing to confirm there)
+        const txt = opts.confirms && !s.retracted ? markOf(s) : undefined;
+        if (txt) {
+          const on = confirmedOn(s);
+          if (on) w.line(2, "_CONF", on);
+          w.line(2, "_TXT", txt);
+        }
+      }
     }
     if (opts.sourceReads && s.app?.verified) w.line(1, "_STROM_VERIFIED", "Y");
+    // its original here, with a transcript to hold a new reading against: the app offers to read it again (POST /sources/read)
+    if (opts.original && !s.retracted && opts.original(s)) w.line(1, "_STROM_ORIG", "Y");
     // the reading of a document the source is an entry of: the app opens its result there (its pages, translation)
     if (opts.readings && s.reading) {
       w.line(1, "_STROM_READING", s.reading);
@@ -788,9 +816,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const { h } of research.hypotheses.filter((x) => x.people.includes(p.id))) {
       w.line(1, "_STROM_HYPO", h.id);
       w.text(2, "TITL", h.question);
-      if (opts.hypothesisLinks) {
+      if (opts.hypothesisLinks || opts.hypothesisDecider) {
         w.line(2, "STAT", h.state);
         if (h.state === "decided" && h.chosen) w.line(2, "_CHOSEN", h.chosen);
+      }
+      // who decided it, why and when (an agent's decision marked; none: the person's)
+      if (opts.hypothesisDecider && h.state !== "open") {
+        if (agentDecided(h)) w.line(2, "_BY", "agent");
+        if (h.decision) w.text(2, "DECI", h.decision);
+        if (h.decidedAt && /^\d{4}-\d{2}-\d{2}/.test(h.decidedAt)) w.line(2, "_AT", h.decidedAt.slice(0, 10));
       }
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
       if (opts.hypothesisLinks) for (const v of h.variants) variant(h, v);

@@ -109,6 +109,11 @@ export interface CommandDef {
    */
   person?: string;
   /**
+   * When an agent may run a command that is otherwise the person's (`person`): what the catalog says of it, and the
+   * check on the options given and the tree (a setting only the person turns on — hypotheses.decide agent).
+   */
+  agentMay?: { when: string; check(ctx: Context, input: Input): boolean };
+  /**
    * What refuses the command whoever runs it, before the person is asked (cli/main.ts): never a question whose yes is
    * refused after it (the history of the places off). Throws its refusal.
    */
@@ -242,6 +247,7 @@ export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, u
   if (def.tree) out.needsTree = true;
   // the user's own, in their terminal: refused to an agent
   if (def.person) out.userOnly = true;
+  if (def.person && def.agentMay) out.agentMay = def.agentMay.when;
   if (def.aliases?.length) out.aliases = def.aliases.map((a) => a.join(" "));
   if (def.args?.length) out.args = def.args;
   const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);

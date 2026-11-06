@@ -140,6 +140,8 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "history" ||
     link.action === "places" ||
     (link.action === "conflict" && link.do === "agent") ||
+    // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
+    (link.action === "hypotheses" && link.decide === "agent") ||
     (link.action === "task" && link.do === "chat") ||
     (link.action === "fixes" && link.id !== undefined && !quietCheck(fixCheck(link.id) ?? { remedy: "read-again" }));
   if (!forAgent) return undefined;
@@ -246,6 +248,16 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // the user's own edit: the agent may decide it only once the user left it so — written first, by the person
       if (isEditConflict(tree.get<Conflict>(link.id)!) && (await run(["conflict", "leave", link.id], true)) !== 0) return end(false);
       return { text: "", data: { done: (await run(["chat", `--say=${say}`])) === 0, action: link.action, tree: root } };
+    }
+    case "hypothesis": {
+      // a hypothesis decided, left open or its decision changed: the screen of What waits, here
+      const { hypothesisDo } = await import("../cli/menu-links.ts");
+      return end(await hypothesisDo(ctx, run, treeLang, root, link.id));
+    }
+    case "hypotheses": {
+      // who decides the hypotheses: the agent only on the person's yes here, back to the person at once
+      const { hypothesesDo } = await import("../cli/menu-links.ts");
+      return end(await hypothesesDo(ctx, run, treeLang, root, link.decide));
     }
     case "sync-undo": {
       const { undoSending } = await import("../cli/menu-links.ts");
@@ -432,6 +444,10 @@ register(
       "  note): strom intake <file> --answers T0007, the task back in the queue.\n" +
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent;\n" +
       "  &take=user|research — the side picked in the app: only confirmed, and why.\n" +
+      "strom-research://hypothesis?tree=<id>&id=H0007&do=decide — the hypothesis decided by the user in the terminal: as proposed\n" +
+      "  or otherwise, one with no proposal decided or left open, a decided one's decision changed (the reason asked).\n" +
+      "strom-research://hypotheses?tree=<id>&decide=agent|person — who decides the hypotheses of the research (hypotheses.decide):\n" +
+      "  the agent only on the user's yes in the terminal, back to the user at once.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +
@@ -512,6 +528,15 @@ register(
         const { experimentDo } = await import("../cli/menu-links.ts");
         let done = true;
         for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off", link.name)) && done;
+        return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
+      }
+      // the hypotheses decided by the person again needs nobody's answer: done in each copy of the research, no terminal
+      if (link.action === "hypotheses" && link.decide === "person" && !ctx.io.tty) {
+        const copies = researchesWithId(ctx, link.tree);
+        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        const { hypothesesDo } = await import("../cli/menu-links.ts");
+        let done = true;
+        for (const c of copies) done = (await hypothesesDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "person")) && done;
         return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
       }
       if (link.action !== "excerpt") {

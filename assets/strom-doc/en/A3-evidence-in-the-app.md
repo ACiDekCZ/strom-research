@@ -50,8 +50,12 @@ setting **My source transcriptions** decides how the research takes it
 - **Controls:** the source editor, **More: transcript, record date, reliability**; in **Actions → Sources** the
   filter **Transcription not verified** (only in a tree set to **Evidence** with older unverified sources).
 - **Since:** app 3.9.0
+- **From app 3.24.0:** a translation of the transcription sent by the research
+  ([R3.4](R3-verification-and-citation.md#R3.4)) is under the transcription as a folded section **Translation of the
+  transcript**: in the source viewer and on the source card on a person's page. The note of the source does not
+  change; the note editor shows it whole. A source without a translation looks as before.
 
-<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified -->
+<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
 
 <a id="A3.2"></a>
 ## A3.2 Citation: what a source supports

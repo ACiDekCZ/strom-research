@@ -7,11 +7,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "../cli/context.ts";
-import { StromError, UsageError } from "../core/errors.ts";
+import { UsageError } from "../core/errors.ts";
+import { requireAgentCli } from "../core/agentcli.ts";
 import { READER_STALLED, readerSettings, readerStall } from "../core/reader.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { RUNNERS } from "../runners/index.ts";
-import { which, withoutAgentMarks } from "../core/which.ts";
+import { withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import type { Tree } from "../core/tree.ts";
@@ -29,6 +30,8 @@ export interface Readers {
   /** The agent that reads. */
   agent: string;
   model: string | undefined;
+  /** The reasoning effort it reads with (none: the agent's own setting). */
+  effort: string | undefined;
   /** The longest side of a view the readers' model takes in whole. */
   viewMax: number;
   parallel: number;
@@ -128,6 +131,11 @@ export function refuseReadersInArchive(ctx: Context, tree: Tree, command: string
   refuseInArchive(tree, command, readerAgent(ctx, tree));
 }
 
+/** The readers' agent CLI not here (Claude's desktop app alone): said at once (agent.cli-missing), before anything is asked or estimated. */
+export function refuseReadersWithoutCli(ctx: Context, tree: Tree, command: string): void {
+  requireAgentCli(readerAgent(ctx, tree), ctx.env, command);
+}
+
 /** Inside a sandbox that lets no agent start (Codex's) no reader is started: said at once, with what to do instead. */
 export function refuseReadersInSandbox(ctx: Context, command: string): void {
   const sb = sandboxOf(ctx.env);
@@ -138,16 +146,17 @@ export function refuseReadersInSandbox(ctx: Context, command: string): void {
  * Set up the readers of a run (--model, --parallel, --minutes; the agent of the session, else of the tree). `reportsDir`: where their reports
  * go when they are not the research's readings (notes/readings) — a calibration's, beside the research in .strom.
  */
-export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string, own: { stem?: string } = {}): Readers {
-  refuseReadersInArchive(ctx, tree, `strom ${kind}`);
+export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string, own: { stem?: string; with?: { agent: string; model?: string | undefined; effort?: string | undefined } } = {}): Readers {
+  // who reads: as asked for these readers (strom document read: each reader its own), else the research's readers
+  const agentId = own.with?.agent ?? readerAgent(ctx, tree);
+  refuseInArchive(tree, `strom ${kind}`, agentId);
   refuseReadersWhenFinishing(tree.root, ctx.env);
   refuseReadersInSandbox(ctx, `strom ${kind}`);
-  const agentId = readerAgent(ctx, tree);
+  requireAgentCli(agentId, ctx.env, `strom ${kind}`);
   const runner = RUNNERS[agentId];
   if (!runner) throw noReaderFor(agentId, `strom ${kind}`);
-  if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
-  const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
-  const effort = ctx.settings.effort(agentId, tree.config)?.value;
+  const model = own.with ? own.with.model || undefined : typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
+  const effort = own.with ? own.with.effort || undefined : ctx.settings.effort(agentId, tree.config)?.value;
   const sizes = viewSizesFor(ctx.settings, agentId, tree.config, model, tree.root);
   const parallel = opts.parallel === undefined ? 3 : Math.max(1, Number(opts.parallel) || 1);
   // a reader's time limit: by hand, else by the views it is given and what the readers before it needed (readerLimit)
@@ -236,5 +245,5 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
   };
-  return { agent: agentId, model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
+  return { agent: agentId, model, effort, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

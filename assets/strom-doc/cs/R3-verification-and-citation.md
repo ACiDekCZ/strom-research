@@ -35,7 +35,7 @@ ze všech pramenů údaje, ne jak dobrý je jeden pramen ([R3.2.1](#R3.2.1)).
 ### R3.1.1 Výchozí stupeň a citace, která ho zvedne
 
 - Údaj zapsaný bez `--status`: bez citace **Vodítko**; s citací aspoň jednoho pramene, který není slabý
-  ([R3.3](#R3.3)), **Pravděpodobné**; jinak Vodítko.
+  ([R3.3](#R3.3)), **Pravděpodobné**; jinak Vodítko. Od výzkumu 1.28.0 je slabý i rejstřík.
 - `strom cite` bez `--status` zvedne Vodítko na Pravděpodobné, když nový pramen není slabý. Jiný stupeň nemění.
 - Změna stupně přes `strom event edit --status` potřebuje `--reason`; citace se stupněm (`strom cite … --status`) ne.
 - Hlídá kód. **Platí od:** výzkum 1.0.0
@@ -51,18 +51,18 @@ Stupeň nesmí tvrdit víc, než dávají citace údaje. Kód to kontroluje při
 - **Hranice (hlídá kód),** v tomto pořadí:
   1. Pravděpodobné i Doložené potřebuje aspoň jednu citaci.
   2. Aspoň jedna citace musí být z pramene, který není slabý. Slabý je rodokmen (`--kind family-tree`), vzpomínka
-     (`--kind family-memory`) a autorské dílo (`--form authored`).
+     (`--kind family-memory`), autorské dílo (`--form authored`) a od výzkumu 1.28.0 rejstřík (`--kind index`).
   3. Doložené navíc potřebuje mezi citacemi z ne-slabých pramenů aspoň jednu s primární informací
      (`--information primary`): záznam psaný v době události někým, kdo to věděl. Informace u citace má přednost
      před informací u pramene.
 - **Jen metodika:** kód nekontroluje, že je pramen originál (`--form original`), že ho agent přečetl sám, že záznam
-  údaj uvádí přímo, ani slepé druhé čtení ([R3.5](#R3.5)). Doložené proto projde i u opisu nebo rejstříku
-  s primární informací.
+  údaj uvádí přímo, ani slepé druhé čtení ([R3.5](#R3.5)). Doložené proto projde i u opisu s primární informací
+  (u rejstříku do výzkumu 1.27.0 také).
 - **Ovládání:** terminál: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   Odmítnutí řekne důvod a co místo toho (nechat Vodítko, `--status possible`, nebo `--status probable`).
 - **Platí od:** výzkum 1.0.0
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 Pramen: forma a informace
@@ -86,15 +86,20 @@ Stupeň nesmí tvrdit víc, než dávají citace údaje. Kód to kontroluje při
 Rodokmen, vzpomínka, rejstřík, katalog a online strom říkají, kde hledat. Nejsou dokladem údaje. Údaj z nich zůstává
 Vodítko, dokud ho nedoloží záznam.
 
-- **Hlídá kód:** rodokmen, vzpomínka a autorské dílo jsou slabé prameny: údaj jen z nich nikdy není Pravděpodobné
-  ani Doložené ([R3.2](#R3.2)). Převzatý rodokmen: [R11.3](R11-material-from-the-user.md#R11.3).
-- **Jen metodika:** rejstřík. Kód ho za slabý nepovažuje: s jeho citací dostane údaj bez `--status` stupeň
-  Pravděpodobné a s `--information primary` projde i Doložené. Metodika chce rejstřík jen k nalezení stránky;
-  zápis se čte v matrice. I chybějící zápis v rejstříku je jen vodítko: podobný tvar příjmení je kandidát.
+- **Hlídá kód:** rodokmen, vzpomínka, autorské dílo a rejstřík (`--kind index`) jsou slabé prameny: údaj jen
+  z nich nikdy není Pravděpodobné ani Doložené ([R3.2](#R3.2)). Údaj, který cituje jen rejstřík, zůstane Vodítko,
+  dokud se nepřečte a necituje samotný zápis; s citací zápisu je údaj zápisu. Převzatý rodokmen:
+  [R11.3](R11-material-from-the-user.md#R11.3).
+- **Hranice:** u úprav z aplikace se rejstřík počítá jako záznam: úprava údaje doloženého rejstříkem se stane
+  rozporem ([R5.2](R5-conflicts.md#R5.2)), nic se tiše nepřepíše.
+- **Jen metodika:** rejstřík slouží jen k nalezení stránky; zápis se čte v matrice. I chybějící zápis v rejstříku
+  je jen vodítko: podobný tvar příjmení je kandidát.
 - Materiál od uživatele (doklad, fotka, dopis, co řekne): [R11.2](R11-material-from-the-user.md#R11.2).
 - **Platí od:** výzkum 1.0.0
+- **Od výzkumu 1.28.0:** rejstřík hlídá kód jako slabý pramen (dřív jen metodika: s jeho citací dostal údaj
+  Pravděpodobné a s `--information primary` prošlo i Doložené).
 
-<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts:27 isWeak · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 -->
+<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts isWeak (kind index od v1.28.0), isCompiled (sync) · src/core/sync.ts isCompiled · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 · test/cli/index-weak.test.ts · commit 9685fcbe -->
 
 <a id="R3.4"></a>
 ## R3.4 Citace: výřez a přepis
@@ -105,17 +110,22 @@ Citace říká, kde přesně v prameni údaj stojí. Pramen je jeden zápis; ví
   zápisu, jak stojí, po řádcích, nepřečtené písmeno `[?]`), k tomu `--locator` (folio, strana, číslo zápisu)
   a u údaje `--quote`. Do pole (`--date`, `--house`, `--age`, jméno) jde jen to, co je přečtené jistě; nejisté jde
   do přepisu s `[?]` a do poznámky údaje.
+- **Jen metodika, od výzkumu 1.28.0:** zápis v jiném jazyce nebo písmu, než je jazyk výzkumu (latina, kurent,
+  polština, azbuka…), dostane vedle doslovného přepisu i překlad do jazyka výzkumu (`--translation`). Přepis zůstává
+  v jazyce zápisu. Aplikace překlad ukazuje sbalený pod přepisem
+  ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)).
 - **Hlídá kód:** nejvýš 3 výřezy na pramen (zápis a jeho pokračování přes zlom stránky). Chybějící výřez nebo přepis
   kód neodmítne, jen připomene u pramene na skenu: po `strom source add`, po `strom source edit` se snímkem nebo
   výřezem a při `strom task done` u pramenů, které úkol zapsal.
 - Starší prameny: výřez doplní `strom clips`, přepis `strom transcripts` (čtenáři, druhý pohled je zkontroluje).
-- **Ovládání:** terminál: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --locator "…"`.
+- **Ovládání:** terminál: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --translation
+  @notes/preklad.txt --locator "…"`; doplnění `strom source edit S… --translation "…"`.
   Aplikace ukazuje výřez zápisu vedle přepisu.
 - **Platí od:** výzkum 1.1.0 (výřez, `strom clips`, `strom transcripts`); přepis 1.0.0
 - **Od výzkumu 1.26.0:** nápověda volby `--clip` říká „další na každý zlom stránky, nejvýš 3“ (v 1.25.2 „druhý“).
   Pravidlo se nemění.
 
-<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b -->
+<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
 <a id="R3.5"></a>
 ## R3.5 Slepé druhé čtení
@@ -270,6 +280,15 @@ Vyprávění se píše z údajů pro rodinu. Co se nedoložilo, se nedomýšlí.
   - staré povolání a pojem, kterému čtenář nerozumí, se vysvětlí; píše se v jazyce výzkumu;
   - formát textu: jen odstavce, podnadpisy, odrážky, tučné písmo a kurzíva. Ostatní (odkazy, tabulky, citace,
     číslované seznamy) aplikace podle metodiky ukáže jako prostý text.
+- **Proč:**
+  - nic se nedomýšlí: vyprávění je pro rodinu a stojí na dokladech. Co by znělo pravděpodobně, ale doložené není,
+    by se v rodině začalo brát jako fakt;
+  - pozadí: je doložené pro místo, ne pro člověka; jako příčina toho, co osoba udělala, by bylo domněnkou vydávanou
+    za fakt. Pramen pozadí vyprávění jmenuje (`--source`), aby šel ověřit;
+  - vyprávění páru: společný život se vypráví jednou, u páru, aby se tentýž život nevyprávěl dvakrát a verze se
+    nerozcházely;
+  - formát: aplikace Strom ukáže jen odstavce, podnadpisy, odrážky, tučné písmo a kurzívu; ostatní by čtenář viděl
+    jako prostý text se značkami.
 - Schválení a nová verze schváleného vyprávění: [R6.3.2](R6-awaiting-action.md#R6.3.2).
 - **Ovládání:** terminál: `strom story set P… --text @notes/… --fact E… --source S… --note "co je odvozené"`
   (vyprávění páru na rodině F…).

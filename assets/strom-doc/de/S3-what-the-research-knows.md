@@ -170,7 +170,8 @@ B*, *verworfen*, die Zahl der Versionen und eine Notiz. Offene sind aufgeklappt.
   verbunden“, „Nicht mehr gültig: …“.
 - **Welche Hypothesen die Forschung sendet:** offene; entschiedene und verworfene nur die, deren Versionen
   Verbindungen tragen. Zurückgezogene nie.
-- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; entschieden wird in der Forschung.
+- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; sie entscheidet der Mensch in der Forschung,
+  im Terminal ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)).
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0 (Versionen, Stand, **Zeigen**); Liste der Hypothesen seit App 3.4.0
 

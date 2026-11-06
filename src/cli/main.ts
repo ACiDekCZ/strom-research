@@ -23,6 +23,8 @@ import { settleArchive } from "../core/mode.ts";
 import { startTiming, stepEnd, stepStart, stopTiming, timed, timingOn } from "../core/timing.ts";
 import { timingSaid } from "./timing.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
+import { settleReaders } from "../core/readerfix.ts";
+import { settleProven } from "../core/provenfix.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { revivePhone } from "../core/phone.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
@@ -285,7 +287,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // every option is read — the agents' rules match only what follows the command's name (strom --json seal adopt
     // passed Codex's), so they are a second layer and strom the first
     if (def.refusesFirst) def.refusesFirst(ctx, { args: parsed.positionals, opts: v });
-    if (def.person && isAgent(env)) {
+    if (def.person && isAgent(env) && !def.agentMay?.check(ctx, { args: parsed.positionals, opts: v })) {
       const said = (def.options ?? []).flatMap((o) => (v[o.name] === undefined || v[o.name] === false ? [] : o.type === "boolean" ? [`--${o.name}`] : [`--${o.name}`, String(v[o.name])]));
       ctx.requireHuman(def.person, ["strom", ...def.path, ...[...parsed.positionals, ...said].map(shellArg)].join(" "), def.path[0]!, undefined, { window: false });
     }
@@ -425,6 +427,18 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         }
         try {
           settleHypothesisLinks(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start settles it
+        }
+        // …and a write of the user alone is no reading of a source, proven needs the original record: the readers and the
+        // facts an older strom counted otherwise set right (once, in one commit each; strom fixes undo puts them back)
+        try {
+          settleReaders(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start settles it
+        }
+        try {
+          settleProven(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its bridge's start settles it
         }

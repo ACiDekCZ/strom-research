@@ -44,6 +44,7 @@ import { setTreeSetting } from "./setup.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
+import { requireAgentCli } from "../core/agentcli.ts";
 import { askGate, checkGateSpec, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
 import { askFinish, deadlineOf, earlyClose, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
@@ -783,7 +784,9 @@ register(
     "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
     "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
     "--until), any other run ends saying when.\n" +
-    "Arguments after -- go to the agent CLI unchanged.",
+    "Arguments after -- go to the agent CLI unchanged.\n" +
+    "It starts the agent's CLI: where only its desktop app is here, it refuses before anything is asked (code\n" +
+    "agent.cli-missing) — the conversation in the app goes on (strom chat); strom doctor --fix offers Claude Code.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
@@ -803,6 +806,8 @@ register(
   examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     refuseInArchive(ctx.tree(), "strom run", ctx.settings.agent(ctx.tree().config).value);
+    // the agent's CLI not here (its desktop app alone): said before anything is asked (core/agentcli.ts)
+    requireAgentCli(ctx.settings.agent(ctx.tree().config).value, ctx.env, "strom run");
     ctx.confirmElsewhere(
       "Start the agent working alone on this research — asked by an agent outside the research's folder?",
       "strom run",
@@ -832,8 +837,6 @@ register(
         ui(lang, "ui.consent.effort.run", { agent: name, effort: runEffort, now: effort ?? ownEffort(ctx.env, runnerId) ?? ui(lang, "ui.effort.default", { agent: name }) }),
       );
     }
-    if (runnerId !== "script" && !which(runner.command, ctx.env))
-      throw new StromError(`${runner.command} is not installed`, { hint: runnerId === "claude" ? "install Claude Code: https://claude.com/claude-code — then log in once by running: claude" : `install ${runner.command}` });
     const until = parseUntil(opts.until);
     // The history of the places first (the person's word): its tasks alone, whatever its pace — only while it is on.
     const historyOnly = Boolean(opts.history);

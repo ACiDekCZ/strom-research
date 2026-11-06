@@ -51,8 +51,12 @@ ustawienie **Moje transkrypcje źródeł** określa, jak traktuje ją badanie
 - **Obsługa:** edytor źródła, **Więcej: transkrypcja, data zapisu, wiarygodność**; w **Akcje → Źródła** filtr
   **Transkrypcja niezweryfikowana** (tylko przy drzewie **Udokumentowane** ze starszymi niezweryfikowanymi źródłami).
 - **Obowiązuje od:** aplikacja 3.9.0
+- **Od aplikacji 3.24.0:** tłumaczenie transkrypcji, które wysłało badanie ([R3.4](R3-verification-and-citation.md#R3.4)),
+  jest pod transkrypcją jako zwinięta sekcja **Tłumaczenie transkrypcji**: w podglądzie źródła i na karcie źródła na
+  stronie osoby. Notatka źródła się przez to nie zmienia; edytor notatki pokazuje ją całą. Źródło bez tłumaczenia
+  wygląda jak wcześniej.
 
-<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified -->
+<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
 
 <a id="A3.2"></a>
 ## A3.2 Cytat: co źródło dokumentuje

@@ -1,7 +1,7 @@
 <a id="A6"></a>
 # A6 Pohledy a výběr osob
 
-Jak aplikace Strom vybírá, které osoby ukáže, a jak je ukazují jednotlivé pohledy. Popisuje aplikaci 3.21.2.
+Jak aplikace Strom vybírá, které osoby ukáže, a jak je ukazují jednotlivé pohledy. Popisuje aplikaci 3.21.2; změny z novější verze mají u sebe její číslo.
 
 Pohled je jiné čtení **téhož výběru osob**. Výběr určuje ústřední osoba (ta, na kterou se klikne) a hloubka
 **Předci** a **Potomci**. Rodina, Potomci, Časová osa a Mapa ukazují stejné okolí ústřední osoby. Vějíř si
@@ -136,12 +136,22 @@ název místa, jak je zapsaný ve stromu, a jen se souhlasem. Ve stromu z výzku
   - před prvním dohledáním se aplikace zeptá (**Dohledat souřadnice online?**). Odejdou jen názvy míst, žádná jména,
     data ani vztahy. Nejvýš jeden dotaz zhruba za sekundu;
   - souřadnice se uloží do stromu: každé místo se dohledá jednou a mapa pak funguje i bez připojení;
-  - automatické dohledání vezme **první výsledek** služby pro zapsaný název. Stejnojmenné obce při tom nerozliší:
-    místo tak může padnout do obce stejného jména jinde. Takovou polohu pak označí **Ověřit**
-    ([R4.4.1](R4-places.md#R4.4.1));
+  - automatické dohledání vezme **první výsledek** služby pro zapsaný název. Do aplikace 3.23.0 při tom stejnojmenné
+    obce nerozlišilo: místo tak mohlo padnout do obce stejného jména jinde. Polohu, která do stromu nesedí, označí
+    **Ověřit** ([R4.4.1](R4-places.md#R4.4.1));
   - jen místo s číslem domu, které služba nenašla, se dohledá podle obce. Z obcí toho jména se vybere ta nejblíž
     ostatním místům stromu („Obec toho jména je víckrát; vybrána ta nejblíž ostatním místům stromu.“); u místa stojí
     **Poloha podle obce**;
+  - **od aplikace 3.24.0** se nejbližší obec vybírá u každého místa: když se dvě a víc obcí jmenují přesně jako
+    zapsané místo (bez ohledu na velikost písmen a diakritiku), vezme se ta nejbližší středu stromu, ne první
+    výsledek. Střed je medián poloh zadaných ručně nebo potvrzených **Ponechat**, když jsou aspoň 3; jinak medián
+    všech poloh stromu a míst, která dohledání našlo bez pochyb. Místo s dalším určením („Lhota u Kolína“,
+    „Lhota 16“), jediná obec nebo strom bez poloh dostane první výsledek jako dřív. Pořád jde o jeden dotaz na místo;
+  - kontrola místa řekne, kolik obcí toho jména mapa našla („Mapa našla 3 obce toho jména a vzala tu nejbližší
+    ostatním místům stromu.“); od aplikace 3.24.0, dřív vždy „dvě“;
+  - poloha, která už ve stromu je, se nepřesune: dohledání hledá jen místa bez polohy. Ani sloučení s jiným stromem
+    nebo souborem GEDCOM nepřepíše polohu zadanou ručně nebo potvrzenou **Ponechat**, jen doplní chybějící. Špatnou
+    starší polohu jde přesunout jen ručně;
   - co se nenajde, zůstane bez polohy. Aplikace nic nehádá: „pomůže opravit zápis nebo doplnit zemi“.
 - **Ovládání:** aplikace: **Nastavení → Dohledávat místa online**; v okně míst **Špatné místo? Opravit**, **Najít toto
   místo pod jiným názvem** (připojí se jen poloha, zápis ve stromu se nemění), **Použít i pro další čísla domů v …**,
@@ -149,9 +159,9 @@ název místa, jak je zapsaný ve stromu, a jen se souhlasem. Ve stromu z výzku
 - **Proč:** dohledání míst je jediná část aplikace, která něco posílá ven; proto jen se souhlasem, jen názvy a každé
   místo jednou (komentář v kódu). Limit jednoho dotazu za sekundu je podmínka služby.
 - **Platí od:** aplikace 1.10.0; **Špatné místo? Opravit** 1.10.1; **Vyčistit osiřelá místa** 2.1.0; poloha podle obce
-  3.21.0
+  3.21.0; nejbližší stejnojmenná obec u každého místa a počet obcí v kontrole 3.24.0
 
-<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) -->
+<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
 <a id="A6.6"></a>
 ## A6.6 Rod v pohledu

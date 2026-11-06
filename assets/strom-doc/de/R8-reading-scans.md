@@ -409,6 +409,8 @@ daraus und die Suche, die ihn gefunden hat.
   - eine Quelle aus einem Scan bekommt `--clip` (den Ausschnitt, in dem der Eintrag gelesen wurde), `--transcript`
     (die Worte des Eintrags zeilenweise, nicht Gelesenes `[?]`) und `--locator` (Folio, Seite, Nummer des Eintrags);
     ausführlich [R3.4](R3-verification-and-citation.md#R3.4);
+  - ein Eintrag in einer anderen Sprache oder Schrift als der Sprache der Forschung bekommt neben der wörtlichen
+    Abschrift auch eine Übersetzung in die Sprache der Forschung (`--translation`), ab Forschung 1.28.0;
   - in die Felder (`--date`, `--house`, `--age`, Name) kommt nur sicher Gelesenes. Unsicheres kommt mit `[?]` in die
     Abschrift und in die Notiz der Angabe („Haus 21 oder 27“). Was ein Leser als unleserlich gemeldet hat, bleibt
     unleserlich, bis der Agent es selbst liest. Eine leere Spalte ist leer; nichts wird nach dem Üblichen ergänzt;
@@ -426,7 +428,7 @@ daraus und die Suche, die ihn gefunden hat.
   ([A3.3](A3-evidence-in-the-app.md#A3.3)).
 - **Gilt seit:** Forschung 1.0.0; Ausschnitt 1.1.0
 
-<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ -->
+<!-- zdroj: research:assets/method/recording.md:1-27, :55-65 · assets/method/reading.md:76-84 · assets/method/core.md „Negative results are results“ · překlad: recording.md "--translation", link.md krok 7 (od v1.28.0) -->
 
 <a id="R8.7"></a>
 ## R8.7 Sicherheit und Prüfung des Gelesenen

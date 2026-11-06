@@ -36,7 +36,10 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.27.0";
+export const VERSION = "1.28.0";
+
+/** What a new research is settled with from the start: nothing an older strom counted otherwise to set right in it. */
+export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1"];
 
 export interface Op {
   at: string;
@@ -254,7 +257,9 @@ export class Tree {
       throw new UsageError(`folder is not empty: ${root}`, { hint: "choose a new folder name" });
     if (!git.gitVersion()) throw git.gitMissingError();
     fs.mkdirSync(root, { recursive: true });
-    const config: TreeConfig = { schema: SCHEMA_VERSION, id: crypto.randomUUID(), name, lang, created: now(), createdWith: VERSION };
+    // a new research has nothing an older strom counted otherwise: the readers and proven facts are right from the start
+    // (core/readers.ts READERS_SETTLED, core/provenfix.ts PROVEN_SETTLED — literal here, the same words a test checks)
+    const config: TreeConfig = { schema: SCHEMA_VERSION, id: crypto.randomUUID(), name, lang, created: now(), createdWith: VERSION, settled: [...NEW_TREE_SETTLED] };
     writeJson(path.join(root, TREE_FILE), config);
     for (const d of ["data", "output", "notes", "inputs"]) fs.mkdirSync(path.join(root, d), { recursive: true });
     writeJson(path.join(root, "data", "_counters.json"), {});
@@ -853,6 +858,11 @@ export class Tree {
     const out: Op[] = [];
     for (const f of opsLogs(this.dataDir)) for (const op of opsOfFile(f)) out.push(op);
     return out;
+  }
+
+  /** The operations log by log (one commit's own, or an older strom's of a month or a session), oldest first. */
+  readOpLogs(): Op[][] {
+    return opsLogs(this.dataDir).map((f) => opsOfFile(f));
   }
 
   /** Research language for this invocation: an override from outside (--lang, STROM_LANG) or the tree's own. */

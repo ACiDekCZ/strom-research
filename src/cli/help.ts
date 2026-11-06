@@ -31,7 +31,7 @@ const WORK_WORDS = /\btasks?\b|\bqueue[ds]?\b|\bsessions?\b/i;
 const notInArchive = (text: string): boolean => AI_WORDS.test(text) || WORK_WORDS.test(text);
 const ARCHIVE_COMMANDS = new Set([
   "help", "menu", "status", "tidy",
-  "init", "trees", "trees use", "trees remove", "mode", "lang", "pack", "unpack", "backup", "sync", "sync undo", "sync discard",
+  "init", "trees", "trees use", "trees remove", "trees forget", "mode", "lang", "pack", "unpack", "seal adopt", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
   "find", "stats", "pedigree", "recent", "history", "history back", "doc",
@@ -215,14 +215,15 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
 /** The commands a person uses, in the order a person meets them. */
 export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "update", "uninstall", "shortcut",
-  "init", "trees", "trees use", "trees remove", "lang", "mode",
+  "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
-  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "task list", "task wake", "task order", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",
-  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check",
-  "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "media calibrate",
-  "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
+  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "backup", "tidy", "check",
+  "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "fixes review", "media calibrate",
+  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "quality dismiss", "quality undo", "place answer", "place undo",
+  "config get", "config set", "login", "connector add", "connector remove", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 
 export interface HelpAs {

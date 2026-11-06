@@ -2,7 +2,8 @@
 # R1 Die Forschung im Überblick
 
 Wie die Forschung als Ganzes arbeitet, auf einer Seite. Jeder Abschnitt führt zu einem Kapitel mit den genauen
-Regeln. Beschrieben werden die Forschung 1.25.2 und die Strom-App 3.21.2.
+Regeln. Beschrieben werden die Forschung 1.25.2 und die Strom-App 3.21.2. Änderungen aus einer neueren Version tragen
+deren Nummer.
 
 <a id="R1.1"></a>
 ## R1.1 Die Forschung ist eine Aufzeichnung, kein Gespräch
@@ -57,8 +58,9 @@ Der Agent arbeitet nach dem **Genealogical Proof Standard** (GPS): gründliche S
 und Vergleich der Beweise, Auflösung von Widersprüchen und eine niedergeschriebene Schlussfolgerung, die eine weitere
 forschende Person versteht.
 
-- Jede Angabe hat einen Grad der Sicherheit: **Hinweis**, **Möglich**, **Wahrscheinlich**, **Belegt**. Ein Stammbaum
-  und die Familienüberlieferung sind immer nur ein Hinweis, ein Register dient zum Finden des Eintrags. Ausführlich:
+- Jede Angabe hat einen Grad der Sicherheit: **Hinweis**, **Möglich**, **Wahrscheinlich**, **Belegt**. Ein Stammbaum,
+  die Familienüberlieferung und ein Register sind immer nur ein Hinweis: das Register führt zum Eintrag, belegt erst
+  der Eintrag selbst (das Register prüft der Code ab Forschung 1.28.0). Ausführlich:
   [R3](R3-verification-and-citation.md).
 - Ein Namensvetter ist nicht die gesuchte Person. Eine Person bestimmen Jahr, Ort, Haus, Beruf, Ehemann oder Ehefrau
   und die Eltern. Zwei Einträge mit demselben Namen und anderen Eltern sind zwei Personen. Identifizierung von
@@ -69,7 +71,7 @@ forschende Person versteht.
   Ausführlich: [R5](R5-conflicts.md).
 - Ein Ort bekommt eine Lage auf der Karte nur, wenn sicher ist, welcher Ort es ist. Ausführlich: [R4](R4-places.md).
 
-<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) -->
+<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) · src/core/evidence.ts isWeak (rejstřík od 1.28.0) -->
 
 <a id="R1.5"></a>
 ## R1.5 Was der Mensch entscheidet
@@ -77,14 +79,16 @@ forschende Person versteht.
 Manche Entscheidungen gehören nur dem Menschen. Die Forschung fragt danach in **Wartet auf Bearbeitung**, und der
 Agent antwortet nicht an Stelle des Menschen.
 
-- Was auf den Menschen wartet (Briefe, Bilder zum Herunterladen, Fragen zu Orten, Widersprüche, Erzählungen zur
-  Freigabe) und wo es erledigt wird: [R6](R6-awaiting-action.md).
+- Was auf den Menschen wartet (Briefe, Bilder zum Herunterladen, Fragen zu Orten, Widersprüche, Hypothesen,
+  Erzählungen zur Freigabe) und wo es erledigt wird: [R6](R6-awaiting-action.md).
+- Eine Hypothese entscheidet nur der Mensch; der Agent schlägt die Entscheidung vor (ab Forschung 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
 - Die Entscheidung des Menschen gilt. Der Agent ändert sie nur auf Grund einer neuen Quelle: [R5.4](R5-conflicts.md#R5.4).
 - Eine vom Menschen eingetragene Lage eines Ortes wird nicht geändert: [R4.3](R4-places.md#R4.3).
 - Einstellungen, die ändern, was der Agent darf, bestätigt der Mensch (zum Beispiel die Bedingung für die Arbeit des
   Agenten allein, [R7](R7-when-the-agent-works.md)).
 
-<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate -->
+<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate · src/commands/analysis.ts hypothesis decide (person, od 1.28.0) -->
 
 <a id="R1.6"></a>
 ## R1.6 Die Forschung und die Strom-App
@@ -109,3 +113,28 @@ KI-Modell ist nicht hundertprozentig; wichtige Angaben soll idealerweise noch ei
 - **Gilt seit:** Forschung 1.0.0
 
 <!-- zdroj: research:assets/method/reading.md · assets/method/locate.md · assets/method/recording.md · src/commands/read.ts:183-200 -->
+
+<a id="R1.8"></a>
+## R1.8 So funktioniert Strom: `strom doc`
+
+Diese Dokumentation liegt der Forschung bei und lässt sich auch ohne Internet lesen. `strom doc` gibt den Inhalt aus,
+`strom doc R10.1` eine Regel samt den Regeln darunter und `strom doc <Wörter>` sucht in den Überschriften, im
+Begriffsverzeichnis und im Text.
+
+- **Grenzen:**
+  - die Nummer lässt sich auch in Kleinbuchstaben oder mit Bindestrich schreiben (`r4.3`, `R4-3`). Eine unbekannte
+    Nummer endet mit einem Fehler, der die nächsten Nummern nennt;
+  - die Suche achtet weder auf diakritische Zeichen noch auf Groß- und Kleinschreibung. Sie zeigt höchstens 10 Regeln,
+    die besten zuerst, und wie viele es noch gibt (`--limit` eine andere Anzahl);
+  - der Text ist in der Sprache der Forschung (`--lang` eine andere). Eine Sprache, in die die Dokumentation nicht
+    übersetzt ist, bekommt Englisch mit einem Hinweis;
+  - bei der Regel steht ein Link auf dieselbe Regel auf stromapp.info;
+  - funktioniert auch außerhalb der Forschung und im Strom-Archiv und schreibt nichts.
+- **Nur Methodik:** auf die Frage des Menschen, wie oder warum Strom etwas tut, antwortet der Agent nach `strom doc`:
+  mit der Nummer der Regel und mit dem Link, den `strom doc` ausgibt.
+- **Bedienung:** Terminal: `strom doc`, `strom doc R2.3`, `strom doc hypotéza --lang en`, `--json`. Die Hilfe für den
+  Menschen (`strom help --human`) endet mit einem Verweis auf `strom doc`. Die App hat dieselbe Dokumentation in
+  **So funktioniert Strom** ([A1.7](A1-the-app-in-brief.md#A1.7)).
+- **Gilt seit:** Forschung 1.28.0
+
+<!-- zdroj: research:src/commands/doc.ts (SEARCH_ROWS=10, --limit, ui.docs.fallback, docUrl) · src/core/doc.ts · assets/strom-doc/ (PIN) · src/agents/files.ts:188 "answer from `strom doc`" · src/cli/help.ts (help --human, poslední řádek) · CHANGELOG.cs.md 1.28.0 · commity 314ab218, 4acfb170 -->

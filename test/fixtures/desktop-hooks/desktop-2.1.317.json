@@ -1,0 +1,283 @@
+[
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__Claude_Browser__preview_start",
+  "tool_input": {
+   "url": "https://example.com"
+  },
+  "tool_use_id": "toolu_01YbLCjnHtHoeuXXgHXbJKvS",
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__Claude_Browser__preview_start",
+  "tool_input": {
+   "url": "https://example.com"
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "{\n  \"serverId\": \"preview-local_fb093228-0e36-41b2-b768-a22a769e564b\",\n  \"tabId\": \"seed\",\n  \"reused\": false,\n  \"type\": \"browser\",\n  \"navOk\": true\n}\nBrowser pane opened. Use serverId \"preview-local_fb093228-0e36-41b2-b768-a22a769e564b\" with read_page / computer / navigate."
+   }
+  ],
+  "tool_use_id": "toolu_01YbLCjnHtHoeuXXgHXbJKvS",
+  "duration_ms": 1442,
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__Claude_Browser__get_page_text",
+  "tool_input": {
+   "tabId": "seed"
+  },
+  "tool_use_id": "toolu_01UicTSTjBAZvcckAfLRuUCy",
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__Claude_Browser__get_page_text",
+  "tool_input": {
+   "tabId": "seed"
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "Title: Example Domain\nURL: https://example.com/\nSource element: <body>\n---\nThis domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes.\n\nهذا النطاق مُخصص للاستخدام في أمثلة التوثيق دون الحاجة إلى إذن. هذه ليست خدمة، يُرجى تجنب الاعتماد عليها لأغراض الاختبار والمراقبة.\n\n该域名仅用于文档示例，无需获得许可。这并非一项服务，请勿将其用于测试和监控目的。\n\nL’usage de ce domaine est réservé à des exemples de documentation, sans autorisation préalable. Il ne s’agit pas d’un service ; son utilisation à des fins de test ou de surveillance est à éviter.\n\nДанный домен предназначен для использования в примерах документации без необходимости получения предварительного разрешения. Это не сервис; не рекомендуется его использование для тестирования и мониторинга.\n\nEste dominio está destinado al uso en ejemplos de documentación sin necesidad de permiso. Esto no es un servicio; evitar utilizarlo para realizar pruebas o monitoreos.\n\nLearn more"
+   },
+   {
+    "type": "text",
+    "text": "\n\nTab Context:\n- Executed on tabId: seed\n- Available tabs:\n  • tabId seed: \"Example Domain\" (\"https://example.com/\")"
+   }
+  ],
+  "tool_use_id": "toolu_01UicTSTjBAZvcckAfLRuUCy",
+  "duration_ms": 51,
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__Claude_Browser__find",
+  "tool_input": {
+   "query": "heading",
+   "tabId": "seed"
+  },
+  "tool_use_id": "toolu_019SMJxW1YvWS9MZB8fnP8bj",
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__Claude_Browser__find",
+  "tool_input": {
+   "query": "heading",
+   "tabId": "seed"
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "No matches for \"heading\"."
+   },
+   {
+    "type": "text",
+    "text": "\n\nTab Context:\n- Executed on tabId: seed\n- Available tabs:\n  • tabId seed: \"Example Domain\" (\"https://example.com/\")"
+   }
+  ],
+  "tool_use_id": "toolu_019SMJxW1YvWS9MZB8fnP8bj",
+  "duration_ms": 65,
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__terminal__run_in_terminal",
+  "tool_input": {
+   "command": "echo ahoj",
+   "title": "echo"
+  },
+  "tool_use_id": "toolu_01D12kZMxzco8myHX6JJru7E",
+  "mcp_server": {
+   "name": "terminal",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__terminal__run_in_terminal",
+  "tool_input": {
+   "command": "echo ahoj",
+   "cwd": "{TREE}",
+   "title": "echo"
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "{\"tab_id\":\"c1\",\"cwd\":\"{TREE}\"}\nStarted in new terminal tab \"c1\" (cwd {TREE}). Read its output with read_terminal {\"tab_id\": \"c1\", \"wait_for_output_ms\": 2000}; stop it with stop_terminal_tab {\"tab_id\": \"c1\"} (the user can too, with Ctrl-C in that tab)."
+   }
+  ],
+  "tool_use_id": "toolu_01D12kZMxzco8myHX6JJru7E",
+  "duration_ms": 1310,
+  "mcp_server": {
+   "name": "terminal",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__terminal__read_terminal",
+  "tool_input": {
+   "tab_id": "c1",
+   "wait_for_output_ms": 2000
+  },
+  "tool_use_id": "toolu_01SuwyHM9MPb7kygKeqYKZhL",
+  "mcp_server": {
+   "name": "terminal",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__terminal__read_terminal",
+  "tool_input": {
+   "tab_id": "c1",
+   "wait_for_output_ms": 2000
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "[waited 2000ms — no new output; the watcher may not have reacted yet, or nothing is watching]\n\nWelcome to fish, the friendly interactive shell\nType help for instructions on how to use fish\n⋊> /t/lhota on main  echo ahoj                                                                     08:24:07\nahoj\n⋊> /t/lhota on main                                                                                08:24:08"
+   }
+  ],
+  "tool_use_id": "toolu_01SuwyHM9MPb7kygKeqYKZhL",
+  "duration_ms": 2688,
+  "mcp_server": {
+   "name": "terminal",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "mcp__Claude_Browser__javascript_tool",
+  "tool_input": {
+   "action": "javascript_exec",
+   "tabId": "seed",
+   "text": "[...document.querySelectorAll('h1,h2')].map(h=>h.tagName+': '+h.textContent.trim())"
+  },
+  "tool_use_id": "toolu_01LLmsoTRioXZrysJfTQUKwE",
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ },
+ {
+  "session_id": "desktop-1",
+  "cwd": "{TREE}",
+  "permission_mode": "auto",
+  "effort": {
+   "level": "high"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__Claude_Browser__javascript_tool",
+  "tool_input": {
+   "action": "javascript_exec",
+   "tabId": "seed",
+   "text": "[...document.querySelectorAll('h1,h2')].map(h=>h.tagName+': '+h.textContent.trim())"
+  },
+  "tool_response": [
+   {
+    "type": "text",
+    "text": "[]\n\n(captured at origin https://example.com)"
+   },
+   {
+    "type": "text",
+    "text": "\n\nTab Context:\n- Executed on tabId: seed\n- Available tabs:\n  • tabId seed: \"Example Domain\" (\"https://example.com/\")"
+   }
+  ],
+  "tool_use_id": "toolu_01LLmsoTRioXZrysJfTQUKwE",
+  "duration_ms": 65,
+  "mcp_server": {
+   "name": "Claude Browser",
+   "source": "sdk"
+  }
+ }
+]

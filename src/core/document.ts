@@ -1145,6 +1145,40 @@ export interface ReadReport {
   partial?: boolean;
   /** When the agent says its limit resets (a reader stopped by its usage limit). */
   resets?: string;
+  /** Who read it: the agent, its model (none: the agent's own), its effort (none: the agent's own setting). */
+  agent?: string;
+  model?: string;
+  effort?: string;
+}
+
+/** Who reads, as asked for one reader (each field left out: as the research reads — its settings). */
+export interface ReaderWith {
+  agent?: string;
+  /** "": the agent's own model. */
+  model?: string;
+  /** "": the agent's own setting. */
+  effort?: string;
+}
+
+/** Who read (or reads) one reader of a reading: the agent, its model and effort (none: the agent's own). */
+export interface ReaderWho {
+  agent: string;
+  model?: string;
+  effort?: string;
+  /** The reading ended and this reader did not read to an end. */
+  ran?: false;
+}
+
+/** A reading of a source again from its original (strom document read --source): the source, and how it compares. */
+export interface SourceRead {
+  id: string;
+  /** Only this excerpt of it (its mark, _STROM_CLIP). */
+  clip?: string;
+  /** The new reading against the source's transcript (at: the transcript, other: the new reading) — once it ended. */
+  agree?: "same" | "differ";
+  variants?: { at: string; other: string }[];
+  /** The task to hold the two against each other, where they differ. */
+  task?: string;
 }
 
 export interface ReadState {
@@ -1174,12 +1208,16 @@ export interface ReadState {
   only?: "blind";
   /** Read again (strom document again): the reading as it stood, back again when the new one is cancelled or gone. */
   before?: ReadBefore;
+  /** Who reads: each reader (0 the first, 1 the blind one) as resolved when it was asked (agent, model, effort). */
+  with?: ReaderWho[];
+  /** A reading of a source again from its original. */
+  source?: SourceRead;
 }
 
 /** What a reading read again was before: its state, version and readers (its reports stay in the list). */
-export type ReadBefore = Pick<ReadState, "state" | "version" | "readers" | "since" | "groups"> & Partial<Pick<ReadState, "why" | "error" | "only" | "model">>;
+export type ReadBefore = Pick<ReadState, "state" | "version" | "readers" | "since" | "groups"> & Partial<Pick<ReadState, "why" | "error" | "only" | "model" | "with">>;
 
-const BEFORE_OPTIONAL = ["why", "error", "only", "model"] as const;
+const BEFORE_OPTIONAL = ["why", "error", "only", "model", "with"] as const;
 
 /** A reading as it stands, kept to come back to when it is read again. */
 export function beforeOf(s: ReadState): ReadBefore {
@@ -1270,7 +1308,10 @@ export interface ReadResult {
   at: string;
   since: string;
   doc: { kind?: string; language?: string[]; script?: string; date?: string; legible?: "yes" | "partly" | "no"; why?: string | null };
-  readers: { asked: number; ran: number; agree: "same" | "differ" | null };
+  /** who: each reader (0 the first, 1 the blind one) — its agent, model and effort; none of a reading before strom kept them. */
+  readers: { asked: number; ran: number; agree: "same" | "differ" | null; who?: ReaderWho[] };
+  /** A reading of a source again from its original: the source, and how the new reading compares with its transcript. */
+  source?: SourceRead;
   /** The agent and model its readers read with (kept with the research: a later check of strom's knows them). */
   agent?: string;
   model?: string;
@@ -1389,6 +1430,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     return !!rep && (rep.entries.length > 0 || rep.done || rep.doc.legible !== undefined);
   };
   const ran = (firsts.some(said) ? 1 : 0) + (blinds.some(said) ? 1 : 0);
+  const who = whoRead(s, [firsts, blinds], (rs) => rs.some(said));
   const usd = s.reports.reduce((n, r) => n + (r.usd ?? 0), 0);
   const partial = s.reports.some((r) => r.outcome !== undefined && (r.usd === undefined || r.partial));
   return {
@@ -1399,7 +1441,8 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     at: s.at,
     since: s.since,
     doc: { ...doc, why: doc.why ?? (s.why || null) },
-    readers: { asked: s.readers, ran, agree },
+    readers: { asked: s.readers, ran, agree, ...(who ? { who } : {}) },
+    ...(s.source ? { source: s.source } : {}),
     ...(s.agent ? { agent: s.agent } : {}),
     ...(s.model ? { model: s.model } : {}),
     pages: s.pages,
@@ -1412,6 +1455,27 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     ...(usd || s.reports.some((r) => r.usd !== undefined) ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}) } } : {}),
     ...(s.error ? { error: s.error } : {}),
   };
+}
+
+/**
+ * Who read each reader of a reading (0 the first, 1 the blind one): as its report says (the first one of its pages),
+ * else as it was asked; a reading ended whose reader did not read to an end says so (ran: false). None when strom kept
+ * nobody (a reading before it did).
+ */
+function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs: (ReadReport | undefined)[]) => boolean): ReaderWho[] | undefined {
+  if (!s.with?.length && !s.reports.some((r) => r.agent)) return undefined;
+  const ended = FINAL_STATES.includes(s.state);
+  const out: ReaderWho[] = [];
+  for (let i = 0; i < Math.min(s.readers, 2); i++) {
+    const r = reports[i]!.find((x) => x?.agent);
+    const asked = s.with?.[i];
+    const agent = r?.agent ?? asked?.agent;
+    if (!agent) return out.length ? out : undefined;
+    const model = r ? r.model : asked?.model;
+    const effort = r ? r.effort : asked?.effort;
+    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}) });
+  }
+  return out;
 }
 
 /** The readers of a reading that read to an end, as its result counts them: the first (of this version or before), the blind one. */

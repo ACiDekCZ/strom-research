@@ -20,6 +20,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R1.5 | R1-research-in-brief.md | výzkum 1.0.0 | platí | Co rozhoduje člověk | What a person decides | Was der Mensch entscheidet | Co rozstrzyga człowiek |
 | R1.6 | R1-research-in-brief.md | výzkum 1.0.0 | platí | Výzkum a aplikace Strom | The research and the Strom app | Die Forschung und die Strom-App | Badanie i aplikacja Strom |
 | R1.7 | R1-research-in-brief.md | výzkum 1.0.0 | platí | Jak výzkum čte skeny | How the research reads scans | Wie die Forschung Scans liest | Jak badanie czyta skany |
+| R1.8 | R1-research-in-brief.md | výzkum 1.28.0 | platí | Jak Strom funguje: `strom doc` | How Strom works: `strom doc` | So funktioniert Strom: `strom doc` | Jak działa Strom: `strom doc` |
 | R2 | R2-lines-and-queue.md | výzkum 1.0.0 | platí | Linie a fronta | Lines and the queue | Linien und Warteschlange | Linie i kolejka |
 | R2.1 | R2-lines-and-queue.md | výzkum 1.0.0 | platí | Linie určuje, co výzkum zkoumá | A line sets what the research investigates | Die Linie bestimmt, was die Forschung untersucht | Linia wyznacza, co badanie bada |
 | R2.1.1 | R2-lines-and-queue.md | výzkum 1.0.0 | platí | Druhy linií a meze | Kinds of lines and their limits | Arten von Linien und Grenzen | Rodzaje linii i ograniczenia |
@@ -83,6 +84,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R6.3.1 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Svolení archivu | An archive's permission | Erlaubnis eines Archivs | Zgoda archiwum |
 | R6.3.2 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Vyprávění ke schválení | A story to approve | Erzählung zur Freigabe | Opowieść do zatwierdzenia |
 | R6.3.3 | R6-awaiting-action.md | výzkum 1.26.0 | platí | Větve mimo linie | Branches off the lines | Zweige außerhalb der Linien | Gałęzie poza liniami |
+| R6.3.4 | R6-awaiting-action.md | výzkum 1.28.0 | platí | Hypotézy k rozhodnutí | Hypotheses to decide | Hypothesen zu entscheiden | Hipotezy do rozstrzygnięcia |
 | R6.4 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Skupiny a pořadí | Groups and order | Gruppen und Reihenfolge | Grupy i kolejność |
 | R6.5 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Co jde vyřídit kde | What can be dealt with where | Was sich wo erledigen lässt | Co można załatwić gdzie |
 | R6.6 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Co smí jen člověk | What only a person may do | Was nur der Mensch darf | Co może tylko człowiek |
@@ -147,6 +149,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R9.10.3 | R9-archives.md | výzkum 1.27.0 | koncept | eBadatelna SOA Praha | eBadatelna SOA Praha | eBadatelna SOA Praha | eBadatelna SOA Praha |
 | R9.10.4 | R9-archives.md | výzkum 1.14.0 | koncept | Matricula | Matricula | Matricula | Matricula |
 | R9.10.5 | R9-archives.md | výzkum 1.27.0 | koncept | Szukaj w Archiwach | Szukaj w Archiwach | Szukaj w Archiwach | Szukaj w Archiwach |
+| R9.10.6 | R9-archives.md | výzkum 1.28.0 | koncept | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň |
 | R10 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Osoby: ztotožnění, jména a hypotézy | People: identification, names and hypotheses | Personen: Identifizierung, Namen und Hypothesen | Osoby: identyfikacja, imiona i hipotezy |
 | R10.1 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Jmenovec není hledaná osoba | A namesake is not the person sought | Ein Namensvetter ist nicht die gesuchte Person | Imiennik to nie poszukiwana osoba |
 | R10.2 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Dva záznamy jedné osoby: sloučení | Two records of one person: merging | Zwei Einträge einer Person: Zusammenführen | Dwa wpisy jednej osoby: scalenie |
@@ -168,6 +171,7 @@ nenapsáno) · `neplatí od <verze>`.
 | A1.4 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Načtení a výstupy | Loading and outputs | Einlesen und Ausgaben | Wczytanie i wyniki |
 | A1.5 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Prameny, doložení a kontrola | Sources, evidence and checks | Quellen, Belege und Prüfung | Źródła, udokumentowanie i kontrola |
 | A1.6 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Aplikace a výzkum | The app and the research | App und Forschung | Aplikacja i badanie |
+| A1.7 | A1-the-app-in-brief.md | aplikace 3.24.0 | platí | Jak Strom funguje v aplikaci | How Strom works in the app | So funktioniert Strom in der App | Jak działa Strom w aplikacji |
 | A2 | A2-loading-a-family-tree.md | aplikace 1.9.0 | platí | Načtení rodokmenu (GEDCOM) | Loading a family tree (GEDCOM) | Einlesen eines Stammbaums (GEDCOM) | Wczytanie drzewa genealogicznego (GEDCOM) |
 | A2.1 | A2-loading-a-family-tree.md | aplikace 1.9.0 | platí | Co se načte a co ne | What is loaded and what is not | Was eingelesen wird und was nicht | Co się wczytuje, a co nie |
 | A2.1.1 | A2-loading-a-family-tree.md | aplikace 1.9.0 | platí | Souhrn importu | Import summary | Zusammenfassung des Imports | Podsumowanie importu |

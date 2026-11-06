@@ -37,7 +37,7 @@ the conclusion is from all the fact's sources, not how good one source is ([R3.2
 ### R3.1.1 The default degree and the citation that raises it
 
 - A fact entered without `--status`: with no citation **Lead**; with a citation of at least one source that is not
-  weak ([R3.3](#R3.3)), **Probable**; otherwise Lead.
+  weak ([R3.3](#R3.3)), **Probable**; otherwise Lead. From research 1.28.0 an index is weak too.
 - `strom cite` without `--status` raises Lead to Probable when the new source is not weak. It changes no other degree.
 - A change of degree with `strom event edit --status` needs `--reason`; a citation with a degree
   (`strom cite … --status`) does not.
@@ -54,18 +54,19 @@ A degree must not claim more than the fact's citations give. The code checks thi
 - **Limits (enforced by the code),** in this order:
   1. Probable and Proven need at least one citation.
   2. At least one citation must be from a source that is not weak. Weak are a family tree (`--kind family-tree`),
-     a memory (`--kind family-memory`) and an authored work (`--form authored`).
+     a memory (`--kind family-memory`), an authored work (`--form authored`) and from research 1.28.0 an index
+     (`--kind index`).
   3. Proven additionally needs, among the citations from sources that are not weak, at least one with primary
      information (`--information primary`): a record written at the time of the event by someone who knew. The
      information at a citation takes precedence over the information at the source.
 - **Method only:** the code does not check that the source is an original (`--form original`), that the agent read it
   itself, that the record states the fact directly, or a blind second reading ([R3.5](#R3.5)). Proven therefore also
-  passes for a copy or an index with primary information.
+  passes for a copy with primary information (for an index too up to research 1.27.0).
 - **Controls:** terminal: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   A refusal gives the reason and what to do instead (leave it a Lead, `--status possible`, or `--status probable`).
 - **Since:** research 1.0.0
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 A source: form and information
@@ -93,16 +94,20 @@ A degree must not claim more than the fact's citations give. The code checks thi
 A family tree, a memory, an index, a catalogue and an online tree say where to look. They are not evidence of a fact.
 A fact from them stays a Lead until a record proves it.
 
-- **Enforced by the code:** a family tree, a memory and an authored work are weak sources: a fact only from them is
-  never Probable or Proven ([R3.2](#R3.2)). A family tree taken over: [R11.3](R11-material-from-the-user.md#R11.3).
-- **Method only:** an index. The code does not treat it as weak: with its citation a fact without `--status` gets the
-  degree Probable, and with `--information primary` even Proven passes. The method wants an index only for finding the
-  page; the entry is read in the register. Even an entry missing from an index is only a lead: a similar form of the
-  surname is a candidate.
+- **Enforced by the code:** a family tree, a memory, an authored work and an index (`--kind index`) are weak
+  sources: a fact only from them is never Probable or Proven ([R3.2](#R3.2)). A fact that cites only an index stays
+  a Lead until the entry itself is read and cited; with a citation of the entry it is a fact of the entry. A family
+  tree taken over: [R11.3](R11-material-from-the-user.md#R11.3).
+- **Limits:** for edits from the app an index counts as a record: an edit of a fact backed by an index becomes
+  a conflict ([R5.2](R5-conflicts.md#R5.2)); nothing is overwritten silently.
+- **Method only:** an index serves only for finding the page; the entry is read in the register. Even an entry
+  missing from an index is only a lead: a similar form of the surname is a candidate.
 - Material from the user (a document, a photo, a letter, what the user says): [R11.2](R11-material-from-the-user.md#R11.2).
 - **Since:** research 1.0.0
+- **From research 1.28.0:** the code enforces an index as a weak source (formerly method only: with its citation
+  a fact got Probable, and with `--information primary` even Proven passed).
 
-<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts:27 isWeak · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 -->
+<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts isWeak (kind index od v1.28.0), isCompiled (sync) · src/core/sync.ts isCompiled · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 · test/cli/index-weak.test.ts · commit 9685fcbe -->
 
 <a id="R3.4"></a>
 ## R3.4 A citation: clip and transcription
@@ -114,12 +119,17 @@ several sources.
   (the words of the entry as they stand, line by line, an unread letter `[?]`), plus `--locator` (folio, page, entry
   number) and, at the fact, `--quote`. A field (`--date`, `--house`, `--age`, a name) takes only what is read with
   certainty; what is uncertain goes into the transcription with `[?]` and into the fact's note.
+- **Method only, from research 1.28.0:** an entry in a language or script other than the language of the research
+  (Latin, Kurrent, Polish, Cyrillic…) gets, beside the literal transcription, a translation into the language of the
+  research (`--translation`). The transcription stays in the language of the entry. The app shows the translation
+  folded under the transcription ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)).
 - **Enforced by the code:** at most 3 clips per source (the entry and its continuation across a page break). The code
   does not refuse a missing clip or transcription; it only reminds about it for a source on a scan: after
   `strom source add`, after `strom source edit` with an image or a clip, and at `strom task done` for the sources the
   task entered.
 - Older sources: `strom clips` adds the clip, `strom transcripts` the transcription (readers; a second look checks them).
-- **Controls:** terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/entry.txt --locator "…"`.
+- **Controls:** terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/entry.txt --translation
+  @notes/translation.txt --locator "…"`; added later with `strom source edit S… --translation "…"`.
   The app shows the clip of the entry beside the transcription.
 - **Since:** research 1.1.0 (clip, `strom clips`, `strom transcripts`); transcription 1.0.0
 - **From research 1.26.0:** the help of the `--clip` option says “another for each page break, at most 3” (in 1.25.2
@@ -290,6 +300,15 @@ A story is written from the facts, for the family. What has not been proven is n
     of the research;
   - the format of the text: only paragraphs, subheadings, bullets, bold and italics. Anything else (links, tables,
     quotations, numbered lists) the app shows as plain text, according to the method.
+- **Why:**
+  - nothing is made up: a story is for the family and rests on evidence. What would sound likely but is not proven
+    would start to be taken as fact in the family;
+  - background: it is proven for the place, not for the person; as the cause of what a person did it would be
+    a guess passed off as fact. The story names the source of the background (`--source`) so that it can be checked;
+  - a couple's story: the shared life is told once, with the couple, so that the same life is not told twice and the
+    versions do not drift apart;
+  - format: the Strom app shows only paragraphs, subheadings, bullets, bold and italics; anything else the reader would
+    see as plain text with marks.
 - Approval and a new version of an approved story: [R6.3.2](R6-awaiting-action.md#R6.3.2).
 - **Controls:** terminal: `strom story set P… --text @notes/… --fact E… --source S… --note "co je odvozené"`
   (a couple's story on the family F…).

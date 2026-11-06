@@ -3,7 +3,7 @@
 
 Jak badanie rozpoznaje, że wpis należy do poszukiwanej osoby, co robi z dwoma wpisami jednej osoby, jak prowadzi
 konkurujące wyjaśnienia (hipotezy) i jak zapisuje imiona i nazwiska oraz osoby, które wpis wymienia. Opisuje badanie
-1.27.0 i aplikację Strom 3.23.0. Przy zasadach rozróżnia się, czego **pilnuje kod**, a co jest tylko **zasadą
+1.27.0 i aplikację Strom 3.23.0; zmiany z nowszej wersji mają przy sobie jej numer. Przy zasadach rozróżnia się, czego **pilnuje kod**, a co jest tylko **zasadą
 metodyki**.
 
 <a id="R10.1"></a>
@@ -47,6 +47,8 @@ z którą osobą go scalono.
     (`strom family merge`).
 - **Tylko metodyka:** osobę z przejętego drzewa genealogicznego, która jest już w badaniu badana, scala się **do**
   badanej osoby; ta zachowuje swoje dowody ([R11.3](R11-material-from-the-user.md#R11.3)).
+- **Dlaczego:** strom nigdy nie wybiera po cichu między dwiema danymi: która obowiązuje, rozstrzyga dowód. Drugą
+  wycofuje się z powodem, więc zostaje widoczne, co gdzie stało.
 - **Obsługa:** terminal: `strom person merge`, `strom family merge`. Możliwe duplikaty w drzewie zgłasza aplikacja
   w Kontroli drzewa ([A5.6](A5-tree-check.md#A5.6)).
 - **Obowiązuje od:** badanie 1.0.0
@@ -79,21 +81,38 @@ nie wybiera po cichu. Zapisuje hipotezę: pytanie i jego wersje A, B, C… z tym
 <a id="R10.3.1"></a>
 ### R10.3.1 Rozstrzygnięcie hipotezy
 
-Hipotezę rozstrzyga się na rzecz jednej wersji albo porzuca, gdy żadnej nie da się rozstrzygnąć. Rozstrzyga się
-w badaniu; aplikacja nie pozwala rozstrzygnąć hipotezy.
+Hipotezę rozstrzyga się na rzecz jednej wersji albo porzuca, gdy żadnej nie da się rozstrzygnąć. Rozstrzyga tylko
+człowiek, w badaniu; agent proponuje rozstrzygnięcie. Aplikacja nie pozwala rozstrzygnąć hipotezy.
 
 - **Pilnuje kod:**
-  - rozstrzygnięcie wymaga tekstu rozstrzygnięcia (`--decision`); porzucenie to `--abandon`;
-  - rozstrzygnąć ponownie można tylko z powodem (`--reason`). Poprzednie rozstrzygnięcie zostaje w notatce hipotezy;
-  - po rozstrzygnięciu strom wypisuje źródła, które hipoteza wymienia, a których nie cytuje żadna dana jej osób: to,
-    co mówią, należy zapisać przy osobach.
-- **Tylko metodyka:** hipotezę, której wersje niosą połączenia, rozstrzyga się z wyborem wersji (`--variant B`).
-  Rozstrzygniętą hipotezę, którą obali nowy akt, agent rozstrzyga ponownie z powodem. To, co agent wstrzymał, dopóki
-  osoba była tylko hipotezą, zapisuje przy osobie po rozstrzygnięciu.
-- **Obsługa:** terminal: `strom hypothesis decide H… --variant B --decision "…"` (ponownie z `--reason "…"`).
+  - rozstrzygnięcie to krok człowieka. Gdy `strom hypothesis decide` uruchomi agent (także wewnątrz `strom batch`),
+    strom je odrzuca;
+  - agent proponuje rozstrzygnięcie: wersję i tekst rozstrzygnięcia (`strom hypothesis propose`) albo porzucenie
+    (`--abandon`). Nowa propozycja zastępuje poprzednią. Na odpowiedź się nie czeka, praca idzie dalej;
+  - propozycja czeka w **Co czeka** w grupie **Hipotezy do rozstrzygnięcia** ([R6.3.4](R6-awaiting-action.md#R6.3.4)):
+    człowiek rozstrzyga zgodnie z propozycją, inaczej (inna wersja albo żadna, z powodem) albo zostawia hipotezę bez
+    zmian. Nieprzyjęta propozycja zostaje w notatce hipotezy;
+  - rozstrzygnięcie i propozycja wymagają tekstu rozstrzygnięcia (`--decision`); porzucenie to `--abandon`;
+  - hipotezę, której wersje mówią, co by połączyły, rozstrzyga się i proponuje tylko z podaną wersją (`--variant B`).
+    Bez niej strom odrzuca i niczego nie zapisuje;
+  - rozstrzygnąć ponownie (także ponownie zaproponować) można tylko z powodem (`--reason`). Poprzednie rozstrzygnięcie
+    zostaje w notatce hipotezy;
+  - to, co łączy rozstrzygnięcie człowieka, oraz źródła, które hipoteza wymienia, a których nie cytuje żadna dana jej
+    osób, agent dostaje na początku następnej pracy jako pierwsze zadanie do zapisania w drzewie.
+- **Tylko metodyka:** agent proponuje rozstrzygnięcie, gdy akty wskazują na jedną wersję, i mówi to człowiekowi
+  jednym zdaniem. Rozstrzygniętą hipotezę, którą obali nowy akt, agent proponuje ponownie z powodem. To, co agent
+  wstrzymał, dopóki osoba była tylko hipotezą, zapisuje przy osobie, gdy człowiek rozstrzygnie hipotezę.
+- **Dlaczego:** nowe rozstrzygnięcie wymaga powodu, bo rozstrzygnięcia zmieniają się jawnie: poprzednie zostaje
+  czytelne, a nowe mówi, co je zmieniło (zwykle nowy akt).
+- **Obsługa:** terminal: menu `strom` → **Co czeka** → **Hipotezy do rozstrzygnięcia** → **Rozstrzygnąć zgodnie
+  z propozycją**, **Rozstrzygnąć inaczej**, **Zostawić bez zmian (propozycja nieprzyjęta)**; poleceniem
+  `strom hypothesis decide H… --proposed`, `--keep-open` albo `--variant B --decision "…"` (ponownie z `--reason "…"`).
+  Agent: `strom hypothesis propose H… --variant B --decision "…"`.
 - **Obowiązuje od:** badanie 1.0.0; wypis niezapisanych źródeł 1.12.0
+- **Od badania 1.28.0:** rozstrzyga tylko człowiek, agent proponuje; podanej wersji pilnuje kod (wcześniej tylko
+  metodyka). Hipotezy, które wcześniej rozstrzygnął agent, zostają takie, jakie były.
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis decide (earlier decision in a note, "deciding again needs --reason", sourcesNotOnPeople od v1.12.0) · research:assets/method/core.md "Write as you go", "Say what a hypothesis would connect" · research:assets/method/recording.md "A decided hypothesis that a new record overturns" -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, --proposed, --keep-open, againNeedsReason, decidedVariant) · src/cli/main.ts:288 def.person && isAgent · src/commands/batch.ts (def.person) · src/core/waiting.ts (hypotheses, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.* · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0 · commit 9b12256a -->
 
 <a id="R10.4"></a>
 ## R10.4 Rodzina poza drzewem czeka na udokumentowane powiązanie
@@ -138,6 +157,8 @@ zapisuje się tak, jak stoją w akcie; ujednolica się tylko daty.
   - osoba, którą słabszy akt nazwał inaczej, zachowuje to imię i nazwisko jako wariant; właściwe oznacza się jako
     główne. Nic się nie usuwa;
   - imię i nazwisko odczytane tylko częściowo: [R8.6](R8-reading-scans.md#R8.6).
+- **Dlaczego:** opis zamiast imienia („martwo urodzony syn”) aplikacja i GEDCOM pokazywałyby i wyszukiwały jako
+  imię, a parowanie imion brałoby go za imię. To, że dziecko zmarło bez imienia, jest daną (zgon, notatka).
 - **Obsługa:** terminal: `strom name add P… "Marie /Vlková/" --kind birth --cite S…`, `strom name primary P…
   "…"` (`--clear` przywraca imię i nazwisko z urodzenia). Formy nazwiska w aplikacji:
   [A4.5](A4-surnames-and-families.md#A4.5), [A4.6](A4-surnames-and-families.md#A4.6).

@@ -185,7 +185,7 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
 
     const after = json(await request("GET", `${url}/status`));
     const shown = after.reads.find((r: { id: string }) => r.id === id);
-    assert.deepEqual({ ...shown, at: undefined, since: undefined }, { id, state: "done", version: 1, at: undefined, since: undefined, files: 1, pages: 1, readers: 1, done: 1, entries: 1, name: "křest Jana.jpg", person: "P0001", from: "app" });
+    assert.deepEqual({ ...shown, at: undefined, since: undefined }, { id, state: "done", version: 1, at: undefined, since: undefined, files: 1, pages: 1, readers: 1, done: 1, entries: 1, name: "křest Jana.jpg", person: "P0001", from: "app", who: [{ agent: "script", name: "script" }] });
     assert.deepEqual(after.spend.reads, { count: 1, amount: 0.25 });
     assert.equal(after.spend.amount, 0.25);
     const listed = json(await request("GET", `${url}/reads`)).reads;

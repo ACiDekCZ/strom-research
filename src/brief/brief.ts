@@ -39,7 +39,8 @@ import { neverPeople } from "../core/offline.ts";
 import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
-import { decidedToRecord, HYPOTHESIS_LINKS_ORIGIN, linkText, recordedLinks, recordedText } from "../core/hypolinks.ts";
+import { BIG_BRANCH } from "../core/kin.ts";
+import { agentDecided, decidedToRecord, HYPOTHESIS_LINKS_ORIGIN, linkText, recordedLinks, recordedText } from "../core/hypolinks.ts";
 import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 import { placesIdentifySections } from "./places.ts";
@@ -50,7 +51,8 @@ import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState }
 import { researchKey, viewModel, viewSizes } from "../core/viewsizes.ts";
 import { inWords, PROFILES } from "../agents/profiles.ts";
 import { ENRICH_PAGES, forStory, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
-import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
+import { sandboxOf, WITHOUT_CLI, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
+import { cliMissing } from "../core/agentcli.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
 import { activeFetches, endedFetches, withRegistered } from "../core/fetching.ts";
@@ -1001,7 +1003,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
-    "- The only browser strom watches. The browser, preview and computer use of Claude's and Codex's desktop apps strom does not watch and does not recommend: never of your own accord. Only when the person explicitly asks for them: the person's choice — say in one sentence that strom does not watch that way and what the site's terms say; never a way round them, never a check whether a person is there.",
+    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Claude's desktop computer use and Codex's browser and computer use (those strom does not watch) strom does not recommend: never of your own accord. Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
@@ -1323,6 +1325,8 @@ export function buildBrief(
   }
 
   // 6. open conflicts and hypotheses about them
+  // the user lets the agent decide the hypotheses (hypotheses.decide agent): it decides where it would propose
+  const agentDecides = new Settings(tree.env, {}).hypothesesDecide(tree.config) === "agent";
   const ids = new Set(people.keys());
   // the task's own conflicts and hypotheses come first, whatever their state
   const own = (id: string) => subjects.has(id);
@@ -1332,6 +1336,10 @@ export function buildBrief(
   const mark = (id: string, state: string) => `${own(id) ? "→ " : "  "}${id}${state === "open" ? "" : ` [${state}]`}`;
   // the task's own whole always; the others in short (the start of each) until there is room for them whole
   const question = (id: string, whole: string): Part => ({ short: own(id) ? whole : noteStart(whole, QUESTION_SHORT), whole });
+  // who decides a hypothesis (hypotheses.decide, the user's): said once below them — the method says the user decides
+  const decideRule = agentDecides
+    ? `  (the user lets you decide the hypotheses: strom hypothesis decide H… --variant <label> --decision "…" once a support of that variant cites a source (S…); one joining a branch of ${BIG_BRANCH}+ people off the tree only on two sources and no objection — else propose it; a decision of the user's never — a record that overturns it: propose again with --reason; tell the user in a sentence what you decided and why)`
+    : "  (the user decides a hypothesis: an open one the records point to one variant of, propose it — strom hypothesis propose H… --variant <label> --decision \"…\" — and go on)";
   if (conflicts.length || hyps.length)
     sections.push(
       layered("open questions", "strom conflict list · strom hypothesis list", {
@@ -1341,11 +1349,12 @@ export function buildBrief(
           ...first(hyps).map((h) =>
             question(
               h.id,
-              `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}${variantRecorded(tree, h, v)}`).join("; ")}${h.decision ? ` — ${h.state}: ${h.decision}` : ""}${h.proposal ? ` — proposed${h.proposal.abandon ? " to abandon" : h.proposal.variant ? ` for ${h.proposal.variant}` : ""}, the user decides it` : ""}`,
+              `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}${variantRecorded(tree, h, v)}`).join("; ")}${h.decision ? ` — ${h.state}${agentDecided(h) ? " by the agent" : ""}: ${h.decision}` : ""}${h.proposal ? ` — proposed${h.proposal.abandon ? " to abandon" : h.proposal.variant ? ` for ${h.proposal.variant}` : ""}, the user decides it` : ""}`,
             ),
           ),
         ],
-        tail: [],
+        // below the list, so the heading stays right above the questions as before
+        tail: hyps.some((h) => h.state === "open") ? [decideRule] : [],
         more: "strom conflict show X… · strom hypothesis show H…",
       }),
     );
@@ -1356,10 +1365,10 @@ export function buildBrief(
   if (toRecord.length)
     sections.push(
       layered("decided by the user", "strom hypothesis list --all", {
-        head: ["## Decided by the user — record it on the tree first"],
+        head: [toRecord.some((x) => agentDecided(x.hypothesis)) ? "## Decided (by the user, or by an agent where said) — record it on the tree first" : "## Decided by the user — record it on the tree first"],
         parts: toRecord.map(({ hypothesis: h, links, sources }) => {
           const whole = [
-            `  ${h.id} ${h.question} — decided${h.chosen ? ` for ${h.chosen}` : ""}: ${h.decision ?? ""}`,
+            `  ${h.id} ${h.question} — decided${h.chosen ? ` for ${h.chosen}` : ""}${agentDecided(h) ? " by the agent" : ""}: ${h.decision ?? ""}`,
             ...links.map((l) => `    ⇢ ${linkText(l)}: ${recordHow(l)}`),
             ...sources.map((s) => `    ${s.person}: ${s.sources.join(", ")} named, cited by none of ${s.person}'s facts — what they say of ${s.person} goes on ${s.person} (event add ${s.person} … --cite ${s.sources[0]})`),
           ].join("\n");
@@ -1539,11 +1548,26 @@ export function buildBrief(
       ].join("\n"),
     });
 
+  // 8a''. a conversation whose agent has no CLI here (Claude's desktop app alone): strom read starts the CLI, which is
+  // not here — Claude's scans read by the tree's subagent strom-scan-reader, another agent's by itself (core/agentcli.ts)
+  const readersAgent = opts.session?.runner ?? opts.session?.agent ?? tuneSettings.agent(tree.config).value;
+  const noCli = !sandbox && !alone && cliMissing(readersAgent, tree.env);
+  if (noCli && kind !== METHOD_LINKS && kind !== "narrate" && kind !== "request")
+    sections.push({
+      name: "readers",
+      first: true,
+      pointer: "strom guide",
+      text: [
+        `## No readers in this session (${PROFILES[readersAgent]?.name ?? readersAgent} is not installed in the terminal here: strom read, strom clips and strom transcripts cannot start one — over what the method says of readers)`,
+        `- ${readersAgent === "claude" ? WITHOUT_CLI : WITHOUT_READERS}.`,
+      ].join("\n"),
+    });
+
   // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each —
   // and the connectors of the task's places, so that fetching needs no lookup
   // (the others installed only where none serves them, or the task is to find where the records are)
   const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared));
-  const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves), ...(sandbox ? { without: ["read"] } : {}) });
+  const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves), ...(sandbox || noCli ? { without: ["read"] } : {}), ...(agentDecides ? { decides: true } : {}) });
   if (sheet) sections.push({ name: "commands", first: true, pointer: "strom help <command>", text: sheet });
 
   // 8c. the browser, for a session that has it (its sites): how to use it, and gently

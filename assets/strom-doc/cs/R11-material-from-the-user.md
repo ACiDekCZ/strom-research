@@ -21,12 +21,17 @@ v něm skutečně stojí.
     ([R7.8](R7-when-the-agent-works.md#R7.8)).
 - **Jen metodika:** jména a místa se zapisují tak, jak jsou napsaná; sjednocují se jen data. Úkol se zavře s tím,
   co z podkladu vzešlo, a s dalšími úkoly: kde hledat záznamy, které vodítka doloží.
+- **Proč:**
+  - 20 obrázků: skeny matriky nepatří do historie stromu jako stovky úkolů podklady. Rodinné doklady jedné složky
+    bývají jednotky až desítky souborů; víc než 20 obrázků už obvykle jsou skeny knihy a zapíšou se jako kniha;
+  - 20 MB: historie stromu se nepřepisuje a jde se stromem při záloze a přenosu. Velké soubory (video, nekomprimované
+    skeny) by ji natrvalo zvětšily, proto leží ve sdíleném úložišti médií.
 - **Ovládání:** terminál: `strom intake <soubory nebo složky>`, `strom intake --text "…"` (co řekne uživatel),
   `strom input list`, `strom input show I…`. Aplikace: **Poslat materiál…**, **Přidat materiály…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Platí od:** výzkum 1.0.0
 
-<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
+<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · commit ff18ac678 "a folder full of images is a book of scans" · commit e9386db84 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
 <a id="R11.2"></a>
 ## R11.2 Doklad je pramen, ostatní je vodítko
@@ -78,7 +83,8 @@ Složku, ZIP nebo krabici dokumentů poslanou z aplikace výzkum přijme jako je
 úkolech.
 
 - **Hlídá kód:**
-  - dávka se uzavře, když aplikace ohlásí, že je celá, nebo den po posledním souboru;
+  - dávka se uzavře, když aplikace ohlásí, že je celá, nebo den po posledním souboru (dávka z telefonu hodinu po
+    poslední fotce, [S5.4](S5-phone.md#S5.4));
   - pak se z ní stanou úkoly podklady po zhruba 25 souborech, podle složek, ve kterých soubory přišly. V Archivu
     Stromu úkoly čekají odložené;
   - soubory dávky se ukládají jako originály do sdíleného úložiště médií, ne do historie stromu. Co z nich agent
@@ -91,10 +97,15 @@ Složku, ZIP nebo krabici dokumentů poslanou z aplikace výzkum přijme jako je
   - skeny jedné knihy (mnoho číslovaných snímků) se nečtou soubor po souboru: zapíšou se jako kniha a čtou se
     z ní zápisy jako z každé knihy ([R8](R8-reading-scans.md));
   - úkol se zavře, až je každý jeho soubor zařazený; další část dávky je vlastní úkol.
-- **Proč:** cesta souboru v dávce hodně řekne (`Babička/Dopisy/1946.jpg`); co do rodiny nepatří, nemá se dostat do
-  stromu (metodika).
+- **Proč:**
+  - den po posledním souboru: aplikace posílá soubory po jednom. Dávka, o které nikdo neřekl, že je celá, se uzavře
+    s tím, co přišlo, aby nic nečekalo déle; den bez dalšího souboru znamená, že posílání skončilo. Stránka telefonu
+    se snadno zavře, aniž dávku předá, proto tam stačí hodina;
+  - 25 souborů: jeden úkol podklady přečte jedno sezení agenta a zhruba 25 souborů se do něj vejde;
+  - cesta souboru v dávce hodně řekne (`Babička/Dopisy/1946.jpg`); co do rodiny nepatří, nemá se dostat do stromu
+    (metodika).
 - **Ovládání:** terminál: `strom input batch` (dávky a kolik je roztříděno), `strom input sort I… --as
   source|document|photo|unrelated --person P…`. Aplikace: **Přidat materiály…** v menu výzkumu.
-- **Platí od:** výzkum 1.12.0
+- **Platí od:** výzkum 1.12.0; dávka z telefonu 1.18.0
 
-<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+<!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->

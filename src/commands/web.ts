@@ -11,7 +11,7 @@ import type { Session } from "../core/model.ts";
 import { bookOn, browserGate, otherWay, webGate, type WebGate } from "../core/webgate.ts";
 import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
 import { detectAgent } from "../core/which.ts";
-import { answerChromeEvent, chromeEvent, navigateUrl } from "../core/chromehook.ts";
+import { answerChromeEvent, chromeEvent, isNavigate, navigateUrl } from "../core/chromehook.ts";
 import { knownPaceMs, knownSearch } from "../core/knownterms.ts";
 import { humanPace, termsFor } from "../core/terms.ts";
 import { clock } from "../core/net.ts";
@@ -49,7 +49,9 @@ register({
     "Claude in Chrome: the same hook runs before its navigate — counted, paced and refused with the web fetches of the\n" +
     "same site — and before each tool on a page (refused while the tab's host is closed or left alone; not counted).\n" +
     "It knows a tab's site from navigate alone: a click or a typed address that leads elsewhere it does not see. Go from\n" +
-    "page to page of an archive by navigate to the address, one page at a time — never click through a series of pages.",
+    "page to page of an archive by navigate to the address, one page at a time — never click through a series of pages.\n" +
+    "The built-in browser of Claude's desktop app (navigate, preview_start, tabs_create, the tools on a page): kept by the\n" +
+    "same hook with the same answers, its tabs apart from Chrome's — still not recommended, never of your own accord.",
   options: [
     { name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" },
     { name: "session", type: "string", value: "<N…>", description: "this session's requests (a strom session, or the agent's own id of one); default: the open one, else the last with web requests" },
@@ -67,7 +69,7 @@ register({
       try {
         const stdin = ctx.io.stdinText?.() ?? "";
         ev = webEvent(stdin);
-        // the browser's navigate and its page tools (Claude in Chrome): core/chromehook.ts
+        // the browser's navigate and its page tools (Claude in Chrome, the desktop app's built-in browser): core/chromehook.ts
         chrome = ev ? undefined : chromeEvent(stdin);
         if (chrome) return { text: hookOutput(await answerChromeEvent(chrome, { env: ctx.env, cwd: ctx.cwd })) };
         if (!ev) return { text: "" };
@@ -78,7 +80,7 @@ register({
         try {
           if (ev?.via === "web" && ev.netHost && !ev.phase && termsFor(ctx.env, ev.netHost)?.level === "forbidden")
             return { text: hookOutput({ decision: "deny", reason: `strom: the terms of ${ev.netHost} allow no automated access — not through your web tools either.` }) };
-          const at = chrome?.name === "navigate" && !chrome.phase && chrome.url ? new URL(navigateUrl(chrome.url)).hostname.toLowerCase() : undefined;
+          const at = chrome && isNavigate(chrome) && !chrome.phase && chrome.url ? new URL(navigateUrl(chrome.url)).hostname.toLowerCase() : undefined;
           if (at && termsFor(ctx.env, at)?.level === "forbidden")
             return { text: hookOutput({ decision: "deny", reason: `strom: the terms of ${at} allow no automated access — not through the browser either.` }) };
         } catch {

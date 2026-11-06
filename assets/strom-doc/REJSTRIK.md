@@ -665,12 +665,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Hypotézy | Otázka, kterou výzkum vede o osobě nebo vazbě, s verzemi odpovědi; je otevřená, rozhodnutá pro jednu verzi, nebo zrušená. |
-| en | Hypotheses | A question the research keeps about a person or a link, with versions of the answer; it is open, decided for one version, or dropped. |
-| de | Hypothesen | Eine Frage, die die Forschung zu einer Person oder Verbindung führt, mit Versionen der Antwort; sie ist offen, für eine Version entschieden oder verworfen. |
-| pl | Hipotezy | Pytanie, które badanie prowadzi o osobie lub powiązaniu, z wersjami odpowiedzi; jest otwarte, rozstrzygnięte na rzecz jednej wersji albo anulowane. |
+| cs | Hypotézy · Hypotézy k rozhodnutí (terminal) | Otázka, kterou výzkum vede o osobě nebo vazbě, s verzemi odpovědi; je otevřená, rozhodnutá pro jednu verzi, nebo zrušená. Rozhoduje ji jen člověk, agent rozhodnutí navrhne. |
+| en | Hypotheses · Hypotheses to decide (terminal) | A question the research keeps about a person or a link, with versions of the answer; it is open, decided for one version, or dropped. Only a person decides it; the agent proposes the decision. |
+| de | Hypothesen · Hypothesen zu entscheiden (terminal) | Eine Frage, die die Forschung zu einer Person oder Verbindung führt, mit Versionen der Antwort; sie ist offen, für eine Version entschieden oder verworfen. Entscheiden darf sie nur der Mensch; der Agent schlägt die Entscheidung vor. |
+| pl | Hipotezy · Hipotezy do rozstrzygnięcia (terminal) | Pytanie, które badanie prowadzi o osobie lub powiązaniu, z wersjami odpowiedzi; jest otwarte, rozstrzygnięte na rzecz jednej wersji albo anulowane. Rozstrzyga je tylko człowiek; agent proponuje rozstrzygnięcie. |
 
-- **Čísla:** [R10.3](cs/R10-people-and-hypotheses.md#R10.3), R10.3.1, S3.5, S3.5.1
+- **Čísla:** [R10.3](cs/R10-people-and-hypotheses.md#R10.3), R10.3.1, R6.3.4, S3.5, S3.5.1
 
 <a id="pedigree-collapse"></a>
 ### Implex
@@ -683,6 +683,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | ↻ powtarza się (implex) | Przodek, który pojawia się w wachlarzu po raz drugi; rysuje się go ponownie, ale dalej się nie rozwija. |
 
 - **Čísla:** [A6.4](cs/A6-views.md#A6.4)
+
+<a id="how-strom-works"></a>
+### Jak Strom funguje
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Jak Strom funguje (app) · `strom doc` (terminal) | Tato dokumentace, přibalená v aplikaci i ve výzkumu: pravidla podle čísla, rejstřík pojmů a hledání, i bez internetu. |
+| en | How Strom works (app) · `strom doc` (terminal) | This documentation, carried in the app and in the research: rules by number, the glossary and a search, offline too. |
+| de | So funktioniert Strom (app) · `strom doc` (terminal) | Diese Dokumentation, mitgeliefert in der App und in der Forschung: Regeln nach Nummer, Begriffsverzeichnis und Suche, auch ohne Internet. |
+| pl | Jak działa Strom (app) · `strom doc` (terminal) | Ta dokumentacja, dołączona do aplikacji i do badania: zasady według numeru, słowniczek pojęć i wyszukiwanie, także bez internetu. |
+
+- **Čísla:** [A1.7](cs/A1-the-app-in-brief.md#A1.7), R1.8
 
 <a id="where-evidence-is-missing"></a>
 ### Kde chybí doklady

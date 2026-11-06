@@ -2,7 +2,7 @@
 # A6 Widoki i wybór osób
 
 Jak aplikacja Strom wybiera, które osoby pokaże, i jak pokazują je poszczególne widoki. Opisuje aplikację
-3.21.2.
+3.21.2; zmiany z nowszej wersji mają przy sobie jej numer.
 
 Widok to inne odczytanie **tego samego wyboru osób**. Wybór określa osoba w centrum (ta, którą się kliknie)
 i głębokość **Przodkowie** oraz **Potomkowie**. Rodzina, Potomkowie, Oś czasu i Mapa pokazują to samo otoczenie
@@ -141,12 +141,23 @@ badanie ([R4](R4-places.md)).
   - przed pierwszym wyszukiwaniem aplikacja pyta (**Odszukać współrzędne online?**). Wychodzą tylko nazwy miejsc,
     żadne imiona, daty ani relacje. Najwyżej jedno zapytanie mniej więcej na sekundę;
   - współrzędne zapisują się w drzewie: każde miejsce wyszukuje się raz, a mapa działa potem także bez połączenia;
-  - automatyczne wyszukiwanie bierze **pierwszy wynik** usługi dla zapisanej nazwy. Miejscowości o tej samej nazwie
-    przy tym nie rozróżnia: miejsce może więc trafić do miejscowości o tej samej nazwie gdzie indziej. Takie położenie
-    oznacza potem **Do sprawdzenia** ([R4.4.1](R4-places.md#R4.4.1));
+  - automatyczne wyszukiwanie bierze **pierwszy wynik** usługi dla zapisanej nazwy. Do aplikacji 3.23.0 nie
+    rozróżniało przy tym miejscowości o tej samej nazwie: miejsce mogło więc trafić do miejscowości o tej samej nazwie
+    gdzie indziej. Położenie, które do drzewa nie pasuje, oznacza **Do sprawdzenia** ([R4.4.1](R4-places.md#R4.4.1));
   - tylko miejsce z numerem domu, którego usługa nie znalazła, wyszukuje się według miejscowości. Spośród miejscowości
     o tej nazwie wybiera się tę najbliższą innym miejscom drzewa („Miejscowość o tej nazwie występuje kilka razy;
     wybrano tę najbliższą innym miejscom drzewa.”); przy miejscu stoi **Położenie według miejscowości**;
+  - **od aplikacji 3.24.0** najbliższą miejscowość wybiera się przy każdym miejscu: gdy dwie lub więcej miejscowości
+    nazywa się dokładnie tak jak zapisane miejsce (bez względu na wielkość liter i znaki diakrytyczne), bierze się tę
+    najbliższą środka drzewa, nie pierwszy wynik. Środek to mediana położeń wprowadzonych ręcznie lub potwierdzonych
+    **Zachowaj**, gdy jest ich co najmniej 3; w przeciwnym razie mediana wszystkich położeń drzewa i miejsc, które
+    wyszukiwanie znalazło bez wątpliwości. Miejsce z dalszym określeniem („Lhota u Kolína”, „Lhota 16”), jedyna
+    miejscowość lub drzewo bez położeń dostaje pierwszy wynik jak wcześniej. Nadal jest to jedno zapytanie na miejsce;
+  - kontrola miejsca mówi, ile miejscowości o tej nazwie mapa znalazła („Mapa znalazła 3 miejscowości o tej nazwie
+    i wybrała tę najbliższą innym miejscom drzewa.”); od aplikacji 3.24.0, wcześniej zawsze „dwie”;
+  - położenie, które już jest w drzewie, się nie przesuwa: wyszukiwanie szuka tylko miejsc bez położenia. Także
+    scalenie z innym drzewem lub plikiem GEDCOM nie nadpisuje położenia wprowadzonego ręcznie lub potwierdzonego
+    **Zachowaj**, tylko uzupełnia brakujące. Złe starsze położenie można przesunąć tylko ręcznie;
   - czego się nie znajdzie, zostaje bez położenia. Aplikacja niczego nie zgaduje: „pomoże poprawienie zapisu lub
     dodanie kraju”.
 - **Obsługa:** aplikacja: **Ustawienia → Wyszukiwanie miejsc online**; w oknie miejsc **Złe miejsce? Popraw**,
@@ -155,9 +166,10 @@ badanie ([R4](R4-places.md)).
 - **Dlaczego:** wyszukiwanie miejsc to jedyna część aplikacji, która coś wysyła na zewnątrz; dlatego tylko za zgodą,
   tylko nazwy i każde miejsce raz (komentarz w kodzie). Limit jednego zapytania na sekundę to warunek usługi.
 - **Obowiązuje od:** aplikacja 1.10.0; **Złe miejsce? Popraw** 1.10.1; **Wyczyść osierocone miejsca** 2.1.0; położenie
-  według miejscowości 3.21.0
+  według miejscowości 3.21.0; najbliższa miejscowość o tej samej nazwie przy każdym miejscu i liczba miejscowości
+  w kontroli 3.24.0
 
-<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) -->
+<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
 <a id="A6.6"></a>
 ## A6.6 Ród w widoku

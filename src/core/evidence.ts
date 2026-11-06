@@ -8,8 +8,9 @@
 //     drawn from all of its evidence.
 //
 // The status may not claim more than the evidence gives: a family tree or a
-// memory never proves anything, and "proven" needs a record with primary
-// information for the fact.
+// memory never proves anything, and "proven" needs the original record itself
+// (isOriginalHere: never a copy, an index or the Strom app's word for it) with
+// primary information for the fact.
 
 import { UsageError } from "./errors.ts";
 import type { Citation, Search, Source, Status } from "./model.ts";
@@ -38,6 +39,23 @@ export function isCompiled(src: Source | undefined): boolean {
  */
 export function isWeak(src: Source | undefined): boolean {
   return isCompiled(src) || src!.kind === "index";
+}
+
+/**
+ * The original record as the research itself knows it: a source of the form original that is a record (no index, no
+ * compiled work), not retracted — and never one the Strom app alone says is an original (its QUAY on a source of its
+ * own: the user's word, or another program's carried over; a source of the app's counts once the research read it,
+ * a reading of a document confirmed there). A copy, a transcript of another hand's (derivative), an index: no original.
+ */
+export function isOriginalHere(src: Source | undefined): boolean {
+  if (!src || src.retracted || src.form !== "original" || isWeak(src)) return false;
+  return !src.app || !!src.reading;
+}
+
+/** A citation that can make a fact proven: of the original record (isOriginalHere), with primary information for it. */
+export function provesIt(tree: Pick<Tree, "get">, c: Citation): boolean {
+  const src = tree.get<Source>(c.source);
+  return isOriginalHere(src) && informationOf(src, c) === "primary";
 }
 
 /** The information of a source for one fact: the citation's own assessment wins. */
@@ -73,7 +91,14 @@ export function checkStatus(tree: Tree, status: Status, citations: Citation[]): 
     throw new UsageError(`a family tree, a memory, a compiled work or an index cannot make a fact ${status}`, {
       hint: "keep it a lead (or --status possible) until a record says it: cite that record (an index leads to the entry — read the entry itself)",
     });
-  if (status === "proven" && !strong.some((c) => informationOf(tree.get<Source>(c.source), c) === "primary"))
+  if (status !== "proven") return;
+  const originals = strong.filter((c) => isOriginalHere(tree.get<Source>(c.source)));
+  if (!originals.length)
+    throw new UsageError("proven needs the original record itself: a copy, an index, a transcript of another hand's or what the Strom app says of a source gives at most probable", {
+      hint: "cite the original record (its image, read by the research: a source of --form original) — otherwise --status probable",
+      code: "status.original",
+    });
+  if (!originals.some((c) => informationOf(tree.get<Source>(c.source), c) === "primary"))
     throw new UsageError("proven needs a record written at the time by someone who knew (primary information)", {
       hint: "if the record is like that: --information primary on the citation (or the source); otherwise --status probable",
     });

@@ -14,7 +14,7 @@ import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./m
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
-import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
+import { DEFAULT_RUN_MINUTES, readStored, type HistoryPace } from "../core/config.ts";
 import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
 import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
@@ -80,6 +80,12 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               parts.push({ label: t(archive ? "ui.settings.terminal.archive" : "ui.settings.terminal", { state: terminalState(ctx, lang) }), act: () => terminalStep(ctx, run, lang) });
             // the phone connection: this computer's, an archive's too (photos into it)
             parts.push({ label: t("ui.settings.phone", { state: phoneLabel(ctx, lang) }), act: () => phoneStep(ctx, run, lang) });
+            // who decides the hypotheses (the uncertain links between people): not in an archive, nor while the
+            // research's agent is not on this computer (nobody researches there) — shown only sometimes: last
+            if (!archive) {
+              const decide = ctx.settings.hypothesesDecide(tree);
+              parts.push({ label: t("ui.settings.hypotheses", { state: t(decide === "agent" ? "ui.hypotheses.decide.agent" : "ui.hypotheses.decide.person") }), act: () => hypothesesStep(ctx, run, lang, root) });
+            }
             if (parts.length) {
               const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
               if (i === undefined) return;
@@ -174,6 +180,25 @@ async function terminalStep(ctx: Context, run: Run, lang: string): Promise<void>
   const picked = await chooseTerminal(ctx, lang, now, { back: translator(lang)("ui.browse.back") });
   if (picked === undefined || picked === now) return;
   await run(picked === "system" ? ["config", "unset", "terminal"] : ["config", "set", "terminal", picked], true);
+}
+
+/**
+ * Who decides the hypotheses (hypotheses.decide): the person or the agent, the difference in a sentence; 0 back with
+ * nothing changed. The research's own value where it has one (the Strom app sets it for the research), else this
+ * computer's. The agent deciding them: what it means said, and the person's second yes (strom config set takes the
+ * person at the terminal as the one who consents).
+ */
+async function hypothesesStep(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<void> {
+  const t = translator(lang);
+  const tree = root ? Tree.open(root, ctx.env).config : undefined;
+  const now = ctx.settings.hypothesesDecide(tree);
+  const values = ["person", "agent"] as const;
+  const i = await ctx.choose(t("ui.setup.hypotheses"), [{ label: t("ui.hypotheses.decide.person") }, { label: t("ui.hypotheses.decide.agent") }], values.indexOf(now), { back: t("ui.browse.back") });
+  if (i === undefined || values[i] === now) return;
+  // the agent deciding: what it means, and the person's second yes (no: nothing changed)
+  if (values[i] === "agent" && !(await ctx.confirm(t("ui.consent.hypotheses.agent"), false))) return;
+  const own = !!tree && readStored(tree, "hypotheses.decide", "") !== undefined;
+  await run(["config", "set", "hypotheses.decide", values[i]!, ...(own ? ["--for-tree"] : [])], true);
 }
 
 /** The phone connection as the settings say it: off, or on with the phones paired (an error: said as one). */

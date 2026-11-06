@@ -2,7 +2,7 @@
 # R1 Výzkum v kostce
 
 Jak výzkum pracuje jako celek, na jedné stránce. Každý oddíl vede na kapitolu s přesnými pravidly. Popisuje
-výzkum 1.25.2 a aplikaci Strom 3.21.2.
+výzkum 1.25.2 a aplikaci Strom 3.21.2; změny z novější verze mají u sebe její číslo.
 
 <a id="R1.1"></a>
 ## R1.1 Výzkum je záznam, ne rozhovor
@@ -51,8 +51,9 @@ podmínka, kterou nastavil člověk (například tempo týdenního limitu předp
 Agent pracuje podle **Genealogical Proof Standard** (GPS): důkladné hledání, citace každého údaje, rozbor
 a srovnání důkazů, řešení rozporů a sepsaný závěr, kterému další badatel porozumí.
 
-- Každý údaj má stupeň jistoty: **Vodítko**, **Možné**, **Pravděpodobné**, **Doložené**. Rodokmen a rodinná paměť
-  jsou vždy jen vodítko, rejstřík slouží k nalezení zápisu. Podrobně: [R3](R3-verification-and-citation.md).
+- Každý údaj má stupeň jistoty: **Vodítko**, **Možné**, **Pravděpodobné**, **Doložené**. Rodokmen, rodinná paměť
+  a rejstřík jsou vždy jen vodítko: rejstřík vede k zápisu, doloží až zápis sám (rejstřík hlídá kód od výzkumu
+  1.28.0). Podrobně: [R3](R3-verification-and-citation.md).
 - Jmenovec není hledaná osoba. Osobu určuje rok, místo, dům, povolání, manžel nebo manželka a rodiče. Dva záznamy se
   stejným jménem a jinými rodiči jsou dvě osoby. Ztotožnění osob, jejich jména a soupeřící hypotézy:
   [R10](R10-people-and-hypotheses.md).
@@ -60,20 +61,22 @@ a srovnání důkazů, řešení rozporů a sepsaný závěr, kterému další b
 - Když se záznamy liší, agent nevybírá potichu: zapíše **rozpor**. Podrobně: [R5](R5-conflicts.md).
 - Místo dostane polohu na mapě, jen když je jisté, které místo to je. Podrobně: [R4](R4-places.md).
 
-<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) -->
+<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) · src/core/evidence.ts isWeak (rejstřík od 1.28.0) -->
 
 <a id="R1.5"></a>
 ## R1.5 Co rozhoduje člověk
 
 Některá rozhodnutí patří jen člověku. Výzkum se na ně ptá v **Čeká na vyřízení** a agent za člověka neodpoví.
 
-- Co čeká na člověka (dopisy, snímky k stažení, otázky k místům, rozpory, vyprávění ke schválení) a kde se to vyřizuje:
-  [R6](R6-awaiting-action.md).
+- Co čeká na člověka (dopisy, snímky k stažení, otázky k místům, rozpory, hypotézy, vyprávění ke schválení) a kde se
+  to vyřizuje: [R6](R6-awaiting-action.md).
+- Hypotézu rozhoduje jen člověk; agent rozhodnutí navrhne (od výzkumu 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
 - Rozhodnutí člověka platí. Agent ho změní jen na základě nového pramene: [R5.4](R5-conflicts.md#R5.4).
 - Poloha místa zadaná člověkem se nemění: [R4.3](R4-places.md#R4.3).
 - Nastavení, která mění, co smí agent, potvrzuje člověk (například podmínka samostatné práce, [R7](R7-when-the-agent-works.md)).
 
-<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate -->
+<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate · src/commands/analysis.ts hypothesis decide (person, od 1.28.0) -->
 
 <a id="R1.6"></a>
 ## R1.6 Výzkum a aplikace Strom
@@ -96,3 +99,27 @@ a přepisem. Čtení modelem AI není stoprocentní; důležité údaje má ide�
 - **Platí od:** výzkum 1.0.0
 
 <!-- zdroj: research:assets/method/reading.md · assets/method/locate.md · assets/method/recording.md · src/commands/read.ts:183-200 -->
+
+<a id="R1.8"></a>
+## R1.8 Jak Strom funguje: `strom doc`
+
+Tato dokumentace je přibalená ve výzkumu a čte se i bez internetu. `strom doc` vypíše obsah, `strom doc R10.1`
+jedno pravidlo i s pravidly pod ním a `strom doc <slova>` hledá v nadpisech, rejstříku pojmů a textu.
+
+- **Hranice:**
+  - číslo jde napsat i malými písmeny nebo s pomlčkou (`r4.3`, `R4-3`). Neznámé číslo skončí chybou, která řekne
+    nejbližší čísla;
+  - hledání nedbá na diakritiku ani velikost písmen. Ukáže nejvýš 10 pravidel, nejlepší první, a kolik jich je
+    dalších (`--limit` jiný počet);
+  - text je v jazyce výzkumu (`--lang` jiný). Jazyk, do kterého dokumentace přeložená není, dostane angličtinu
+    s poznámkou;
+  - u pravidla je odkaz na stejné pravidlo na stromapp.info;
+  - funguje i mimo výzkum a v Archivu Stromu a nic nezapisuje.
+- **Jen metodika:** na otázku člověka, jak nebo proč Strom něco dělá, agent odpoví podle `strom doc`: s číslem
+  pravidla a s odkazem, který `strom doc` vypíše.
+- **Ovládání:** terminál: `strom doc`, `strom doc R2.3`, `strom doc hypotéza --lang en`, `--json`. Nápověda pro
+  člověka (`strom help --human`) končí odkazem na `strom doc`. Aplikace má stejnou dokumentaci v **Jak Strom
+  funguje** ([A1.7](A1-the-app-in-brief.md#A1.7)).
+- **Platí od:** výzkum 1.28.0
+
+<!-- zdroj: research:src/commands/doc.ts (SEARCH_ROWS=10, --limit, ui.docs.fallback, docUrl) · src/core/doc.ts · assets/strom-doc/ (PIN) · src/agents/files.ts:188 "answer from `strom doc`" · src/cli/help.ts (help --human, poslední řádek) · CHANGELOG.cs.md 1.28.0 · commity 314ab218, 4acfb170 -->

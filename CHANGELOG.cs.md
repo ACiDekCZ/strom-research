@@ -5,9 +5,63 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.29.0
+
+*Připravuje se: bety do 1.29.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
+  v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
+  *rozhoduje člověk* (výchozí, jako v 1.28) nebo *rozhoduje AI*. Když rozhoduje AI, agent hypotézu rozhodne sám, jakmile
+  citovaný záznam podpoří jednu verzi, vždy s verzí a důvodem; rozhodnutí uživatele nikdy nemění a větev deseti a více
+  lidí mimo strom připojí jen na dva prameny bez námitky – jinak navrhne. Každé jeho rozhodnutí je označené jako
+  rozhodnutí agenta, objeví se v přehledu změn a dá se kdykoli změnit; přepnutí volby nemění nic už rozhodnutého.
+  Rozhodování AI zapíná jen člověk.
+
+- **Každou hypotézu jde rozhodnout z menu.** Co čeká nabízí i otevřené hypotézy bez návrhu agenta – rozhodnout s verzí
+  a důvodem, nebo nechat otevřenou –, a rozhodnutou či odloženou hypotézu jde rozhodnout znovu s důvodem, staré
+  rozhodnutí zůstane čitelné; totéž z revize osoby a z odkazu aplikace Strom. Když rozhoduje uživatel, agent navrhne
+  rozhodnutí všude, kde záznamy ukazují na jednu verzi.
+
+- **Skončený rozhovor už v aplikaci Strom nezůstává „při práci“**, ani na vytíženém počítači, ani po změně jména
+  počítače.
+
+- **Aplikace agenta hlídaná stejně jako agent v terminálu.** Její vestavěný prohlížeč dodržuje podmínky archivů stejně
+  jako prohlížeč agenta v Chromu: archiv, který pouští jen prohlížeč člověka, je bez svolení člověka odmítnut se stejnou
+  radou, povolený se zapíše a drží své tempo; místní stránky nic neomezuje. Příkazy stromu v terminálu aplikace platí
+  stejně jako v příkazové řádce (co dělá jen člověk, most aplikace Strom); agent dostane pokyn spouštět strom přes svou
+  příkazovou řádku. Z aplikace se nic nevypíná. Terminál aplikace pozná strom pod jakýmkoli jménem – jiného kanálu,
+  druhé instalace, balíček spuštěný přes spouštěč balíčků, cestu k němu.
+
+- **Aplikace agenta bez agenta v terminálu.** Strom teď říká, co jde a co ne: rozhovor v aplikaci pokračuje, samostatná práce,
+  čtení skenů a práce z aplikace Strom potřebují agenta v terminálu – řečeno dřív, než padne jakákoli otázka nebo
+  odhad ceny. Nastavení a `strom doctor --fix` nabídnou jeho instalaci (lze odmítnout); `strom doctor` rozliší
+  prohlížeč v rozhovoru a v samostatném běhu. Rozhovor bez něj čte skeny vlastním čtenářem skenů stromu.
+
+- **Zdroj je přečtený uživatelem, jen když ho uživatel přečetl, a údaj doložený jen z originálu záznamu.** Čtenářem je
+  uživatel u přepisu napsaného ručně v terminálu nebo potvrzeného v aplikaci Strom; co pod jeho účtem zapsaly importy,
+  převody a dávky, už ne. Údaj je doložený jen s citovaným originálem záznamu s primární informací; bez něj se převede
+  na pravděpodobný a důvod zůstane v jeho historii, ten, který doložil uživatel, zůstane a čeká v Co čeká na ponechání,
+  nebo převedení na pravděpodobný (`strom fixes review proven-originals keep|lower`). Existující výzkumy se samy jednou
+  opraví, změny jsou v přehledu změn (`strom fixes undo readers|proven-originals` je vrátí). GEDCOM z jiného programu
+  nikdy neudělá uživatele čtenářem ani údaj doloženým. Potvrzení v aplikaci platí pro znění, ke kterému bylo dané, a dá
+  se tam vzít zpět; s originálem záznamu s primární informací pak údaj smí být doložený, jinak nejvýš pravděpodobný.
+
+- **Každý čtenář dokumentu s vlastním agentem, modelem a hloubkou uvažování a zdroj přečtený znovu z originálu.** `strom
+  document read|again --agent/--model/--effort` (a `--blind-…` pro slepého čtenáře) nebo volba v aplikaci Strom; bez
+  volby čte podle nastavení výzkumu, nikdy levnějším modelem. Výsledek říká, kdo četl – v terminálu, v souboru čtení i v
+  aplikaci Strom. Zdroj se přečte znovu z originálu na tomto počítači (`strom document read --source S… [--clip …]` nebo
+  z aplikace Strom), čtenáři přepis nevidí; nové čtení zůstane vedle zdroje, a kde se liší, postaví úkol obě znění vedle
+  sebe – přepis, kdo ho četl, i potvrzení uživatele zůstanou, jak byly.
+
+- **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
+  `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku
+  výzkumů upraví i pokyny agenta tohoto výzkumu a zadaný web (example.org) pokryje i adresy, které používají knihy
+  výzkumu. Podmínky Hlavního archivu starých aktů ve Varšavě podle odpovědi archivu: snímky volně k užití, každý
+  citovaný místem originálu – archiv, fond, signatura, strana nebo list.
+
 ## 1.28.0
 
-*Připravuje se: bety do 1.28.0-beta.3. Oddíl bude úplný s vydáním.*
+*6. 11. 2026 · patří k aplikaci Strom 3.24.0.*
 
 - **Jak Strom funguje je přímo ve stromu: `strom doc`.** Dokumentace aplikace a výzkumu v češtině, angličtině, němčině
   a polštině je součástí stromu a čte se i bez internetu: `strom doc` vypíše kapitoly, `strom doc R10.1` jedno pravidlo

@@ -25,7 +25,9 @@ nur dort erledigt wird. Die Liste wird jedes Mal aus der Forschung berechnet, in
 - Die Zeile **Wartet: N (davon X nur hier im Terminal, Y warten auf Antwort)** teilt die Zahl wie die App. Die Zahl
   der App ist N ohne die Einträge nur für das Terminal und ohne gesendete Anfragen.
 - Nur im Terminal sind Stammbäume, die aus der App gesendet wurden (**Die Strom-App**), Fragen zum Lesen der Scans
-  (**Das Lesen der Scans**), Widersprüche (**Widersprüche zu entscheiden**, siehe [R5](R5-conflicts.md)) und mildere Bedingungen eines Archivs. In der Übersicht **Was wartet** kommen sie zuerst unter
+  (**Das Lesen der Scans**), Widersprüche (**Widersprüche zu entscheiden**, siehe [R5](R5-conflicts.md)), Hypothesen zu
+  entscheiden (ab Forschung 1.28.0) und mildere Bedingungen eines Archivs. In der Übersicht **Was wartet** kommen sie
+  zuerst unter
   der Überschrift **Nur hier im Terminal (nicht in der Strom-App)**, danach **Auch in der Strom-App**.
 - Die Seite für das Telefon liest nur: ohne die Einträge nur für das Terminal, mit Erzählungen, zuerst 20 Einträge,
   höchstens 200 auf einmal. Sie schreibt **Entscheiden lässt sich am Computer in der Forschungsübersicht.**
@@ -87,12 +89,12 @@ freiwilligen Notiz.
 ## R6.3 Entscheidungen
 
 Der Abschnitt **Entscheidungen** sammelt Fragen, die den Agenten aufhalten: Erlaubnis eines Archivs, zu bestätigende
-Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-places.md)), Widerspruch (siehe [R5](R5-conflicts.md)), Stammbäume aus der App und das Lesen der Scans. Entscheidungen
-stehen in der Liste zuerst.
+Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-places.md)), Widerspruch (siehe [R5](R5-conflicts.md)), Hypothese (siehe
+[R6.3.4](#R6.3.4)), Stammbäume aus der App und das Lesen der Scans. Entscheidungen stehen in der Liste zuerst.
 
 - **Bedienung:** Terminal: **Was wartet** → Eintrag; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Gilt seit:** Forschung 1.14.0. Widersprüche seit 1.20.0, Orte seit 1.25.0.
+- **Gilt seit:** Forschung 1.14.0. Widersprüche seit 1.20.0, Orte seit 1.25.0, Hypothesen seit 1.28.0.
 
 <!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
 
@@ -134,6 +136,20 @@ stehen in der Liste zuerst.
 - **Gilt seit:** Forschung 1.26.0
 
 <!-- zdroj: research:HEAD src/core/waiting.ts:428-451 (group branches) · src/cli/menu-waiting.ts decideBranch · assets/lang/cs.json:2359 wait.group.branches -->
+
+<a id="R6.3.4"></a>
+### R6.3.4 Hypothesen zu entscheiden
+
+- Eine Hypothese, deren Entscheidung der Agent vorgeschlagen hat ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)),
+  wartet in der Gruppe **Hypothesen zu entscheiden**: die Frage, die Versionen und der Vorschlag („Vorschlag:
+  Variante B – …“). Wahl: **Wie vorgeschlagen entscheiden**, **Anders entscheiden** (eine andere Version oder keine,
+  mit Grund), **So lassen (Vorschlag nicht übernommen)**.
+- **Grenzen:** es entscheidet nur der Mensch ([R6.6](#R6.6)). Sie ist nur im Terminal, die Strom-App zeigt sie nicht
+  ([R6.1.1](#R6.1.1)). Im Strom-Archiv gibt es die Gruppe nicht.
+- **Bedienung:** Terminal: **Was wartet** → Eintrag, `strom hypothesis decide H… --proposed | --keep-open`.
+- **Gilt seit:** Forschung 1.28.0
+
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
 
 <a id="R6.4"></a>
 ## R6.4 Gruppen und Reihenfolge
@@ -200,8 +216,10 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
   wachsenden Zweig (`strom offline answer`), das Überlassen eines Widerspruchs aus einer Änderung an den Agenten
   (`strom conflict leave`), das Zurücknehmen und Verwerfen eines Sendens aus der App (`strom sync undo|discard`) und
   die Korrekturen `strom fixes … edit-decisions|woken-waits`.
+- **Ab Forschung 1.28.0:** nur der Mensch entscheidet auch eine Hypothese (`strom hypothesis decide`, auch innerhalb
+  von `strom batch`); der Agent schlägt sie nur vor ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
 
 <a id="R6.7"></a>
 ## R6.7 Gesendet, Antwort und Rückkehr in die Warteschlange

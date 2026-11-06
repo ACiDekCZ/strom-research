@@ -450,6 +450,22 @@ export function appShowsHypothesisLinks(settings: Settings, version?: string): b
 }
 
 /**
+ * The Strom app shows who decided a hypothesis (spec 060, the app's ZADANI_VYZKUM_kdo-rozhoduje-hypotezy.md §3): under a
+ * decided or abandoned 1 _STROM_HYPO, 2 _BY agent (only an agent's decision; none: the person's), 2 DECI (the decision
+ * as the research wrote it) and 2 _AT (its day) — and an agent's decision is sent even with no _LINK of its variants.
+ * Not released yet (undefined): another copy of the app (its beta, its development: strom.app.url) gets it at once;
+ * once released an app of unknown version is today's (an older one only skips the tags).
+ */
+export const APP_SHOWS_HYPOTHESIS_DECIDER: string | undefined = undefined;
+
+export function appShowsHypothesisDecider(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_HYPOTHESIS_DECIDER): boolean {
+  if (anotherCopy(settings)) return true;
+  if (!gate) return false;
+  if (!version) return true;
+  return compareVersions(version, gate) >= 0;
+}
+
+/**
  * The Strom app decides a conflict of the user's edit by side (the app's spec docs/ZADANI_VYZKUM_rozpory-v-aplikaci.md,
  * phase 1; the side picked in the app, decided in the terminal through the link conflict&do=decide&take=, never through
  * the bridge): 2 _STROM_TAKE Y under each open one it may (a fact's value, a name, a title, a sex — never a child's
@@ -589,6 +605,50 @@ export function appReadsPlaceRecords(settings: Settings, version?: string, gate:
   if (!v || !isAppVersion(v)) return false;
   if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
   return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The first Strom app that lets the user confirm the research's transcript of a source (spec 022 P2; the app's
+ * ZADANI_VYZKUM_potvrzeni-prepisu.md): under 1 _STROM_READ of each source with a transcript, 2 _TXT <mark> (the
+ * wording the research has, core/readers.ts transcriptMark — the app gives it back through POST /sources/confirm) and
+ * 2 _CONF <day> while the user's confirmation of that wording holds. Not released yet (undefined): another copy of the
+ * app (its beta, its development) gets them at once, from APP_CONFIRMS_TRANSCRIPTS_BETA once that is set; once released
+ * an app of unknown version is today's (an older one skips the tags and keeps _STROM_READ).
+ */
+export const APP_CONFIRMS_TRANSCRIPTS: string | undefined = undefined;
+
+/** The first beta of the app that confirms a transcript (another copy of the app gets the marks from it; none: at once). */
+export const APP_CONFIRMS_TRANSCRIPTS_BETA: string | undefined = undefined;
+
+/** Does the Strom app of this version confirm the research's transcripts (2 _TXT, 2 _CONF under 1 _STROM_READ)? */
+export function appConfirmsTranscripts(settings: Settings, version?: string, gate: string | undefined = APP_CONFIRMS_TRANSCRIPTS, beta: string | undefined = APP_CONFIRMS_TRANSCRIPTS_BETA): boolean {
+  const v = version?.trim();
+  if (anotherCopy(settings)) return !beta || !v || !isAppVersion(v) || compareVersions(v, beta) >= 0;
+  if (!gate) return false;
+  if (!v) return true;
+  return isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The first Strom app that reads a source again from its original through the bridge (spec 059 P3; the app's
+ * ZADANI_VYZKUM_cteni-modely.md point 6, O3): 1 _STROM_ORIG Y under SOUR where the research has the source's original on
+ * this computer and a transcript to hold a new reading against (core/sourceread.ts readsAgain), never in an archive. Not
+ * released yet (undefined): another copy of the app (its beta, its development) gets it at once, from
+ * APP_READS_SOURCES_AGAIN_BETA once that is set; once released an app of unknown version is today's (an older one lists
+ * the tag as one it skips and loses nothing).
+ */
+export const APP_READS_SOURCES_AGAIN: string | undefined = undefined;
+
+/** The first beta of the app that reads a source again (another copy of the app gets the mark from it; none: at once). */
+export const APP_READS_SOURCES_AGAIN_BETA: string | undefined = undefined;
+
+/** Does the Strom app of this version read a source again from its original (1 _STROM_ORIG Y under SOUR)? */
+export function appReadsSourcesAgain(settings: Settings, version?: string, gate: string | undefined = APP_READS_SOURCES_AGAIN, beta: string | undefined = APP_READS_SOURCES_AGAIN_BETA): boolean {
+  const v = version?.trim();
+  if (anotherCopy(settings)) return !beta || !v || !isAppVersion(v) || compareVersions(v, beta) >= 0;
+  if (!gate) return false;
+  if (!v) return true;
+  return isAppVersion(v) && compareVersions(v, gate) >= 0;
 }
 
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */

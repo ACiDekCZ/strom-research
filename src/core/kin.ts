@@ -2,10 +2,10 @@
 // app opens on them), and how near anyone is to the people the research is
 // for (which entries get their image in the Strom app first).
 
-import type { Hypothesis, Person, Research, Task } from "./model.ts";
+import type { Hypothesis, HypothesisVariant, Person, Research, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { Settings } from "./config.ts";
-import { aboutPeople, hypothesisPeople } from "./directions.ts";
+import { aboutPeople, hypothesisPeople, variantPeople } from "./directions.ts";
 import { ancestorGenerations, familiesAsChild, familiesAsPartner } from "./people.ts";
 
 /** How near a person is: 0 an ancestor (or the person the research is for), 1 their family, 2 linked further. Unlinked: none. */
@@ -111,6 +111,25 @@ export function offTree(tree: Tree): (t: Task) => boolean {
  */
 export function joiningHypotheses(tree: Tree, people: string[]): Hypothesis[] {
   const kin = kinship(tree);
+  const family = offTreeFamily(tree, kin, people);
+  return tree
+    .list<Hypothesis>("hypothesis")
+    .filter((h) => {
+      if (h.state !== "open") return false;
+      const about = hypothesisPeople(tree, h);
+      return about.some((s) => family.has(s)) && about.some((s) => kin.has(s));
+    });
+}
+
+/**
+ * A branch of this many people off the tree joined to it by one decision is a big one: an agent the person lets decide
+ * the hypotheses (hypotheses.decide agent) decides it only on two sources cited in support of the variant and with no
+ * objection to it — else it proposes it, and the person decides (spec 060).
+ */
+export const BIG_BRANCH = 10;
+
+/** The people off the tree family links join to these (themselves too): the branch they belong to. */
+function offTreeFamily(tree: Tree, kin: Map<string, Kin>, people: string[]): Set<string> {
   const family = new Set<string>();
   const queue = people.filter((p) => !kin.has(p));
   while (queue.length) {
@@ -119,11 +138,20 @@ export function joiningHypotheses(tree: Tree, people: string[]): Hypothesis[] {
     family.add(p);
     queue.push(...familiesAsPartner(tree, p).flatMap((f) => [...f.partners, ...f.children.map((c) => c.person)]), ...familiesAsChild(tree, p).flatMap((f) => f.partners));
   }
-  return tree
-    .list<Hypothesis>("hypothesis")
-    .filter((h) => {
-      if (h.state !== "open") return false;
-      const about = hypothesisPeople(tree, h);
-      return about.some((s) => family.has(s)) && about.some((s) => kin.has(s));
-    });
+  return family;
+}
+
+/**
+ * How many people off the tree a variant of a hypothesis would join to it: the branch of those it names (with its
+ * subject) whom nothing links to the tree yet, when it names someone of the tree too — else 0 (it joins no branch).
+ */
+export function branchJoined(tree: Tree, h: Hypothesis, v: HypothesisVariant): number {
+  const kin = kinship(tree);
+  if (!kin.size) return 0;
+  const named = [...new Set([...aboutPeople(tree, h.subject), ...variantPeople(tree, v)])].filter((id) => {
+    const p = tree.get<Person>(id);
+    return p?.type === "person" && !p.retracted;
+  });
+  if (!named.some((p) => kin.has(p))) return 0;
+  return offTreeFamily(tree, kin, named).size;
 }

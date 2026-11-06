@@ -5,9 +5,73 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.29.0
+
+*In Vorbereitung: die Betas bis 1.29.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
+  (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
+  von strom, die Forschungseinstellungen der Strom-App): *der Mensch entscheidet* (Standard, wie in 1.28) oder
+  *die KI entscheidet*. Entscheidet die KI, entscheidet der Agent eine Hypothese selbst, sobald ein zitierter Eintrag eine
+  Variante stützt, stets mit Variante und Begründung; die Entscheidung des Menschen ändert er nie, und einen Zweig von
+  zehn oder mehr Personen außerhalb des Stammbaums verbindet er nur auf zwei Quellen ohne Einwand – sonst schlägt er
+  vor. Jede seiner Entscheidungen ist als die des Agenten markiert, steht in der Übersicht der Änderungen und lässt
+  sich jederzeit ändern; ein Wechsel der Einstellung ändert nichts bereits Entschiedenes. Nur ein Mensch schaltet das
+  Entscheiden der KI ein.
+
+- **Jede Hypothese lässt sich im Menü entscheiden.** „Was wartet“ bietet auch offene Hypothesen ohne Vorschlag des
+  Agenten an – mit Variante und Begründung entscheiden oder offen lassen –, und eine entschiedene oder zurückgestellte
+  Hypothese lässt sich mit Begründung neu entscheiden, die frühere Entscheidung bleibt lesbar; ebenso aus der Prüfung
+  einer Person und über einen Link der Strom-App. Entscheidet der Mensch, schlägt der Agent überall dort eine
+  Entscheidung vor, wo die Einträge auf eine Variante zeigen.
+
+- **Ein beendetes Gespräch bleibt in der Strom-App nicht mehr „bei der Arbeit“**, auch auf einem ausgelasteten
+  Computer oder nach einer Änderung des Computernamens.
+
+- **Die App des Agenten wird wie der Agent im Terminal überwacht.** Ihr eingebauter Browser hält die Bedingungen der
+  Archive ein wie der Browser des Agenten in Chrome: Ein Archiv, das nur den Browser eines Menschen zulässt, wird ohne
+  dessen Zustimmung mit demselben Hinweis abgelehnt, ein erlaubtes wird verzeichnet und hält sein Tempo; lokale Seiten
+  bleiben unberührt. Befehle von strom im eigenen Terminal der App gelten wie in der Shell (was nur ein Mensch tut, die
+  Brücke der Strom-App); der Agent wird angewiesen, strom über seine Shell auszuführen. Nichts an der App wird
+  abgeschaltet. Das Terminal der App erkennt strom unter jedem seiner Namen – den eines anderen Kanals, einer zweiten
+  Installation, das Paket über einen Paketstarter, einen Pfad dorthin.
+
+- **Die App des Agenten ohne den Agenten im Terminal.** strom sagt jetzt, was geht und was nicht: Das Gespräch in der App geht weiter,
+  selbstständige Arbeit, das Lesen von Scans und die Arbeit aus der Strom-App brauchen den Agenten im Terminal – gesagt,
+  bevor eine Frage oder eine Kostenschätzung kommt. Die Einstellungen und `strom doctor --fix` bieten seine Installation
+  an (ablehnbar); `strom doctor` unterscheidet den Browser im Gespräch und im selbstständigen Lauf. Ein Gespräch ohne es liest Scans mit dem eigenen Scan-Leser von strom.
+
+- **Eine Quelle gilt nur als vom Benutzer gelesen, wenn er sie gelesen hat, und eine Angabe ist nur aus dem
+  Originaleintrag belegt.** Leser ist der Benutzer bei einer von Hand im Terminal geschriebenen oder in der Strom-App
+  bestätigten Abschrift; was Importe, Umwandlungen und Stapel unter seinem Konto schrieben, nicht mehr. Eine Angabe ist
+  nur mit einem zitierten Originaleintrag mit Primärinformation belegt; ohne ihn wird sie wahrscheinlich, der Grund
+  bleibt in ihrer Geschichte, und eine, die der Benutzer belegt hat, bleibt und wartet unter Was wartet darauf, belassen
+  oder auf wahrscheinlich gesetzt zu werden (`strom fixes review proven-originals keep|lower`). Bestehende Forschungen
+  werden einmal von selbst richtiggestellt, die Änderungen stehen in der Übersicht (`strom fixes undo
+  readers|proven-originals` setzt sie zurück). Ein GEDCOM aus einem anderen Programm macht den Benutzer nie zum Leser
+  und keine Angabe belegt. Eine Bestätigung in der App gilt für den Wortlaut, zu dem sie gegeben wurde, und lässt sich
+  dort zurücknehmen; mit einem Originaleintrag mit Primärinformation darf eine Angabe dann belegt sein, sonst höchstens
+  wahrscheinlich.
+
+- **Jeder Leser eines Dokuments mit eigenem Agenten, Modell und eigener Denktiefe, und eine Quelle erneut aus dem
+  Original gelesen.** `strom document read|again --agent/--model/--effort` (und `--blind-…` für den blinden Leser) oder
+  die Wahl in der Strom-App; ohne Wahl liest er nach den Einstellungen der Forschung, nie mit einem günstigeren Modell.
+  Das Ergebnis sagt, wer gelesen hat – im Terminal, in der Datei der Lesung und in der Strom-App. Eine Quelle wird
+  erneut aus dem Original auf diesem Computer gelesen (`strom document read --source S… [--clip …]` oder aus der
+  Strom-App), ohne dass die Leser die Abschrift sehen; die neue Lesung bleibt neben der Quelle, und wo sie abweicht,
+  stellt eine Aufgabe beide gegenüber – die Abschrift, wer sie las, und die Bestätigung des Benutzers bleiben, wie sie
+  waren.
+
+- **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
+  Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein
+  Archiv, in einer Forschung außerhalb des Forschungsordners gegeben, passt auch die Anweisungen des Agenten dieser
+  Forschung an, und eine angegebene Website (example.org) umfasst auch die Adressen, die die Bücher der Forschung
+  verwenden. Die Bedingungen des Hauptarchivs alter Akten in Warschau nach der Antwort des Archivs: die Scans frei
+  nutzbar, jeder mit dem Ort des Originals zitiert – Archiv, Bestand, Signatur, Seite oder Blatt.
+
 ## 1.28.0
 
-*In Vorbereitung: die Betas bis 1.28.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*6.11.2026 · gehört zur Strom-App 3.24.0.*
 
 - **Wie Strom funktioniert gehört zu strom: `strom doc`.** Die Dokumentation der App und der Forschung auf Tschechisch,
   Englisch, Deutsch und Polnisch ist Teil von strom und liest sich auch ohne Internet: `strom doc` listet die Kapitel,

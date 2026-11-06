@@ -55,8 +55,13 @@ Forschung verbundenen Stammbaum bestimmt die Einstellung **Meine Quellenabschrif
   Quellen** der Filter **Abschrift nicht geprüft** (nur bei einem Stammbaum auf **Beleg** mit älteren ungeprüften
   Quellen).
 - **Gilt seit:** App 3.9.0
+- **Ab App 3.24.0:** die Übersetzung der Transkription, die die Forschung gesendet hat
+  ([R3.4](R3-verification-and-citation.md#R3.4)), steht unter der Transkription als zugeklappter Abschnitt
+  **Übersetzung der Transkription**: im Quellenbetrachter und auf der Karte der Quelle auf der Seite der Person. Die
+  Notiz der Quelle ändert sich dadurch nicht; der Editor der Notiz zeigt sie ganz. Eine Quelle ohne Übersetzung sieht
+  aus wie früher.
 
-<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified -->
+<!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
 
 <a id="A3.2"></a>
 ## A3.2 Zitation: was eine Quelle belegt

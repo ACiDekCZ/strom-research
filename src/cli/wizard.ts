@@ -10,7 +10,7 @@ import type { Context } from "./context.ts";
 import { ui } from "./ui.ts";
 import { isValidLang, langName } from "../core/lang.ts";
 import { gitVersion } from "../core/git.ts";
-import { fixGit, offerAgent } from "./fixes.ts";
+import { fixGit, offerAgent, offerAgentCli } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
 import { chooseTerminal, suggestedTerminal } from "./terminals.ts";
@@ -158,6 +158,9 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   if (agent) {
     cfg.agent = agent;
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, { agent, where: whereToTalk(agent, cfg.agentWhere, ctx.env) }) }));
+    // its app here, its CLI not (Claude without Claude Code): said, Claude Code offered — "not now" changes nothing
+    const way = here.find((a) => a.id === agent);
+    if (way?.app && !way.cli) await offerAgentCli(ctx, out, agent);
   } else if (installed.length && !archiveFirst && !archived && !quiet) out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
 
   // 4b. An archive chosen: new researches are archives. No agent here: nothing set — a research waits for its agent,
@@ -191,6 +194,22 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   if (agent) {
     const si = await ctx.choose(ui(lang, "ui.setup.stories"), [{ label: ui(lang, "ui.setup.stories.yes") }, { label: ui(lang, "ui.setup.stories.no") }], cfg.stories === "no" ? 1 : 0, keep);
     cfg.stories = (si ?? (cfg.stories === "no" ? 1 : 0)) === 1 ? "no" : "yes";
+  }
+
+  // 5c. Who decides the hypotheses (the uncertain links between people): the person (default — the agent proposes) or
+  // the agent (on a cited record, its decisions marked and changeable). Only a person at a terminal answers it — asked
+  // nowhere else (no terminal, an agent running the setup: nothing written, the person decides); kept as this
+  // computer's, like the stories. The tree here with a value of its own (the Strom app set it for it): the person's
+  // answer takes its place.
+  let ownHypotheses = false;
+  if (agent && ctx.interactive && !isAgent(ctx.env)) {
+    const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+    ownHypotheses = readStored(tree, "hypotheses.decide", agent) !== undefined;
+    const was = (ownHypotheses ? readStored(tree, "hypotheses.decide", agent) : readStored(cfg, "hypotheses.decide", agent)) === "agent" ? 1 : 0;
+    const hi = await ctx.choose(ui(lang, "ui.setup.hypotheses"), [{ label: ui(lang, "ui.hypotheses.decide.person") }, { label: ui(lang, "ui.hypotheses.decide.agent") }], was, keep);
+    // the agent deciding them anew: what it means, and the person's second yes (no: as it was)
+    if (hi === undefined || (hi === 1 && was !== 1 && !(await ctx.confirm(ui(lang, "ui.consent.hypotheses.agent"), false)))) ownHypotheses = false;
+    else writeStored(cfg, "hypotheses.decide", agent, hi === 1 ? "agent" : undefined);
   }
 
   // 6. What the agent may do without asking (none here: nothing to ask).
@@ -244,6 +263,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   }
   s.save();
   if (ownStoryHistory) setTreeSetting(ctx, "stories.history", undefined);
+  if (ownHypotheses) setTreeSetting(ctx, "hypotheses.decide", undefined);
 
   // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated
   // installation (found on Windows: asked, while doctor said "none, on purpose")

@@ -254,3 +254,15 @@ test("the list: an archive whose viewer shows its images from a server the list 
   }
   assert.ok(seen >= 3, "the reading rooms of ZA Opava and SOA Litoměřice");
 });
+
+test("the list: AGAD's galleries by the archive's reply — the scans used freely, the level as before, each cited by the original's place", () => {
+  const list = readPack(assetPath("archives.json"));
+  for (const host of ["agad.gov.pl", "agadd.home.net.pl", "agadd2.home.net.pl"]) {
+    const a = list.find((x) => x.host === host);
+    assert.ok(a, host);
+    assert.equal(a.level, "unknown", `${host}: the level unchanged — the agent alone, slowly`);
+    assert.match(a.quote ?? "", /Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów/u, host);
+    assert.match(a.scope ?? "", /Archiwum Główne Akt Dawnych, <zespół>, sygn\. <n>, s\.\/k\. <n>/u, `${host}: the citation the archive asks for`);
+    assert.equal(a.checked, "2026-11-06", host);
+  }
+});

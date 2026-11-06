@@ -310,7 +310,7 @@ register(
       const tree = ctx.hasTree() ? ctx.tree() : undefined;
       // the history of the places in a conversation: only where the user has it on (an archive returned above)
       const history = !!tree && historyOn(tree, ctx.settings) && !actsAsArchive(tree);
-      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(tree?.config), process.platform, history);
+      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(tree?.config), process.platform, history, ctx.settings.hypothesesDecide(tree?.config));
       return { text, data: { guide: text, lang } };
     },
   },

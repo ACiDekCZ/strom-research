@@ -2,7 +2,7 @@
 # R1 The research in brief
 
 How the research works as a whole, on one page. Each section leads to a chapter with the exact rules. Describes
-the research 1.25.2 and the Strom app 3.21.2.
+the research 1.25.2 and the Strom app 3.21.2; changes from a later version carry its number.
 
 <a id="R1.1"></a>
 ## R1.1 The research is a record, not a conversation
@@ -52,8 +52,9 @@ work and the condition set by a person allows it (for example the pace of the we
 The agent works by the **Genealogical Proof Standard** (GPS): a reasonably exhaustive search, a citation for every fact,
 analysis and correlation of the evidence, resolution of conflicts, and a written conclusion another researcher can follow.
 
-- Every fact has a degree of certainty: **Lead**, **Possible**, **Probable**, **Proven**. A family tree and family
-  memory are always only a lead; an index serves to find the entry. In detail: [R3](R3-verification-and-citation.md).
+- Every fact has a degree of certainty: **Lead**, **Possible**, **Probable**, **Proven**. A family tree, family
+  memory and an index are always only a lead: an index leads to the entry, only the entry itself proves it (the code
+  enforces the index from research 1.28.0). In detail: [R3](R3-verification-and-citation.md).
 - A namesake is not the person sought. A person is identified by year, place, house, occupation, spouse and parents.
   Two records with the same name and different parents are two persons. Identifying persons, their names and
   competing hypotheses: [R10](R10-people-and-hypotheses.md).
@@ -62,7 +63,7 @@ analysis and correlation of the evidence, resolution of conflicts, and a written
 - When records differ, the agent does not choose silently: it writes a **conflict**. In detail: [R5](R5-conflicts.md).
 - A place gets a position on the map only when it is certain which place it is. In detail: [R4](R4-places.md).
 
-<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) -->
+<!-- zdroj: research:assets/method/core.md (úvod, „Certainty is explicit“, „A namesake is not your person“, „Negative results are results“) · src/core/evidence.ts isWeak (rejstřík od 1.28.0) -->
 
 <a id="R1.5"></a>
 ## R1.5 What a person decides
@@ -70,14 +71,16 @@ analysis and correlation of the evidence, resolution of conflicts, and a written
 Some decisions belong to a person only. The research asks about them in **Awaiting action**, and the agent does not
 answer for the person.
 
-- What waits for a person (letters, images to download, questions about places, conflicts, stories to approve) and
-  where it is dealt with: [R6](R6-awaiting-action.md).
+- What waits for a person (letters, images to download, questions about places, conflicts, hypotheses, stories to
+  approve) and where it is dealt with: [R6](R6-awaiting-action.md).
+- Only a person decides a hypothesis; the agent proposes the decision (from research 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
 - A person's decision holds. The agent changes it only on the strength of a new source: [R5.4](R5-conflicts.md#R5.4).
 - A place position set by a person does not change: [R4.3](R4-places.md#R4.3).
 - Settings that change what the agent may do are confirmed by a person (for example the condition for working alone,
   [R7](R7-when-the-agent-works.md)).
 
-<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate -->
+<!-- zdroj: research:assets/method/waiting.md · src/core/conflicts.ts againAllowed · src/core/placeid.ts personsHand · src/core/config.ts run.gate · src/commands/analysis.ts hypothesis decide (person, od 1.28.0) -->
 
 <a id="R1.6"></a>
 ## R1.6 The research and the Strom app
@@ -102,3 +105,28 @@ important facts should ideally be verified by a person as well.
 - **Since:** research 1.0.0
 
 <!-- zdroj: research:assets/method/reading.md · assets/method/locate.md · assets/method/recording.md · src/commands/read.ts:183-200 -->
+
+<a id="R1.8"></a>
+## R1.8 How Strom works: `strom doc`
+
+This documentation is carried in the research and can be read offline too. `strom doc` lists the contents,
+`strom doc R10.1` one rule together with the rules under it, and `strom doc <words>` searches the headings, the
+glossary and the text.
+
+- **Limits:**
+  - a number can also be written in small letters or with a hyphen (`r4.3`, `R4-3`). An unknown number ends with an
+    error that gives the nearest numbers;
+  - the search ignores diacritics and letter case. It shows at most 10 rules, the best first, and how many more there
+    are (`--limit` another count);
+  - the text is in the language of the research (`--lang` another). A language the documentation is not translated
+    into gets English with a note;
+  - each rule has a link to the same rule on stromapp.info;
+  - it works outside a research and in a Strom archive too, and writes nothing.
+- **Method only:** to a person's question how or why Strom does something, the agent answers from `strom doc`: with
+  the number of the rule and with the link that `strom doc` prints.
+- **Controls:** terminal: `strom doc`, `strom doc R2.3`, `strom doc hypothesis --lang en`, `--json`. The help for
+  a person (`strom help --human`) ends with a pointer to `strom doc`. The app has the same documentation in **How
+  Strom works** ([A1.7](A1-the-app-in-brief.md#A1.7)).
+- **Since:** research 1.28.0
+
+<!-- zdroj: research:src/commands/doc.ts (SEARCH_ROWS=10, --limit, ui.docs.fallback, docUrl) · src/core/doc.ts · assets/strom-doc/ (PIN) · src/agents/files.ts:188 "answer from `strom doc`" · src/cli/help.ts (help --human, poslední řádek) · CHANGELOG.cs.md 1.28.0 · commity 314ab218, 4acfb170 -->

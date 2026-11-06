@@ -460,7 +460,8 @@ Schritte bei einer Aufgabe, die auf Bilder eines Archivs wartet, wohin der Agent
 <a id="R9.10"></a>
 ## R9.10 Beispiele
 
-Stufen und Grenzen stammen aus der Liste der Archive der Forschung 1.27.0. Die Familie Horák ist erfunden.
+Stufen und Grenzen stammen aus der Liste der Archive der Forschung 1.27.0, DigiArchiv SOA Třeboň aus der Forschung
+1.28.0. Die Familie Horák ist erfunden.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -530,3 +531,23 @@ Stufen und Grenzen stammen aus der Liste der Archive der Forschung 1.27.0. Die F
 - **Gilt seit:** Forschung 1.27.0
 
 <!-- zdroj: research:assets/archives.json szukajwarchiwach.gov.pl (restricted, browserOnly) -->
+
+<a id="R9.10.6"></a>
+### R9.10.6 DigiArchiv SOA Třeboň
+
+- Archiv: nur von Hand, nur über den Browser eines Menschen. Bedingungen auf der Startseite des DigiArchivs (`/Uvod`):
+  „Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování,
+  distribuování, prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.“ (Die Bilder werden nur
+  zum Online-Ansehen im DigiArchiv des SOA in Třeboň bereitgestellt; ihr Kopieren, Verbreiten, Verkaufen und ihre
+  Nutzung in anderen Projekten und auf anderen Seiten ist verboten.) Der Server lehnt die Anfragen von strom ab
+  (403), nach dem Archiv absichtlich.
+- Das Archiv hat bestätigt: der Mensch darf von Hand nur ausgewählte Bilder speichern, nie das ganze Buch oder einen
+  wesentlichen Teil davon. Werkzeuge zum Herunterladen sind nicht erlaubt, auch nicht der Browser des Agenten.
+- Aufgabe: der Eintrag von Marie Horáková in einer Matrik im DigiArchiv. Die Aufgabe wartet immer auf Bilder, die der
+  Mensch auswählt und speichert. Eine Erlaubnis öffnet das nicht; weder der Downloader noch ein Webabruf noch der
+  Browser des Agenten darf dorthin.
+- Zitation: der dauerhafte Link auf ein Bild ist die Adresse seiner Seite `https://digi.ceskearchivy.cz/<kniha>/<snímek>`
+  oder **Odkaz na snimek** (Link auf das Bild) im Panel **POPIS**.
+- **Gilt seit:** Forschung 1.28.0
+
+<!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->

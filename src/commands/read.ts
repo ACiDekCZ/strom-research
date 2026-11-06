@@ -8,7 +8,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, runs, runsArg } from "../cli/format.ts";
-import { StromError, UsageError } from "../core/errors.ts";
+import { UsageError } from "../core/errors.ts";
 import { DEFAULT_READ_PARALLEL, READ_PARALLEL_MAX } from "../core/config.ts";
 import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
@@ -23,7 +23,7 @@ import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP
 import { exifOrientation, shownSize } from "../image/index.ts";
 import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
-import { which, withoutAgentMarks } from "../core/which.ts";
+import { withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { shellArg, truncate } from "../cli/format.ts";
@@ -34,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInArchive, refuseReadersInSandbox } from "./readers.ts";
+import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersWithoutCli } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
@@ -197,7 +197,9 @@ register({
     "--until-found, for ONE particular entry (a baptism, a marriage): once a reader reports a find no more readers begin\n" +
     "(those at work finish); the images read are said exactly and only they are searched (--result partial), never\n" +
     "the whole range. Not for every entry of a place or a surname, nor where a namesake may come after the find.\n" +
-    "It waits for its readers (often ten minutes or more): run it in the foreground and let it finish.",
+    "It waits for its readers (often ten minutes or more): run it in the foreground and let it finish.\n" +
+    "The readers are the agent's CLI (claude, codex, …): where only its desktop app is here, it refuses before anything\n" +
+    "is read or estimated (code agent.cli-missing) — Claude: read with this tree's subagent strom-scan-reader instead.",
   args: [{ name: "images", description: "a record set (with --images), or images: M… or B…:<image>", variadic: true, required: true }],
   options: [
     { name: "images", type: "string", value: "<list>", description: `image numbers of the record set, e.g. 40-69 or 5-19,21-39 (at most ${IMAGE_RANGE_MAX} in all)` },
@@ -224,6 +226,8 @@ register({
   run: async (ctx: Context, { args: typed, opts }) => {
     const tree = ctx.tree();
     refuseReadersInArchive(ctx, tree, "strom read");
+    // the readers' agent CLI not here (its desktop app alone): said before anything is prepared or estimated
+    refuseReadersWithoutCli(ctx, tree, "strom read");
     // a list copied with its spaces, split by the shell: one list again
     const { args, images: imagesOpt } = joinedImages(typed, opts.images);
     const question = typeof opts.question === "string" ? opts.question.trim() : "";
@@ -304,7 +308,6 @@ register({
     const agentId = readerAgent(ctx, tree);
     const runner = RUNNERS[agentId];
     if (!runner) throw noReaderFor(agentId, "strom read");
-    if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
     const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
     const effort = ctx.settings.effort(agentId, tree.config)?.value;
     // as at the start of the session at work: what strom tuned for the readers' agent and model holds for all of it

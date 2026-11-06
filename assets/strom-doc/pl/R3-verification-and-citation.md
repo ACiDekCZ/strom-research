@@ -37,7 +37,7 @@ wniosek ze wszystkich źródeł danej, a nie, na ile dobre jest jedno źródło 
 ### R3.1.1 Stopień domyślny i cytat, który go podnosi
 
 - Dana zapisana bez `--status`: bez cytatu **Wskazówka**; z cytatem co najmniej jednego źródła, które nie jest słabe
-  ([R3.3](#R3.3)), **Prawdopodobne**; w przeciwnym razie Wskazówka.
+  ([R3.3](#R3.3)), **Prawdopodobne**; w przeciwnym razie Wskazówka. Od badania 1.28.0 słaby jest także indeks.
 - `strom cite` bez `--status` podnosi Wskazówkę do Prawdopodobne, gdy nowe źródło nie jest słabe. Innego stopnia nie
   zmienia.
 - Zmiana stopnia przez `strom event edit --status` wymaga `--reason`; cytat ze stopniem (`strom cite … --status`) nie.
@@ -54,18 +54,19 @@ Stopień nie może twierdzić więcej, niż dają cytaty danej. Kod sprawdza to 
 - **Granice (pilnuje kod),** w tej kolejności:
   1. Prawdopodobne i Udokumentowane wymagają co najmniej jednego cytatu.
   2. Co najmniej jeden cytat musi pochodzić ze źródła, które nie jest słabe. Słabe jest drzewo genealogiczne
-     (`--kind family-tree`), wspomnienie (`--kind family-memory`) i dzieło autorskie (`--form authored`).
+     (`--kind family-tree`), wspomnienie (`--kind family-memory`), dzieło autorskie (`--form authored`) i od badania
+     1.28.0 indeks (`--kind index`).
   3. Udokumentowane wymaga ponadto wśród cytatów ze źródeł niesłabych co najmniej jednego z informacją pierwotną
      (`--information primary`): akt spisany w czasie wydarzenia przez kogoś, kto o nim wiedział. Informacja przy
      cytacie ma pierwszeństwo przed informacją przy źródle.
 - **Tylko metodyka:** kod nie sprawdza, czy źródło jest oryginalne (`--form original`), czy agent sam je przeczytał,
   czy akt podaje daną wprost, ani ślepego drugiego odczytu ([R3.5](#R3.5)). Udokumentowane przechodzi więc także przy
-  odpisie lub indeksie z informacją pierwotną.
+  odpisie z informacją pierwotną (przy indeksie do badania 1.27.0 również).
 - **Obsługa:** terminal: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   Odrzucenie podaje powód i co zamiast tego (zostawić Wskazówkę, `--status possible` lub `--status probable`).
 - **Obowiązuje od:** badanie 1.0.0
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 Źródło: forma i informacja
@@ -91,18 +92,21 @@ Stopień nie może twierdzić więcej, niż dają cytaty danej. Kod sprawdza to 
 Drzewo genealogiczne, wspomnienie, indeks, katalog i drzewo online mówią, gdzie szukać. Nie są dowodem danej. Dana
 z nich pozostaje Wskazówką, dopóki nie udokumentuje jej akt.
 
-- **Pilnuje kod:** drzewo genealogiczne, wspomnienie i dzieło autorskie są źródłami słabymi: dana tylko z nich nigdy
-  nie jest Prawdopodobne ani Udokumentowane ([R3.2](#R3.2)). Przejęte drzewo genealogiczne:
-  [R11.3](R11-material-from-the-user.md#R11.3).
-- **Tylko metodyka:** indeks. Kod nie uważa go za słaby: z jego cytatem dana bez `--status` dostaje stopień
-  Prawdopodobne, a z `--information primary` przechodzi nawet Udokumentowane. Metodyka chce indeksu tylko do
-  odnalezienia strony; wpis czyta się w księdze metrykalnej. Także brakujący wpis w indeksie jest tylko wskazówką:
-  podobna forma nazwiska to kandydat.
+- **Pilnuje kod:** drzewo genealogiczne, wspomnienie, dzieło autorskie i indeks (`--kind index`) są źródłami słabymi:
+  dana tylko z nich nigdy nie jest Prawdopodobne ani Udokumentowane ([R3.2](#R3.2)). Dana, która cytuje tylko indeks,
+  pozostaje Wskazówką, dopóki nie odczyta się i nie zacytuje samego wpisu; z cytatem wpisu jest to dana wpisu.
+  Przejęte drzewo genealogiczne: [R11.3](R11-material-from-the-user.md#R11.3).
+- **Granice:** przy zmianach z aplikacji indeks liczy się jako akt: zmiana danej udokumentowanej indeksem staje się
+  sprzecznością ([R5.2](R5-conflicts.md#R5.2)), nic nie nadpisuje się po cichu.
+- **Tylko metodyka:** indeks służy tylko do odnalezienia strony; wpis czyta się w księdze metrykalnej. Także
+  brakujący wpis w indeksie jest tylko wskazówką: podobna forma nazwiska to kandydat.
 - Materiał od użytkownika (dokument, zdjęcie, list, to, co powie):
   [R11.2](R11-material-from-the-user.md#R11.2).
 - **Obowiązuje od:** badanie 1.0.0
+- **Od badania 1.28.0:** indeksu pilnuje kod jako słabego źródła (wcześniej tylko metodyka: z jego cytatem dana
+  dostawała Prawdopodobne, a z `--information primary` przechodziło nawet Udokumentowane).
 
-<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts:27 isWeak · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 -->
+<!-- zdroj: research:assets/method/core.md:8-12 · locate.md:22-24 · link.md:6-12 · intake.md:9-16 · src/core/evidence.ts isWeak (kind index od v1.28.0), isCompiled (sync) · src/core/sync.ts isCompiled · src/core/import.ts:1-7, :113-117 · src/commands/sources.ts:221 · test/cli/index-weak.test.ts · commit 9685fcbe -->
 
 <a id="R3.4"></a>
 ## R3.4 Cytat: wycinek i transkrypcja
@@ -113,18 +117,23 @@ Cytat mówi, gdzie dokładnie w źródle stoi dana. Źródło to jeden wpis; kil
   (słowa wpisu tak, jak stoją, wiersz po wierszu, nieodczytana litera `[?]`), do tego `--locator` (folio, strona,
   numer wpisu), a przy danej `--quote`. Do pola (`--date`, `--house`, `--age`, imię) trafia tylko to, co odczytano
   pewnie; niepewne trafia do transkrypcji z `[?]` i do notatki danej.
+- **Tylko metodyka, od badania 1.28.0:** wpis w innym języku lub piśmie niż język badania (łacina, kurrenta,
+  czeski, cyrylica…) dostaje obok dosłownej transkrypcji także tłumaczenie na język badania (`--translation`).
+  Transkrypcja pozostaje w języku wpisu. Aplikacja pokazuje tłumaczenie zwinięte pod transkrypcją
+  ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)).
 - **Pilnuje kod:** najwyżej 3 wycinki na źródło (wpis i jego ciąg dalszy przez łamanie strony). Brakującego wycinka
   ani transkrypcji kod nie odrzuca, tylko przypomina o nich przy źródle na skanie: po `strom source add`, po
   `strom source edit` ze skanem lub wycinkiem i przy `strom task done` dla źródeł, które zapisało zadanie.
 - Starsze źródła: wycinek uzupełnia `strom clips`, transkrypcję `strom transcripts` (czytelnicy, drugie spojrzenie
   je sprawdza).
-- **Obsługa:** terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --locator "…"`.
+- **Obsługa:** terminal: `strom source add "…" --clip B…:57@x,y,w,h --transcript @notes/zapis.txt --translation
+  @notes/preklad.txt --locator "…"`; uzupełnienie `strom source edit S… --translation "…"`.
   Aplikacja pokazuje wycinek wpisu obok transkrypcji.
 - **Obowiązuje od:** badanie 1.1.0 (wycinek, `strom clips`, `strom transcripts`); transkrypcja 1.0.0
 - **Od badania 1.26.0:** pomoc opcji `--clip` mówi „kolejny na każde łamanie strony, najwyżej 3” (w 1.25.2 „drugi”).
   Zasada się nie zmienia.
 
-<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b -->
+<!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
 <a id="R3.5"></a>
 ## R3.5 Ślepy drugi odczyt
@@ -289,6 +298,15 @@ Opowieść pisze się z danych dla rodziny. Tego, czego nie udokumentowano, się
   - dawny zawód i pojęcie, którego czytelnik nie rozumie, się objaśnia; pisze się w języku badania;
   - format tekstu: tylko akapity, śródtytuły, wypunktowania, pogrubienie i kursywa. Pozostałe (linki, tabele, cytaty,
     listy numerowane) aplikacja zgodnie z metodyką pokaże jako zwykły tekst.
+- **Dlaczego:**
+  - nic się nie dopowiada: opowieść jest dla rodziny i opiera się na dowodach. To, co brzmiałoby prawdopodobnie, ale
+    nie jest udokumentowane, zaczęłoby w rodzinie uchodzić za fakt;
+  - tło: jest udokumentowane dla miejsca, nie dla człowieka; jako przyczyna tego, co osoba zrobiła, byłoby domysłem
+    podawanym za fakt. Opowieść wymienia źródło tła (`--source`), żeby dało się je sprawdzić;
+  - opowieść pary: wspólne życie opowiada się raz, przy parze, żeby tego samego życia nie opowiadać dwa razy i żeby
+    wersje się nie rozchodziły;
+  - format: aplikacja Strom pokaże tylko akapity, śródtytuły, wypunktowania, pogrubienie i kursywę; resztę czytelnik
+    widziałby jako zwykły tekst ze znakami.
 - Zatwierdzenie i nowa wersja zatwierdzonej opowieści: [R6.3.2](R6-awaiting-action.md#R6.3.2).
 - **Obsługa:** terminal: `strom story set P… --text @notes/… --fact E… --source S… --note "co je odvozené"`
   (opowieść pary przy rodzinie F…).

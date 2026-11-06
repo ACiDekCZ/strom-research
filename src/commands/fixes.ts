@@ -57,7 +57,10 @@ import { applyAppShapes, appShapesDone, undoAppShapes, type ShapeFix } from "../
 import { applyStreetPlaces, forgetTownAnswers, streetPlacesDone, undoStreetPlaces, type StreetFix, type StreetLeft, type StreetTown, type TownAnswers } from "../core/streetfix.ts";
 import { applyEditDecisions, editDecisionsDone, undoEditDecisions, type EditDecisionFix, type EditDecisionLeft } from "../core/editdecisionfix.ts";
 import { applyWokenWaits, undoWokenWaits, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
+import { applyReaders, readersDone, undoReaders, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
+import { answerProven, applyProven, provenDone, provenToReview, undoProven, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
 import { townAnswers } from "../core/streets.ts";
+import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
 import { calibrationKey, loadAliases, resolveKey, splitKey, UNKNOWN_KEY } from "../core/modelkey.ts";
@@ -67,7 +70,8 @@ import { RUNNERS } from "../runners/index.ts";
 import { loadReadings, type Block } from "./readings.ts";
 import { pool } from "./read.ts";
 import { readerAgent } from "./readers.ts";
-import { which } from "../core/which.ts";
+import { findAgent } from "../core/which.ts";
+import { agentCliMissing, cliMissing } from "../core/agentcli.ts";
 
 /** Readings read first, to try it on. */
 export const FIX_TRY = 3;
@@ -310,6 +314,48 @@ const REWRITERS: Record<string, Rewriter> = {
     fixed: (key, n, records) => `Fix ${key}: ${n} tasks images woke though they waited for somebody's answer set waiting again, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} tasks put back in the queue as images woke them${left ? `, ${left} changed since left` : ""}`,
   },
+  readers: {
+    // one source no more read by the user: its title, the first write of "user" a run of many wrote
+    example: (t, item) => {
+      const r = item as ReaderFix;
+      return t("ui.fixes.readers.example", { source: r.source, title: short(r.title), date: r.at.slice(0, 10) });
+    },
+    left: (t, item) => {
+      const r = item as ReaderKept;
+      return t("ui.fixes.readers.kept", { source: r.source, title: short(r.title) });
+    },
+    apply: (tree, items, config) => applyReaders(tree, items as ReaderFix[], VERSION, config),
+    done: (tree) => readersDone(tree).length,
+    undo: (tree, config) => undoReaders(tree, config),
+    ask: "Take \"read by the user\" from the sources only a run of many writes wrote (an import, a conversion, a batch)?",
+    askUndo: "Give the sources the fix took it from \"read by the user\" back?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} sources no more read by the user, ${records} a person wrote by hand kept`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} sources read by the user again${left ? `, ${left} changed since left` : ""}`,
+  },
+  "proven-originals": {
+    // one fact made probable: whose, what, when, the status it gets
+    example: (t, item) => {
+      const r = item as ProvenFix;
+      return t("ui.fixes.proven-originals.example", { event: r.event, owner: r.owner, kind: kindWord(t, r.kind), date: r.date ?? "", to: t(r.to === "possible" ? "ui.st.possible" : "ui.st.probable") });
+    },
+    left: (t, item) => {
+      const r = item as ProvenLeft;
+      return t("ui.fixes.proven-originals.kept", { event: r.event, owner: r.owner, kind: kindWord(t, r.kind), date: r.date ?? "" });
+    },
+    apply: (tree, items, config) => applyProven(tree, items as ProvenFix[], VERSION, config),
+    done: (tree) => provenDone(tree).length,
+    undo: (tree, config) => undoProven(tree, config),
+    ask: "Make probable the facts proven without the original record that no person made proven?",
+    askUndo: "Make the facts the fix made probable proven again?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} facts proven without the original record made probable, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} facts proven again${left ? `, ${left} changed since left` : ""}`,
+  },
+};
+
+/** A kind of fact in the person's words: "narození"; a kind with no word as it is written. */
+const kindWord = (t: T, kind: string) => {
+  const key = eventKey(kind);
+  return key ? t(key) : kind;
 };
 
 /** A text said in one line of an example: at most 80 characters, "…" where cut. */
@@ -630,7 +676,7 @@ function notReady(ctx: Context, agent: string): string | undefined {
   const runner = RUNNERS[agent];
   if (!runner) return `strom reads with no agent "${agent}"`;
   if (agent === "script") return ctx.env.STROM_RUNNER_SCRIPT ? undefined : "STROM_RUNNER_SCRIPT names no script";
-  return which(runner.command, ctx.env) ? undefined : `${runner.command} is not installed here`;
+  return findAgent(runner.command, ctx.env) ? undefined : `${runner.command} is not installed here`;
 }
 
 /** The agents that can read here now, in strom's order. */
@@ -642,6 +688,8 @@ function requireReady(ctx: Context, tree: Tree, command: string): void {
   const why = notReady(ctx, agent);
   if (!why) return;
   const ready = readyHere(ctx);
+  // none can: its CLI missing said as strom read says it (agent.cli-missing), before anything is asked or estimated
+  if (!ready.length && cliMissing(agent, ctx.env)) throw agentCliMissing(agent, ctx.env, command);
   throw new UsageError(`${agent} cannot read here: ${why}`, {
     hint: ready.length ? `ready to read here: ${ready.join(", ")} — ${command} --agent ${ready[0]}` : "no agent can read here — strom doctor says what is missing",
   });
@@ -838,8 +886,19 @@ register(
       "kept, a request sent before put back from the history (strom task sent); the wake's note stays. One taken up since\n" +
       "(changed after the wake, or worked on) is left and listed. Not in an archive. One operation, one commit; strom\n" +
       "fixes undo woken-waits puts each back in the queue, where nothing changed since.\n" +
+      "readers — a source counted as read by the user before strom 1.29.0 for a write of \"user\" alone (an import, the\n" +
+      "conversion of an old research, a batch, a script): since then only a real reading counts — a transcript typed by\n" +
+      "hand at the person's own terminal, confirmed or verified in the Strom app. Set right by itself once, when this strom\n" +
+      "first starts or its bridge does (free): a source only runs of many writes wrote is no more read by the user (one the\n" +
+      "research read stays so, the rest may be read); one written by hand stays read by the user. Not in an archive (who\n" +
+      "read a source decides what is read again). One operation, one commit; strom fixes undo readers gives the reading back.\n" +
+      "proven-originals — a fact proven before strom 1.29.0 with no citation of the original record (a copy, an index, a\n" +
+      "transcript, the Strom app's word for a source): since then proven needs the original record itself with primary\n" +
+      "information. Set right by itself once, as readers: each becomes probable (possible where no record backs it), the\n" +
+      "reason in the history; one the user made proven stays and waits in What waits (strom fixes review proven-originals\n" +
+      "keep|lower). Also in an archive. One operation, one commit; strom fixes undo proven-originals makes them proven again.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -895,7 +954,8 @@ register(
       "again by the real time they took.\n" +
       "participant-names, app-shapes and street-places read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
-      "woken-waits, never in an archive (an agent's work).\n" +
+      "woken-waits and readers, never in an archive (an agent's work); readers and proven-originals are set right by themselves once,\n" +
+      "run again only after strom fixes undo or reopen.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
     options: [
@@ -998,7 +1058,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1006,11 +1066,12 @@ register(
       "Each name and note the fix set apart is put back as it was (participant-names); each conflict open again, each fact\n" +
       "withdrawn back and each date and age as the sync left it (app-shapes); each fact's place and house as they were\n" +
       "(street-places); each disagreement closed again as the agent decided it (edit-decisions); each task back in the\n" +
-      "queue as the images woke it (woken-waits) — where it is still as the fix left it; one\n" +
+      "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
+      "(proven-originals) — where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive (edit-decisions and woken-waits not).",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits and readers not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1034,6 +1095,45 @@ register(
       return {
         text: t(`ui.fixes.${check.id}.undone` as UIKey, { n: r.restored, left: r.left ? t(`ui.fixes.${check.id}.left` as UIKey, { n: r.left }) : "" }),
         data: { id: check.id, restored: r.restored, records: r.records, left: r.left, decision: "declined" },
+      };
+    },
+  },
+  {
+    path: ["fixes", "review"],
+    summary: "Answer the facts the user made proven without the original record (proven-originals): keep them proven, or make them probable (the person's own)",
+    group: "history",
+    tree: true,
+    person: "How sure the person's own facts are is the person's decision, at their own terminal: never made by an agent",
+    description:
+      "The facts the user made proven before strom 1.29.0 with no citation of the original record stay proven after the\n" +
+      "fix proven-originals and wait in What waits as one item. keep: they stay proven and are not asked again; lower: each\n" +
+      "becomes probable (possible where no record backs it), the reason in the history. Without facts named, all that wait;\n" +
+      "with them (E… IDs), only those. One operation, one commit. --json: the facts that wait (reviewed, left).",
+    args: [
+      { name: "check", description: "the check: proven-originals", required: true },
+      { name: "answer", description: "keep | lower", required: true },
+      { name: "facts", description: "the facts (E… IDs; default: all that wait)", variadic: true },
+    ],
+    examples: ["strom fixes review proven-originals keep", "strom fixes review proven-originals lower E0001 E0002"],
+    run: (ctx: Context, { args }) => {
+      const tree = ctx.tree();
+      const t: T = (key, values = {}) => ui(tree.lang, key, values);
+      const [id, answer, ...facts] = args as [string, string, ...string[]];
+      if (id !== "proven-originals") throw new UsageError(`only proven-originals waits for the person's review, not "${id}"`, { hint: "strom fixes review proven-originals keep|lower" });
+      if (answer !== "keep" && answer !== "lower") throw new UsageError(`answer keep or lower, not "${answer}"`, { hint: "strom fixes review proven-originals keep|lower [<fact>…]" });
+      const waiting = provenToReview(tree);
+      const asked = facts.length ? waiting.filter((w) => facts.some((f) => f.toUpperCase() === w.event)) : waiting;
+      if (!asked.length) return { text: t("ui.fixes.review.nothing"), data: { id, answer, reviewed: 0, left: waiting.length } };
+      const set = `strom fixes review proven-originals ${answer}${facts.length ? ` ${facts.join(" ")}` : ""}`;
+      personOnly(ctx, t, answer === "keep" ? `Keep ${asked.length} facts proven?` : `Make ${asked.length} facts probable?`, set, "ui.fixes.person.decide");
+      const n = tree.withTreeLock(() => {
+        const done = answerProven(tree, asked.map((a) => a.event), answer);
+        if (done) tree.commit(answer === "keep" ? `Fix proven-originals: ${done} facts the user made proven kept proven` : `Fix proven-originals: ${done} facts the user made proven made probable`);
+        return done;
+      });
+      return {
+        text: t(answer === "keep" ? "ui.fixes.review.kept" : "ui.fixes.review.lowered", { n }),
+        data: { id, answer, reviewed: n, left: provenToReview(tree).length },
       };
     },
   },

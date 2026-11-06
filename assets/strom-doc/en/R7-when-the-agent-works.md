@@ -281,6 +281,8 @@ for it. Until then it behaves as a Strom archive.
   - the saved mode does not change and the tasks are not parked. Once the agent is installed, the research goes on by
     itself with the tasks it had;
   - an agent that is working in the research right now (even one other than the one set) makes it a research.
+- **Why:** an archive is the person's choice and strom does not record it for them. A research without an agent only
+  behaves as an archive, so once the agent is installed it goes on by itself with the tasks it had; none is parked.
 - **Controls:** terminal: the menu, the first item (**Keep it only as a Strom archive: keeping the data from the Strom
   app**, or installing the agent); `strom mode` shows the state. The app shows such a research as **Archive**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).

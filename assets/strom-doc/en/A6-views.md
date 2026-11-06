@@ -1,7 +1,7 @@
 <a id="A6"></a>
 # A6 Views and the choice of people
 
-How the Strom app chooses which people to show and how each view shows them. Describes the app 3.21.2.
+How the Strom app chooses which people to show and how each view shows them. Describes the app 3.21.2; changes from a later version carry its number.
 
 A view is a different reading of **the same choice of people**. The choice is set by the central person (the one
 clicked) and the depth **Ancestors** and **Descendants**. Family, Descendants, Timeline and Map show the same
@@ -142,12 +142,23 @@ tree from the research, places are identified by the research ([R4](R4-places.md
   - before the first lookup the app asks (**Look up coordinates online?**). Only place names leave the app, no names
     of people, dates or relations. At most one request about every second;
   - the coordinates are saved into the tree: each place is looked up once, and the map then works offline too;
-  - the automatic lookup takes the service's **first result** for the written name. It does not tell apart towns of
-    the same name: a place can thus land in a town of the same name elsewhere. Such a location is then marked
-    **Check** ([R4.4.1](R4-places.md#R4.4.1));
+  - the automatic lookup takes the service's **first result** for the written name. Up to app 3.23.0 it did not tell
+    apart towns of the same name: a place could thus land in a town of the same name elsewhere. A location that does
+    not fit the tree is marked **Check** ([R4.4.1](R4-places.md#R4.4.1));
   - only a place with a house number that the service did not find is looked up by its town. Of the towns of that
     name, the one nearest the tree's other places is chosen (“Several towns have this name; the one nearest the tree’s
     other places was chosen.”); the place shows **Located by the town of …**;
+  - **from app 3.24.0** the nearest town is chosen for every place: when two or more towns are named exactly like the
+    written place (regardless of letter case and diacritics), the one nearest the centre of the tree is taken, not the
+    first result. The centre is the median of the locations set by hand or confirmed with **Keep**, when there are at
+    least 3; otherwise the median of all the tree's locations and of the places the lookup found without doubt.
+    A place with a further detail (“Lhota u Kolína”, “Lhota 16”), a single town or a tree without locations gets the
+    first result as before. It is still one request per place;
+  - the place check says how many towns of that name the map found (“The map found 3 towns with this name and took the
+    one nearest the tree’s other places.”); from app 3.24.0, formerly always “two”;
+  - a location already in the tree is not moved: the lookup looks up only places without a location. Not even a merge
+    with another tree or a GEDCOM file overwrites a location set by hand or confirmed with **Keep**; it only adds
+    missing ones. A wrong older location can be moved only by hand;
   - what is not found stays without a location. The app guesses nothing: “check the spelling, or add the country”.
 - **Controls:** app: **Settings → Look up places online**; in the places window **Wrong spot? Fix this place**,
   **Search for this place under another name** (only the location is attached, the entry in the tree does not
@@ -156,9 +167,9 @@ tree from the research, places are identified by the research ([R4](R4-places.md
   names, and each place once (a comment in the code). The limit of one request per second is a condition of the
   service.
 - **Since:** app 1.10.0; **Wrong spot? Fix this place** 1.10.1; **Clean orphaned places** 2.1.0; the location by the
-  town 3.21.0
+  town 3.21.0; the nearest town of the same name for every place and the number of towns in the check 3.24.0
 
-<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) -->
+<!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
 <a id="A6.6"></a>
 ## A6.6 A family line in the view

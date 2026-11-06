@@ -39,6 +39,8 @@ import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
 import { levelWords } from "../core/archiveasks.ts";
 import { bookUrlKey, sameBooks, sameBookText } from "../core/samebook.ts";
+import { handReading, typedByHand } from "../core/readers.ts";
+import { confirmAnswer, confirmCheck, confirmSummary } from "../core/confirm.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -223,6 +225,9 @@ register(
       // a line of an index is a copy made by another hand; a book with its own index holds originals too
       const kind = oneOf(opts.kind, SOURCE_KINDS, "kind", "other");
       const form = kind === "index" || (book && book.kinds.length > 0 && book.kinds.every((k) => k === "index")) ? "derivative" : "original";
+      const transcript = textOpt(opts.transcript, readText(ctx));
+      // typed by hand at the person's own terminal: the user's reading (an agent's, a script's, a batch's write is none)
+      const hand = transcript?.trim() && typedByHand(ctx.env, { tty: ctx.io.tty, batch: ctx.inBatch }) ? handReading(transcript, new Date().toISOString()) : undefined;
       const src = create<Source>(
         tree,
         "source",
@@ -234,7 +239,7 @@ register(
           input: opts.input ? normId(opts.input as string) : undefined,
           locator: str(opts.locator),
           date: parseDate(opts.date as string | undefined, "record date"),
-          transcript: textOpt(opts.transcript, readText(ctx)),
+          transcript,
           translation: textOpt(opts.translation, readText(ctx)),
           language: str(opts.language)?.toLowerCase(),
           information: oneOf(opts.information, ["primary", "secondary", "unknown"] as const, "information", "unknown"),
@@ -243,6 +248,7 @@ register(
           accessed: str(opts.url) ? new Date().toISOString().slice(0, 10) : undefined,
           ...(media.length ? { media } : {}),
           ...(clips.length ? { clips } : {}),
+          ...(hand ? { read: { user: hand } } : {}),
           note: str(opts.note),
         },
         (id) => `+${id} source "${truncate(args[0]!, 60)}"${media.length ? ` on ${media.join(" ")}` : ""}`,
@@ -860,6 +866,8 @@ register(
       const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
       const drop = str(opts["clip-remove"]);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
+      const transcript = textOpt(opts.transcript, readText(ctx));
+      const hand = transcript?.trim() && typedByHand(ctx.env, { tty: ctx.io.tty, batch: ctx.inBatch });
       const s = editFields<Source>(
         tree,
         args[0]!,
@@ -871,7 +879,7 @@ register(
           repository: opts.repo ? normId(opts.repo as string) : undefined,
           locator: str(opts.locator),
           date: opts.date === undefined ? undefined : parseDate(opts.date as string, "record date"),
-          transcript: textOpt(opts.transcript, readText(ctx)),
+          transcript,
           translation: textOpt(opts.translation, readText(ctx)),
           language: str(opts.language)?.toLowerCase(),
           information: optOneOf(opts.information, ["primary", "secondary", "unknown"] as const, "information"),
@@ -895,6 +903,9 @@ register(
           return {
             ...(media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
             ...(drop !== undefined || clips.length ? { clips: next.length ? next : undefined } : {}),
+            // a new wording typed by hand at the person's terminal: their reading of it (anyone else's: a reading of the
+            // wording before counts no more — its mark is another's)
+            ...(hand && transcript !== cur.transcript ? { read: { ...cur.read, user: handReading(transcript!, new Date().toISOString()) } } : {}),
           };
         },
       );
@@ -1035,3 +1046,36 @@ register(
     },
   },
 );
+
+register({
+  path: ["source", "confirm"],
+  summary: "The user's confirmation of the research's transcript of a source, as the Strom app sends it (its bridge)",
+  group: "sources",
+  tree: true,
+  writes: true,
+  hidden: true,
+  description:
+    "The user read the record and the research's transcript agrees: their reading of that wording (--undo takes it\n" +
+    "back). Only the Strom app confirms, through its bridge — nobody confirms for a person.",
+  args: [{ name: "source", description: "source ID (S0001)", required: true }],
+  options: [
+    { name: "txt", type: "string", value: "<mark>", description: "the mark of the wording confirmed, as the Strom file gives it (_TXT)" },
+    { name: "undo", type: "boolean", description: "take the confirmation back" },
+  ],
+  examples: ["strom source confirm S0001 --txt 0123456789abcdef"],
+  run(ctx, { args, opts }) {
+    // the person's own, in the Strom app: its bridge runs this as theirs (never with an agent's marks)
+    if (ctx.env.STROM_FOR_APP !== "1" || isAgent(ctx.env))
+      throw new UsageError("a transcript is confirmed by the user alone, in the Strom app (the source's viewer)", { code: "confirm.app" });
+    const tree = ctx.tree();
+    const id = normId(args[0]!);
+    const confirm = opts.undo !== true;
+    const asked = confirmCheck(tree, id, str(opts.txt) ?? "", confirm);
+    if ("refused" in asked) throw new UsageError(asked.refused.why, { code: asked.refused.code, ...(asked.refused.params ? { params: asked.refused.params } : {}) });
+    if ("same" in asked) return { text: `${id}: nothing to change`, data: asked.same };
+    const s = asked.write;
+    update<Source>(tree, id, "source", () => s, { op: confirm ? "source.confirm" : "source.unconfirm", summary: confirmSummary(s, confirm) });
+    const answer = confirmAnswer(tree, id);
+    return { text: written(tree), data: answer };
+  },
+});

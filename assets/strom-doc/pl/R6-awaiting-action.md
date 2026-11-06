@@ -25,8 +25,8 @@ tylko w nim. Lista jest za każdym razem obliczana z badania, nic się do niej n
 - Wiersz **Czeka: N (w tym X tylko tutaj w terminalu, Y czeka na odpowiedź)** dzieli liczbę tak jak aplikacja.
   Liczba w aplikacji to N bez pozycji tylko dla terminala i bez wysłanych zapytań.
 - Tylko w terminalu są drzewa wysłane z aplikacji (**Aplikacja Strom**), pytania do odczytu skanów (**Odczyt
-  skanów**), sprzeczności (**Do rozstrzygnięcia – sprzeczności**, zob. [R5](R5-conflicts.md)) i łagodniejsze warunki
-  archiwum. W przeglądzie **Co czeka** idą najpierw pod nagłówkiem **Tylko tutaj w terminalu (nie ma ich w aplikacji
+  skanów**), sprzeczności (**Do rozstrzygnięcia – sprzeczności**, zob. [R5](R5-conflicts.md)), hipotezy do
+  rozstrzygnięcia (od badania 1.28.0) i łagodniejsze warunki archiwum. W przeglądzie **Co czeka** idą najpierw pod nagłówkiem **Tylko tutaj w terminalu (nie ma ich w aplikacji
   Strom)**, za nimi **Także w aplikacji Strom**.
 - Strona na telefon tylko czyta: bez pozycji tylko dla terminala, z opowieściami, najpierw 20 pozycji, najwyżej 200
   naraz. Podaje **Decyzje podejmuje się na komputerze w Przeglądzie badania.**
@@ -85,11 +85,12 @@ i skany**, **Tylko do przeglądania** lub **Nie działa**, z opcjonalną notatk�
 
 Sekcja **decyzje** zbiera pytania, które wstrzymują agenta: zgoda archiwum, programy pobierające do potwierdzenia,
 łagodniejsze warunki, witryna do sprawdzenia, opowieść, miejsce (zob. [R4](R4-places.md)), sprzeczność (zob.
-[R5](R5-conflicts.md)), drzewa z aplikacji i odczyt skanów. Decyzje idą na liście pierwsze.
+[R5](R5-conflicts.md)), hipoteza (zob. [R6.3.4](#R6.3.4)), drzewa z aplikacji i odczyt skanów. Decyzje idą na liście
+pierwsze.
 
 - **Obsługa:** terminal: **Co czeka** → pozycja; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Obowiązuje od:** badanie 1.14.0. Sprzeczności od 1.20.0, miejsca od 1.25.0.
+- **Obowiązuje od:** badanie 1.14.0. Sprzeczności od 1.20.0, miejsca od 1.25.0, hipotezy od 1.28.0.
 
 <!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
 
@@ -130,6 +131,20 @@ Sekcja **decyzje** zbiera pytania, które wstrzymują agenta: zgoda archiwum, pr
 - **Obowiązuje od:** badanie 1.26.0
 
 <!-- zdroj: research:HEAD src/core/waiting.ts:428-451 (group branches) · src/cli/menu-waiting.ts decideBranch · assets/lang/cs.json:2359 wait.group.branches -->
+
+<a id="R6.3.4"></a>
+### R6.3.4 Hipotezy do rozstrzygnięcia
+
+- Hipoteza, której rozstrzygnięcie zaproponował agent ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)), czeka
+  w grupie **Hipotezy do rozstrzygnięcia**: pytanie, wersje i propozycja („Propozycja: wariant B – …”). Wybór:
+  **Rozstrzygnąć zgodnie z propozycją**, **Rozstrzygnąć inaczej** (inna wersja albo żadna, z powodem), **Zostawić bez
+  zmian (propozycja nieprzyjęta)**.
+- **Granice:** rozstrzyga tylko człowiek ([R6.6](#R6.6)). Jest tylko w terminalu, aplikacja Strom jej nie pokazuje
+  ([R6.1.1](#R6.1.1)). W Archiwum Strom tej grupy nie ma.
+- **Obsługa:** terminal: **Co czeka** → pozycja, `strom hypothesis decide H… --proposed | --keep-open`.
+- **Obowiązuje od:** badanie 1.28.0
+
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
 
 <a id="R6.4"></a>
 ## R6.4 Grupy i kolejność
@@ -191,8 +206,10 @@ człowieka w oknie systemowym albo odrzuca polecenie.
   agentowi badanie odrzuca też `strom story set --final`), odpowiedź na rosnącą gałąź (`strom offline answer`),
   zostawienie sprzeczności ze zmiany agentowi (`strom conflict leave`), cofnięcie i odrzucenie wysłania z aplikacji
   (`strom sync undo|discard`) oraz poprawki `strom fixes … edit-decisions|woken-waits`.
+- **Od badania 1.28.0:** tylko człowiek także rozstrzyga hipotezę (`strom hypothesis decide`, także wewnątrz
+  `strom batch`); agent ją tylko proponuje ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
 
 <a id="R6.7"></a>
 ## R6.7 Wysłano, odpowiedź i powrót do kolejki

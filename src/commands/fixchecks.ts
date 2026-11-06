@@ -43,6 +43,8 @@ import { appShapeFixes, appShapesDone, type ShapeFix } from "../core/appshapefix
 import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft, type StreetTown } from "../core/streetfix.ts";
 import { EDIT_DECISIONS_SINCE, editDecisionFixes, editDecisionsDone, type EditDecisionFix, type EditDecisionLeft } from "../core/editdecisionfix.ts";
 import { wokenWaitFixes, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
+import { READERS_SINCE, readerFixes, readersDone, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
+import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -95,11 +97,11 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
-  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[];
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -141,7 +143,7 @@ export interface FixCheck {
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
    * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
    * (woken-waits). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task";
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source";
   /**
    * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
    * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
@@ -923,8 +925,48 @@ export const WOKEN_WAITS: FixCheck = {
   applied: (tree) => wokenWaitsDone(tree).length,
 };
 
+/**
+ * Until 1.29.0 every write of "user" counted as the user's reading of a source: an import, the conversion of an old
+ * research, a batch, a script. Since then only a real reading of the user's counts (core/readers.ts); the sources only a
+ * run of many writes wrote lose "read by the user" by rules (core/readerfix.ts), one a person wrote by hand keeps it.
+ * Applied by itself once, at the first start of this strom after its backup.
+ */
+export const READERS: FixCheck = {
+  id: "readers",
+  since: READERS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "source",
+  // who read a source decides what the research reads again: an archive says nothing of it (set right by itself there too)
+  agentWork: true,
+  detect: (tree) => {
+    const f = readerFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.kept.length, left: f.kept };
+  },
+  applied: (tree) => readersDone(tree).length,
+};
+
+/**
+ * Until 1.29.0 a fact could be proven on any record with primary information: a copy, an index, the Strom app's word
+ * for a source. Since then proven needs the original record (core/evidence.ts); the facts proven without it that no
+ * person made proven become probable by rules (core/provenfix.ts), a person's wait for their review. Applied by itself
+ * once, at the first start of this strom after its backup.
+ */
+export const PROVEN_ORIGINALS: FixCheck = {
+  id: "proven-originals",
+  since: PROVEN_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = provenFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => provenDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS];
 
 /**
  * A check offered where nobody researches (an archive, a research waiting for its agent): one that rewrites by rules and

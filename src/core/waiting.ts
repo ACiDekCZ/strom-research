@@ -36,11 +36,12 @@ import { conflictsToDecide } from "./conflicts.ts";
 import { phrase } from "./phrases.ts";
 import { actsAsArchive } from "./state.ts";
 import { placeQuestions, type PlaceAsked } from "./placesview.ts";
+import { provenReviewSince, provenToReview, type ProvenLeft } from "./provenfix.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "images" | "sent" | "chat";
@@ -60,6 +61,7 @@ const SECTION: Record<string, WaitSection> = {
   hypothesis: "decide",
   place: "decide",
   branch: "decide",
+  proven: "decide",
   images: "images",
   letter: "letter",
   family: "family",
@@ -74,7 +76,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, tune: 6 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, tune: 6 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: boolean): WaitAction[] {
@@ -132,7 +134,9 @@ export interface Waiting {
   place?: PlaceAsked;
   /** A branch off the lines that grows: a line proposed for it (core/offline.ts). */
   branch?: BranchView;
-  /** A hypothesis an agent proposes how to decide: the person decides it (the terminal). */
+  /** The facts a person made proven without the original record, waiting for a look (core/provenfix.ts): one item for all. */
+  proven?: ProvenLeft[];
+  /** A hypothesis an agent proposes how to decide, or (the person deciding them) an open one with no proposal: the person decides it (the terminal). */
   hypothesis?: Hypothesis;
   /** Shown only in the terminal: the Strom app never gets it (/status `waiting` asks for none of these — TERMINAL_ONLY). */
   terminalOnly?: true;
@@ -142,7 +146,7 @@ export interface Waiting {
  * The options that add what only the terminal shows (the menu's What waits): the bridge never asks for them, so the
  * Strom app never shows them. Each item they add is marked `terminalOnly`; a new kind of the terminal's own goes here.
  */
-export const TERMINAL_ONLY = ["sends", "tune", "conflicts", "milder", "hypotheses"] as const satisfies readonly (keyof WaitingOptions)[];
+export const TERMINAL_ONLY = ["sends", "tune", "conflicts", "milder", "hypotheses", "hypothesesOpen"] as const satisfies readonly (keyof WaitingOptions)[];
 
 /** Whether the Strom app shows a thing that waits too (its /status `waiting`): everything but the terminal's own. */
 export function inApp(w: Waiting): boolean {
@@ -188,6 +192,11 @@ export interface WaitingOptions {
   milder?: boolean;
   /** The hypotheses an agent proposes how to decide: the person decides each (the terminal; strom hypothesis propose). */
   hypotheses?: boolean;
+  /**
+   * With hypotheses: the open hypotheses with no proposal too, the person did not leave open (strom hypothesis decide
+   * --keep-open) — where the person decides them (hypotheses.decide person; the terminal).
+   */
+  hypothesesOpen?: boolean;
   /** The research's directions, when the caller has them. */
   scopes?: Scope[];
 }
@@ -479,6 +488,28 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         },
       });
     }
+  // the facts a person made proven without the original record (strom's fix left them as they are): one item with their
+  // count — kept proven, or made probable, the person's answer alone; an archive asks none
+  if (!actsAsArchive(tree)) {
+    const proven = provenToReview(tree);
+    if (proven.length)
+      out.push({
+        proven,
+        item: {
+          id: "W-proven",
+          what: ui(lang, "ui.waiting.proven", { n: proven.length }),
+          on: "",
+          at: provenReviewSince(tree),
+          kind: "proven",
+          section: "decide",
+          group: { key: "proven", name: phrase(lang, "wait.group.proven"), kind: "other" },
+          phase: "todo",
+          actions: [],
+          count: proven.length,
+          facts: proven.map((p) => p.event),
+        },
+      });
+  }
   // what the Strom app sent on its own, waiting to be written or thrown away: the person's own edits
   if (o.sends)
     for (const r of receivedPending(tree.root))
@@ -505,14 +536,26 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         terminalOnly: true,
         item: { id: c.id, what: conflictTitle(tree, c), on: "", at: c.created, kind: "conflict", section: "decide", group: { key: "conflicts", name: phrase(lang, "wait.group.conflicts"), kind: "other" }, phase: "todo", actions: [] },
       });
-  // the hypotheses an agent proposes how to decide: only the person decides one (an archive says nothing of an agent)
-  if (o.hypotheses && !actsAsArchive(tree))
-    for (const h of tree.list<Hypothesis>("hypothesis").filter((x) => x.proposal && !x.retracted).sort((a, b) => a.proposal!.at.localeCompare(b.proposal!.at) || a.id.localeCompare(b.id)))
+  // the hypotheses an agent proposes how to decide: only the person decides one (an archive says nothing of an agent) —
+  // then, where the person decides them (hypotheses.decide person), the open ones with no proposal they did not leave
+  // open: after the proposals (priority below theirs), until an agent proposes how to decide one
+  if (o.hypotheses && !actsAsArchive(tree)) {
+    const all = tree.list<Hypothesis>("hypothesis").filter((x) => !x.retracted && !x.mergedInto);
+    const group = { key: "hypotheses", name: phrase(lang, "wait.group.hypotheses"), kind: "other" as const };
+    for (const h of all.filter((x) => x.proposal).sort((a, b) => a.proposal!.at.localeCompare(b.proposal!.at) || a.id.localeCompare(b.id)))
       out.push({
         hypothesis: h,
         terminalOnly: true,
-        item: { id: h.id, what: h.question, on: "", at: h.proposal!.at, kind: "hypothesis", section: "decide", group: { key: "hypotheses", name: phrase(lang, "wait.group.hypotheses"), kind: "other" }, phase: "todo", actions: [] },
+        item: { id: h.id, what: h.question, on: "", at: h.proposal!.at, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [] },
       });
+    if (o.hypothesesOpen)
+      for (const h of all.filter((x) => x.state === "open" && !x.proposal && !x.leftOpen).sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id)))
+        out.push({
+          hypothesis: h,
+          terminalOnly: true,
+          item: { id: h.id, what: h.question, on: "", at: h.created, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [], priority: -1 },
+        });
+  }
   // the questions about the reading of scans only a person answers
   if (o.tune)
     for (const q of tuneQuestions(tree, o.tune).due)

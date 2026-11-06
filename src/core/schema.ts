@@ -60,6 +60,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     accessed: S(),
     media: { t: "refs", to: "media" },
     clips: { t: "array", of: { media: R("media", true), region: { t: "object", req: true, of: { x: F, y: F, w: F, h: F } } } },
+    read: { t: "object", of: { user: { t: "object", of: { how: S({ req: true, enum: ["hand", "confirm", "earlier"] }), at: S({ req: true }), txt: S({ max: 64 }) } } } },
   },
   repository: {
     name: S({ req: true, max: 200 }),
@@ -202,6 +203,10 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     decision: S({ max: 1000 }),
     chosen: S({ max: 20 }),
     decidedBy: S({ enum: ["user"] }),
+    // an agent's decision (hypotheses.decide agent): who; when it was decided; an open one the person left open
+    decidedByAgent: S({ max: 100 }),
+    decidedAt: S(),
+    leftOpen: S(),
     proposal: {
       t: "object",
       of: { variant: S({ max: 20 }), decision: S({ req: true, max: 1000 }), abandon: { t: "any" }, reason: S({ max: 1000 }), by: S({ req: true }), at: S({ req: true }) },

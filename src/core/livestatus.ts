@@ -9,7 +9,9 @@
 //   - made on a thread of its own (livestatus-worker.ts, one for the bridge's life, keeping what it worked out), so the
 //     bridge answers everything else meanwhile; one making at a time, the asks for the same state wait for it together;
 //   - an ask while the research changes waits for the new state at most STATUS_WAIT_MS, else is answered what was made
-//     for the state before (never nothing: the app's patience is short) — the next ask has the new one;
+//     for the state before (never nothing: the app's patience is short) — the next ask has the new one; but never when
+//     who is at work changed: the app asks once after the event `working` and believed the state before — a conversation
+//     ended with /exit stayed "at work" in the app, nothing asking again (found 2026-11-06), so that ask waits for the new;
 //   - the parts that weigh (what waits, the queue, the work off the lines, the lines) each with its rev: an app that
 //     says parts=1 is answered the rest and the revs, and asks a part (GET /status/<part>) only when its rev changed.
 
@@ -103,8 +105,13 @@ export const STATUS_WAIT_MS = 1_500;
 export interface KeeperOpts {
   root: string;
   env: Env;
-  /** The state now, besides the commit (who is at work, the settings' files, the day): cheap, read at each ask. */
+  /** The state now, besides the commit and who is at work (the settings' files, the day): cheap, read at each ask. */
   stateNow: () => string;
+  /**
+   * Who is at work now (.strom/workers), as text: part of the state, read at each ask. An ask after it changed waits for
+   * the new state, never answered the one before (the app would show a conversation that ended).
+   */
+  atWork?: () => string;
   /** /status worked out here, when no thread can be had (the same answer, on the bridge's thread). */
   inline: (version: string | undefined, key: string) => StatusMade;
   /** /log at a commit worked out here (no thread): its JSON text. */
@@ -121,6 +128,16 @@ function headAsync(root: string, git: string): Promise<string> {
   return new Promise((resolve) => {
     execFile(git, ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8", windowsHide: true, timeout: 10_000 }, (err, out) => resolve(err ? "" : String(out).trim()));
   });
+}
+
+/** A part of the state written into its key on a line of its own. */
+function oneLine(text: string): string {
+  return text.replace(/[\r\n]+/g, " ");
+}
+
+/** Who is at work in a state's key (keyNow: its second line). */
+function atWorkOf(key: string): string {
+  return key.split("\n")[1] ?? "";
 }
 
 /** /status of one bridge: made on a thread, kept for its state, answered at once while that state lasts. */
@@ -142,10 +159,10 @@ export class StatusKeeper {
     this.o = o;
   }
 
-  /** The state of the research now: its commit and what changes beside it. */
+  /** The state of the research now: its commit, who is at work and what changes beside it (one line each). */
   async keyNow(): Promise<string> {
     const h = await headAsync(this.o.root, this.o.git ?? "git");
-    return `${h}\n${this.o.stateNow()}`;
+    return `${h}\n${oneLine(this.o.atWork?.() ?? "")}\n${this.o.stateNow()}`;
   }
 
   /** What changed beside the state (the app wrote through the bridge): made again at the next ask. */
@@ -168,7 +185,8 @@ export class StatusKeeper {
     }
     this.stale = false;
     const fresh = this.make(version, key);
-    if (!had) return fresh;
+    // who is at work changed (a conversation began or ended): the state before would say what is no more
+    if (!had || atWorkOf(had.key) !== atWorkOf(key)) return fresh;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<StatusMade>((resolve) => {
       timer = setTimeout(() => resolve(had), Number(this.o.env.STROM_LIVE_STATUS_WAIT_MS ?? STATUS_WAIT_MS));

@@ -152,7 +152,8 @@ a poznámka. Otevřené jsou rozbalené.
   „+ 2 lidí“, „Tak to strom už vede“, „Jen text, nedá se ukázat.“, „bez vazby k osobám stromu“,
   u rozhodnuté *zvolená*, „Teď spojeno doopravdy“, „Už neplatí: …“.
 - **Které hypotézy výzkum pošle:** otevřené; rozhodnuté a zrušené jen ty, jejichž verze nesou vazby. Odvolané nikdy.
-- **Hranice:** rozhodnout hypotézu z aplikace nejde; rozhoduje se ve výzkumu.
+- **Hranice:** rozhodnout hypotézu z aplikace nejde; rozhoduje ji člověk ve výzkumu, v terminálu
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Ovládání:** aplikace: přepínač **Ukázat** u verze ([S3.5.1](#S3.5.1)).
 - **Platí od:** aplikace 3.11.0 s výzkumem 1.14.0 (verze, stav, **Ukázat**); seznam hypotéz od aplikace 3.4.0
 

@@ -297,6 +297,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
   // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
+  // Read from the config files only (the user's or the tree's) — no variable: letting the agent decide is the user's decision.
+  { key: "hypotheses.decide", env: "", tree: true, kind: "choice", choices: ["person", "agent"], description: "who decides the hypotheses (the uncertain links between people): person (default — the agent proposes, you decide in What waits for you) or agent (the agent decides once a cited record points to one variant; a branch of 10 or more people off the tree only with two sources and no objection, else it proposes; it never changes your decision) — only you let the agent decide; an archive: nobody decides" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
   { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
   { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all (every source with an excerpt: the entries nobody cites too, where they still fit under excerpts.mb, the cited never made smaller for them)" },
@@ -911,6 +913,11 @@ export class Settings {
   /** Each send of the Strom app waits for the user's word (sync.review on); off (default): written at once. */
   syncReview(tree?: TreeConfig): boolean {
     return this.resolve("sync.review", tree)?.value === "on";
+  }
+
+  /** Who decides the hypotheses (hypotheses.decide): the person (default) or the agent, on the person's yes. */
+  hypothesesDecide(tree?: TreeConfig): "person" | "agent" {
+    return this.resolve("hypotheses.decide", tree)?.value === "agent" ? "agent" : "person";
   }
 
   syncEdits(tree?: TreeConfig): "conflict" | "user" {

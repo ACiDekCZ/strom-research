@@ -336,7 +336,24 @@ export interface Source extends BaseRecord {
   /** A reading of a document the person confirmed in the Strom app (strom document read): D…, and its entry (e1 …). */
   reading?: string;
   readingEntry?: string;
+  /** The readings of its record made again from its original (strom document read --source): D…, oldest first; none changes the source. */
+  readings?: string[];
+  /**
+   * Who read it beyond what the history says (core/readers.ts): the user's own reading — typed by hand at the person's
+   * terminal, the transcript confirmed in the Strom app (the bridge), or kept by the fix of the readers (an earlier
+   * strom counted every write of "user" as one). Its mark (`txt`): the transcript it is of — once the research changes
+   * the transcript it counts no more (an optional field: an older strom keeps it).
+   */
+  read?: { user?: UserReading };
   notes: Note[];
+}
+
+/** The user's reading of a source: how (by hand, confirmed in the app, kept by the fix), when, of which transcript. */
+export interface UserReading {
+  how: "hand" | "confirm" | "earlier";
+  at: string;
+  /** The mark of the transcript read (core/readers.ts transcriptMark). */
+  txt?: string;
 }
 
 /** The entry on one registered image: a region of it in fractions (0–1) of that image (M…, a whole image or a part of one). */
@@ -725,8 +742,18 @@ export interface Hypothesis extends BaseRecord {
   decision?: string;
   /** Decided for this variant (its label; strom hypothesis decide --variant). */
   chosen?: string;
-  /** Who decided it: the person (strom hypothesis decide is theirs; an older strom let an agent decide — no mark). */
+  /**
+   * Who decided it: the person (strom hypothesis decide is theirs; an older strom let an agent decide — no mark). An
+   * agent's decision (hypotheses.decide agent) never sets it: an agent decided ⇔ decidedByAgent && decidedBy !== "user";
+   * a hypothesis with neither (an older strom's) is the person's.
+   */
   decidedBy?: "user";
+  /** The agent that decided it (its session N…, its worker's name, or "agent"): only an agent's decision; the person's takes it off. */
+  decidedByAgent?: string;
+  /** When it was decided (ISO), by the person or an agent. */
+  decidedAt?: string;
+  /** When the person left an open hypothesis with no proposal open (What waits; strom hypothesis decide --keep-open). */
+  leftOpen?: string;
   /** What an agent proposes the person decide (strom hypothesis propose): taken off when the person decides. */
   proposal?: HypothesisProposal;
   notes: Note[];

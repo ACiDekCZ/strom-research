@@ -55,6 +55,12 @@ context: Zápis křtu z latinské matriky: datum, dítě, rodiče, kmotr.
 
 done: 1 entries`;
 
+/** A result's readers as counted (who read each: its own tests). */
+const counts = (r: { who?: unknown }) => {
+  const { who: _who, ...rest } = r;
+  return rest;
+};
+
 async function setUp(): Promise<{ w: World; dir: string; photo: string }> {
   const w = new World();
   await w.withTree();
@@ -90,7 +96,7 @@ test("strom document read: transcript, translation, terms, people checked and ma
     assert.match(d.id, /^D\d{14}-[0-9a-f]{4}$/);
     assert.equal(d.state, "done");
     assert.equal(d.lang, "cs");
-    assert.deepEqual(d.readers, { asked: 1, ran: 1, agree: null });
+    assert.deepEqual(counts(d.readers), { asked: 1, ran: 1, agree: null });
     assert.equal(d.doc.kind, "register.baptism");
     // the photo became an input, read upright
     assert.equal(d.pages.length, 1);
@@ -138,7 +144,7 @@ test("strom document read: transcript, translation, terms, people checked and ma
     const again = (await w.ok(["document", "again", d.id, "--readers", "2", "--agent", "script", "--json"])).json;
     assert.deepEqual(readers(dir), ["first", "blind"]);
     assert.equal(again.version, 2);
-    assert.deepEqual(again.readers, { asked: 2, ran: 2, agree: "same" });
+    assert.deepEqual(counts(again.readers), { asked: 2, ran: 2, agree: "same" });
     assert.equal(again.entries[0].agree, "same");
     assert.ok(fs.existsSync(path.join(notes, `${d.id}-2.md`)));
     assert.equal(again.cost.amount, 0.5);
@@ -275,7 +281,7 @@ done: 1 entries`;
     Object.assign(w.env, { DOC_FIRST: path.join(dir, "form-first.md"), DOC_BLIND: path.join(dir, "form-blind.md") });
     const d = (await w.ok(["document", "read", photo, "--readers", "2", "--agent", "script", "--json"])).json;
     assert.equal(d.doc.kind, "certificate");
-    assert.deepEqual(d.readers, { asked: 2, ran: 2, agree: "differ" });
+    assert.deepEqual(counts(d.readers), { asked: 2, ran: 2, agree: "differ" });
     const e = d.entries[0];
     assert.deepEqual(
       e.persons.map((p: { ref: string; role: string; given?: string; surname?: string }) => `${p.ref} ${p.role} ${p.given} ${p.surname}`),
@@ -314,7 +320,7 @@ test("strom document read by two readers: a first reader that answers in prose o
     w.env.DOC_FIRST = path.join(dir, "prose.md");
     const d = (await w.ok(["document", "read", photo, "--readers", "2", "--agent", "script", "--json"])).json;
     assert.deepEqual(readers(dir).sort(), ["blind", "first"]);
-    assert.deepEqual(d.readers, { asked: 2, ran: 1, agree: null });
+    assert.deepEqual(counts(d.readers), { asked: 2, ran: 1, agree: null });
     // the blind reader's entry, with no variants of itself
     const e = d.entries[0];
     assert.match(e.transcript, /Josephi Novak/u);

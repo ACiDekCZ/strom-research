@@ -24,7 +24,8 @@ Seznam se pokaždé spočítá z výzkumu, nic se do něj nezapisuje.
 - Řádek **Čeká: N (z toho X jen tady v terminálu, Y čeká na odpověď)** dělí počet jako aplikace. Číslo aplikace je
   N bez položek jen pro terminál a bez odeslaných dotazů.
 - Jen v terminálu jsou stromy poslané z aplikace (**Aplikace Strom**), otázky ke čtení snímků (**Čtení snímků**),
-  rozpory (**K rozhodnutí – rozpory**, viz [R5](R5-conflicts.md)) a mírnější podmínky archivu. V přehledu **Co čeká** jdou napřed pod
+  rozpory (**K rozhodnutí – rozpory**, viz [R5](R5-conflicts.md)), hypotézy k rozhodnutí (od výzkumu 1.28.0) a mírnější
+  podmínky archivu. V přehledu **Co čeká** jdou napřed pod
   nadpisem **Jen tady v terminálu (v aplikaci Strom nejsou)**, za nimi **I v aplikaci Strom**.
 - Stránka pro telefon jen čte: bez položek jen pro terminál, s vyprávěním, napřed 20 položek, nejvýš 200 najednou.
   Píše **Rozhodnout jde na počítači v Přehledu výzkumu.**
@@ -80,12 +81,12 @@ vidět**, **Jen prohlížet** nebo **Nejde to**, s nepovinnou poznámkou.
 ## R6.3 Rozhodnutí
 
 Oddíl **rozhodnutí** sbírá otázky, které zdržují agenta: svolení archivu, stahovače k potvrzení, mírnější
-podmínky, ověřit web, vyprávění, místo (viz [R4](R4-places.md)), rozpor (viz [R5](R5-conflicts.md)), stromy z aplikace a čtení snímků. Rozhodnutí
-jdou v seznamu první.
+podmínky, ověřit web, vyprávění, místo (viz [R4](R4-places.md)), rozpor (viz [R5](R5-conflicts.md)), hypotézu (viz [R6.3.4](#R6.3.4)), stromy
+z aplikace a čtení snímků. Rozhodnutí jdou v seznamu první.
 
 - **Ovládání:** terminál: **Co čeká** → položka; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Platí od:** výzkum 1.14.0. Rozpory od 1.20.0, místa od 1.25.0.
+- **Platí od:** výzkum 1.14.0. Rozpory od 1.20.0, místa od 1.25.0, hypotézy od 1.28.0.
 
 <!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
 
@@ -123,6 +124,19 @@ jdou v seznamu první.
 - **Platí od:** výzkum 1.26.0
 
 <!-- zdroj: research:HEAD src/core/waiting.ts:428-451 (group branches) · src/cli/menu-waiting.ts decideBranch · assets/lang/cs.json:2359 wait.group.branches -->
+
+<a id="R6.3.4"></a>
+### R6.3.4 Hypotézy k rozhodnutí
+
+- Hypotéza, jejíž rozhodnutí agent navrhl ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)), čeká ve skupině
+  **Hypotézy k rozhodnutí**: otázka, verze a návrh („Návrh: varianta B – …“). Volba: **Rozhodnout podle návrhu**,
+  **Rozhodnout jinak** (jiná verze, nebo žádná, s důvodem), **Nechat, jak je (návrh nepřijat)**.
+- **Hranice:** rozhoduje jen člověk ([R6.6](#R6.6)). Je jen v terminálu, aplikace Strom ji neukazuje
+  ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
+- **Ovládání:** terminál: **Co čeká** → položka, `strom hypothesis decide H… --proposed | --keep-open`.
+- **Platí od:** výzkum 1.28.0
+
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
 
 <a id="R6.4"></a>
 ## R6.4 Skupiny a pořadí
@@ -182,8 +196,10 @@ v systémovém okně, nebo příkaz odmítne.
   výzkum odmítne i `strom story set --final`), odpověď na rostoucí větev (`strom offline answer`), nechání rozporu
   z úpravy agentovi (`strom conflict leave`), vrácení a zahození poslání z aplikace (`strom sync undo|discard`)
   a opravy `strom fixes … edit-decisions|woken-waits`.
+- **Od výzkumu 1.28.0:** jen člověk také rozhoduje hypotézu (`strom hypothesis decide`, i uvnitř `strom batch`);
+  agent ji jen navrhne ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
 
 <a id="R6.7"></a>
 ## R6.7 Odesláno, odpověď a návrat do fronty
