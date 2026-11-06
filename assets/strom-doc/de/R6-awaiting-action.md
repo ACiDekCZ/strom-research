@@ -14,7 +14,7 @@ nur dort erledigt wird. Die Liste wird jedes Mal aus der Forschung berechnet, in
 - **Grenzen:** eine Aufgabe, die nur auf die Erlaubnis eines Archivs wartet und keine Bilder hat, gehört zur Frage
   des Archivs. Eine Forschung, die als Archiv dient, hat in der Liste weder Aufgaben noch Orte.
 - **Bedienung:** App: Abschnitt **Wartet auf Bearbeitung** · Terminal: Menü **Was wartet (n)**, Statuszeile
-  **Wartet: N** · Seite für das Telefon: **Wartet · {n}**.
+  **Wartet: N** · Seite für das Telefon: **Wartet · N**.
 - **Gilt seit:** Forschung 1.3.0. Die Liste nach Orten der Erledigung und in der App seit 1.14.0 (App 3.11.0).
 
 <!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
@@ -63,7 +63,7 @@ gebraucht wird. Die Art des Wartens bestimmt den Abschnitt, die Gruppe und die m
 - Nach dem Speichern der Bilder in die Forschung wird die Aufgabe geweckt, mit einer Notiz, welche Bilder fehlen
   ([R6.7.2](#R6.7.2)).
 - **Bedienung:** Terminal: `strom task wait T… --images B…:<od>-<do>`, danach `strom media add --inbox`; in **Was
-  wartet** **Den Ordner öffnen ({have}/{want} gespeichert)**. App: **Ordner öffnen** (seit App 3.23.0; vorher **Ordner**).
+  wartet** **Den Ordner öffnen (M/N gespeichert)**. App: **Ordner öffnen** (seit App 3.23.0; vorher **Ordner**).
 - Archive nur über den Browser, Bilder aus der App und was der Mensch tut: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
 - **Gilt seit:** Forschung 1.0.0. Wecken nach dem Speichern seit 1.15.0.
 
@@ -144,12 +144,25 @@ Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-p
   wartet in der Gruppe **Hypothesen zu entscheiden**: die Frage, die Versionen und der Vorschlag („Vorschlag:
   Variante B – …“). Wahl: **Wie vorgeschlagen entscheiden**, **Anders entscheiden** (eine andere Version oder keine,
   mit Grund), **So lassen (Vorschlag nicht übernommen)**.
-- **Grenzen:** es entscheidet nur der Mensch ([R6.6](#R6.6)). Sie ist nur im Terminal, die Strom-App zeigt sie nicht
+- Nach den Vorschlägen warten offene Hypothesen ohne Vorschlag. Wahl: **Entscheiden** (eine Version oder keine, mit
+  dem Text der Entscheidung), **Offen lassen**. Eine offen gelassene Hypothese erscheint in Was wartet wieder, sobald
+  der Agent vorschlägt, wie sie zu entscheiden ist.
+- Eine entschiedene oder verworfene Hypothese, aus dem Menü geöffnet, bietet **Entscheidung ändern**: der neue Text der
+  Entscheidung ist nötig und zugleich der Grund der Änderung. Hat der Agent sie entschieden, steht bei ihr **Vom
+  Agenten entschieden (Tag).**
+- **Grenzen:** das gilt, wenn der Mensch die Hypothesen entscheidet (**Der Mensch entscheidet**, Standard;
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); es entscheidet nur der Mensch ([R6.6](#R6.6)). Bei **Die KI
+  entscheidet** entscheidet der Agent selbst, was ein zitierter Eintrag belegt, und es warten nur seine Vorschläge
+  (Entscheidungen, die er nicht selbst treffen darf). Die Gruppe ist nur im Terminal, die Strom-App zeigt sie nicht
   ([R6.1.1](#R6.1.1)). Im Strom-Archiv gibt es die Gruppe nicht.
-- **Bedienung:** Terminal: **Was wartet** → Eintrag, `strom hypothesis decide H… --proposed | --keep-open`.
+- **Bedienung:** Terminal: **Was wartet** → Eintrag, `strom hypothesis decide H… --proposed | --keep-open`. Dieselbe
+  Wahl gibt es in der Durchsicht einer Person: **Die Forschung erweitern** → **Eine Person durchsehen** → **Hypothesen
+  zur Person (n)**.
 - **Gilt seit:** Forschung 1.28.0
+- **Ab Forschung 1.29.0:** auch offene Hypothesen ohne Vorschlag (**Entscheiden**, **Offen lassen**), **Entscheidung
+  ändern** und die Wahl **Wer die Hypothesen entscheidet**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R6.4"></a>
 ## R6.4 Gruppen und Reihenfolge

@@ -170,8 +170,8 @@ Jeder Stammbaum aus einer Forschung hat eine eigene Brücke. Die App fragt auch 
 nicht geöffnet sind, und zeigt ihren Status im Stammbaum-Umschalter.
 
 - **Grenzen:**
-  - Marken am Stammbaum im Umschalter: **live** (wird verfolgt), **läuft** oder **{n} Richtungen** (ein Agent
-    arbeitet), **{n} offen** (Dinge zu erledigen), **läuft nicht**.
+  - Marken am Stammbaum im Umschalter: **live** (wird verfolgt), **läuft** oder **N Richtungen** (ein Agent
+    arbeitet), **N offen** (Dinge zu erledigen), **läuft nicht**.
   - Gefragt wird immer nur eine Brücke auf einmal und nur, wenn die Seite sichtbar ist: zuerst nach 3 Sekunden, dann
     jede Minute. Auf eine Antwort wartet die App höchstens 1,5 Sekunden.
   - Eine nicht laufende Forschung verbindet sich wieder, wenn der Stammbaum aus der Forschung geöffnet wird

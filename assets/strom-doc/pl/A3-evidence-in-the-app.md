@@ -116,11 +116,11 @@ Wycinek zapisu to obraz dokładnie tego zapisu, nie całej strony. Pokazuje się
 - **Granice:** w aplikacji można dodać najwyżej dwa wycinki (zapis i ciąg dalszy z następnej strony). Badanie zapisuje
   ich do trzech ([R3.4](R3-verification-and-citation.md#R3.4)); trzeci aplikacja zachowa, kolejnego nie doda. Całą
   stronę można zapisać tylko przy osobie, nie przy ślubie i nie przy zablokowanej osobie. Obrót w kadrowaniu zrywa
-  powiązanie wycinka z załącznikiem. Obrazy, których badanie nie wysłało do aplikacji, są w filtrze **Obraz w badaniu
-  · n** i wczytują się z działającego badania.
+  powiązanie wycinka z załącznikiem. Obrazy, których badanie nie wysłało do aplikacji, są w filtrze **Obraz tylko w badaniu
+  · N** ([A3.8](#A3.8)).
 - **Obsługa:** edytor źródła, blok **Wycinek zapisu**; **+ Dodaj ciąg dalszy z następnej strony**; **Przytnij**,
   **Zastąp**, **Usuń wycinek**. „Wycinki: …” w **Akcje → Źródła** pokazuje rozmiar wszystkich wycinków od 1 MB.
-- **Obowiązuje od:** aplikacja 3.1.0; **Pełna jakość** 3.4.0; **Obraz w badaniu** 3.14.0
+- **Obowiązuje od:** aplikacja 3.1.0; **Pełna jakość** 3.4.0; obrazy z badania 3.14.0 ([A3.8](#A3.8))
 
 <!-- zdroj: app:src/types.ts:257 MAX_EXCERPTS_UI · src/excerpts.ts:12-14 EXCERPT_MAX_SIDE, EXCERPT_QUALITY · src/ui/sources.ts:853 renderExcerptBlock, :932 excerptAdderHtml, :999 addExcerptFromPaste, :1017 addExcerptFromUpload, :1047 recropExcerpt, :1099 addExcerptFromAttachment, :1121 putExcerptDraft, :1158 keepPagePersonId, :1165 excerptContextPages, :377 renderSourceViewer · src/ui/research-ui.ts:2263 excerptResearchUrl · strings.ts sources.excerpt*/viewer*/addExcerpt/excerptsTotal, crop.title/keepPage, research.fullQuality/fullQualityTitle, researchImages.filter -->
 
@@ -249,3 +249,43 @@ wypisuje.
 - **Obowiązuje od:** aplikacja 3.4.0; **Urodzenia niesprawdzone w badaniu** i **Źródła** zamiast **Cytuj** 3.13.1
 
 <!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+
+<a id="A3.8"></a>
+## A3.8 Obraz tylko w badaniu
+
+Obraz tylko w badaniu to skan albo wycinek źródła, który jest zapisany w badaniu na komputerze, a którego aplikacja
+jeszcze nie ma. Źródło jest w aplikacji także bez niego; obraz pokaże się po wczytaniu z badania, które działa na tym
+komputerze.
+
+- **Dlaczego obrazu nie ma w aplikacji:** przy źródle stoi powód: „Obraz jest w badaniu, ale nie trafił do aplikacji
+  (ustawienia badania).”, „… (limit rozmiaru).” albo „Obraz jest przygotowywany w badaniu i przyjdzie z następną
+  wersją.” Badanie dodaje obrazy do pliku dla aplikacji według swoich ustawień i limitu rozmiaru.
+- **Gdzie go widać:** w **Źródła** filtr **Obraz tylko w badaniu · N** z etykietą *obraz tylko w badaniu* przy źródle
+  i wierszem pod filtrem („N obrazów z M źródeł jest zapisanych tylko w badaniu na tym komputerze, w aplikacji pokaże
+  się po wczytaniu.”); w menu **Badanie** wiersz **Obrazy tylko w badaniu · N**, który otwiera **Źródła** z filtrem
+  i pokazuje postęp wczytywania.
+- **Wczytanie:**
+  - **Wczytaj obraz z badania** przy źródle wczytuje jego obrazy;
+  - **Wczytaj wszystkie z badania…** najpierw pokazuje liczbę źródeł i obrazów, rozmiar („Zostaną zapisane przy
+    drzewie w tej przeglądarce.”), ile obrazów badanie dopiero przygotuje, i wolne miejsce w przeglądarce. Potem postęp
+    z **Wstrzymaj** i **Zatrzymaj**; okno można zamknąć, a wczytywanie trwa dalej. Niewczytane zostają w filtrze;
+  - wczytane obrazy zostają przy drzewie w tej przeglądarce, oddzielnie od danych drzewa.
+- **Granice:**
+  - wczytać można tylko z badania, które działa na tym komputerze („Zostanie wczytany, gdy badanie będzie działać na
+    tym komputerze.”). Na telefonie albo innym urządzeniu: „Obraz jest w badaniu na komputerze. Na tym urządzeniu
+    pojawi się, gdy drzewo zostanie przeniesione razem z obrazami z badania.”;
+  - **Usuń z aplikacji** usuwa obrazy z przeglądarki z powrotem; zostają w badaniu i można je wczytać ponownie.
+    Obrazy, które przyszły w pliku badania, zostają;
+  - **Wczytywanie obrazu źródła przy otwarciu** wczytuje tylko otwarte źródło i tylko wtedy, gdy badanie działa na tym
+    komputerze; lista źródeł sama niczego nie wczytuje;
+  - eksport oferuje **Obrazy źródeł**: **Bez obrazów źródeł**, **Tylko te w aplikacji** albo **Wszystkie z badania**
+    (wczytają się przed eksportem, tylko gdy badanie działa na tym komputerze).
+- **Obsługa:** aplikacja: **Źródła** → filtr **Obraz tylko w badaniu** → **Wczytaj wszystkie z badania…**; przy źródle
+  **Wczytaj obraz z badania**, **Więcej opcji → Usuń z aplikacji**; **Ustawienia → Obrazy źródeł** (**Wczytywanie
+  obrazu źródła przy otwarciu**, **Usuń z aplikacji…**, **Wczytaj wszystkie…**); **Badanie → Obrazy tylko w badaniu ·
+  N**.
+- **Obowiązuje od:** aplikacja 3.14.0 z badaniem 1.18.0
+- **Od aplikacji 3.25.0:** filtr i etykieta nazywają się **Obraz tylko w badaniu** (wcześniej **Obraz w badaniu**),
+  wiersz pod filtrem mówi, gdzie obrazy są, a **?** otwiera tę regułę.
+
+<!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->

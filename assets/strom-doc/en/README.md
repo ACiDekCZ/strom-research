@@ -22,6 +22,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [R9 Archives: what the agent may do and what a person does](R9-archives.md): kinds of archives, permission, the agent's browser, waiting for images, what a person does
 - [R10 People: identification, names and hypotheses](R10-people-and-hypotheses.md): namesakes, merging two records, hypotheses, a family outside the tree, a person's names
 - [R11 Material from the user](R11-material-from-the-user.md): files and texts from the user, a document and a lead, an imported family tree, a batch from the app
+- [R12 Where the agent works and what strom watches](R12-where-the-agent-works.md): the terminal, the Claude, ChatGPT (Codex) and OpenCode apps, Antigravity and Grok Build, a run alone: what strom watches where and what a person does
 
 ## A The Strom app
 

@@ -38,6 +38,7 @@ import { offerAgentCli } from "./fixes.ts";
 import { chooseWay } from "./ways.ts";
 import { claimText } from "../core/people.ts";
 import { normId } from "../core/records.ts";
+import { settledClaim } from "../core/labels.ts";
 import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
@@ -599,10 +600,14 @@ export async function askWhy(ctx: Context, lang: string): Promise<string | undef
 export async function pickClaim(ctx: Context, run: Run, lang: string, tree: Tree, c: Conflict, back?: string): Promise<boolean> {
   const t = translator(lang);
   const id = c.id;
-  const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
+  const sourceOf = (x: Conflict["claims"][number]) => settledClaim(tree, c, x).source;
+  const claim = (x: Conflict["claims"][number]) => {
+    const s = sourceOf(x);
+    return `${claimText(tree, c, x)}${s ? ` — ${tree.get<Source>(s)?.title ?? s}` : ""}`;
+  };
   const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], back ? c.claims.length + 1 : 0, { back: back ?? t("ui.browse.back") });
   if (i === undefined) return false;
-  let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${c.claims[i]!.source ? ` (${c.claims[i]!.source})` : ""}` : "";
+  let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${sourceOf(c.claims[i]!) ? ` (${sourceOf(c.claims[i]!)})` : ""}` : "";
   if (!resolution) {
     resolution = (await ctx.ask(t("ui.link.conflict.own"))).trim();
     if (!resolution || resolution === "0") return false;

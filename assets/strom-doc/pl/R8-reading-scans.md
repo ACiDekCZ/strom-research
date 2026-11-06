@@ -437,3 +437,49 @@ Stopień pewności danej ze skanu zależy od tego, kto i jak wpis czytał.
 - **Obowiązuje od:** badanie 1.0.0; odczyt dokumentu przez czytelników badania 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:1-18 · assets/method/core.md:8-12 · src/core/evidence.ts:55-68 checkStatus · src/core/readsync.ts readingGrade -->
+
+<a id="R8.8"></a>
+## R8.8 Odczytanie dokumentu z aplikacji
+
+Zdjęcie, skan albo PDF dokumentu można z aplikacji dać do odczytania agentowi badania: transkrypcja, tłumaczenie
+i objaśnienie. Czytać może jeden czytelnik albo dwóch niezależnych; dwóch się porównuje, a wynik pokazuje miejsca,
+w których się różnią. Do drzewa z odczytanego nic się nie zapisuje bez potwierdzenia.
+
+- **Pilnuje kod:**
+  - wejście: zdjęcie, skan albo PDF; kilka plików to strony jednego dokumentu; najwyżej 10 stron i 50 MB na plik.
+    Strona, której krótszy bok ma mniej niż 800 px, jest za mała i czytelnicy jej nie dostają;
+  - **1 czytelnik** (szybciej, taniej) albo **2 niezależnych czytelników** (bardziej wiarygodnie, do zapisu
+    w drzewie); wybór jest zapamiętywany;
+  - każdy czytelnik zaczyna z czystym kontekstem i zwraca: transkrypcję dosłowną, tłumaczenie na język badania,
+    objaśnienie (pojęcia, skróty, zawody, kontekst) oraz wymienione osoby, zdarzenia i relacje;
+  - drugi czytelnik czyta na ślepo, pierwszego odczytu nie widzi. Porównuje się transkrypcje słowo po słowie, osoby
+    według roli i kolejności, zdarzenia według rodzaju i kolejności. Gdzie się różnią, są warianty;
+  - imię, które podaje czytelnik, musi stać w jego transkrypcji. Które osoby i miejsca drzewa pasują, ustala strom,
+    nie czytelnik;
+  - najwyżej 20 odczytów na godzinę i 60 na dzień (podnieść je może tylko człowiek); przy jednym drzewie czyta się
+    jeden dokument naraz, a 3 kolejne czekają. W Archiwum Strom odczytu nie ma.
+- **Wynik:**
+  - oznaczenie zgodności: **2 czytelników, zgodność**, **2 czytelników, K miejsc się różni** albo **1 czytelnik**. Na
+    podglądzie strony zielona ramka oznacza wybrany wpis, a bursztynowa miejsca, w których czytelnicy się różnią
+    („czytelnicy się różnią: pierwszy czyta „a”, drugi „b””). W transkrypcji `[?]` oznacza niepewny odczyt, a `[...]`
+    miejsce nieczytelne albo pominięte;
+  - sekcje **Transkrypcja**, **Tłumaczenie**, **Objaśnienie**, **O dokumencie**, **Wspomniani**; **Kopiuj
+    transkrypcję**;
+  - dokument, którego nie da się odczytać, dostaje powód (rozmazany, odblask na tekście, zdjęcie pod kątem, brak
+    części strony, za ciemny, za mały, na obrazie nie ma pisanego tekstu) i radę, jak zrobić lepsze zdjęcie;
+  - wynik zostaje w historii odczytów (**Odczytane dokumenty**). Do drzewa trafia przez **Zaproponuj do drzewa…**.
+- **Granice:**
+  - czytają agent i model badania do skanów ([R8.3](#R8.3)); odczyt wlicza się do kosztu badania, także przerwany: to,
+    co agent już odczytał, się wlicza;
+  - okno można zamknąć, odczyt będzie trwał dalej, a wynik zostanie ogłoszony. Szacunek w oknie liczy około minuty na
+    czytelnika, z Grokiem 4 minuty;
+  - odczyt działa tylko z badaniem, które działa na tym komputerze i ma ustawionego agenta; inaczej okno mówi dlaczego
+    (**Teraz niemożliwe: …**).
+- **Obsługa:** aplikacja: **Badanie → Odczytaj dokument…**, w menu osoby **Odczytaj dokument dotyczący tej osoby…**;
+  pliki przeciągnąć do okna albo **Wybierz pliki…**; opcjonalnie **Dokument dotyczy** (osoba) i **Notatka**;
+  **Czytelnicy**; **Odczytaj**. Plik przeciągnięty do aplikacji oferuje **Odczytaj teraz** albo **Dodaj do
+  materiałów** ([R11](R11-material-from-the-user.md)). Historia: **Badanie dla tego drzewa… → Odczytane dokumenty
+  (N) ›**.
+- **Obowiązuje od:** aplikacja 3.14.0, badanie 1.18.0
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->

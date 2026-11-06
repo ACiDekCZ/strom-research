@@ -13,6 +13,7 @@ import { inboxState, inboxWaits } from "../core/inboxwait.ts";
 import { browserOnlyArchive } from "../core/byhand.ts";
 import { browserAdviceFor } from "../core/browserhelp.ts";
 import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lifespan, likelyDuplicates, parentsOf, primaryName, sameFamilyName, surnameForms } from "../core/people.ts";
+import { settledClaim } from "../core/labels.ts";
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -1003,7 +1004,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
-    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Claude's desktop computer use and Codex's browser and computer use (those strom does not watch) strom does not recommend: never of your own accord. Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
+    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
@@ -1345,7 +1346,7 @@ export function buildBrief(
       layered("open questions", "strom conflict list · strom hypothesis list", {
         head: ["## Open conflicts and hypotheses" + (conflicts.some((c) => own(c.id)) || hyps.some((h) => own(h.id)) ? " (→ this task is about it)" : "")],
         parts: [
-          ...first(conflicts).map((c) => question(c.id, `${mark(c.id, c.state)} ${c.title}: ${c.claims.map((x) => `${x.source ? `${x.source} ` : ""}${x.value}`).join(" | ")}${c.resolution ? ` — resolved: ${c.resolution}` : ""}`)),
+          ...first(conflicts).map((c) => question(c.id, `${mark(c.id, c.state)} ${c.title}: ${c.claims.map((x0) => settledClaim(tree, c, x0)).map((x) => `${x.source ? `${x.source} ` : ""}${x.value}`).join(" | ")}${c.resolution ? ` — resolved: ${c.resolution}` : ""}`)),
           ...first(hyps).map((h) =>
             question(
               h.id,

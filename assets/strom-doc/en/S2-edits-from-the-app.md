@@ -82,7 +82,7 @@ rules are in [R5.2](R5-conflicts.md#R5.2); transcriptions of sources from the ap
     word in the terminal ([R6](R6-awaiting-action.md)); the app meanwhile shows **Waiting for confirmation in the
     research.**
   - After writing, the app loads the research's new version by itself when nothing would be lost in the app.
-  - Conflicts that arose from a send are shown by the app with the message **Written, {n} conflicts to decide** with
+  - Conflicts that arose from a send are shown by the app with the message **Written, N conflicts to decide** with
     **Show**. They are decided in the research (**Decide in the research**); until then the value from the app stays
     in the app.
 - **Controls:** terminal: `strom config set sync.review on|off`, `strom config set sync.edits conflict|user`
@@ -129,7 +129,7 @@ lost.
 - **Limits:**
   - The research postpones writing when the tree is sealed on another computer (**Take over on this computer**), when
     the files in a cloud folder are not downloaded yet, or when the disk is full. Until then the edits wait unsent.
-  - When the research writes only a part, the app shows **Written {n}, not written {m}** and the reason at each
+  - When the research writes only a part, the app shows **Written N, not written M** and the reason at each
     unwritten edit (for example "no common ground: choose in the research").
   - After a refusal, automatic sending stops. It sends again by itself only after the next edit.
 - **Controls:** app: **The research didn't accept the changes** in the research panel, **Try again**, **Details (to

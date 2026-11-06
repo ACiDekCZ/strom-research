@@ -18,6 +18,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
 import { withoutSecret } from "../core/bridgeguard.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
+import { codexHookState } from "../core/codexhook.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
@@ -162,7 +163,7 @@ register({
     "agent's desktop app when it is installed (Claude, ChatGPT/Codex, OpenCode — the tree folder and the first message\n" +
     "filled in; you confirm the folder and send it), else its CLI in this terminal (Claude Code, Codex, Antigravity,\n" +
     "OpenCode, Grok). The first message is yours to give (--say); without it the agent reports where things\n" +
-    "stand and suggests what next.",
+    "stand and suggests what next. What strom watches in each agent and app: strom doc R12.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
     { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place" },
@@ -198,6 +199,9 @@ register({
     const about = opts.task !== undefined ? aboutWaiting(tree, String(opts.task), shared) : undefined;
     const kickoff = about?.say ?? said ?? ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
     const level = ctx.settings.agentPermissions();
+    // Codex runs strom's rules before its browser only once the person confirms them in Codex (/hooks): said until then,
+    // never confirmed by strom (spec 062 K3.3)
+    const hooksSay = agent === "codex" && ["untrusted", "modified"].includes(codexHookState(tree.root, ctx.env)) ? ui(lang, "ui.setup.codex.hooks", { how: ui(lang, "ui.doc.codexhooks.how") }) : undefined;
 
     // In the agent's desktop app: a link opens a conversation in the tree folder with the first
     // message filled in. The app reads the tree's instructions and permissions itself; the level of
@@ -213,6 +217,7 @@ register({
       // person picks there — the one chosen in strom named
       const chosen = ctx.settings.models(agent, tree.config).lead;
       if (agent !== "claude" && !(agent === "opencode" && chosen)) say.push(chosen ? ui(lang, "ui.chat.app.model.chosen", { app: app.name, model: chosen }) : ui(lang, "ui.chat.app.model", { app: app.name }));
+      if (hooksSay) say.push(hooksSay);
       if (agentHere && opened) say.push(ui(lang, "ui.chat.handover.end"));
       return { text: say.join("\n"), data: { agent, app: app.name, link, opened, ...(agentHere ? { handover: "app" } : {}) } };
     }
@@ -270,6 +275,7 @@ register({
       ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
       const browserSays = browserNote(ctx, tree, agent);
       if (browserSays) ctx.io.stdout(browserSays + "\n");
+      if (hooksSay) ctx.io.stdout(hooksSay + "\n");
       // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
       if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
       const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };

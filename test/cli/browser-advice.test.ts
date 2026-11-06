@@ -132,13 +132,12 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
     const cs = ((await w.run(["doctor", "--json"], { env: { STROM_LANG: "cs" } })).json.checks as { name: string; detail: string }[]).filter((c) => c.name === "browser");
     assert.ok(cs.some((c) => /jen přes prohlížeč člověka – s Claude Code a rozšířením Claude in Chrome by snímky uložil agent sám/.test(c.detail)), JSON.stringify(cs));
 
-    // the Claude desktop app's built-in browser watched like Claude in Chrome, yet not recommended; the desktop apps'
-    // computer use and Codex's browser: not watched, not recommended — nothing said off (4 languages)
+    // the desktop apps' browser and computer use: what strom watches of each, never recommended, nothing said off (4 languages)
     for (const [lang, said] of [
-      ["en", /built-in browser of the Claude desktop app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude desktop app and the browser and computer use of the ChatGPT\/Codex app strom does not watch and does not recommend/],
-      ["cs", /vestavěný prohlížeč desktopové aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use desktopové aplikace Claude a prohlížeč a computer use aplikace ChatGPT\/Codex strom nehlídá a nedoporučuje/],
-      ["de", /eingebauten Browser der Desktop-App Claude überwacht strom wie Claude in Chrome, empfiehlt ihn aber nicht; Computer Use der Desktop-App Claude sowie Browser und Computer Use der App ChatGPT\/Codex überwacht strom nicht/],
-      ["pl", /wbudowanej przeglądarki aplikacji desktopowej Claude strom pilnuje jak Claude in Chrome, ale jej nie poleca; computer use aplikacji desktopowej Claude oraz przeglądarki i computer use aplikacji ChatGPT\/Codex strom nie pilnuje i nie poleca/],
+      ["en", /built-in browser of the Claude app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude app strom does not watch; the browser of the ChatGPT \(Codex\) app strom watches by the addresses its code names, once strom's hooks are confirmed in Codex; computer use of the app strom does not watch; the OpenCode app: a browser or computer use, if it has them, strom does not watch {2}\(strom doc R12\.1\)/],
+      ["cs", /vestavěný prohlížeč aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use aplikace Claude strom nehlídá; prohlížeč aplikace ChatGPT \(Codex\) strom hlídá podle adres v jeho kódu/],
+      ["de", /eingebauten Browser der App Claude überwacht strom wie Claude in Chrome, empfiehlt ihn aber nicht; Computer Use der App Claude überwacht strom nicht; den Browser der App ChatGPT \(Codex\)/],
+      ["pl", /wbudowanej przeglądarki aplikacji Claude strom pilnuje jak Claude in Chrome, ale jej nie poleca; computer use aplikacji Claude strom nie pilnuje; przeglądarki aplikacji ChatGPT \(Codex\)/],
     ] as const) {
       const all = (await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } })).json.checks as { name: string; status: string; detail: string }[];
       const desk = all.filter((c) => c.name === "desktop");

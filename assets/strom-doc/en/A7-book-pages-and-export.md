@@ -184,3 +184,33 @@ the places of the life on a map, a life axis with history, clippings from regist
 - **Since:** app 1.0.0
 
 <!-- zdroj: app:strings.ts importExport.app, importExport.appDesc, importExport.exportAllApp, importExport.fromHtml, embeddedMode.* · src/ui/import-export.ts -->
+
+<a id="A7.8"></a>
+## A7.8 Stories
+
+A story is continuous prose about a person or a marriage, written on top of the tree's facts. It is not a source:
+sources document the facts, a story only retells them ([A3.6](A3-evidence-in-the-app.md#A3.6)).
+
+- **Where it shows:** the **Story** window (from the person card menu), the person page ([A7.6](#A7.6)) and, in the
+  family book, the **Stories** part after **Families** ([A7.4](#A7.4)). A couple's story, one per marriage, comes
+  under the person's own; in the book it has its own subchapter.
+- **Text format:** a blank line separates paragraphs; a line `## …` is a subheading; lines `- …` are bullets;
+  `**bold**` and `*italic*`. Other marks stay plain text. Neither `* 1831` (birth) nor `1. ledna` at the start of a
+  line starts a bullet. An opening `# …` that only repeats the chapter subheading is left out. A bare source code in
+  the text reads as the source's title.
+- **Limits:**
+  - the person's own story can be written and edited when editing a person, section **Story**: **Chapter
+    subheading** and **The story**. The section shows when **Settings → Person card → Advanced fields** is on or some
+    text already exists. A couple's story and **Built on** (the facts and the author's caveat) come with the file and
+    are read-only;
+  - a draft from the research, not yet approved, carries the tag **Draft** and the link **Approve in the research**.
+    A new version from the research waits beside the approved one (“New version waiting”, **Compare**); editing in
+    the app does not discard it, the decision is made in the research
+    ([R3.9.1](R3-verification-and-citation.md#R3.9.1));
+  - in the book and in print there are no sources under the text; the story's sources are numbered in the book's
+    list of sources;
+  - in a GEDCOM file a story is in its own tag `_STORY`, not in a note.
+- **Controls:** person card menu → **Story**; editing a person → section **Story**.
+- **Since:** app 2.8.0; couple's stories and the person page 3.18.0; in the family book 3.19.0
+
+<!-- zdroj: app:src/story-text.ts:1 storyProseHtml (odstavce, ##, -, **, *) · src/ui/person-modal.ts:662 fillStoryFields · index.html pm-story-section · src/book-blocks.ts:594 storyBlock · src/book.ts proseHtml · src/person-page.ts · src/ged-exporter.ts:449 pushStory _STORY · strings.ts story.* · commit 52000825 (aplikace 2.8.0) · CHANGELOG.cs.md 3.18.0, 3.22.0 -->

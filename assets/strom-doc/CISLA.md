@@ -128,6 +128,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R8.5.2 | R8-reading-scans.md | výzkum 1.14.0 | platí | Nejistě přečtené místo je vodítko | An uncertainly read place is a lead | Ein unsicher gelesener Ort ist ein Hinweis | Niepewnie odczytane miejsce to wskazówka |
 | R8.6 | R8-reading-scans.md | výzkum 1.0.0 | platí | Zápis nálezu | Recording a find | Erfassen eines Fundes | Zapis znaleziska |
 | R8.7 | R8-reading-scans.md | výzkum 1.0.0 | platí | Jistota a ověření přečteného | Certainty and verification of what was read | Sicherheit und Prüfung des Gelesenen | Pewność i weryfikacja odczytu |
+| R8.8 | R8-reading-scans.md | aplikace 3.14.0, výzkum 1.18.0 | platí | Přečíst dokument z aplikace | Reading a document from the app | Ein Dokument aus der App lesen | Odczytanie dokumentu z aplikacji |
 | R9 | R9-archives.md | výzkum 1.14.0 | koncept | Archivy: co smí agent a co udělá člověk | Archives: what the agent may do and what a person does | Archive: was der Agent darf und was der Mensch tut | Archiwa: co wolno agentowi, a co robi człowiek |
 | R9.1 | R9-archives.md | výzkum 1.14.0 | koncept | Druhy archivů | Kinds of archives | Arten von Archiven | Rodzaje archiwów |
 | R9.1.1 | R9-archives.md | výzkum 1.14.0 | koncept | Web, který výzkum nezná | A site the research does not know | Eine Website, die die Forschung nicht kennt | Strona, której badanie nie zna |
@@ -135,7 +136,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R9.3 | R9-archives.md | výzkum 1.14.0 | koncept | Stažení webu agentem | The agent's web fetch | Webabruf durch den Agenten | Pobieranie stron przez agenta |
 | R9.4 | R9-archives.md | výzkum 1.27.0 | koncept | Prohlížeč agenta | The agent's browser | Der Browser des Agenten | Przeglądarka agenta |
 | R9.4.1 | R9-archives.md | výzkum 1.14.0 | koncept | Kdy sezení dostane Chrome | When a session gets Chrome | Wann eine Sitzung Chrome bekommt | Kiedy sesja dostaje Chrome |
-| R9.4.2 | R9-archives.md | výzkum 1.27.0 | koncept | Vestavěné prohlížeče a ovládání počítače: nehlídané, nedoporučené | Built-in browsers and computer use: unwatched, not recommended | Eingebaute Browser und Computersteuerung: nicht überwacht, nicht empfohlen | Wbudowane przeglądarki i sterowanie komputerem: niepilnowane, niepolecane |
+| R9.4.2 | R9-archives.md | výzkum 1.27.0 | koncept | Vestavěné prohlížeče a ovládání počítače: nedoporučené | Built-in browsers and computer use: not recommended | Eingebaute Browser und Computersteuerung: nicht empfohlen | Wbudowane przeglądarki i sterowanie komputerem: niepolecane |
 | R9.4.3 | R9-archives.md | výzkum 1.27.0 | koncept | Stav prohlížeče ve strom doctor a v aplikaci | The browser's state in strom doctor and the app | Zustand des Browsers in strom doctor und in der App | Stan przeglądarki w strom doctor i w aplikacji |
 | R9.5 | R9-archives.md | výzkum 1.27.0 | koncept | Snímek přes prohlížeč agenta | An image through the agent's browser | Ein Bild über den Browser des Agenten | Skan przez przeglądarkę agenta |
 | R9.6 | R9-archives.md | výzkum 1.0.0 | koncept | Čekání na snímky a návrat úkolu | Waiting for images and the task's return | Warten auf Bilder und Rückkehr der Aufgabe | Oczekiwanie na skany i powrót zadania |
@@ -155,6 +156,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R10.2 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Dva záznamy jedné osoby: sloučení | Two records of one person: merging | Zwei Einträge einer Person: Zusammenführen | Dwa wpisy jednej osoby: scalenie |
 | R10.3 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Hypotéza: soupeřící vysvětlení | A hypothesis: competing explanations | Eine Hypothese: konkurrierende Erklärungen | Hipoteza: konkurujące wyjaśnienia |
 | R10.3.1 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Rozhodnutí hypotézy | Deciding a hypothesis | Entscheidung einer Hypothese | Rozstrzygnięcie hipotezy |
+| R10.3.2 | R10-people-and-hypotheses.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Kdo rozhoduje hypotézy: člověk, nebo AI | Who decides the hypotheses: the user or the AI | Wer die Hypothesen entscheidet: der Mensch oder die KI | Kto rozstrzyga hipotezy: człowiek czy AI |
 | R10.4 | R10-people-and-hypotheses.md | výzkum 1.9.0 | platí | Rodina mimo strom čeká na doloženou vazbu | A family outside the tree waits for a proven link | Eine Familie außerhalb des Stammbaums wartet auf eine belegte Verbindung | Rodzina poza drzewem czeka na udokumentowane powiązanie |
 | R10.5 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Jména osoby | A person's names | Die Namen einer Person | Imiona i nazwiska osoby |
 | R10.5.1 | R10-people-and-hypotheses.md | výzkum 1.18.0 | platí | Chybné jméno a poznámka se odvolají | A wrong name and a note are retracted | Ein falscher Name und eine Notiz werden zurückgezogen | Błędne imię i notatka zostają wycofane |
@@ -164,6 +166,16 @@ nenapsáno) · `neplatí od <verze>`.
 | R11.2 | R11-material-from-the-user.md | výzkum 1.0.0 | platí | Doklad je pramen, ostatní je vodítko | A document is a source, the rest is a lead | Eine Urkunde ist eine Quelle, der Rest ist ein Hinweis | Dokument jest źródłem, reszta jest wskazówką |
 | R11.3 | R11-material-from-the-user.md | výzkum 1.0.0 | platí | Převzatý rodokmen | An imported family tree | Ein übernommener Stammbaum | Przejęte drzewo genealogiczne |
 | R11.4 | R11-material-from-the-user.md | výzkum 1.12.0 | platí | Dávka z aplikace | A batch from the app | Ein Stapel aus der App | Partia z aplikacji |
+| R12 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Kde agent pracuje a co strom hlídá | Where the agent works and what strom watches | Wo der Agent arbeitet und was strom überwacht | Gdzie agent pracuje i czego strom pilnuje |
+| R12.1 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Způsoby práce: tabulka | Ways of working: a table | Arten zu arbeiten: eine Tabelle | Sposoby pracy: tabela |
+| R12.2 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Prohlížeč v aplikaci Claude | The browser in the Claude app | Der Browser in der App Claude | Przeglądarka w aplikacji Claude |
+| R12.3 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Terminál aplikace Claude | The Claude app's terminal | Das Terminal der App Claude | Terminal aplikacji Claude |
+| R12.4 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Aplikace Claude bez Claude Code v terminálu | The Claude app without Claude Code in the terminal | Die App Claude ohne Claude Code im Terminal | Aplikacja Claude bez Claude Code w terminalu |
+| R12.5 | R12-where-the-agent-works.md | výzkum 1.27.0 | koncept | Codex: v terminálu a v aplikaci ChatGPT | Codex: in the terminal and in the ChatGPT app | Codex: im Terminal und in der App ChatGPT | Codex: w terminalu i w aplikacji ChatGPT |
+| R12.6 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Co ověřené není | What is not verified | Was nicht geprüft ist | Czego nie sprawdzono |
+| R12.7 | R12-where-the-agent-works.md | výzkum 1.0.0 | koncept | Antigravity | Antigravity | Antigravity | Antigravity |
+| R12.8 | R12-where-the-agent-works.md | výzkum 1.4.0 | koncept | Grok Build | Grok Build | Grok Build | Grok Build |
+| R12.9 | R12-where-the-agent-works.md | výzkum 1.0.0 | koncept | OpenCode | OpenCode | OpenCode | OpenCode |
 | A1 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Aplikace v kostce | The app in brief | Die App im Überblick | Aplikacja w skrócie |
 | A1.1 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Rodokmen v prohlížeči, data na zařízení | A family tree in the browser, data on the device | Stammbaum im Browser, Daten auf dem Gerät | Drzewo genealogiczne w przeglądarce, dane na urządzeniu |
 | A1.2 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Osoby, vztahy a rody | People, relationships and family lines | Personen, Beziehungen und Stammlinien | Osoby, relacje i rody |
@@ -193,6 +205,7 @@ nenapsáno) · `neplatí od <verze>`.
 | A3.5 | A3-evidence-in-the-app.md | aplikace 3.9.0 | platí | Materiály | Materials | Materialien | Materiały |
 | A3.6 | A3-evidence-in-the-app.md | aplikace 3.3.0 | platí | Prameny osoby | Sources of a person | Quellen einer Person | Źródła osoby |
 | A3.7 | A3-evidence-in-the-app.md | aplikace 3.4.0 | platí | Kde chybí doklady | Where evidence is missing | Wo Belege fehlen | Gdzie brakuje dowodów |
+| A3.8 | A3-evidence-in-the-app.md | aplikace 3.14.0 | platí | Obraz jen ve výzkumu | Image only in the research | Bild nur in der Forschung | Obraz tylko w badaniu |
 | A4 | A4-surnames-and-families.md | aplikace 1.15.0 | platí | Rody a příjmení | Family lines and surnames | Stammlinien und Nachnamen | Rody i nazwiska |
 | A4.1 | A4-surnames-and-families.md | aplikace 3.19.0 | platí | Rod a jeho zakladatel | A family line and its founder | Die Stammlinie und ihr Stammvater | Ród i jego założyciel |
 | A4.1.1 | A4-surnames-and-families.md | aplikace 3.19.0 | platí | Ruční úprava rodu | Editing a family line by hand | Stammlinie von Hand bearbeiten | Ręczna edycja rodu |
@@ -224,6 +237,7 @@ nenapsáno) · `neplatí od <verze>`.
 | A6.4 | A6-views.md | aplikace 1.8.0 | platí | Vějíř | Fan | Fächer | Wachlarz |
 | A6.5 | A6-views.md | aplikace 1.10.0 | platí | Mapa | Map | Karte | Mapa |
 | A6.5.1 | A6-views.md | aplikace 1.10.0 | platí | Odkud mapa bere polohu místa | Where the map gets a place's location | Woher die Karte die Lage eines Ortes nimmt | Skąd mapa bierze położenie miejsca |
+| A6.5.2 | A6-views.md | aplikace 3.25.0 | platí | Místa mimo mapu dohledat ve výzkumu | Looking up places off the map in the research | Orte ohne Karte in der Forschung suchen | Odszukanie miejsc poza mapą w badaniu |
 | A6.6 | A6-views.md | aplikace 3.21.0 | platí | Rod v pohledu | A family line in the view | Stammlinie in der Ansicht | Ród w widoku |
 | A7 | A7-book-pages-and-export.md | aplikace 1.0.0 | platí | Kniha, stránky a export | Book, pages and export | Buch, Seiten und Export | Księga, strony i eksport |
 | A7.1 | A7-book-pages-and-export.md | aplikace 1.2.0 | platí | Kdo je žijící osoba | Who is a living person | Wer eine lebende Person ist | Kto jest osobą żyjącą |
@@ -235,6 +249,7 @@ nenapsáno) · `neplatí od <verze>`.
 | A7.5 | A7-book-pages-and-export.md | aplikace 3.20.0 | platí | Stránky rodu a stránky stromu | Family pages and tree pages | Familienseiten und Seiten des Stammbaums | Strony rodu i strony drzewa |
 | A7.6 | A7-book-pages-and-export.md | aplikace 3.18.0 | platí | Stránka osoby | Person page | Personenseite | Strona osoby |
 | A7.7 | A7-book-pages-and-export.md | aplikace 1.0.0 | platí | Uložené HTML (samostatný soubor) | Saved HTML (a standalone file) | Gespeichertes HTML (eigenständige Datei) | Zapisany HTML (samodzielny plik) |
+| A7.8 | A7-book-pages-and-export.md | aplikace 2.8.0 | platí | Vyprávění | Stories | Erzählungen | Opowieść |
 | A8 | A8-merging-trees.md | aplikace 1.0.0 | platí | Sloučení stromů | Merging trees | Zusammenführen von Stammbäumen | Scalanie drzew |
 | A8.1 | A8-merging-trees.md | aplikace 1.0.0 | platí | Sloučení vždy založí nový strom | A merge always creates a new tree | Zusammenführen legt immer einen neuen Stammbaum an | Scalenie zawsze zakłada nowe drzewo |
 | A8.2 | A8-merging-trees.md | aplikace 1.0.0 | platí | Párování osob | Pairing people | Abgleich der Personen | Łączenie osób w pary |
@@ -274,6 +289,8 @@ nenapsáno) · `neplatí od <verze>`.
 | S4.1 | S4-research-from-the-app.md | aplikace 3.5.0 | platí | Panel a Přehled výzkumu ukazují běžící práci | The panel and the Research overview show running work | Panel und Forschungsübersicht zeigen die laufende Arbeit | Panel i Przegląd badania pokazują bieżącą pracę |
 | S4.1.1 | S4-research-from-the-app.md | aplikace 3.5.0 | platí | Sledovat agenta ve stromu | Follow the agent in the tree | Agenten im Stammbaum folgen | Śledź agenta w drzewie |
 | S4.1.2 | S4-research-from-the-app.md | aplikace 3.22.0 | platí | Přizpůsobení panelu | Customizing the panel | Panel anpassen | Dostosowanie panelu |
+| S4.1.3 | S4-research-from-the-app.md | aplikace 3.24.0 | platí | Sledovat ve vějíři a na mapě | Following in the fan and on the map | Folgen im Fächer und auf der Karte | Śledzenie w wachlarzu i na mapie |
+| S4.1.4 | S4-research-from-the-app.md | aplikace 3.24.0 | platí | Změny z výzkumu bez blikání | Changes from the research without flicker | Änderungen aus der Forschung ohne Flackern | Zmiany z badania bez migania |
 | S4.2 | S4-research-from-the-app.md | aplikace 3.5.0 | platí | Fronta v aplikaci | The queue in the app | Warteschlange in der App | Kolejka w aplikacji |
 | S4.3 | S4-research-from-the-app.md | aplikace 3.5.0 | platí | Linie v aplikaci | Directions in the app | Linien in der App | Linie w aplikacji |
 | S4.3.1 | S4-research-from-the-app.md | aplikace 3.22.0 | platí | Správa linií z aplikace | Managing directions from the app | Verwaltung der Linien aus der App | Zarządzanie liniami z aplikacji |

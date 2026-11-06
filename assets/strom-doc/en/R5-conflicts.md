@@ -64,7 +64,7 @@ value of the research.
 - Until the decision, the app keeps the value from the app, and the research keeps its own in that place.
 - The same edit sent again does not open a new conflict. An edit changed in another way only overwrites the app's
   side in the open conflict.
-- **Controls:** app: after sending **Written, {n} conflicts to decide** and **Show**. Terminal: the `strom sync`
+- **Controls:** app: after sending **Written, N conflicts to decide** and **Show**. Terminal: the `strom sync`
   output says at each change **a conflict to decide (the research has it from a record)** or **a conflict to decide
   (the research gives other parents)**. A send can be undone: `strom sync undo I…`.
 - **Since:** research 1.5.0. Refinement without a conflict and the parents conflict from 1.12.0, the conflict of

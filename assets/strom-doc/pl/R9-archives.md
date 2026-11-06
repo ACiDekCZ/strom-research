@@ -22,11 +22,13 @@ Przebieg w skrócie:
    [R9.10](#R9.10).
 
 > **Uwaga: gdzie dokładnie obowiązuje przeglądarka agenta.** Przeglądarki agenta strom pilnuje tylko przy **Claude
-> Code** z rozszerzeniem **Claude in Chrome**. Przeglądarki ani sterowania komputerem innego agenta (Codex,
+> Code** z rozszerzeniem **Claude in Chrome** i we wbudowanej przeglądarce aplikacji Claude
+> ([R12.2](R12-where-the-agent-works.md#R12.2)). Przeglądarki ani sterowania komputerem innego agenta (Codex,
 > Antigravity i inne) strom pilnować nie potrafi: taki agent nie wchodzi z nimi sam do archiwum, do którego wolno
-> tylko przeglądarce człowieka, a skany zapisuje człowiek. Wbudowanej przeglądarki, podglądu i sterowania komputerem
-> aplikacji desktopowych Claude i ChatGPT/Codex strom nie pilnuje i nie poleca; agent używa ich tylko na wyraźną
-> prośbę człowieka ([R9.4.2](#R9.4.2)).
+> tylko przeglądarce człowieka, a skany zapisuje człowiek. Wbudowanych przeglądarek i sterowania komputerem
+> aplikacji desktopowych agentów strom nie poleca; agent używa ich tylko na wyraźną prośbę człowieka
+> ([R9.4.2](#R9.4.2)). Gdzie rozmawia się z agentem i czego strom gdzie pilnuje, podsumowuje
+> [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:CHANGELOG.cs.md 1.27.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · app:CHANGELOG.cs.md 3.23.0 -->
 
@@ -169,7 +171,8 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
 
 Przeglądarka agenta to Chrome z rozszerzeniem **Claude in Chrome**, którym steruje **Claude Code**. strom przed
 każdym otwarciem strony rozstrzyga tak samo jak przy pobieraniu stron ([R9.3](#R9.3)), tylko na drodze przeglądarki
-człowieka.
+człowieka. Tak samo pilnuje wbudowanej przeglądarki aplikacji Claude
+([R12.2](R12-where-the-agent-works.md#R12.2)).
 
 - **Pilnuje kod (hook przed otwarciem strony):**
   - archiwum tylko przez przeglądarkę człowieka i skany archiwum z ograniczeniem otwierają się tylko za zgodą **przez
@@ -210,23 +213,23 @@ człowieka.
 <!-- zdroj: research:src/core/connector.ts agentBrowser, sessionBrowser · src/commands/start.ts:244 chrome · src/runners/claude.ts RUN_DISALLOWED (AskUserQuestion, switch_browser) · src/core/config.ts agent.browser -->
 
 <a id="R9.4.2"></a>
-### R9.4.2 Wbudowane przeglądarki i sterowanie komputerem: niepilnowane, niepolecane
+### R9.4.2 Wbudowane przeglądarki i sterowanie komputerem: niepolecane
 
-- W badaniu nic z aplikacji desktopowych agentów się nie wyłącza. Wbudowanej przeglądarki, podglądu i sterowania
-  komputerem aplikacji desktopowych Claude i ChatGPT/Codex strom nie pilnuje i nie poleca. Pilnowany jest tylko
-  Claude in Chrome ([R9.4](#R9.4)).
+- W badaniu nic z aplikacji desktopowych agentów się nie wyłącza. Wbudowanej przeglądarki aplikacji Claude (także jej
+  podglądu) strom pilnuje jak Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Sterowania komputerem
+  aplikacji Claude oraz przeglądarki i sterowania komputerem aplikacji ChatGPT (Codex) strom nie pilnuje
+  ([R12.5](R12-where-the-agent-works.md#R12.5)). Żadnego z nich strom nie poleca.
 - **Tylko metodyka:** agent nie używa ich sam z siebie: nie wchodzi z nimi do archiwum, do którego wolno tylko
   przeglądarce człowieka, a skany zapisuje człowiek ([R9.6](#R9.6)). Gdy człowiek wyraźnie o nie poprosi, to wybór
-  człowieka: agent jednym zdaniem mówi, że strom tej drogi nie pilnuje, i co mówią warunki archiwum. Warunków nigdy
+  człowieka: agent jednym zdaniem mówi, czy strom tej drogi pilnuje, i co mówią warunki archiwum. Warunków nigdy
   nie obchodzi, a sprawdzenia, czy przy komputerze jest człowiek, nigdy nie przechodzi.
 - Agent nigdy nie pracuje w kopii badania, którą aplikacja desktopowa agenta otwiera we własnym worktree.
-- **Dlaczego:** przed nimi strom nie ma żadnego hooka, więc nie sprawdza stron, które otwierają. Program pobierający
-  archiwum, pobieranie stron witryny i przeglądarka agenta w Chrome zawsze kierują się zasadami archiwów
+- **Dlaczego:** przed niepilnowanymi strom nie ma żadnego hooka, więc nie sprawdza stron, które otwierają. Program
+  pobierający archiwum, pobieranie stron witryny i przeglądarka agenta w Chrome zawsze kierują się zasadami archiwów
   ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Obsługa:** terminal: `strom doctor`, wiersz **przeglądarka aplikacji desktopowych**.
-- **Obowiązuje od:** badanie 1.27.0
-
-<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:514 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0 -->
+- **Obowiązuje od:** badanie 1.27.0; 1.29.0: wbudowana przeglądarka aplikacji Claude pilnowana
+<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
 
 <a id="R9.4.3"></a>
 ### R9.4.3 Stan przeglądarki w strom doctor i w aplikacji

@@ -87,8 +87,8 @@ Regel.
   **Jetzt** ([R7](R7-when-the-agent-works.md), beim Pausieren [R7.6](R7-when-the-agent-works.md#R7.6)), im Fenster
   **Orte** ([R4.5](R4-places.md#R4.5)), in der Verwaltung der Orte ([R4.4](R4-places.md#R4.4)), im Panel der
   Widersprüche ([R5.3](R5-conflicts.md#R5.3)) und in **Was die Forschung weiß → Widersprüche**
-  ([R5.6](R5-conflicts.md#R5.6)). Im Fenster ist auch der **Rundgang durch die App**. In der Forschung: `strom doc`
+  ([R5.6](R5-conflicts.md#R5.6)). In der Forschung: `strom doc`
   ([R1.8](R1-research-in-brief.md#R1.8)).
 - **Gilt seit:** App 3.24.0
 
-<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics; tour.menu · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->
+<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->

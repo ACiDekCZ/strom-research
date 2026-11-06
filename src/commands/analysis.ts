@@ -32,6 +32,7 @@ import {
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { settledClaim, leadingLabel } from "../core/labels.ts";
 import { sameFamily } from "../core/surnames.ts";
 import { changeLines } from "../core/changelog.ts";
 import { isAgent } from "../core/which.ts";
@@ -94,7 +95,10 @@ function conflictConcerns(tree: Tree, id: string): (c: Conflict) => boolean {
   if (h?.type === "hypothesis") for (const ref of [...(h as Hypothesis).subject, ...(h as Hypothesis).variants.flatMap((v) => v.linked ?? [])]) add(ref);
   return (c) =>
     c.subject.some((s) => ids.has(s)) ||
-    c.claims.some((cl) => cl.source !== undefined && ids.has(cl.source)) ||
+    c.claims.some((cl) => {
+      const source = settledClaim(tree, c, cl).source;
+      return source !== undefined && ids.has(source);
+    }) ||
     (c.edit !== undefined && (ids.has(c.edit.event) || (c.edit.cites ?? []).some((ci) => ids.has(ci.source)))) ||
     (c.parents !== undefined && [c.parents.child, c.parents.from, c.parents.to ?? "", ...c.parents.partners].some((s) => ids.has(s)));
 }
@@ -515,7 +519,7 @@ register(
     args: [{ name: "title", description: 'e.g. "Birth year of Antonín: 1811 or 1813?"', required: true }],
     options: [
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record concerned (repeatable)" },
-      { name: "claim", type: "string", multiple: true, value: "<S…: value>", description: 'a claim, e.g. "S0027: aged 27 at marriage 1839" (repeat for each)' },
+      { name: "claim", type: "string", multiple: true, value: "<S…: value>", description: 'a claim, e.g. "S0027: aged 27 at marriage 1839" (repeat for each; in a batch "@s: …" cites the source of the line ending #s)' },
       { name: "fact", type: "string", value: "<TAG>", description: "the fact it is about, by its GEDCOM tag: BIRT, DEAT, BAPM, BURI, MARR, NAME, SEX… (the Strom app shows it there)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
@@ -523,8 +527,18 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const claims = listOpt(opts.claim).map((c) => {
-        const m = /^([Ss]\d+)\s*:\s*(.+)$/.exec(c);
+        // the source by its ID ("S0012: …"; "@S0012: …" names it too)
+        const m = /^\s*@?\s*([Ss]\d+)\s*:\s*(.+)$/su.exec(c);
         if (m) return { source: requireRecord(tree, m[1]!, "source").id, value: m[2]!.trim() };
+        // a batch's label no line of a batch put an ID in its place (found: "@s: …" kept as the claim, its source not
+        // cited, the raw "@s:" in the Strom app and the GEDCOM) — never kept: said, with the way
+        const lead = leadingLabel(c);
+        if (lead)
+          throw new UsageError(`--claim "${truncate(c.trim(), 60)}": @${lead.label} is no source — a label stands for a record only inside one batch, on a line after the one ending #${lead.label}`, {
+            hint: `give the source's ID: --claim "S…: ${truncate(lead.rest.trim(), 40)}" (strom source list) — or in one batch: source add … #${lead.label}, then conflict add … --claim "@${lead.label}: …"`,
+            code: "conflict.claim-label",
+            params: { label: lead.label },
+          });
         return { value: c.trim() };
       });
       if (claims.length < 2) throw new UsageError("a conflict needs at least two --claim", { hint: '--claim "S0027: 27 years" --claim "S0031: 70 years"' });
@@ -710,7 +724,10 @@ register(
           `${c.id} ${conflictTitle(tree, c)}  [${t(c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open")}]`,
           `${t("ui.conflict.about")}  ${c.subject.join(" ")}`,
           taskLines(tree, c.id),
-          ...c.claims.map((cl) => `${t("ui.conflict.claim")}  ${cl.source ? `${cl.source}: ` : ""}${value(claimText(tree, c, cl))}`),
+          ...c.claims.map((cl) => {
+            const source = settledClaim(tree, c, cl).source;
+            return `${t("ui.conflict.claim")}  ${source ? `${source}: ` : ""}${value(claimText(tree, c, cl))}`;
+          }),
           c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${c.reasoning ?? ""}` : undefined,
           ...c.notes.map((n) => `${t("ui.conflict.note")}  ${decisionNote(tree.lang, n.text)}`),
         ),

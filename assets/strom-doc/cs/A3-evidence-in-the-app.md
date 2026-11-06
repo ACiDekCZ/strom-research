@@ -109,10 +109,10 @@ Výřez zápisu je obrázek přesně toho zápisu, ne celé strany. Ukáže se u
 - **Hranice:** v aplikaci jdou přidat nejvýš dva výřezy (zápis a pokračování z další strany). Výzkum jich zapisuje
   až tři ([R3.4](R3-verification-and-citation.md#R3.4)); třetí aplikace zachová, další nepřidá. Celou stranu jde
   uložit jen u osoby, ne u sňatku a ne u zamčené osoby. Otočení v ořezu zruší vazbu výřezu na přílohu. Obrazy,
-  které výzkum do aplikace neposlal, jsou ve filtru **Obraz ve výzkumu · n** a načítají se z běžícího výzkumu.
+  které výzkum do aplikace neposlal, jsou ve filtru **Obraz jen ve výzkumu · N** ([A3.8](#A3.8)).
 - **Ovládání:** editor pramene, blok **Výřez zápisu**; **+ Přidat pokračování z další strany**; **Oříznout**,
   **Nahradit**, **Odebrat výřez**. „Výřezy: …“ v **Akce → Prameny** ukazuje velikost všech výřezů od 1 MB.
-- **Platí od:** aplikace 3.1.0; **Plná kvalita** 3.4.0; **Obraz ve výzkumu** 3.14.0
+- **Platí od:** aplikace 3.1.0; **Plná kvalita** 3.4.0; obrazy z výzkumu 3.14.0 ([A3.8](#A3.8))
 
 <!-- zdroj: app:src/types.ts:257 MAX_EXCERPTS_UI · src/excerpts.ts:12-14 EXCERPT_MAX_SIDE, EXCERPT_QUALITY · src/ui/sources.ts:853 renderExcerptBlock, :932 excerptAdderHtml, :999 addExcerptFromPaste, :1017 addExcerptFromUpload, :1047 recropExcerpt, :1099 addExcerptFromAttachment, :1121 putExcerptDraft, :1158 keepPagePersonId, :1165 excerptContextPages, :377 renderSourceViewer · src/ui/research-ui.ts:2263 excerptResearchUrl · strings.ts sources.excerpt*/viewer*/addExcerpt/excerptsTotal, crop.title/keepPage, research.fullQuality/fullQualityTitle, researchImages.filter -->
 
@@ -233,3 +233,41 @@ k narození a úmrtí, k událostem, ke sňatkům a ke společným událostem p�
 - **Platí od:** aplikace 3.4.0; **Narození neověřená výzkumem** a **Prameny** místo **Citovat** 3.13.1
 
 <!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+
+<a id="A3.8"></a>
+## A3.8 Obraz jen ve výzkumu
+
+Obraz jen ve výzkumu je sken nebo výřez pramene, který je uložený ve výzkumu na počítači a aplikace ho zatím nemá.
+Pramen v aplikaci je i bez něj; obraz se ukáže po načtení z výzkumu, který na tomto počítači běží.
+
+- **Proč obraz v aplikaci není:** u pramene stojí důvod: „Obraz je ve výzkumu, do aplikace nešel (nastavení
+  výzkumu).“, „… (limit velikosti).“, nebo „Obraz se ve výzkumu připravuje, přijde s další verzí.“ Výzkum do souboru
+  pro aplikaci dává obrazy podle svého nastavení a limitu velikosti.
+- **Kde je vidět:** v **Prameny** filtr **Obraz jen ve výzkumu · N** se štítkem *obraz jen ve výzkumu* u pramene
+  a řádkem pod filtrem („N obrazů u M pramenů je uložených jen ve výzkumu na tomto počítači, v aplikaci se ukážou po
+  načtení.“); v nabídce **Výzkum** řádek **Obrazy jen ve výzkumu · N**, který otevře **Prameny** s filtrem a ukazuje
+  průběh načítání.
+- **Načíst:**
+  - **Načíst obraz z výzkumu** u pramene načte jeho obrazy;
+  - **Načíst všechny z výzkumu…** nejdřív ukáže počet pramenů a obrazů, velikost („Uloží se u stromu v tomto
+    prohlížeči.“), kolik obrazů výzkum teprve připraví a volné místo v prohlížeči. Potom průběh s **Pozastavit**
+    a **Zastavit**; okno jde zavřít a načítání poběží dál. Nenačtené zůstanou ve filtru;
+  - načtené obrazy zůstávají u stromu v tomto prohlížeči, odděleně od dat stromu.
+- **Hranice:**
+  - načíst jde jen z výzkumu, který běží na tomto počítači („Načte se, až výzkum na tomto počítači poběží.“). Na
+    telefonu nebo jiném zařízení: „Obraz je ve výzkumu na počítači. Na tomto zařízení bude, když se strom přenese
+    i s obrazy z výzkumu.“;
+  - **Odebrat z aplikace** obrazy z prohlížeče zase odebere; zůstanou ve výzkumu a jdou načíst znovu. Obrazy, které
+    přišly v souboru výzkumu, zůstanou;
+  - **Načítat obraz pramene při otevření** načte jen otevřený pramen a jen když výzkum na tomto počítači běží;
+    seznam pramenů sám nic nenačítá;
+  - export nabízí **Obrazy pramenů**: **Bez obrazů pramenů**, **Jen v aplikaci**, nebo **Všechny z výzkumu** (načtou
+    se před exportem, jen když výzkum na tomto počítači běží).
+- **Ovládání:** aplikace: **Prameny** → filtr **Obraz jen ve výzkumu** → **Načíst všechny z výzkumu…**; u pramene
+  **Načíst obraz z výzkumu**, **Další volby → Odebrat z aplikace**; **Nastavení → Obrazy pramenů** (**Načítat obraz
+  pramene při otevření**, **Odebrat z aplikace…**, **Načíst všechny…**); **Výzkum → Obrazy jen ve výzkumu · N**.
+- **Platí od:** aplikace 3.14.0 s výzkumem 1.18.0
+- **Od aplikace 3.25.0:** filtr a štítek se jmenují **Obraz jen ve výzkumu** (dřív **Obraz ve výzkumu**), řádek pod
+  filtrem říká, kde obrazy jsou, a **?** otevře toto pravidlo.
+
+<!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->

@@ -59,7 +59,7 @@ záznam, proto údaj nepřepíše. Vznikne rozpor mezi hodnotou z aplikace a hod
 - Do rozhodnutí zůstává v aplikaci hodnota z aplikace, výzkum má na tom místě svou.
 - Stejná úprava poslaná znovu nový rozpor nezaloží. Jinak změněná úprava jen přepíše stranu aplikace v otevřeném
   rozporu.
-- **Ovládání:** aplikace: po poslání **Zapsáno, {n} rozporů k rozhodnutí** a **Ukázat**. Terminál: výpis
+- **Ovládání:** aplikace: po poslání **Zapsáno, N rozporů k rozhodnutí** a **Ukázat**. Terminál: výpis
   `strom sync` u každé změny řekne **rozpor k rozhodnutí (výzkum to má ze záznamu)** nebo **rozpor k rozhodnutí
   (výzkum má jiné rodiče)**. Poslání jde vrátit: `strom sync undo I…`.
 - **Platí od:** výzkum 1.5.0. Zpřesnění bez rozporu a rozpor rodičů od 1.12.0, rozpor odebrané osoby od 1.20.0.

@@ -46,6 +46,7 @@ import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { readersOf } from "../core/review.ts";
 import { confirmedOn, markOf } from "../core/readers.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
+import { settledClaim } from "../core/labels.ts";
 import { humanTask } from "../cli/human.ts";
 import { parseYears } from "../core/years.ts";
 import { storySources } from "../core/storykeep.ts";
@@ -802,9 +803,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         // in the research's language (found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in the app's dialog); a side's
         // empty value empty (2 VAL alone: the app shows it as empty)
         w.text(2, "VAL", side ? sideText(tree, c, claim) : claimText(tree, c, claim));
-        if (claim.source && sourceById.has(claim.source)) {
-          citedSources.add(claim.source);
-          w.line(3, "SOUR", x(claim.source));
+        // its source, also one an older strom left as a batch's label in the value ("@s: …", core/labels.ts)
+        const source = settledClaim(tree, c, claim).source;
+        if (source && sourceById.has(source)) {
+          citedSources.add(source);
+          w.line(3, "SOUR", x(source));
         }
         if (side) {
           w.line(3, "_STROM_SIDE", side);

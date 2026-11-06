@@ -10,7 +10,7 @@ Changes from a later version carry its number.
 A line of the research is one goal: the ancestors of a person, the descendants of a person, or one question. Every task
 belongs to some line, and the agent works on the tasks of the lines. The app calls a line a *direction*.
 
-- **Controls:** app: the research panel, section **Directions · {n} active** · terminal: menu **Add to the research →
+- **Controls:** app: the research panel, section **Directions · N active** · terminal: menu **Add to the research →
   A new direction**, command `strom research new`
 - **Since:** research 1.0.0
 
@@ -205,7 +205,7 @@ double the size. A branch with its own choice, and the choice **never**, get no 
 Every task in the queue gives the reason for its place: in a line, helps a line (and how), off the lines (and in which
 branch), a manual choice, or it waits because the line is paused.
 
-- **Controls:** app 3.22.0: section **Queue**, the line at the task (e.g. “helps the direction {n} · {how}”).
+- **Controls:** app 3.22.0: section **Queue**, the line at the task (e.g. “helps the direction N · …”).
 - **Since:** research 1.26.0
 
 <!-- zdroj: research:src/core/queue.ts:312-349 · app:strings.ts live.qWhyLine, qWhyHelps, qWhyOut, qWhyManualNext, qWhyPaused -->

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -28,13 +28,17 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Ein beendetes Gespräch bleibt in der Strom-App nicht mehr „bei der Arbeit“**, auch auf einem ausgelasteten
   Computer oder nach einer Änderung des Computernamens.
 
-- **Die App des Agenten wird wie der Agent im Terminal überwacht.** Ihr eingebauter Browser hält die Bedingungen der
+- **Die Apps der Agenten werden wie der Agent im Terminal überwacht.** Der eingebaute Browser der App des Agenten hält die Bedingungen der
   Archive ein wie der Browser des Agenten in Chrome: Ein Archiv, das nur den Browser eines Menschen zulässt, wird ohne
   dessen Zustimmung mit demselben Hinweis abgelehnt, ein erlaubtes wird verzeichnet und hält sein Tempo; lokale Seiten
   bleiben unberührt. Befehle von strom im eigenen Terminal der App gelten wie in der Shell (was nur ein Mensch tut, die
   Brücke der Strom-App); der Agent wird angewiesen, strom über seine Shell auszuführen. Nichts an der App wird
   abgeschaltet. Das Terminal der App erkennt strom unter jedem seiner Namen – den eines anderen Kanals, einer zweiten
-  Installation, das Paket über einen Paketstarter, einen Pfad dorthin.
+  Installation, das Paket über einen Paketstarter, einen Pfad dorthin. Der Browser von Codex (in der App ChatGPT) hält
+  dieselben Regeln anhand der Adressen in seinem Code ein, sobald die Hooks von strom in Codex bestätigt sind –
+  `strom doctor` und `strom chat` sagen, wann sie warten; Code ohne Adresse wird nie abgelehnt, nur verzeichnet. Computer
+  Use bleibt unüberwacht. Was strom bei welchem Agenten und welcher App überwacht: `strom doc R12`; ein Agent mit Computer
+  Use wird angewiesen, die Strom-App über die Seitenwerkzeuge eines Browsers zu bedienen und die Forschung über strom.
 
 - **Die App des Agenten ohne den Agenten im Terminal.** strom sagt jetzt, was geht und was nicht: Das Gespräch in der App geht weiter,
   selbstständige Arbeit, das Lesen von Scans und die Arbeit aus der Strom-App brauchen den Agenten im Terminal – gesagt,
@@ -67,7 +71,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Archiv, in einer Forschung außerhalb des Forschungsordners gegeben, passt auch die Anweisungen des Agenten dieser
   Forschung an, und eine angegebene Website (example.org) umfasst auch die Adressen, die die Bücher der Forschung
   verwenden. Die Bedingungen des Hauptarchivs alter Akten in Warschau nach der Antwort des Archivs: die Scans frei
-  nutzbar, jeder mit dem Ort des Originals zitiert – Archiv, Bestand, Signatur, Seite oder Blatt.
+  nutzbar, jeder mit dem Ort des Originals zitiert – Archiv, Bestand, Signatur, Seite oder Blatt. Ein Widerspruch, der
+  in einem Stapel mit der Marke einer Quelle verzeichnet wird (`--claim "@s: …"`), zitiert jetzt diese Quelle; einer,
+  den eine frühere Version so verzeichnet hat, zeigt seinen Wert ohne die rohe Marke und zitiert, wo es sich erkennen
+  lässt, seine Quelle in der Strom-App und im GEDCOM.
 
 ## 1.28.0
 

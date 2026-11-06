@@ -298,7 +298,7 @@ test("the tree's instructions and the guide: of a browser strom does not recomme
   await w.withTree();
   const flat = (t: string) => t.replace(/\s+/gu, " ");
   const agents = flat(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"));
-  assert.match(agents, /that built-in browser neither/);
+  assert.match(agents, /those built-in browsers neither/);
   assert.match(agents, /say in one sentence whether strom watches that way/);
   assert.doesNotMatch(agents, /that strom does not watch that way/);
   const guide = flat((await w.ok(["guide"])).out);

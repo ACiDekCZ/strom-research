@@ -25,6 +25,7 @@ import { detectAgent, isAgent } from "../core/which.ts";
 import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
+import { codexHookState } from "../core/codexhook.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { holdsPath, insideProgram, installation, lastingLauncher, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
 import { busyIn, isBusy, type Busy } from "../core/busy.ts";
@@ -224,6 +225,8 @@ register({
       ]),
       // its app here without its CLI: said in one line, nothing installed (--yes; the wizard and strom doctor --fix offer it)
       ...(cliGone ? ["", t("ui.setup.cli.apponly", { app: DESKTOP_APPS[agent]!.name, cli: PROFILES[agent]!.name })] : []),
+      // Codex: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3)
+      ...(agent === "codex" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how") })] : []),
       "",
       ...(found.lines.length ? [...found.lines, ""] : []),
       t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
@@ -254,7 +257,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -522,9 +525,20 @@ function diagnoseInto(
     else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
     else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }) + appOnly);
   }
-  // The desktop apps' own browser, preview and computer use (Claude's, ChatGPT's/Codex's): nothing switched off, strom
-  // neither watches nor recommends them — said where those agents are here; it watches Claude in Chrome alone
-  if ((found.includes("claude") || found.includes("codex")) && !ctx.archiveHere()) add("desktop", "ok", t("ui.doc.desktop.unwatched"));
+  // The desktop apps' own browser and computer use (Claude's, ChatGPT's/Codex's, OpenCode's): nothing switched off, never
+  // recommended — what strom watches of each, said where those agents are here (strom doc R12.1)
+  const apps = (["claude", "codex", "opencode"] as const).filter((a) => found.includes(a));
+  if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1)");
+  // Codex's hooks: strom's rules before its browser run once the person confirms them in Codex (/hooks) — strom never
+  // confirms them for the person (spec 062 K3.3); said with what to do (strom doc R12.5)
+  const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;
+  if (codexRoot) {
+    const state = codexHookState(codexRoot, ctx.env);
+    const fine = state === "trusted" || state === "disabled";
+    const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t("ui.doc.codexhooks.how")}  (strom doc R12.5)` : "strom doc R12.5";
+    add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine ? undefined : fix);
+    checks.at(-1)!.code = `codex.hooks.${state}`;
+  }
 
   // For a person: the shortcut on the desktop, the Strom app.
   const desktop = desktopDir(ctx.env);
@@ -722,7 +736,9 @@ register({
     "(in the terminal, or in a window of the system when an agent runs it): git (Windows: strom's own; macOS: Apple's tools),\n" +
     "an AI agent, what the agents know, the shortcut on the desktop, the Strom app. The agent's desktop app without its CLI\n" +
     "(Claude without Claude Code in the terminal) is a warning, check cli (code agent.cli-missing in --json): working\n" +
-    "alone, reading scans and work from the Strom app need the CLI; --fix offers to install Claude Code.",
+    "alone, reading scans and work from the Strom app need the CLI; --fix offers to install Claude Code. What strom watches\n" +
+    "of each way of working (the desktop apps' browsers, computer use, Codex's hooks — check codexhooks, codes codex.hooks.*):\n" +
+    "strom doc R12.",
   options: [{ name: "fix", type: "boolean", description: "put right what strom can, with the user's yes" }],
   examples: ["strom doctor", "strom doctor --fix", "strom doctor --json"],
   async run(ctx, { opts }) {

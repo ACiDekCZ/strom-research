@@ -10,7 +10,7 @@ und die Strom-App 3.21.2. Änderungen aus einer neueren Version tragen deren Num
 Eine Linie der Forschung ist ein Ziel: die Vorfahren einer Person, die Nachkommen einer Person oder eine Frage. Jede
 Aufgabe gehört zu einer Linie, und der Agent arbeitet an den Aufgaben der Linien.
 
-- **Bedienung:** App: Forschungsbereich, Abschnitt **Richtungen · {n} aktiv** · Terminal: Menü **Die Forschung
+- **Bedienung:** App: Forschungsbereich, Abschnitt **Richtungen · N aktiv** · Terminal: Menü **Die Forschung
   erweitern → Eine neue Richtung**, Befehl `strom research new`
 - **Gilt seit:** Forschung 1.0.0
 
@@ -221,8 +221,8 @@ Antwort „so lassen“ wird erst bei doppelter Größe wieder vorgeschlagen. Ei
 Jede Aufgabe in der Warteschlange nennt den Grund ihres Platzes: in einer Linie, hilft einer Linie (und wie),
 außerhalb der Linien (und in welchem Zweig), Wahl von Hand, oder sie wartet, weil die Linie pausiert ist.
 
-- **Bedienung:** App 3.22.0: Abschnitt **Warteschlange**, Zeile bei der Aufgabe (z. B. „hilft der Richtung {n} ·
-  {wie}“).
+- **Bedienung:** App 3.22.0: Abschnitt **Warteschlange**, Zeile bei der Aufgabe (z. B. „hilft der Richtung N ·
+  …“).
 - **Gilt seit:** Forschung 1.26.0
 
 <!-- zdroj: research:src/core/queue.ts:312-349 · app:strings.ts live.qWhyLine, qWhyHelps, qWhyOut, qWhyManualNext, qWhyPaused -->

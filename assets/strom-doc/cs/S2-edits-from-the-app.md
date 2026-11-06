@@ -75,7 +75,7 @@ v [R5.2](R5-conflicts.md#R5.2); přepisy pramenů z aplikace v [R3.5.1](R3-verif
   - S volbou výzkumu `sync.review on` výzkum poslání nezapíše hned. Čeká na slovo člověka v terminálu
     ([R6](R6-awaiting-action.md)); aplikace mezitím ukazuje **Čeká na potvrzení ve výzkumu.**
   - Po zápisu aplikace sama načte novou verzi výzkumu, když by se tím v aplikaci nic neztratilo.
-  - Rozpory vzniklé posláním ukáže aplikace hláškou **Zapsáno, {n} rozporů k rozhodnutí** s **Ukázat**. Rozhoduje
+  - Rozpory vzniklé posláním ukáže aplikace hláškou **Zapsáno, N rozporů k rozhodnutí** s **Ukázat**. Rozhoduje
     se ve výzkumu (**Rozhodnout ve výzkumu**); hodnota z aplikace do té doby v aplikaci zůstává.
 - **Ovládání:** terminál: `strom config set sync.review on|off`, `strom config set sync.edits conflict|user`
   ([R5.2.1](R5-conflicts.md#R5.2.1)). Aplikace: okno **Výzkum u stromu** ukáže, co volba znamená
@@ -120,7 +120,7 @@ neztratí.
 - **Hranice:**
   - Zápis výzkum odloží, když je strom zapečetěný na jiném počítači (**Převzít na tomto počítači**), když soubory
     ve složce v cloudu ještě nejsou stažené, nebo když je plný disk. Úpravy do té doby čekají neodeslané.
-  - Zapíše-li výzkum jen část, aplikace ukáže **Zapsáno {n}, nezapsáno {m}** a u každé nezapsané úpravy důvod
+  - Zapíše-li výzkum jen část, aplikace ukáže **Zapsáno N, nezapsáno M** a u každé nezapsané úpravy důvod
     (například „nemá společný základ: je potřeba vybrat ve výzkumu“).
   - Po odmítnutí se automatické posílání zastaví. Samo se znovu pošle až po další úpravě.
 - **Ovládání:** aplikace: **Výzkum úpravy nepřijal** v panelu výzkumu, **Zkusit znovu**, **Podrobnosti (k předání)**

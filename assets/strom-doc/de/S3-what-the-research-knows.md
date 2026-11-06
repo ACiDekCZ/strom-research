@@ -170,12 +170,19 @@ B*, *verworfen*, die Zahl der Versionen und eine Notiz. Offene sind aufgeklappt.
   verbunden“, „Nicht mehr gültig: …“.
 - **Welche Hypothesen die Forschung sendet:** offene; entschiedene und verworfene nur die, deren Versionen
   Verbindungen tragen. Zurückgezogene nie.
-- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; sie entscheidet der Mensch in der Forschung,
-  im Terminal ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
-- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)).
+- **Wer entschieden hat:** eine Hypothese, die der Agent entschieden hat ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)),
+  trägt *vom Agenten entschieden* mit dem Tag und **Begründung** (der Text der Entscheidung in der Sprache der
+  Forschung; ein langer klappt auf).
+- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; entschieden wird in der Forschung, im Terminal
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Wer entscheidet, der Mensch oder der Agent, ist eine Wahl der
+  Forschung ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)); **In der Forschung entscheiden**, bei
+  einer entschiedenen **In der Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0 (Versionen, Stand, **Zeigen**); Liste der Hypothesen seit App 3.4.0
+- **Ab App 3.25.0:** *vom Agenten entschieden* mit Begründung (mit Forschung 1.29.0), **In der Forschung
+  entscheiden** und **In der Forschung ändern**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople · CHANGELOG 3.11.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Zeigen: nur in der Ansicht verbunden

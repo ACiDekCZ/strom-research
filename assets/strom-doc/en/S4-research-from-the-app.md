@@ -45,6 +45,7 @@ The tree can move by itself to the person the agent is working on right now (the
   touch it returns by itself. The choice is remembered for the device.
 - **Controls:** app: **Research overview → Follow the agent in the tree** / **Stop following**.
 - **Since:** app 3.5.0
+- **From app 3.24.0:** following also works in the fan and on the map ([S4.1.3](#S4.1.3)); moving the map pauses it the same way.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -78,6 +79,72 @@ the panel and the overview.
 - **Since:** app 3.22.0
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+
+<a id="S4.1.3"></a>
+### S4.1.3 Following in the fan and on the map
+
+Following the agent ([S4.1.1](#S4.1.1)) works in Family, in the fan and on the map. The switch **Follow in** changes
+the view and following stays on. The fan does not move; it only marks where the work is; the map shows the place of
+the work with a ring.
+
+- **Fan:**
+  - the centre of the fan is the **Focused person** before following was turned on (the default), the **Default
+    person**, or a **Chosen person** (for one tree). It is never the person the agent works on. **Pin as centre** holds
+    a person as the centre, **Release centre** lets it go; a new centre cross-fades in 150 ms;
+  - the person worked on has an outline in the session's colour and flashes twice when the work moves and when
+    following comes to the fan. A narrow sector gets a mark outside the fan;
+  - a person outside the fan gets the label **Work outside the fan:** at the nearest person of the fan, in this order:
+    husband or wife, sibling, an ancestor beyond the edge of the fan, for a descendant the centre, otherwise the first
+    ancestor up to 12 generations back.
+- **Map:**
+  - the place of the work has a ring in the session's colour: a solid ring is the **record place** (the place of the
+    source the agent works on, when the research sends it), a dashed one the **person's place** (the first place with a
+    position from birth, residence, marriage, death). It is never an archive's seat;
+  - the ring pulses once when following comes to the map. The map moves only when the place of the first session is
+    out of view and the map is not paused. Moving the map by hand pauses it (**Map panning paused**) until **Back to
+    the agent**;
+  - a place without a position shows a line at the top "… – no position on the map" with **Find position** (for a
+    tree with a research **Look up in the research**, [A6.5.2](A6-views.md#A6.5.2)); a person without a place "… – no
+    place";
+  - the legend **What the highlights mean** explains the rings, the trail and the hollow marker.
+- **Session trail:** in Family, the fan and on the map the people and places worked on fade with age: at most the last
+  8 changes, none older than 60 minutes. On the map these are empty rings; a dotted line joins the places of one
+  session (not on a phone). The trail can be turned off.
+- **Limits:**
+  - when several sessions run, each has a number (shown from two) and a colour: the first the main one, the others an
+    accent one;
+  - work on a marriage is followed at the couple: the husband is focused, otherwise the wife;
+  - the choices apply on this device for all trees, the chosen person only for its tree. On a phone the display is
+    simplified.
+- **Controls:** app: while following **Follow in** (Family, Fan, Map); **Settings → Following research** → **Follow the
+  agent in** (used when following is turned on and at **Back to the agent**), **Fan centre while following** (**Choose
+  person**, **Change**), **Session trail in Family, fan and map**; in the fan **Pin as centre** / **Release centre**.
+- **Since:** app 3.24.0
+- **From app 3.25.0:** the map's legend says "Hollow marker: a place without a person among the places shown" and a
+  place of work without a person on the map "no person on the map yet" (before, "out of the map's range").
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Changes from the research without flicker
+
+A change from the research shows in the tree at once, without redrawing the whole screen. Cards that stay keep their
+place; what was added, removed or changed shows briefly with motion.
+
+- **Limits:**
+  - cards that stay move smoothly (320 ms). A new person grows out of their line and a light runs along the line; a
+    removed one shrinks back into their line; a merged person flows into the one that stays (by the same surname, birth
+    ±1 year, a common parent or partner); a changed card has an outline in the session's colour;
+  - at most 12 new cards show with motion; with more than 60 changed people the motion is skipped and the changes show
+    at once. On a phone and a tablet the times are shorter (×0.875);
+  - a new person out of view gets a mark at the edge ("Added outside the view: …", 4 s). The zoom and the focused
+    person do not change. A screen reader announces the changes;
+  - **Motion when changes load** turned off, and reduced motion in the system, show the changes at once, only
+    highlighted ("Reduced motion is on in the system, so changes appear without motion.").
+- **Controls:** app: **Settings → Following research → Motion when changes load** (on by default).
+- **Since:** app 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
 <a id="S4.2"></a>
 ## S4.2 The queue in the app

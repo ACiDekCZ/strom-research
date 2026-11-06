@@ -233,7 +233,7 @@ documentation level of a person is counted by the app itself, from citations onl
 | **Tree overview → Data quality → Certainty of research facts** | births, deaths and marriages by degree | the research |
 | the person page, **For researchers → Certainty of the facts** | the degree of each of the person's facts | the research |
 | **Documented** / **Partly documented** / **Undocumented** (● ◐ ○) | the documentation level of a person | citations ([R3.8.1](#R3.8.1)) |
-| **For researchers**, “Backed by sources: {n} of {m} facts” | the person's facts with a source | citations |
+| **For researchers**, “Backed by sources: N of M facts” | the person's facts with a source | citations |
 | **Tree overview → Ancestors**, column **documented** | ancestors with a documented birth | with a research only Proven, otherwise citations |
 | **Where evidence is missing → Births not proven in the research** | ancestors' births that are not Proven | the research |
 | book, **Researcher data**: ● documented · ◐ conflict · ○ not documented | the evidence state of a fact | Proven, **or** any citation |

@@ -219,7 +219,7 @@ aplikace sama, jen z citací.
 | **Přehled stromu → Kvalita dat → Jistota údajů z výzkumu** | narození, úmrtí a sňatky podle stupně | výzkum |
 | stránka osoby, **Pro badatele → Jistota údajů** | stupeň každého údaje osoby | výzkum |
 | **Doloženo** / **Částečně doloženo** / **Nedoloženo** (● ◐ ○) | úroveň doložení osoby | citace ([R3.8.1](#R3.8.1)) |
-| **Pro badatele**, „Doloženo prameny: {n} z {m} údajů“ | údaje osoby s pramenem | citace |
+| **Pro badatele**, „Doloženo prameny: N z M údajů“ | údaje osoby s pramenem | citace |
 | **Přehled stromu → Předci**, sloupec **doloženo** | předci s doloženým narozením | s výzkumem jen Doložené, jinak citace |
 | **Kde chybí doklady → Narození neověřená výzkumem** | narození předků, která nejsou Doložené | výzkum |
 | kniha, **Údaje pro badatele**: ● doloženo · ◐ rozpor · ○ nedoloženo | stav doložení údaje | Doložené, **nebo** jakákoli citace |

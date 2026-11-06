@@ -22,11 +22,13 @@ The procedure in brief:
    examples in [R9.10](#R9.10).
 
 > **Note: where exactly the agent's browser applies.** strom watches the agent's browser only with **Claude Code**
-> and the **Claude in Chrome** extension. strom cannot watch the browser or computer use of another agent (Codex,
-> Antigravity and others): such an agent does not take them of its own accord into an archive only a person's
-> browser may enter, and a person saves the images. The built-in browser, the preview and computer use of the Claude
-> and ChatGPT/Codex desktop apps strom does not watch and does not recommend; the agent uses them only when a person
-> explicitly asks ([R9.4.2](#R9.4.2)).
+> and the **Claude in Chrome** extension, and in the Claude app's built-in browser
+> ([R12.2](R12-where-the-agent-works.md#R12.2)). strom cannot watch the browser or computer use of another agent
+> (Codex, Antigravity and others): such an agent does not take them of its own accord into an archive only a
+> person's browser may enter, and a person saves the images. The built-in browsers and computer use of the agents'
+> desktop apps strom does not recommend; the agent uses them only when a person explicitly asks
+> ([R9.4.2](#R9.4.2)). Where the agent is talked to and what strom watches where, [R12](R12-where-the-agent-works.md)
+> sums up.
 
 <!-- zdroj: research:CHANGELOG.cs.md 1.27.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · app:CHANGELOG.cs.md 3.23.0 -->
 
@@ -167,7 +169,8 @@ tool. strom checks it by a hook before every fetch and counts the requests to ea
 ## R9.4 The agent's browser
 
 The agent's browser is Chrome with the **Claude in Chrome** extension, driven by **Claude Code**. Before every page it
-opens, strom decides the same way as for a web fetch ([R9.3](#R9.3)), only on the way of a person's browser.
+opens, strom decides the same way as for a web fetch ([R9.3](#R9.3)), only on the way of a person's browser. The
+Claude app's built-in browser it watches the same way ([R12.2](R12-where-the-agent-works.md#R12.2)).
 
 - **Enforced by the code (a hook before a page opens):**
   - an archive only through a person's browser and images of an archive with a restriction open only with the
@@ -210,22 +213,23 @@ opens, strom decides the same way as for a web fetch ([R9.3](#R9.3)), only on th
 <!-- zdroj: research:src/core/connector.ts agentBrowser, sessionBrowser · src/commands/start.ts:244 chrome · src/runners/claude.ts RUN_DISALLOWED (AskUserQuestion, switch_browser) · src/core/config.ts agent.browser -->
 
 <a id="R9.4.2"></a>
-### R9.4.2 Built-in browsers and computer use: unwatched, not recommended
+### R9.4.2 Built-in browsers and computer use: not recommended
 
-- Nothing of the agents' desktop apps is switched off in the research. The built-in browser, the preview and computer
-  use of the Claude and ChatGPT/Codex desktop apps strom does not watch and does not recommend. Only Claude in Chrome
-  is watched ([R9.4](#R9.4)).
+- Nothing of the agents' desktop apps is switched off in the research. The Claude app's built-in browser (its preview
+  too) strom watches as it does Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Computer use of the
+  Claude app and the browser and computer use of the ChatGPT app (Codex) strom does not watch
+  ([R12.5](R12-where-the-agent-works.md#R12.5)). None of them strom recommends.
 - **Method only:** the agent does not use them of its own accord: it does not take them into an archive only a
   person's browser may enter, and a person saves the images ([R9.6](#R9.6)). When a person explicitly asks for them,
-  it is the person's choice: the agent says in one sentence that strom does not watch that way and what the
-  archive's terms say. It never gets around the terms and never passes a check that a person is at the computer.
+  it is the person's choice: the agent says in one sentence whether strom watches that way and what the archive's
+  terms say. It never gets around the terms and never passes a check that a person is at the computer.
 - The agent never works in a copy of the research that the agent's desktop app opens in its own worktree.
-- **Why:** strom has no hook before them, so it does not check the pages they open. The archive's downloader, the web
-  fetch of pages and the agent's browser in Chrome always follow the archives' rules ([R9.3](#R9.3), [R9.4](#R9.4)).
+- **Why:** before the unwatched ones strom has no hook, so it does not check the pages they open. The archive's
+  downloader, the web fetch of pages and the agent's browser in Chrome always follow the archives' rules
+  ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Controls:** terminal: `strom doctor`, the row **desktop apps' browser**.
-- **Since:** research 1.27.0
-
-<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:514 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0 -->
+- **Since:** research 1.27.0; 1.29.0: the Claude app's built-in browser watched
+<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
 
 <a id="R9.4.3"></a>
 ### R9.4.3 The browser's state in strom doctor and the app

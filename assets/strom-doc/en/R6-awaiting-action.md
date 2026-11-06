@@ -14,7 +14,7 @@ The list is worked out from the research each time; nothing is written into it.
 - **Limits:** a task that waits only for an archive's permission and has no images belongs to the archive's question.
   A research that serves as an archive has no tasks or places in the list.
 - **Controls:** app: the section **Awaiting action** · terminal: the menu **What waits (n)**, the status line
-  **Waiting: N** · the page for the phone: **What waits · {n}**.
+  **Waiting: N** · the page for the phone: **What waits · N**.
 - **Since:** research 1.3.0. The list by where things are dealt with, and in the app, from 1.14.0 (app 3.11.0).
 
 <!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
@@ -63,7 +63,7 @@ archive's permission**, **letter**, **family**, **web**, **other**.
 - After the images are saved into the research, the task wakes with a note of which images are missing
   ([R6.7.2](#R6.7.2)).
 - **Controls:** terminal: `strom task wait T… --images B…:<from>-<to>`, then `strom media add --inbox`; in **What
-  waits** **Open the folder ({have}/{want} saved)**. App: **Open folder** (from app 3.23.0; before, **Folder**).
+  waits** **Open the folder (M/N saved)**. App: **Open folder** (from app 3.23.0; before, **Folder**).
 - Browser-only archives, images from the app and what a person does: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
 - **Since:** research 1.0.0. Waking after saving from 1.15.0.
 
@@ -142,12 +142,25 @@ confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)
   group **Hypotheses to decide**: the question, the versions and the proposal (“Proposed: variant B — …”). The
   choice: **Decide as proposed**, **Decide otherwise** (another version, or none, with a reason), **Leave it as it is
   (the proposal not taken)**.
-- **Limits:** only a person decides ([R6.6](#R6.6)). It is only in the terminal; the Strom app does not show it
-  ([R6.1.1](#R6.1.1)). In a Strom archive the group does not exist.
-- **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`.
+- After the proposals, open hypotheses without a proposal wait. The choice: **Decide** (a version, or none, with the
+  text of the decision), **Leave it open**. A hypothesis left open shows up in What waits again once the agent proposes
+  how to decide it.
+- A decided or abandoned hypothesis opened from the menu offers **Change the decision**: the new text of the decision
+  is required and is also the reason for the change. When the agent decided it, it carries **Decided by the agent
+  (day).**
+- **Limits:** this applies when a person decides the hypotheses (**The user decides**, the default;
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); only a person decides ([R6.6](#R6.6)). With **The AI decides** the
+  agent decides itself what a cited record supports, and only its proposals wait (decisions it may not make itself).
+  The group is only in the terminal; the Strom app does not show it ([R6.1.1](#R6.1.1)). In a Strom archive the group
+  does not exist.
+- **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`. The same
+  choices are in the person review: **Add to the research** → **Review one person** → **Hypotheses about the person
+  (n)**.
 - **Since:** research 1.28.0
+- **From research 1.29.0:** also open hypotheses without a proposal (**Decide**, **Leave it open**), **Change the
+  decision** and the choice **Who decides the hypotheses**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R6.4"></a>
 ## R6.4 Groups and order

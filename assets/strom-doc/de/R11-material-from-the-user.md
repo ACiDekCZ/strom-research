@@ -35,7 +35,7 @@ erfasst daraus nur, was wirklich darin steht.
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Gilt seit:** Forschung 1.0.0
 
-<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · commit ff18ac678 "a folder full of images is a book of scans" · commit e9386db84 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
+<!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research 1.0.0 = commit 48698860 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
 <a id="R11.2"></a>
 ## R11.2 Eine Urkunde ist eine Quelle, der Rest ist ein Hinweis

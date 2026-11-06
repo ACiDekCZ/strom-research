@@ -42,6 +42,7 @@ podmínka, kterou nastavil člověk (například tempo týdenního limitu předp
 
 - Výzkum může být i jen **Archiv Stromu**, na kterém agent nepracuje: [R7.8](R7-when-the-agent-works.md#R7.8).
 - Podrobně: [R7](R7-when-the-agent-works.md).
+- Kde se s agentem mluví (terminál, aplikace Claude nebo ChatGPT) a co strom kde hlídá: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 

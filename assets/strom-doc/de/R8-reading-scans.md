@@ -450,3 +450,52 @@ Der Grad der Sicherheit einer Angabe aus einem Scan hängt davon ab, wer den Ein
 - **Gilt seit:** Forschung 1.0.0; Lesen eines Dokuments durch Leser der Forschung 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:1-18 · assets/method/core.md:8-12 · src/core/evidence.ts:55-68 checkStatus · src/core/readsync.ts readingGrade -->
+
+<a id="R8.8"></a>
+## R8.8 Ein Dokument aus der App lesen
+
+Ein Foto, Scan oder PDF eines Dokuments lässt sich aus der App dem Agenten der Forschung zum Lesen geben:
+Transkription, Übersetzung und Erläuterung. Lesen kann ein Leser oder zwei unabhängige; zwei werden verglichen, und
+das Ergebnis zeigt die Stellen, an denen sie abweichen. In den Stammbaum kommt vom Gelesenen nichts ohne Bestätigung.
+
+- **Prüft der Code:**
+  - Eingabe: Foto, Scan oder PDF; mehrere Dateien sind Seiten eines Dokuments; höchstens 10 Seiten und 50 MB pro
+    Datei. Eine Seite, deren kürzere Seite weniger als 800 px hat, ist zu klein, und die Leser bekommen sie nicht;
+  - **1 Leser** (schneller, günstiger) oder **2 unabhängige Leser** (zuverlässiger, zum Eintragen in den Stammbaum);
+    die Wahl wird gemerkt;
+  - jeder Leser beginnt mit sauberem Kontext und liefert: Transkription wortgetreu, Übersetzung in die Sprache der
+    Forschung, Erläuterung (Begriffe, Abkürzungen, Berufe, Zusammenhänge) und die genannten Personen, Ereignisse und
+    Beziehungen;
+  - der zweite Leser liest blind, ohne das erste Lesen zu sehen. Verglichen werden die Transkriptionen Wort für Wort,
+    die Personen nach Rolle und Reihenfolge, die Ereignisse nach Art und Reihenfolge. Wo sie abweichen, gibt es
+    Varianten;
+  - ein Name, den ein Leser angibt, muss in seiner Transkription stehen. Welche Personen und Orte des Stammbaums
+    passen, bestimmt strom, nicht der Leser;
+  - höchstens 20 Lesungen pro Stunde und 60 pro Tag (erhöhen kann sie nur der Mensch); bei einem Stammbaum wird ein
+    Dokument auf einmal gelesen, und 3 weitere warten. Im Strom-Archiv gibt es das Lesen nicht.
+- **Ergebnis:**
+  - die Marke der Übereinstimmung: **2 Leser, übereinstimmend**, **2 Leser, K Stellen weichen ab** oder **1 Leser**.
+    Auf der Seitenvorschau markiert ein grüner Rahmen den gewählten Eintrag und ein bernsteinfarbener die Stellen, an
+    denen die Leser abweichen („Leser weichen ab: der erste liest „a“, der zweite „b““). In der Transkription bedeutet
+    `[?]` unsicheres Lesen und `[...]` eine unleserliche oder ausgelassene Stelle;
+  - die Abschnitte **Transkription**, **Übersetzung**, **Erläuterung**, **Über das Dokument**, **Erwähnt**;
+    **Transkription kopieren**;
+  - ein Dokument, das sich nicht lesen lässt, bekommt einen Grund (verschwommen, Spiegelung über dem Text, schräg
+    fotografiert, Teil der Seite fehlt, zu dunkel, zu klein, kein geschriebener Text im Bild) und einen Rat für ein
+    besseres Foto;
+  - das Ergebnis bleibt im Verlauf des Lesens (**Gelesene Dokumente**). In den Stammbaum geht es über **In den
+    Stammbaum vorschlagen…**.
+- **Grenzen:**
+  - es lesen Agent und Modell der Forschung für Scans ([R8.3](#R8.3)); das Lesen zählt zu den Kosten der Forschung,
+    auch ein abgebrochenes: Bereits Gelesenes zählt;
+  - das Fenster lässt sich schließen; das Lesen läuft weiter, und das Ergebnis wird gemeldet. Die Schätzung im Fenster
+    rechnet mit etwa einer Minute pro Leser, mit Grok 4 Minuten;
+  - lesen geht nur mit einer Forschung, die auf diesem Computer läuft und einen Agenten eingerichtet hat; sonst sagt
+    der Dialog, warum (**Gerade nicht möglich: …**).
+- **Bedienung:** App: **Forschung → Dokument lesen…**, im Menü der Person **Dokument zu dieser Person lesen…**; Dateien
+  ins Fenster ziehen oder **Dateien wählen…**; wahlweise **Dokument betrifft** (eine Person) und **Notiz**;
+  **Leser**; **Lesen**. Eine in die App gezogene Datei bietet **Jetzt lesen** oder **Zu den Materialien**
+  ([R11](R11-material-from-the-user.md)). Verlauf: **Forschung für diesen Stammbaum… → Gelesene Dokumente (N) ›**.
+- **Gilt seit:** App 3.14.0, Forschung 1.18.0
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->

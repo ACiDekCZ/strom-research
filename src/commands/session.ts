@@ -639,6 +639,10 @@ register(
   {
     path: ["agents", "sync"],
     summary: "Write AGENTS.md, CLAUDE.md and the agent permissions for this tree",
+    description:
+      "The files each agent reads in the tree: AGENTS.md, CLAUDE.md, Claude Code's settings and hooks, Codex's rules and\n" +
+      "hooks (.codex/hooks.json — Codex runs them once the person confirms them in Codex: /hooks), OpenCode's and Grok's\n" +
+      "rules; written only where something changed (a changed Codex hook is to be confirmed again). strom doc R12.",
     group: "setup",
     tree: true,
     run(ctx) {

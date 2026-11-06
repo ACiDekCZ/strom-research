@@ -43,6 +43,7 @@ na to warunek ustawiony przez człowieka (na przykład tempo tygodniowego limitu
 
 - Badanie może być też tylko **Archiwum Strom**, nad którym agent nie pracuje: [R7.8](R7-when-the-agent-works.md#R7.8).
 - Szczegółowo: [R7](R7-when-the-agent-works.md).
+- Gdzie rozmawia się z agentem (terminal, aplikacja Claude albo ChatGPT) i czego strom gdzie pilnuje: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 

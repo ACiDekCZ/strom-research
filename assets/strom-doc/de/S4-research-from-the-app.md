@@ -50,6 +50,7 @@ Arbeit im Abschnitt **Jetzt**).
   gespeichert.
 - **Bedienung:** App: **Forschungsübersicht → Agenten im Stammbaum folgen** / **Nicht mehr folgen**.
 - **Gilt seit:** App 3.5.0
+- **Ab App 3.24.0:** Folgen geht auch im Fächer und auf der Karte ([S4.1.3](#S4.1.3)); das Verschieben der Karte pausiert es ebenso.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -84,6 +85,76 @@ Die Wahl gilt für das Panel und die Übersicht.
 - **Gilt seit:** App 3.22.0
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+
+<a id="S4.1.3"></a>
+### S4.1.3 Folgen im Fächer und auf der Karte
+
+Das Folgen des Agenten ([S4.1.1](#S4.1.1)) läuft in der Familie, im Fächer und auf der Karte. Der Umschalter
+**Folgen in** wechselt die Ansicht, und das Folgen bleibt eingeschaltet. Der Fächer bewegt sich dabei nicht, er
+markiert nur, wo gearbeitet wird; die Karte zeigt den Ort der Arbeit mit einem Ring.
+
+- **Fächer:**
+  - die Mitte des Fächers ist die **Fokussierte Person** vor dem Einschalten des Folgens (Standard), die
+    **Standardperson** oder eine **Gewählte Person** (für einen Stammbaum). Nie ist es die Person, an der der Agent
+    arbeitet. **Als Mitte fixieren** hält eine Person als Mitte, **Mitte lösen** gibt sie frei; eine neue Mitte blendet
+    in 150 ms über;
+  - die bearbeitete Person hat einen Umriss in der Farbe der Sitzung und blinkt zweimal, wenn die Arbeit wechselt und
+    wenn das Folgen in den Fächer kommt. Ein schmaler Sektor bekommt eine Marke außerhalb des Fächers;
+  - eine Person außerhalb des Fächers bekommt das Schild **Außerhalb des Fächers in Bearbeitung:** bei der nächsten
+    Person des Fächers, in dieser Reihenfolge: Ehemann oder Ehefrau, Geschwister, ein Vorfahr jenseits des Fächerrands,
+    bei einem Nachkommen die Mitte, sonst der erste Vorfahr bis zu 12 Generationen zurück.
+- **Karte:**
+  - der Ort der Arbeit hat einen Ring in der Farbe der Sitzung: ein voller Ring ist der **Ort des Eintrags** (der Ort
+    der Quelle, an der der Agent arbeitet, wenn die Forschung ihn sendet), ein gestrichelter der **Ort der Person** (der
+    erste Ort mit Position aus Geburt, Wohnort, Heirat, Tod). Nie ist es der Sitz eines Archivs;
+  - der Ring pulsiert einmal, wenn das Folgen auf die Karte kommt. Die Karte verschiebt sich nur, wenn der Ort der
+    ersten Sitzung außerhalb der Ansicht liegt und die Karte nicht pausiert ist. Verschieben von Hand pausiert sie
+    (**Kartenschwenk pausiert**) bis **Zurück zum Agenten**;
+  - ein Ort ohne Position zeigt oben die Zeile „… – ohne Position auf der Karte“ mit **Position suchen** (bei einem
+    Stammbaum mit Forschung **In der Forschung suchen**, [A6.5.2](A6-views.md#A6.5.2)); eine Person ohne Ort „… – ohne
+    Ort“;
+  - die Legende **Bedeutung der Markierungen** erklärt die Ringe, die Spur und die hohle Markierung.
+- **Sitzungsspur:** in der Familie, im Fächer und auf der Karte verblassen die bearbeiteten Personen und Orte mit dem
+  Alter: höchstens die letzten 8 Änderungen, keine älter als 60 Minuten. Auf der Karte sind es leere Ringe, die Orte
+  einer Sitzung verbindet eine gepunktete Linie (nicht auf dem Telefon). Die Spur lässt sich ausschalten.
+- **Grenzen:**
+  - laufen mehrere Sitzungen, hat jede eine Nummer (sichtbar ab zwei) und eine Farbe: die erste die Hauptfarbe, die
+    weiteren eine Akzentfarbe;
+  - Arbeit an einer Heirat wird beim Paar verfolgt: fokussiert ist der Ehemann, sonst die Ehefrau;
+  - die Einstellungen gelten auf diesem Gerät für alle Stammbäume, die gewählte Person nur für ihren Stammbaum. Auf dem
+    Telefon ist die Darstellung vereinfacht.
+- **Bedienung:** App: beim Folgen **Folgen in** (Familie, Fächer, Karte); **Einstellungen → Forschung verfolgen** →
+  **Dem Agenten folgen in** (gilt beim Einschalten des Folgens und bei **Zurück zum Agenten**), **Fächermitte beim
+  Folgen** (**Person wählen**, **Ändern**), **Sitzungsspur in Familie, Fächer und Karte**; im Fächer **Als Mitte
+  fixieren** / **Mitte lösen**.
+- **Gilt seit:** App 3.24.0
+- **Ab App 3.25.0:** die Legende der Karte sagt „Hohle Markierung: Ort ohne Person unter den gezeigten Orten“ und ein
+  Ort der Arbeit ohne Person auf der Karte „noch ohne Person auf der Karte“ (früher „außerhalb des Kartenbereichs“).
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Änderungen aus der Forschung ohne Flackern
+
+Eine Änderung aus der Forschung erscheint im Stammbaum sofort, ohne den ganzen Bildschirm neu zu zeichnen. Karten,
+die bleiben, behalten ihren Platz; was hinzukam, wegfiel oder sich änderte, zeigt sich kurz mit Bewegung.
+
+- **Grenzen:**
+  - bleibende Karten verschieben sich fließend (320 ms). Eine neue Person wächst aus ihrer Linie, und ein Licht läuft
+    die Linie entlang; eine entfernte zieht sich in ihre Linie zurück; eine zusammengeführte Person fließt in die, die
+    bleibt (nach gleichem Nachnamen, Geburt ±1 Jahr, gemeinsamem Elternteil oder Partner); eine geänderte Karte hat
+    einen Umriss in der Farbe der Sitzung;
+  - mit Bewegung zeigen sich höchstens 12 neue Karten; bei mehr als 60 geänderten Personen entfällt die Bewegung, und
+    die Änderungen erscheinen sofort. Auf Telefon und Tablet sind die Zeiten kürzer (×0,875);
+  - eine neue Person außerhalb der Ansicht bekommt eine Marke am Rand („Außerhalb der Ansicht hinzugefügt: …“, 4 s).
+    Zoom und fokussierte Person ändern sich nicht. Ein Bildschirmleser kündigt die Änderungen an;
+  - ausgeschaltete **Bewegung beim Laden von Änderungen** und reduzierte Bewegung im System zeigen die Änderungen
+    sofort, nur hervorgehoben („Im System ist reduzierte Bewegung aktiv, Änderungen erscheinen daher ohne
+    Bewegung.“).
+- **Bedienung:** App: **Einstellungen → Forschung verfolgen → Bewegung beim Laden von Änderungen** (standardmäßig an).
+- **Gilt seit:** App 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
 <a id="S4.2"></a>
 ## S4.2 Warteschlange in der App

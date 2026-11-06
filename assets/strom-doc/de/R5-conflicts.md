@@ -66,7 +66,7 @@ zwischen dem Wert aus der App und dem Wert der Forschung.
 - Bis zur Entscheidung bleibt in der App der Wert aus der App, die Forschung hat an dieser Stelle ihren eigenen.
 - Dieselbe Änderung, erneut gesendet, legt keinen neuen Widerspruch an. Eine anders geänderte Änderung überschreibt
   nur die Seite der App im offenen Widerspruch.
-- **Bedienung:** App: nach dem Senden **Geschrieben, {n} Widersprüche zu entscheiden** und **Anzeigen**. Terminal: die
+- **Bedienung:** App: nach dem Senden **Geschrieben, N Widersprüche zu entscheiden** und **Anzeigen**. Terminal: die
   Ausgabe von `strom sync` sagt bei jeder Änderung **ein Widerspruch zum Entscheiden (die Forschung hat es aus einem
   Eintrag)** oder **ein Widerspruch zum Entscheiden (die Forschung hat andere Eltern)**. Das Senden lässt sich
   zurücknehmen: `strom sync undo I…`.

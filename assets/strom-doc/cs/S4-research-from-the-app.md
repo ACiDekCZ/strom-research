@@ -42,6 +42,7 @@ Strom může sám přecházet na osobu, na které agent právě pracuje (první 
   se pamatuje pro zařízení.
 - **Ovládání:** aplikace: **Přehled výzkumu → Sledovat agenta ve stromu** / **Přestat sledovat**.
 - **Platí od:** aplikace 3.5.0
+- **Od aplikace 3.24.0:** sledovat jde i ve vějíři a na mapě ([S4.1.3](#S4.1.3)); posun mapy ji pozastaví stejně.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -72,6 +73,68 @@ i Přehled.
 - **Platí od:** aplikace 3.22.0
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+
+<a id="S4.1.3"></a>
+### S4.1.3 Sledovat ve vějíři a na mapě
+
+Sledování agenta ([S4.1.1](#S4.1.1)) běží v Rodině, ve vějíři i na mapě. Přepínač **Sledovat v** mění pohled a
+sledování zůstane zapnuté. Vějíř se při tom nehýbe, jen označí, kde se pracuje; mapa ukáže místo práce kruhem.
+
+- **Vějíř:**
+  - střed vějíře je **Osoba v zaměření** před zapnutím sledování (výchozí), **Výchozí osoba**, nebo **Vybraná osoba**
+    (pro jeden strom). Nikdy to není osoba, na které agent pracuje. **Zafixovat jako střed** podrží osobu jako střed,
+    **Uvolnit střed** ho pustí; nový střed se prolne za 150 ms;
+  - osoba, na které se pracuje, má obrys v barvě sezení a dvakrát blikne, když se práce přesune a když sledování
+    přejde do vějíře. Úzká výseč dostane značku vně vějíře;
+  - osoba mimo vějíř dostane štítek **Pracuje se mimo vějíř:** u nejbližší osoby vějíře, v tomto pořadí: manžel nebo
+    manželka, sourozenec, předek za okraji vějíře, u potomka střed, jinak první předek až 12 generací zpět.
+- **Mapa:**
+  - místo práce má kruh v barvě sezení: plný kruh je **místo záznamu** (místo pramene, na kterém agent pracuje, když
+    ho výzkum posílá), přerušovaný **místo osoby** (první místo s polohou z narození, bydliště, sňatku, úmrtí).
+    Sídlo archivu to nikdy není;
+  - kruh jednou pulzne, když sledování přejde na mapu. Mapa se posune jen tehdy, když je místo prvního sezení mimo
+    výhled a mapa není pozastavená. Ruční posun mapy ji pozastaví (**Posun mapy pozastaven**) do **Zpět k agentovi**;
+  - místo bez polohy ukáže nahoře řádek „… – bez polohy na mapě“ s **Dohledat polohu** (u stromu s výzkumem
+    **Dohledat ve výzkumu**, [A6.5.2](A6-views.md#A6.5.2)); osoba bez místa „… – bez místa“;
+  - legenda **Co značí zvýraznění** vysvětlí kruhy, stopu a dutou značku.
+- **Stopa sezení:** v Rodině, vějíři i na mapě slábnou osoby a místa, na kterých se pracovalo, podle stáří: nejvýš
+  posledních 8 změn, žádná starší než 60 minut. Na mapě jsou to prázdné kruhy, místa jednoho sezení spojuje tečkovaná
+  čára (ne na telefonu). Stopa jde vypnout.
+- **Hranice:**
+  - běží-li víc sezení, každé má číslo (ukáže se od dvou) a barvu: první hlavní, další doplňkovou;
+  - práce na sňatku se sleduje u páru: v zaměření je manžel, jinak manželka;
+  - volby platí na tomto zařízení pro všechny stromy, vybraná osoba jen pro svůj strom. Na telefonu je zobrazení
+    zjednodušené.
+- **Ovládání:** aplikace: při sledování **Sledovat v** (Rodina, Vějíř, Mapa); **Nastavení → Sledování výzkumu** →
+  **Sledovat agenta v** (použije se při zapnutí sledování a při **Zpět k agentovi**), **Střed vějíře při sledování**
+  (**Vybrat osobu**, **Změnit**), **Stopa sezení v Rodině, vějíři a na mapě**; ve vějíři **Zafixovat jako střed** /
+  **Uvolnit střed**.
+- **Platí od:** aplikace 3.24.0
+- **Od aplikace 3.25.0:** legenda mapy říká „Dutá značka: místo bez osoby v zobrazených místech“ a místo práce bez
+  osoby na mapě „zatím bez osoby na mapě“ (dřív „mimo rozsah mapy“).
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Změny z výzkumu bez blikání
+
+Změna z výzkumu se do stromu promítne hned a bez překreslení celé obrazovky. Karty, které zůstávají, drží své místo;
+co přibylo, ubylo nebo se změnilo, se krátce ukáže pohybem.
+
+- **Hranice:**
+  - zůstávající karty se přesunou plynule (320 ms). Nová osoba vyroste ze své linky a linkou proběhne světlo;
+    odebraná se stáhne zpět do své linky; sloučená osoba splyne s tou, která zůstává (podle stejného příjmení,
+    narození ±1 rok, společného rodiče nebo partnera); změněná karta má obrys v barvě sezení;
+  - pohybem se ukáže nejvýš 12 nových karet; při víc než 60 změněných osobách se pohyb vynechá a změny se ukážou
+    hned. Na telefonu a tabletu jsou časy kratší (×0,875);
+  - nová osoba mimo výhled dostane značku u okraje („Přibyla mimo obraz: …“, 4 s). Přiblížení ani osoba v zaměření
+    se nezmění. Čtečka obrazovky změny oznámí;
+  - vypnutý **Pohyb při načtení změn** i omezený pohyb v systému ukážou změny hned, jen zvýrazněné („Systém má
+    zapnutý omezený pohyb, změny se proto ukážou bez pohybu.“).
+- **Ovládání:** aplikace: **Nastavení → Sledování výzkumu → Pohyb při načtení změn** (výchozí zapnuto).
+- **Platí od:** aplikace 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
 <a id="S4.2"></a>
 ## S4.2 Fronta v aplikaci

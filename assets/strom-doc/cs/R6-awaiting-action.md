@@ -13,7 +13,7 @@ Seznam se pokaždé spočítá z výzkumu, nic se do něj nezapisuje.
 - **Hranice:** úkol, který čeká jen na svolení archivu a nemá snímky, patří k otázce archivu. Výzkum, který slouží
   jako archiv, nemá v seznamu úkoly ani místa.
 - **Ovládání:** aplikace: oddíl **Čeká na vyřízení** · terminál: menu **Co čeká (n)**, stavový řádek **Čeká: N** ·
-  stránka pro telefon: **Co čeká · {n}**.
+  stránka pro telefon: **Co čeká · N**.
 - **Platí od:** výzkum 1.3.0. Seznam po místech vyřízení a v aplikaci od 1.14.0 (aplikace 3.11.0).
 
 <!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
@@ -57,7 +57,7 @@ určuje oddíl, skupinu a možné akce: **snímky**, **ověřit web**, **svolen�
 - Výzkum připraví složku v `inbox/` sdílené složky. Soubor nese číslo snímku (`9.jpg`, `9a.jpg`).
 - Po uložení snímků do výzkumu se úkol probudí s poznámkou, které snímky chybí ([R6.7.2](#R6.7.2)).
 - **Ovládání:** terminál: `strom task wait T… --images B…:<od>-<do>`, potom `strom media add --inbox`; v **Co čeká**
-  **Otevřít složku (uloženo {have}/{want})**. Aplikace: **Otevřít složku** (od aplikace 3.23.0; dřív **Složka**).
+  **Otevřít složku (uloženo M/N)**. Aplikace: **Otevřít složku** (od aplikace 3.23.0; dřív **Složka**).
 - Archivy jen přes prohlížeč, snímky z aplikace a co udělá člověk: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
 - **Platí od:** výzkum 1.0.0. Probuzení po uložení od 1.15.0.
 
@@ -131,12 +131,21 @@ z aplikace a čtení snímků. Rozhodnutí jdou v seznamu první.
 - Hypotéza, jejíž rozhodnutí agent navrhl ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)), čeká ve skupině
   **Hypotézy k rozhodnutí**: otázka, verze a návrh („Návrh: varianta B – …“). Volba: **Rozhodnout podle návrhu**,
   **Rozhodnout jinak** (jiná verze, nebo žádná, s důvodem), **Nechat, jak je (návrh nepřijat)**.
-- **Hranice:** rozhoduje jen člověk ([R6.6](#R6.6)). Je jen v terminálu, aplikace Strom ji neukazuje
-  ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
-- **Ovládání:** terminál: **Co čeká** → položka, `strom hypothesis decide H… --proposed | --keep-open`.
+- Za návrhy čekají otevřené hypotézy bez návrhu. Volba: **Rozhodnout** (verze, nebo žádná, s textem rozhodnutí),
+  **Nechat otevřenou**. Ponechaná hypotéza se v Co čeká znovu ukáže, až agent navrhne, jak ji rozhodnout.
+- Rozhodnutá nebo zrušená hypotéza otevřená z menu nabízí **Změnit rozhodnutí**: nový text rozhodnutí je povinný
+  a je zároveň důvodem změny. Rozhodl-li ji agent, stojí u ní **Rozhodl agent (den).**
+- **Hranice:** platí, když hypotézy rozhoduje člověk (**Rozhoduje člověk**, výchozí;
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozhoduje jen člověk ([R6.6](#R6.6)). Při **Rozhoduje AI** agent
+  rozhodne sám, co citovaný záznam dokládá, a čekají jen jeho návrhy (rozhodnutí, které sám udělat nesmí). Skupina je
+  jen v terminálu, aplikace Strom ji neukazuje ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
+- **Ovládání:** terminál: **Co čeká** → položka, `strom hypothesis decide H… --proposed | --keep-open`. Tytéž volby
+  jsou v revizi osoby: **Rozšířit výzkum** → **Revize osoby** → **Hypotézy o osobě (n)**.
 - **Platí od:** výzkum 1.28.0
+- **Od výzkumu 1.29.0:** i otevřené hypotézy bez návrhu (**Rozhodnout**, **Nechat otevřenou**), **Změnit
+  rozhodnutí** a volba **Kdo rozhoduje hypotézy**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R6.4"></a>
 ## R6.4 Skupiny a pořadí

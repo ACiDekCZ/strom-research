@@ -23,6 +23,7 @@ dauerhaft.
 - [R9 Archive: was der Agent darf und was der Mensch tut](R9-archives.md): Arten von Archiven, Erlaubnis, Browser des Agenten, Warten auf Bilder, was der Mensch tut
 - [R10 Personen: Identifizierung, Namen und Hypothesen](R10-people-and-hypotheses.md): Namensvettern, Zusammenführen zweier Einträge, Hypothesen, eine Familie außerhalb des Stammbaums, Namen einer Person
 - [R11 Unterlagen vom Benutzer](R11-material-from-the-user.md): Dateien und Texte vom Benutzer, Urkunde und Hinweis, ein übernommener Stammbaum, ein Stapel aus der App
+- [R12 Wo der Agent arbeitet und was strom überwacht](R12-where-the-agent-works.md): Terminal, die Apps Claude, ChatGPT (Codex) und OpenCode, Antigravity und Grok Build, selbstständiger Lauf: was strom wo überwacht und was der Mensch tut
 
 ## A Die Strom-App
 

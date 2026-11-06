@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -26,13 +26,17 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Zakończona rozmowa nie pozostaje już w aplikacji Strom „przy pracy“**, także na obciążonym komputerze i po zmianie
   nazwy komputera.
 
-- **Aplikacja agenta pilnowana tak jak agent w terminalu.** Jej wbudowana przeglądarka przestrzega warunków archiwów tak
+- **Aplikacje agentów pilnowane tak jak agent w terminalu.** Wbudowana przeglądarka aplikacji agenta przestrzega warunków archiwów tak
   jak przeglądarka agenta w Chrome: archiwum, które wpuszcza tylko przeglądarkę człowieka, bez jego zgody zostaje
   odrzucone z tą samą radą, dozwolone zostaje zapisane i trzyma swoje tempo; strony lokalne nie są ograniczane.
   Polecenia stroma w terminalu aplikacji obowiązują tak samo jak w powłoce (to, co robi tylko człowiek, most aplikacji
   Strom); agent dostaje polecenie uruchamiać stroma przez swoją powłokę. Nic w aplikacji nie jest wyłączane. Terminal
   aplikacji rozpoznaje strom pod każdą jego nazwą – innego kanału, drugiej instalacji, pakiet przez program
-  uruchamiający pakiety, ścieżkę do niego.
+  uruchamiający pakiety, ścieżkę do niego. Przeglądarka Codexa (w aplikacji ChatGPT) trzyma się tych samych reguł według
+  adresów w jej kodzie, gdy hooki stroma są potwierdzone w Codexie – `strom doctor` i `strom chat` mówią, kiedy czekają;
+  kod bez adresu nigdy nie jest odrzucany, tylko zapisywany. Computer use pozostaje niepilnowane. Co strom pilnuje u
+  którego agenta i aplikacji: `strom doc R12`; agent z computer use dostaje polecenie obsługiwać aplikację Strom przez
+  narzędzia strony w przeglądarce, a badania przez strom.
 
 - **Aplikacja agenta bez agenta w terminalu.** strom mówi teraz, co działa, a co nie: rozmowa w aplikacji trwa dalej, praca
   samodzielna, czytanie skanów i praca z aplikacji Strom potrzebują agenta w terminalu – powiedziane, zanim padnie
@@ -64,7 +68,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   badaniu poza folderem badań aktualizuje też instrukcje agenta tego badania, a podana witryna (example.org) obejmuje
   też adresy, których używają księgi badania. Warunki Archiwum Głównego Akt Dawnych w Warszawie według odpowiedzi
   archiwum: skany do swobodnego użytku, każdy cytowany miejscem oryginału – archiwum, zespół, sygnatura, strona lub
-  karta.
+  karta. Sprzeczność zapisana w partii z etykietą źródła (`--claim "@s: …"`) cytuje teraz to źródło; taka, którą tak
+  zapisała starsza wersja, pokazuje wartość bez surowej etykiety i tam, gdzie da się to rozpoznać, cytuje swoje źródło
+  w aplikacji Strom i w GEDCOM-ie.
 
 ## 1.28.0
 

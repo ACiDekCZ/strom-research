@@ -45,6 +45,7 @@ Drzewo może samo przechodzić do osoby, nad którą agent właśnie pracuje (pi
   wraca samo. Wybór zapamiętuje się dla urządzenia.
 - **Obsługa:** aplikacja: **Przegląd badania → Śledź agenta w drzewie** / **Przestań śledzić**.
 - **Obowiązuje od:** aplikacja 3.5.0
+- **Od aplikacji 3.24.0:** śledzić można także w wachlarzu i na mapie ([S4.1.3](#S4.1.3)); przesunięcie mapy wstrzymuje je tak samo.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -76,6 +77,71 @@ panelu i przeglądu.
 - **Obowiązuje od:** aplikacja 3.22.0
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+
+<a id="S4.1.3"></a>
+### S4.1.3 Śledzenie w wachlarzu i na mapie
+
+Śledzenie agenta ([S4.1.1](#S4.1.1)) działa w Rodzinie, w wachlarzu i na mapie. Przełącznik **Śledzenie w** zmienia
+widok, a śledzenie zostaje włączone. Wachlarz się przy tym nie porusza, tylko oznacza, gdzie się pracuje; mapa
+pokazuje miejsce pracy pierścieniem.
+
+- **Wachlarz:**
+  - środkiem wachlarza jest **Osoba w centrum uwagi** sprzed włączenia śledzenia (domyślnie), **Osoba domyślna** albo
+    **Wybrana osoba** (dla jednego drzewa). Nigdy nie jest to osoba, nad którą agent pracuje. **Przypiąć jako środek**
+    zatrzymuje osobę jako środek, **Odpiąć środek** ją puszcza; nowy środek przenika się w 150 ms;
+  - osoba, nad którą się pracuje, ma obrys w kolorze sesji i mignie dwa razy, gdy praca się przesunie i gdy śledzenie
+    przejdzie do wachlarza. Wąski wycinek dostaje znacznik poza wachlarzem;
+  - osoba poza wachlarzem dostaje etykietę **Praca poza wachlarzem:** przy najbliższej osobie wachlarza, w tej
+    kolejności: mąż albo żona, rodzeństwo, przodek za krawędzią wachlarza, przy potomku środek, inaczej pierwszy przodek
+    do 12 pokoleń wstecz.
+- **Mapa:**
+  - miejsce pracy ma pierścień w kolorze sesji: pełny pierścień to **miejsce wpisu** (miejsce źródła, nad którym agent
+    pracuje, gdy badanie je wysyła), przerywany to **miejsce osoby** (pierwsze miejsce z położeniem z urodzenia,
+    zamieszkania, ślubu, zgonu). Nigdy nie jest to siedziba archiwum;
+  - pierścień raz pulsuje, gdy śledzenie przejdzie na mapę. Mapa przesuwa się tylko wtedy, gdy miejsce pierwszej sesji
+    jest poza widokiem, a mapa nie jest wstrzymana. Ręczne przesunięcie mapy ją wstrzymuje (**Przesuwanie mapy
+    wstrzymane**) do **Powrót do agenta**;
+  - miejsce bez położenia pokazuje u góry wiersz „… – bez położenia na mapie” z **Wyszukać położenie** (przy drzewie
+    z badaniem **Odszukaj w badaniu**, [A6.5.2](A6-views.md#A6.5.2)); osoba bez miejsca „… – bez miejsca”;
+  - legenda **Znaczenie wyróżnień** objaśnia pierścienie, ślad i pusty znacznik.
+- **Ślad sesji:** w Rodzinie, wachlarzu i na mapie osoby i miejsca, nad którymi się pracowało, bledną z wiekiem:
+  najwyżej ostatnie 8 zmian, żadna starsza niż 60 minut. Na mapie to puste pierścienie, miejsca jednej sesji łączy
+  kropkowana linia (nie na telefonie). Ślad można wyłączyć.
+- **Granice:**
+  - gdy działa kilka sesji, każda ma numer (widoczny od dwóch) i kolor: pierwsza główny, kolejne akcentowy;
+  - praca nad ślubem jest śledzona przy parze: w centrum uwagi jest mąż, inaczej żona;
+  - ustawienia obowiązują na tym urządzeniu dla wszystkich drzew, wybrana osoba tylko dla swojego drzewa. Na
+    telefonie widok jest uproszczony.
+- **Obsługa:** aplikacja: przy śledzeniu **Śledzenie w** (Rodzina, Wachlarz, Mapa); **Ustawienia → Śledzenie
+  badania** → **Śledzenie agenta w** (używane przy włączeniu śledzenia i przy **Powrót do agenta**), **Środek
+  wachlarza przy śledzeniu** (**Wybrać osobę**, **Zmienić**), **Ślad sesji w Rodzinie, wachlarzu i na mapie**;
+  w wachlarzu **Przypiąć jako środek** / **Odpiąć środek**.
+- **Obowiązuje od:** aplikacja 3.24.0
+- **Od aplikacji 3.25.0:** legenda mapy mówi „Pusty znacznik: miejsce bez osoby wśród pokazanych miejsc”, a miejsce
+  pracy bez osoby na mapie „na razie bez osoby na mapie” (wcześniej „poza zakresem mapy”).
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Zmiany z badania bez migania
+
+Zmiana z badania pojawia się w drzewie od razu, bez przerysowania całego ekranu. Karty, które zostają, trzymają swoje
+miejsce; to, co przybyło, ubyło albo się zmieniło, pokazuje się krótko ruchem.
+
+- **Granice:**
+  - zostające karty przesuwają się płynnie (320 ms). Nowa osoba wyrasta ze swojej linii, a wzdłuż linii przebiega
+    światło; usunięta cofa się do swojej linii; scalona osoba spływa w tę, która zostaje (po tym samym nazwisku,
+    urodzeniu ±1 rok, wspólnym rodzicu albo partnerze); zmieniona karta ma obrys w kolorze sesji;
+  - ruchem pokazuje się najwyżej 12 nowych kart; przy ponad 60 zmienionych osobach ruch jest pomijany, a zmiany
+    pokazują się od razu. Na telefonie i tablecie czasy są krótsze (×0,875);
+  - nowa osoba poza widokiem dostaje znacznik przy krawędzi („Dodano poza widokiem: …”, 4 s). Powiększenie ani osoba
+    w centrum uwagi się nie zmieniają. Czytnik ekranu ogłasza zmiany;
+  - wyłączony **Ruch przy wczytywaniu zmian** i ograniczenie ruchu w systemie pokazują zmiany od razu, tylko
+    wyróżnione („W systemie włączono ograniczenie ruchu, dlatego zmiany pojawiają się bez ruchu.”).
+- **Obsługa:** aplikacja: **Ustawienia → Śledzenie badania → Ruch przy wczytywaniu zmian** (domyślnie włączony).
+- **Obowiązuje od:** aplikacja 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
 <a id="S4.2"></a>
 ## S4.2 Kolejka w aplikacji

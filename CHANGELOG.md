@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.2. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the user decides*
@@ -25,13 +25,16 @@ The changes of each version in short. The full notes and the install lines are o
 - **A conversation that ended no longer stays at work in the Strom app**, even on a busy computer or after the
   computer's name changed.
 
-- **The agent's desktop app watched as the agent in the terminal is.** Its built-in browser keeps the archives' terms as
+- **The agents' desktop apps watched as the agent in the terminal is.** The built-in browser of the agent's app keeps the archives' terms as
   the agent's browser in Chrome does: an archive that lets in only a person's browser without the person's yes is
   refused with the same advice, an allowed one is recorded and kept to its pace; local pages are left alone. strom's
   commands typed into the app's own terminal follow the same rules as in the shell (what only a person does, the bridge
   of the Strom app); the agent is told to run strom through its shell. Nothing of the app is switched off. The app's
   terminal knows strom under any of its names – another channel's, a second installation's, the package through a
-  package runner, a path to it.
+  package runner, a path to it. Codex's browser (in the ChatGPT app) keeps the same rules by the addresses its code names,
+  once strom's hooks are confirmed in Codex – `strom doctor` and `strom chat` say when they wait; code naming no address
+  is never refused, only recorded. Computer use stays unwatched. What strom watches in each agent and app: `strom doc R12`;
+  an agent with computer use is told to drive the Strom app through a browser's page tools and the research through strom.
 
 - **The agent's desktop app without the agent in the terminal.** strom now says what goes and what does not: the conversation in the app
   goes on, while working alone, reading scans and the work from the Strom app need the agent in the terminal – said
@@ -62,7 +65,9 @@ The changes of each version in short. The full notes and the install lines are o
   research outside the folder of the research updates that research's agent instructions too, and a site given
   (example.org) covers the addresses of it the research's books use. The terms of the Central Archives of Historical
   Records in Warsaw as the archive answered: the scans used freely, each cited by the original's place – archive, fonds,
-  signature, page or folio.
+  signature, page or folio. A conflict recorded in a batch with a labelled source (`--claim "@s: …"`) now cites that
+  source; one an earlier version recorded so shows its value without the raw label and, where it can be told, cites
+  its source in the Strom app and the GEDCOM.
 
 ## 1.28.0
 

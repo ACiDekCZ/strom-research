@@ -88,7 +88,7 @@ zum Widerspruch. Die genauen Regeln stehen in [R5.2](R5-conflicts.md#R5.2); Absc
     in der Forschung.**
   - Nach dem Schreiben lädt die App selbst die neue Version der Forschung, wenn dabei in der App nichts verloren
     ginge.
-  - Durch ein Senden entstandene Widersprüche zeigt die App mit der Meldung **Geschrieben, {n} Widersprüche zu
+  - Durch ein Senden entstandene Widersprüche zeigt die App mit der Meldung **Geschrieben, N Widersprüche zu
     entscheiden** mit **Anzeigen**. Entschieden wird in der Forschung (**In der Forschung entscheiden**); der Wert
     aus der App bleibt bis dahin in der App.
 - **Bedienung:** Terminal: `strom config set sync.review on|off`, `strom config set sync.edits conflict|user`
@@ -136,7 +136,7 @@ bleiben in der App, und nichts geht verloren.
   - Das Schreiben stellt die Forschung zurück, wenn der Stammbaum auf einem anderen Computer versiegelt ist (**Auf
     diesem Computer übernehmen**), wenn die Dateien im Cloud-Ordner noch nicht heruntergeladen sind oder wenn der
     Datenträger voll ist. Die Änderungen warten bis dahin ungesendet.
-  - Schreibt die Forschung nur einen Teil, zeigt die App **Übernommen {n}, nicht übernommen {m}** und bei jeder
+  - Schreibt die Forschung nur einen Teil, zeigt die App **Übernommen N, nicht übernommen M** und bei jeder
     nicht übernommenen Änderung den Grund (zum Beispiel „keine gemeinsame Grundlage: in der Forschung wählen“).
   - Nach einer Ablehnung hält das automatische Senden an. Von selbst wird erst nach einer weiteren Änderung wieder
     gesendet.

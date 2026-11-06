@@ -398,3 +398,46 @@ Stupeň jistoty údaje ze skenu záleží na tom, kdo a jak zápis četl.
 - **Platí od:** výzkum 1.0.0; čtení dokumentu čtenáři výzkumu 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:1-18 · assets/method/core.md:8-12 · src/core/evidence.ts:55-68 checkStatus · src/core/readsync.ts readingGrade -->
+
+<a id="R8.8"></a>
+## R8.8 Přečíst dokument z aplikace
+
+Fotku, sken nebo PDF dokumentu jde z aplikace dát přečíst agentovi výzkumu: přepis, překlad a výklad. Číst může
+jeden čtenář, nebo dva nezávislí; dva se porovnají a místa, kde se liší, výsledek ukáže. Do stromu se z přečteného
+nic nezapíše bez potvrzení.
+
+- **Hlídá kód:**
+  - vstup: fotka, sken nebo PDF, víc souborů jsou strany jednoho dokumentu; nejvýš 10 stran a 50 MB na soubor.
+    Strana, jejíž kratší strana má méně než 800 px, je příliš malá a čtenáři ji nedostanou;
+  - **1 čtenář** (rychlejší, levnější), nebo **2 nezávislí čtenáři** (spolehlivější, pro zápis do stromu); volba se
+    pamatuje;
+  - každý čtenář začíná s čistým kontextem a vrátí: přepis doslova, překlad do jazyka výzkumu, výklad (pojmy,
+    zkratky, povolání, souvislosti) a jmenované osoby, události a vztahy;
+  - druhý čtenář čte naslepo, prvního čtení nevidí. Porovnají se přepisy slovo po slovu, osoby podle role a pořadí,
+    události podle druhu a pořadí. Kde se liší, jsou verze;
+  - jméno, které čtenář uvede, musí stát v jeho přepisu. Které osoby a místa stromu odpovídají, určí strom, ne
+    čtenář;
+  - nejvýš 20 čtení za hodinu a 60 za den (zvýšit je může jen člověk); u jednoho stromu se čte jeden dokument
+    naráz a další 3 čekají. V Archivu Stromu čtení není.
+- **Výsledek:**
+  - značka shody: **2 čtenáři, shoda**, **2 čtenáři, K míst se liší**, nebo **1 čtenář**. Na náhledu strany je
+    zelený rámeček vybraného zápisu a jantarový u míst, kde se čtenáři liší („čtenáři se liší: první čte „a“, druhý
+    „b““). V přepisu `[?]` značí nejisté čtení a `[...]` nečitelné nebo vynechané místo;
+  - oddíly **Přepis**, **Překlad**, **Výklad**, **O dokumentu**, **Zmínění**; **Kopírovat přepis**;
+  - dokument, který přečíst nejde, dostane důvod (rozmazané, odlesk přes text, vyfoceno šikmo, část stránky chybí,
+    příliš tmavé, příliš malé, na obrázku není psaný text) a radu, jak ho vyfotit lépe;
+  - výsledek zůstane v historii čtení (**Přečtené dokumenty**). Do stromu jde přes **Navrhnout do stromu…**.
+- **Hranice:**
+  - čtou agent a model výzkumu pro skeny ([R8.3](#R8.3)); čtení se počítá do ceny výzkumu, i zrušené: co už agent
+    přečetl, se započítá;
+  - okno jde zavřít, čtení poběží dál a výsledek se ohlásí. Odhad v okně počítá asi minutu na čtenáře, s Grokem 4 minuty;
+  - čtení jde jen s výzkumem, který běží na tomto počítači a má nastaveného agenta; jinak dialog řekne proč (**Teď
+    nejde: …**).
+- **Ovládání:** aplikace: **Výzkum → Přečíst dokument…**, v nabídce osoby **Přečíst dokument k této osobě…**; soubory
+  přetáhnout do okna nebo **Vybrat soubory…**; nepovinně **Dokument se týká** (osoba) a **Poznámka**; **Čtenáři**;
+  **Přečíst**. Soubor přetažený do aplikace nabídne **Přečíst hned**, nebo **Přidat do materiálů**
+  ([R11](R11-material-from-the-user.md)). Historie: **Výzkum u tohoto stromu… → Přečtené dokumenty (N) ›**.
+- **Platí od:** aplikace 3.14.0, výzkum 1.18.0
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->
+

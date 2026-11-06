@@ -233,7 +233,7 @@ osoby aplikacja liczy sama, tylko z cytatów.
 | **Przegląd drzewa → Jakość danych → Pewność danych z badania** | urodzenia, zgony i śluby według stopnia | badanie |
 | strona osoby, **Dla badaczy → Pewność danych** | stopień każdej danej osoby | badanie |
 | **Udokumentowane** / **Częściowo udokumentowane** / **Nieudokumentowane** (● ◐ ○) | poziom udokumentowania osoby | cytaty ([R3.8.1](#R3.8.1)) |
-| **Dla badaczy**, „Potwierdzone źródłami: {n} z {m} informacji” | dane osoby ze źródłem | cytaty |
+| **Dla badaczy**, „Potwierdzone źródłami: N z M informacji” | dane osoby ze źródłem | cytaty |
 | **Przegląd drzewa → Przodkowie**, kolumna **udokumentowani** | przodkowie z udokumentowanym urodzeniem | z badaniem tylko Udokumentowane, w przeciwnym razie cytaty |
 | **Gdzie brakuje dowodów → Urodzenia niesprawdzone w badaniu** | urodzenia przodków, które nie są Udokumentowane | badanie |
 | książka, **Dane dla badaczy**: ● udokumentowane · ◐ sprzeczność · ○ nieudokumentowane | stan udokumentowania danej | Udokumentowane **albo** jakikolwiek cytat |

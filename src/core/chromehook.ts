@@ -20,10 +20,11 @@
 //
 // What the hook cannot see: a click or a typed address that leads to another page or another site (the tab's host is
 // known from navigate alone), and requests a page makes by itself. The rules say it: from page to page of an archive
-// through navigate to the address, never by clicking through a series of pages. Agents without strom's hooks (Codex,
-// OpenCode, Grok, Antigravity's own browser) are held by their rules alone: strom net web --check <url> --browser, and
-// never to an archive only a person's browser goes to (core/browserhelp.ts; checked 4 November 2026: none of them has a
-// hook before its browser strom could read an address from).
+// through navigate to the address, never by clicking through a series of pages. Codex's browser is kept by the address
+// its code names (core/codexhook.ts, once the person confirmed the tree's hooks in Codex). Agents without strom's hooks
+// before a browser (OpenCode, Grok, Antigravity's own browser) are held by their rules alone: strom net web --check <url>
+// --browser, and never to an archive only a person's browser goes to (core/browserhelp.ts; checked 4 November 2026:
+// none of them has a hook before its browser strom could read an address from).
 // The hook never stands in the way by itself: anything wrong lets the call go.
 //
 // The built-in browser of Claude's desktop app (its browser pane: mcp__Claude_Browser__*, mcp__remote-devices__…) is
@@ -57,6 +58,8 @@ export interface ChromeEvent {
   name: string;
   /** The built-in browser of Claude's desktop app (mcp__Claude_Browser__…), not Claude in Chrome. */
   app?: true;
+  /** Codex's browser (its node_repl's code, core/codexhook.ts): one tab per agent session, the agent named codex. */
+  codex?: true;
   tab?: string;
   /** After a call of the built-in browser: the tab it ran in or opened (its answer's tabId). */
   opened?: string;
@@ -190,7 +193,7 @@ const TAB_KEEP_MS = 24 * 3600_000;
 const TABS_MAX = 200;
 
 /** A tab's key: the agent's session and the tab — the built-in browser's apart from Chrome's (the same id never both). */
-const tabKey = (ev: ChromeEvent, tab = ev.tab) => `${ev.agentSession ?? "-"}#${ev.app ? "app:" : ""}${tab ?? "?"}`;
+const tabKey = (ev: ChromeEvent, tab = ev.tab) => `${ev.agentSession ?? "-"}#${ev.app ? "app:" : ev.codex ? "codex:" : ""}${tab ?? "?"}`;
 
 function readTabs(root: string): Record<string, TabNote> {
   try {
@@ -306,7 +309,7 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
     const host = webHost(url);
     if (!host) return {};
     const web: WebEvent = {
-      agent: "claude",
+      agent: ev.codex ? "codex" : "claude",
       tool: ev.tool,
       via: "web",
       url,
@@ -341,7 +344,7 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
   const tree = Tree.open(root, o.env);
   const settings = new Settings(o.env, {});
   const session = currentSession(tree, o.env);
-  const g = browserGate({ env: o.env, tree, url: tab.url, shared: settings.shared()?.value, agent: "claude", ...(session?.task ? { task: session.task } : {}), now: now() });
+  const g = browserGate({ env: o.env, tree, url: tab.url, shared: settings.shared()?.value, agent: ev.codex ? "codex" : "claude", ...(session?.task ? { task: session.task } : {}), now: now() });
   if (!g.allow && (g.why === "refused" || g.why === "forbidden")) return { decision: "deny", reason: g.reason ?? `strom: ${tab.host} — not through the browser.` };
   if (g.blocked)
     return {

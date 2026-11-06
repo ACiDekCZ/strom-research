@@ -87,13 +87,14 @@ A, B, C… mit dem, was für jede spricht und was dagegen.
 <a id="R10.3.1"></a>
 ### R10.3.1 Entscheidung einer Hypothese
 
-Eine Hypothese wird für eine Version entschieden oder verworfen, wenn sich keine entscheiden lässt. Entscheiden kann
-nur der Mensch, in der Forschung; der Agent schlägt die Entscheidung vor. Die App lässt eine Hypothese nicht
-entscheiden.
+Eine Hypothese wird für eine Version entschieden oder verworfen, wenn sich keine entscheiden lässt. Wer sie
+entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)): standardmäßig **Der Mensch entscheidet** (der Agent
+schlägt die Entscheidung nur vor) oder **Die KI entscheidet** (der Agent entscheidet selbst, nur anhand eines zitierten
+Eintrags). Die App lässt eine Hypothese nicht entscheiden, sie verweist auf die Forschung.
 
 - **Prüft der Code:**
-  - die Entscheidung ist ein Schritt des Menschen. Startet der Agent `strom hypothesis decide` (auch innerhalb von
-    `strom batch`), lehnt strom den Befehl ab;
+  - bei **Der Mensch entscheidet** ist die Entscheidung ein Schritt des Menschen. Startet der Agent `strom hypothesis
+    decide` (auch innerhalb von `strom batch`), lehnt strom den Befehl ab;
   - der Agent schlägt die Entscheidung vor: die Version und den Text der Entscheidung (`strom hypothesis propose`)
     oder das Verwerfen (`--abandon`). Ein neuer Vorschlag ersetzt den vorigen. Auf die Antwort wird nicht gewartet,
     die Arbeit geht weiter;
@@ -101,29 +102,86 @@ entscheiden.
     ([R6.3.4](R6-awaiting-action.md#R6.3.4)): der Mensch entscheidet wie vorgeschlagen, anders (eine andere Version
     oder keine, mit Grund) oder lässt die Hypothese, wie sie ist. Ein nicht übernommener Vorschlag bleibt in einer
     Notiz der Hypothese;
+  - bei **Der Mensch entscheidet** wartet in derselben Gruppe auch eine offene Hypothese ohne Vorschlag: der Mensch
+    entscheidet sie selbst (eine Version oder keine, mit dem Text der Entscheidung) oder lässt sie offen. Eine offen
+    gelassene Hypothese erscheint in Was wartet wieder, sobald der Agent vorschlägt, wie sie zu entscheiden ist;
   - sowohl die Entscheidung als auch der Vorschlag brauchen den Text der Entscheidung (`--decision`); das Verwerfen
     ist `--abandon`;
   - eine Hypothese, deren Versionen sagen, was sie verbinden würden, wird nur mit angegebener Version entschieden und
     vorgeschlagen (`--variant B`). Ohne sie lehnt strom ab und erfasst nichts;
   - erneut entscheiden (und erneut vorschlagen) lässt sich nur mit Grund (`--reason`). Die vorige Entscheidung bleibt
-    in einer Notiz der Hypothese;
+    in einer Notiz der Hypothese, auch damit, dass der Agent sie entschieden hat. Eine entschiedene oder verworfene
+    Hypothese bietet im Menü **Entscheidung ändern**;
   - was die Entscheidung des Menschen verbindet, und die Quellen, die die Hypothese nennt und die keine Angabe ihrer
     Personen zitiert, bekommt der Agent zu Beginn der nächsten Arbeit als erste Aufgabe zum Erfassen im Stammbaum.
 - **Nur Methodik:** der Agent schlägt eine Entscheidung vor, wenn die Einträge auf eine Version zeigen, und sagt es dem
   Menschen in einem Satz. Eine entschiedene Hypothese, die ein neuer Eintrag umstößt, schlägt der Agent mit Grund
   erneut vor. Was der Agent zurückgehalten hat, solange die Person nur eine Hypothese war, erfasst er bei der Person,
-  sobald der Mensch die Hypothese entscheidet.
+  sobald die Hypothese entschieden ist.
 - **Warum:** eine neue Entscheidung braucht einen Grund, weil sich Entscheidungen offen ändern: die vorige bleibt
   lesbar, und die neue sagt, was sie geändert hat (meist ein neuer Eintrag).
 - **Bedienung:** Terminal: Menü `strom` → **Was wartet** → **Hypothesen zu entscheiden** → **Wie vorgeschlagen
-  entscheiden**, **Anders entscheiden**, **So lassen (Vorschlag nicht übernommen)**; per Befehl
-  `strom hypothesis decide H… --proposed`, `--keep-open` oder `--variant B --decision "…"` (erneut mit
-  `--reason "…"`). Agent: `strom hypothesis propose H… --variant B --decision "…"`.
+  entscheiden**, **Anders entscheiden**, **So lassen (Vorschlag nicht übernommen)**; bei einer offenen Hypothese ohne
+  Vorschlag **Entscheiden**, **Offen lassen**; bei einer entschiedenen oder verworfenen **Entscheidung ändern** (Text
+  und Grund nötig). Dieselbe Ansicht gibt es in der Durchsicht einer Person: **Die Forschung erweitern** → **Eine Person
+  durchsehen** → **Hypothesen zur Person (n)**. Per Befehl `strom hypothesis decide H… --proposed`, `--keep-open` oder
+  `--variant B --decision "…"` (erneut mit `--reason "…"`). Agent: `strom hypothesis propose H… --variant B
+  --decision "…"`. App: **Was die Forschung weiß** → Hypothese → **In der Forschung entscheiden**, bei einer
+  entschiedenen **In der Forschung ändern** ([S3.5](S3-what-the-research-knows.md#S3.5)).
 - **Gilt seit:** Forschung 1.0.0; Ausgabe nicht erfasster Quellen 1.12.0
 - **Ab Forschung 1.28.0:** entscheidet nur der Mensch, der Agent schlägt vor; die angegebene Version prüft der Code
   (früher nur Methodik). Hypothesen, die früher der Agent entschieden hat, bleiben, wie sie waren.
+- **Ab Forschung 1.29.0:** wer entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)). Was wartet bietet auch
+  offene Hypothesen ohne Vorschlag (**Entscheiden**, **Offen lassen**) und das Menü **Entscheidung ändern**. Bis 1.28.0
+  stand eine offene Hypothese ohne Vorschlag nicht in Was wartet und wurde nur mit dem Befehl `strom hypothesis
+  decide` entschieden.
+- **Ab App 3.25.0:** **In der Forschung entscheiden** und **In der Forschung ändern** in **Was die Forschung weiß**,
+  wo die Forschung auf diesem Computer sie anbietet.
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, --proposed, --keep-open, againNeedsReason, decidedVariant) · src/cli/main.ts:288 def.person && isAgent · src/commands/batch.ts (def.person) · src/core/waiting.ts (hypotheses, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.* · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0 · commit 9b12256a -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, agentMay, --proposed, --keep-open bez návrhu → leftOpen, againNeedsReason, decidedVariant, "earlier … by the agent") · src/cli/main.ts:288 def.person && isAgent && !def.agentMay · src/commands/batch.ts (def.agentMay) · src/core/waiting.ts (hypotheses, hypothesesOpen, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided: ui.wait.hypothesis.change) · src/cli/menu-research.ts:532 ui.review.hypotheses · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.*, ui.review.hypotheses · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0, 1.29.0 · research 1.28.0 = commit 94a593db · app:src/strings.ts research.decideInResearch, research.hypoChange · CHANGELOG.cs.md 3.25.0 -->
+
+<a id="R10.3.2"></a>
+### R10.3.2 Wer die Hypothesen entscheidet: der Mensch oder die KI
+
+Die Wahl der Forschung **Wer die Hypothesen entscheidet** legt fest, wer eine Hypothese entscheidet. **Der Mensch
+entscheidet** ist der Standard: der Agent schlägt nur vor, und die Entscheidung wartet in **Was wartet**. **Die KI
+entscheidet**: der Agent entscheidet selbst, sobald ein zitierter Eintrag auf eine Version zeigt; seine Entscheidung
+ist gekennzeichnet, und der Mensch kann sie jederzeit ändern.
+
+- **Prüft der Code:**
+  - Standard ist **Der Mensch entscheidet**, auch bei einer Forschung ohne diese Wahl (früher eingerichtet). Das
+    Umschalten ändert bereits entschiedene Hypothesen nicht;
+  - **Die KI entscheidet** schaltet nur der Mensch im Terminal ein: die Frage erklärt, was das bedeutet, und verlangt
+    ein zweites Ja. Dem Agenten lehnt strom das Einschalten ab. Zurück zu **Der Mensch entscheidet** geht jederzeit,
+    ohne Bestätigung;
+  - die Wahl gilt für die Forschungen auf diesem Computer. Eine Forschung kann eine eigene haben (`--for-tree`); die
+    Wahl aus der App wird nur dieser Forschung geschrieben;
+  - der Agent entscheidet nur eine Version, die eine zitierte Quelle der Forschung (S…) stützt. Ohne sie lehnt strom
+    ab und bietet einen Vorschlag an (`strom hypothesis propose`);
+  - eine Version, die einen Zweig von 10 und mehr Personen außerhalb des Stammbaums an ihn anschließen würde,
+    entscheidet der Agent nur mit zwei zitierten Quellen und ohne Einwand dagegen; sonst schlägt er sie nur vor;
+  - die Entscheidung des Menschen ändert der Agent nie; stößt ein neuer Eintrag sie um, schlägt er sie erneut vor
+    ([R10.3.1](#R10.3.1));
+  - eine Hypothese, die sich nicht entscheiden lässt, verwirft der Agent mit dem Text der Entscheidung;
+  - die Entscheidung des Agenten trägt eine Marke und den Tag. Terminal: bei der Hypothese **Vom Agenten entschieden
+    (Tag).**, in der Liste der Änderungen „H… vom Agenten entschieden: …“ und „H… vom Agenten verworfen: …“. App:
+    **Was die Forschung weiß** → **vom Agenten entschieden** mit Tag und Begründung;
+  - was die Entscheidung des Agenten verbindet, erfasst der Agent sofort im Stammbaum;
+  - ändert der Mensch eine Entscheidung des Agenten, verschwindet die Marke, und die vorige Entscheidung bleibt in
+    einer Notiz der Hypothese;
+  - im Strom-Archiv gibt es die Wahl nicht.
+- **Nur Methodik:** der Agent sagt dem Menschen in einem Satz, was er entschieden hat.
+- **Bedienung:** Terminal: die Einrichtung `strom setup`, Schritt **Wer entscheidet die Hypothesen – die unsicheren
+  Verbindungen zwischen Personen?** (nur wenn ein Mensch die Einrichtung im Terminal macht; ohne Terminal fragt sie
+  nicht, und es gilt **Der Mensch entscheidet**); Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent
+  allein darf, Geschichten… (die Einrichtung)** → **Wer die Hypothesen entscheidet: …**; `strom config set
+  hypotheses.decide person|agent [--for-tree]`, den geltenden Wert zeigt `strom config where`. App: **Forschung** →
+  **Weitere Aktionen** → **Forschung für diesen Stammbaum…** → **Wer über Hypothesen entscheidet**: **Der Mensch
+  entscheidet** wird sofort in die Forschung geschrieben, **Die KI entscheidet** bestätigt die Forschung im Terminal
+  (**In der Forschung bestätigen**). Die Zeile erscheint nur mit einer Forschung, die die Wahl kennt.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 -->
 
 <a id="R10.4"></a>
 ## R10.4 Eine Familie außerhalb des Stammbaums wartet auf eine belegte Verbindung

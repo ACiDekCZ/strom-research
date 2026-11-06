@@ -165,8 +165,8 @@ Each tree from a research has its own bridge. The app also asks the bridges of t
 shows their state in the tree switcher.
 
 - **Limits:**
-  - Marks at a tree in the switcher: **live** (followed), **running** or **{n} directions** (an agent works),
-    **{n} waiting** (items to deal with), **not running**.
+  - Marks at a tree in the switcher: **live** (followed), **running** or **N directions** (an agent works),
+    **N waiting** (items to deal with), **not running**.
   - It always asks only one bridge at a time and only when the page is visible: the first time after 3 seconds, then
     every minute. It waits at most 1.5 seconds for an answer.
   - A research that is not running connects again when its tree is opened from the research (`strom app`).

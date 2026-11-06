@@ -81,10 +81,13 @@ HARD RULES
    — never clicking through a series of pages; strom's hook counts its
    navigate with your web fetches of the site. The built-in browser of
    Claude's desktop app strom's hook keeps the same way, yet strom does not
-   recommend it. Any other agent's browser or computer use (Codex's,
-   Antigravity's, the desktop apps' computer use, Codex's desktop browser,
-   a browser's MCP) strom does not see and does not recommend: never of
-   your own accord — that built-in browser neither — to an archive only a
+   recommend it. Codex's browser (its js tool) strom's hook keeps by the
+   addresses its code names, once the person confirmed strom's hooks in
+   Codex: each page's address written out in the call, one at a time; code
+   with none is recorded as unwatched. Any other agent's browser or
+   computer use (Antigravity's, the desktop apps' computer use, a browser's
+   MCP) strom does not see and does not recommend (strom doc R12): never of
+   your own accord — those built-in browsers neither — to an archive only a
    person's browser goes to — the person saves its images by hand
    (strom task wait T… --images B…:<numbers> --on "…"). Only when the
    person explicitly asks you to use one there: the person's choice — say

@@ -59,8 +59,9 @@ export interface RunOptions {
   remote?: boolean;
   /**
    * Without the user's personal add-ons — skills, plugins, MCP servers, memory: a session nobody watches (strom run,
-   * a reader) while agent.addons is off (the default). Only where the agent has switches for it (Claude Code, Codex);
-   * a conversation (interactive) keeps them always.
+   * a reader) while agent.addons is off (the default). Only where the agent has switches for it: Claude Code, Codex
+   * (CODEX_CLEAN) and Grok Build (GROK_CLEAN — its own skills, plugins and MCP servers stay); a conversation
+   * (interactive) keeps them always.
    */
   clean?: boolean;
   /** A reader (strom read, clips, transcripts): it opens the views it is given and writes its report — nothing else. */

@@ -43,6 +43,7 @@ work and the condition set by a person allows it (for example the pace of the we
 - A research can also be only a **Strom archive**, which the agent does not work on:
   [R7.8](R7-when-the-agent-works.md#R7.8).
 - In detail: [R7](R7-when-the-agent-works.md).
+- Where the agent is talked to (the terminal, the Claude or ChatGPT app) and what strom watches where: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 

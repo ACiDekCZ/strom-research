@@ -5,6 +5,7 @@ import type { Conflict, Family, Person } from "./model.ts";
 import { UsageError } from "./errors.ts";
 import type { Tree } from "./tree.ts";
 import { claimText } from "./people.ts";
+import { settledClaim } from "./labels.ts";
 import { actsAsArchive } from "./state.ts";
 
 type Claim = Conflict["claims"][number];
@@ -87,7 +88,7 @@ export function sexRaw(v: string): "M" | "F" | "U" {
 
 /** The sources a conflict's decision weighed: those of its claims, and those of the fact of the user's edit. */
 export function weighedSources(tree: Tree, c: Conflict): Set<string> {
-  const out = new Set(c.claims.map((x) => x.source).filter((s): s is string => !!s));
+  const out = new Set(c.claims.map((x) => settledClaim(tree, c, x).source).filter((s): s is string => !!s));
   if (c.edit)
     for (const owner of c.subject) {
       const rec = tree.get<Person | Family>(owner);

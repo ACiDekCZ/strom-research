@@ -116,10 +116,10 @@ viewer and in the book.
   writes up to three ([R3.4](R3-verification-and-citation.md#R3.4)); the app keeps the third and adds no more. The
   whole page can be saved only for a person, not for a marriage and not for a locked person. Rotating in the crop
   breaks the excerpt's link to the attachment. Images the research did not send to the app are in the filter **Image
-  in research · n** and are loaded from the running research.
+  only in the research · N** ([A3.8](#A3.8)).
 - **Controls:** the source editor, block **Excerpt of the entry**; **Add continuation from the next page**; **Crop**,
   **Replace**, **Remove excerpt**. "Excerpts: …" in **Actions → Sources** shows the size of all excerpts from 1 MB.
-- **Since:** app 3.1.0; **Full quality** 3.4.0; **Image in research** 3.14.0
+- **Since:** app 3.1.0; **Full quality** 3.4.0; images from the research 3.14.0 ([A3.8](#A3.8))
 
 <!-- zdroj: app:src/types.ts:257 MAX_EXCERPTS_UI · src/excerpts.ts:12-14 EXCERPT_MAX_SIDE, EXCERPT_QUALITY · src/ui/sources.ts:853 renderExcerptBlock, :932 excerptAdderHtml, :999 addExcerptFromPaste, :1017 addExcerptFromUpload, :1047 recropExcerpt, :1099 addExcerptFromAttachment, :1121 putExcerptDraft, :1158 keepPagePersonId, :1165 excerptContextPages, :377 renderSourceViewer · src/ui/research-ui.ts:2263 excerptResearchUrl · strings.ts sources.excerpt*/viewer*/addExcerpt/excerptsTotal, crop.title/keepPage, research.fullQuality/fullQualityTitle, researchImages.filter -->
 
@@ -249,3 +249,44 @@ not listed.
 - **Since:** app 3.4.0; **Births not proven in the research** and **Sources** instead of **Cite** 3.13.1
 
 <!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+
+<a id="A3.8"></a>
+## A3.8 Image only in the research
+
+An image only in the research is a scan or excerpt of a source that is stored in the research on the computer and that
+the app does not have yet. The source is in the app without it; the image shows after loading it from the research
+running on this computer.
+
+- **Why the image is not in the app:** the source gives the reason: "The image is in the research but was not
+  included for the app (research settings).", "… (size limit).", or "The image is being prepared in the research and
+  comes with the next version." The research puts images into the file for the app by its settings and size limit.
+- **Where it shows:** in **Sources** the filter **Image only in the research · N** with the tag *image only in the
+  research* at the source and a line under the filter ("N images for M sources are stored only in the research on this
+  computer; they show in the app once loaded."); in the **Research** menu the row **Images only in the research · N**,
+  which opens **Sources** with the filter and shows the progress of loading.
+- **Loading:**
+  - **Load image from the research** at a source loads its images;
+  - **Load all from the research…** first shows the number of sources and images, the size ("They are stored with the
+    tree in this browser."), how many images the research still has to prepare, and the free space in the browser.
+    Then the progress with **Pause** and **Stop**; the window can be closed and loading goes on. What is not loaded
+    stays in the filter;
+  - loaded images stay with the tree in this browser, apart from the tree's data.
+- **Limits:**
+  - loading works only from a research running on this computer ("It loads once the research runs on this
+    computer."). On a phone or another device: "The image is in the research on the computer. It will be on this
+    device once the tree is transferred with images from the research.";
+  - **Remove from the app** removes the images from the browser again; they stay in the research and can be loaded
+    again. Images that came in the research file stay;
+  - **Load a source’s image when it is opened** loads only the opened source and only while the research runs on this
+    computer; the source list loads nothing by itself;
+  - the export offers **Source images**: **No source images**, **Only those in the app**, or **All from the research** (loaded before
+    the export, only while the research runs on this computer).
+- **Controls:** app: **Sources** → the filter **Image only in the research** → **Load all from the research…**; at a
+  source **Load image from the research**, **More options → Remove from the app**; **Settings → Source images**
+  (**Load a source’s image when it is opened**, **Remove from the app…**, **Load all…**); **Research → Images only in
+  the research · N**.
+- **Since:** app 3.14.0 with research 1.18.0
+- **From app 3.25.0:** the filter and the tag are called **Image only in the research** (before, **Image in
+  research**), the line under the filter says where the images are, and **?** opens this rule.
+
+<!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->

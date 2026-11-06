@@ -22,6 +22,7 @@ import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
+import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
@@ -102,11 +103,15 @@ the researcher; \`strom\` is your only way to read and change the research.
     to page by going to the address (navigate), never clicking through a
     series of pages; a site strom refused or whose terms forbid automation
     never. The built-in browser of Claude's desktop app strom watches the
-    same way, yet does not recommend it. Any other agent's browser or
-    computer use (Codex's, Antigravity's, the desktop apps' computer use, a
-    browser's MCP) strom does not see and does not recommend: never of your
-    own accord — that built-in browser neither — to an archive only a person's
-    browser goes to — the person saves its images by hand
+    same way, yet does not recommend it. Codex's browser (its \`js\` tool),
+    once the person confirmed strom's hooks in Codex, strom watches by the
+    addresses your code names: write each page's address out in the call
+    (\`tab.goto("https://…")\`), one page at a time;
+    code with none strom records as unwatched. Any other agent's browser or
+    computer use (Antigravity's, the desktop apps' computer use, a browser's
+    MCP) strom does not see and does not recommend (\`strom doc R12\`): never
+    of your own accord — those built-in browsers neither — to an archive only
+    a person's browser goes to — the person saves its images by hand
     (\`strom task wait T… --images B…:<numbers> --on "…"\`); only when the
     person explicitly asks for one there, their choice: say in one sentence
     whether strom watches that way, and the archive's terms; elsewhere
@@ -203,6 +208,22 @@ ${hypotheses}
   name the rule's number and give the link \`strom doc\` prints with it (its
   page on the web); only for the person's question — the method stays the
   rules of the work.
+
+## When you have computer use
+
+Never suggest turning it on; when it is there:
+
+- The Strom app: through a browser's page tools (the built-in browser of
+  Claude's app, Claude in Chrome), not by the screen's pixels — click an
+  element by the reference \`find\` gives, never by coordinates, and wait
+  until a sliding panel has stopped before the next click. Claude's computer
+  use only looks at browsers and only clicks in terminals.
+- The research: through \`strom\` in your own command line, never by typing
+  into a terminal window.
+- A consent or a setting of the person's (the map's OpenStreetMap, how edits
+  are sent to the research): left to the person — say what waits for them.
+- An archive's pages: its rules hold the same way (its pace, "by hand
+  only"); what strom does not watch is no exception (\`strom doc R12\`).
 
 ${selfReading(treeReading(tree, new Settings(tree.env, {}).agent(tree.config).value))}
 ${MARKER}
@@ -639,6 +660,7 @@ function dropAgentFiles(tree: Tree): string[] {
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
     [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
     [CODEX_RULES, codexRules(tree)],
+    [CODEX_HOOKS, JSON.stringify(codexHooks(tree.root), null, 2) + "\n"],
   ];
   const codexOld = dropOldCodexConfig(tree);
   if (codexOld) gone.push(codexOld);
@@ -683,7 +705,10 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES];
+// Antigravity has none of its own here: agy takes its permissions only from the person's settings
+// (~/.gemini/antigravity-cli/settings.json, strom's `command(strom)` there: agents/global.ts) and knows no rules file of a
+// folder strom could write — it reads AGENTS.md, and in a run alone what its settings do not allow is refused (strom doc R12.7)
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -716,6 +741,8 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
   write(GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n");
   write(CODEX_RULES, codexRules(tree));
+  // strom's hook before Codex's browser: written only when it changed (each change asks the person to confirm it again)
+  write(CODEX_HOOKS, JSON.stringify(codexHooks(tree.root), null, 2) + "\n");
   // what strom wrote there before 1.27.0 left the desktop apps' browser on: taken back
   const codexOld = dropOldCodexConfig(tree);
   if (codexOld) written.push(codexOld);

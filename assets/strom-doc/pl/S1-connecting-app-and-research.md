@@ -167,8 +167,8 @@ Każde drzewo z badania ma własny most. Aplikacja pyta też mosty drzew, które
 pokazuje w przełączniku drzew.
 
 - **Granice:**
-  - Oznaczenia przy drzewie w przełączniku: **na żywo** (jest śledzone), **działa** lub **{n} linie** (agent
-    pracuje), **czeka {n}** (sprawy do załatwienia), **nie działa**.
+  - Oznaczenia przy drzewie w przełączniku: **na żywo** (jest śledzone), **działa** lub **N linie** (agent
+    pracuje), **czeka N** (sprawy do załatwienia), **nie działa**.
   - Pyta zawsze tylko jeden most naraz i tylko wtedy, gdy strona jest widoczna: pierwszy raz po 3 sekundach, potem co
     minutę. Na odpowiedź czeka najwyżej 1,5 sekundy.
   - Niedziałające badanie łączy się ponownie przez otwarcie drzewa z badania (`strom app`).

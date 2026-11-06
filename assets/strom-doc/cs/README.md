@@ -22,6 +22,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [R9 Archivy: co smí agent a co udělá člověk](R9-archives.md): druhy archivů, svolení, prohlížeč agenta, čekání na snímky, co udělá člověk
 - [R10 Osoby: ztotožnění, jména a hypotézy](R10-people-and-hypotheses.md): jmenovci, sloučení dvou záznamů, hypotézy, rodina mimo strom, jména osoby
 - [R11 Podklady od uživatele](R11-material-from-the-user.md): soubory a texty od uživatele, doklad a vodítko, převzatý rodokmen, dávka z aplikace
+- [R12 Kde agent pracuje a co strom hlídá](R12-where-the-agent-works.md): terminál, aplikace Claude, ChatGPT (Codex) a OpenCode, Antigravity a Grok Build, samostatný běh: co strom kde hlídá a co udělá člověk
 
 ## A Aplikace Strom
 

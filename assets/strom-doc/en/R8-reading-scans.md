@@ -435,3 +435,50 @@ The degree of certainty of a fact from a scan depends on who read the entry and 
 - **Since:** research 1.0.0; reading a document by the research's readers 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:1-18 · assets/method/core.md:8-12 · src/core/evidence.ts:55-68 checkStatus · src/core/readsync.ts:194 readingGrade -->
+
+<a id="R8.8"></a>
+## R8.8 Reading a document from the app
+
+A photo, scan or PDF of a document can be given from the app to the research's agent to read: a transcription, a
+translation and an explanation. One reader can read it, or two independent ones; two are compared, and the result
+shows the places where they differ. Nothing read goes into the tree without confirmation.
+
+- **Enforced by the code:**
+  - input: a photo, scan or PDF; several files are pages of one document; at most 10 pages and 50 MB per file. A page
+    whose shorter side has fewer than 800 px is too small and the readers do not get it;
+  - **1 reader** (faster, cheaper), or **2 independent readers** (more reliable, for adding to the tree); the choice is
+    remembered;
+  - each reader starts with a clean context and returns: a word-for-word transcription, a translation into the
+    research's language, an explanation (terms, abbreviations, occupations, context) and the people, events and
+    relations named;
+  - the second reader reads blind and does not see the first reading. The transcriptions are compared word by word,
+    the people by role and order, the events by kind and order. Where they differ there are variants;
+  - a name a reader gives must stand in its transcription. Which people and places of the tree match is decided by
+    strom, not by the reader;
+  - at most 20 readings per hour and 60 per day (only a person can raise them); for one tree one document is read at
+    a time and 3 more wait. In a Strom archive reading does not exist.
+- **Result:**
+  - the mark of agreement: **2 readers, agree**, **2 readers, K places differ**, or **1 reader**. On the page preview
+    a green frame marks the selected entry and an amber one the places where the readers differ ("readers differ: the
+    first reads “a”, the second “b”"). In the transcription `[?]` marks an uncertain reading and `[...]` an illegible
+    or left-out place;
+  - the sections **Transcription**, **Translation**, **Explanation**, **About the document**, **Mentioned**; **Copy
+    transcription**;
+  - a document that cannot be read gets a reason (blurred, glare over the text, taken at an angle, part of the page
+    missing, too dark, too small, no written text in the picture) and advice on taking a better photo;
+  - the result stays in the reading history (**Read documents**). It goes into the tree through **Suggest for the
+    tree…**.
+- **Limits:**
+  - the research's agent and model for scans read it ([R8.3](#R8.3)); reading counts toward the research's cost, also
+    a cancelled one: what the agent already read counts;
+  - the window can be closed; reading goes on and the result is announced. The estimate in the window counts about a
+    minute per reader, with Grok 4 minutes;
+  - reading works only with a research that runs on this computer and has an agent set up; otherwise the dialog says
+    why (**Not possible now: …**).
+- **Controls:** app: **Research → Read a document…**, in the person menu **Read a document for this person…**; drag
+  files into the window or **Choose files…**; optionally **Document concerns** (a person) and **Note**; **Readers**;
+  **Read**. A file dragged into the app offers **Read now**, or **Add to materials**
+  ([R11](R11-material-from-the-user.md)). History: **Research for this tree… → Read documents (N) ›**.
+- **Since:** app 3.14.0, research 1.18.0
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->

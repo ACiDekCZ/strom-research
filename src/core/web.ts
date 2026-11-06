@@ -93,7 +93,7 @@ export const WEB_SEARCH_TOOLS = ["WebSearch", "web_search"] as const;
 
 /** One hook event as the agent sends it (Claude Code: snake_case; Grok: camelCase, Claude's keys accepted too). */
 export interface WebEvent {
-  agent: "claude" | "grok";
+  agent: "claude" | "grok" | "codex";
   tool: string;
   via: "web" | "search";
   url?: string;
@@ -173,8 +173,8 @@ export interface WebAnswer {
   record?: AgentWebRecord;
   /** After a call (PostToolUse, PostToolUseFailure): a note for the agent beside the call's result — near the threshold. */
   context?: string;
-  /** The event the note answers. */
-  event?: "PostToolUse" | "PostToolUseFailure";
+  /** The event the note answers (before a call: Codex's browser code with no address strom can see, core/codexhook.ts). */
+  event?: "PreToolUse" | "PostToolUse" | "PostToolUseFailure";
 }
 
 /** The hook's answer as the agent reads it on stdout (Claude Code's and Grok's shape alike); none: nothing at all. */

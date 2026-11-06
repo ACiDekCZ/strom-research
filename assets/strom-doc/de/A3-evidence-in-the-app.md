@@ -126,12 +126,12 @@ im Betrachter und im Buch.
   nächsten Seite). Die Forschung erfasst bis zu drei ([R3.4](R3-verification-and-citation.md#R3.4)); einen dritten
   behält die App, weitere fügt sie nicht hinzu. Die ganze Seite lässt sich nur bei einer Person speichern, nicht bei
   einer Heirat und nicht bei einer gesperrten Person. Drehen im Zuschnitt hebt die Bindung des Ausschnitts an den
-  Anhang auf. Bilder, die die Forschung nicht an die App gesendet hat, stehen im Filter **Bild in der Forschung ·
-  n** und werden aus der laufenden Forschung geladen.
+  Anhang auf. Bilder, die die Forschung nicht an die App gesendet hat, stehen im Filter **Bild nur in der Forschung ·
+  N** ([A3.8](#A3.8)).
 - **Bedienung:** Editor der Quelle, Block **Ausschnitt des Eintrags**; **+ Fortsetzung von der nächsten Seite
   hinzufügen**; **Zuschneiden**, **Ersetzen**, **Ausschnitt entfernen**. „Ausschnitte: …“ in **Aktionen → Quellen**
   zeigt die Größe aller Ausschnitte ab 1 MB.
-- **Gilt seit:** App 3.1.0; **Volle Qualität** 3.4.0; **Bild in der Forschung** 3.14.0
+- **Gilt seit:** App 3.1.0; **Volle Qualität** 3.4.0; Bilder aus der Forschung 3.14.0 ([A3.8](#A3.8))
 
 <!-- zdroj: app:src/types.ts:257 MAX_EXCERPTS_UI · src/excerpts.ts:12-14 EXCERPT_MAX_SIDE, EXCERPT_QUALITY · src/ui/sources.ts:853 renderExcerptBlock, :932 excerptAdderHtml, :999 addExcerptFromPaste, :1017 addExcerptFromUpload, :1047 recropExcerpt, :1099 addExcerptFromAttachment, :1121 putExcerptDraft, :1158 keepPagePersonId, :1165 excerptContextPages, :377 renderSourceViewer · src/ui/research-ui.ts:2263 excerptResearchUrl · strings.ts sources.excerpt*/viewer*/addExcerpt/excerptsTotal, crop.title/keepPage, research.fullQuality/fullQualityTitle, researchImages.filter -->
 
@@ -269,3 +269,43 @@ durch sie. Eine leere Gruppe wird nicht aufgeführt.
 - **Gilt seit:** App 3.4.0; **Geburten in der Forschung nicht bewiesen** und **Quellen** statt **Zitieren** 3.13.1
 
 <!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+
+<a id="A3.8"></a>
+## A3.8 Bild nur in der Forschung
+
+Ein Bild nur in der Forschung ist ein Scan oder Ausschnitt einer Quelle, der in der Forschung auf dem Computer
+gespeichert ist und den die App noch nicht hat. Die Quelle ist auch ohne ihn in der App; das Bild erscheint nach dem
+Laden aus der Forschung, die auf diesem Computer läuft.
+
+- **Warum das Bild nicht in der App ist:** bei der Quelle steht der Grund: das Bild kam wegen der Einstellungen der
+  Forschung oder der Größengrenze nicht in die App, oder es wird in der Forschung noch vorbereitet und kommt mit der
+  nächsten Version. Die Forschung gibt Bilder nach ihren Einstellungen und ihrer Größengrenze in die Datei für die App.
+- **Wo es zu sehen ist:** in **Quellen** der Filter **Bild nur in der Forschung · N** mit der Marke *Bild nur in der
+  Forschung* bei der Quelle und einer Zeile unter dem Filter („N Bilder zu M Quellen sind nur in der Forschung auf
+  diesem Computer gespeichert; in der App erscheinen sie nach dem Laden.“); im Menü **Forschung** die Zeile **Bilder nur
+  in der Forschung · N**, die **Quellen** mit dem Filter öffnet und den Fortschritt des Ladens zeigt.
+- **Laden:**
+  - **Bild aus der Forschung laden** bei einer Quelle lädt ihre Bilder;
+  - **Alle aus der Forschung laden…** zeigt zuerst die Zahl der Quellen und Bilder, die Größe („Die Bilder werden beim
+    Stammbaum in diesem Browser gespeichert.“), wie viele Bilder die Forschung erst vorbereitet, und den freien Platz
+    im Browser. Dann den Fortschritt mit **Pause** und **Anhalten**; das Fenster lässt sich schließen, und das Laden
+    läuft weiter. Nicht Geladenes bleibt im Filter;
+  - geladene Bilder bleiben beim Stammbaum in diesem Browser, getrennt von den Daten des Stammbaums.
+- **Grenzen:**
+  - laden geht nur aus einer Forschung, die auf diesem Computer läuft („Es wird geladen, sobald die Forschung auf
+    diesem Computer läuft.“). Auf dem Telefon oder einem anderen Gerät: „Das Bild ist in der Forschung auf dem
+    Computer. Auf diesem Gerät ist es, wenn der Stammbaum mit Bildern aus der Forschung übertragen wird.“;
+  - **Aus der App entfernen** entfernt die Bilder wieder aus dem Browser; sie bleiben in der Forschung und lassen sich
+    erneut laden. Bilder, die mit der Datei der Forschung kamen, bleiben;
+  - **Bild einer Quelle beim Öffnen laden** lädt nur die geöffnete Quelle und nur,
+    wenn die Forschung auf diesem Computer läuft; die Quellenliste lädt nichts von selbst;
+  - der Export bietet **Quellenbilder**: **Ohne Quellenbilder**, **Nur die in der App** oder **Alle aus der Forschung** (vor dem Export
+    geladen, nur wenn die Forschung auf diesem Computer läuft).
+- **Bedienung:** App: **Quellen** → Filter **Bild nur in der Forschung** → **Alle aus der Forschung laden…**; bei einer
+  Quelle **Bild aus der Forschung laden**, **Weitere Optionen → Aus der App entfernen**; **Einstellungen →
+  Quellenbilder** (**Bild einer Quelle beim Öffnen laden**, **Aus der App entfernen…**, **Alle laden…**); **Forschung → Bilder nur in der Forschung · N**.
+- **Gilt seit:** App 3.14.0 mit Forschung 1.18.0
+- **Ab App 3.25.0:** Filter und Marke heißen **Bild nur in der Forschung** (früher **Bild in der Forschung**), die
+  Zeile unter dem Filter sagt, wo die Bilder sind, und **?** öffnet diese Regel.
+
+<!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->

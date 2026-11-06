@@ -230,7 +230,9 @@ auch bei später hinzugefügten Personen.
   - Eine Gruppe, die sich mit einer anderen überschneidet, wird mit ihr zu einer verbunden.
   - Eine entfernte Form merkt sich der Stammbaum als abgelehntes Paar.
   - Die Form einer einzelnen Person (Spitzname, Hofname) gehört zu **Andere Schreibweisen des Namens** bei der
-    Person, nicht zu den Gruppen des Stammbaums.
+    Person, nicht zu den Gruppen des Stammbaums. Suche ([A4.8](#A4.8)) und Zusammenführen von Personen vergleichen
+    auch diese Formen; nach dem Zusammenführen bleiben die Formen beider Personen, und die Schreibweise, die in einem
+    Namenskonflikt unterlag, kommt hinzu.
   - **Aus der Forschung vorschlagen** zeigt die Vorschläge der Forschung in zwei Stufen: **Belegt** und **Nach
     Regeln**, jeder mit Grund und Belegen. Nichts wird ohne Bestätigung verbunden (**Übernehmen** / **Ablehnen**,
     **Rückgängig**).
@@ -245,7 +247,7 @@ auch bei später hinzugefügten Personen.
   Form** ([A4.1.1](#A4.1.1)).
 - **Gilt seit:** App 1.15.0 (Vorschläge aus der Forschung 3.17.0)
 
-<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* -->
+<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* · src/merge/matching.ts:197 writtenSurnames · src/merge/executor.ts:781 addLosingNameVariant, :951 nameVariants -->
 
 <a id="A4.8"></a>
 ## A4.8 Suche und Sortierung von Namen

@@ -63,7 +63,7 @@ udokumentował akt, nie nadpisuje więc danej. Powstaje sprzeczność między wa
 - Do rozstrzygnięcia w aplikacji zostaje wartość z aplikacji, badanie ma w tym miejscu swoją.
 - Ta sama zmiana wysłana ponownie nie zakłada nowej sprzeczności. Zmiana zmieniona inaczej tylko nadpisuje stronę
   aplikacji w otwartej sprzeczności.
-- **Obsługa:** aplikacja: po wysłaniu **Zapisano, {n} sprzeczności do rozstrzygnięcia** i **Pokaż**. Terminal: wydruk
+- **Obsługa:** aplikacja: po wysłaniu **Zapisano, N sprzeczności do rozstrzygnięcia** i **Pokaż**. Terminal: wydruk
   `strom sync` przy każdej zmianie podaje **sprzeczność do rozstrzygnięcia (badanie ma to z aktu)** albo
   **sprzeczność do rozstrzygnięcia (badanie podaje innych rodziców)**. Wysłanie można cofnąć: `strom sync undo I…`.
 - **Obowiązuje od:** badanie 1.5.0. Uściślenie bez sprzeczności i sprzeczność rodziców od 1.12.0, sprzeczność osoby

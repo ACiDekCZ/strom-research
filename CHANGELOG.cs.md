@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -25,12 +25,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Skončený rozhovor už v aplikaci Strom nezůstává „při práci“**, ani na vytíženém počítači, ani po změně jména
   počítače.
 
-- **Aplikace agenta hlídaná stejně jako agent v terminálu.** Její vestavěný prohlížeč dodržuje podmínky archivů stejně
+- **Aplikace agentů hlídané stejně jako agent v terminálu.** Vestavěný prohlížeč aplikace agenta dodržuje podmínky archivů stejně
   jako prohlížeč agenta v Chromu: archiv, který pouští jen prohlížeč člověka, je bez svolení člověka odmítnut se stejnou
   radou, povolený se zapíše a drží své tempo; místní stránky nic neomezuje. Příkazy stromu v terminálu aplikace platí
   stejně jako v příkazové řádce (co dělá jen člověk, most aplikace Strom); agent dostane pokyn spouštět strom přes svou
   příkazovou řádku. Z aplikace se nic nevypíná. Terminál aplikace pozná strom pod jakýmkoli jménem – jiného kanálu,
-  druhé instalace, balíček spuštěný přes spouštěč balíčků, cestu k němu.
+  druhé instalace, balíček spuštěný přes spouštěč balíčků, cestu k němu. Prohlížeč Codexu (v aplikaci ChatGPT) drží stejná
+  pravidla podle adres v jeho kódu, jakmile jsou hooky stromu v Codexu potvrzené – `strom doctor` a `strom chat` řeknou,
+  když čekají; kód bez adresy se nikdy neodmítne, jen zapíše. Computer use zůstává nehlídané. Co strom u kterého agenta
+  a aplikace hlídá: `strom doc R12`; agent s computer use dostane pokyn ovládat aplikaci Strom přes nástroje stránky
+  v prohlížeči a výzkum přes strom.
 
 - **Aplikace agenta bez agenta v terminálu.** Strom teď říká, co jde a co ne: rozhovor v aplikaci pokračuje, samostatná práce,
   čtení skenů a práce z aplikace Strom potřebují agenta v terminálu – řečeno dřív, než padne jakákoli otázka nebo
@@ -57,7 +61,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku
   výzkumů upraví i pokyny agenta tohoto výzkumu a zadaný web (example.org) pokryje i adresy, které používají knihy
   výzkumu. Podmínky Hlavního archivu starých aktů ve Varšavě podle odpovědi archivu: snímky volně k užití, každý
-  citovaný místem originálu – archiv, fond, signatura, strana nebo list.
+  citovaný místem originálu – archiv, fond, signatura, strana nebo list. Rozpor zapsaný v dávce se štítkem pramene
+  (`--claim "@s: …"`) teď cituje ten pramen; rozpor, který tak zapsala starší verze, ukazuje hodnotu bez syrového
+  štítku a tam, kde to jde poznat, cituje svůj pramen v aplikaci Strom i v GEDCOMu.
 
 ## 1.28.0
 

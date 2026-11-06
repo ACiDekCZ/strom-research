@@ -245,7 +245,7 @@ Belegstufe einer Person berechnet die App selbst, nur aus Zitationen.
 | **Stammbaum-Überblick → Datenqualität → Sicherheit der Forschungsangaben** | Geburten, Sterbefälle und Heiraten nach Grad | Forschung |
 | Personenseite, **Für Forschende → Sicherheit der Angaben** | Grad jeder Angabe der Person | Forschung |
 | **Belegt** / **Teilweise belegt** / **Unbelegt** (● ◐ ○) | Belegstufe der Person | Zitationen ([R3.8.1](#R3.8.1)) |
-| **Für Forschende**, „Durch Quellen belegt: {n} von {m} Angaben“ | Angaben der Person mit Quelle | Zitationen |
+| **Für Forschende**, „Durch Quellen belegt: N von M Angaben“ | Angaben der Person mit Quelle | Zitationen |
 | **Stammbaum-Überblick → Vorfahren**, Spalte **belegt** | Vorfahren mit belegter Geburt | mit Forschung nur Belegt, sonst Zitationen |
 | **Wo Belege fehlen → Geburten in der Forschung nicht bewiesen** | Geburten der Vorfahren, die nicht Belegt sind | Forschung |
 | Buch, **Daten für Forschende**: ● belegt · ◐ Widerspruch · ○ nicht belegt | Belegstand der Angabe | Belegt **oder** irgendeine Zitation |

@@ -158,7 +158,7 @@ Každý strom z výzkumu má vlastní most. Aplikace se ptá i mostů stromů, k
 ukáže v přepínači stromů.
 
 - **Hranice:**
-  - Značky u stromu v přepínači: **živě** (sleduje se), **běží** nebo **{n} linie** (agent pracuje), **čeká {n}**
+  - Značky u stromu v přepínači: **živě** (sleduje se), **běží** nebo **N linie** (agent pracuje), **čeká N**
     (věci k vyřízení), **neběží**.
   - Ptá se vždy jen jednoho mostu naráz a jen tehdy, když je stránka vidět: poprvé po 3 sekundách, pak každou
     minutu. Na odpověď čeká nejvýš 1,5 sekundy.

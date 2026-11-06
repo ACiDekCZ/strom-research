@@ -171,6 +171,34 @@ badanie ([R4](R4-places.md)).
 
 <!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
+<a id="A6.5.2"></a>
+### A6.5.2 Odszukanie miejsc poza mapą w badaniu
+
+Przy drzewie z badaniem pasek stanu mapy oferuje miejsca bez położenia do odszukania w badaniu
+([R4.4](R4-places.md#R4.4)). Przycisk otwiera okno **Miejsca** z podglądem; do kolejki badania miejsca trafiają
+dopiero po **Dodaj do kolejki**.
+
+- **Granice:**
+  - przed wyszukaniem na mapie jest na pasku obok wyszukiwania mapy **W badaniu**. Po wyszukaniu, gdy mapa części
+    miejsc nie znalazła, pasek pokazuje „N miejsc na mapie · mapa nie znalazła K” i **Odszukaj w badaniu (K)**,
+    ewentualnie „N do potwierdzenia ›” (otwiera **Czeka** w panelu badania);
+  - przycisk jest tylko przy drzewie z badaniem i tylko wtedy, gdy jest co odszukać: miejsce bez położenia albo
+    nieustalone, którego jeszcze nie ma w kolejce, nad którym się nie pracuje i które nie czeka na odpowiedź;
+  - okno **Miejsca** pokazuje podgląd „Odszukaj w badaniu N miejsc poza mapą”. Przed **Dodaj do kolejki N miejsc**
+    nic nie trafia do kolejki i żadne miejsce nie trafia tam dwa razy;
+  - gdy badanie działa na innym komputerze albo na telefonie, aplikacja zamiast okna mówi, gdzie odszukanie działa:
+    „Odszukać i sprawdzić można w badaniu na komputerze, na którym jest uruchomione. Stan miejsc przenosi się tutaj
+    razem z drzewem.”, na telefonie „Odszukać i sprawdzić można na komputerze z badaniem. Na pytania o miejsca można
+    odpowiedzieć także tutaj, w zakładce Czeka.” Starsze badanie: „Ta wersja badania jeszcze nie wyszukuje miejsc.”;
+  - przy śledzeniu badania na mapie ([S4.1.3](S4-research-from-the-app.md#S4.1.3)) wiersz „… – bez położenia na
+    mapie” oferuje **Odszukaj w badaniu**: dodaje to jedno miejsce do kolejki od razu, bez podglądu; dodanie można
+    cofnąć w komunikacie.
+- **Obsługa:** aplikacja: mapa → pasek stanu → **W badaniu**, po wyszukaniu na mapie **Odszukaj w badaniu (K)** →
+  okno **Miejsca** → **Dodaj do kolejki N miejsc**.
+- **Obowiązuje od:** aplikacja 3.25.0
+
+<!-- zdroj: app:src/ui/map-ui.ts (stavový pruh, lookResearch, lookable), src/ui/place-actions.ts, src/ui/places-research-ui.ts (bulkLook, bulkLookHead, bulkLookGo, nic dvakrát), src/ui/map-follow-ui.ts (noCoords + places.research.look, Undo) · strings.ts map.onMap.notFound, lookResearch, lookResearchShort, lookResearchTitle, confirm; places.dialog.elsewhere, phoneLine, oldResearch · CHANGELOG.cs.md 3.25.0 · commit 2246ca28 · spec 058 -->
+
 <a id="A6.6"></a>
 ## A6.6 Ród w widoku
 

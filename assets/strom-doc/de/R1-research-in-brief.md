@@ -48,6 +48,7 @@ das Tempo des wöchentlichen Limits des Abonnements).
 - Die Forschung kann auch nur ein **Strom-Archiv** sein, an dem kein Agent arbeitet:
   [R7.8](R7-when-the-agent-works.md#R7.8).
 - Ausführlich: [R7](R7-when-the-agent-works.md).
+- Wo mit dem Agenten gesprochen wird (Terminal, App Claude oder ChatGPT) und was strom wo überwacht: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 
