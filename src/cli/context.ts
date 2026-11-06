@@ -97,7 +97,7 @@ export class Context {
       const raw = str(k);
       if (raw === undefined) return undefined;
       const n = Number(raw);
-      if (!Number.isInteger(n) || n < 1) throw new UsageError(`--${k} must be a positive number`);
+      if (!Number.isInteger(n) || n < 1) throw new UsageError(`--${k} must be a positive number`, { code: "option.positive", params: { opt: `--${k}`, value: raw } });
       return n;
     };
     return new Context({

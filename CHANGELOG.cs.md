@@ -5,6 +5,43 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.28.0
+
+*6. 11. 2026 · patří k aplikaci Strom 3.24.0.*
+
+- **Jak Strom funguje je přímo ve stromu: `strom doc`.** Dokumentace aplikace a výzkumu v češtině, angličtině, němčině
+  a polštině je součástí stromu a čte se i bez internetu: `strom doc` vypíše kapitoly, `strom doc R10.1` jedno pravidlo
+  i s tím, proč tak je, `strom doc <slova>` hledá v nadpisech, rejstříku pojmů a textu (bez ohledu na diakritiku a
+  velikost písmen). U každého pravidla je odkaz na stejnou stránku na stromapp.info. Na otázku, jak nebo proč Strom
+  něco dělá, odpovídá agent podle ní s číslem pravidla. Nápověda pro člověka (`strom help --human`) na ni odkazuje.
+
+- **Hypotézu rozhoduje jen uživatel.** Agent už mezi soupeřícími vysvětleními nerozhoduje sám: navrhne verzi s důvody
+  a hypotéza čeká v menu stromu v Co čeká – rozhodne se podle návrhu, jinak, nebo zůstane otevřená. Co rozhodnutí
+  spojí, zapíše agent do stromu v další session. Dříve rozhodnuté hypotézy zůstávají, jak byly. Hypotéza, jejíž verze
+  říkají, co by spojily, se rozhoduje jen s uvedenou verzí.
+
+- **Rejstřík je vodítko, nikdy doklad.** Údaj, který cituje jen rejstřík, zůstane vodítkem, dokud se nepřečte a
+  necituje samotný zápis – stejně jako u rodokmenu nebo vzpomínky.
+
+- **Překlad vedle přepisu.** Záznam v jiném jazyce nebo písmu, než je jazyk výzkumu – latina, kurent, polština,
+  azbuka –, dostane vedle doslovného přepisu i překlad do jazyka výzkumu.
+
+- **Kde agent pracuje, pro mapu aplikace Strom.** Během práce agenta strom aplikaci říká, ke kterému místu patří kniha,
+  kterou agent zkoumá – farnost nebo obec jejích zápisů, nikdy archiv –, aby ho aplikace při sledování práce mohla
+  ukázat na mapě. Když to výzkum neví, nic neříká a aplikace zůstane u míst osoby. Práce na rodině uvede pár – manžela,
+  jinak manželku – i rodinu samotnou, aby se aplikace mohla zaměřit na pár.
+
+- **DigiArchiv SOA v Třeboni:** podmínky, jak je archiv potvrdil – ručně jen vybrané snímky, nikdy celá kniha, žádné
+  nástroje ke stahování – a jak citovat trvalý odkaz na snímek.
+
+- **Seznam před během ukazuje, co běh vezme.** V položce Nechat agenta pracovat samotného jsou mezi úkoly v pořadí, v jakém je agent
+  vezme, i úkoly dějin míst, když na ně přijde řada – místa údajů k zařazení jdou napřed –, označené jako dějiny.
+
+- **Podmínka běhu na jednom řádku.** Co podmínka (`run.gate`) odpověděla, jak se ptá – před každým sezením, nebo při
+  ručním spuštění jednou – a její strop se před prvním sezením řeknou na jednom řádku, ne na třech. Agent, který čte
+  webové stránky přes vlastního pomocníka, se už nehlásí jako bez nástroje na čtení webu; nástroj, který opravdu
+  chybí, se řekne v jazyce výzkumu.
+
 ## 1.27.0
 
 *5. 11. 2026 · patří k aplikaci Strom 3.23.0.*

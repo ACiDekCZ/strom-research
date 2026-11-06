@@ -725,7 +725,26 @@ export interface Hypothesis extends BaseRecord {
   decision?: string;
   /** Decided for this variant (its label; strom hypothesis decide --variant). */
   chosen?: string;
+  /** Who decided it: the person (strom hypothesis decide is theirs; an older strom let an agent decide — no mark). */
+  decidedBy?: "user";
+  /** What an agent proposes the person decide (strom hypothesis propose): taken off when the person decides. */
+  proposal?: HypothesisProposal;
   notes: Note[];
+}
+
+/** An agent's proposal of a decision of a hypothesis: the person decides it (What waits, strom hypothesis decide). */
+export interface HypothesisProposal {
+  /** The variant it would be decided for (none: abandoned, or a hypothesis whose variants say nothing they connect). */
+  variant?: string;
+  /** Which variant and why, as the decision would say it. */
+  decision: string;
+  /** None of the variants can be decided. */
+  abandon?: true;
+  /** A decided hypothesis that a new record overturns: why it is decided again. */
+  reason?: string;
+  /** The session (or "agent") that proposed it. */
+  by: string;
+  at: string;
 }
 
 export const LESSON_SCOPES = ["method", "repository", "recordset", "place", "project"] as const;

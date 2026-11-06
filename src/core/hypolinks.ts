@@ -8,7 +8,7 @@
 // than none — and leaves the rest to the agent as tasks.
 
 import path from "node:path";
-import type { Family, Hypothesis, HypothesisVariant, Person, Task, VariantLink } from "./model.ts";
+import type { Family, Hypothesis, HypothesisVariant, Person, Source, Task, VariantLink } from "./model.ts";
 import { UsageError } from "./errors.ts";
 import { create, normId, update } from "./records.ts";
 import { birthEvent, familiesAsChild, familiesAsPartner } from "./people.ts";
@@ -665,6 +665,71 @@ export function linkHints(tree: Tree, h: Hypothesis, labels: string[]): string[]
         ? `${label} names its people only in words — if it says ${linkText(link)}: strom hypothesis link ${h.id} ${label} ${linkOptions(link)}`
         : `${label} names its people only in words — say what it would connect: strom hypothesis link ${h.id} ${label} ${LINK_HOW} (none when it connects nothing clear)`,
     );
+  }
+  return out;
+}
+
+// ── a decision the user made: what goes on the tree ───────────────────────
+
+/**
+ * The sources a hypothesis names (in its question, variants, support, notes, decision) that none of the facts of its
+ * people cite — said when it is decided (found live: a fallen soldier's memorial and a casualty list kept in the
+ * research's notes while who he was stayed a hypothesis; decided by a marriage entry, his death was never written).
+ */
+export function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; sources: string[] }[] {
+  const text = [h.question, h.decision ?? "", ...h.variants.flatMap((v) => [v.claim, ...v.support, ...v.against]), ...h.notes.map((n) => n.text)].join("\n");
+  const named = [...new Set(text.match(/(?<![\p{L}\p{N}])S\d{4,}(?!\p{N})/gu) ?? [])].filter((s) => {
+    const src = tree.get<Source>(s);
+    return src?.type === "source" && !src.retracted;
+  });
+  if (!named.length) return [];
+  const out: { person: string; sources: string[] }[] = [];
+  for (const id of h.subject.filter((x) => x.startsWith("P"))) {
+    const p = tree.get<Person>(id);
+    if (!p || p.type !== "person" || p.retracted) continue;
+    const cited = new Set<string>();
+    const add = (cs?: { source: string }[]) => cs?.forEach((c) => cited.add(c.source));
+    for (const e of p.events) add(e.citations);
+    for (const n of p.names) add(n.citations);
+    for (const f of tree.list<Family>("family").filter((f) => !f.retracted && (f.partners.includes(id) || f.children.some((c) => c.person === id)))) {
+      add(f.citations);
+      for (const e of f.events) add(e.citations);
+    }
+    const missing = named.filter((s) => !cited.has(s));
+    if (missing.length) out.push({ person: id, sources: missing });
+  }
+  return out;
+}
+
+/** Whether the tree records a link of a decided variant: as linkInTree, and two records of one person merged. */
+function recordedNow(tree: Tree, l: VariantLink): boolean {
+  if (l.kind !== "same") return !!linkInTree(tree, l);
+  const [a, b] = l.persons;
+  const pa = a ? tree.get<Person>(a) : undefined;
+  const pb = b ? tree.get<Person>(b) : undefined;
+  return !!a && !!b && (pa?.mergedInto === b || pb?.mergedInto === a);
+}
+
+/** A hypothesis the user decided whose decision is not on the tree yet: the links of its variant, the sources it names. */
+export interface DecidedToRecord {
+  hypothesis: Hypothesis;
+  links: VariantLink[];
+  sources: { person: string; sources: string[] }[];
+}
+
+/**
+ * The hypotheses the user decided (strom hypothesis decide is the person's own) whose chosen variant's links the tree
+ * does not record yet, or whose named sources none of its people's facts cite: the agent's next work records them
+ * (the brief says so). Abandoned ones have nothing to record; one an agent decided (an older strom) was its own work.
+ */
+export function decidedToRecord(tree: Tree): DecidedToRecord[] {
+  const out: DecidedToRecord[] = [];
+  for (const h of tree.list<Hypothesis>("hypothesis")) {
+    if (h.state !== "decided" || h.decidedBy !== "user" || h.retracted) continue;
+    const v = h.variants.find((x) => x.label === h.chosen);
+    const links = (v?.links ?? []).filter((l) => !recordedNow(tree, l));
+    const sources = sourcesNotOnPeople(tree, h);
+    if (links.length || sources.length) out.push({ hypothesis: h, links, sources });
   }
   return out;
 }

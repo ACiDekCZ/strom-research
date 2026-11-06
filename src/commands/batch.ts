@@ -221,6 +221,8 @@ register({
         // one line cannot be a dry run while the others write: the whole batch is one or neither
         if (parsed.values["dry-run"]) throw new UsageError("--dry-run applies to the whole batch: strom batch --dry-run …");
         checkArgs(def, parsed.positionals, parsed.fix, "", parsed.values);
+        // the person's own (a hypothesis decided, a conflict left): never an agent's, in a batch as on its own (main.ts)
+        if (def.person && isAgent(ctx.env)) ctx.requireHuman(def.person, ["strom", ...def.path, ...rest].join(" "), def.path[0]!, undefined, { window: false });
         const before = tree.written.length;
         const r = await def.run(ctx, { args: parsed.positionals, opts: parsed.values });
         if (r.exitCode) throw new StromError(r.text.split("\n")[0] ?? "failed");

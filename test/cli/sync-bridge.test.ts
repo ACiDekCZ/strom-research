@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
-import { World, hasGit } from "../helpers.ts";
+import { World, hasGit, until } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import type { Family, Person } from "../../src/core/model.ts";
 import { opts, world, edited, post, get, marked, withSources } from "./sync.helpers.ts";
@@ -170,13 +170,10 @@ test("?poll=1 keeps no bridge running: the app asking now and then lets it end w
   w.env.STROM_LIVE_POLL_MS = "200";
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
-    const until = Date.now() + 4000;
-    let ended = false;
-    while (Date.now() < until && !ended) {
-      ended = await get(`${info.url}/status?poll=1`).then(() => false, () => true);
-      await new Promise((r) => setTimeout(r, 300));
-    }
-    assert.ok(ended, "the bridge ended though the app kept asking with ?poll=1");
+    // asked every 300 ms with ?poll=1, it still ends when idle — waited for, never a fixed time a loaded computer outruns
+    const log = () => (fs.existsSync(path.join(w.cwd, ".strom", "live.log")) ? fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8") : "");
+    await until("the bridge ended though the app kept asking with ?poll=1", () => get(`${info.url}/status?poll=1`).then(() => false, () => true), { ms: 60_000, every: 300, state: () => log().slice(-600) });
+    assert.match(log(), /idle: nobody asked for a while/u, "it ended as idle");
   } finally {
     await w.run(["live", "stop"]);
     w.cleanup();

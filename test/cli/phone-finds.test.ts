@@ -110,11 +110,17 @@ test("finds: a fact found and then corrected said once, as it is now; a question
     await w.ok(["person", "add", "Zden\u030cka /Dvor\u030ca\u0301kova\u0301/", "--sex", "F"], AGENT); // P0002
     await w.ok(["event", "add", "P1", "BIRT", "--date", "1870", "--place", "Тула"], AGENT); // E0001
     await w.ok(["event", "edit", "E0001", "--date", "1871", "--reason", "zápis uvádí 1871"], AGENT);
-    // a question decided: a find; one abandoned: none
+    // a question decided (the agent proposes it, the person decides it as proposed): a find; one abandoned: none; one
+    // the person decided otherwise: their own, none
     await w.ok(["hypothesis", "add", "Чья дочь Мария?", "--about", "P1", "--variant", "A: Ивана", "--variant", "B: Петра"], AGENT); // H0001
-    await w.ok(["hypothesis", "decide", "H1", "--variant", "A", "--decision", "метрика"], AGENT);
+    await w.ok(["hypothesis", "propose", "H1", "--variant", "A", "--decision", "метрика"], AGENT);
+    await w.ok(["hypothesis", "decide", "H1", "--proposed"]);
     await w.ok(["hypothesis", "add", "Kde se narodila Zdeňka?", "--about", "P2", "--variant", "A: Sloup", "--variant", "B: Brno"], AGENT); // H0002
-    await w.ok(["hypothesis", "decide", "H2", "--abandon", "--decision", "nelze rozhodnout"], AGENT);
+    await w.ok(["hypothesis", "propose", "H2", "--abandon", "--decision", "nelze rozhodnout"], AGENT);
+    await w.ok(["hypothesis", "decide", "H2", "--proposed"]);
+    await w.ok(["hypothesis", "add", "Kdo byl kmotr Zdeňky?", "--about", "P2", "--variant", "A: strýc", "--variant", "B: soused"], AGENT); // H0003
+    await w.ok(["hypothesis", "propose", "H3", "--variant", "A", "--decision", "zápis"], AGENT);
+    await w.ok(["hypothesis", "decide", "H3", "--variant", "B", "--decision", "jiný zápis"]);
     const f = treeFinds(w.cwd, w.env);
     assert.deepEqual(f.groups.find((g) => g.kind === "resolved")?.lines.map((l) => [l.kind, l.text]), [["hypothesis", "Чья дочь Мария?"]]);
     const maria = f.groups.find((g) => g.title?.startsWith("Мария Жукова"))!;

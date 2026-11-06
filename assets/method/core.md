@@ -49,7 +49,7 @@ conclusion so the next researcher can follow it.
   --pages` for what was searched in vain — never all of it at the end.
   A fact of a person goes on the person (`event add`); a note or the diary is
   for what is not a fact yet. What you held back while who it was stayed a
-  hypothesis goes on the person when you decide it.
+  hypothesis goes on the person once the user decides it.
 <!-- end -->
 - **The time is strom's to say** (a session working alone stops when the
   brief says): its output gives the time left after long steps and counts
@@ -78,9 +78,11 @@ conclusion so the next researcher can follow it.
   words only. An older open hypothesis you work on that has none gets them
   then (`strom hypothesis list --unlinked`). A variant's letter stays its
   claim's: a claim that would connect other people is a new variant
-  (`strom hypothesis variant H… "<claim>"`). Deciding one whose variants have
-  links names the variant it is decided for:
-  `strom hypothesis decide H… --variant B --decision "…"`.
+  (`strom hypothesis variant H… "<claim>"`).
+- **The user decides a hypothesis**; you propose it once the records point
+  to one variant: `strom hypothesis propose H… --variant B --decision "…"`
+  (none holds: `--abandon`), and go on. What the user decided, the brief
+  lists for you to record.
 <!-- end -->
 <!-- for links -->
   Read each variant whole (`strom hypothesis show H…`) and the people it

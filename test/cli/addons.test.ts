@@ -58,6 +58,11 @@ test("Claude Code working alone: no MCP servers of the user's, the tools strom u
   assert.deepEqual(missingTools([...RUN_TOOLS], ["Agent", "Bash", "Read", "Edit", "Write"]), ["WebFetch", "WebSearch", "ToolSearch", "SendMessage"]);
   assert.deepEqual(missingTools(cleanTools(false, "win32"), ["Task", "PowerShell", "Read", "Edit", "Write", "WebFetch", "WebSearch", "ToolSearch", "SendMessage"]), [], "PowerShell in Bash's place");
   assert.deepEqual(missingTools([...READER_TOOLS], ["Read", "Write"]), ["Edit"]);
+  // a newer Claude Code (2.1.318): WebFetch not among the session's tools, read through its web-fetch agent — not missing
+  const newer = ["Task", "Bash", "Edit", "Read", "SendMessage", "ToolSearch", "WebSearch", "Write"];
+  assert.deepEqual(missingTools([...RUN_TOOLS], newer, ["general-purpose", "web-fetch"]), []);
+  assert.deepEqual(missingTools([...RUN_TOOLS], newer), ["WebFetch"], "no web-fetch agent: missing");
+  assert.deepEqual(missingTools([...RUN_TOOLS], newer.filter((t) => t !== "Task"), ["web-fetch"]), ["WebFetch", "Agent"], "no subagents at all: missing");
 });
 
 test("Codex working alone: its plugins, apps, hooks and memories off — the user's config, model and login kept; resumed the same", () => {
@@ -150,7 +155,11 @@ async function world(): Promise<World> {
     `#!/bin/sh
 { printf 'ARGS'; for a in "$@"; do printf ' [%s]' "$a"; done; printf '\\n'; echo "MEM=\${CLAUDE_CODE_DISABLE_AUTO_MEMORY:-} TTL=\${CLAUDE_CODE_PROMPT_CACHE_TTL:-} CC=\${CLAUDECODE:-}"; } >> "${calls}"
 cat > /dev/null
+if [ -n "\${FAKE_WEBFETCH_AGENT:-}" ]; then
+echo '{"type":"system","subtype":"init","model":"m","tools":["Task","Bash","Edit","Read","SendMessage","ToolSearch","WebSearch","Write"],"agents":["general-purpose","web-fetch"]}'
+else
 echo '{"type":"system","subtype":"init","model":"m","tools":["Task","Bash","Read","Edit","Write"]}'
+fi
 echo '{"type":"result","result":"done","total_cost_usd":0,"num_turns":1}'
 `,
     { mode: 0o755 },
@@ -178,8 +187,14 @@ test("strom run and strom read: clean by default, with the add-ons once the user
   assert.equal(c.length, 1, run.out + run.err);
   assert.match(c[0]!.args, /\[--strict-mcp-config\] \[--tools\] \[Bash,Read,Edit,Write,WebFetch,WebSearch,Agent,ToolSearch,SendMessage\]/);
   assert.match(c[0]!.env, /^MEM=1 TTL= /);
-  // the init event said fewer tools than asked: said, the session went on
-  assert.match(run.out + run.err, /Claude Code did not load WebFetch, WebSearch, ToolSearch, SendMessage/);
+  // the init event said fewer tools than asked: said in the research language, the session went on (its log in English)
+  assert.match(run.out + run.err, /· Claude Code nenačetl WebFetch, WebSearch, ToolSearch, SendMessage – sezení se bez toho nemusí obejít/);
+  assert.doesNotMatch(run.out + run.err, /did not load/);
+  assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0001.log"), "utf8"), /\[strom\] Claude Code did not load WebFetch, WebSearch/);
+  // a newer Claude Code: WebFetch only through its web-fetch agent (2.1.318) — nothing lost, nothing said
+  const newer = await w.run(["run", "--agent", "claude"], { env: { FAKE_WEBFETCH_AGENT: "1" } });
+  calls(w);
+  assert.doesNotMatch(newer.out + newer.err, /WebFetch|nenačetl/, newer.out + newer.err);
 
   // an agent may not turn the add-ons on (a run nobody watches would have the person's mail, documents…); off it may
   w.env.CLAUDECODE = "1";

@@ -26,6 +26,7 @@ import {
   type Source,
   type Task,
   type HypothesisVariant,
+  type HypothesisProposal,
   type VariantLink,
   VARIANT_LINK_KINDS,
 } from "../core/model.ts";
@@ -41,7 +42,7 @@ import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/c
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
-import { childLink, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
+import { childLink, decidedToRecord, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { refuseNegativeOverUnclear } from "./readings.ts";
@@ -122,35 +123,38 @@ function taskLines(tree: Tree, id: string): string | undefined {
   return tasks.length ? `tasks  ${tasks.map((t) => `${t.id}${t.state === "open" ? "" : ` [${t.state}]`}`).join(" ")}` : undefined;
 }
 
-/** After a conflict or hypothesis is settled: the tasks still open on it. */
+/** An agent's proposal, said: "proposed (for B)  <decision>  — by S0003, 2026-11-05; the user decides it". */
+function proposalText(p: HypothesisProposal): string {
+  return `proposed${p.abandon ? " (to abandon)" : p.variant ? ` (for ${p.variant})` : ""}  ${p.decision}${p.reason ? ` — again: ${p.reason}` : ""}  — by ${p.by}, ${p.at.slice(0, 10)}; the user decides it (strom hypothesis decide)`;
+}
+
+/** --reason of a command, trimmed; none when empty. */
+function reasonOf(opts: Record<string, unknown>): string | undefined {
+  return typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+}
+
+/** A decided (or abandoned) hypothesis is decided (or proposed) again only with --reason: the earlier decision stays readable. */
+function againNeedsReason(h: Hypothesis, reason: string | undefined, verb: "decide" | "propose"): void {
+  const earlier = h.state !== "open" && h.decision ? h.decision : undefined;
+  if (earlier && !reason)
+    throw new UsageError(`${h.id} is already ${h.state}: "${truncate(earlier, 80)}"`, { hint: `${verb === "decide" ? "deciding" : "proposing"} again needs --reason (e.g. "the marriage entry of 1839 overturns it")` });
+}
+
 /**
- * The sources a hypothesis names (in its question, variants, support, notes, decision) that none of the facts of its
- * people cite — said when it is decided (found live: a fallen soldier's memorial and a casualty list kept in the
- * research's notes while who he was stayed a hypothesis; decided by a marriage entry, his death was never written).
+ * The variant a hypothesis is decided (or proposed) for: none with --abandon; one whose variants say what they would
+ * connect names it (the Strom app shows its links).
  */
-function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; sources: string[] }[] {
-  const text = [h.question, h.decision ?? "", ...h.variants.flatMap((v) => [v.claim, ...v.support, ...v.against]), ...h.notes.map((n) => n.text)].join("\n");
-  const named = [...new Set(text.match(/(?<![\p{L}\p{N}])S\d{4,}(?!\p{N})/gu) ?? [])].filter((s) => {
-    const src = tree.get<Source>(s);
-    return src?.type === "source" && !src.retracted;
-  });
-  if (!named.length) return [];
-  const out: { person: string; sources: string[] }[] = [];
-  for (const id of h.subject.filter((x) => x.startsWith("P"))) {
-    const p = tree.get<Person>(id);
-    if (!p || p.type !== "person" || p.retracted) continue;
-    const cited = new Set<string>();
-    const add = (cs?: { source: string }[]) => cs?.forEach((c) => cited.add(c.source));
-    for (const e of p.events) add(e.citations);
-    for (const n of p.names) add(n.citations);
-    for (const f of tree.list<Family>("family").filter((f) => !f.retracted && (f.partners.includes(id) || f.children.some((c) => c.person === id)))) {
-      add(f.citations);
-      for (const e of f.events) add(e.citations);
-    }
-    const missing = named.filter((s) => !cited.has(s));
-    if (missing.length) out.push({ person: id, sources: missing });
-  }
-  return out;
+function decidedVariant(h: Hypothesis, variant: unknown, abandon: boolean, verb: "decide" | "propose"): HypothesisVariant | undefined {
+  const labels = h.variants.map((x) => x.label).join("|");
+  if (variant !== undefined && abandon) throw new UsageError(`--variant names the variant it is ${verb === "decide" ? "decided" : "proposed"} for: not with --abandon`);
+  const chosen = variant === undefined ? undefined : h.variants.find((x) => foldText(x.label) === foldText(String(variant)));
+  if (variant !== undefined && !chosen) throw new UsageError(`no variant ${String(variant)} in ${h.id}`, { hint: h.variants.map((x) => x.label).join(", ") });
+  // variants that say what they would connect: the decision names which one holds (the Strom app shows its links)
+  if (!abandon && !chosen && h.variants.some((v) => v.links?.length))
+    throw new UsageError(`${h.id}: its variants say what they would connect — name the variant it is ${verb === "decide" ? "decided" : "proposed"} for (--variant ${labels})`, {
+      hint: `strom hypothesis ${verb} ${h.id} --variant <${labels}> --decision "…"${h.state !== "open" ? ' --reason "…"' : ""} · none holds: --abandon`,
+    });
+  return chosen;
 }
 
 function stillOpen(tree: Tree, id: string): string | undefined {
@@ -823,24 +827,105 @@ register(
     },
   },
   {
+    path: ["hypothesis", "propose"],
+    summary: "Propose how a hypothesis is decided (or abandoned) — the user decides it",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    description: [
+      "A hypothesis is the user's to decide: once the records point to one variant (or show that none can be decided),",
+      "propose it and tell the user in a sentence — they decide it in strom's menu (What waits). A new proposal replaces",
+      "the one before it; a decided hypothesis a new record overturns is proposed again with --reason. Nothing waits for",
+      "the answer: the work goes on.",
+    ].join("\n"),
+    args: [{ name: "hypothesis", description: "hypothesis ID (H0001)", required: true }],
+    options: [
+      { name: "decision", type: "string", value: "<text>", description: "which variant and why, as the decision would say it" },
+      { name: "variant", type: "string", value: "<label>", description: "the variant to decide it for (always when its variants have links)" },
+      { name: "abandon", type: "boolean", description: "none of the variants can be decided" },
+    ],
+    examples: ['strom hypothesis propose H0001 --variant B --decision "the marriage entry names the parents"', 'strom hypothesis propose H0002 --abandon --decision "no record tells them apart"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const decision = typeof opts.decision === "string" ? opts.decision.trim() : "";
+      if (!decision) throw new UsageError("--decision is required: which variant and why");
+      const id = normId(args[0]!, "hypothesis");
+      const h0 = requireRecord<Hypothesis>(tree, id, "hypothesis");
+      const reason = reasonOf(opts);
+      const abandon = !!opts.abandon;
+      againNeedsReason(h0, reason, "propose");
+      const chosen = decidedVariant(h0, opts.variant, abandon, "propose");
+      const proposal: HypothesisProposal = {
+        ...(chosen ? { variant: chosen.label } : {}),
+        decision,
+        ...(abandon ? { abandon: true as const } : {}),
+        ...(reason ? { reason } : {}),
+        by: tree.actor,
+        at: new Date().toISOString(),
+      };
+      const h = update<Hypothesis>(tree, id, "hypothesis", (h) => ({ ...h, proposal }), {
+        op: "hypothesis.propose",
+        summary: `${id} proposed ${abandon ? "to abandon" : `to decide${chosen ? ` for ${chosen.label}` : ""}`}${reason ? " again" : ""}`,
+      });
+      const say = actsAsArchive(tree) ? undefined : "the user decides it: tell them in a sentence what you propose and why (strom's menu, What waits, shows it) — the work goes on meanwhile";
+      return { text: lines(written(tree), say), data: { hypothesis: h, proposal } };
+    },
+  },
+  {
     path: ["hypothesis", "decide"],
     summary: "Decide a hypothesis (or abandon it) — again, with a reason, when a new record overturns the decision",
     group: "analysis",
     tree: true,
     writes: true,
-    description: "Deciding again keeps the earlier decision in a note; it needs --reason.",
+    person: 'Deciding a hypothesis is the user\'s own: an agent proposes it (strom hypothesis propose H… --variant <label> --decision "…") and tells the user, who decides it in strom\'s menu (What waits)',
+    description: [
+      "Deciding again keeps the earlier decision in a note; it needs --reason.",
+      "An agent's proposal (strom hypothesis propose): --proposed takes it as it is; --keep-open decides nothing and keeps",
+      "the proposal in a note.",
+    ].join("\n"),
     args: [{ name: "hypothesis", description: "hypothesis ID", required: true }],
     options: [
       { name: "decision", type: "string", value: "<text>", description: "which variant and why" },
       { name: "variant", type: "string", value: "<label>", description: "the variant it is decided for (always when its variants have links)" },
       { name: "abandon", type: "boolean", description: "none of the variants can be decided" },
+      { name: "proposed", type: "boolean", description: "as the agent proposed it (its variant, decision and reason)" },
+      { name: "keep-open", type: "boolean", description: "the proposal not taken: nothing decided, the proposal kept in a note" },
     ],
+    examples: ["strom hypothesis decide H0001 --proposed", 'strom hypothesis decide H0001 --variant A --decision "the baptism names both parents"', "strom hypothesis decide H0001 --keep-open"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      if (!opts.decision) throw new UsageError("--decision is required");
       const id = normId(args[0]!, "hypothesis");
-      const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
-      if (opts.variant !== undefined && opts.abandon) throw new UsageError("--variant names the variant it is decided for: not with --abandon");
+      const h0 = requireRecord<Hypothesis>(tree, id, "hypothesis");
+      const p = h0.proposal;
+      const said = typeof opts.decision === "string" ? opts.decision.trim() : "";
+      if (opts["keep-open"]) {
+        if (said || opts.variant !== undefined || opts.abandon || opts.proposed) throw new UsageError("--keep-open decides nothing: it goes alone");
+        if (!p) throw new UsageError(`${id} has no proposal to leave`, { hint: `strom hypothesis show ${id}` });
+        const what = `${p.abandon ? "abandon" : p.variant ? `decide for ${p.variant}` : "decide"}: ${p.decision}`;
+        const h = update<Hypothesis>(
+          tree,
+          id,
+          "hypothesis",
+          (h) => {
+            const { proposal: _was, ...rest } = h;
+            return { ...rest, notes: [...h.notes, makeNote(tree, truncate(`proposal not taken (${what})`, 480))] };
+          },
+          { op: "hypothesis.keep", summary: `${id} kept ${h0.state}: the proposal not taken` },
+        );
+        return { text: written(tree), data: { hypothesis: h } };
+      }
+      if (opts.proposed) {
+        if (!p) throw new UsageError(`${id} has no proposal`, { hint: `strom hypothesis decide ${id} --variant <label> --decision "…"` });
+        if (opts.variant !== undefined || opts.abandon) throw new UsageError("--proposed takes the proposal as it is — another variant: --variant without --proposed");
+      }
+      const decision = said || (opts.proposed ? p!.decision : "");
+      if (!decision) throw new UsageError("--decision is required", p ? { hint: `as proposed: strom hypothesis decide ${id} --proposed` } : {});
+      const variant = opts.proposed ? p!.variant : opts.variant;
+      const abandon = opts.proposed ? !!p!.abandon : !!opts.abandon;
+      const reason = reasonOf(opts) ?? (opts.proposed ? p!.reason : undefined);
+      againNeedsReason(h0, reason, "decide");
+      const chosen = decidedVariant(h0, variant, abandon, "decide");
+      const asProposed = !!p && !!p.abandon === abandon && (p.variant ?? "") === (chosen?.label ?? "");
       const h = update<Hypothesis>(
         tree,
         id,
@@ -848,19 +933,18 @@ register(
         (h) => {
           // A decision is overturned in the open: the earlier one stays readable.
           const earlier = h.state !== "open" && h.decision ? h.decision : undefined;
-          if (earlier && !reason) throw new UsageError(`${id} is already ${h.state}: "${truncate(earlier, 80)}"`, { hint: 'deciding again needs --reason (e.g. "the marriage entry of 1839 overturns it")' });
           const notes = earlier ? [...h.notes, makeNote(tree, truncate(`earlier ${h.state}: ${earlier}`, 480))] : h.notes;
-          const chosen = opts.variant === undefined ? undefined : h.variants.find((x) => foldText(x.label) === foldText(String(opts.variant)));
-          if (opts.variant !== undefined && !chosen) throw new UsageError(`no variant ${String(opts.variant)} in ${id}`, { hint: h.variants.map((x) => x.label).join(", ") });
-          const { chosen: _was, ...rest } = h;
-          return { ...rest, state: opts.abandon ? "abandoned" : "decided", decision: String(opts.decision), ...(chosen ? { chosen: chosen.label } : {}), notes };
+          const { chosen: _was, proposal: _proposed, ...rest } = h;
+          return { ...rest, state: abandon ? "abandoned" : "decided", decision, ...(chosen ? { chosen: chosen.label } : {}), decidedBy: "user", notes };
         },
-        { op: "hypothesis.decide", summary: `${id} ${opts.abandon ? "abandoned" : "decided"}${opts.variant !== undefined ? ` for ${String(opts.variant)}` : ""}${reason ? " again" : ""}`, reason },
+        { op: "hypothesis.decide", summary: `${id} ${abandon ? "abandoned" : "decided"}${chosen ? ` for ${chosen.label}` : ""}${reason ? " again" : ""}${asProposed ? " as proposed" : ""}`, reason },
       );
-      // decided: the sources it names that its people's facts do not cite yet — what they say goes on the people now
-      const unrecorded = opts.abandon ? [] : sourcesNotOnPeople(tree, h);
-      const say = unrecorded.map((u) => `${u.person}: ${u.sources.join(", ")} — named by ${id}, cited by none of ${u.person}'s facts: what they say of ${u.person} goes on ${u.person} now (event add ${u.person} … --cite ${u.sources[0]}); a note or the diary does not reach the tree`);
-      return { text: lines(written(tree), ...say, stillOpen(tree, id)), data: { hypothesis: h, ...(unrecorded.length ? { unrecorded } : {}) } };
+      // decided: what its variant connects and the sources it names that its people's facts do not cite yet go on the
+      // tree in the agent's next work (the brief lists them: decidedToRecord) — the person is told so in their language
+      const todo = abandon ? undefined : decidedToRecord(tree).find((x) => x.hypothesis.id === id);
+      const unrecorded = todo?.sources ?? [];
+      const next = todo && !actsAsArchive(tree) ? ui(tree.lang, "ui.hypothesis.decided.next") : undefined;
+      return { text: lines(written(tree), next, stillOpen(tree, id)), data: { hypothesis: h, ...(unrecorded.length ? { unrecorded } : {}) } };
     },
   },
   {
@@ -882,9 +966,11 @@ register(
       const concerns = about ? hypothesisConcerns(tree, about) : undefined;
       const all = tree.list<Hypothesis>("hypothesis").filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)) && (!concerns || concerns(h)));
       const links = (h: Hypothesis) => h.variants.reduce((n, v) => n + (v.links?.length ?? 0), 0);
+      // an agent's proposal waiting for the user (an archive says nothing of an agent)
+      const proposed = (h: Hypothesis) => (h.proposal && !actsAsArchive(tree) ? (h.proposal.abandon ? "proposed: abandon" : `proposed${h.proposal.variant ? `: ${h.proposal.variant}` : ""}`) : "");
       return {
         text: all.length
-          ? table(all.map((h) => [h.id, h.state, truncate(h.question, 60), h.variants.map((v) => v.label).join("/"), links(h) ? `${links(h)} link${links(h) === 1 ? "" : "s"}` : ""]))
+          ? table(all.map((h) => [h.id, h.state, truncate(h.question, 60), h.variants.map((v) => v.label).join("/"), links(h) ? `${links(h)} link${links(h) === 1 ? "" : "s"}` : "", proposed(h)]))
           : `no ${opts.all ? "" : "open "}${opts.unlinked ? "hypothesis without links" : about ? "hypothesis" : "hypotheses"}${about ? ` about ${about} → all of them: strom hypothesis list${opts.all ? "" : " --all"}` : ""}`,
         data: { ...(about ? { about } : {}), hypotheses: all },
       };
@@ -914,6 +1000,8 @@ register(
             ...(recorded[v.label] ? [`  = ${recordedText(recorded[v.label]!)}`] : []),
           ]),
           h.decision ? `\ndecision${h.chosen ? ` (for ${h.chosen})` : ""}  ${h.decision}` : undefined,
+          // an agent's proposal: the user decides it (an archive says nothing of an agent)
+          h.proposal && !actsAsArchive(tree) ? `\n${proposalText(h.proposal)}` : undefined,
         ),
         data: { hypothesis: h, ...(Object.keys(recorded).length ? { recorded } : {}) },
       };

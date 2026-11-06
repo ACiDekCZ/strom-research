@@ -43,7 +43,7 @@ test("the status may not claim more than the evidence gives", opts, async () => 
   assert.equal(lead.status, "lead");
   const refused = await w.run(["event", "add", "P1", "OCCU", "--value", "rolník", "--cite", "S1", "--status", "probable"]);
   assert.equal(refused.code, 2);
-  assert.match(refused.err, /family tree, a memory or a compiled work cannot make a fact probable/);
+  assert.match(refused.err, /family tree, a memory, a compiled work or an index cannot make a fact probable/);
   // A record makes it probable; proven needs primary information for the fact.
   assert.equal((await w.ok(["cite", "E1", "S2", "--json"])).json.event.status, "probable");
   const noPrimary = await w.run(["event", "add", "P1", "CHR", "--date", "1885", "--cite", "S2", "--status", "proven"]);

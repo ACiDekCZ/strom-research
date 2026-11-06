@@ -1,6 +1,7 @@
 {
   "name": "strom-research",
-  "version": "1.27.0",
+  "version": "1.28.0",
+  "stromDoc": "b2a5943d296d11635146b545905040055605ff9b",
   "description": "Genealogical research toolkit for AI coding agents",
   "type": "module",
   "stromLayout": 2,
@@ -36,7 +37,8 @@
     "build": "tsc -p tsconfig.build.json",
     "prepack": "npm run build",
     "prepublishOnly": "node scripts/npm-channel.ts",
-    "release": "node scripts/build-release.ts"
+    "release": "node scripts/build-release.ts",
+    "doc:pin": "node scripts/pin-strom-doc.ts"
   },
   "keywords": [
     "genealogy",

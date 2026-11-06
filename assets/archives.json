@@ -42,8 +42,8 @@
       "host": "digi.ceskearchivy.cz",
       "name": "Státní oblastní archiv v Třeboni (DigiArchiv)",
       "level": "manual",
-      "terms": "https://digi.ceskearchivy.cz/DA?subject=2&menu=8",
-      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech apod. je zakázáno.",
+      "terms": "https://digi.ceskearchivy.cz/Uvod",
+      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.",
       "robots": "403 Forbidden for strom's User-Agent, robots.txt and the terms page too (2026-11-03); before: Allow: /DA* · Disallow: /help/* · /pages/* · /oai/* · /Assets/*",
       "disallow": [
         "/help/",
@@ -51,8 +51,8 @@
         "/oai/",
         "/Assets/"
       ],
-      "scope": "a person's browser only: the server refuses strom's requests (403, even robots.txt and the catalogue); its images by hand, for viewing only (the terms quoted as read on 2026-10-11)",
-      "checked": "2026-10-11",
+      "scope": "a person's browser only: the server refuses strom's requests (403, even robots.txt and the catalogue; on purpose, the archive's reply of 2026-11-05); by hand only and selected images only, never a whole book or a substantial part of it; no download tools and not the agent's browser either; the permanent link of an image is its page's address …/<book>/<image> or \"Odkaz na snímek\" in the POPIS panel (the terms of /Uvod and the archive's reply, 2026-11-05)",
+      "checked": "2026-11-05",
       "browserOnly": true
     },
     {
@@ -667,11 +667,11 @@
       "host": "www.ceskearchivy.cz",
       "name": "Státní oblastní archiv v Třeboni (website)",
       "level": "manual",
-      "terms": "https://digi.ceskearchivy.cz/DA?subject=2&menu=8",
-      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech apod. je zakázáno.",
+      "terms": "https://digi.ceskearchivy.cz/Uvod",
+      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.",
       "robots": "User-agent: * · Disallow: /administrator/ · /images/ · /media/ … (Joomla default)",
-      "scope": "the archive's information pages only; its scans are on digi.ceskearchivy.cz (a person's browser only, viewing only); the research rules and price lists lie under /images/, which robots.txt keeps off (the terms quoted as read on 2026-10-11)",
-      "checked": "2026-10-11"
+      "scope": "the archive's information pages only; its scans are on digi.ceskearchivy.cz (a person's browser only, selected images by hand only); the research rules and price lists lie under /images/, which robots.txt keeps off (the terms quoted as read on 2026-11-05)",
+      "checked": "2026-11-05"
     },
     {
       "host": "www.soalitomerice.cz",

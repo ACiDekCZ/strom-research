@@ -586,3 +586,26 @@ test("history tasks: strom run --history takes them alone, in their order whatev
     w.cleanup();
   }
 });
+
+test("history tasks: the menu's list before strom run shows the order the run takes — the places to map first, marked as history", opts, async () => {
+  const w = await world();
+  try {
+    Object.assign(w.env, { STROM_RUNNER_SCRIPT: agent, AGENT_MODE: "idle" });
+    await w.ok(["frontier", "--apply"]);
+    await dropOthers(w);
+    for (let i = 1; i <= 3; i++) await w.ok(["task", "add", `Matrika Lhota ${i}`, "--level", "locate", "--where", `Lhota ${i}`, "--why", "a", "--done-when", "b", "--about", "P1", "--priority", "1"]);
+    const places = ofHistory(await tasks(w)).find((t) => t.origin === "history:places")!;
+    assert.ok(places, "the places to map: a task of history");
+    // the menu: Run, its list, then back (nothing runs)
+    const menu = await w.ok([], { tty: true, env: { STROM_AGENT: "script" }, answers: ["2", "0", "0"] });
+    const list = menu.out.split("\n").filter((l) => /^ {2,3}\d+\. /u.test(l));
+    assert.match(list[0] ?? "", /^ {3}1\. Místa údajů pro dějiny předků \(2\).* \(dějiny\)$/u, menu.out);
+    assert.ok(list.some((l) => /Matrika Lhota/u.test(l)), menu.out);
+    assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")), "nothing ran");
+    // the run takes what the list put first
+    const r = await w.ok(["run", "--agent", "script", "--max", "1", "--json"]);
+    assert.deepEqual((r.json.sessions as { task: string }[]).map((s) => s.task), [places.id], r.err);
+  } finally {
+    w.cleanup();
+  }
+});

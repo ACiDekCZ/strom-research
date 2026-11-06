@@ -5,6 +5,49 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.28.0
+
+*6.11.2026 · gehört zur Strom-App 3.24.0.*
+
+- **Wie Strom funktioniert gehört zu strom: `strom doc`.** Die Dokumentation der App und der Forschung auf Tschechisch,
+  Englisch, Deutsch und Polnisch ist Teil von strom und liest sich auch ohne Internet: `strom doc` listet die Kapitel,
+  `strom doc R10.1` zeigt eine Regel samt dem Warum, `strom doc <Wörter>` sucht in Überschriften, im Begriffsregister
+  und im Text (Akzente und Groß-/Kleinschreibung egal). Jede Regel trägt den Link zur selben Seite auf stromapp.info.
+  Auf die Frage, wie oder warum Strom etwas tut, antwortet der Agent danach mit der Nummer der Regel. Die Hilfe für
+  Menschen (`strom help --human`) verweist darauf.
+
+- **Über eine Hypothese entscheidet nur der Nutzer.** Der Agent entscheidet nicht mehr selbst zwischen konkurrierenden
+  Erklärungen: Er schlägt eine Variante mit Gründen vor, und die Hypothese wartet im Menü von strom unter „Was wartet“ –
+  entschieden wie vorgeschlagen, anders oder offen gelassen. Was die Entscheidung verbindet, trägt der Agent in seiner
+  nächsten Sitzung in den Stammbaum ein. Früher entschiedene Hypothesen bleiben, wie sie waren. Eine Hypothese, deren
+  Varianten sagen, was sie verbinden würden, wird nur mit genannter Variante entschieden.
+
+- **Ein Register ist ein Hinweis, nie ein Beleg.** Eine Angabe, die nur ein Register zitiert, bleibt ein Hinweis, bis
+  der Eintrag selbst gelesen und zitiert ist – wie bei einem Stammbaum oder einer Erinnerung.
+
+- **Eine Übersetzung neben der Abschrift.** Ein Eintrag in einer anderen Sprache oder Schrift als der der Forschung –
+  Latein, Kurrent, Polnisch, Kyrillisch – bekommt neben der wörtlichen Abschrift eine Übersetzung in die Sprache der
+  Forschung.
+
+- **Wo der Agent arbeitet, für die Karte der Strom-App.** Während ein Agent arbeitet, sagt strom der App, zu welchem
+  Ort das Buch gehört, das er untersucht – die Pfarrei oder das Dorf seiner Einträge, nie das Archiv –, damit die App
+  ihn beim Verfolgen der Arbeit auf der Karte zeigen kann. Weiß die Forschung es nicht, sagt sie nichts, und die App
+  bleibt bei den Orten der Person. Arbeit an einer Familie nennt das Paar – den Ehemann, sonst die Ehefrau – und die
+  Familie selbst, damit die App sich dem Paar zuwenden kann.
+
+- **DigiArchiv des Staatlichen Gebietsarchivs Třeboň:** seine Bedingungen, wie das Archiv sie bestätigt hat – von Hand
+  nur ausgewählte Bilder, nie ein ganzes Buch, keine Download-Werkzeuge – und wie der dauerhafte Link eines Bildes
+  zitiert wird.
+
+- **Die Liste vor einem Lauf zeigt, was der Lauf nimmt.** Unter „Den Agenten allein arbeiten lassen“ stehen unter den
+  Aufgaben in der Reihenfolge, in der der Agent sie nimmt, nun auch die Aufgaben der Geschichte der Orte, wenn sie an der
+  Reihe sind – die Orte der Angaben zuerst –, als Geschichte gekennzeichnet.
+
+- **Die Bedingung eines Laufs in einer Zeile.** Was die Bedingung (`run.gate`) geantwortet hat, wie sie gefragt wird
+  – vor jeder Sitzung oder bei von Hand gestarteten Aufgaben einmal – und ihre Obergrenze stehen vor der ersten Sitzung
+  in einer Zeile, nicht in dreien. Ein Agent, der Webseiten über seinen eigenen Helfer liest, wird nicht mehr
+  als ohne Werkzeug zum Lesen des Webs gemeldet; ein Werkzeug, das wirklich fehlt, wird in der Sprache der Forschung gesagt.
+
 ## 1.27.0
 
 *5.11.2026 · gehört zur Strom-App 3.23.0.*

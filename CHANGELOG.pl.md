@@ -5,6 +5,47 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.28.0
+
+*6.11.2026 · współpracuje z aplikacją Strom 3.24.0.*
+
+- **Jak działa Strom – w samym stromie: `strom doc`.** Dokumentacja aplikacji i badań po czesku, angielsku, niemiecku i
+  polsku jest częścią stromu i czyta się ją także bez internetu: `strom doc` wypisuje rozdziały, `strom doc R10.1` jedną
+  regułę wraz z tym, dlaczego tak jest, `strom doc <słowa>` szuka w tytułach, indeksie pojęć i tekście (bez względu na
+  znaki diakrytyczne i wielkość liter). Każda reguła ma link do tej samej strony na stromapp.info. Na pytanie, jak lub
+  dlaczego Strom coś robi, agent odpowiada według niej z numerem reguły. Pomoc dla człowieka (`strom help --human`)
+  do niej odsyła.
+
+- **O hipotezie decyduje tylko użytkownik.** Agent nie rozstrzyga już sam między konkurencyjnymi wyjaśnieniami:
+  proponuje wariant z uzasadnieniem, a hipoteza czeka w menu stromu w „Co czeka” – rozstrzygnięta zgodnie z propozycją,
+  inaczej albo pozostawiona otwarta. To, co decyzja łączy, agent zapisuje w drzewie w następnej sesji. Hipotezy
+  rozstrzygnięte wcześniej pozostają bez zmian. Hipotezę, której warianty mówią, co by połączyły, rozstrzyga się tylko
+  ze wskazanym wariantem.
+
+- **Indeks to wskazówka, nigdy dowód.** Fakt, który cytuje tylko indeks, pozostaje wskazówką, dopóki nie zostanie
+  odczytany i zacytowany sam wpis – tak jak przy drzewie genealogicznym czy wspomnieniu.
+
+- **Tłumaczenie obok transkrypcji.** Wpis w innym języku lub piśmie niż język badań – łacina, kurrenta, niemiecki,
+  cyrylica – otrzymuje obok dosłownej transkrypcji tłumaczenie na język badań.
+
+- **Gdzie pracuje agent – dla mapy aplikacji Strom.** Podczas pracy agenta strom podaje aplikacji, do którego miejsca
+  należy księga, którą agent bada – parafia lub wieś jej wpisów, nigdy archiwum – aby aplikacja mogła je pokazać na
+  mapie podczas śledzenia pracy. Gdy badania tego nie wiedzą, nic nie podają, a aplikacja pozostaje przy miejscach
+  osoby. Praca nad rodziną podaje parę – męża, a jeśli go brak, żonę – oraz samą rodzinę, aby aplikacja mogła skupić
+  się na parze.
+
+- **DigiArchiv Archiwum Państwowego w Třeboniu:** jego warunki, tak jak potwierdziło je archiwum – ręcznie tylko wybrane
+  skany, nigdy cała księga, żadnych narzędzi do pobierania – i jak cytować stały link do skanu.
+
+- **Lista przed uruchomieniem pokazuje, co weźmie agent.** W pozycji „Pozwól agentowi pracować samodzielnie“ wśród
+  zadań w kolejności, w jakiej bierze je agent, są teraz także zadania historii miejsc, gdy przychodzi ich kolej –
+  miejsca danych najpierw –, oznaczone jako historia.
+
+- **Warunek przebiegu w jednym wierszu.** Co odpowiedział warunek (`run.gate`), jak jest pytany – przed każdą sesją
+  albo raz przy zadaniach uruchomionych ręcznie – i jego pułap są podane przed pierwszą sesją w jednym wierszu, nie w
+  trzech. Agent, który czyta strony internetowe przez własnego pomocnika, nie jest już zgłaszany jako
+  pozbawiony narzędzia do czytania stron; narzędzie, którego naprawdę brak, jest podawane w języku badań.
+
 ## 1.27.0
 
 *5.11.2026 · współpracuje z aplikacją Strom 3.23.0.*

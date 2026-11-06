@@ -6,6 +6,7 @@ import { table } from "./format.ts";
 import type { ShownAppUrl } from "../core/stromapp.ts";
 import { suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
+import { docLangOf } from "../core/doc.ts";
 
 function optionRows(opts: OptionDef[]): string[][] {
   return opts.map((o) => [`--${o.name}${o.value ? ` ${o.value}` : ""}${o.multiple ? " (repeatable)" : ""}`, `${o.description}${o.max ? ` (≤${o.max} characters)` : ""}`]);
@@ -33,7 +34,7 @@ const ARCHIVE_COMMANDS = new Set([
   "init", "trees", "trees use", "trees remove", "mode", "lang", "pack", "unpack", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
-  "find", "stats", "pedigree", "recent", "history", "history back",
+  "find", "stats", "pedigree", "recent", "history", "history back", "doc",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
   "check", "verify", "repair", "seal adopt", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
@@ -218,7 +219,7 @@ export const HUMAN_COMMANDS = [
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
-  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find",
+  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check",
   "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "media calibrate",
   "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
@@ -254,7 +255,9 @@ function humanOverview(as: HelpAs): string {
     return said ? [[`  strom ${name}`, said]] : [];
   });
   const more = ui(as.lang, as.archive ? "ui.help.more.archive" : "ui.help.more");
-  return [ui(as.lang, "ui.help.title"), "", table(rows), "", more, ui(as.lang, "ui.help.source", { url: SOURCE_URL })].join("\n");
+  // the last line: "How Strom works", the documentation carried with strom and its pages on the web (spec 051 K2.1)
+  const doc = ui(as.lang, "ui.help.doc", { lang: docLangOf(as.lang).lang });
+  return [ui(as.lang, "ui.help.title"), "", table(rows), "", more, ui(as.lang, "ui.help.source", { url: SOURCE_URL }), doc].join("\n");
 }
 
 function humanCommand(def: CommandDef, as: HelpAs): string {

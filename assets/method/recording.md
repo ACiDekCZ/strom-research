@@ -25,6 +25,9 @@ creates, `@name` uses it later; a found search comes after the source it found
 - `--transcript` is the entry's words as they stand in it — its own language,
   spelling and abbreviations, line by line, unread letters `[?]`; the Strom app
   shows them next to the entry's image. Every entry read gets them.
+- `--translation`: a record in another language or script than the
+  research's (Latin, Kurrent, Polish, Cyrillic …) gets one in the research
+  language; the transcript stays in the record's.
 - A fact already in the tree gets the citation (`cite E…`, `--status` is a
   fact's only — a name or a family cited takes none), not a second fact —
   and what the record adds to it: `event edit E… --age husband:27 --age wife:17
@@ -80,7 +83,7 @@ creates, `@name` uses it later; a found search comes after the source it found
   link) stands: an agent decides it again — or opens a conflict of that fact
   again — only on a source the decision did not weigh (`--source S…`) and with
   `--reason "…"`; the same record read again changes nothing. A decided
-  hypothesis that a new record overturns is decided again (the earlier
-  decision is kept): `strom hypothesis decide H… --decision "…" --reason "…"`.
+  hypothesis that a new record overturns is proposed again (the earlier
+  decision is kept): `strom hypothesis propose H… --decision "…" --reason "…"`.
   People named wrongly by the weaker record keep that name as a variant
   (`name add … --primary` for the right one); they are not deleted.

@@ -5,6 +5,46 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.28.0
+
+*2026-11-06 · goes with the Strom app 3.24.0.*
+
+- **How Strom works comes with strom: `strom doc`.** The documentation of the app and the research, in Czech, English,
+  German and Polish, is part of strom and reads offline: `strom doc` lists its chapters, `strom doc R10.1` shows one rule
+  with why it is so, `strom doc <words>` searches its titles, its index of terms and its text (accents and case aside).
+  Each rule carries its link to the same page on stromapp.info. Asked how or why Strom does something, the agent answers
+  from it with the rule's number. A person's help (`strom help --human`) ends with it.
+
+- **Only the user decides a hypothesis.** The agent no longer decides between competing explanations itself: it proposes
+  a variant with its reasons, and the hypothesis waits in strom's menu under What waits, to be decided as proposed,
+  otherwise, or left open. What the decision connects, the agent records on the tree in its next session. Hypotheses
+  decided earlier stay as they were. A hypothesis whose variants say what they would connect is decided only with the
+  variant named.
+
+- **An index is a lead, never proof.** A fact that only an index cites stays a lead until the entry itself is read and
+  cited, as with a family tree or a memory.
+
+- **A translation beside the transcript.** A record in another language or script than the research's – Latin, German
+  Kurrent, Polish, Cyrillic – gets a translation into the research's language beside its word-for-word transcript.
+
+- **Where the agent works, for the map of the Strom app.** While an agent works, strom tells the app which place the
+  book it examines belongs to – the parish or village of its records, never the archive – so the app can show it on the
+  map when following the work. When the research does not know it, it says nothing, and the app keeps to the person's
+  own places. Work on a family names the couple – the husband, else the wife – and the family itself, so the app can
+  turn to the pair.
+
+- **DigiArchiv of the regional archive in Třeboň:** its terms as the archive confirmed them – selected images saved by
+  hand only, never a whole book, no download tools – and how to cite an image's permanent link.
+
+- **The list before a run shows what the run takes.** Under Let the agent work on its own, the tasks listed in the order
+  the agent takes them now include the tasks of the history of the places in their turn – the places of the facts to
+  map come first – marked as history.
+
+- **The condition of a run in one line.** What the condition (`run.gate`) answered, how it is asked – before each
+  session, once for tasks started by hand – and its cap are said in one line before the first session, not in three.
+  An agent that reads web pages through its own helper is no longer reported as missing its web fetch; a tool
+  really missing is said in the research's language.
+
 ## 1.27.0
 
 *2026-11-05 · goes with the Strom app 3.23.0.*
