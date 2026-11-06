@@ -193,6 +193,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "open":
     case "app":
     case "live":
+      // only the bridge, no window of the app (the app's switch "research on": it follows the address it has)
+      if (link.action === "live" && link.do === "start") return end(startBridge(ctx, root));
       // the research opened from the Strom app: its bridge up, whatever ended it (idle, stopped, a crash) — at its last
       // address, so the app that asked goes on by itself ("Research is not running" with the menu open, T25)
       if (link.action === "open") {
@@ -375,6 +377,18 @@ async function inTerminal(ctx: Context, link: TreeLink) {
 }
 
 /**
+ * The bridge of the research started at its last address (strom-research://live?…&do=start, feature live.start): the
+ * app's switch turned on, the app that keeps the address finds it again by itself — no window opened. Whether it runs.
+ */
+function startBridge(ctx: Context, root: string): boolean {
+  try {
+    return !!startLive(root, ctx.env, { current: true, why: "started from the Strom app (strom-research://live&do=start)" });
+  } catch {
+    return false;
+  }
+}
+
+/**
  * What needs no terminal: the research as it is now into the app's window (strom app), a conversation in the
  * agent's desktop app (its first message waits there for the person to send it). Undefined: a terminal is needed.
  */
@@ -382,6 +396,7 @@ async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   const run = await runnerOf(ctx)(root);
   if (link.action === "app") return { text: "", data: { done: (await run(["app"], true)) === 0, action: "app", tree: root } };
   // followed live: the bridge started (or the one running), its address into the app's window — strom app --live
+  if (link.action === "live" && link.do === "start") return { text: "", data: { done: startBridge(ctx, root), action: "live", do: "start", tree: root } };
   if (link.action === "live") return { text: "", data: { done: (await run(["app", "--live"], true)) === 0, action: "live", tree: root } };
   if (link.action !== "chat" && !(link.action === "conflict" && link.do === "agent")) return undefined;
   const tree = Tree.open(root, ctx.env);

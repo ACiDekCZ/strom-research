@@ -11,7 +11,7 @@ Abschnitt im Panel der Forschung. Beschrieben werden die Strom-App 3.21.2 (und d
 Die Forschung fügt zu jeder Person in den Stammbaum für die App besondere Blöcke hinzu: Widersprüche, Hypothesen,
 durchsuchte Quellen und den Rand des Stammbaums über der Person. Die App zeigt sie nur an. Nichts davon ändert sich in
 der App, und die App sendet sie nicht zurück; sie leben in der Forschung. Der Kopf des Dialogs trägt das Datum der
-Forschung „Stand {Datum}“.
+Forschung „Stand …“.
 
 - **Woher:** von der Brücke (der Stammbaum, den die App aus der laufenden Forschung lädt, siehe
   [S1](S1-connecting-app-and-research.md)) oder aus der Datei `output/tree-strom.ged`. Beides entsteht durch
@@ -103,12 +103,12 @@ Elternteil, oder kein Eintrag belegt die Eltern. Er sagt, warum die Suche hier s
   *nicht erhalten*.
 - **Aufgaben:** Platz in der Warteschlange oder warum sie steht (*pausierte Richtung*, *beendete Richtung*, *Familie
   außerhalb des Baums*, *zurückgestellt bis …*); erledigte unter **Versuchte Aufgaben · n**.
-- **Arbeit:** Zahl der Suchen, Zahl der Sitzungen des Agenten mit Kosten, „zuletzt {Datum}“. Im Archiv gibt es
+- **Arbeit:** Zahl der Suchen, Zahl der Sitzungen des Agenten mit Kosten, „zuletzt …“. Im Archiv gibt es
   weder Sitzungen noch Kosten.
 - **Hypothesen:** mögliche Verbindung zu einer anderen Person, Familie außerhalb des Stammbaums („Familie außerhalb
   des Baums, 4 Personen“), wie viele Aufgaben warten, welche Aufgaben die Hypothese testen.
 - Der Link „2 offene Widersprüche ↓“ springt zum Abschnitt **Widersprüche**.
-- **Grenzen:** „Stand {Datum}“ steht im Kopf des Abschnitts nur, wenn die Forschung älter als heute ist.
+- **Grenzen:** „Stand …“ steht im Kopf des Abschnitts nur, wenn die Forschung älter als heute ist.
 - **Bedienung:** App: **Einstellungen → Stammbaumansicht → Forschungsrand** (*Aus* / *Zu entscheiden* / *Alle*)
   steuert nur die offenen Ansätze über den Karten, nicht diesen Abschnitt. Die Auswahl gibt es nur bei einem
   Stammbaum aus der Forschung. *Zu entscheiden* fehlt bei einer Kopie, die keine Warteschlange hat. Terminal:
@@ -141,7 +141,7 @@ Elternteil, oder kein Eintrag belegt die Eltern. Er sagt, warum die Suche hier s
 ## S3.4 Widersprüche
 
 Der Abschnitt **Widersprüche** zeigt die Widersprüche der Person und der Familien, in denen die Person Partner ist.
-Offene stehen zuerst, dann entschiedene mit der Zeile „entschieden: {Wert} ({Quelle})“. Die Quelle lässt sich im
+Offene stehen zuerst, dann entschiedene mit der Zeile „entschieden: … (…)“. Die Quelle lässt sich im
 Quellenbetrachter öffnen. Was ein Widerspruch ist, wo er zu sehen ist und wie er entschieden wird, beschreibt
 [R5.6](R5-conflicts.md#R5.6). Die Entscheidung durch eine Seite aus der App beschreibt
 [R5.6.1](R5-conflicts.md#R5.6.1).

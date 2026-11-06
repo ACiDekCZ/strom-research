@@ -23,16 +23,17 @@ Der Ablauf in Kürze:
 5. **Entscheidung:** die Tabelle und der Ablauf einer Aufgabe stehen in [R9.8](#R9.8), die Schritte des Menschen in
    [R9.9](#R9.9) und Beispiele in [R9.10](#R9.10).
 
-> **Hinweis: wo genau der Browser des Agenten gilt.** Den Browser des Agenten überwacht strom nur bei **Claude Code**
-> mit der Erweiterung **Claude in Chrome** und im eingebauten Browser der App Claude
-> ([R12.2](R12-where-the-agent-works.md#R12.2)). Den Browser oder die Computersteuerung eines anderen Agenten (Codex,
-> Antigravity und andere) kann strom nicht überwachen: ein solcher Agent geht damit nicht von sich aus in ein Archiv,
-> das nur der Browser eines Menschen betreten darf, und die Bilder speichert der Mensch. Eingebaute Browser und
-> Computersteuerung der Desktop-Apps der Agenten empfiehlt strom nicht; der Agent nutzt sie nur auf ausdrückliche
+> **Hinweis: wo genau der Browser des Agenten gilt.** Den Browser des Agenten überwacht strom bei **Claude Code**
+> mit der Erweiterung **Claude in Chrome**, im eingebauten Browser der App Claude
+> ([R12.2](R12-where-the-agent-works.md#R12.2)) und im Browser von Codex nach den Adressen in seinem Code, wenn der
+> Mensch den Hook von strom bestätigt hat ([R12.5](R12-where-the-agent-works.md#R12.5)). Den Browser eines anderen
+> Agenten (Antigravity und andere) und die Computersteuerung keines Agenten kann strom überwachen: der Agent geht damit
+> nicht von sich aus in ein Archiv, das nur der Browser eines Menschen betreten darf, und die Bilder speichert der
+> Mensch. Eingebaute Browser und Computersteuerung der Desktop-Apps der Agenten empfiehlt strom nicht; der Agent nutzt sie nur auf ausdrückliche
 > Bitte eines Menschen ([R9.4.2](#R9.4.2)). Wo mit dem Agenten gesprochen wird und was strom wo überwacht, fasst
 > [R12](R12-where-the-agent-works.md) zusammen.
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Arten von Archiven
@@ -228,9 +229,10 @@ Menschen. Genauso überwacht es den eingebauten Browser der App Claude
 ### R9.4.2 Eingebaute Browser und Computersteuerung: nicht empfohlen
 
 - In der Forschung wird an den Desktop-Apps der Agenten nichts abgeschaltet. Den eingebauten Browser der App Claude
-  (auch ihre Vorschau) überwacht strom wie Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Die
-  Computersteuerung der App Claude sowie Browser und Computersteuerung der App ChatGPT (Codex) überwacht strom nicht
-  ([R12.5](R12-where-the-agent-works.md#R12.5)). Keinen davon empfiehlt strom.
+  (auch ihre Vorschau) überwacht strom wie Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), den
+  Browser der App ChatGPT (Codex) nach den Adressen in seinem Code, sobald der Mensch den Hook von strom bestätigt
+  ([R12.5](R12-where-the-agent-works.md#R12.5)). Die Computersteuerung der App Claude und der App ChatGPT überwacht
+  strom nicht ([R12.10](R12-where-the-agent-works.md#R12.10)). Keinen davon empfiehlt strom.
 - **Nur Methodik:** der Agent nutzt sie nicht von sich aus: in ein Archiv, das nur der Browser eines Menschen betreten
   darf, geht er damit nicht, und die Bilder speichert der Mensch ([R9.6](#R9.6)). Bittet ein Mensch ausdrücklich
   darum, ist es die Wahl des Menschen: der Agent sagt in einem Satz, ob strom diesen Weg überwacht, und was die
@@ -242,7 +244,7 @@ Menschen. Genauso überwacht es den eingebauten Browser der App Claude
   Downloader des Archivs, der Webabruf von Seiten und der Browser des Agenten in Chrome halten sich immer an die
   Regeln der Archive ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Bedienung:** Terminal: `strom doctor`, Zeile **Browser der Desktop-Apps**.
-- **Gilt seit:** Forschung 1.27.0; 1.29.0: eingebauter Browser der App Claude überwacht
+- **Gilt seit:** Forschung 1.27.0; 1.29.0: eingebauter Browser der App Claude und Browser von Codex überwacht
 <!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
 
 <a id="R9.4.3"></a>
@@ -340,7 +342,7 @@ sobald alle ihre Bilder in der Forschung sind.
   die Prüfung, ob ein Mensch am Computer ist, durchläuft nur der Mensch.
 - **Warum:** die Bilder sind das, worauf die Aufgabe gewartet hat; ein Teil der Bilder schließt die Aufgabe nicht ab.
 - **Bedienung:** Terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, in Was wartet
-  **Den Ordner öffnen ({have}/{want} gespeichert)**. App: Wartet auf Bearbeitung, beim Eintrag in dieser Reihenfolge
+  **Den Ordner öffnen (M/N gespeichert)**. App: Wartet auf Bearbeitung, beim Eintrag in dieser Reihenfolge
   **Bilder hinzufügen**, **Website öffnen ↗**, **Antworten**, **Mit Agent besprechen**, **Ordner öffnen** (die
   letzten beiden öffnen die Forschung im Terminal). Den Zustand der Bilder zeigt „1 von 2 Bildern“ und beim Buch die
   Chips **gespeichert** / **fehlt**. Die Websites eines Archivs warten in einer Gruppe **Archiv** unter dem Namen des

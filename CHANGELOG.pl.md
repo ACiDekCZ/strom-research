@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -23,8 +23,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   rozstrzygnąć ponownie z uzasadnieniem, wcześniejsza decyzja pozostaje czytelna; tak samo z przeglądu osoby i z linku
   aplikacji Strom. Gdy rozstrzyga użytkownik, agent proponuje decyzję wszędzie, gdzie zapisy wskazują na jeden wariant.
 
-- **Zakończona rozmowa nie pozostaje już w aplikacji Strom „przy pracy“**, także na obciążonym komputerze i po zmianie
-  nazwy komputera.
+- **Badanie w aplikacji Strom pozostaje włączone.** Połączenie z aplikacją Strom (most) nie kończy się już samo po
+  dwóch godzinach bez zapytań: działa, dopóki nie zostanie wyłączone albo komputer się nie wyłączy (`live.idleMinutes`
+  wynosi teraz 0; wcześniej ustawiona wartość pozostaje). Aplikacja Strom dostaje przełącznik przy każdym badaniu
+  i wybór w ustawieniach – do wyłączenia komputera albo po dwóch godzinach bez zapytań –, oba zapisywane przez most.
+  Wyłączony w aplikacji most pozostaje wyłączony (nowa praca w badaniu go nie przywraca) i zachowuje swój adres, więc
+  ponowne włączenie – z aplikacji linkiem stroma albo poleceniem `strom live start` – nie wymaga nowego połączenia.
 
 - **Aplikacje agentów pilnowane tak jak agent w terminalu.** Wbudowana przeglądarka aplikacji agenta przestrzega warunków archiwów tak
   jak przeglądarka agenta w Chrome: archiwum, które wpuszcza tylko przeglądarkę człowieka, bez jego zgody zostaje
@@ -70,7 +74,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   archiwum: skany do swobodnego użytku, każdy cytowany miejscem oryginału – archiwum, zespół, sygnatura, strona lub
   karta. Sprzeczność zapisana w partii z etykietą źródła (`--claim "@s: …"`) cytuje teraz to źródło; taka, którą tak
   zapisała starsza wersja, pokazuje wartość bez surowej etykiety i tam, gdzie da się to rozpoznać, cytuje swoje źródło
-  w aplikacji Strom i w GEDCOM-ie.
+  w aplikacji Strom i w GEDCOM-ie. Zakończona rozmowa nie pozostaje już w aplikacji Strom „przy pracy“, także na
+  obciążonym komputerze i po zmianie nazwy komputera. Miejsce zapisane w zdaniu („w Lhocie nr 12“) nie zachowuje już
+  przyimków: kontrola proponuje miejscowość tak, jak badanie zapisuje ją gdzie indziej, a rekord miejsca nie dostaje
+  już nazwy w rodzaju „w Lhocie w“ – takie nazwy zapisane wcześniej zostają jednorazowo poprawione (cofnięcie: strom
+  place undo).
 
 ## 1.28.0
 

@@ -119,7 +119,7 @@ happened, the app shows in the window **Couldn't connect to the research**.
 
 | Cause | What the app shows | What helps |
 |---|---|---|
-| the browser does not let the page reach devices on the local network | **{browser} blocks the connection** | allow **Apps on device** (Brave: **Localhost access**) in the site settings |
+| the browser does not let the page reach devices on the local network | **… blocks the connection** (the browser's name) | allow **Apps on device** (Brave: **Localhost access**) in the site settings |
 | the browser is still asking | **The browser is waiting for permission** | answer the browser's question |
 | the bridge is not running | **The research isn't responding** | start the research; at a new address `strom app --live` connects it |
 | another bridge answers at the address (changed key, another tree) | **The research turned the connection down** | `strom app --live` |
@@ -146,7 +146,7 @@ app turns on only what the research accepts. The research in turn chooses by the
   - **Older research** (without automatic sending, or without titles): the app shows **The research has an older
     version (v)** with the offer **Update the research**. Edits are then sent only by hand: the app starts the
     research in the terminal and the research takes them. Until the update, titles stay only in the app.
-  - **A new version of the research is available:** the app shows **New Strom Research {v}** with the button
+  - **A new version of the research is available:** the app shows **New Strom Research …** with the button
     **Update**. What is running finishes on the current version.
   - **A research written by a newer version of the `strom` program:** an older program neither opens it nor writes
     into it.

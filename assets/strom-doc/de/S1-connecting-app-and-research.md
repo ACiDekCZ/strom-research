@@ -122,7 +122,7 @@ genau geschah, zeigt die App im Fenster **Verbindung zur Forschung fehlgeschlage
 
 | Ursache | Was die App zeigt | Was hilft |
 |---|---|---|
-| der Browser lässt die Seite nicht zu Geräten im lokalen Netzwerk | **{Browser} blockiert die Verbindung** | **Apps auf dem Gerät** (Brave: **Localhost-Zugriff**) in den Website-Einstellungen erlauben |
+| der Browser lässt die Seite nicht zu Geräten im lokalen Netzwerk | **… blockiert die Verbindung** (Name des Browsers) | **Apps auf dem Gerät** (Brave: **Localhost-Zugriff**) in den Website-Einstellungen erlauben |
 | der Browser fragt erst noch | **Der Browser wartet auf eine Erlaubnis** | die Frage des Browsers beantworten |
 | die Brücke läuft nicht | **Die Forschung antwortet nicht** | die Forschung starten; an der neuen Adresse verbindet sie `strom app --live` |
 | an der Adresse antwortet eine andere Brücke (geänderter Schlüssel, anderer Stammbaum) | **Die Forschung hat die Verbindung abgelehnt** | `strom app --live` |
@@ -150,7 +150,7 @@ nur ein, was die Forschung annimmt. Die Forschung wiederum wählt nach der Versi
   - **Ältere Forschung** (ohne automatisches Senden oder ohne Titel): die App zeigt **Die Forschung hat eine ältere
     Version (v)** mit dem Angebot **Forschung aktualisieren**. Änderungen werden dann nur von Hand gesendet: die App
     startet die Forschung im Terminal, und diese holt sie ab. Titel bleiben bis zur Aktualisierung nur in der App.
-  - **Neue Version der Forschung verfügbar:** die App zeigt **Neue Version Strom Research {v}** mit der Schaltfläche
+  - **Neue Version der Forschung verfügbar:** die App zeigt **Neue Version Strom Research …** mit der Schaltfläche
     **Aktualisieren**. Was gerade läuft, endet mit der aktuellen Version.
   - **Eine Forschung, die eine neuere Version des Programms `strom` geschrieben hat:** ein älteres Programm öffnet sie
     nicht und schreibt nicht in sie.

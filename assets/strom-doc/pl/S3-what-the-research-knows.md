@@ -10,7 +10,7 @@ Strom 3.21.2 (i badanie 1.25.2). Zmiany z nowszej wersji mają przy sobie jej nu
 
 Badanie do każdej osoby dodaje do drzewa genealogicznego dla aplikacji osobne bloki: sprzeczności, hipotezy,
 przeszukane źródła i krawędź drzewa nad osobą. Aplikacja je tylko pokazuje. Nic z nich nie zmienia się w aplikacji
-i aplikacja ich nie odsyła; żyją w badaniu. Nagłówek okna niesie datę badania „stan na {data}”.
+i aplikacja ich nie odsyła; żyją w badaniu. Nagłówek okna niesie datę badania „stan na …”.
 
 - **Skąd:** z mostu (drzewo genealogiczne, które aplikacja wczytuje z działającego badania, zob.
   [S1](S1-connecting-app-and-research.md)) albo z pliku `output/tree-strom.ged`. Jedno i drugie powstaje tym samym
@@ -97,11 +97,11 @@ nie dokumentuje żaden akt. Mówi, dlaczego szukanie tu stoi i co stanie się da
   *niezachowane*.
 - **Zadania:** miejsce w kolejce albo dlaczego stoją (*wstrzymana linia*, *zakończona linia*, *rodzina spoza
   drzewa*, *odłożone do …*); zakończone pod **Wypróbowane zadania · n**.
-- **Praca:** liczba wyszukiwań, liczba sesji agenta z kosztem, „ostatnio {data}”. W archiwum sesji ani kosztu nie ma.
+- **Praca:** liczba wyszukiwań, liczba sesji agenta z kosztem, „ostatnio …”. W archiwum sesji ani kosztu nie ma.
 - **Hipotezy:** możliwe połączenie z inną osobą, rodzina spoza drzewa („rodzina spoza drzewa, 4 osoby”), ile zadań
   czeka, które zadania testują hipotezę.
 - Link „2 otwarte sprzeczności ↓” przewija do sekcji **Sprzeczności**.
-- **Granice:** „stan na {data}” jest w nagłówku sekcji tylko wtedy, gdy badanie jest starsze niż dzisiejszy dzień.
+- **Granice:** „stan na …” jest w nagłówku sekcji tylko wtedy, gdy badanie jest starsze niż dzisiejszy dzień.
 - **Obsługa:** aplikacja: **Ustawienia → Wyświetlanie drzewa → Krawędź badania** (*Wyłączone* / *Do załatwienia* /
   *Wszystko*) steruje tylko zaczątkami nad kartami, nie tą sekcją. Opcja jest tylko przy drzewie genealogicznym
   z badania. *Do załatwienia* brakuje przy kopii, która nie ma kolejki. Terminal: `strom edge`.
@@ -133,7 +133,7 @@ nie dokumentuje żaden akt. Mówi, dlaczego szukanie tu stoi i co stanie się da
 ## S3.4 Sprzeczności
 
 Sekcja **Sprzeczności** pokazuje sprzeczności osoby i rodzin, w których osoba jest partnerem. Otwarte są pierwsze,
-potem rozstrzygnięte z wierszem „rozstrzygnięto: {wartość} ({źródło})”. Źródło można otworzyć w przeglądarce źródeł.
+potem rozstrzygnięte z wierszem „rozstrzygnięto: … (…)”. Źródło można otworzyć w przeglądarce źródeł.
 Czym jest sprzeczność, gdzie ją widać i jak się ją rozstrzyga, opisuje [R5.6](R5-conflicts.md#R5.6). Rozstrzygnięcie
 stroną z aplikacji opisuje [R5.6.1](R5-conflicts.md#R5.6.1).
 

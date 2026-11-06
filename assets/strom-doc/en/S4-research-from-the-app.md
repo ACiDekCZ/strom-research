@@ -24,7 +24,7 @@ through the bridge.
   - **Progress** merges steps by 15 minutes and shows at most 20 steps.
   - On a wide window (from 1280 px) the overview is a side panel next to the tree, on a tablet a layer over the tree,
     on a phone the whole screen. On a phone the panel is a strip, and a tap opens the overview.
-  - Without following, the panel shows the last known **Awaiting action** with the sentence **As of {d}. The research
+  - Without following, the panel shows the last known **Awaiting action** with the sentence **As of …. The research
     is not running.**
 - **Controls:** app: the panel, buttons **⤢ Open overview** and **Stop following**; menu **Research → Research
   overview**.
@@ -68,9 +68,9 @@ the panel and the overview.
   - **Restore defaults** cancels all choices. Restoring the defaults and hiding a section from its menu can be taken
     back for a while (**Undo**). When all sections are hidden, the panel says **All sections are hidden.**
 - **Awaiting action collapsed or hidden:**
-  - a new item does not expand the section. The heading shows the count and **{n} new**; highlighted when a decision
+  - a new item does not expand the section. The heading shows the count and **N new**; highlighted when a decision
     or a permission is among them (**includes a decision or permission**);
-  - hidden, it leaves the chip **Waiting {n}** in the panel's header, in the summary of the collapsed panel, in the
+  - hidden, it leaves the chip **Waiting N** in the panel's header, in the summary of the collapsed panel, in the
     strip on a phone and in the overview. A click shows the section in the overview until the overview closes
     (**Hidden section, shown until the overview closes.**).
 - **Controls:** app: **⋯ → Customize panel…** in the header of the panel and of the overview; right click or long
@@ -153,7 +153,7 @@ The app shows the beginning of the research's queue in the order in which the ag
 ([R2.2](R2-lines-and-queue.md#R2.2)). The whole queue stays in the research.
 
 - **Limits:**
-  - The panel shows 3 tasks (**Up next**), the overview 20 (**Queue**). The rest is shown by the row **and {n} more in
+  - The panel shows 3 tasks (**Up next**), the overview 20 (**Queue**). The rest is shown by the row **and N more in
     the research**, which opens the research.
   - With two or more running directions, tasks can be filtered by direction (**Queue by direction**).
   - A task outside the directions has a note: **Waits until the directions' work is done · helps no direction**,
@@ -170,7 +170,7 @@ The app shows the beginning of the research's queue in the order in which the ag
   terminal ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); not for the task the agent is working on. The queue is read in
   pages: **Load more** adds 50 tasks, the list holds at most 300, and the filter of a direction or a branch narrows
   the rest.
-  The branch chip (**Branch {n} {k}**) narrows the whole queue to the branch's tasks; **Show the whole queue**
+  The branch chip (**Branch … K**) narrows the whole queue to the branch's tasks; **Show the whole queue**
   cancels it.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
@@ -182,9 +182,9 @@ The overview shows the research's directions ([R2.1](R2-lines-and-queue.md#R2.1)
 got. In app 3.21.2 directions are only read; every change is confirmed in the research's terminal.
 
 - **Limits:**
-  - The section **Directions · {n} active** is there only with two or more directions, or with one direction when work
+  - The section **Directions · N active** is there only with two or more directions, or with one direction when work
     outside it runs too (row **Outside the directions**). Paused and ended directions are folded under **Paused and
-    ended · {n}**.
+    ended · N**.
   - A direction's row: kind (↑ ancestors, ↓ descendants, ⌕ question), name, person, number of tasks and what awaits
     action. A direction without work has **Nothing to do, it can be ended.**
   - Direction detail: known ancestors by generations, when it was last worked on, **Work on this direction** (a
@@ -197,10 +197,10 @@ got. In app 3.21.2 directions are only read; every change is confirmed in the re
 - **Controls:** app: **Research overview → Directions**, at a direction **⋯**.
 - **Since:** app 3.5.0 (research 1.8.0). The panel divided by direction from 3.13.1.
 - **From app 3.22.0:** with research 1.26.0 directions are changed right in the app ([S4.3.1](#S4.3.1)). A
-  direction's row shows what is being worked on now (**Now: …**) and the limits (**up to {n} generations**, **before
-  {year}**; not for a paused direction). The direction detail says what the direction found over the last days
-  (**Last {n} days:** sessions, people, sources); it shows the people in the tree. Ended directions are collapsed at
-  the end (**Ended · {n}**). In a narrow window and on a phone the overview is a sheet: arrows ▲▼ instead of the
+  direction's row shows what is being worked on now (**Now: …**) and the limits (**up to N generations**, **before
+  …** (year); not for a paused direction). The direction detail says what the direction found over the last days
+  (**Last N days:** sessions, people, sources); it shows the people in the tree. Ended directions are collapsed at
+  the end (**Ended · N**). In a narrow window and on a phone the overview is a sheet: arrows ▲▼ instead of the
   order handle.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -221,7 +221,7 @@ nothing is paid.
     the order: **The research spends most time on the directions at the top; the others keep going.** or **The
     research takes the directions in order.**
   - **Pause** and **Restart** can be taken back (**Undo**). **End…** asks and takes an optional reason.
-  - When the same direction already exists, the form says so (**The direction {n} is already running.**) and offers
+  - When the same direction already exists, the form says so (**The direction … is already running.**) and offers
     **Show it** or **Create anyway**.
   - **Find ancestors** and **Find descendants** at a person open this form.
   - Read-only: in a Strom archive (**Archive: directions are read-only.**), on a phone (**Directions can be changed in
@@ -245,20 +245,20 @@ With two or more directions, the overview shows the work outside the directions 
 - **Limits:**
   - For the whole research: **How work outside the directions is taken**: **Now and then**, **At the end**, **As
     usual**, **Never**.
-  - A branch's row: the branch's person, its relation to a direction (**near the direction {n}**), the number of
+  - A branch's row: the branch's person, its relation to a direction (**near the direction …**), the number of
     tasks, **growing**, **own choice**.
-  - A click on a branch shows its first tasks with their place in the queue (**In the queue · first {k} of {n}**,
-    **{i} in the queue**) and the link **All {n} tasks in the queue ›**. When the branch's tasks stand beyond the
-    loaded part of the queue: **The branch's tasks stand further on in the queue ({n}).**
+  - A click on a branch shows its first tasks with their place in the queue (**In the queue · first K of N**,
+    **I in the queue**) and the link **All N tasks in the queue ›**. When the branch's tasks stand beyond the
+    loaded part of the queue: **The branch's tasks stand further on in the queue (N).**
   - For a branch: **Taken:** **Now and then** / **At the end** / **As usual** (the research's choice has
-    **(default)**), **Add to the direction {n}** (the nearest direction first), **Create a direction from this
+    **(default)**), **Add to the direction …** (the nearest direction first), **Create a direction from this
     branch**, **Do not research** (the tasks leave the queue, nothing is deleted), **Reset to default**. Branches not
-    researched are together (**Not researched · {n} branches**).
+    researched are together (**Not researched · N branches**).
   - Questions about growing branches ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) are in **Awaiting action**: add to a
-    direction (for a paused direction **Add to the direction {n} (paused)**), create a direction, **Leave as it is**,
+    direction (for a paused direction **Add to the direction … (paused)**), create a direction, **Leave as it is**,
     do not research. Without an answer the branch goes on being taken as before.
   - The window **Research for this tree…**, the group **Work outside the directions**: the choice for the whole
-    research (**Now and then**: “About 1 task outside the directions per {k} tasks of the directions.”), **Suggest
+    research (**Now and then**: “About 1 task outside the directions per K tasks of the directions.”), **Suggest
     directions for growing branches**, **Branches with their own choice** and tasks with a manual order.
 - **Controls:** app: **Research overview**, the section of work outside the directions, at a branch **⋯** (**Branch
   options**); **Research for this tree…**.
@@ -292,13 +292,13 @@ or paid.
   - An action is visible only on a computer (not on a touch device), only when the research has announced the link and
     only when **Strom Research on this computer** is on.
   - The link carries only record numbers and fixed values, no names and no free text.
-  - The terminal begins **The Strom app asks for: {what} / Research: {name}** and asks **Go on?** For the agent's work
+  - The terminal begins **The Strom app asks for: … / Research: …** and asks **Go on?** For the agent's work
     it adds **The agent works on the subscription or AI credit of its account.**, for assigning tasks **The research
     writes tasks for the agent — nothing is searched and nothing is paid now.**
   - A Strom archive and a research waiting for an agent refuse the agent's work (conversation, review, search,
     places, history).
   - When the same active direction already exists, **Find ancestors** only says **This research is there already:
-    “{name}” — the agent goes on with it.**
+    “…” — the agent goes on with it.**
   - The app does not know whether the terminal opened. It shows **Opening the research…** and the hint **If nothing
     happens, Strom Research is not running yet.**
 - **Controls:** app: **Settings → Data and privacy → Strom Research on this computer**.

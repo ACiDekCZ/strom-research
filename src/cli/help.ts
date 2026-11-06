@@ -64,9 +64,9 @@ const ARCHIVE_DESCRIPTION: Record<string, string> = {
     "Family trees are imported at once — every person and fact as a lead citing that tree.",
   live:
     "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
-    "strom app --live, takes the tree from it and hears what changes. It ends by itself when nobody asks it anything for\n" +
-    "two hours (strom config set live.idleMinutes <minutes>; 0: never), or with strom live stop. One error does not end\n" +
-    "it; what it did and what went wrong is in .strom/live.log.\n" +
+    "strom app --live, takes the tree from it and hears what changes. It runs until strom live stop (or the app's switch)\n" +
+    "or the computer goes off; to end by itself after a while with nobody asking: strom config set live.idleMinutes 120\n" +
+    "(minutes; 0, the default: never). One error does not end it; what it did and what went wrong is in .strom/live.log.\n" +
     "Started again by itself (strom updated) it takes the address it had, so the app following it goes on by itself.",
   phone:
     "A server of its own on this computer's private addresses (Wi-Fi or a cable at home: 10.x, 172.16–31.x, 192.168.x —\n" +

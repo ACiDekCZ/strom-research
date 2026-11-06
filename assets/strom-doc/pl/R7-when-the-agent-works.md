@@ -19,7 +19,7 @@ to jedno zadanie. Przebieg uruchamia jedną lub więcej sesji po kolei; między 
   - bez otwartego zadania w kolejce każdy przebieg się kończy.
 - **Obsługa:** terminal: menu **Pozwól agentowi pracować samodzielnie**, opcje **Praca według kolejki – liczba zadań
   do podania** (1–100, jak `--max`), **Tylko wybrane zadania z listy** (jak `--task`) i **Pozwól mu pracować, dopóki
-  jest co robić i pozwala na to warunek „{name}”** (jak `--loop`, tylko z ustawionym warunkiem); polecenie
+  jest co robić i pozwala na to warunek „…”** (jak `--loop`, tylko z ustawionym warunkiem); polecenie
   `strom run`. Aplikacja Strom 3.21.2 samodzielnej pracy nie ustawia; pokazuje stan przebiegu ([R7.4](#R7.4)),
   a sesję można z niej dokończyć ([R7.3](#R7.3)).
 - **Obowiązuje od:** badanie 1.0.0 (`--max`, `--until`, `--task`), `--loop` od 1.2.0
@@ -29,11 +29,11 @@ to jedno zadanie. Przebieg uruchamia jedną lub więcej sesji po kolei; między 
 <a id="R7.1.1"></a>
 ### R7.1.1 Dlaczego przebieg się kończy
 
-- Na końcu przebieg wypisuje **{n} sesji · koniec: {powód}**: **gotowe**, **brak otwartych zadań**, **limit czasu**
+- Na końcu przebieg wypisuje **N sesji · koniec: …**: **gotowe**, **brak otwartych zadań**, **limit czasu**
   (`--until`), **zatrzymano ręcznie** ([R7.3](#R7.3)), **limit subskrypcji** ([R7.6](#R7.6)), **agent nie jest
   zalogowany** ([R7.7](#R7.7)), odpowiedź warunku ([R7.4](#R7.4)) albo błąd (dowody, awaria agenta, model).
 - Gdy pozostałe zadania potrzebują archiwum, które nie odpowiada, przebieg z `--loop` i `--until` czeka
-  (**⏸ oczekiwanie do {at}**), inny się kończy.
+  (**⏸ oczekiwanie do …**), inny się kończy.
 - **Obowiązuje od:** badanie 1.0.0; czekanie na archiwum, które nie odpowiada, od 1.22.0
 
 <!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
@@ -49,12 +49,12 @@ Przy limicie strom go zatrzymuje, a nieukończone zadanie przywraca do kolejki.
     przez ostatnie 3 minuty (krótka sesja: ostatnią ósmą część) wzywa do zapisania znalezisk i zamknięcia sesji;
   - przy limicie agent, który to potrafi (Claude Code, Codex, OpenCode, Grok), dostaje jeszcze 5 minut na zapis
     i zamknięcie;
-  - zadanie, przy którym 2 sesje z rzędu nic nie zapisały, zostaje odłożone (**{task} odłożone**); sesje zakończone
+  - zadanie, przy którym 2 sesje z rzędu nic nie zapisały, zostaje odłożone (**… odłożone**); sesje zakończone
     przez człowieka się nie liczą;
   - kolejność: `--minutes` > zmienna `STROM_RUN_MINUTES` > ustawienie drzewa genealogicznego >
     ustawienie komputera > 60.
 - **Obsługa:** terminal: **Ustawienia: agent, praca samodzielna, wiadomości, archiwa, konserwacja → Samodzielna praca
-  agenta → Czas na jedno zadanie: {minutes} min** (5–600; 0 wraca bez zmian); `strom config set run.minutes <n>`
+  agenta → Czas na jedno zadanie: N min** (5–600; 0 wraca bez zmian); `strom config set run.minutes <n>`
   (`--for-tree`: tylko to drzewo genealogiczne). Aplikacja: nic.
 - **Obowiązuje od:** badanie 1.0.0 (60 minut, odłożenie zadania); przypomnienia i 5 minut na zapis od 1.2.0
 
@@ -93,10 +93,10 @@ całego komputera. Bez warunku przebieg trwa, dopóki jest praca.
   - `--loop` i `--until`: pytanie przed każdą sesją; zadania uruchomione ręcznie: jedno pytanie ([R7.4.1](#R7.4.1));
   - strom dostarcza warunek `claude-usage` ([R7.5](#R7.5)); własny warunek to folder `plugins/gates/<název>/`;
   - przebieg bez ustawionego warunku (`--no-gate`) lub z innym (`--gate`) wymaga zgody człowieka.
-- **Obsługa:** terminal: **Ustawienia → Samodzielna praca agenta → Praca bez przerwy pod warunkiem: {gate}**
+- **Obsługa:** terminal: **Ustawienia → Samodzielna praca agenta → Praca bez przerwy pod warunkiem: …**
   (warunek albo **brak**); `strom config set run.gate "<název> [co jí předat]"`, `strom config unset run.gate`; oba
   potwierdza człowiek. Aplikacja: **Przegląd badania** przy czekającym przebiegu pokazuje **Wstrzymano** i **wznowi
-  o {t}**.
+  o …**.
 - **Obowiązuje od:** badanie 1.2.0, aplikacja 3.5.0 (stan Wstrzymano)
 
 <!-- zdroj: research:src/core/gate.ts:27-34 DEFAULT_TIMEOUT_S, DEFAULT_WAIT_MS, MIN_WAIT_MS, askGate :209-254, SHIPPED :124 · session.ts:911 gateHolds, :1038-1063 wait, markPaused, runGate :1357-1380 · config.ts run.gate tree:false · setup.ts:1537-1548 · app:v3.21.2 research-overview-ui.ts:340-347, strings.ts live.statePaused, live.pausedUntil -->
@@ -105,8 +105,8 @@ całego komputera. Bez warunku przebieg trwa, dopóki jest praca.
 ### R7.4.1 Zadania uruchomione ręcznie: „Uruchomić mimo to?”
 
 - Jedna sesja, `--max`, `--task` i menu to wybór człowieka. Warunek pyta raz, przed pierwszą sesją. Gdyby nie
-  uruchomił (czekać, zatrzymać, błąd), pada pytanie **Warunek „{name}” teraz by nie uruchomił – {reason}. Uruchomić
-  mimo to?** Enter oznacza nie: przebieg się kończy (**nie uruchomiono – warunek „{name}”: {reason}**). Tak: sesje
+  uruchomił (czekać, zatrzymać, błąd), pada pytanie **Warunek „…” teraz by nie uruchomił – …. Uruchomić
+  mimo to?** Enter oznacza nie: przebieg się kończy (**nie uruchomiono – warunek „…”: …**). Tak: sesje
   się zaczynają, a warunek dalej nie pyta, z wyjątkiem pułapu ([R7.4.2](#R7.4.2)).
 - Gdy przebieg uruchamia agent, odpowiada człowiek w oknie systemowym. Skrypt, którego nikt nie może zapytać,
   trzyma się warunku.
@@ -118,7 +118,7 @@ całego komputera. Bez warunku przebieg trwa, dopóki jest praca.
 ### R7.4.2 Pułap: sztywna granica
 
 - Warunek może oznaczyć odpowiedź jako sztywną granicę człowieka (`hard`). Przebieg się wtedy kończy (**pułap warunku
-  „{name}”**) i żadne „mimo to” jej nie przekroczy.
+  „…”**) i żadne „mimo to” jej nie przekroczy.
 - Warunek może pilnować okna planu agenta (`watch`). Wtedy pyta przed każdą sesją każdego przebiegu, a sesja w toku
   dostaje prośbę o dokończenie ([R7.3](#R7.3)), gdy agent zgłosi wykorzystanie okna na podanej granicy.
 - **Obowiązuje od:** badanie 1.14.0
@@ -128,7 +128,8 @@ całego komputera. Bez warunku przebieg trwa, dopóki jest praca.
 <a id="R7.4.3"></a>
 ### R7.4.3 Zapis odpowiedzi warunku
 
-- Każda odpowiedź ma wiersz w wydruku przebiegu: **· warunek {name}: {word}{reason} (kod {status}; .strom/gate.log)**.
+- Każda odpowiedź ma wiersz w wydruku przebiegu: **· warunek …: … (kod …; .strom/gate.log)**: nazwa warunku, jego
+  odpowiedź z powodem i kod.
 - Jednocześnie wiersz JSON w `.strom/gate.log` drzewa genealogicznego: kiedy, warunek i co mu przekazano, kod, werdykt,
   powód, czekanie, limity planu i co zrobił przebieg (`go`, `wait`, `stop`, `anyway`). Przechowuje się 90 dni,
   najwyżej 2 MB.
@@ -216,7 +217,7 @@ upłynęło od jego odnowienia (dzień ≈ 14,3 %), z wykorzystaniem tygodnia. S
 ## R7.6 Limit subskrypcji zatrzymuje przebieg
 
 Gdy agent w trakcie sesji natrafi na limit swojej subskrypcji, sesja się zamyka, a przebieg się kończy: **limit
-subskrypcji (odnowi się {at})**. Przebieg nie czeka nawet z `--loop`. Nie zależy to od warunku.
+subskrypcji (odnowi się …)**. Przebieg nie czeka nawet z `--loop`. Nie zależy to od warunku.
 
 - **Granice:** zadanie wraca do kolejki; czas odnowienia pokazuje się tylko wtedy, gdy podał go agent. Czekać potrafi
   tylko warunek.
@@ -228,7 +229,7 @@ subskrypcji (odnowi się {at})**. Przebieg nie czeka nawet z `--loop`. Nie zale�
 ## R7.7 Niezalogowany agent
 
 Agent, który nie jest zalogowany do swojej subskrypcji, nie przeprowadzi sesji. Przebieg się kończy: **agent nie jest
-zalogowany – raz uruchomić {command} i się zalogować**.
+zalogowany – raz uruchomić … i się zalogować**.
 
 - **Granice:**
   - przed pierwszą sesją strom sprawdza to tylko przy Claude Code z osobnym folderem (`agent.claudeConfigDir` lub

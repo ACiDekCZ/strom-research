@@ -50,7 +50,7 @@ function handlerName(env: Env): string {
  * a task (answered, put aside, given up, back in the queue), a person's review, a new direction from a person —
  * and (the app's second wave) a new research with a tree of the app, strom's update, the agent's sessions and
  * what they cost, a conflict decided (by the user or the agent), a story approved, a sync taken back, the setup —
- * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
+ * and (the app's 3.5.0) the research followed live in the app's window (do=start: only its bridge started, at its last address); a direction of the research paused, ended or
  * taken up again, a conversation about one direction, a session at work asked to finish — and the question about an
  * archive's images (the answer is the person's, in the terminal); the research sealed on another computer taken over
  * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself); an experiment turned on (the
@@ -64,6 +64,8 @@ function handlerName(env: Env): string {
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
+/** The research followed live: start: only its bridge started (at its last address), no window of the app opened. */
+export const LINK_LIVE_DOS = ["start"] as const;
 
 export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
@@ -182,7 +184,7 @@ export const CLIP_MARK = /^[A-Za-z0-9-]{1,32}$/;
 export type Link =
   | { action: "send"; tree: string }
   | { action: "app"; tree: string }
-  | { action: "live"; tree: string }
+  | { action: "live"; tree: string; do?: (typeof LINK_LIVE_DOS)[number] }
   | { action: "open"; tree: string }
   | { action: "update"; tree: string }
   | { action: "sessions"; tree: string }
@@ -261,9 +263,10 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
   const id = tree.toLowerCase();
   const person = idOf(q, "person", PERSON, false);
   switch (action) {
+    case "live":
+      return { action, tree: id, ...(q.has("do") ? { do: oneOf(q, "do", LINK_LIVE_DOS) } : {}) };
     case "send":
     case "app":
-    case "live":
     case "open":
     case "update":
     case "sessions":

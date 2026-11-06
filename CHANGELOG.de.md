@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -25,8 +25,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   einer Person und über einen Link der Strom-App. Entscheidet der Mensch, schlägt der Agent überall dort eine
   Entscheidung vor, wo die Einträge auf eine Variante zeigen.
 
-- **Ein beendetes Gespräch bleibt in der Strom-App nicht mehr „bei der Arbeit“**, auch auf einem ausgelasteten
-  Computer oder nach einer Änderung des Computernamens.
+- **Die Forschung in der Strom-App bleibt eingeschaltet.** Die Verbindung zur Strom-App (die Brücke) endet nicht mehr
+  von selbst nach zwei Stunden ohne Anfrage: Sie läuft, bis sie ausgeschaltet wird oder der Computer ausgeht
+  (`live.idleMinutes` ist neu 0; ein früher gesetzter Wert bleibt). Die Strom-App erhält einen Schalter für jede
+  Forschung und eine Auswahl in ihren Einstellungen – bis der Computer ausgeht, oder nach zwei Stunden ohne Anfrage –,
+  beides über die Brücke geschrieben. In der App ausgeschaltet, bleibt die Brücke aus (neue Arbeit in der Forschung
+  holt sie nicht zurück) und behält ihre Adresse, sodass das erneute Einschalten – aus der App über einen Link von
+  strom oder mit `strom live start` – keine neue Verbindung braucht.
 
 - **Die Apps der Agenten werden wie der Agent im Terminal überwacht.** Der eingebaute Browser der App des Agenten hält die Bedingungen der
   Archive ein wie der Browser des Agenten in Chrome: Ein Archiv, das nur den Browser eines Menschen zulässt, wird ohne
@@ -74,7 +79,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   nutzbar, jeder mit dem Ort des Originals zitiert – Archiv, Bestand, Signatur, Seite oder Blatt. Ein Widerspruch, der
   in einem Stapel mit der Marke einer Quelle verzeichnet wird (`--claim "@s: …"`), zitiert jetzt diese Quelle; einer,
   den eine frühere Version so verzeichnet hat, zeigt seinen Wert ohne die rohe Marke und zitiert, wo es sich erkennen
-  lässt, seine Quelle in der Strom-App und im GEDCOM.
+  lässt, seine Quelle in der Strom-App und im GEDCOM. Ein beendetes Gespräch bleibt in der Strom-App nicht mehr „bei
+  der Arbeit“, auch auf einem ausgelasteten Computer oder nach einer Änderung des Computernamens. Ein in einem Satz
+  geschriebener Ort („in Lhotau Nr. 3“) behält seine Präpositionen nicht mehr: Die Prüfung bietet die Gemeinde so an,
+  wie die Forschung sie sonst schreibt, und ein Ortseintrag erhält keinen Namen wie „in Lhotau“ mehr – solche bereits
+  geschriebenen Namen werden einmal richtiggestellt (rückgängig: strom place undo).
 
 ## 1.28.0
 

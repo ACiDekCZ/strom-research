@@ -526,9 +526,9 @@ function diagnoseInto(
     else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }) + appOnly);
   }
   // The desktop apps' own browser and computer use (Claude's, ChatGPT's/Codex's, OpenCode's): nothing switched off, never
-  // recommended — what strom watches of each, said where those agents are here (strom doc R12.1)
+  // recommended — what strom watches of each, said where those agents are here (strom doc R12.1; computer use R12.10)
   const apps = (["claude", "codex", "opencode"] as const).filter((a) => found.includes(a));
-  if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1)");
+  if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1, R12.10)");
   // Codex's hooks: strom's rules before its browser run once the person confirms them in Codex (/hooks) — strom never
   // confirms them for the person (spec 062 K3.3); said with what to do (strom doc R12.5)
   const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;

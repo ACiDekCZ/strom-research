@@ -114,7 +114,7 @@ aplikace v okně **Výzkum se nepodařilo spojit**.
 
 | Příčina | Co aplikace ukáže | Co pomůže |
 |---|---|---|
-| prohlížeč nepouští stránku k zařízením v místní síti | **{prohlížeč} blokuje spojení** | povolit **Aplikace na zařízení** (Brave: **Přístup k localhostu**) v nastavení webu |
+| prohlížeč nepouští stránku k zařízením v místní síti | **… blokuje spojení** (název prohlížeče) | povolit **Aplikace na zařízení** (Brave: **Přístup k localhostu**) v nastavení webu |
 | prohlížeč se teprve ptá | **Prohlížeč čeká na povolení** | odpovědět na dotaz prohlížeče |
 | most neběží | **Výzkum neodpovídá** | spustit výzkum; na nové adrese ho spojí `strom app --live` |
 | na adrese odpovídá jiný most (změněný klíč, jiný strom) | **Výzkum odmítl spojení** | `strom app --live` |
@@ -140,7 +140,7 @@ co výzkum přijme. Výzkum zase podle verze aplikace volí, co jí pošle.
   - **Starší výzkum** (bez automatického posílání, nebo bez titulů): aplikace ukáže **Výzkum má starší verzi (v)**
     s nabídkou **Aktualizovat výzkum**. Úpravy se pak posílají jen ručně: aplikace výzkum spustí v terminálu a ten
     si je vezme. Tituly do aktualizace zůstanou jen v aplikaci.
-  - **Nová verze výzkumu k dispozici:** aplikace ukáže **Nová verze Strom Research {v}** s tlačítkem
+  - **Nová verze výzkumu k dispozici:** aplikace ukáže **Nová verze Strom Research …** s tlačítkem
     **Aktualizovat**. Co právě běží, doběhne na současné verzi.
   - **Výzkum, který zapsala novější verze programu `strom`:** starší program ho neotevře ani do něj nezapíše.
   - **Strom uložený novější verzí aplikace:** v aplikaci je jen ke čtení, dokud se aplikace neaktualizuje.

@@ -18,8 +18,8 @@ výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` 
 | Claude Code v terminálu | terminál: Claude Code ve složce výzkumu (`strom chat --where terminal`) | Chrome s rozšířením Claude in Chrome ([R9.4.1](R9-archives.md#R9.4.1)) | prohlížeč v Chromu ([R9.4](R9-archives.md#R9.4)), stažení webu ([R9.3](R9-archives.md#R9.3)), příkazy v příkazové řádce agenta | svolení archivu ([R9.2](R9-archives.md#R9.2)) | – (Claude Code v terminálu je) |
 | aplikace Claude (záložka Code) a Claude Code v terminálu | aplikace Claude, záložka Code (`strom chat`) | Chrome s Claude in Chrome, nebo vestavěný prohlížeč aplikace ([R12.2](#R12.2)) | prohlížeč v Chromu i vestavěný prohlížeč aplikace, stažení webu, příkazy v příkazové řádce agenta i v terminálu aplikace ([R12.3](#R12.3)) | potvrdit složku (Trust workspace) a odeslat připravenou zprávu; svolení archivu | nic nechybí: samostatná práce a čtení skenů běží přes Claude Code v terminálu |
 | aplikace Claude bez Claude Code v terminálu | aplikace Claude, záložka Code (`strom chat`) | jako v řádku výš | jako v řádku výš | jako v řádku výš; instalace Claude Code, kterou strom nabídne a jde odmítnout ([R12.4](#R12.4)) | samostatná práce (`strom run`), čtení skenů čtenáři (`strom read`) a práce z aplikace Strom ([R12.4](#R12.4)) |
-| Codex v terminálu | terminál: Codex ve složce výzkumu (`strom chat --where terminal`) | prohlížeč, Chrome a ovládání počítače Codexu, pokud je má jeho nastavení ([R12.5](#R12.5)) | jen příkazy `strom` podle pravidel stromu pro Codex; prohlížeč, ovládání počítače ani web Codexu ne ([R12.5](#R12.5)) | důvěřovat složce výzkumu (až pak platí pravidla stromu); svolení archivu | – (Codex v terminálu je) |
-| aplikace ChatGPT (Codex) | aplikace ChatGPT (`strom chat`) | jako u Codexu v terminálu: stejné nastavení ([R12.5](#R12.5)) | jako u Codexu v terminálu ([R12.5](#R12.5)) | podle `strom chat` potvrdit složku a odeslat připravenou zprávu (není ověřeno, [R12.6](#R12.6)); svolení archivu | samostatná práce, čtení skenů čtenáři a práce z aplikace Strom ([R12.5](#R12.5)) |
+| Codex v terminálu | terminál: Codex ve složce výzkumu (`strom chat --where terminal`) | prohlížeč, Chrome a ovládání počítače Codexu, pokud je má jeho nastavení ([R12.5](#R12.5)) | příkazy `strom` podle pravidel stromu pro Codex; prohlížeč Codexu podle adres v jeho kódu, až člověk potvrdí hook stromu; ovládání počítače a hledání na webu Codexu ne ([R12.5](#R12.5)) | důvěřovat složce výzkumu (až pak platí pravidla stromu) a potvrdit hook stromu (**Review hooks**, `/hooks`); svolení archivu | – (Codex v terminálu je) |
+| aplikace ChatGPT (Codex) | aplikace ChatGPT (`strom chat`) | jako u Codexu v terminálu: stejné nastavení ([R12.5](#R12.5)) | jako u Codexu v terminálu ([R12.5](#R12.5)) | podle `strom chat` potvrdit složku a odeslat připravenou zprávu (není ověřeno, [R12.6](#R12.6)); potvrdit hook stromu (**Nastavení › Hooks**); svolení archivu | samostatná práce, čtení skenů čtenáři a práce z aplikace Strom ([R12.5](#R12.5)) |
 | Antigravity v terminálu | terminál: Antigravity (`agy`) ve složce výzkumu (`strom chat`); aplikaci Antigravity strom neotevírá ([R12.7](#R12.7)) | prohlížeč Antigravity, pokud ho agent má; strom ho nehlídá ([R12.7](#R12.7)) | jen to, co odmítne `strom` sám: příkazy, které patří jen člověku; hook ani pravidla ve složce výzkumu Antigravity nemá ([R12.7](#R12.7)) | svolení archivu | – (Antigravity v terminálu je) |
 | Grok Build v terminálu | terminál: Grok (`grok`) ve složce výzkumu (`strom chat`); aplikaci Groku strom neotevírá ([R12.8](#R12.8)) | žádný, který by strom hlídal ([R12.8](#R12.8)) | stažení webu ([R9.3](R9-archives.md#R9.3)) a příkazy v příkazové řádce agenta: hooky a pravidla stromu v `.grok/` ([R12.8](#R12.8)) | nic navíc: `strom chat` spustí Grok se složkou výzkumu jako důvěryhodnou; svolení archivu | – (Grok v terminálu je) |
 | OpenCode v terminálu | terminál: OpenCode ve složce výzkumu (`strom chat --where terminal`) | žádný, který by strom hlídal ([R12.9](#R12.9)) | příkazy a soubory podle pravidel stromu v `opencode.json`; stažení webu ani prohlížeč ne ([R12.9](#R12.9)) | schválit příkazy mimo `strom`, na které se OpenCode zeptá (mimo úroveň `full`); svolení archivu | – (OpenCode v terminálu je) |
@@ -28,20 +28,20 @@ výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` 
 
 - **Hlídá kód:**
   - hooky stromu v `.claude/settings.json` výzkumu spouští Claude Code v terminálu i aplikace Claude (záložka Code);
-    Codex čte pravidla stromu v `.codex/rules/strom.rules`, Grok Build v `.grok/config.toml` (a hooky stromu
+    Codex čte pravidla stromu v `.codex/rules/strom.rules` a hook stromu v `.codex/hooks.json`, Grok Build v `.grok/config.toml` (a hooky stromu
     v `.grok/hooks/strom.json`), OpenCode v `opencode.json`; Antigravity čte jen pokyny `AGENTS.md`;
   - příkazy, které patří jen člověku (přihlášení, pečeť, svolení archivu a další), odmítne `strom` sám každému
     agentovi, kterého pozná, u všech pěti agentů;
   - z aplikací agentů se nic nevypíná. Jediná výjimka je samostatný běh s Codexem bez osobních doplňků agenta
     ([R12.5](#R12.5)).
 - **Hranice:** ovládání počítače (computer use) strom nehlídá u žádného agenta: agent jím ovládá počítač jako
-  člověk.
+  člověk. Co ovládání počítače v aplikaci Strom a ve výzkumu umí a neumí, říká [R12.10](#R12.10).
 - **Jen metodika:** agent ve všech způsobech práce spouští `strom` ve své příkazové řádce a z vlastní vůle nepoužije
   prohlížeč, který strom nedoporučuje ([R9.4.2](R9-archives.md#R9.4.2)).
 - **Ovládání:** terminál: `strom chat` (kde, říká nastavení `agent.where`: `app` aplikace agenta, `terminal`
   terminál; bez nastavení aplikace, když je nainstalovaná), `strom chat --where app|terminal` jednou jinak,
   `strom agents use claude|codex|antigravity|grok|opencode`, `strom doctor` (řádky **kde se mluví s agentem**, **agent v terminálu**,
-  **prohlížeč (Claude in Chrome)**, **prohlížeč desktopových aplikací**).
+  **prohlížeč (Claude in Chrome)**, **prohlížeč desktopových aplikací**, **hooky Codexu (prohlížeč)**).
 - **Platí od:** výzkum 1.29.0
 
 <!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · assets/lang/cs.json ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
@@ -123,29 +123,54 @@ Aplikace Claude stačí na rozhovor. Co strom spouští sám, spouští Claude C
 
 Codex se spouští v terminálu, nebo v aplikaci ChatGPT (starší samostatná aplikace Codex ji předchází). Prohlížeč,
 Chrome a ovládání počítače jsou jeho zásuvné moduly v jednom nastavení Codexu (`~/.codex/config.toml`), které
-sdílí terminál i aplikace.
+sdílí terminál i aplikace. Prohlížeč Codex ovládá kódem v JavaScriptu (nástroj `js`), ne adresou stránky.
 
 - **Hlídá kód:**
   - příkazy `strom` podle pravidel stromu pro Codex (`.codex/rules/strom.rules`): `strom` je dovolený, přihlášení,
     pečeť, instalace a odebrání konektoru a git jsou zakázané. Codex tato pravidla čte, až člověk složce výzkumu
     důvěřuje;
-  - prohlížeč, Chrome a ovládání počítače Codexu ani jeho nástroje pro web strom nehlídá: hook před nimi nemá;
+  - před každým voláním prohlížeče Codexu běží hook stromu (`.codex/hooks.json`). Codex ho spustí, až člověk
+    složce výzkumu důvěřuje a hook **strom** v Codexu potvrdí (Trust). strom za člověka nic nepotvrzuje;
+  - adresa stránky napsaná v kódu: stejné rozhodnutí jako u prohlížeče v Chromu ([R9.4](R9-archives.md#R9.4)).
+    Archiv, který pouští jen prohlížeč člověka, je bez svolení **přes prohlížeč** odmítnut se stejnou radou; povolený
+    se zapíše a drží své tempo spolu se stažením webu téhož webu. Dvě stránky archivů v jednom volání jsou odmítnuty:
+    stránky jdou po jedné. Most do aplikace Strom je odmítnut vždy; místní adresy (localhost) hook neposuzuje;
+  - kód, který pracuje se stránkou bez adresy (klik, zpět): platí pro něj web, který hook v sezení pustil
+    naposledy;
+  - kód bez adresy, kterou by strom viděl, a bez takového webu: nikdy se neodmítne. Zapíše se jako nehlídaný
+    (`strom net web` ho počítá) a agent jednou za sezení dostane radu psát adresu každé stránky přímo do volání;
+  - otázku člověku Codex z hooku nepřijme: kde by se strom ptal (víc požadavků na jeden web, než sezení smí), je
+    volání odmítnuto;
   - samostatný běh (`strom run`) s Codexem bez osobních doplňků agenta (`agent.addons off`, výchozí) vypne jeho
-    zásuvné moduly, prohlížeč a ovládání počítače. S `agent.addons on` a v rozhovoru zůstanou, jak je člověk má.
+    zásuvné moduly, prohlížeč a ovládání počítače. S `agent.addons on` a v rozhovoru zůstanou, jak je člověk má;
+  - `strom doctor`, `strom setup` a `strom chat` řeknou, když hook stromu čeká na potvrzení, od potvrzení se
+    změnil, je v Codexu vypnutý, hooky Codexu jsou vypnuté, Codex složce výzkumu nedůvěřuje, nebo soubor hooku
+    chybí. Stav čtou jen z nastavení Codexu.
 - **Hranice:**
+  - dokud hook potvrzený není, a znovu po každé jeho změně, Codex ho přeskakuje: prohlížeč Codexu pak strom
+    nehlídá;
+  - ovládání počítače Codexu (kód, který ovládá jiné aplikace) hook nechá být: strom ho nehlídá ani nezapisuje
+    ([R12.10](#R12.10));
+  - hledání na webu Codexu žádný hook nevidí;
+  - kontrola archivu (`strom net web --check --browser`) a `strom doctor` počítají s prohlížečem agenta jen
+    u Claude Code: s Codexem čeká úkol u archivu jen přes prohlížeč na snímky od člověka
+    ([R9.4.3](R9-archives.md#R9.4.3));
   - bez Codexu v terminálu (jen aplikace ChatGPT) strom samostatnou práci, čtení skenů čtenáři ani práci
-    z aplikace Strom nespustí; skončí stejným kódem `agent.cli-missing` jako u Claude ([R12.4](#R12.4));
-  - ovládání počítače Codexu strom nehlídá: agent jím ovládá počítač jako člověk.
+    z aplikace Strom nespustí; skončí stejným kódem `agent.cli-missing` jako u Claude ([R12.4](#R12.4)).
 - **Jen metodika:** agent prohlížeč Codexu z vlastní vůle nepoužije: do archivu, kam smí jen prohlížeč člověka, s ním
-  nejde a snímky uloží člověk ([R9.4.2](R9-archives.md#R9.4.2), [R9.6](R9-archives.md#R9.6)).
-- **Proč:** prohlížeč Codexu se ovládá kódem v JavaScriptu, ne adresou stránky, takže ji strom nemá jak spolehlivě
-  posoudit.
-- **Ovládání:** terminál: `strom config set agent.addons on|off`, `strom doctor` (řádek **prohlížeč desktopových
-  aplikací**). Codex: důvěra složce výzkumu.
+  nejde a snímky uloží člověk ([R9.4.2](R9-archives.md#R9.4.2), [R9.6](R9-archives.md#R9.6)). Když ho použije, píše
+  adresu každé stránky přímo do volání (`tab.goto("https://…")`), po jedné stránce, a řadu stránek archivu
+  neproklikává.
+- **Proč:** prohlížeč Codexu se ovládá kódem, ne adresou stránky. strom posoudí jen adresu, kterou v kódu vidí; kód
+  bez adresy proto neodmítá, jen ho zapíše.
+- **Ovládání:** aplikace ChatGPT (Codex): **Nastavení › Hooks** (nebo **Review hooks** u pole pro zprávu) → hook
+  **strom** → **Trust**; Codex v terminálu ve složce výzkumu: **Review hooks** (`/hooks`). Terminál: `strom doctor`
+  (řádky **prohlížeč desktopových aplikací** a **hooky Codexu (prohlížeč)**), `strom agents sync` (zapíše chybějící
+  soubor hooku), `strom net web` (počet nehlídaných volání), `strom config set agent.addons on|off`.
 - **Platí od:** výzkum 1.27.0 (vypnutí prohlížeče a ovládání počítače v samostatném běhu); `agent.addons` od 1.14.0;
-  chybějící Codex v terminálu od 1.29.0
+  hook před prohlížečem Codexu a chybějící Codex v terminálu od 1.29.0
 
-<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browser.ts CODEX_BROWSER_SERVERS · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/web.ts (hooky webu jen Claude Code a Grok) · src/core/agentcli.ts cliMissing (každý agent s CLI) · src/core/apps.ts codex (Codex.app, ChatGPT.app) · test/vysledek-desktop-chrome.md Codex · prace/1106-vyzkum-062-desktop/pruzkum.md A1, A2 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
 
 <a id="R12.6"></a>
 ## R12.6 Co ověřené není
@@ -157,8 +182,10 @@ Tabulka [R12.1](#R12.1) popisuje kód výzkumu a to, co bylo ověřené na Macu 
   agent pak zvolí (plyne jen z pokynů aplikace agentovi);
 - příkazová řádka agenta v aplikaci Claude a stažení webu v ní (hooky jsou tytéž jako v terminálu);
 - hlídání v aplikaci Claude, když Claude Code v terminálu není (aplikace spouští hooky vlastní kopií Claude Code);
-- Codex živě: v terminálu ani v aplikaci ChatGPT (pravidla stromu, otevření rozhovoru odkazem, kroky člověka), ani
-  že se aplikace ChatGPT chová stejně jako starší aplikace Codex;
+- Codex živě: v terminálu ani v aplikaci ChatGPT (pravidla stromu, hook před prohlížečem a jeho potvrzení,
+  odmítnutí a zápis nehlídaných volání, otevření rozhovoru odkazem, kroky člověka), ani že se aplikace ChatGPT chová
+  stejně jako starší aplikace Codex. Hook před prohlížečem Codexu je popsaný z kódu;
+- ovládání počítače Codexu: zda dává aplikacím úrovně jako aplikace Claude ([R12.10](#R12.10));
 - Antigravity, Grok Build a OpenCode živě v žádném způsobu práce: pravidla a hooky stromu, kroky člověka, odmítnutí
   příkazů člověka;
 - aplikace OpenCode: otevření rozhovoru odkazem a to, že čte pravidla `opencode.json` výzkumu;
@@ -218,8 +245,8 @@ vždy v terminálu.
   - vlastní dovednosti, zásuvné moduly a MCP servery Groku zůstanou i v samostatném běhu: přepínač pro jeden běh
     Grok nemá;
   - neškodné příkazy pouští Grok i podle vlastního úsudku: drží zákazy, ne seznam dovoleného;
-  - prohlížeč ani ovládání počítače Groku strom nehlídá: hlídá jen Claude in Chrome a vestavěný prohlížeč aplikace
-    Claude ([R12.2](#R12.2)).
+  - prohlížeč ani ovládání počítače Groku strom nehlídá: hlídá jen Claude in Chrome, vestavěný prohlížeč aplikace
+    Claude ([R12.2](#R12.2)) a prohlížeč Codexu ([R12.5](#R12.5)).
 - **Jen metodika:** pokyny `AGENTS.md` a `.grok/rules/strom.md`: skeny čte Grok sám, způsob delegování z `CLAUDE.md`
   mu nepatří.
 - **Ovládání:** terminál: `strom agents use grok`, `strom chat`, `strom config set agent.addons on|off`.
@@ -255,3 +282,30 @@ a připravenou zprávou. Model vezme aplikace z `opencode.json` výzkumu.
 - **Platí od:** výzkum 1.0.0; agent `strom-run` od 1.4.0
 
 <!-- zdroj: research:src/agents/files.ts opencodeConfig (bash strom * allow, login/seal/connector add|remove deny, git deny; read data/.git deny; edit notes allow; webfetch/websearch allow), OPENCODE_RUN_AGENT, refused (ask → deny) · src/core/apps.ts opencode (OpenCode.app, opencode://new?cwd=…&q=…) · src/commands/start.ts strom chat (model z opencode.json) · src/agents/launch.ts opencode (--auto) · src/core/agentcli.ts agentCliMissing · src/runners/opencode.ts OPENCODE_WEB · src/runners/runner.ts clean (jen Claude Code, Codex; Grok GROK_CLEAN) · git tagy v1.0.0, v1.4.0 -->
+
+<a id="R12.10"></a>
+## R12.10 Ovládání počítače (computer use)
+
+Ovládání počítače (computer use) ovládá počítač jako člověk: snímky obrazovky, klikání a psaní. strom ho nehlídá
+u žádného agenta a nedoporučuje ho; nic v něm nevypíná ani nezapíná.
+
+- **Hranice:**
+  - aplikace Claude dává při ovládání počítače aplikacím úrovně: prohlížeč jen ke čtení (snímek obrazovky, bez
+    kliknutí a psaní), terminál jen ke klikání (bez psaní a kláves), ostatní aplikace plně. Aplikaci Strom
+    v prohlížeči ani výzkum v terminálu proto ovládáním počítače neovládne: aplikace Strom jde nástroji stránky
+    v prohlížeči (vestavěný prohlížeč aplikace Claude, Claude in Chrome; [A9.4](A9-using-the-app.md#A9.4)), výzkum
+    příkazem `strom` v příkazové řádce agenta;
+  - rozhovor v aplikaci Claude bez složky výzkumu (záložka Chat) má příkazovou řádku mimo počítač: `strom` v něm
+    spustit nejde;
+  - ovládání počítače Codexu hook stromu nechá být ([R12.5](#R12.5)). Zda dává aplikacím úrovně jako aplikace
+    Claude, ověřené není ([R12.6](#R12.6));
+  - pravidla archivů platí stejně i tam, kde strom nehlídá: tempo, „jen ručně“ ([R9](R9-archives.md)).
+- **Jen metodika:** agent ovládání počítače nikdy nedoporučí zapnout. Když ho má: aplikaci Strom ovládá nástroji
+  stránky v prohlížeči, ne podle bodů obrazovky; výzkum příkazem `strom` ve své příkazové řádce, nikdy psaním do
+  okna terminálu; souhlasy a nastavení člověka (podklad mapy z OpenStreetMap, jak se posílají úpravy do výzkumu)
+  nechá člověku a řekne, co na něj čeká.
+- **Ovládání:** nic: strom ovládání počítače nevypíná ani nezapíná. Terminál: `strom doctor`, řádek **prohlížeč
+  desktopových aplikací**.
+- **Platí od:** výzkum 1.29.0
+
+<!-- zdroj: research:src/agents/files.ts AGENTS.md „## When you have computer use“ (Never suggest turning it on; page tools, not pixels; strom in own command line; consents left to the person; archives' rules) · src/core/codexhook.ts computerUseOnly (sky.*) · assets/lang/cs.json ui.doc.desktop.claude, ui.doc.desktop.codex · CHANGELOG.cs.md 1.29.0 · dirigent:test/vysledek-063-pruzkum.md kolo 1 (úrovně aplikací: prohlížeče read, terminály click, ostatní full; Chat bez složky má shell v cloudu) · spec/063-computer-use-usnadnit K1.3 -->

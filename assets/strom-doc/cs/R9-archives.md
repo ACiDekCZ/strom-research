@@ -20,14 +20,16 @@ Postup v kostce:
 5. **Rozhodnutí:** tabulka a průběh úkolu jsou v [R9.8](#R9.8), kroky člověka v [R9.9](#R9.9) a příklady v
    [R9.10](#R9.10).
 
-> **Poznámka: kde přesně platí prohlížeč agenta.** Prohlížeč agenta hlídá strom jen u **Claude Code** s rozšířením
-> **Claude in Chrome** a ve vestavěném prohlížeči aplikace Claude ([R12.2](R12-where-the-agent-works.md#R12.2)).
-> Prohlížeč nebo ovládání počítače jiného agenta (Codex, Antigravity a další) strom hlídat neumí: takový agent s nimi
-> do archivu, kam smí jen prohlížeč člověka, sám nejde a snímky uloží člověk. Vestavěné prohlížeče a ovládání
+> **Poznámka: kde přesně platí prohlížeč agenta.** Prohlížeč agenta hlídá strom u **Claude Code** s rozšířením
+> **Claude in Chrome**, ve vestavěném prohlížeči aplikace Claude ([R12.2](R12-where-the-agent-works.md#R12.2))
+> a v prohlížeči Codexu podle adres v jeho kódu, když člověk potvrdil hook stromu
+> ([R12.5](R12-where-the-agent-works.md#R12.5)). Prohlížeč jiného agenta (Antigravity a další) a ovládání počítače
+> žádného agenta strom hlídat neumí: agent s nimi do archivu, kam smí jen prohlížeč člověka, sám nejde a snímky
+> uloží člověk. Vestavěné prohlížeče a ovládání
 > počítače desktopových aplikací agentů strom nedoporučuje; agent je použije jen na výslovnou žádost člověka
 > ([R9.4.2](#R9.4.2)). Kde se s agentem mluví a co strom kde hlídá, shrnuje [R12](R12-where-the-agent-works.md).
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Druhy archivů
@@ -198,9 +200,10 @@ hlídá i vestavěný prohlížeč aplikace Claude ([R12.2](R12-where-the-agent-
 ### R9.4.2 Vestavěné prohlížeče a ovládání počítače: nedoporučené
 
 - Ve výzkumu se z desktopových aplikací agentů nic nevypíná. Vestavěný prohlížeč aplikace Claude (i její náhled)
-  strom hlídá jako Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Ovládání počítače aplikace
-  Claude a prohlížeč a ovládání počítače aplikace ChatGPT (Codex) strom nehlídá
-  ([R12.5](R12-where-the-agent-works.md#R12.5)). Žádné z nich strom nedoporučuje.
+  strom hlídá jako Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), prohlížeč aplikace ChatGPT
+  (Codex) podle adres v jeho kódu, až člověk potvrdí hook stromu ([R12.5](R12-where-the-agent-works.md#R12.5)).
+  Ovládání počítače aplikace Claude ani aplikace ChatGPT strom nehlídá
+  ([R12.10](R12-where-the-agent-works.md#R12.10)). Žádné z nich strom nedoporučuje.
 - **Jen metodika:** agent je sám od sebe nepoužije: do archivu, kam smí jen prohlížeč člověka, s nimi nejde a snímky
   uloží člověk ([R9.6](#R9.6)). Když o ně člověk výslovně požádá, je to volba člověka: agent jednou větou řekne, zda
   strom tuto cestu hlídá, a co říkají podmínky archivu. Podmínky nikdy neobchází a kontrolu, zda je u počítače
@@ -209,7 +212,7 @@ hlídá i vestavěný prohlížeč aplikace Claude ([R12.2](R12-where-the-agent-
 - **Proč:** před nehlídanými strom nemá žádný hook, takže stránky, které otevřou, nekontroluje. Stahovač archivu,
   stažení stránek webu a prohlížeč agenta v Chrome se pravidly archivů řídí vždy ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Ovládání:** terminál: `strom doctor`, řádek **prohlížeč desktopových aplikací**.
-- **Platí od:** výzkum 1.27.0; 1.29.0: vestavěný prohlížeč aplikace Claude hlídaný
+- **Platí od:** výzkum 1.27.0; 1.29.0: vestavěný prohlížeč aplikace Claude a prohlížeč Codexu hlídané
 
 <!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
 
@@ -296,7 +299,7 @@ vrátí do fronty sám, až jsou ve výzkumu všechny jeho snímky.
   kontrolu, zda je u počítače člověk, prochází jen člověk.
 - **Proč:** snímky jsou to, na co úkol čekal; část snímků úkol nedokončí.
 - **Ovládání:** terminál: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, v Co čeká
-  **Otevřít složku (uloženo {have}/{want})**. Aplikace: Čeká na vyřízení, u položky v tomto pořadí **Mám snímky**,
+  **Otevřít složku (uloženo M/N)**. Aplikace: Čeká na vyřízení, u položky v tomto pořadí **Mám snímky**,
   **Otevřít web ↗**, **Odpovědět**, **Probrat s agentem**, **Otevřít složku** (poslední dvě otevřou výzkum v terminálu).
   Stav snímků ukazuje „1 ze 2 snímků“ a u knihy čipy **uložen** / **chybí**. Weby jednoho archivu čekají v jedné
   skupině **Archiv** pod jménem archivu, s odkazem **Web archivu ↗** a počtem chybějících snímků.

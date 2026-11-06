@@ -11,7 +11,7 @@ the research panel. Describes the Strom app 3.21.2 (and the research 1.25.2). Ch
 For each person the research adds special blocks to the family tree for the app: conflicts, hypotheses, searched
 sources and the edge of the tree above the person. The app only shows them. Nothing in them changes in the app and the
 app does not send them back; they live in the research. The dialog's header carries the date of the research "as of
-{date}".
+…".
 
 - **Where from:** from the bridge (the family tree the app loads from the running research, see
   [S1](S1-connecting-app-and-research.md)) or from the file `output/tree-strom.ged`. Both come from the same export of
@@ -100,12 +100,12 @@ supports the parents. It says why the search stops here and what happens next.
   preserved*.
 - **Tasks:** the position in the queue, or why it stands (*paused direction*, *ended direction*, *family outside the
   tree*, *put off until …*); finished ones under **Tried tasks · n**.
-- **Work:** the number of searches, the number of the agent's sessions with the cost, "last {date}". In an archive
+- **Work:** the number of searches, the number of the agent's sessions with the cost, "last …". In an archive
   there are neither sessions nor cost.
 - **Hypotheses:** a possible link to another person, a family outside the tree ("family outside the tree, 4
   people"), how many tasks are waiting, which tasks test the hypothesis.
 - The link "2 open conflicts ↓" scrolls to the section **Conflicts**.
-- **Limits:** "as of {date}" is in the section header only when the research is older than today.
+- **Limits:** "as of …" is in the section header only when the research is older than today.
 - **Controls:** app: **Settings → Tree view → Research edge** (*Off* / *To decide* / *All*) controls only the stubs
   above the cards, not this section. The option is only for a family tree from the research. *To decide* is missing
   for a copy that has no queue. Terminal: `strom edge`.
@@ -136,7 +136,7 @@ supports the parents. It says why the search stops here and what happens next.
 ## S3.4 Conflicts
 
 The section **Conflicts** shows the conflicts of the person and of the families where the person is a partner. Open
-ones come first, then decided ones with the row "decided: {value} ({source})". The source can be opened in the source
+ones come first, then decided ones with the row "decided: … (…)". The source can be opened in the source
 viewer. What a conflict is, where it is visible and how it is decided is described in [R5.6](R5-conflicts.md#R5.6).
 Deciding by a side from the app is described in [R5.6.1](R5-conflicts.md#R5.6.1).
 

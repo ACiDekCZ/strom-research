@@ -46,7 +46,7 @@ domě a se stejným jménem otce. Rozdíl se nevysvětluje chybou písaře a ner
 záznam, proto údaj nepřepíše. Vznikne rozpor mezi hodnotou z aplikace a hodnotou výzkumu.
 
 - **Hranice:** co se stane s úpravou z aplikace:
-  1. nový údaj nebo osoba: zapíše se jako **Vodítko** s pramenem „Úpravy v aplikaci Strom ({den})“;
+  1. nový údaj nebo osoba: zapíše se jako **Vodítko** s pramenem „Úpravy v aplikaci Strom (…)“;
   2. změna údaje, který záznam nedokládá: údaj se opraví (s důvodem);
   3. zpřesnění údaje doloženého záznamem (místo tam, kde žádné nebylo, den k roku, podrobnější místo): doplní se
      k údaji, bez rozporu;

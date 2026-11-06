@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -22,8 +22,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   rozhodnutí zůstane čitelné; totéž z revize osoby a z odkazu aplikace Strom. Když rozhoduje uživatel, agent navrhne
   rozhodnutí všude, kde záznamy ukazují na jednu verzi.
 
-- **Skončený rozhovor už v aplikaci Strom nezůstává „při práci“**, ani na vytíženém počítači, ani po změně jména
-  počítače.
+- **Výzkum v aplikaci Strom zůstává zapnutý.** Propojení s aplikací Strom (most) se už samo nevypíná po dvou
+  hodinách, kdy se ho nikdo neptá: běží, dokud se nevypne nebo dokud se nevypne počítač (`live.idleMinutes` je nově
+  0; dříve nastavená hodnota zůstává). Aplikace Strom dostane přepínač u každého výzkumu a volbu v nastavení – do
+  vypnutí počítače, nebo po dvou hodinách nečinnosti –, obojí se zapisuje přes most. Vypnutý v aplikaci zůstane most
+  vypnutý (nová práce ve výzkumu ho nevrátí) a ponechá si adresu, takže opětovné zapnutí – z aplikace odkazem stromu,
+  nebo příkazem `strom live start` – nepotřebuje nové propojení.
 
 - **Aplikace agentů hlídané stejně jako agent v terminálu.** Vestavěný prohlížeč aplikace agenta dodržuje podmínky archivů stejně
   jako prohlížeč agenta v Chromu: archiv, který pouští jen prohlížeč člověka, je bez svolení člověka odmítnut se stejnou
@@ -63,7 +67,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   výzkumu. Podmínky Hlavního archivu starých aktů ve Varšavě podle odpovědi archivu: snímky volně k užití, každý
   citovaný místem originálu – archiv, fond, signatura, strana nebo list. Rozpor zapsaný v dávce se štítkem pramene
   (`--claim "@s: …"`) teď cituje ten pramen; rozpor, který tak zapsala starší verze, ukazuje hodnotu bez syrového
-  štítku a tam, kde to jde poznat, cituje svůj pramen v aplikaci Strom i v GEDCOMu.
+  štítku a tam, kde to jde poznat, cituje svůj pramen v aplikaci Strom i v GEDCOMu. Skončený rozhovor už v aplikaci
+  Strom nezůstává „při práci“, ani na vytíženém počítači, ani po změně jména počítače. Místo zapsané ve větě („v Lhotě
+  v čp. 12“) si už neponechává předložky: kontrola nabídne obec tak, jak ji výzkum píše jinde, a záznam místa už
+  nedostane jméno jako „v Lhotě v“ – taková jména zapsaná dřív se jednou opraví (vrátit: strom place undo).
 
 ## 1.28.0
 

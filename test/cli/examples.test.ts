@@ -40,7 +40,7 @@ async function seeded(): Promise<World> {
   await w.ok(["place", "add", "Týnec nad Labem"]);
   await w.ok(["place", "add", "Horní Lhota", "--lat", "49.61", "--lon", "15.23"]); // L0002: place verify, rewrite --to, queue
   await w.ok(["place", "jurisdiction", "L0002", "--kind", "parish", "--name", "Lhotov"]); // place verify --drop-jurisdiction
-  await w.ok(["place", "verify", "L0002", "--ok", "--form", "v Lhotě v", "--why", "a form of the register"]); // place names --drop
+  await w.ok(["place", "verify", "L0002", "--ok", "--form", "Lhotta", "--why", "a form of the register"]); // place names --drop
   await w.ok(["event", "add", "P0002", "RESI", "--date", "1890", "--place", "H. Lhota"]); // place identify|queue|rewrite
   await w.ok(["event", "add", "P0003", "RESI", "--date", "1895", "--place", "Lhota"]); // place unlocated|propose
   await w.ok(["event", "add", "P0002", "DEAT", "--date", "1930", "--place", "Lhota, Dlouhá"]); // place rewrite --house

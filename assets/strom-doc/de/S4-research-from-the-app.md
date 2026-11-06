@@ -27,7 +27,7 @@ zeigen, sendet die Forschung über die Brücke.
   - Die Übersicht ist in einem breiten Fenster (ab 1280 px) ein Seitenpanel neben dem Stammbaum, auf dem Tablet eine
     Ebene über dem Stammbaum, auf dem Telefon der ganze Bildschirm. Auf dem Telefon wird das Panel zu einem Streifen,
     und ein Tippen öffnet die Übersicht.
-  - Ohne Verfolgen zeigt das Panel das letzte bekannte **Wartet auf Bearbeitung** mit dem Satz **Stand {d}. Die
+  - Ohne Verfolgen zeigt das Panel das letzte bekannte **Wartet auf Bearbeitung** mit dem Satz **Stand …. Die
     Forschung läuft gerade nicht.**
 - **Bedienung:** App: Panel, Schaltflächen **⤢ Übersicht öffnen** und **Verfolgung beenden**; Menü **Forschung →
   Forschungsübersicht**.
@@ -74,9 +74,9 @@ Die Wahl gilt für das Panel und die Übersicht.
     Abschnitts aus seinem Menü lassen sich eine Weile zurücknehmen (**Rückgängig**). Sind alle Abschnitte
     ausgeblendet, sagt das Panel **Alle Bereiche sind ausgeblendet.**
 - **Wartet auf Bearbeitung eingeklappt oder ausgeblendet:**
-  - ein neuer Eintrag klappt den Abschnitt nicht auf. Die Überschrift zeigt die Zahl und **{n} neu**; hervorgehoben,
+  - ein neuer Eintrag klappt den Abschnitt nicht auf. Die Überschrift zeigt die Zahl und **N neu**; hervorgehoben,
     wenn darunter eine Entscheidung oder Erlaubnis ist (**darunter eine Entscheidung oder Erlaubnis**);
-  - ausgeblendet hinterlässt er die Marke **Wartet {n}** im Kopf des Panels, in der Zusammenfassung des eingeklappten
+  - ausgeblendet hinterlässt er die Marke **Wartet N** im Kopf des Panels, in der Zusammenfassung des eingeklappten
     Panels, im Streifen auf dem Telefon und in der Übersicht. Ein Klick zeigt den Abschnitt in der Übersicht, bis die
     Übersicht geschlossen wird (**Ausgeblendeter Bereich, sichtbar bis die Übersicht schließt.**).
 - **Bedienung:** App: **⋯ → Panel anpassen…** im Kopf des Panels und der Übersicht; rechte Maustaste oder langes
@@ -164,7 +164,7 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
 
 - **Grenzen:**
   - Das Panel zeigt 3 Aufgaben (**Als Nächstes**), die Übersicht 20 (**Warteschlange**). Den Rest zeigt die Zeile
-    **und {n} weitere in der Forschung**, die die Forschung öffnet.
+    **und N weitere in der Forschung**, die die Forschung öffnet.
   - Mit zwei und mehr laufenden Linien lassen sich Aufgaben nach Linie filtern (**Warteschlange nach Richtung**).
   - Eine Aufgabe außerhalb der Linien hat eine Notiz: **Wartet, bis die Arbeit der Richtungen getan ist · hilft
     keiner Richtung**, **Wird nicht übernommen · Arbeit außerhalb der Richtungen ist ausgeschaltet** oder warum sie
@@ -182,7 +182,7 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
   App, ohne Terminal ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); bei einer Aufgabe, an der der Agent arbeitet, geht
   das nicht. Die Warteschlange wird seitenweise gelesen: **Weitere laden** fügt 50 Aufgaben hinzu, die Liste hält
   höchstens 300, den Rest grenzt der Filter einer Linie oder eines Zweigs ein.
-  Die Marke des Zweigs (**Zweig {n} {k}**) grenzt die ganze Warteschlange auf die Aufgaben des Zweigs ein; **Ganze
+  Die Marke des Zweigs (**Zweig … K**) grenzt die ganze Warteschlange auf die Aufgaben des Zweigs ein; **Ganze
   Warteschlange zeigen** hebt sie auf.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
@@ -194,9 +194,9 @@ Die Übersicht zeigt die Linien der Forschung ([R2.1](R2-lines-and-queue.md#R2.1
 sie gekommen ist. In App 3.21.2 werden Linien nur gelesen; jede Änderung wird im Terminal der Forschung bestätigt.
 
 - **Grenzen:**
-  - Den Abschnitt **Richtungen · {n} aktiv** gibt es nur bei zwei und mehr Linien oder bei einer Linie, wenn auch
+  - Den Abschnitt **Richtungen · N aktiv** gibt es nur bei zwei und mehr Linien oder bei einer Linie, wenn auch
     Arbeit außerhalb von ihr läuft (Zeile **Außerhalb der Richtungen**). Pausierte und beendete Linien sind unter
-    **Pausiert und beendet · {n}** zugeklappt.
+    **Pausiert und beendet · N** zugeklappt.
   - Zeile einer Linie: Art (↑ Vorfahren, ↓ Nachkommen, ⌕ Frage), Name, Person, Zahl der Aufgaben und was auf
     Bearbeitung wartet. Eine Linie ohne Arbeit hat **Nichts offen, sie kann beendet werden.**
   - Detail einer Linie: bekannte Vorfahren nach Generationen, wann zuletzt an ihr gearbeitet wurde, **An dieser
@@ -210,10 +210,10 @@ sie gekommen ist. In App 3.21.2 werden Linien nur gelesen; jede Änderung wird i
 - **Bedienung:** App: **Forschungsübersicht → Richtungen**, bei der Linie **⋯**.
 - **Gilt seit:** App 3.5.0 (Forschung 1.8.0). Teilung des Panels nach Linien seit 3.13.1.
 - **Ab App 3.22.0:** mit der Forschung 1.26.0 werden Linien direkt in der App geändert ([S4.3.1](#S4.3.1)). Die
-  Zeile einer Linie zeigt, woran gerade gearbeitet wird (**Jetzt: …**), und die Grenzen (**bis {n} Generationen**,
-  **vor {Jahr}**; bei einer pausierten Linie nicht). Das Detail einer Linie sagt, was die Linie in den letzten Tagen
-  gefunden hat (**Letzte {n} Tage:** Sitzungen, Personen, Quellen); die Personen zeigt es im Stammbaum. Beendete
-  Linien sind am Ende zugeklappt (**Beendet · {n}**). In einem schmalen Fenster und auf dem Telefon ist die Übersicht
+  Zeile einer Linie zeigt, woran gerade gearbeitet wird (**Jetzt: …**), und die Grenzen (**bis N Generationen**,
+  **vor …** (Jahr); bei einer pausierten Linie nicht). Das Detail einer Linie sagt, was die Linie in den letzten Tagen
+  gefunden hat (**Letzte N Tage:** Sitzungen, Personen, Quellen); die Personen zeigt es im Stammbaum. Beendete
+  Linien sind am Ende zugeklappt (**Beendet · N**). In einem schmalen Fenster und auf dem Telefon ist die Übersicht
   ein Blatt: statt des Griffs für die Reihenfolge Pfeile ▲▼.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -235,7 +235,7 @@ sich nicht, und nichts wird bezahlt.
     weiter.** oder **Die Forschung nimmt die Richtungen der Reihe nach.**
   - **Pausieren** und **Neu starten** lassen sich zurücknehmen (**Rückgängig**). **Beenden…** fragt nach und nimmt
     einen freiwilligen Grund.
-  - Gibt es dieselbe Linie schon, sagt das Formular das (**Die Richtung {n} läuft bereits.**) und bietet **Anzeigen**
+  - Gibt es dieselbe Linie schon, sagt das Formular das (**Die Richtung … läuft bereits.**) und bietet **Anzeigen**
     oder **Trotzdem anlegen** an.
   - **Vorfahren suchen** und **Nachkommen suchen** bei einer Person öffnen dieses Formular.
   - Nur zum Lesen: im Strom-Archiv (**Archiv: Richtungen nur zum Lesen.**), auf dem Telefon (**Richtungen lassen
@@ -261,21 +261,21 @@ einstellen.
 - **Grenzen:**
   - Für die ganze Forschung: **Wie Arbeit außerhalb der Richtungen übernommen wird**: **Ab und zu**, **Am Ende**,
     **Wie üblich**, **Nie**.
-  - Zeile eines Zweigs: Person des Zweigs, Bezug zur Linie (**bei der Richtung {n}**), Zahl der Aufgaben, **wächst**,
+  - Zeile eines Zweigs: Person des Zweigs, Bezug zur Linie (**bei der Richtung …**), Zahl der Aufgaben, **wächst**,
     **eigene Wahl**.
   - Ein Klick auf einen Zweig zeigt seine ersten Aufgaben mit dem Platz in der Warteschlange (**In der Warteschlange ·
-    die ersten {k} von {n}**, **{i}. in der Warteschlange**) und den Link **Alle {n} Aufgaben in der Warteschlange
+    die ersten K von N**, **I. in der Warteschlange**) und den Link **Alle N Aufgaben in der Warteschlange
     ›**. Stehen die Aufgaben des Zweigs hinter dem geladenen Teil der Warteschlange: **Die Aufgaben des Zweigs stehen
-    weiter hinten in der Warteschlange ({n}).**
+    weiter hinten in der Warteschlange (N).**
   - Für einen Zweig: **Übernommen:** **Ab und zu** / **Am Ende** / **Wie üblich** (die Wahl der Forschung hat
-    **(Standard)**), **Zur Richtung {n} hinzufügen** (die nächste Linie zuerst), **Richtung aus diesem Zweig
+    **(Standard)**), **Zur Richtung … hinzufügen** (die nächste Linie zuerst), **Richtung aus diesem Zweig
     anlegen**, **Nicht erforschen** (die Aufgaben verlassen die Warteschlange, nichts wird gelöscht), **Auf Standard
-    zurücksetzen**. Nicht erforschte Zweige stehen beisammen (**Nicht erforscht · {n} Zweige**).
+    zurücksetzen**. Nicht erforschte Zweige stehen beisammen (**Nicht erforscht · N Zweige**).
   - Fragen zu wachsenden Zweigen ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) stehen in **Wartet auf Bearbeitung**:
-    einer Linie hinzufügen (bei einer pausierten Linie **Zur Richtung {n} (pausiert) hinzufügen**), eine Linie
+    einer Linie hinzufügen (bei einer pausierten Linie **Zur Richtung … (pausiert) hinzufügen**), eine Linie
     anlegen, **So lassen**, nicht erforschen. Ohne Antwort wird der Zweig weiter wie bisher übernommen.
   - Fenster **Forschung für diesen Stammbaum…**, Gruppe **Arbeit außerhalb der Richtungen**: die Wahl für die ganze
-    Forschung (**Ab und zu**: „Etwa 1 Aufgabe außerhalb der Richtungen auf {k} Aufgaben der Richtungen.“),
+    Forschung (**Ab und zu**: „Etwa 1 Aufgabe außerhalb der Richtungen auf K Aufgaben der Richtungen.“),
     **Richtungen für wachsende Zweige vorschlagen**, **Zweige mit eigener Wahl** und Aufgaben mit manueller
     Reihenfolge.
 - **Bedienung:** App: **Forschungsübersicht**, Abschnitt der Arbeit außerhalb der Linien, beim Zweig **⋯** (**Optionen
@@ -310,13 +310,13 @@ Terminal wird nichts geschrieben und nichts bezahlt.
   - Eine Aktion ist nur am Computer zu sehen (nicht auf einem Touch-Gerät), nur wenn die Forschung den Link gemeldet
     hat und nur wenn **Strom Research auf diesem Computer** eingeschaltet ist.
   - Der Link trägt nur Nummern von Datensätzen und feste Werte, keine Namen und keinen freien Text.
-  - Das Terminal beginnt mit **Die Strom-App bittet um: {was} / Forschung: {Name}** und fragt **Fortfahren?** Bei
+  - Das Terminal beginnt mit **Die Strom-App bittet um: … / Forschung: …** und fragt **Fortfahren?** Bei
     Arbeit des Agenten fügt es **Der Agent arbeitet auf das eigene Abonnement oder KI-Guthaben.** hinzu, bei der
     Vergabe von Aufgaben **Die Forschung schreibt Aufgaben für den Agenten – jetzt wird nichts gesucht und nichts
     bezahlt.**
   - Das Strom-Archiv und eine Forschung, die auf einen Agenten wartet, lehnen Arbeit des Agenten ab (Gespräch,
     Prüfung, Suche, Orte, Geschichte).
-  - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „{name}“ –
+  - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „…“ –
     der Agent arbeitet daran weiter.**
   - Die App erkennt nicht, ob sich das Terminal geöffnet hat. Sie zeigt **Forschung wird geöffnet…** und den Rat
     **Wenn sich nichts öffnet, Strom Research starten und erneut versuchen.**

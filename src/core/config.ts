@@ -229,8 +229,17 @@ export const DEFAULT_HISTORY_PACE: HistoryPace = "sometimes";
 export const DEFAULT_READ_PARALLEL = 5;
 export const READ_PARALLEL_MAX = 10;
 
-/** Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never). */
-export const DEFAULT_LIVE_IDLE_MINUTES = 120;
+/**
+ * Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never — the
+ * default since 1.29.0: the bridge only reads, on this computer only, and costs nothing; a value stored stays).
+ */
+export const DEFAULT_LIVE_IDLE_MINUTES = 0;
+/** The other choice the Strom app offers beside never (/status live.idleChoices): ended after two hours with nobody asking. */
+export const LIVE_IDLE_AFTER_MINUTES = 120;
+/** What the Strom app offers for live.idleMinutes: never by itself, or after two hours (/status live.idleChoices). */
+export const LIVE_IDLE_CHOICES = [DEFAULT_LIVE_IDLE_MINUTES, LIVE_IDLE_AFTER_MINUTES] as const;
+/** The most minutes live.idleMinutes takes from the Strom app (POST <token>/live): a week. */
+export const LIVE_IDLE_MAX_MINUTES = 7 * 24 * 60;
 
 /** One setting: where it can live and how it is checked. */
 export interface SettingDef {
@@ -340,7 +349,7 @@ export const SETTINGS: SettingDef[] = [
   // Measured and set by strom itself (tune.auto), never typed: shown with their reason; unset returns to the default.
   { key: "reading.batch", env: "", tree: false, kind: "tuned", description: "how many scans are read in one batch (by a delegate, the agent itself, a reader of strom read) and how many views one call of strom media view gives — default about 6 scans, 24 views; strom makes it smaller by itself when the context clears or readers end without a result; strom config unset reading.batch returns to the default" },
   { key: "reading.views", env: "", tree: false, kind: "tuned", description: "after how many views a reader stops and reports (the agent reading itself writes down and goes on) — default about 30; strom makes it smaller by itself from the context it measured; strom config unset reading.views returns to the default" },
-  { key: "live.idleMinutes", env: "", tree: false, kind: "number", description: `minutes the bridge to the Strom app (strom live) runs on while nobody asks it anything and nobody works in the tree, then it ends by itself (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: it never ends by itself — only strom live stop ends it. A bridge running takes it when it starts again` },
+  { key: "live.idleMinutes", env: "", tree: false, kind: "number", description: `minutes the bridge to the Strom app (strom live) runs on while nobody asks it anything and nobody works in the tree, then it ends by itself; 0 (the default): it never ends by itself — only strom live stop (or the Strom app's switch) ends it. A value stored stays; a bridge running takes a new one within a minute` },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -520,7 +529,7 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       const n = Number(v);
       // the bridge's idle time: whole minutes, 0 for never
       if (def.key === "live.idleMinutes") {
-        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: never by itself — strom config set live.idleMinutes ${DEFAULT_LIVE_IDLE_MINUTES}` });
+        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends; 0 (the default): never by itself — strom config set live.idleMinutes ${LIVE_IDLE_AFTER_MINUTES}` });
         return n;
       }
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
@@ -710,9 +719,14 @@ export class Settings {
   liveIdleMs(): number {
     const raw = this.env.STROM_LIVE_IDLE_MS;
     if (raw !== undefined && raw !== "" && Number.isFinite(Number(raw)) && Number(raw) >= 0) return Number(raw);
+    return this.liveIdleMinutes() * 60_000;
+  }
+
+  /** live.idleMinutes as stored (whole minutes, 0: never by itself), else DEFAULT_LIVE_IDLE_MINUTES — what /status live says. */
+  liveIdleMinutes(): number {
     const v = readStored(this.config, "live.idleMinutes", "");
     const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
-    return (Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES) * 60_000;
+    return Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES;
   }
 
   /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */

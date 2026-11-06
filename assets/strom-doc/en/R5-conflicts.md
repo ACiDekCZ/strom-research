@@ -49,7 +49,7 @@ a record documented therefore does not overwrite the fact. A conflict arises bet
 value of the research.
 
 - **Limits:** what happens to an edit from the app:
-  1. a new fact or person: written as a **Lead** with the source “Edits in the Strom app ({day})”;
+  1. a new fact or person: written as a **Lead** with the source “Edits in the Strom app (…)”;
   2. a change to a fact no record documents: the fact is corrected (with a reason);
   3. a refinement of a fact a record documents (a place where there was none, a day to a year, a more detailed
      place): added to the fact, without a conflict;

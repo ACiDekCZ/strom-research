@@ -21,16 +21,17 @@ The procedure in brief:
 5. **Decision:** the table and the course of a task are in [R9.8](#R9.8), a person's steps in [R9.9](#R9.9) and
    examples in [R9.10](#R9.10).
 
-> **Note: where exactly the agent's browser applies.** strom watches the agent's browser only with **Claude Code**
-> and the **Claude in Chrome** extension, and in the Claude app's built-in browser
-> ([R12.2](R12-where-the-agent-works.md#R12.2)). strom cannot watch the browser or computer use of another agent
-> (Codex, Antigravity and others): such an agent does not take them of its own accord into an archive only a
-> person's browser may enter, and a person saves the images. The built-in browsers and computer use of the agents'
+> **Note: where exactly the agent's browser applies.** strom watches the agent's browser with **Claude Code** and
+> the **Claude in Chrome** extension, in the Claude app's built-in browser
+> ([R12.2](R12-where-the-agent-works.md#R12.2)) and in Codex's browser by the addresses in its code, when a person
+> has confirmed strom's hook ([R12.5](R12-where-the-agent-works.md#R12.5)). strom cannot watch the browser of
+> another agent (Antigravity and others) or the computer use of any agent: the agent does not take them of its own
+> accord into an archive only a person's browser may enter, and a person saves the images. The built-in browsers and computer use of the agents'
 > desktop apps strom does not recommend; the agent uses them only when a person explicitly asks
 > ([R9.4.2](#R9.4.2)). Where the agent is talked to and what strom watches where, [R12](R12-where-the-agent-works.md)
 > sums up.
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Kinds of archives
@@ -216,9 +217,10 @@ Claude app's built-in browser it watches the same way ([R12.2](R12-where-the-age
 ### R9.4.2 Built-in browsers and computer use: not recommended
 
 - Nothing of the agents' desktop apps is switched off in the research. The Claude app's built-in browser (its preview
-  too) strom watches as it does Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Computer use of the
-  Claude app and the browser and computer use of the ChatGPT app (Codex) strom does not watch
-  ([R12.5](R12-where-the-agent-works.md#R12.5)). None of them strom recommends.
+  too) strom watches as it does Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), the ChatGPT app's
+  (Codex) browser by the addresses in its code, once a person confirms strom's hook
+  ([R12.5](R12-where-the-agent-works.md#R12.5)). Computer use of the Claude app and of the ChatGPT app strom does not
+  watch ([R12.10](R12-where-the-agent-works.md#R12.10)). None of them strom recommends.
 - **Method only:** the agent does not use them of its own accord: it does not take them into an archive only a
   person's browser may enter, and a person saves the images ([R9.6](#R9.6)). When a person explicitly asks for them,
   it is the person's choice: the agent says in one sentence whether strom watches that way and what the archive's
@@ -228,7 +230,7 @@ Claude app's built-in browser it watches the same way ([R12.2](R12-where-the-age
   downloader, the web fetch of pages and the agent's browser in Chrome always follow the archives' rules
   ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Controls:** terminal: `strom doctor`, the row **desktop apps' browser**.
-- **Since:** research 1.27.0; 1.29.0: the Claude app's built-in browser watched
+- **Since:** research 1.27.0; 1.29.0: the Claude app's built-in browser and Codex's browser watched
 <!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
 
 <a id="R9.4.3"></a>
@@ -320,7 +322,7 @@ research.
   person is at the computer is passed only by a person.
 - **Why:** the images are what the task waited for; part of the images does not finish the task.
 - **Controls:** terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, in What waits
-  **Open the folder ({have}/{want} saved)**. App: Awaiting action, at the item in this order **Add images**, **Open
+  **Open the folder (M/N saved)**. App: Awaiting action, at the item in this order **Add images**, **Open
   website ↗**, **Answer**, **Discuss with the agent**, **Open folder** (the last two open the research in the
   terminal). The state of the images shows "1 of 2 images" and, at the book, the chips **saved** / **missing**. The
   sites of one archive wait in one group **Archive** under the archive's name, with the link **Archive website ↗**

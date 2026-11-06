@@ -23,7 +23,7 @@ Research** a z něj větší **Přehled výzkumu**. Oba jen čtou. Co ukazují, 
   - **Průběh** slučuje kroky po 15 minutách, ukáže nejvýš 20 kroků.
   - Přehled je na širokém okně (od 1280 px) bočním panelem vedle stromu, na tabletu vrstvou přes strom, na telefonu
     celou obrazovkou. Na telefonu je z panelu pruh a klepnutí otevře přehled.
-  - Bez sledování panel ukáže poslední známé **Čeká na vyřízení** s větou **Stav k {d}. Výzkum teď neběží.**
+  - Bez sledování panel ukáže poslední známé **Čeká na vyřízení** s větou **Stav k …. Výzkum teď neběží.**
 - **Ovládání:** aplikace: panel, tlačítka **⤢ Otevřít přehled** a **Ukončit sledování**; menu **Výzkum → Přehled
   výzkumu**.
 - **Platí od:** aplikace 3.5.0
@@ -63,9 +63,9 @@ i Přehled.
   - **Vrátit výchozí** zruší všechny volby. Vrácení výchozího i skrytí oddílu z jeho menu jde chvíli vzít zpět
     (**Vrátit**). Když jsou skryté všechny oddíly, panel řekne **Všechny sekce jsou skryté.**
 - **Čeká na vyřízení sbalené nebo skryté:**
-  - nová položka oddíl nerozbalí. Nadpis ukáže počet a **{n} nových**; zvýrazněně, když je mezi nimi rozhodnutí
+  - nová položka oddíl nerozbalí. Nadpis ukáže počet a **N nových**; zvýrazněně, když je mezi nimi rozhodnutí
     nebo povolení (**mezi nimi rozhodnutí nebo povolení**);
-  - skryté nechá štítek **Čeká {n}** v hlavičce panelu, ve shrnutí sbaleného panelu, v pruhu na telefonu
+  - skryté nechá štítek **Čeká N** v hlavičce panelu, ve shrnutí sbaleného panelu, v pruhu na telefonu
     a v Přehledu. Klik ukáže oddíl v Přehledu, dokud se Přehled nezavře (**Skrytá sekce, ukázaná do zavření
     Přehledu.**).
 - **Ovládání:** aplikace: **⋯ → Upravit panel…** v hlavičce panelu i Přehledu; pravé tlačítko nebo dlouhý stisk na
@@ -143,7 +143,7 @@ Aplikace ukazuje začátek fronty výzkumu v pořadí, v jakém je agent bere ([
 fronta zůstává ve výzkumu.
 
 - **Hranice:**
-  - Panel ukáže 3 úkoly (**Na řadě**), přehled 20 (**Fronta**). Zbytek ukazuje řádek **a dalších {n} ve výzkumu**,
+  - Panel ukáže 3 úkoly (**Na řadě**), přehled 20 (**Fronta**). Zbytek ukazuje řádek **a dalších N ve výzkumu**,
     který otevře výzkum.
   - Se dvěma a více běžícími liniemi jdou úkoly filtrovat podle linie (**Fronta podle linie**).
   - Úkol mimo linie má poznámku: **Čeká až po liniích · nepomáhá žádné linii**, **Nebere se · práce mimo linie je
@@ -158,7 +158,7 @@ fronta zůstává ve výzkumu.
   **Udělat hned** a **Na konec** (a **Vrátit výchozí**) mění místo úkolu přímo z aplikace, bez terminálu
   ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); u úkolu, na kterém agent pracuje, to nejde. Fronta se čte po stránkách:
   **Načíst další** přidá 50 úkolů, seznam drží nejvýš 300, zbytek zúží filtr linie nebo větve.
-  Štítek větve (**Větev {n} {k}**) zúží celou frontu na úkoly větve; **Ukázat celou frontu** ho zruší.
+  Štítek větve (**Větev … K**) zúží celou frontu na úkoly větve; **Ukázat celou frontu** ho zruší.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
 
@@ -169,8 +169,8 @@ Přehled ukazuje linie výzkumu ([R2.1](R2-lines-and-queue.md#R2.1)): co na kter
 se linie jen čtou; každá změna se potvrzuje v terminálu výzkumu.
 
 - **Hranice:**
-  - Oddíl **Linie · {n} aktivní** je jen při dvou a více liniích, nebo při jedné linii, když běží i práce mimo ni
-    (řádek **Mimo linie**). Pozastavené a ukončené linie jsou sbalené pod **Pozastavené a ukončené · {n}**.
+  - Oddíl **Linie · N aktivní** je jen při dvou a více liniích, nebo při jedné linii, když běží i práce mimo ni
+    (řádek **Mimo linie**). Pozastavené a ukončené linie jsou sbalené pod **Pozastavené a ukončené · N**.
   - Řádek linie: druh (↑ předci, ↓ potomci, ⌕ otázka), název, osoba, počet úkolů a co čeká na vyřízení. Linie bez
     práce má **Nic nečeká, lze ji ukončit.**
   - Detail linie: známí předci po generacích, kdy se na ní naposledy pracovalo, **Pracovat na této linii**
@@ -183,9 +183,9 @@ se linie jen čtou; každá změna se potvrzuje v terminálu výzkumu.
 - **Ovládání:** aplikace: **Přehled výzkumu → Linie**, u linie **⋯**.
 - **Platí od:** aplikace 3.5.0 (výzkum 1.8.0). Dělení panelu po liniích od 3.13.1.
 - **Od aplikace 3.22.0:** s výzkumem 1.26.0 se linie mění přímo v aplikaci ([S4.3.1](#S4.3.1)). Řádek linie
-  ukáže, na čem se teď pracuje (**Teď: …**), a meze (**do {n} generací**, **před {rok}**; u pozastavené linie ne).
-  Detail linie řekne, co linie našla za poslední dny (**Za {n} dní:** sezení, osoby, prameny); osoby ukáže ve
-  stromu. Ukončené linie jsou sbalené na konci (**Ukončené · {n}**). V úzkém okně a na telefonu je přehled listem:
+  ukáže, na čem se teď pracuje (**Teď: …**), a meze (**do N generací**, **před …** (rok); u pozastavené linie ne).
+  Detail linie řekne, co linie našla za poslední dny (**Za N dní:** sezení, osoby, prameny); osoby ukáže ve
+  stromu. Ukončené linie jsou sbalené na konci (**Ukončené · N**). V úzkém okně a na telefonu je přehled listem:
   místo úchytu pořadí šipky ▲▼.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -202,7 +202,7 @@ S výzkumem, který to umí, zapisuje aplikace změny linií přímo přes most.
   - Pořadí linií: tažením, šipkami nebo **Přesunout na začátek**. Pod seznamem stojí, jak výzkum pořadí bere:
     **Výzkum se věnuje nejvíc liniím nahoře, ostatní nestojí.** nebo **Výzkum bere linie popořadě.**
   - **Pozastavit** a **Znovu spustit** se dají vzít zpět (**Zpět**). **Ukončit…** se zeptá a vezme nepovinný důvod.
-  - Když už stejná linie je, formulář to řekne (**Linie {n} už běží.**) a nabídne **Ukázat ji** nebo **Založit
+  - Když už stejná linie je, formulář to řekne (**Linie … už běží.**) a nabídne **Ukázat ji** nebo **Založit
     přesto**.
   - **Hledat předky** a **Hledat potomky** u osoby otevřou tento formulář.
   - Jen ke čtení: v Archivu Stromu (**Archiv: linie jen ke čtení.**), na telefonu (**Linie jde měnit ve Stromu na
@@ -222,18 +222,18 @@ Při dvou a více liniích ukazuje přehled práci mimo linie po větvích. Volb
 
 - **Hranice:**
   - Pro celý výzkum: **Jak se bere práce mimo linie**: **Občas**, **Na konci**, **Normálně**, **Nikdy**.
-  - Řádek větve: osoba větve, vztah k linii (**u linie {n}**), počet úkolů, **roste**, **vlastní volba**.
-  - Klik na větev ukáže její první úkoly s místem ve frontě (**Ve frontě · první {k} z {n}**, **{i}. ve frontě**)
-    a odkaz **Všechny {n} úkolů ve Frontě ›**. Když úkoly větve stojí za načtenou částí fronty: **Úkoly větve
-    stojí ve frontě dál ({n}).**
+  - Řádek větve: osoba větve, vztah k linii (**u linie …**), počet úkolů, **roste**, **vlastní volba**.
+  - Klik na větev ukáže její první úkoly s místem ve frontě (**Ve frontě · první K z N**, **I. ve frontě**)
+    a odkaz **Všechny N úkolů ve Frontě ›**. Když úkoly větve stojí za načtenou částí fronty: **Úkoly větve
+    stojí ve frontě dál (N).**
   - Pro větev: **Bere se:** **Občas** / **Na konci** / **Normálně** (volba výzkumu má **(výchozí)**), **Přidat
-    k linii {n}** (nejbližší linie první), **Založit linii z této větve**, **Nezkoumat** (úkoly odejdou z fronty,
-    nic se nesmaže), **Vrátit výchozí**. Nezkoumané větve jsou pohromadě (**Nezkoumá se · {n} větví**).
+    k linii …** (nejbližší linie první), **Založit linii z této větve**, **Nezkoumat** (úkoly odejdou z fronty,
+    nic se nesmaže), **Vrátit výchozí**. Nezkoumané větve jsou pohromadě (**Nezkoumá se · N větví**).
   - Otázky k rostoucím větvím ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) jsou v **Čeká na vyřízení**: přidat k linii
-    (u pozastavené linie **Přidat k linii {n} (pozastavená)**), založit linii, **Nechat, jak je**, nezkoumat. Bez
+    (u pozastavené linie **Přidat k linii … (pozastavená)**), založit linii, **Nechat, jak je**, nezkoumat. Bez
     odpovědi se větev bere dál jako dosud.
   - Okno **Výzkum u tohoto stromu…**, skupina **Práce mimo linie**: volba pro celý výzkum (**Občas**: „Zhruba 1 úkol
-    mimo linie na {k} úkolů linií.“), **Navrhovat linie u rostoucích větví**, **Větve s vlastní volbou**
+    mimo linie na K úkolů linií.“), **Navrhovat linie u rostoucích větví**, **Větve s vlastní volbou**
     a úkoly s ručním pořadím.
 - **Ovládání:** aplikace: **Přehled výzkumu**, oddíl práce mimo linie, u větve **⋯** (**Možnosti větve**);
   **Výzkum u tohoto stromu…**.
@@ -265,11 +265,11 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
   - Akce je vidět jen na počítači (ne na dotykovém zařízení), jen když výzkum odkaz ohlásil a jen když je zapnuté
     **Strom Research na tomto počítači**.
   - Odkaz nese jen čísla záznamů a pevné hodnoty, žádná jména ani volný text.
-  - Terminál začne **Aplikace Strom žádá: {co} / Výzkum: {název}** a zeptá se **Pokračovat?** U práce agenta
+  - Terminál začne **Aplikace Strom žádá: … / Výzkum: …** a zeptá se **Pokračovat?** U práce agenta
     připíše **Agent pracuje na předplatné nebo kredit AI.**, u zadání úkolů **Výzkum zapíše úkoly pro agenta – teď
     se nic nehledá a nic se neplatí.**
   - Archiv Stromu a výzkum, který čeká na agenta, práci agenta odmítnou (rozhovor, prověření, hledání, místa, dějiny).
-  - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „{name}“ – agent v ní
+  - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „…“ – agent v ní
     pokračuje.**
   - Aplikace nepozná, jestli se terminál otevřel. Ukáže **Otevírám výzkum…** a radu **Když se nic neotevře, je potřeba
     spustit Strom Research a zkusit to znovu.**

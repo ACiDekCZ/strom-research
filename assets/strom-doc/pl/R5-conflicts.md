@@ -48,7 +48,7 @@ Zmiany wysłane z aplikacji Strom badanie zapisuje tak, aby nic, na czym się op
 udokumentował akt, nie nadpisuje więc danej. Powstaje sprzeczność między wartością z aplikacji a wartością badania.
 
 - **Granice:** co dzieje się ze zmianą z aplikacji:
-  1. nowa dana lub osoba: zapisuje się jako **Wskazówka** ze źródłem „Zmiany w aplikacji Strom ({dzień})”;
+  1. nowa dana lub osoba: zapisuje się jako **Wskazówka** ze źródłem „Zmiany w aplikacji Strom (…)”;
   2. zmiana danej, której akt nie dokumentuje: dana zostaje poprawiona (z powodem);
   3. uściślenie danej udokumentowanej aktem (miejsce tam, gdzie go nie było, dzień do roku, dokładniejsze miejsce):
      zostaje dopisane do danej, bez sprzeczności;

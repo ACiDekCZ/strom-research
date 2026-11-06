@@ -50,7 +50,7 @@ erklärt und nicht nach der Mehrheit der Einträge entschieden.
 zwischen dem Wert aus der App und dem Wert der Forschung.
 
 - **Grenzen:** was mit einer Änderung aus der App geschieht:
-  1. eine neue Angabe oder Person: sie wird als **Hinweis** mit der Quelle „Änderungen in der Strom-App ({Tag})“
+  1. eine neue Angabe oder Person: sie wird als **Hinweis** mit der Quelle „Änderungen in der Strom-App (…)“
      erfasst;
   2. Änderung einer Angabe, die kein Eintrag belegt: die Angabe wird berichtigt (mit Grund);
   3. Präzisierung einer durch einen Eintrag belegten Angabe (ein Ort, wo keiner war, ein Tag zum Jahr, ein genauerer

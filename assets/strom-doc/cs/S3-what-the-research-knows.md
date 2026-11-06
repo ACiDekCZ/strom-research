@@ -10,7 +10,7 @@ Kapitola popisuje, co aplikace ukazuje o osobě z výzkumu: dialog **Co ví výz
 
 Výzkum ke každé osobě přidá do rodokmenu pro aplikaci zvláštní bloky: rozpory, hypotézy, prohledané prameny
 a kraj stromu nad osobou. Aplikace je jen ukazuje. Nic z nich se v aplikaci nezmění a aplikace je zpět
-nepošle; žijí ve výzkumu. Hlavička dialogu nese datum výzkumu „stav k {datum}“.
+nepošle; žijí ve výzkumu. Hlavička dialogu nese datum výzkumu „stav k …“.
 
 - **Odkud:** z mostu (rodokmen, který aplikace načte z běžícího výzkumu, viz [S1](S1-connecting-app-and-research.md))
   nebo ze souboru `output/tree-strom.ged`. Obojí vzniká stejným exportem výzkumu.
@@ -93,11 +93,11 @@ Oddíl je u osoby, nad kterou strom nepokračuje: nemá rodiče, má jen jednoho
   *nedochováno*.
 - **Úkoly:** pořadí ve frontě, nebo proč stojí (*pozastavená linie*, *ukončená linie*, *rodina mimo strom*,
   *odloženo do …*); hotové pod **Zkoušené úkoly · n**.
-- **Práce:** počet hledání, počet sezení agenta s cenou, „naposledy {datum}“. V archivu sezení ani cena nejsou.
+- **Práce:** počet hledání, počet sezení agenta s cenou, „naposledy …“. V archivu sezení ani cena nejsou.
 - **Hypotézy:** možné napojení na jinou osobu, rodina mimo strom („rodina mimo strom, 4 lidé“), kolik úkolů
   čeká, které úkoly hypotézu testují.
 - Odkaz „2 otevřené rozpory ↓“ sjede na oddíl **Rozpory**.
-- **Hranice:** „stav k {datum}“ je v hlavičce oddílu, jen když je výzkum starší než dnešek.
+- **Hranice:** „stav k …“ je v hlavičce oddílu, jen když je výzkum starší než dnešek.
 - **Ovládání:** aplikace: **Nastavení → Zobrazení stromu → Kraj výzkumu** (*Vypnuto* / *K vyřízení* / *Vše*)
   řídí jen pahýly nad kartami, ne tento oddíl. Volba je jen u rodokmenu z výzkumu. *K vyřízení* chybí
   u kopie, která nemá frontu. Terminál: `strom edge`.
@@ -127,7 +127,7 @@ Oddíl je u osoby, nad kterou strom nepokračuje: nemá rodiče, má jen jednoho
 ## S3.4 Rozpory
 
 Oddíl **Rozpory** ukazuje rozpory osoby a rodin, kde je osoba partnerem. Otevřené jsou první, pak rozhodnuté
-s řádkem „rozhodnuto: {hodnota} ({pramen})“. Pramen jde otevřít v prohlížeči pramenů. Co rozpor je, kde je vidět
+s řádkem „rozhodnuto: … (…)“. Pramen jde otevřít v prohlížeči pramenů. Co rozpor je, kde je vidět
 a jak se rozhoduje, popisuje [R5.6](R5-conflicts.md#R5.6). Rozhodnutí stranou z aplikace popisuje
 [R5.6.1](R5-conflicts.md#R5.6.1).
 

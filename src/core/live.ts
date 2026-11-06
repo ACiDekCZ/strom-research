@@ -3,9 +3,10 @@
 // secret token in every address) that only reads: the app, opened with
 // ?live=<address>, takes the tree's GEDCOM from it and hears what changes —
 // who is at work on what, what was recorded, what waits for the user. Nothing
-// leaves the computer. The bridge ends by itself when nobody has asked it
-// anything for a while (LIVE_IDLE_MS) and nobody works in the tree, or with
-// strom live stop.
+// leaves the computer. It runs until strom live stop (or the app's switch,
+// POST /live) or the computer goes off — or, when the person chose so
+// (live.idleMinutes, 0 by default: never), ends by itself when nobody has asked
+// it anything for that while and nobody works in the tree.
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits; what the research takes from
 //                          the app (accepts). ?poll=1: the app asking now and then — the bridge's idle time goes on.
@@ -279,6 +280,12 @@
 //   POST <token>/offline/<B-…>  {mode: occasional|last|normal|never|default} | {mode: "line", line: G…}: strom offline
 //                          set (for the branch's new tasks too) — {branch, head, parent}; 400 offline.body, 404
 //                          offline.none, 404 directions.none (the line)
+//   POST <token>/live      {idleMinutes: 0…10080}: strom config set live.idleMinutes (this computer's, every bridge takes
+//                          it; nothing committed) — {live: {idleMinutes, idleChoices}} as /status live says it (feature
+//                          live.idle) — or {do: "stop"}: 202 {stopping: true}, ended as strom live stop ends it (end
+//                          {reason: stopped, back: false, by: "app"}) but its address kept, never brought back by new
+//                          work in the tree (feature live.stop; the link live&do=start starts it again: live.start); 400
+//                          live.body, 503 research.busy, 500 live.failed
 //   POST <token>/offline   {mode?: occasional|last|normal|never|default, suggest?: true|false}: strom config set
 //                          queue.offLine … / queue.suggestLines yes|no --for-tree (default: config unset) — {offLine
 //                          (without branches), head, parent}; 400 offline.body
@@ -387,7 +394,7 @@ import { appOpensLinks, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStro
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { configFile, readStored, Settings } from "./config.ts";
+import { configFile, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
@@ -559,6 +566,12 @@ export function liveLogFile(root: string): string {
 
 const LIVE_LOG_BYTES = 200 * 1024;
 
+/** How a bridge ended (the end event's reason, live-last.json's ended.kind). */
+type EndKind = "stopped" | "restart" | "idle" | "gone" | "signal";
+
+/** How often a running bridge reads live.idleMinutes again (STROM_LIVE_IDLE_READ_MS of the tests). */
+const IDLE_READ_MS = Number(process.env.STROM_LIVE_IDLE_READ_MS ?? 60_000);
+
 /** The last bridge of a tree, kept after it ended: its address to take again, whether it ended as it should. */
 interface LiveLast {
   port: number;
@@ -566,8 +579,11 @@ interface LiveLast {
   token?: string;
   pid: number;
   started: string;
-  /** How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. */
-  ended?: { at: string; reason: string };
+  /**
+   * How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. kind (1.29.0): which
+   * end it was — only one that ended idle comes back with new work in the tree; none: an older strom's (its reason read).
+   */
+  ended?: { at: string; reason: string; kind?: EndKind };
   /** The tree's folder (its real path) the bridge was of: a copy of the research with its .strom is another folder. None: an older strom's. */
   root?: string;
 }
@@ -895,6 +911,8 @@ interface StopAsk {
   pid: number;
   why: string;
   back?: boolean;
+  /** Asked by the Strom app (POST <token>/live {"do": "stop"}): said so in the end event. */
+  by?: "app";
 }
 
 /** Where a bridge asked to end says it writes what the app sent (a send, an original, an adoption): it ends after it. */
@@ -1013,7 +1031,7 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
   if (!info) return "none";
   noteLive(root, `stop asked: ${why}`);
   const last = readLast(root);
-  if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why } });
+  if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why, kind: opts.back ? "restart" : "stopped" } });
   const how = endBridge(info.pid, root, { why, back: opts.back ?? false });
   if (how === "elsewhere") {
     noteLive(root, `a bridge of another folder (${info.pid}) is named in live.json: not ended, not this tree's`);
@@ -1040,8 +1058,9 @@ export function appHasTree(root: string, settings: Settings): boolean {
   return !!liveRunning(root) || !!readLast(root)?.token;
 }
 
-/** Whether a bridge's end was its idle time running out (the reason it wrote: "idle: …"). */
+/** Whether a bridge's end was its idle time running out (its kind, else the reason an older strom wrote: "idle: …"). */
 function endedIdle(last: LiveLast): boolean {
+  if (last.ended?.kind) return last.ended.kind === "idle";
   return /^idle\b/.test(last.ended?.reason ?? "");
 }
 
@@ -1174,7 +1193,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.choose", "read.source"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.choose", "read.source", "live.idle", "live.stop", "live.start"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1917,6 +1936,14 @@ function lastIntake(root: string, tree: Tree): { id: string; at: string; state: 
  * sources and citations are taken; verified: its transcripts weigh as the app says (_STROM_TRANSCRIPTS,
  * _STROM_VERIFIED); media: originals through PUT /media/<sha256> — how large one may be, what room is left, which kinds.
  */
+/**
+ * /status live (feature live.idle): how long the bridge runs on with nobody asking — whole minutes, 0: until it is
+ * stopped or the computer goes off (the default) — and the choices the app offers (POST <token>/live writes one).
+ */
+export function liveState(env: Env): { idleMinutes: number; idleChoices: number[] } {
+  return { idleMinutes: new Settings(env, {}).liveIdleMinutes(), idleChoices: [...LIVE_IDLE_CHOICES] };
+}
+
 function accepts(tree: Tree, settings: Settings, env: Env, seen?: ReadingsSeen): Record<string, unknown> {
   const mode = modeOf(tree);
   // a document read at once (live-read.ts): none in an archive, nor where the research waits for its agent
@@ -1985,6 +2012,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
       locked: { code: refused.code, reason: refused.message, way: refused.hint, ...(refused.params ?? {}) },
+      live: liveState(env),
       links: links(env),
       ...linkSchemeOf(env),
       phone: phoneSummaryNow(env),
@@ -2051,6 +2079,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       stories: appShowsStoryDrafts(settings, version),
       scopes: all,
     }).map((w) => w.item),
+    live: liveState(env),
     links: links(env),
     ...linkSchemeOf(env),
     // the experiments searched for this tree, and the fingerprint of what GET /history answers (only for a tree that has
@@ -2213,8 +2242,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
   let token = last?.token ?? crypto.randomBytes(16).toString("hex");
   // what this bridge says of itself (live.json), once it listens
   let live: LiveInfo | undefined;
-  // how long it runs on with nobody asking (STROM_LIVE_IDLE_MS > live.idleMinutes > 2 hours; 0: never by itself)
-  const idleMs = new Settings(env, {}).liveIdleMs();
+  // how long it runs on with nobody asking (STROM_LIVE_IDLE_MS > live.idleMinutes > 0: never by itself); read again
+  // now and then (the person's choice changes for every bridge of this computer) and at once when the app writes it
+  let idleMs = new Settings(env, {}).liveIdleMs();
+  let idleRead = Date.now();
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
   let lastAsked = Date.now();
@@ -2642,6 +2673,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // a branch that grows (W-B-…: answered as strom offline answer), else a task's request marked sent
       const id = decoded(sub);
       writeFor(req, res, origin, /^W-B-/iu.test(id) ? branchAnswerWrite(id) : waitingWrite(id));
+      return;
+    }
+    // the bridge itself: how long it runs on with nobody asking (this computer's choice), or ended now from the app
+    if (req.method === "POST" && t === token && what === "live" && !sub) {
+      writeFor(req, res, origin, liveWrite());
       return;
     }
     // work off the lines: a branch's choice, the tree's, a task's own turn — each a strom command
@@ -4583,6 +4619,47 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
+   * The bridge itself (POST /live): {"idleMinutes": n} — strom config set live.idleMinutes n (this computer's, every
+   * tree's bridge; nothing of the research committed; as it is already: 200, nothing written) — or {"do": "stop"}: ended
+   * as strom live stop ends it (the end event says by: "app"), once what the app sent is written — but its address kept,
+   * so the bridge started again (strom live start, the link live&do=start, the research opened from the app) is where the
+   * app looks; new work in the tree never brings it back (only an end when idle does). An archive too: no agent in it.
+   */
+  const liveWrite = (): AppWrite => ({
+    what: "the bridge's idle time",
+    codes: { badBody: "live.body", busy: "research.busy", failed: "live.failed" },
+    busyStatus: 503,
+    ask(_tree, body) {
+      const keys = Object.keys(body);
+      if (keys.length === 1 && body.do === "stop") {
+        const was = readLast(root);
+        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: "stopped in the Strom app", kind: "stopped" } });
+        noteLive(root, "stop asked: in the Strom app (its address kept)");
+        // taken by the stop's own watch: it waits for what the app sent being written, then ends (the answer goes first)
+        try {
+          fs.writeFileSync(`${liveStopFile(root)}.${process.pid}`, JSON.stringify({ pid: process.pid, why: "stopped in the Strom app", back: false, by: "app" } satisfies StopAsk));
+          fs.renameSync(`${liveStopFile(root)}.${process.pid}`, liveStopFile(root));
+        } catch (e) {
+          return { code: 500, body: refusal(`the bridge could not be asked to end: ${errorText(e)}`, "live.failed") };
+        }
+        return { code: 202, body: { stopping: true } };
+      }
+      const n = body.idleMinutes;
+      if (keys.length !== 1 || typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > LIVE_IDLE_MAX_MINUTES)
+        return { code: 400, body: refusal(`the body: {"idleMinutes": 0…${LIVE_IDLE_MAX_MINUTES}} (whole minutes; 0: never by itself) or {"do": "stop"}`, "live.body") };
+      if (new Settings(env, {}).liveIdleMinutes() === n && readStored(loadUserConfig(env), "live.idleMinutes", "") !== undefined) return { code: 200, body: { live: liveState(env) } };
+      return { args: ["config", "set", "live.idleMinutes", String(n)] };
+    },
+    done() {
+      idleMs = new Settings(env, {}).liveIdleMs();
+      idleRead = Date.now();
+      lastAsked = Date.now();
+      return { live: liveState(env) };
+    },
+    refused: () => undefined,
+  });
+
+  /**
    * A task's own turn (POST /queue/<T…> {"do": "next"|"last"|"default"}): strom task order T… --next|--last|--default —
    * next once, before everything but the work at hand; last after everything; default back to the queue's order. Any
    * open task. {task (as queue[] has it now), head, parent}; 404 queue.none (no open task), 409 queue.doing (at work).
@@ -5390,6 +5467,15 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what /status says of the readings changed without a commit: made again at the next ask
         if (readsChanged.length) keeper.forget();
         if (streams.size || anyoneAtWork(root) || reads.active()) lastAsked = Date.now();
+        if (Date.now() - idleRead > IDLE_READ_MS) {
+          idleRead = Date.now();
+          const was = idleMs;
+          idleMs = safe("the idle time", () => new Settings(env, {}).liveIdleMs()) ?? idleMs;
+          // turned on now: its time counts from now, not from the last ask before it
+          if (was === 0 && idleMs > 0) lastAsked = Date.now();
+          // what /status says of it (live) changed without a commit: made again at the next ask
+          if (was !== idleMs) keeper.forget();
+        }
         if (idleMs > 0 && Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
         if (researchGone()) return stop("the research is no longer there", "gone", false);
@@ -5457,11 +5543,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
           return;
         }
         fs.rmSync(liveStopFile(root), { force: true });
-        stop(ask.why, ask.back ? "restart" : "stopped", ask.back ?? false);
+        stop(ask.why, ask.back ? "restart" : "stopped", ask.back ?? false, ask.by);
       }, Number(env.STROM_LIVE_STOP_MS ?? 200));
       // the end said to the app on its streams before they close: whether another bridge comes at this address (it goes
       // on following) or none (following ends now); a signal from outside: not known (the app asks /status)
-      const stop = (why: string, reason: "stopped" | "restart" | "idle" | "gone" | "signal" = "stopped", back?: boolean) => {
+      const stop = (why: string, reason: EndKind = "stopped", back?: boolean, by?: "app") => {
         // the bridge of the newer strom on disk asked to take over: handed over to it (live.json left for it to write
         // over in a moment, as the bridge before the hand-over left it)
         const handed = !!handing && reason === "restart";
@@ -5477,7 +5563,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         inbox.end();
         if (stopWaits) safe("the stop's wait", () => fs.rmSync(liveBusyFile(root), { force: true }));
         safe("the widget", () => widget?.end(reason === "gone"));
-        send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });
+        send("end", { reason, ...(back === undefined ? {} : { back }), ...(by ? { by } : {}), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();
         try {
@@ -5487,7 +5573,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // gone already
         }
         const was = readLast(root);
-        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why } });
+        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });
         noteLive(root, `ended: ${why}`);
         resolve();
       };

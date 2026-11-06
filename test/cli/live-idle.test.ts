@@ -1,5 +1,5 @@
 // How long the bridge (strom live) runs on with nobody asking it: live.idleMinutes (whole minutes, 0: never by itself),
-// STROM_LIVE_IDLE_MS of the tests before it, two hours else. A value that is no whole number of minutes is refused with
+// STROM_LIVE_IDLE_MS of the tests before it, never by itself else (the default since 1.29.0; a value stored stays). A value that is no whole number of minutes is refused with
 // what to give.
 
 import { test } from "node:test";
@@ -32,15 +32,17 @@ function ask(url: string): Promise<number> {
   });
 }
 
-test("live.idleMinutes: 0 never, 5 five minutes, nothing two hours; STROM_LIVE_IDLE_MS before it", () => {
+test("live.idleMinutes: 0 never, 5 five minutes, 120 two hours, nothing never; STROM_LIVE_IDLE_MS before it", () => {
   const env = { HOME: "/nonexistent-home", STROM_CONFIG_DIR: "/nonexistent-config" };
-  assert.equal(DEFAULT_LIVE_IDLE_MINUTES, 120);
-  assert.equal(new Settings(env, {}, {}).liveIdleMs(), 120 * 60_000);
+  assert.equal(DEFAULT_LIVE_IDLE_MINUTES, 0, "never by itself unless the person chose so");
+  assert.equal(new Settings(env, {}, {}).liveIdleMs(), 0);
+  assert.equal(new Settings(env, {}, {}).liveIdleMinutes(), 0);
+  assert.equal(new Settings(env, {}, { liveIdleMinutes: 120 }).liveIdleMs(), 120 * 60_000, "a value stored before stays");
   assert.equal(new Settings(env, {}, { liveIdleMinutes: 0 }).liveIdleMs(), 0);
   assert.equal(new Settings(env, {}, { liveIdleMinutes: 5 }).liveIdleMs(), 5 * 60_000);
   assert.equal(new Settings({ ...env, STROM_LIVE_IDLE_MS: "600" }, {}, { liveIdleMinutes: 0 }).liveIdleMs(), 600, "the tests' variable first");
   // a value stored by hand that is no whole number of minutes: the default
-  for (const bad of [-3, 1.5, "abc"] as unknown[]) assert.equal(new Settings(env, {}, { liveIdleMinutes: bad as number }).liveIdleMs(), 120 * 60_000, String(bad));
+  for (const bad of [-3, 1.5, "abc"] as unknown[]) assert.equal(new Settings(env, {}, { liveIdleMinutes: bad as number }).liveIdleMs(), 0, String(bad));
 });
 
 test("live.idleMinutes takes whole minutes, 0 or more — anything else refused with what to give", () => {
@@ -62,6 +64,8 @@ test("live.idleMinutes takes whole minutes, 0 or more — anything else refused 
 test("strom config set live.idleMinutes: kept, shown, a wrong value refused with the hint", async () => {
   const w = new World();
   try {
+    assert.equal((await w.ok(["config", "get", "live.idleMinutes", "--json"])).json.value, 0, "the default");
+    await w.ok(["config", "set", "live.idleMinutes", "120"]);
     assert.equal((await w.ok(["config", "get", "live.idleMinutes", "--json"])).json.value, 120);
     await w.ok(["config", "set", "live.idleMinutes", "0"]);
     assert.equal((await w.ok(["config", "get", "live.idleMinutes", "--json"])).json.value, 0);

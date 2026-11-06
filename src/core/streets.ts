@@ -238,6 +238,30 @@ function sentenceWords(part: string, toks: Tok[]): { town: string; sentence: boo
   return { town: part.slice(toks[a]!.start, toks[b - 1]!.end).replace(/[\s,;:–-]+$/u, "").trim(), sentence: a > 0 || b < toks.length };
 }
 
+/**
+ * A place's name without the sentence it was written in: a preposition in lower case at its end or its beginning taken
+ * off, whole words only ("v Lhotě v" → "Lhotě", "in Lhotau" → "Lhotau"; "U Lípy", a name, stays; a name of one word
+ * stays as written). The name as given where nothing is taken off.
+ */
+export function withoutPrepositions(name: string): string {
+  const text = name.normalize("NFC").trim();
+  const toks = tokens(text);
+  const prep = streetTerms().prepositions;
+  const small = (t: Tok) => {
+    const w = text.slice(t.start, t.end);
+    return prep.has(t.fold) && w === w.toLowerCase() && w !== w.toUpperCase();
+  };
+  let a = 0;
+  let b = toks.length;
+  while (b - a > 1 && small(toks[b - 1]!)) b--;
+  while (b - a > 1 && small(toks[a]!)) a++;
+  if ((a === 0 && b === toks.length) || !toks.slice(a, b).some((t) => LETTER.test(t.fold))) return text;
+  return text
+    .slice(a > 0 ? toks[a]!.start : 0, b < toks.length ? toks[b - 1]!.end : text.length)
+    .replace(/[\s,;:–-]+$/u, "")
+    .trim();
+}
+
 /** A number alone after the municipality's name: the name, the place without the number, the number. */
 export interface BareNumber {
   /** The name before the number ("Lhota" of "Lhota 16, okres Horní"). */

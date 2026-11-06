@@ -119,7 +119,7 @@ stało, aplikacja pokazuje w oknie **Nie udało się połączyć z badaniem**.
 
 | Przyczyna | Co pokaże aplikacja | Co pomoże |
 |---|---|---|
-| przeglądarka nie dopuszcza strony do urządzeń w sieci lokalnej | **{przeglądarka} blokuje połączenie** | zezwolić na **Aplikacje na urządzeniu** (Brave: **Dostęp do localhost**) w ustawieniach witryny |
+| przeglądarka nie dopuszcza strony do urządzeń w sieci lokalnej | **… blokuje połączenie** (nazwa przeglądarki) | zezwolić na **Aplikacje na urządzeniu** (Brave: **Dostęp do localhost**) w ustawieniach witryny |
 | przeglądarka dopiero pyta | **Przeglądarka czeka na zezwolenie** | odpowiedzieć na pytanie przeglądarki |
 | most nie działa | **Badanie nie odpowiada** | uruchomić badanie; pod nowym adresem połączy je `strom app --live` |
 | pod adresem odpowiada inny most (zmieniony klucz, inne drzewo) | **Badanie odrzuciło połączenie** | `strom app --live` |
@@ -147,7 +147,7 @@ tylko to, co badanie przyjmie. Badanie z kolei według wersji aplikacji wybiera,
   - **Starsze badanie** (bez automatycznego wysyłania albo bez tytułów): aplikacja pokazuje **Badanie ma starszą
     wersję (v)** z propozycją **Zaktualizuj badanie**. Zmiany wysyła się wtedy tylko ręcznie: aplikacja uruchamia
     badanie w terminalu, a ono je pobiera. Tytuły do aktualizacji zostają tylko w aplikacji.
-  - **Dostępna nowa wersja badania:** aplikacja pokazuje **Nowa wersja Strom Research {v}** z przyciskiem
+  - **Dostępna nowa wersja badania:** aplikacja pokazuje **Nowa wersja Strom Research …** z przyciskiem
     **Zaktualizuj**. To, co właśnie działa, kończy się na obecnej wersji.
   - **Badanie zapisane przez nowszą wersję programu `strom`:** starszy program go nie otworzy ani do niego nie
     zapisze.

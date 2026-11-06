@@ -9,10 +9,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
-import type { Place, Session } from "../../src/core/model.ts";
+import type { Person, Place, Session } from "../../src/core/model.ts";
 import { Tree } from "../../src/core/tree.ts";
-import { parseAltName, placesSessionCounts, repairPlaces, todayName } from "../../src/core/placeid.ts";
-import { splitStreet, streetsOf, STREET_PLACES_FILE } from "../../src/core/streets.ts";
+import { parseAltName, placesSessionCounts, recordIndex, repairPlaces, todayName } from "../../src/core/placeid.ts";
+import { splitStreet, streetsOf, STREET_PLACES_FILE, withoutPrepositions } from "../../src/core/streets.ts";
+import { houseIn } from "../../src/core/check.ts";
 import { streetPlaceFixes } from "../../src/core/streetfix.ts";
 
 const opts = { skip: !hasGit, timeout: 120_000 };
@@ -371,6 +372,74 @@ test("a name of no language the record has already, with its language or without
     const pf = JSON.parse(fs.readFileSync(path.join(w.cwd, "quality", "places.json"), "utf8")) as { undo?: { id: string } };
     await w.ok(["place", "undo", pf.undo!.id]);
     assert.equal(place(w, "L0101").names.length, 8, "undone: as it was");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a place written in a sentence (v Lhotě v čp. 12): no preposition kept with the name — the check's hint, a form of a record, an older form set right once; another name somebody gave kept", opts, async () => {
+  // the words alone: whole words, in lower case, any accent, decomposed alike; a name of capitals or another script stays
+  assert.deepEqual(houseIn("v Lhotě v čp. 12"), { place: "Lhotě", house: "12", sentence: true });
+  assert.deepEqual(houseIn("v Lhotě v čp. 12".normalize("NFD")), { place: "Lhotě", house: "12", sentence: true });
+  assert.deepEqual(houseIn("in Lhotau Nr. 3"), { place: "Lhotau", house: "3", sentence: true });
+  assert.deepEqual(houseIn("U Lípy čp. 3"), { place: "U Lípy", house: "3" });
+  assert.deepEqual(houseIn("Lhota čp. 12"), { place: "Lhota", house: "12" });
+  assert.equal(withoutPrepositions("ve Lhotce v"), "Lhotce");
+  assert.equal(withoutPrepositions("Na Lhotce"), "Na Lhotce", "a name of capitals");
+  assert.equal(withoutPrepositions("Vlhota"), "Vlhota", "a word, never its letters");
+  assert.equal(withoutPrepositions("Лгота"), "Лгота");
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M", "--born", "1850", "--born-place", "Lhotice"]); // P0001
+    await w.ok(["person", "add", "Anna /Lhoták/", "--sex", "F", "--born", "1852", "--born-place", "v Lhotě v"]); // P0002: as an older hint left it
+    // the check's hint: the municipality as the research writes it, no sentence
+    const tree = Tree.open(w.cwd, w.env);
+    tree.withTreeLock(() => {
+      const p = structuredClone(tree.get<Person>("P0001")!);
+      p.events[0]!.place = "v Lhotici v čp. 46";
+      tree.put(p, { op: "event.update", targets: [p.events[0]!.id], summary: "the place as an older strom took it" });
+      tree.commit("The place as an older strom wrote it");
+    });
+    await w.ok(["person", "add", "Petr /Lhoták/", "--sex", "M", "--born", "1855", "--born-place", "Lhotice"]); // P0003
+    const check = await w.ok(["check"]);
+    assert.match(check.out, /strom event edit E\d+ --place "Lhotice" --house 46/u);
+    assert.doesNotMatch(check.out, /--place "v Lhotici v"/u);
+    // a form of the facts written in a sentence: kept without it, and the record still finds the facts writing it
+    await w.ok(["place", "add", "Lhota", "--lat", "50.1", "--lon", "14.9"]); // L0001, the person's
+    await w.ok(["place", "verify", "L0001", "--ok", "--form", "v Lhotě v", "--alt", "u Lhoty", "--why", "staré mapy"], { env: AGENT });
+    const names = place(w, "L0001").names;
+    assert.deepEqual(names.map((n) => [n.name, n.kind ?? ""]), [["Lhota", ""], ["u Lhoty", "alt"], ["Lhotě", "form"]], "another name somebody gave stays as given");
+    assert.equal(recordIndex(Tree.open(w.cwd, w.env))("v Lhotě v")?.id, "L0001");
+    // as an older strom left them (repair 1 done): a form with its sentence beside its name, one alone, one decomposed;
+    // a name of no kind on the person's record and one with its syntax are not this repair's
+    const at = new Date().toISOString();
+    const raw = (id: string, names: Place["names"], extra: Partial<Place> = {}) =>
+      ({ id, type: "place", names, jurisdictions: [], notes: [], created: at, updated: at, ...extra }) as Place;
+    const t2 = Tree.open(w.cwd, w.env);
+    t2.withTreeLock(() => {
+      t2.putMany(
+        [
+          raw("L0101", [{ name: "Lhotka" }, { name: "Lhotce", kind: "form" }, { name: "ve Lhotce v", kind: "form" }], { locating: { by: "research", at } }),
+          raw("L0102", [{ name: "Lhotov" }, { name: "v Lhotově v".normalize("NFD"), kind: "form" }, { name: "u Lhotova", kind: "alt" }], { locating: { by: "research", at } }),
+          raw("L0103", [{ name: "Lhotín" }, { name: "na Lhotíně" }, { name: "Lhotow@cs:1844" }], { coords: { lat: 50, lon: 15 }, locating: { by: "person", at } }),
+        ],
+        [{ rel: "quality/places.json", content: JSON.stringify({ queue: {}, repaired: 1 }, null, 2) + "\n" }],
+        { op: "place.add", targets: ["L0101", "L0102", "L0103"], summary: "older records" },
+      );
+      t2.commit("older records");
+    });
+    const said = repairPlaces(Tree.open(w.cwd, w.env));
+    assert.ok(said.length, "something set right");
+    assert.deepEqual(place(w, "L0101").names.map((n) => n.name), ["Lhotka", "Lhotce"], "the name there already: the sentence dropped");
+    assert.deepEqual(place(w, "L0102").names.map((n) => [n.name, n.kind ?? ""]), [["Lhotov", ""], ["Lhotově", "form"], ["u Lhotova", "alt"]]);
+    assert.deepEqual(place(w, "L0103").names.map((n) => n.name), ["Lhotín", "na Lhotíně", "Lhotow@cs:1844"], "the person's record and repair 1 untouched");
+    await w.ok(["check"]);
+    assert.deepEqual(repairPlaces(Tree.open(w.cwd, w.env)), [], "once");
+    const pf = JSON.parse(fs.readFileSync(path.join(w.cwd, "quality", "places.json"), "utf8")) as { undo?: { id: string }; repaired?: number };
+    assert.equal(pf.repaired, 2);
+    await w.ok(["place", "undo", pf.undo!.id]);
+    assert.equal(place(w, "L0101").names.length, 3, "undone: as it was");
   } finally {
     w.cleanup();
   }

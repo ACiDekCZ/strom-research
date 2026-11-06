@@ -416,8 +416,9 @@ register(
     description:
       "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
-      "waits for the user. It ends by itself when nobody asks it anything for two hours while nobody works in the tree\n" +
-      "(strom config set live.idleMinutes <minutes>; 0: never by itself), or with strom live stop.\n" +
+      "waits for the user. It runs until strom live stop (or the Strom app's switch: its address kept) or the computer\n" +
+      "goes off; to end by itself after a while with nobody asking it anything and nobody working in the tree:\n" +
+      "strom config set live.idleMinutes 120 (minutes; 0, the default: never by itself).\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
       "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
       "(its port while free), so the app following it goes on by itself; one that ended without a word or when idle is\n" +
@@ -464,8 +465,8 @@ register(
       "Ended for good: the next bridge gets a new secret (its port while free) — the address the Strom app kept no longer\n" +
       "works, and the app gets the new one when the research is opened in it again (strom app). --forget: its port too.\n" +
       "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)\n" +
-      "The bridge runs on in the background after the menu closes, until idle; a whole family tree is deleted with\n" +
-      "strom trees remove (its bridge stopped first).",
+      "The bridge runs on in the background after the menu closes, until stopped (or idle: live.idleMinutes);\n" +
+      "a whole family tree is deleted with strom trees remove (its bridge stopped first).",
     options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new port too, not only a new secret" }],
     examples: ["strom live stop", "strom live stop --forget"],
     run(ctx, { opts }) {

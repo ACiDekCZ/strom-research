@@ -213,11 +213,15 @@ ${hypotheses}
 
 Never suggest turning it on; when it is there:
 
-- The Strom app: through a browser's page tools (the built-in browser of
-  Claude's app, Claude in Chrome), not by the screen's pixels — click an
-  element by the reference \`find\` gives, never by coordinates, and wait
-  until a sliding panel has stopped before the next click. Claude's computer
-  use only looks at browsers and only clicks in terminals.
+- The Strom app: it is the page \`strom app\` opens (the research's own
+  tree in it), or one the person has open; a person is found by the field
+  "Search person..." in its bar, then a click on the person's card opens
+  their menu (\`strom doc A9.1\`). Through a browser's page tools (the
+  built-in browser of Claude's app, Claude in Chrome), not by the screen's
+  pixels — click an element by the reference \`find\` gives, never by
+  coordinates, and wait until a sliding panel has stopped before the next
+  click. Claude's computer use only looks at browsers and only clicks in
+  terminals (\`strom doc A9.4\`, \`strom doc R12.10\`).
 - The research: through \`strom\` in your own command line, never by typing
   into a terminal window.
 - A consent or a setting of the person's (the map's OpenStreetMap, how edits

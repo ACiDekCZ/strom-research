@@ -176,6 +176,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R12.7 | R12-where-the-agent-works.md | výzkum 1.0.0 | koncept | Antigravity | Antigravity | Antigravity | Antigravity |
 | R12.8 | R12-where-the-agent-works.md | výzkum 1.4.0 | koncept | Grok Build | Grok Build | Grok Build | Grok Build |
 | R12.9 | R12-where-the-agent-works.md | výzkum 1.0.0 | koncept | OpenCode | OpenCode | OpenCode | OpenCode |
+| R12.10 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Ovládání počítače (computer use) | Computer use | Computersteuerung (Computer Use) | Sterowanie komputerem (computer use) |
 | A1 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Aplikace v kostce | The app in brief | Die App im Überblick | Aplikacja w skrócie |
 | A1.1 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Rodokmen v prohlížeči, data na zařízení | A family tree in the browser, data on the device | Stammbaum im Browser, Daten auf dem Gerät | Drzewo genealogiczne w przeglądarce, dane na urządzeniu |
 | A1.2 | A1-the-app-in-brief.md | aplikace 1.0.0 | platí | Osoby, vztahy a rody | People, relationships and family lines | Personen, Beziehungen und Stammlinien | Osoby, relacje i rody |
@@ -255,6 +256,11 @@ nenapsáno) · `neplatí od <verze>`.
 | A8.2 | A8-merging-trees.md | aplikace 1.0.0 | platí | Párování osob | Pairing people | Abgleich der Personen | Łączenie osób w pary |
 | A8.3 | A8-merging-trees.md | aplikace 1.0.0 | platí | Co rozhoduje člověk | What a person decides | Was der Mensch entscheidet | Co rozstrzyga człowiek |
 | A8.4 | A8-merging-trees.md | aplikace 1.0.0 | platí | Co se přenese se stromem | What comes along with the tree | Was mit dem Stammbaum übernommen wird | Co przechodzi z drzewem |
+| A9 | A9-using-the-app.md | aplikace 3.25.0 | koncept | Ovládání aplikace | Using the app | Bedienung der App | Obsługa aplikacji |
+| A9.1 | A9-using-the-app.md | aplikace 3.25.0 | koncept | Kde co je | Where things are | Wo was ist | Gdzie co jest |
+| A9.2 | A9-using-the-app.md | aplikace 3.25.0 | koncept | Prvky mají čitelný název | Controls have a readable name | Bedienelemente haben einen lesbaren Namen | Elementy mają czytelną nazwę |
+| A9.3 | A9-using-the-app.md | aplikace 3.25.0 | koncept | Úpravy během sledování výzkumu | Editing while following the research | Bearbeiten beim Verfolgen der Forschung | Edycja podczas śledzenia badania |
+| A9.4 | A9-using-the-app.md | výzkum 1.29.0, aplikace 3.25.0 | koncept | Agent v aplikaci | The agent in the app | Der Agent in der App | Agent w aplikacji |
 | S1 | S1-connecting-app-and-research.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Propojení aplikace a výzkumu | Connecting the app and the research | Verbindung von App und Forschung | Połączenie aplikacji i badania |
 | S1.1 | S1-connecting-app-and-research.md | výzkum 1.0.0 | platí | Most výzkumu běží jen na tomto počítači | The research's bridge runs only on this computer | Die Brücke der Forschung läuft nur auf diesem Computer | Most badania działa tylko na tym komputerze |
 | S1.2 | S1-connecting-app-and-research.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Výzkum se otevře v aplikaci odkazem z terminálu | The research opens in the app through a link from the terminal | Die Forschung öffnet sich in der App über einen Link aus dem Terminal | Badanie otwiera się w aplikacji linkiem z terminala |

@@ -24,7 +24,7 @@ most.
   - **Przebieg** łączy kroki po 15 minut, pokazuje najwyżej 20 kroków.
   - Przegląd jest na szerokim oknie (od 1280 px) panelem bocznym obok drzewa, na tablecie warstwą nad drzewem, na
     telefonie całym ekranem. Na telefonie panel staje się paskiem, a stuknięcie otwiera przegląd.
-  - Bez śledzenia panel pokazuje ostatnie znane **Czeka na decyzję** ze zdaniem **Stan na {d}. Badanie teraz nie
+  - Bez śledzenia panel pokazuje ostatnie znane **Czeka na decyzję** ze zdaniem **Stan na …. Badanie teraz nie
     działa.**
 - **Obsługa:** aplikacja: panel, przyciski **⤢ Otwórz przegląd** i **Zakończ śledzenie**; menu **Badanie → Przegląd
   badania**.
@@ -66,9 +66,9 @@ panelu i przeglądu.
   - **Przywróć domyślne** usuwa wszystkie wybory. Przywrócenie domyślnych i ukrycie sekcji z jej menu można przez
     chwilę cofnąć (**Cofnij**). Gdy ukryte są wszystkie sekcje, panel mówi **Wszystkie sekcje są ukryte.**
 - **Czeka na decyzję zwinięte lub ukryte:**
-  - nowa pozycja sekcji nie rozwija. Nagłówek pokazuje liczbę i **{n} nowych**; wyróżnione, gdy jest wśród nich
+  - nowa pozycja sekcji nie rozwija. Nagłówek pokazuje liczbę i **N nowych**; wyróżnione, gdy jest wśród nich
     decyzja lub zgoda (**w tym decyzja lub zgoda**);
-  - ukryte zostawia etykietę **Czeka {n}** w nagłówku panelu, w podsumowaniu zwiniętego panelu, w pasku na telefonie
+  - ukryte zostawia etykietę **Czeka N** w nagłówku panelu, w podsumowaniu zwiniętego panelu, w pasku na telefonie
     i w przeglądzie. Kliknięcie pokazuje sekcję w przeglądzie, dopóki przegląd się nie zamknie (**Ukryta sekcja,
     widoczna do zamknięcia przeglądu.**).
 - **Obsługa:** aplikacja: **⋯ → Dostosuj panel…** w nagłówku panelu i przeglądu; prawy przycisk albo długie
@@ -150,7 +150,7 @@ Aplikacja pokazuje początek kolejki badania w kolejności, w jakiej bierze ją 
 ([R2.2](R2-lines-and-queue.md#R2.2)). Cała kolejka zostaje w badaniu.
 
 - **Granice:**
-  - Panel pokazuje 3 zadania (**W kolejce**), przegląd 20 (**Kolejka**). Resztę pokazuje wiersz **i {n} kolejnych
+  - Panel pokazuje 3 zadania (**W kolejce**), przegląd 20 (**Kolejka**). Resztę pokazuje wiersz **i N kolejnych
     w badaniu**, który otwiera badanie.
   - Przy dwóch i więcej działających liniach zadania można filtrować według linii (**Kolejka według linii**).
   - Zadanie poza liniami ma uwagę: **Czeka do zakończenia pracy linii · nie pomaga żadnej linii**, **Niepodejmowane
@@ -167,7 +167,7 @@ Aplikacja pokazuje początek kolejki badania w kolejności, w jakiej bierze ją 
   z aplikacji, bez terminala ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); przy zadaniu, nad którym pracuje agent, nie
   da się tego zrobić. Kolejkę czyta się stronami: **Wczytaj więcej** dodaje 50 zadań, lista trzyma najwyżej 300,
   resztę zawęża filtr linii lub gałęzi.
-  Etykieta gałęzi (**Gałąź {n} {k}**) zawęża całą kolejkę do zadań gałęzi; **Pokaż całą kolejkę** ją usuwa.
+  Etykieta gałęzi (**Gałąź … K**) zawęża całą kolejkę do zadań gałęzi; **Pokaż całą kolejkę** ją usuwa.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
 
@@ -178,9 +178,9 @@ Przegląd pokazuje linie badania ([R2.1](R2-lines-and-queue.md#R2.1)): co na kt�
 3.21.2 linie tylko się czyta; każdą zmianę potwierdza się w terminalu badania.
 
 - **Granice:**
-  - Sekcja **Linie · aktywne: {n}** jest tylko przy dwóch i więcej liniach albo przy jednej linii, gdy działa też
+  - Sekcja **Linie · aktywne: N** jest tylko przy dwóch i więcej liniach albo przy jednej linii, gdy działa też
     praca poza nią (wiersz **Poza liniami**). Wstrzymane i zakończone linie są zwinięte pod **Wstrzymane
-    i zakończone · {n}**.
+    i zakończone · N**.
   - Wiersz linii: rodzaj (↑ przodkowie, ↓ potomkowie, ⌕ pytanie), nazwa, osoba, liczba zadań i co czeka na decyzję.
     Linia bez pracy ma **Nic nie czeka, można ją zakończyć.**
   - Szczegóły linii: znani przodkowie według pokoleń, kiedy ostatnio nad nią pracowano, **Pracuj nad tą linią**
@@ -193,9 +193,9 @@ Przegląd pokazuje linie badania ([R2.1](R2-lines-and-queue.md#R2.1)): co na kt�
 - **Obsługa:** aplikacja: **Przegląd badania → Linie**, przy linii **⋯**.
 - **Obowiązuje od:** aplikacja 3.5.0 (badanie 1.8.0). Podział panelu według linii od 3.13.1.
 - **Od aplikacji 3.22.0:** z badaniem 1.26.0 linie zmienia się bezpośrednio w aplikacji ([S4.3.1](#S4.3.1)). Wiersz
-  linii pokazuje, nad czym teraz trwa praca (**Teraz: …**), i granice (**do {n} pokoleń**, **przed {rok}**; przy
-  linii wstrzymanej nie). Szczegóły linii mówią, co linia znalazła w ostatnich dniach (**Ostatnie {n} dni:** sesje,
-  osoby, źródła); osoby pokazują w drzewie. Zakończone linie są zwinięte na końcu (**Zakończone · {n}**). W wąskim
+  linii pokazuje, nad czym teraz trwa praca (**Teraz: …**), i granice (**do N pokoleń**, **przed …** (rok); przy
+  linii wstrzymanej nie). Szczegóły linii mówią, co linia znalazła w ostatnich dniach (**Ostatnie N dni:** sesje,
+  osoby, źródła); osoby pokazują w drzewie. Zakończone linie są zwinięte na końcu (**Zakończone · N**). W wąskim
   oknie i na telefonie przegląd jest panelem wysuwanym: zamiast uchwytu kolejności strzałki ▲▼.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -217,7 +217,7 @@ nic się nie płaci.
     bierze linie po kolei.**
   - **Wstrzymaj** i **Uruchom ponownie** można cofnąć (**Cofnij**). **Zakończ…** pyta i przyjmuje nieobowiązkowy
     powód.
-  - Gdy taka sama linia już jest, formularz to mówi (**Linia {n} już działa.**) i proponuje **Pokaż ją** albo
+  - Gdy taka sama linia już jest, formularz to mówi (**Linia … już działa.**) i proponuje **Pokaż ją** albo
     **Załóż mimo to**.
   - **Szukaj przodków** i **Szukaj potomków** przy osobie otwierają ten formularz.
   - Tylko do odczytu: w Archiwum Strom (**Archiwum: linie tylko do odczytu.**), na telefonie (**Linie można zmieniać
@@ -241,19 +241,19 @@ z [R2.3](R2-lines-and-queue.md#R2.3) i [R2.3.1](R2-lines-and-queue.md#R2.3.1) mo
 - **Granice:**
   - Dla całego badania: **Jak jest podejmowana praca poza liniami**: **Od czasu do czasu**, **Na końcu**,
     **Normalnie**, **Nigdy**.
-  - Wiersz gałęzi: osoba gałęzi, związek z linią (**przy linii {n}**), liczba zadań, **rośnie**, **własny wybór**.
-  - Kliknięcie gałęzi pokazuje jej pierwsze zadania z miejscem w kolejce (**W kolejce · pierwsze {k} z {n}**,
-    **{i}. w kolejce**) i odnośnik **Wszystkie {n} zadań w kolejce ›**. Gdy zadania gałęzi stoją za wczytaną częścią
-    kolejki: **Zadania gałęzi stoją dalej w kolejce ({n}).**
+  - Wiersz gałęzi: osoba gałęzi, związek z linią (**przy linii …**), liczba zadań, **rośnie**, **własny wybór**.
+  - Kliknięcie gałęzi pokazuje jej pierwsze zadania z miejscem w kolejce (**W kolejce · pierwsze K z N**,
+    **I. w kolejce**) i odnośnik **Wszystkie N zadań w kolejce ›**. Gdy zadania gałęzi stoją za wczytaną częścią
+    kolejki: **Zadania gałęzi stoją dalej w kolejce (N).**
   - Dla gałęzi: **Podejmowana:** **Od czasu do czasu** / **Na końcu** / **Normalnie** (wybór badania ma
-    **(domyślne)**), **Dodaj do linii {n}** (najbliższa linia pierwsza), **Załóż linię z tej gałęzi**, **Nie badaj**
+    **(domyślne)**), **Dodaj do linii …** (najbliższa linia pierwsza), **Załóż linię z tej gałęzi**, **Nie badaj**
     (zadania opuszczają kolejkę, nic nie jest usuwane), **Przywróć domyślne**. Gałęzie niebadane są razem
-    (**Nie jest badana · {n} gałęzi**).
+    (**Nie jest badana · N gałęzi**).
   - Pytania o rosnące gałęzie ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) są w **Czeka na decyzję**: dodać do linii
-    (przy linii wstrzymanej **Dodaj do linii {n} (wstrzymana)**), założyć linię, **Zostaw bez zmian**, nie badać. Bez
+    (przy linii wstrzymanej **Dodaj do linii … (wstrzymana)**), założyć linię, **Zostaw bez zmian**, nie badać. Bez
     odpowiedzi gałąź jest podejmowana dalej jak dotąd.
   - Okno **Badanie dla tego drzewa…**, grupa **Praca poza liniami**: wybór dla całego badania (**Od czasu do czasu**:
-    „Około 1 zadanie poza liniami na {k} zadań linii.”), **Proponuj linie dla rosnących gałęzi**, **Gałęzie
+    „Około 1 zadanie poza liniami na K zadań linii.”), **Proponuj linie dla rosnących gałęzi**, **Gałęzie
     z własnym wyborem** i zadania z ręczną kolejnością.
 - **Obsługa:** aplikacja: **Przegląd badania**, sekcja pracy poza liniami, przy gałęzi **⋯** (**Opcje gałęzi**);
   **Badanie dla tego drzewa…**.
@@ -287,12 +287,12 @@ zapłaci.
   - Działanie jest widoczne tylko na komputerze (nie na urządzeniu dotykowym), tylko gdy badanie zgłosiło link i tylko
     gdy włączone jest **Strom Research na tym komputerze**.
   - Link niesie tylko numery rekordów i stałe wartości, żadnych imion ani nazwisk ani dowolnego tekstu.
-  - Terminal zaczyna od **Prośba z aplikacji Strom: {co} / Badanie: {nazwa}** i pyta **Kontynuować?** Przy pracy
+  - Terminal zaczyna od **Prośba z aplikacji Strom: … / Badanie: …** i pyta **Kontynuować?** Przy pracy
     agenta dopisuje **Agent pracuje w ramach subskrypcji lub kredytu AI swojego konta.**, przy zlecaniu zadań
     **Badanie zapisze zadania dla agenta – teraz niczego się nie szuka i za nic się nie płaci.**
   - Archiwum Strom i badanie, które czeka na agenta, odrzucają pracę agenta (rozmowa, sprawdzenie, szukanie,
     miejsca, dzieje).
-  - Gdy taka sama aktywna linia już jest, **Szukaj przodków** tylko mówi **Taka linia badania już jest: „{name}” –
+  - Gdy taka sama aktywna linia już jest, **Szukaj przodków** tylko mówi **Taka linia badania już jest: „…” –
     agent ją kontynuuje.**
   - Aplikacja nie wie, czy terminal się otworzył. Pokazuje **Otwieranie badania…** i radę **Jeśli nic się nie
     otworzy, trzeba uruchomić Strom Research i spróbować ponownie.**

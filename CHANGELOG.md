@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.3. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the user decides*
@@ -22,8 +22,12 @@ The changes of each version in short. The full notes and the install lines are o
   again with a reason, the earlier decision kept readable; the same from one person's review and from a link of the
   Strom app. With the user deciding, the agent proposes a decision wherever the records point to one variant.
 
-- **A conversation that ended no longer stays at work in the Strom app**, even on a busy computer or after the
-  computer's name changed.
+- **The research in the Strom app stays on.** The bridge to the Strom app no longer ends by itself after two hours with
+  nobody asking: it runs until it is turned off or the computer goes off (`live.idleMinutes` 0 by default; a value set
+  before stays). The Strom app gets a switch for each research and a choice in its settings – until the computer goes
+  off, or after two hours with nobody asking – both written through the bridge. Turned off in the app, the bridge stays
+  off (new work in the research does not bring it back) and keeps its address, so turning it on again – from the app
+  through a link of strom, or with `strom live start` – needs no new connection.
 
 - **The agents' desktop apps watched as the agent in the terminal is.** The built-in browser of the agent's app keeps the archives' terms as
   the agent's browser in Chrome does: an archive that lets in only a person's browser without the person's yes is
@@ -67,7 +71,10 @@ The changes of each version in short. The full notes and the install lines are o
   Records in Warsaw as the archive answered: the scans used freely, each cited by the original's place – archive, fonds,
   signature, page or folio. A conflict recorded in a batch with a labelled source (`--claim "@s: …"`) now cites that
   source; one an earlier version recorded so shows its value without the raw label and, where it can be told, cites
-  its source in the Strom app and the GEDCOM.
+  its source in the Strom app and the GEDCOM. A conversation that ended no longer stays at work in the Strom app, even
+  on a busy computer or after the computer's name changed. A place written in a sentence ("v Lhotě v čp. 12") no
+  longer keeps its prepositions: the check offers the municipality as the research writes it, and a place record no
+  longer gains a name like "v Lhotě v" — such names already written are set right once (undo: strom place undo).
 
 ## 1.28.0
 

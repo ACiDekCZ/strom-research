@@ -15,7 +15,7 @@ import { UsageError } from "./errors.ts";
 import type { Event, Family, Jurisdiction, Person, Place, PlaceBy, PlaceCandidate, PlaceLocating, PlaceName, PlaceNameKind, PlaceQuestion, Session, Source, Task } from "./model.ts";
 import { JURISDICTIONS } from "./model.ts";
 import { readJsonIfExists, stringifyCanonical } from "./json.ts";
-import { splitStreet } from "./streets.ts";
+import { splitStreet, withoutPrepositions } from "./streets.ts";
 import { foldText } from "./text.ts";
 import { actsAsArchive } from "./state.ts";
 import { readPlaces } from "./pastevents.ts";
@@ -192,7 +192,8 @@ function recordIndexOf(places: Place[]): (form: string) => Place | undefined {
     for (const k of new Set(p.names.map((n) => foldText(n.name)))) byName.set(k, [...(byName.get(k) ?? []), p]);
   }
   return (form) => {
-    const tries = [form, splitStreet(form)?.town, form.split(",")[0]!.trim()].filter((x): x is string => !!x);
+    // the form as written, its town before a street or a house, its first part, and as written in a sentence ("v Lhotě v")
+    const tries = [form, splitStreet(form)?.town, form.split(",")[0]!.trim(), withoutPrepositions(form)].filter((x): x is string => !!x);
     for (const t of tries) {
       const found = byName.get(foldText(t));
       if (found?.length === 1) return found[0];
@@ -476,7 +477,7 @@ function target(tree: Tree, ref: string, forms: Map<string, FactForm>): Target {
   if (many.length > 1) throw new UsageError(`"${form}" is the name of ${many.length} place records (${many.map((x) => x.id).join(", ")}): give the ID`, { code: "place.ambiguous" });
   if (!forms.has(key)) throw new UsageError(`no fact of the tree has the place "${form}"`, { code: "place.unknown", hint: "strom place list --off-map" });
   const t = now();
-  const made: Place = { id: tree.allocate("L"), type: "place", names: [{ name: forms.get(key)!.form }], jurisdictions: [], notes: [], created: t, updated: t };
+  const made: Place = { id: tree.allocate("L"), type: "place", names: [{ name: withoutPrepositions(forms.get(key)!.form) }], jurisdictions: [], notes: [], created: t, updated: t };
   return { place: made, made: true, keys: [key] };
 }
 
@@ -487,10 +488,12 @@ function target(tree: Tree, ref: string, forms: Map<string, FactForm>): Target {
  * has already (with a language or without, today's too) adds nothing; another name given to a form of the facts of the
  * same words, or to another name of no language and no years, takes its place (it says more — the language, the years),
  * and the same name of the same language already there (a form, or of no known kind: written before kinds were kept)
- * becomes it, its years filled in where it had none. Today's name (the first) is never changed.
+ * becomes it, its years filled in where it had none. Today's name (the first) is never changed. A form written in a
+ * sentence ("v Lhotě v", of "v Lhotě v čp. 12") is kept without its prepositions: the record still finds its facts
+ * (recordIndex reads a form so too), and the app never shows the sentence as a name of the place.
  */
 export function addPlaceName(p: Place, name: string, kind: PlaceNameKind, extra: Omit<PlaceName, "name" | "kind"> = {}): void {
-  const n = name.normalize("NFC").trim();
+  const n = (kind === "form" ? withoutPrepositions(name) : name.normalize("NFC")).trim();
   if (!n) return;
   const key = foldText(n);
   const same = p.names.map((x, i) => ({ x, i })).filter(({ x }) => foldText(x.name) === key);
@@ -1384,7 +1387,7 @@ export function convertHistoryUnlocated(tree: Tree, entries: Record<string, { st
     }
     const f = forms.get(foldText(key));
     if (!f) continue;
-    const made: Place = { id: tree.allocate("L"), type: "place", names: [{ name: f.form }], unlocated: why, locating: { by: "research", at: m.at ?? t }, jurisdictions: [], notes: [], created: t, updated: t };
+    const made: Place = { id: tree.allocate("L"), type: "place", names: [{ name: withoutPrepositions(f.form) }], unlocated: why, locating: { by: "research", at: m.at ?? t }, jurisdictions: [], notes: [], created: t, updated: t };
     made.locating!.context = contextOf(made, f);
     records.push(made);
   }
@@ -1532,8 +1535,11 @@ export function addOtherNames(tree: Tree, form: string, also: string[]): Place |
   });
 }
 
-/** The repairs of the place records done once per tree (repairPlaces): raised when a new one is added. */
-export const PLACES_REPAIR = 1;
+/**
+ * The repairs of the place records done once per tree (repairPlaces): raised when a new one is added — each repair runs
+ * once, only those after the number a tree has done.
+ */
+export const PLACES_REPAIR = 2;
 
 /** A question asked of coordinates nobody kept the origin of, written by 1.25 as the research's (its origin the question's moment). */
 function originByQuestion(p: Place): boolean {
@@ -1558,20 +1564,50 @@ function twiceWithLanguage(p: Place, n: PlaceName): boolean {
  * away: a name kept with its language and years as its text ("Lhotow@cs:1844") read as what it says; coordinates a
  * question made the research's (their origin unknown) the person's again; today's name first on a place the research
  * identified while the old name was first; the other names history's map keeps of a place (strom history map --also)
- * written among the record's names too; a name written twice (once with its language, once of none) kept once. One
- * operation; while the person has no step to undo, `strom place undo` takes it back. Inside the tree's lock.
+ * written among the record's names too; a name written twice (once with its language, once of none) kept once (1);
+ * a form of the facts kept with the sentence it was written in ("v Lhotě v", of "v Lhotě v čp. 12") kept without its
+ * prepositions, or dropped where that name is the record's already (2). One operation; while the person has no step to
+ * undo, `strom place undo` takes it back. Inside the tree's lock.
  */
 export function repairPlaces(tree: Tree): string[] {
   const file = readPlacesFile(tree);
-  if ((file.repaired ?? 0) >= PLACES_REPAIR) return [];
-  const forms = factForms(tree);
-  const recordOf = recordIndex(tree);
+  const done = file.repaired ?? 0;
+  if (done >= PLACES_REPAIR) return [];
   const changed = new Map<string, Place>();
   const said: string[] = [];
   const copy = (p: Place) => changed.get(p.id) ?? structuredClone(p);
+  if (done < 1) repairNames(tree, changed, said, copy);
+  if (done < 2) repairSentenceForms(tree, changed, said, copy);
+  const records = [...changed.values()];
+  // nothing to set right: nothing written (looked at again next time — a tree that never had places stays without the file)
+  if (!records.length) return [];
+  file.repaired = PLACES_REPAIR;
+  const undo = keepUndo(file, {
+    id: undoId(file),
+    at: now(),
+    places: Object.fromEntries(records.map((p) => [p.id, { before: tree.get<Place>(p.id)!, after: p.updated }])),
+  });
+  write(tree, records, file, {
+    op: "place.repair",
+    targets: records.map((p) => p.id).sort(),
+    // a name read from its syntax, written twice, or without the sentence it stood in is no name lost: the data check
+    // takes the step as reasoned
+    reason: "what an earlier version wrote into the place records set right, nothing lost (undo kept)",
+    summary: `place records set right (${records.length}): ${said.join(" · ").slice(0, 1500)} — undo: strom place undo ${undo}`,
+  });
+  return said;
+}
+
+/**
+ * Repair 1: a name with its syntax as text, coordinates a question made the research's, today's name first, the names
+ * of history's map, a name written twice.
+ */
+function repairNames(tree: Tree, changed: Map<string, Place>, said: string[], copy: (p: Place) => Place): void {
+  const forms = factForms(tree);
+  const recordOf = recordIndex(tree);
   for (const p0 of tree.list<Place>("place")) {
     if (p0.retracted) continue;
-    let p = copy(p0);
+    const p = copy(p0);
     const notes: string[] = [];
     // a name with its syntax as text
     p.names = p.names.map((n, i) => {
@@ -1632,23 +1668,41 @@ export function repairPlaces(tree: Tree): string[] {
     changed.set(p.id, p);
     said.push(`${p.id} written twice: ${twice.map((n) => n.name).join(", ")}`);
   }
-  const records = [...changed.values()];
-  // nothing to set right: nothing written (looked at again next time — a tree that never had places stays without the file)
-  if (!records.length) return [];
-  file.repaired = PLACES_REPAIR;
-  const undo = keepUndo(file, {
-    id: undoId(file),
-    at: now(),
-    places: Object.fromEntries(records.map((p) => [p.id, { before: tree.get<Place>(p.id)!, after: p.updated }])),
-  });
-  write(tree, records, file, {
-    op: "place.repair",
-    targets: records.map((p) => p.id).sort(),
-    // a name read from its syntax, or written twice, is no name lost: the data check takes the step as reasoned
-    reason: "what an earlier version wrote into the place records set right, nothing lost (undo kept)",
-    summary: `place records set right (${records.length}): ${said.join(" · ").slice(0, 1500)} — undo: strom place undo ${undo}`,
-  });
-  return said;
+}
+
+/**
+ * Repair 2: a form of the facts kept with the sentence it was written in (houseIn of an older strom gave "v Lhotě v" of
+ * "v Lhotě v čp. 12", and the form was kept as a name of the place): the name without its prepositions in its place, or
+ * nothing where the record bears that name already. Only a form (never another name somebody gave, never today's name,
+ * never one with a language or years); a name of no known kind (written before kinds were kept) only where the record
+ * is not the person's (its position the person's: such a name may be theirs too).
+ */
+function repairSentenceForms(tree: Tree, changed: Map<string, Place>, said: string[], copy: (p: Place) => Place): void {
+  for (const p0 of tree.list<Place>("place")) {
+    if (p0.retracted) continue;
+    const p = copy(p0);
+    const notes: string[] = [];
+    const names: PlaceName[] = [];
+    for (const [i, n] of p.names.entries()) {
+      const form = n.kind === "form" || (n.kind === undefined && p.locating?.by !== "person");
+      const bare = i > 0 && form && !n.lang && n.from === undefined && n.to === undefined ? withoutPrepositions(n.name) : n.name;
+      if (foldText(bare) === foldText(n.name)) {
+        names.push(n);
+        continue;
+      }
+      const key = foldText(bare);
+      if (p.names.some((m) => m !== n && foldText(m.name) === key) || names.some((m) => foldText(m.name) === key)) notes.push(`"${n.name}" dropped (${bare} kept)`);
+      else {
+        names.push({ name: bare, kind: "form" });
+        notes.push(`"${n.name}" as ${bare}`);
+      }
+    }
+    if (!notes.length) continue;
+    p.names = names;
+    p.updated = now();
+    changed.set(p.id, p);
+    said.push(`${p.id} ${notes.join("; ")}`);
+  }
 }
 
 /**
