@@ -70,7 +70,7 @@ test("a new hypothesis-links task: the highest priority, first in task next, the
   const t = ours(w)[0]!;
   assert.equal(t.priority, HYPOTHESIS_LINKS_PRIORITY);
   assert.equal(t.level, "enrich");
-  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
+  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
 
   assert.equal((await order(w))[0], id);
   const next = await w.ok(["task", "next", "--json"]);
@@ -128,7 +128,7 @@ test("after the update: an older strom's open tasks raised once, logged — at t
   const ops = tree.readOps().filter((o) => o.op === "task.edit" && /hypothesis variants come first/.test(o.reason ?? ""));
   assert.deepEqual(ops.map((o) => o.summary), [`${a} priority 2 → 5`]);
   assert.ok(readJsonFile(path.join(w.cwd, "strom.json")).settled.includes(HYPOTHESIS_LINKS_FIRST));
-  assert.match(spawnSync("git", ["-C", w.cwd, "log", "-1", "--format=%s"], { encoding: "utf8" }).stdout, new RegExp(`^Tasks to say what the variants of hypotheses would connect first in the queue \\(${a}\\)`));
+  assert.match(spawnSync("git", ["-C", w.cwd, "log", "-5", "--format=%s"], { encoding: "utf8" }).stdout, new RegExp(`^Tasks to say what the variants of hypotheses would connect first in the queue \\(${a}\\)`, "m"));
   assert.equal(spawnSync("git", ["-C", w.cwd, "status", "--porcelain"], { encoding: "utf8" }).stdout, "");
 
   // once: the person lowers it now, a newer strom again — nothing written

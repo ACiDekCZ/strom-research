@@ -18,6 +18,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
 import { withoutSecret } from "../core/bridgeguard.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
+import { codexHookState } from "../core/codexhook.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
@@ -124,9 +125,11 @@ function liveAppData(ctx: Context, bridge: string): { app?: string } {
 function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id: string; say: string } {
   const t = requireRecord<Task>(tree, ref, "task");
   if (t.type !== "task" || t.retracted) throw new UsageError(`no task ${t.id}`, { hint: "strom task list --state waiting" });
-  if (t.state !== "waiting")
-    throw new UsageError(`${t.id} does not wait for the user (it is ${t.state}) — strom chat --task takes a task that waits`, { hint: "strom task list --state waiting · strom chat", code: "chat.task-not-waiting" });
   const lang = tree.lang;
+  // a task in the queue the person wants gone through now (the Strom app's link to it): taken up in the conversation
+  if (t.state === "open") return { id: t.id, say: ui(lang, "ui.chat.task.open.say", { task: t.id, what: ((w) => (/[.?!…]$/u.test(w) ? w : `${w}.`))(truncate(t.what, 160)) }) };
+  if (t.state !== "waiting")
+    throw new UsageError(`${t.id} neither waits for the user nor is in the queue (it is ${t.state}) — strom chat --task takes a task that waits, or one in the queue`, { hint: "strom task list --state waiting · strom chat", code: "chat.task-not-waiting" });
   // the task's words end their sentence by themselves (a question its "?"); what it waits for runs on into its place
   const what = truncate(t.what, 160);
   const first = ui(lang, "ui.chat.task.say", {
@@ -162,10 +165,10 @@ register({
     "agent's desktop app when it is installed (Claude, ChatGPT/Codex, OpenCode — the tree folder and the first message\n" +
     "filled in; you confirm the folder and send it), else its CLI in this terminal (Claude Code, Codex, Antigravity,\n" +
     "OpenCode, Grok). The first message is yours to give (--say); without it the agent reports where things\n" +
-    "stand and suggests what next.",
+    "stand and suggests what next. What strom watches in each agent and app: strom doc R12.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
-    { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place" },
+    { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place; a task in the queue (open): gone through now, taken up in the conversation" },
     { name: "where", type: "string", value: "<app|terminal>", description: "this time in the agent's desktop app or in this terminal (default: agent.where)" },
     { name: "print", type: "boolean", description: "print the command line instead of starting the agent" },
   ],
@@ -198,6 +201,9 @@ register({
     const about = opts.task !== undefined ? aboutWaiting(tree, String(opts.task), shared) : undefined;
     const kickoff = about?.say ?? said ?? ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
     const level = ctx.settings.agentPermissions();
+    // Codex runs strom's rules before its browser only once the person confirms them in Codex (/hooks): said until then,
+    // never confirmed by strom (spec 062 K3.3)
+    const hooksSay = agent === "codex" && ["untrusted", "modified"].includes(codexHookState(tree.root, ctx.env)) ? ui(lang, "ui.setup.codex.hooks", { how: ui(lang, "ui.doc.codexhooks.how") }) : undefined;
 
     // In the agent's desktop app: a link opens a conversation in the tree folder with the first
     // message filled in. The app reads the tree's instructions and permissions itself; the level of
@@ -213,6 +219,7 @@ register({
       // person picks there — the one chosen in strom named
       const chosen = ctx.settings.models(agent, tree.config).lead;
       if (agent !== "claude" && !(agent === "opencode" && chosen)) say.push(chosen ? ui(lang, "ui.chat.app.model.chosen", { app: app.name, model: chosen }) : ui(lang, "ui.chat.app.model", { app: app.name }));
+      if (hooksSay) say.push(hooksSay);
       if (agentHere && opened) say.push(ui(lang, "ui.chat.handover.end"));
       return { text: say.join("\n"), data: { agent, app: app.name, link, opened, ...(agentHere ? { handover: "app" } : {}) } };
     }
@@ -262,23 +269,26 @@ register({
       commitNow(t, `${s.id} interrupted: its ${s.runner ? "run had stopped" : "conversation had ended"}`);
     }
     const worker = `${agent}-${process.pid}-${Date.now().toString(36)}`;
-    const leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
-    ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
-    const browserSays = browserNote(ctx, tree, agent);
-    if (browserSays) ctx.io.stdout(browserSays + "\n");
-    // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
-    if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
-    delete env.STROM_HANDOVER;
     let code: number;
+    // present from here to the end, whatever fails between (else the app shows a conversation that never ends)
+    let leave: (() => void) | undefined;
     try {
+      leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
+      ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
+      const browserSays = browserNote(ctx, tree, agent);
+      if (browserSays) ctx.io.stdout(browserSays + "\n");
+      if (hooksSay) ctx.io.stdout(hooksSay + "\n");
+      // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
+      if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
+      const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree, { pin: true })), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
+      delete env.STROM_HANDOVER;
       const started = Date.now();
       code = await waitFor(spawnAgent(profile.command, args, { cwd: tree.root, env, stdio: "inherit" }));
       // A Claude Code without the auto mode (an older one, or a plan without it) stops at once: go on in its own mode.
       if (code !== 0 && agent === "claude" && level === "auto" && Date.now() - started < 5000)
         code = await waitFor(spawnAgent(profile.command, conversationArgs(agent, { ...base, level: "ask" }), { cwd: tree.root, env, stdio: "inherit" }));
     } finally {
-      leave();
+      leave?.();
       unpinShim(tree.root);
     }
     // A session the agent left open goes back: its task returns to the queue.
@@ -408,8 +418,9 @@ register(
     description:
       "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
-      "waits for the user. It ends by itself when nobody asks it anything for two hours while nobody works in the tree\n" +
-      "(strom config set live.idleMinutes <minutes>; 0: never by itself), or with strom live stop.\n" +
+      "waits for the user. It runs until strom live stop (or the Strom app's switch: its address kept) or the computer\n" +
+      "goes off; to end by itself after a while with nobody asking it anything and nobody working in the tree:\n" +
+      "strom config set live.idleMinutes 120 (minutes; 0, the default: never by itself).\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
       "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
       "(its port while free), so the app following it goes on by itself; one that ended without a word or when idle is\n" +
@@ -456,8 +467,8 @@ register(
       "Ended for good: the next bridge gets a new secret (its port while free) — the address the Strom app kept no longer\n" +
       "works, and the app gets the new one when the research is opened in it again (strom app). --forget: its port too.\n" +
       "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)\n" +
-      "The bridge runs on in the background after the menu closes, until idle; a whole family tree is deleted with\n" +
-      "strom trees remove (its bridge stopped first).",
+      "The bridge runs on in the background after the menu closes, until stopped (or idle: live.idleMinutes);\n" +
+      "a whole family tree is deleted with strom trees remove (its bridge stopped first).",
     options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new port too, not only a new secret" }],
     examples: ["strom live stop", "strom live stop --forget"],
     run(ctx, { opts }) {

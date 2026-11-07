@@ -81,8 +81,10 @@ conclusion so the next researcher can follow it.
   (`strom hypothesis variant H… "<claim>"`).
 - **The user decides a hypothesis**; you propose it once the records point
   to one variant: `strom hypothesis propose H… --variant B --decision "…"`
-  (none holds: `--abandon`), and go on. What the user decided, the brief
-  lists for you to record.
+  (none holds: `--abandon`), and go on — unless the user lets you decide
+  them (`hypotheses.decide agent`): then `strom hypothesis decide` as the
+  brief says, a decision of the user's never. What the user decided, the
+  brief lists for you to record.
 <!-- end -->
 <!-- for links -->
   Read each variant whole (`strom hypothesis show H…`) and the people it

@@ -435,7 +435,7 @@ test("the user's transcripts as evidence: a fact on a new entry is probable on t
   const out = path.join(w2.dir, "reads.ged");
   await w2.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
   const text = fs.readFileSync(out, "utf8");
-  assert.match(text, new RegExp(`1 REFN ${tyn.id}\\r?\\n1 _STROM_READ user\\r?\\n1 _STROM_VERIFIED Y`));
+  assert.match(text, new RegExp(`1 REFN ${tyn.id}\\r?\\n1 _STROM_READ user\\r?\\n(?:2 _TXT [0-9a-f]{16}\\r?\\n)?1 _STROM_VERIFIED Y`));
   const kam = tree.list<import("../../src/core/model.ts").Source>("source").find((s) => s.title.startsWith("Křestní matrika Kamenice"))!;
   assert.doesNotMatch(text, new RegExp(`1 REFN ${kam.id}\\r?\\n1 _STROM_READ`), "nobody read it: no mark");
   // stromapp.info: not until the app that reads it is out

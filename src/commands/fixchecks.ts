@@ -43,6 +43,8 @@ import { appShapeFixes, appShapesDone, type ShapeFix } from "../core/appshapefix
 import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft, type StreetTown } from "../core/streetfix.ts";
 import { EDIT_DECISIONS_SINCE, editDecisionFixes, editDecisionsDone, type EditDecisionFix, type EditDecisionLeft } from "../core/editdecisionfix.ts";
 import { wokenWaitFixes, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
+import { READERS_SINCE, readerFixes, readersDone, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
+import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -95,11 +97,11 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
-  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[];
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -141,7 +143,7 @@ export interface FixCheck {
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
    * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
    * (woken-waits). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task";
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source";
   /**
    * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
    * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
@@ -469,9 +471,10 @@ export function headKey(head: string, aliases: Aliases, at?: string): string | u
 const DOC_ID = /D\d{14}-[0-9a-f]{4}/u;
 
 /** Of the readers here (readers.jsonl, this computer): the key each report and each document was read with, its crop. */
-function readerRecords(root: string, aliases: Aliases): { reports: Map<string, { key: string; crop?: string; at?: number }>; documents: Map<string, string> } {
+function readerRecords(root: string, aliases: Aliases): { reports: Map<string, { key: string; crop?: string; at?: number }>; documents: Map<string, Map<number, string>> } {
   const reports = new Map<string, { key: string; crop?: string; at?: number }>();
-  const documents = new Map<string, string>();
+  // of each document: the key each of its readers (1 the first, 2 the blind one) read with
+  const documents = new Map<string, Map<number, string>>();
   for (const r of readJournal(path.join(metricsDir(root), "readers.jsonl"))) {
     if (typeof r.reader !== "string" || typeof r.agent !== "string") continue;
     const at = typeof r.at === "string" ? r.at : undefined;
@@ -480,9 +483,13 @@ function readerRecords(root: string, aliases: Aliases): { reports: Map<string, {
       const t = at ? Date.parse(at) - (num(r.wallMs) ?? num(r.ms) ?? 0) : NaN;
       reports.set(r.reader.replace(/^read-/u, ""), { key, ...(typeof r.crop === "string" ? { crop: r.crop } : {}), ...(Number.isFinite(t) ? { at: t } : {}) });
     } else if (r.kind === "document") {
-      const id = DOC_ID.exec(r.reader)?.[0];
-      // the model the reader said beats the one asked: the newest reader of it
-      if (id && (!documents.has(id) || typeof r.reported === "string")) documents.set(id, key);
+      const m = DOC_ID.exec(r.reader);
+      if (!m) continue;
+      const n = Number(/^-(\d+)/u.exec(r.reader.slice(m.index + m[0].length))?.[1] ?? 1);
+      const of = documents.get(m[0]) ?? new Map<number, string>();
+      // the model the reader said beats the one asked: the newest record of that reader
+      if (!of.has(n) || typeof r.reported === "string") of.set(n, key);
+      documents.set(m[0], of);
     }
   }
   return { reports, documents };
@@ -730,9 +737,14 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
     const state = loadState(tree.root, d.id);
     const agent = r.agent ?? state?.agent;
     const model = r.model ?? state?.model;
-    const key = recs.documents.get(d.id) ?? (agent ? keyOf(calibrationKey(agent, model), undefined, aliases, r.at) : UNKNOWN_KEY);
+    // a reading of several readers is the first one's: a blind reader only checks it, never "an earlier model"
+    const blindN = new Set((state?.reports ?? []).filter((x) => x.blind).map((x) => x.n));
+    const readers = [...(recs.documents.get(d.id) ?? [])].sort((a, b) => a[0] - b[0]);
+    const lead = readers.find(([n]) => !blindN.has(n))?.[1];
+    const key = lead ?? (agent ? keyOf(calibrationKey(agent, model), undefined, aliases, r.at) : UNKNOWN_KEY);
     const t = Date.parse(r.at);
-    if (isNow(key)) {
+    // any reader of it read with the model now: read now already
+    if (isNow(key) || readers.some(([, k]) => isNow(k))) {
       noteNow(`doc|${pagesKey(r)}`, t);
       continue;
     }
@@ -923,8 +935,48 @@ export const WOKEN_WAITS: FixCheck = {
   applied: (tree) => wokenWaitsDone(tree).length,
 };
 
+/**
+ * Until 1.29.0 every write of "user" counted as the user's reading of a source: an import, the conversion of an old
+ * research, a batch, a script. Since then only a real reading of the user's counts (core/readers.ts); the sources only a
+ * run of many writes wrote lose "read by the user" by rules (core/readerfix.ts), one a person wrote by hand keeps it.
+ * Applied by itself once, at the first start of this strom after its backup.
+ */
+export const READERS: FixCheck = {
+  id: "readers",
+  since: READERS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "source",
+  // who read a source decides what the research reads again: an archive says nothing of it (set right by itself there too)
+  agentWork: true,
+  detect: (tree) => {
+    const f = readerFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.kept.length, left: f.kept };
+  },
+  applied: (tree) => readersDone(tree).length,
+};
+
+/**
+ * Until 1.29.0 a fact could be proven on any record with primary information: a copy, an index, the Strom app's word
+ * for a source. Since then proven needs the original record (core/evidence.ts); the facts proven without it that no
+ * person made proven become probable by rules (core/provenfix.ts), a person's wait for their review. Applied by itself
+ * once, at the first start of this strom after its backup.
+ */
+export const PROVEN_ORIGINALS: FixCheck = {
+  id: "proven-originals",
+  since: PROVEN_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = provenFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => provenDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS];
 
 /**
  * A check offered where nobody researches (an archive, a research waiting for its agent): one that rewrites by rules and

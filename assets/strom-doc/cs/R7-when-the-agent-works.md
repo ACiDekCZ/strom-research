@@ -17,7 +17,7 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
   - bez otevřeného úkolu ve frontě skončí každý běh.
 - **Ovládání:** terminál: menu **Nechat agenta pracovat samotného**, volby **Pracovat v pořadí fronty – počet úkolů se
   zadá** (1–100, jako `--max`), **Jen vybrané úkoly ze seznamu** (jako `--task`) a **Nechat ho pracovat, dokud je co
-  dělat a dovolí to podmínka „{name}“** (jako `--loop`, jen s nastavenou podmínkou); příkaz `strom run`. Aplikace
+  dělat a dovolí to podmínka „…“** (jako `--loop`, jen s nastavenou podmínkou); příkaz `strom run`. Aplikace
   Strom 3.21.2 samostatnou práci nenastavuje; ukazuje stav běhu ([R7.4](#R7.4)) a sezení z ní jde dokončit
   ([R7.3](#R7.3)).
 - **Platí od:** výzkum 1.0.0 (`--max`, `--until`, `--task`), `--loop` od 1.2.0
@@ -27,10 +27,10 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
 <a id="R7.1.1"></a>
 ### R7.1.1 Proč běh skončí
 
-- Na konci běh vypíše **sezení: {n} · konec: {důvod}**: **hotovo**, **žádné otevřené úkoly**, **časový limit**
+- Na konci běh vypíše **sezení: N · konec: …**: **hotovo**, **žádné otevřené úkoly**, **časový limit**
   (`--until`), **zastaveno ručně** ([R7.3](#R7.3)), **limit předplatného** ([R7.6](#R7.6)), **agent není
   přihlášený** ([R7.7](#R7.7)), odpověď podmínky ([R7.4](#R7.4)), nebo chyba (doklady, agent selhal, model).
-- Když zbylé úkoly potřebují archiv, který neodpovídá, běh s `--loop` a `--until` počká (**⏸ čekám do {at}**), jiný
+- Když zbylé úkoly potřebují archiv, který neodpovídá, běh s `--loop` a `--until` počká (**⏸ čekám do …**), jiný
   skončí.
 - **Platí od:** výzkum 1.0.0; čekání na archiv, který neodpovídá, od 1.22.0
 
@@ -46,10 +46,10 @@ limitu ho strom zastaví a nedokončený úkol vrátí do fronty.
   - posledních 10 minut (krátké sezení: poslední čtvrtinu) každý příkaz `strom` řekne, kolik času zbývá; poslední
     3 minuty (krátké sezení: poslední osminu) vyzve zapsat nalezené a sezení zavřít;
   - při limitu dostane agent, který to umí (Claude Code, Codex, OpenCode, Grok), ještě 5 minut na zápis a zavření;
-  - úkol, na kterém 2 sezení za sebou nic nezapsala, se odloží (**{task} odložen**); sezení ukončená člověkem se nepočítají;
+  - úkol, na kterém 2 sezení za sebou nic nezapsala, se odloží (**… odložen**); sezení ukončená člověkem se nepočítají;
   - pořadí: `--minutes` > proměnná `STROM_RUN_MINUTES` > nastavení rodokmenu > nastavení počítače > 60.
 - **Ovládání:** terminál: **Nastavení: agent, samostatná práce, zprávy, archivy, údržba → Samostatná práce agenta →
-  Čas na jeden úkol: {minutes} min** (5–600; 0 vrátí zpět beze změny); `strom config set run.minutes <n>`
+  Čas na jeden úkol: N min** (5–600; 0 vrátí zpět beze změny); `strom config set run.minutes <n>`
   (`--for-tree`: jen tento rodokmen). Aplikace: nic.
 - **Platí od:** výzkum 1.0.0 (60 minut, odložení úkolu); připomínky a 5 minut na zápis od 1.2.0
 
@@ -86,9 +86,9 @@ pro celý počítač. Bez podmínky běh pokračuje, dokud je práce.
   - `--loop` a `--until`: dotaz před každým sezením; ručně spuštěné úkoly: jeden dotaz ([R7.4.1](#R7.4.1));
   - strom dodává podmínku `claude-usage` ([R7.5](#R7.5)); vlastní podmínka je složka `plugins/gates/<název>/`;
   - běh bez nastavené podmínky (`--no-gate`) nebo s jinou (`--gate`) potřebuje souhlas člověka.
-- **Ovládání:** terminál: **Nastavení → Samostatná práce agenta → Práce pořád dál pod podmínkou: {gate}** (podmínka,
+- **Ovládání:** terminál: **Nastavení → Samostatná práce agenta → Práce pořád dál pod podmínkou: …** (podmínka,
   nebo **žádná**); `strom config set run.gate "<název> [co jí předat]"`, `strom config unset run.gate`; obojí
-  potvrzuje člověk. Aplikace: **Přehled výzkumu** u čekajícího běhu ukáže **Pozastaveno** a **pokračuje v {t}**.
+  potvrzuje člověk. Aplikace: **Přehled výzkumu** u čekajícího běhu ukáže **Pozastaveno** a **pokračuje v …**.
 - **Platí od:** výzkum 1.2.0, aplikace 3.5.0 (stav Pozastaveno)
 
 <!-- zdroj: research:src/core/gate.ts:27-34 DEFAULT_TIMEOUT_S, DEFAULT_WAIT_MS, MIN_WAIT_MS, askGate :209-254, SHIPPED :124 · session.ts:911 gateHolds, :1038-1063 wait, markPaused, runGate :1357-1380 · config.ts run.gate tree:false · setup.ts:1537-1548 · app:v3.21.2 research-overview-ui.ts:340-347, strings.ts live.statePaused, live.pausedUntil -->
@@ -97,8 +97,8 @@ pro celý počítač. Bez podmínky běh pokračuje, dokud je práce.
 ### R7.4.1 Ručně spuštěné úkoly: „Spustit přesto?“
 
 - Jedno sezení, `--max`, `--task` a menu jsou volba člověka. Podmínka se zeptá jednou, před prvním sezením. Když
-  by nespouštěla (počkat, zastavit, chyba), padne otázka **Podmínka „{name}“ by teď nespouštěla — {reason}.
-  Spustit přesto?** Enter znamená ne: běh skončí (**nespuštěno — podmínka „{name}“: {reason}**). Ano: sezení začnou
+  by nespouštěla (počkat, zastavit, chyba), padne otázka **Podmínka „…“ by teď nespouštěla — ….
+  Spustit přesto?** Enter znamená ne: běh skončí (**nespuštěno — podmínka „…“: …**). Ano: sezení začnou
   a podmínka se dál neptá, kromě stropu ([R7.4.2](#R7.4.2)).
 - Spouští-li běh agent, odpovídá člověk v okně systému. Skript, kterého se nikdo nemůže zeptat, se podmínky drží.
 - **Platí od:** výzkum 1.2.0
@@ -108,7 +108,7 @@ pro celý počítač. Bez podmínky běh pokračuje, dokud je práce.
 <a id="R7.4.2"></a>
 ### R7.4.2 Strop: pevná hranice
 
-- Podmínka může odpověď označit jako pevnou hranici člověka (`hard`). Běh pak skončí (**strop podmínky „{name}“**)
+- Podmínka může odpověď označit jako pevnou hranici člověka (`hard`). Běh pak skončí (**strop podmínky „…“**)
   a žádné „přesto“ ji nepřekročí.
 - Podmínka může hlídat okno plánu agenta (`watch`). Pak se ptá před každým sezením každého běhu a sezení v práci
   dostane žádost o dokončení ([R7.3](#R7.3)), když agent ohlásí využití okna na zadané hranici.
@@ -119,7 +119,7 @@ pro celý počítač. Bez podmínky běh pokračuje, dokud je práce.
 <a id="R7.4.3"></a>
 ### R7.4.3 Záznam odpovědí podmínky
 
-- Každá odpověď má řádek ve výstupu běhu: **· podmínka {name}: {word}{reason} (kód {status}; .strom/gate.log)**.
+- Každá odpověď má řádek ve výstupu běhu: **· podmínka …: … (kód …; .strom/gate.log)**: název podmínky, její odpověď s důvodem a kód.
 - Zároveň řádek JSON v `.strom/gate.log` rodokmenu: kdy, podmínka a co jí bylo předáno, kód, verdikt, důvod, čekání,
   limity plánu a co běh udělal (`go`, `wait`, `stop`, `anyway`). Drží se 90 dní, nejvýš 2 MB.
 - **Ovládání:** terminál: **Samostatná práce agenta → Co by podmínka řekla teď?**, `strom gate test`.
@@ -200,7 +200,7 @@ jeho obnovení (den ≈ 14,3 %), s využitím týdne. Sezení začne, jen když 
 ## R7.6 Limit předplatného zastaví běh
 
 Když agent během sezení narazí na limit svého předplatného, sezení se zavře a běh skončí: **limit předplatného
-(obnoví se {at})**. Běh nečeká ani s `--loop`. Nezávisí to na podmínce.
+(obnoví se …)**. Běh nečeká ani s `--loop`. Nezávisí to na podmínce.
 
 - **Hranice:** úkol se vrátí do fronty; čas obnovení se ukáže, jen když ho agent řekl. Čekat umí jen podmínka.
 - **Platí od:** výzkum 1.0.0
@@ -211,7 +211,7 @@ Když agent během sezení narazí na limit svého předplatného, sezení se za
 ## R7.7 Nepřihlášený agent
 
 Agent, který není přihlášený ke svému předplatnému, sezení neudělá. Běh skončí: **agent není přihlášený – jednou
-spustit {command} a přihlásit se**.
+spustit … a přihlásit se**.
 
 - **Hranice:**
   - před prvním sezením to strom ověří jen u Claude Code se zvláštní složkou (`agent.claudeConfigDir` nebo

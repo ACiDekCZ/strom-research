@@ -5,6 +5,7 @@
 // at once as halted (outcome "error", stalled) — never a time limit. A retry followed by more lines is no silence, and
 // a session without the watch (the main agent's) waits as before.
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

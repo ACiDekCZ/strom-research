@@ -27,7 +27,7 @@ zeigen, sendet die Forschung über die Brücke.
   - Die Übersicht ist in einem breiten Fenster (ab 1280 px) ein Seitenpanel neben dem Stammbaum, auf dem Tablet eine
     Ebene über dem Stammbaum, auf dem Telefon der ganze Bildschirm. Auf dem Telefon wird das Panel zu einem Streifen,
     und ein Tippen öffnet die Übersicht.
-  - Ohne Verfolgen zeigt das Panel das letzte bekannte **Wartet auf Bearbeitung** mit dem Satz **Stand {d}. Die
+  - Ohne Verfolgen zeigt das Panel das letzte bekannte **Wartet auf Bearbeitung** mit dem Satz **Stand …. Die
     Forschung läuft gerade nicht.**
 - **Bedienung:** App: Panel, Schaltflächen **⤢ Übersicht öffnen** und **Verfolgung beenden**; Menü **Forschung →
   Forschungsübersicht**.
@@ -50,6 +50,7 @@ Arbeit im Abschnitt **Jetzt**).
   gespeichert.
 - **Bedienung:** App: **Forschungsübersicht → Agenten im Stammbaum folgen** / **Nicht mehr folgen**.
 - **Gilt seit:** App 3.5.0
+- **Ab App 3.24.0:** Folgen geht auch im Fächer und auf der Karte ([S4.1.3](#S4.1.3)); das Verschieben der Karte pausiert es ebenso.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -73,9 +74,9 @@ Die Wahl gilt für das Panel und die Übersicht.
     Abschnitts aus seinem Menü lassen sich eine Weile zurücknehmen (**Rückgängig**). Sind alle Abschnitte
     ausgeblendet, sagt das Panel **Alle Bereiche sind ausgeblendet.**
 - **Wartet auf Bearbeitung eingeklappt oder ausgeblendet:**
-  - ein neuer Eintrag klappt den Abschnitt nicht auf. Die Überschrift zeigt die Zahl und **{n} neu**; hervorgehoben,
+  - ein neuer Eintrag klappt den Abschnitt nicht auf. Die Überschrift zeigt die Zahl und **N neu**; hervorgehoben,
     wenn darunter eine Entscheidung oder Erlaubnis ist (**darunter eine Entscheidung oder Erlaubnis**);
-  - ausgeblendet hinterlässt er die Marke **Wartet {n}** im Kopf des Panels, in der Zusammenfassung des eingeklappten
+  - ausgeblendet hinterlässt er die Marke **Wartet N** im Kopf des Panels, in der Zusammenfassung des eingeklappten
     Panels, im Streifen auf dem Telefon und in der Übersicht. Ein Klick zeigt den Abschnitt in der Übersicht, bis die
     Übersicht geschlossen wird (**Ausgeblendeter Bereich, sichtbar bis die Übersicht schließt.**).
 - **Bedienung:** App: **⋯ → Panel anpassen…** im Kopf des Panels und der Übersicht; rechte Maustaste oder langes
@@ -85,6 +86,76 @@ Die Wahl gilt für das Panel und die Übersicht.
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
 
+<a id="S4.1.3"></a>
+### S4.1.3 Folgen im Fächer und auf der Karte
+
+Das Folgen des Agenten ([S4.1.1](#S4.1.1)) läuft in der Familie, im Fächer und auf der Karte. Der Umschalter
+**Folgen in** wechselt die Ansicht, und das Folgen bleibt eingeschaltet. Der Fächer bewegt sich dabei nicht, er
+markiert nur, wo gearbeitet wird; die Karte zeigt den Ort der Arbeit mit einem Ring.
+
+- **Fächer:**
+  - die Mitte des Fächers ist die **Fokussierte Person** vor dem Einschalten des Folgens (Standard), die
+    **Standardperson** oder eine **Gewählte Person** (für einen Stammbaum). Nie ist es die Person, an der der Agent
+    arbeitet. **Als Mitte fixieren** hält eine Person als Mitte, **Mitte lösen** gibt sie frei; eine neue Mitte blendet
+    in 150 ms über;
+  - die bearbeitete Person hat einen Umriss in der Farbe der Sitzung und blinkt zweimal, wenn die Arbeit wechselt und
+    wenn das Folgen in den Fächer kommt. Ein schmaler Sektor bekommt eine Marke außerhalb des Fächers;
+  - eine Person außerhalb des Fächers bekommt das Schild **Außerhalb des Fächers in Bearbeitung:** bei der nächsten
+    Person des Fächers, in dieser Reihenfolge: Ehemann oder Ehefrau, Geschwister, ein Vorfahr jenseits des Fächerrands,
+    bei einem Nachkommen die Mitte, sonst der erste Vorfahr bis zu 12 Generationen zurück.
+- **Karte:**
+  - der Ort der Arbeit hat einen Ring in der Farbe der Sitzung: ein voller Ring ist der **Ort des Eintrags** (der Ort
+    der Quelle, an der der Agent arbeitet, wenn die Forschung ihn sendet), ein gestrichelter der **Ort der Person** (der
+    erste Ort mit Position aus Geburt, Wohnort, Heirat, Tod). Nie ist es der Sitz eines Archivs;
+  - der Ring pulsiert einmal, wenn das Folgen auf die Karte kommt. Die Karte verschiebt sich nur, wenn der Ort der
+    ersten Sitzung außerhalb der Ansicht liegt und die Karte nicht pausiert ist. Verschieben von Hand pausiert sie
+    (**Kartenschwenk pausiert**) bis **Zurück zum Agenten**;
+  - ein Ort ohne Position zeigt oben die Zeile „… – ohne Position auf der Karte“ mit **Position suchen** (bei einem
+    Stammbaum mit Forschung **In der Forschung suchen**, [A6.5.2](A6-views.md#A6.5.2)); eine Person ohne Ort „… – ohne
+    Ort“;
+  - die Legende **Bedeutung der Markierungen** erklärt die Ringe, die Spur und die hohle Markierung.
+- **Sitzungsspur:** in der Familie, im Fächer und auf der Karte verblassen die bearbeiteten Personen und Orte mit dem
+  Alter: höchstens die letzten 8 Änderungen, keine älter als 60 Minuten. Auf der Karte sind es leere Ringe, die Orte
+  einer Sitzung verbindet eine gepunktete Linie (nicht auf dem Telefon). Die Spur lässt sich ausschalten.
+- **Grenzen:**
+  - laufen mehrere Sitzungen, hat jede eine Nummer (sichtbar ab zwei) und eine Farbe: die erste die Hauptfarbe, die
+    weiteren eine Akzentfarbe;
+  - Arbeit an einer Heirat wird beim Paar verfolgt: fokussiert ist der Ehemann, sonst die Ehefrau;
+  - die Einstellungen gelten auf diesem Gerät für alle Stammbäume, die gewählte Person nur für ihren Stammbaum. Auf dem
+    Telefon ist die Darstellung vereinfacht.
+- **Bedienung:** App: beim Folgen **Folgen in** (Familie, Fächer, Karte); **Einstellungen → Forschung verfolgen** →
+  **Dem Agenten folgen in** (gilt beim Einschalten des Folgens und bei **Zurück zum Agenten**), **Fächermitte beim
+  Folgen** (**Person wählen**, **Ändern**), **Sitzungsspur in Familie, Fächer und Karte**; im Fächer **Als Mitte
+  fixieren** / **Mitte lösen**.
+- **Gilt seit:** App 3.24.0
+- **Ab App 3.25.0:** die Legende der Karte sagt „Hohle Markierung: Ort ohne Person unter den gezeigten Orten“ und ein
+  Ort der Arbeit ohne Person auf der Karte „noch ohne Person auf der Karte“ (früher „außerhalb des Kartenbereichs“).
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Änderungen aus der Forschung ohne Flackern
+
+Eine Änderung aus der Forschung erscheint im Stammbaum sofort, ohne den ganzen Bildschirm neu zu zeichnen. Karten,
+die bleiben, behalten ihren Platz; was hinzukam, wegfiel oder sich änderte, zeigt sich kurz mit Bewegung.
+
+- **Grenzen:**
+  - bleibende Karten verschieben sich fließend (320 ms). Eine neue Person wächst aus ihrer Linie, und ein Licht läuft
+    die Linie entlang; eine entfernte zieht sich in ihre Linie zurück; eine zusammengeführte Person fließt in die, die
+    bleibt (nach gleichem Nachnamen, Geburt ±1 Jahr, gemeinsamem Elternteil oder Partner); eine geänderte Karte hat
+    einen Umriss in der Farbe der Sitzung;
+  - mit Bewegung zeigen sich höchstens 12 neue Karten; bei mehr als 60 geänderten Personen entfällt die Bewegung, und
+    die Änderungen erscheinen sofort. Auf Telefon und Tablet sind die Zeiten kürzer (×0,875);
+  - eine neue Person außerhalb der Ansicht bekommt eine Marke am Rand („Außerhalb der Ansicht hinzugefügt: …“, 4 s).
+    Zoom und fokussierte Person ändern sich nicht. Ein Bildschirmleser kündigt die Änderungen an;
+  - ausgeschaltete **Bewegung beim Laden von Änderungen** und reduzierte Bewegung im System zeigen die Änderungen
+    sofort, nur hervorgehoben („Im System ist reduzierte Bewegung aktiv, Änderungen erscheinen daher ohne
+    Bewegung.“).
+- **Bedienung:** App: **Einstellungen → Forschung verfolgen → Bewegung beim Laden von Änderungen** (standardmäßig an).
+- **Gilt seit:** App 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
+
 <a id="S4.2"></a>
 ## S4.2 Warteschlange in der App
 
@@ -93,7 +164,7 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
 
 - **Grenzen:**
   - Das Panel zeigt 3 Aufgaben (**Als Nächstes**), die Übersicht 20 (**Warteschlange**). Den Rest zeigt die Zeile
-    **und {n} weitere in der Forschung**, die die Forschung öffnet.
+    **und N weitere in der Forschung**, die die Forschung öffnet.
   - Mit zwei und mehr laufenden Linien lassen sich Aufgaben nach Linie filtern (**Warteschlange nach Richtung**).
   - Eine Aufgabe außerhalb der Linien hat eine Notiz: **Wartet, bis die Arbeit der Richtungen getan ist · hilft
     keiner Richtung**, **Wird nicht übernommen · Arbeit außerhalb der Richtungen ist ausgeschaltet** oder warum sie
@@ -111,7 +182,7 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
   App, ohne Terminal ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); bei einer Aufgabe, an der der Agent arbeitet, geht
   das nicht. Die Warteschlange wird seitenweise gelesen: **Weitere laden** fügt 50 Aufgaben hinzu, die Liste hält
   höchstens 300, den Rest grenzt der Filter einer Linie oder eines Zweigs ein.
-  Die Marke des Zweigs (**Zweig {n} {k}**) grenzt die ganze Warteschlange auf die Aufgaben des Zweigs ein; **Ganze
+  Die Marke des Zweigs (**Zweig … K**) grenzt die ganze Warteschlange auf die Aufgaben des Zweigs ein; **Ganze
   Warteschlange zeigen** hebt sie auf.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
@@ -123,9 +194,9 @@ Die Übersicht zeigt die Linien der Forschung ([R2.1](R2-lines-and-queue.md#R2.1
 sie gekommen ist. In App 3.21.2 werden Linien nur gelesen; jede Änderung wird im Terminal der Forschung bestätigt.
 
 - **Grenzen:**
-  - Den Abschnitt **Richtungen · {n} aktiv** gibt es nur bei zwei und mehr Linien oder bei einer Linie, wenn auch
+  - Den Abschnitt **Richtungen · N aktiv** gibt es nur bei zwei und mehr Linien oder bei einer Linie, wenn auch
     Arbeit außerhalb von ihr läuft (Zeile **Außerhalb der Richtungen**). Pausierte und beendete Linien sind unter
-    **Pausiert und beendet · {n}** zugeklappt.
+    **Pausiert und beendet · N** zugeklappt.
   - Zeile einer Linie: Art (↑ Vorfahren, ↓ Nachkommen, ⌕ Frage), Name, Person, Zahl der Aufgaben und was auf
     Bearbeitung wartet. Eine Linie ohne Arbeit hat **Nichts offen, sie kann beendet werden.**
   - Detail einer Linie: bekannte Vorfahren nach Generationen, wann zuletzt an ihr gearbeitet wurde, **An dieser
@@ -139,10 +210,10 @@ sie gekommen ist. In App 3.21.2 werden Linien nur gelesen; jede Änderung wird i
 - **Bedienung:** App: **Forschungsübersicht → Richtungen**, bei der Linie **⋯**.
 - **Gilt seit:** App 3.5.0 (Forschung 1.8.0). Teilung des Panels nach Linien seit 3.13.1.
 - **Ab App 3.22.0:** mit der Forschung 1.26.0 werden Linien direkt in der App geändert ([S4.3.1](#S4.3.1)). Die
-  Zeile einer Linie zeigt, woran gerade gearbeitet wird (**Jetzt: …**), und die Grenzen (**bis {n} Generationen**,
-  **vor {Jahr}**; bei einer pausierten Linie nicht). Das Detail einer Linie sagt, was die Linie in den letzten Tagen
-  gefunden hat (**Letzte {n} Tage:** Sitzungen, Personen, Quellen); die Personen zeigt es im Stammbaum. Beendete
-  Linien sind am Ende zugeklappt (**Beendet · {n}**). In einem schmalen Fenster und auf dem Telefon ist die Übersicht
+  Zeile einer Linie zeigt, woran gerade gearbeitet wird (**Jetzt: …**), und die Grenzen (**bis N Generationen**,
+  **vor …** (Jahr); bei einer pausierten Linie nicht). Das Detail einer Linie sagt, was die Linie in den letzten Tagen
+  gefunden hat (**Letzte N Tage:** Sitzungen, Personen, Quellen); die Personen zeigt es im Stammbaum. Beendete
+  Linien sind am Ende zugeklappt (**Beendet · N**). In einem schmalen Fenster und auf dem Telefon ist die Übersicht
   ein Blatt: statt des Griffs für die Reihenfolge Pfeile ▲▼.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -164,7 +235,7 @@ sich nicht, und nichts wird bezahlt.
     weiter.** oder **Die Forschung nimmt die Richtungen der Reihe nach.**
   - **Pausieren** und **Neu starten** lassen sich zurücknehmen (**Rückgängig**). **Beenden…** fragt nach und nimmt
     einen freiwilligen Grund.
-  - Gibt es dieselbe Linie schon, sagt das Formular das (**Die Richtung {n} läuft bereits.**) und bietet **Anzeigen**
+  - Gibt es dieselbe Linie schon, sagt das Formular das (**Die Richtung … läuft bereits.**) und bietet **Anzeigen**
     oder **Trotzdem anlegen** an.
   - **Vorfahren suchen** und **Nachkommen suchen** bei einer Person öffnen dieses Formular.
   - Nur zum Lesen: im Strom-Archiv (**Archiv: Richtungen nur zum Lesen.**), auf dem Telefon (**Richtungen lassen
@@ -190,21 +261,21 @@ einstellen.
 - **Grenzen:**
   - Für die ganze Forschung: **Wie Arbeit außerhalb der Richtungen übernommen wird**: **Ab und zu**, **Am Ende**,
     **Wie üblich**, **Nie**.
-  - Zeile eines Zweigs: Person des Zweigs, Bezug zur Linie (**bei der Richtung {n}**), Zahl der Aufgaben, **wächst**,
+  - Zeile eines Zweigs: Person des Zweigs, Bezug zur Linie (**bei der Richtung …**), Zahl der Aufgaben, **wächst**,
     **eigene Wahl**.
   - Ein Klick auf einen Zweig zeigt seine ersten Aufgaben mit dem Platz in der Warteschlange (**In der Warteschlange ·
-    die ersten {k} von {n}**, **{i}. in der Warteschlange**) und den Link **Alle {n} Aufgaben in der Warteschlange
+    die ersten K von N**, **I. in der Warteschlange**) und den Link **Alle N Aufgaben in der Warteschlange
     ›**. Stehen die Aufgaben des Zweigs hinter dem geladenen Teil der Warteschlange: **Die Aufgaben des Zweigs stehen
-    weiter hinten in der Warteschlange ({n}).**
+    weiter hinten in der Warteschlange (N).**
   - Für einen Zweig: **Übernommen:** **Ab und zu** / **Am Ende** / **Wie üblich** (die Wahl der Forschung hat
-    **(Standard)**), **Zur Richtung {n} hinzufügen** (die nächste Linie zuerst), **Richtung aus diesem Zweig
+    **(Standard)**), **Zur Richtung … hinzufügen** (die nächste Linie zuerst), **Richtung aus diesem Zweig
     anlegen**, **Nicht erforschen** (die Aufgaben verlassen die Warteschlange, nichts wird gelöscht), **Auf Standard
-    zurücksetzen**. Nicht erforschte Zweige stehen beisammen (**Nicht erforscht · {n} Zweige**).
+    zurücksetzen**. Nicht erforschte Zweige stehen beisammen (**Nicht erforscht · N Zweige**).
   - Fragen zu wachsenden Zweigen ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) stehen in **Wartet auf Bearbeitung**:
-    einer Linie hinzufügen (bei einer pausierten Linie **Zur Richtung {n} (pausiert) hinzufügen**), eine Linie
+    einer Linie hinzufügen (bei einer pausierten Linie **Zur Richtung … (pausiert) hinzufügen**), eine Linie
     anlegen, **So lassen**, nicht erforschen. Ohne Antwort wird der Zweig weiter wie bisher übernommen.
   - Fenster **Forschung für diesen Stammbaum…**, Gruppe **Arbeit außerhalb der Richtungen**: die Wahl für die ganze
-    Forschung (**Ab und zu**: „Etwa 1 Aufgabe außerhalb der Richtungen auf {k} Aufgaben der Richtungen.“),
+    Forschung (**Ab und zu**: „Etwa 1 Aufgabe außerhalb der Richtungen auf K Aufgaben der Richtungen.“),
     **Richtungen für wachsende Zweige vorschlagen**, **Zweige mit eigener Wahl** und Aufgaben mit manueller
     Reihenfolge.
 - **Bedienung:** App: **Forschungsübersicht**, Abschnitt der Arbeit außerhalb der Linien, beim Zweig **⋯** (**Optionen
@@ -239,13 +310,13 @@ Terminal wird nichts geschrieben und nichts bezahlt.
   - Eine Aktion ist nur am Computer zu sehen (nicht auf einem Touch-Gerät), nur wenn die Forschung den Link gemeldet
     hat und nur wenn **Strom Research auf diesem Computer** eingeschaltet ist.
   - Der Link trägt nur Nummern von Datensätzen und feste Werte, keine Namen und keinen freien Text.
-  - Das Terminal beginnt mit **Die Strom-App bittet um: {was} / Forschung: {Name}** und fragt **Fortfahren?** Bei
+  - Das Terminal beginnt mit **Die Strom-App bittet um: … / Forschung: …** und fragt **Fortfahren?** Bei
     Arbeit des Agenten fügt es **Der Agent arbeitet auf das eigene Abonnement oder KI-Guthaben.** hinzu, bei der
     Vergabe von Aufgaben **Die Forschung schreibt Aufgaben für den Agenten – jetzt wird nichts gesucht und nichts
     bezahlt.**
   - Das Strom-Archiv und eine Forschung, die auf einen Agenten wartet, lehnen Arbeit des Agenten ab (Gespräch,
     Prüfung, Suche, Orte, Geschichte).
-  - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „{name}“ –
+  - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „…“ –
     der Agent arbeitet daran weiter.**
   - Die App erkennt nicht, ob sich das Terminal geöffnet hat. Sie zeigt **Forschung wird geöffnet…** und den Rat
     **Wenn sich nichts öffnet, Strom Research starten und erneut versuchen.**
@@ -294,6 +365,28 @@ Jede Aktion der Forschung hat eine von drei Marken, je nachdem, was sie öffnet.
   und beenden** seit 3.5.0
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
+
+<a id="S4.5.3"></a>
+### S4.5.3 Eine Aufgabe in der Warteschlange öffnen
+
+**Aufgabe T… öffnen** öffnet eine Aufgabe in der Warteschlange im Terminal der Forschung. Das Terminal zeigt die
+Aufgabe und fragt, was jetzt mit ihr geschehen soll.
+
+- **Grenzen:**
+  - das Terminal zeigt **Die Aufgabe T… steht in der Warteschlange: der Agent nimmt sie, wenn sie an der Reihe ist.**,
+    **Warum: …** und **Erledigt, wenn: …** und fragt **Was nun?**:
+    - **Jetzt mit dem Agenten (…) durchgehen, im Gespräch**: fragt zuerst und sagt, was ähnliche Sitzungen hier
+      gekostet haben, oder dass es noch nicht bekannt ist;
+    - **In der Warteschlange nach vorn (höchste Priorität)**: Priorität 5; hat die Aufgabe sie schon, geschieht nichts;
+    - **In der Warteschlange lassen, wie sie ist**;
+  - Enter oder 0 schreibt nichts. Mit einer Aufgabe, an der der Agent gerade arbeitet, geschieht nichts;
+  - eine Aufgabe, die auf den Menschen wartet, öffnet ihre bisherige Frage.
+- **Bedienung:** App: **Aufgabe T… öffnen** (Marke Terminal) nach dem Anlegen einer Aufgabe aus einer neuen Lesung und
+  in der Zeile bei der Quelle ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` nimmt die
+  Aufgabe aus der Warteschlange direkt ins Gespräch.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
 <a id="S4.6"></a>
 ## S4.6 Was nur im Terminal geht

@@ -42,6 +42,7 @@ podmínka, kterou nastavil člověk (například tempo týdenního limitu předp
 
 - Výzkum může být i jen **Archiv Stromu**, na kterém agent nepracuje: [R7.8](R7-when-the-agent-works.md#R7.8).
 - Podrobně: [R7](R7-when-the-agent-works.md).
+- Kde se s agentem mluví (terminál, aplikace Claude nebo ChatGPT) a co strom kde hlídá: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 
@@ -70,8 +71,9 @@ Některá rozhodnutí patří jen člověku. Výzkum se na ně ptá v **Čeká n
 
 - Co čeká na člověka (dopisy, snímky k stažení, otázky k místům, rozpory, hypotézy, vyprávění ke schválení) a kde se
   to vyřizuje: [R6](R6-awaiting-action.md).
-- Hypotézu rozhoduje jen člověk; agent rozhodnutí navrhne (od výzkumu 1.28.0):
-  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
+- Hypotézu rozhoduje člověk a agent rozhodnutí navrhne (od výzkumu 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1). Od výzkumu 1.29.0 je to volba výzkumu: bez uložené volby
+  rozhoduje agent (**Rozhoduje AI**), **Rozhoduje člověk** si člověk zvolí: [R10.3.2](R10-people-and-hypotheses.md#R10.3.2).
 - Rozhodnutí člověka platí. Agent ho změní jen na základě nového pramene: [R5.4](R5-conflicts.md#R5.4).
 - Poloha místa zadaná člověkem se nemění: [R4.3](R4-places.md#R4.3).
 - Nastavení, která mění, co smí agent, potvrzuje člověk (například podmínka samostatné práce, [R7](R7-when-the-agent-works.md)).

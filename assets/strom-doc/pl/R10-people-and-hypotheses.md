@@ -81,38 +81,112 @@ nie wybiera po cichu. Zapisuje hipotezę: pytanie i jego wersje A, B, C… z tym
 <a id="R10.3.1"></a>
 ### R10.3.1 Rozstrzygnięcie hipotezy
 
-Hipotezę rozstrzyga się na rzecz jednej wersji albo porzuca, gdy żadnej nie da się rozstrzygnąć. Rozstrzyga tylko
-człowiek, w badaniu; agent proponuje rozstrzygnięcie. Aplikacja nie pozwala rozstrzygnąć hipotezy.
+Hipotezę rozstrzyga się na rzecz jednej wersji albo porzuca, gdy żadnej nie da się rozstrzygnąć. Kto ją rozstrzyga,
+określa wybór badania ([R10.3.2](#R10.3.2)): **Rozstrzyga AI** (agent rozstrzyga sam, tylko na podstawie cytowanego
+aktu; domyślnie, gdy wybór nie jest zapisany) albo **Rozstrzyga człowiek** (agent tylko proponuje rozstrzygnięcie).
+Aplikacja nie pozwala rozstrzygnąć hipotezy, odsyła do badania.
 
 - **Pilnuje kod:**
-  - rozstrzygnięcie to krok człowieka. Gdy `strom hypothesis decide` uruchomi agent (także wewnątrz `strom batch`),
-    strom je odrzuca;
+  - przy **Rozstrzyga człowiek** rozstrzygnięcie to krok człowieka. Gdy `strom hypothesis decide` uruchomi agent
+    (także wewnątrz `strom batch`), strom je odrzuca;
   - agent proponuje rozstrzygnięcie: wersję i tekst rozstrzygnięcia (`strom hypothesis propose`) albo porzucenie
     (`--abandon`). Nowa propozycja zastępuje poprzednią. Na odpowiedź się nie czeka, praca idzie dalej;
   - propozycja czeka w **Co czeka** w grupie **Hipotezy do rozstrzygnięcia** ([R6.3.4](R6-awaiting-action.md#R6.3.4)):
     człowiek rozstrzyga zgodnie z propozycją, inaczej (inna wersja albo żadna, z powodem) albo zostawia hipotezę bez
     zmian. Nieprzyjęta propozycja zostaje w notatce hipotezy;
+  - przy **Rozstrzyga człowiek** w tej samej grupie czeka też otwarta hipoteza bez propozycji: człowiek rozstrzyga ją
+    sam (wersja albo żadna, z tekstem rozstrzygnięcia) albo zostawia ją otwartą. Hipoteza zostawiona otwarta pojawi
+    się w Co czeka znowu, gdy agent zaproponuje, jak ją rozstrzygnąć;
   - rozstrzygnięcie i propozycja wymagają tekstu rozstrzygnięcia (`--decision`); porzucenie to `--abandon`;
   - hipotezę, której wersje mówią, co by połączyły, rozstrzyga się i proponuje tylko z podaną wersją (`--variant B`).
     Bez niej strom odrzuca i niczego nie zapisuje;
   - rozstrzygnąć ponownie (także ponownie zaproponować) można tylko z powodem (`--reason`). Poprzednie rozstrzygnięcie
-    zostaje w notatce hipotezy;
+    zostaje w notatce hipotezy, także z tym, że rozstrzygnął je agent. Rozstrzygnięta i porzucona hipoteza oferuje
+    w menu **Zmienić rozstrzygnięcie**;
   - to, co łączy rozstrzygnięcie człowieka, oraz źródła, które hipoteza wymienia, a których nie cytuje żadna dana jej
     osób, agent dostaje na początku następnej pracy jako pierwsze zadanie do zapisania w drzewie.
 - **Tylko metodyka:** agent proponuje rozstrzygnięcie, gdy akty wskazują na jedną wersję, i mówi to człowiekowi
   jednym zdaniem. Rozstrzygniętą hipotezę, którą obali nowy akt, agent proponuje ponownie z powodem. To, co agent
-  wstrzymał, dopóki osoba była tylko hipotezą, zapisuje przy osobie, gdy człowiek rozstrzygnie hipotezę.
+  wstrzymał, dopóki osoba była tylko hipotezą, zapisuje przy osobie, gdy hipoteza jest rozstrzygnięta.
 - **Dlaczego:** nowe rozstrzygnięcie wymaga powodu, bo rozstrzygnięcia zmieniają się jawnie: poprzednie zostaje
   czytelne, a nowe mówi, co je zmieniło (zwykle nowy akt).
 - **Obsługa:** terminal: menu `strom` → **Co czeka** → **Hipotezy do rozstrzygnięcia** → **Rozstrzygnąć zgodnie
-  z propozycją**, **Rozstrzygnąć inaczej**, **Zostawić bez zmian (propozycja nieprzyjęta)**; poleceniem
-  `strom hypothesis decide H… --proposed`, `--keep-open` albo `--variant B --decision "…"` (ponownie z `--reason "…"`).
-  Agent: `strom hypothesis propose H… --variant B --decision "…"`.
+  z propozycją**, **Rozstrzygnąć inaczej**, **Zostawić bez zmian (propozycja nieprzyjęta)**; przy otwartej hipotezie
+  bez propozycji **Rozstrzygnąć**, **Zostawić otwartą**; przy rozstrzygniętej albo porzuconej **Zmienić
+  rozstrzygnięcie** (tekst i powód obowiązkowe). Ten sam ekran jest w przeglądzie osoby: **Rozszerz badanie** →
+  **Przegląd osoby** → **Hipotezy o osobie (n)**. Poleceniem `strom hypothesis decide H… --proposed`, `--keep-open`
+  albo `--variant B --decision "…"` (ponownie z `--reason "…"`). Agent: `strom hypothesis propose H… --variant B
+  --decision "…"`. Aplikacja: **Co wie badanie** → hipoteza → **Rozstrzygnij w badaniu**, przy rozstrzygniętej
+  **Zmień w badaniu** ([S3.5](S3-what-the-research-knows.md#S3.5)).
 - **Obowiązuje od:** badanie 1.0.0; wypis niezapisanych źródeł 1.12.0
 - **Od badania 1.28.0:** rozstrzyga tylko człowiek, agent proponuje; podanej wersji pilnuje kod (wcześniej tylko
   metodyka). Hipotezy, które wcześniej rozstrzygnął agent, zostają takie, jakie były.
+- **Od badania 1.29.0:** kto rozstrzyga, jest wyborem badania ([R10.3.2](#R10.3.2)); bez zapisanego wyboru
+  rozstrzyga AI, także w badaniu założonym wcześniej. Co czeka oferuje też otwarte
+  hipotezy bez propozycji (**Rozstrzygnąć**, **Zostawić otwartą**) i menu **Zmienić rozstrzygnięcie**. Do 1.28.0
+  otwartej hipotezy bez propozycji w Co czeka nie było i rozstrzygało się ją tylko poleceniem `strom hypothesis
+  decide`.
+- **Od aplikacji 3.25.0:** **Rozstrzygnij w badaniu** i **Zmień w badaniu** w **Co wie badanie**, gdzie oferuje je
+  badanie na tym komputerze.
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, --proposed, --keep-open, againNeedsReason, decidedVariant) · src/cli/main.ts:288 def.person && isAgent · src/commands/batch.ts (def.person) · src/core/waiting.ts (hypotheses, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.* · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0 · commit 9b12256a -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, agentMay, --proposed, --keep-open bez návrhu → leftOpen, againNeedsReason, decidedVariant, "earlier … by the agent") · src/cli/main.ts:288 def.person && isAgent && !def.agentMay · src/commands/batch.ts (def.agentMay) · src/core/waiting.ts (hypotheses, hypothesesOpen, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided: ui.wait.hypothesis.change) · src/cli/menu-research.ts:532 ui.review.hypotheses · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.*, ui.review.hypotheses · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0, 1.29.0 · research 1.28.0 = commit 94a593db · app:src/strings.ts research.decideInResearch, research.hypoChange · CHANGELOG.cs.md 3.25.0 -->
+
+<a id="R10.3.2"></a>
+### R10.3.2 Kto rozstrzyga hipotezy: człowiek czy AI
+
+Wybór badania **Kto rozstrzyga hipotezy** określa, kto rozstrzyga hipotezę. **Rozstrzyga AI** jest domyślne: agent
+rozstrzyga sam, gdy tylko cytowany akt wskazuje na jedną wersję; jego rozstrzygnięcie jest oznaczone, a człowiek może
+je w każdej chwili zmienić. **Rozstrzyga człowiek**: agent tylko proponuje, a rozstrzygnięcie czeka w **Co czeka**.
+Powrót do rozstrzygania przez człowieka: `strom config set hypotheses.decide person`.
+
+- **Pilnuje kod:**
+  - bez zapisanego wyboru rozstrzyga AI: w nowym badaniu, w badaniu założonym wcześniej (do wersji 1.28.0 tego wyboru
+    nie było), przy ustawieniach bez terminala i gdy ustawienia uruchomi agent. Zapisany wybór (**Rozstrzyga
+    człowiek** i **Rozstrzyga AI**) zostaje. Przełączenie nie zmienia już rozstrzygniętych hipotez;
+  - ustawienia początkowe (`strom setup`) proponują jako pierwsze **Rozstrzyga AI (zalecane)** ze zdaniem „Zalecane:
+    rozstrzyga AI – badanie toczy się dalej, a hipotezy nie czekają; każde jej rozstrzygnięcie jest oznaczone i można
+    je zmienić.” Enter przyjmuje je bez dalszego potwierdzenia. Wybrane **Rozstrzyga człowiek** zapisuje się, a
+    kolejne `strom setup` proponuje je jako obecny wybór;
+  - gdzie zapisane jest **Rozstrzyga człowiek**, **Rozstrzyga AI** włącza ponownie tylko człowiek w terminalu: pytanie
+    wyjaśnia, co to znaczy, i wymaga drugiego tak. To samo dotyczy usunięcia zapisanego wyboru (`strom config unset
+    hypotheses.decide`), bo bez niego rozstrzyga AI. Agentowi strom odmawia obu. Powrót do **Rozstrzyga człowiek**
+    jest możliwy w każdej chwili, bez potwierdzenia;
+  - przy zapisanym **Rozstrzyga człowiek** i 10 lub więcej otwartych hipotezach drzewa aplikacja w **Co wie badanie**,
+    sekcja **Hipotezy**, jednym zdaniem proponuje przełączenie: „N otwartych hipotez czeka na rozstrzygnięcie
+    człowieka; przy „Rozstrzyga AI” agent rozstrzyga je sam, każdą z uzasadnieniem.” **Przełącz na „Rozstrzyga AI”**
+    otwiera badanie w terminalu, gdzie wybór potwierdza się drugim tak; w aplikacji AI się nie włącza. **Ukryj**
+    ukrywa propozycję dla tego badania na stałe (w tej przeglądarce). Propozycja jest tylko przy badaniu na tym
+    komputerze, które zna ten wybór i oferuje link do badania ([S3.5](S3-what-the-research-knows.md#S3.5));
+  - wybór obowiązuje dla badań na tym komputerze. Badanie może mieć własny (`--for-tree`); wybór z aplikacji zapisuje
+    się tylko temu badaniu;
+  - agent rozstrzyga tylko wersję, którą wspiera cytowane źródło badania (S…). Bez niego strom odrzuca i oferuje
+    propozycję (`strom hypothesis propose`);
+  - wersję, która dołączyłaby do drzewa gałąź 10 i więcej osób spoza drzewa, agent rozstrzyga tylko z dwoma
+    cytowanymi źródłami i bez zastrzeżenia przeciw niej; inaczej tylko ją proponuje;
+  - rozstrzygnięcia człowieka agent nigdy nie zmienia; gdy obali je nowy akt, proponuje je ponownie
+    ([R10.3.1](#R10.3.1));
+  - hipotezę, której nie da się rozstrzygnąć, agent porzuca z tekstem rozstrzygnięcia;
+  - rozstrzygnięcie agenta niesie oznaczenie i dzień. Terminal: przy hipotezie **Rozstrzygnął agent (dzień).**,
+    w przeglądzie zmian „H… rozstrzygnął agent: …” i „H… odłożył agent: …”. Aplikacja: **Co wie badanie** →
+    **rozstrzygnął agent** z dniem i uzasadnieniem;
+  - to, co łączy rozstrzygnięcie agenta, agent zapisuje w drzewie od razu;
+  - gdy rozstrzygnięcie agenta zmieni człowiek, oznaczenie znika, a poprzednie rozstrzygnięcie zostaje w notatce
+    hipotezy;
+  - w Archiwum Strom tego wyboru nie ma.
+- **Tylko metodyka:** agent mówi człowiekowi jednym zdaniem, co rozstrzygnął.
+- **Obsługa:** terminal: ustawienia początkowe `strom setup`, krok **Kto rozstrzyga hipotezy – niepewne powiązania
+  osób?** (tylko gdy ustawienia robi człowiek w terminalu; bez terminalu pytania nie ma i obowiązuje zapisany wybór,
+  bez niego **Rozstrzyga AI**; zalecenie jest tylko tutaj, menu Ustawienia proponuje obecny wybór); menu
+  **Ustawienia** → **Język, agent, model, co agent może sam, opowieści… (kreator ustawień)** →
+  **Kto rozstrzyga hipotezy: …**; `strom config set hypotheses.decide person|agent [--for-tree]`, obowiązującą
+  wartość pokazuje `strom config where`. Powrót do rozstrzygania przez człowieka: `strom config set hypotheses.decide
+  person`. Aplikacja: **Badanie** → **Więcej** → **Badanie dla tego drzewa…** → **Kto
+  rozstrzyga hipotezy**: **Rozstrzyga człowiek** zapisuje się do badania od razu, **Rozstrzyga AI** potwierdza badanie
+  w terminalu (**Potwierdź w badaniu**). Wiersz pojawia się tylko z badaniem, które zna ten wybór. Propozycja w **Co wie badanie** →
+  **Hipotezy**: **Przełącz na „Rozstrzyga AI”**, **Ukryj**.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 · výchozí AI (výzkum 1.29.0): research:src/core/config.ts hypothesesDecide (=== person ? person : agent), getDefault hypotheses.decide agent · src/commands/setup.ts syncDecisions/layerChange (agent nebo unset tam, kde je person → requireHuman) · src/cli/wizard.ts 5c (was = stored === person ? 0 : 1; druhé ano jen při uloženém person; person uloženo; ui.setup.model.recommended, ui.setup.hypotheses.recommended) · src/cli/menu-settings.ts hypothesesStep (bez doporučení) · CHANGELOG.cs.md 1.29.0 „Kde nic zvoleno není, rozhoduje AI“ · spec 060 K1.9 · nabídka: app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN = 10, researchHypothesesOffer (HYPOTHESES_DECIDE_FEATURE, hypothesesDecide === person, isOpenHypothesis celého stromu, activeResearchLink hypotheses decide=agent), hideHypothesesOffer (localStorage na výzkum) · strings.ts research.hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · spec 060 K1.6–K1.8 -->
 
 <a id="R10.4"></a>
 ## R10.4 Rodzina poza drzewem czeka na udokumentowane powiązanie

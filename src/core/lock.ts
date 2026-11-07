@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { LockedError } from "./errors.ts";
 
 export interface LockInfo {
@@ -14,6 +16,56 @@ export interface LockInfo {
   owner: string;
   /** The version of strom that holds it (a worker's lock: a research another version works in is never migrated meanwhile). */
   version?: string;
+  /** The computer that holds it (machineId; a worker's lock): its pid decides here even when the computer's name changed. */
+  machine?: string;
+}
+
+/** This computer's identity as the system keeps it (undefined: not asked yet, null: none to be had). */
+let machineHere: string | null | undefined;
+
+/**
+ * The system's own id of this computer, unchanged by its name, where its pids are its own: macOS IOPlatformUUID, Linux
+ * machine-id with the pid namespace, Windows MachineGuid.
+ */
+function systemMachineId(): string | undefined {
+  const quiet = { encoding: "utf8" as const, timeout: 5000, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] as ("ignore" | "pipe")[] };
+  if (process.platform === "darwin") return /"IOPlatformUUID"\s*=\s*"([^"]+)"/.exec(execFileSync("/usr/sbin/ioreg", ["-rd1", "-c", "IOPlatformExpertDevice"], quiet))?.[1];
+  if (process.platform === "win32") {
+    const reg = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "reg.exe");
+    return /MachineGuid\s+REG_SZ\s+(\S+)/i.exec(execFileSync(reg, ["query", "HKLM\\SOFTWARE\\Microsoft\\Cryptography", "/v", "MachineGuid"], quiet))?.[1];
+  }
+  // (with the processes' namespace: containers made of one image share their machine-id, never their pids)
+  let ns = "";
+  try {
+    ns = fs.readlinkSync("/proc/self/ns/pid");
+  } catch {
+    // none on this system
+  }
+  for (const file of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
+    try {
+      const id = fs.readFileSync(file, "utf8").trim();
+      if (id) return `${id} ${ns}`;
+    } catch {
+      // the next
+    }
+  }
+  return undefined;
+}
+
+/**
+ * This computer, said in short (the system's id hashed: never the id itself), the same whatever its name — a Mac's
+ * hostname changes with the network it joins. Asked once per process; undefined where the system gives none.
+ */
+export function machineId(): string | undefined {
+  if (machineHere === undefined) {
+    try {
+      const id = systemMachineId()?.trim().toLowerCase();
+      machineHere = id ? crypto.createHash("sha256").update(`strom machine\n${id}`).digest("hex").slice(0, 16) : null;
+    } catch {
+      machineHere = null;
+    }
+  }
+  return machineHere ?? undefined;
 }
 
 function sleepSync(ms: number): void {
@@ -118,8 +170,10 @@ function isStale(info: LockInfo | undefined, staleMs: number, maxAgeMs?: number)
   // held longer than any holder of this lock ever holds it: its pid lives on in another process (taken again by the system)
   if (maxAgeMs !== undefined && Date.now() - Date.parse(info.at) > maxAgeMs) return true;
   // On this computer the process decides: a live holder keeps its lock however
-  // long it works (a big intake), a dead one loses it at once.
-  if (info.host === os.hostname()) return !processAlive(info.pid);
+  // long it works (a big intake), a dead one loses it at once. This computer under another name (a worker's lock says
+  // which computer): the same — a conversation that ended stayed at work a week once the Mac's name changed. Another
+  // computer (a research on a network disk): its pid says nothing here, the time decides.
+  if (info.host === os.hostname() || (info.machine !== undefined && info.machine === machineId())) return !processAlive(info.pid);
   return Date.now() - Date.parse(info.at) > staleMs;
 }
 
@@ -141,6 +195,8 @@ export interface LockOptions {
   maxAgeMs?: number;
   /** The version of strom written into the lock (LockInfo.version). */
   version?: string;
+  /** This computer's identity written into the lock (LockInfo.machine): its pid decides here whatever the computer's name. */
+  machine?: boolean;
 }
 
 /**
@@ -232,7 +288,8 @@ export function acquireLock(file: string, opts: LockOptions): () => void {
   const staleMs = opts.staleMs ?? 10 * 60 * 1000;
   const deadline = Date.now() + waitMs;
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner, ...(opts.version ? { version: opts.version } : {}) };
+  const machine = opts.machine ? machineId() : undefined;
+  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner, ...(opts.version ? { version: opts.version } : {}), ...(machine ? { machine } : {}) };
 
   // The lock appears whole or not at all: written aside, then linked in under its name
   // (a link fails if the name exists). A lock created empty and filled a moment later

@@ -14,7 +14,7 @@ The list is worked out from the research each time; nothing is written into it.
 - **Limits:** a task that waits only for an archive's permission and has no images belongs to the archive's question.
   A research that serves as an archive has no tasks or places in the list.
 - **Controls:** app: the section **Awaiting action** · terminal: the menu **What waits (n)**, the status line
-  **Waiting: N** · the page for the phone: **What waits · {n}**.
+  **Waiting: N** · the page for the phone: **What waits · N**.
 - **Since:** research 1.3.0. The list by where things are dealt with, and in the app, from 1.14.0 (app 3.11.0).
 
 <!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
@@ -63,7 +63,7 @@ archive's permission**, **letter**, **family**, **web**, **other**.
 - After the images are saved into the research, the task wakes with a note of which images are missing
   ([R6.7.2](#R6.7.2)).
 - **Controls:** terminal: `strom task wait T… --images B…:<from>-<to>`, then `strom media add --inbox`; in **What
-  waits** **Open the folder ({have}/{want} saved)**. App: **Open folder** (from app 3.23.0; before, **Folder**).
+  waits** **Open the folder (M/N saved)**. App: **Open folder** (from app 3.23.0; before, **Folder**).
 - Browser-only archives, images from the app and what a person does: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
 - **Since:** research 1.0.0. Waking after saving from 1.15.0.
 
@@ -88,13 +88,14 @@ and its images can be seen**, **Only to be viewed there** or **It does not work*
 
 The section **decisions** gathers the questions that hold the agent up: an archive's permission, downloaders to
 confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)), a conflict (see
-[R5](R5-conflicts.md)), a hypothesis (see [R6.3.4](#R6.3.4)), trees from the app and the reading of scans. Decisions come first in the list.
+[R5](R5-conflicts.md)), a hypothesis (see [R6.3.4](#R6.3.4)), trees from the app, the reading of scans and a proposed wording of a transcription (group **Transcripts to
+decide**, see [R3.4.1](R3-verification-and-citation.md#R3.4.1)). Decisions come first in the list.
 
 - **Controls:** terminal: **What waits** → the item; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0, hypotheses from 1.28.0.
+- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0, hypotheses from 1.28.0, transcriptions from 1.29.0.
 
-<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
+<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 · 1.29.0: src/core/waiting.ts:375-390 (kind transcript, section decide, wait.group.transcripts) -->
 
 <a id="R6.3.1"></a>
 ### R6.3.1 An archive's permission
@@ -142,12 +143,27 @@ confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)
   group **Hypotheses to decide**: the question, the versions and the proposal (“Proposed: variant B — …”). The
   choice: **Decide as proposed**, **Decide otherwise** (another version, or none, with a reason), **Leave it as it is
   (the proposal not taken)**.
-- **Limits:** only a person decides ([R6.6](#R6.6)). It is only in the terminal; the Strom app does not show it
-  ([R6.1.1](#R6.1.1)). In a Strom archive the group does not exist.
-- **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`.
+- After the proposals, open hypotheses without a proposal wait. The choice: **Decide** (a version, or none, with the
+  text of the decision), **Leave it open**. A hypothesis left open shows up in What waits again once the agent proposes
+  how to decide it.
+- A decided or abandoned hypothesis opened from the menu offers **Change the decision**: the new text of the decision
+  is required and is also the reason for the change. When the agent decided it, it carries **Decided by the agent
+  (day).**
+- **Limits:** this applies when a person decides the hypotheses (the saved choice **The user decides**; without a
+  saved choice the AI decides, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); only a person decides ([R6.6](#R6.6)).
+  When 10 or more open hypotheses wait, the app offers the switch to **The AI decides** in **What the research
+  knows** (confirmed in the research). With **The AI decides** the
+  agent decides itself what a cited record supports, and only its proposals wait (decisions it may not make itself).
+  The group is only in the terminal; the Strom app does not show it ([R6.1.1](#R6.1.1)). In a Strom archive the group
+  does not exist.
+- **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`. The same
+  choices are in the person review: **Add to the research** → **Review one person** → **Hypotheses about the person
+  (n)**.
 - **Since:** research 1.28.0
+- **From research 1.29.0:** also open hypotheses without a proposal (**Decide**, **Leave it open**), **Change the
+  decision** and the choice **Who decides the hypotheses**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 · src/cli/wizard.ts 5c (doporučení) · app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN -->
 
 <a id="R6.4"></a>
 ## R6.4 Groups and order
@@ -213,8 +229,13 @@ asks the person in a system window, or refuses the command.
   the app (`strom sync undo|discard`) and the fixes `strom fixes … edit-decisions|woken-waits`.
 - **From research 1.28.0:** only a person also decides a hypothesis (`strom hypothesis decide`, also inside
   `strom batch`); the agent only proposes it ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
+- **From research 1.29.0:** this holds with **The user decides**; without a saved choice the AI decides
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Saving **The AI decides** where **The user decides** is saved, or
+  removing that choice, only a person may do. Only a person also decides what to do next with a source read again
+  (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), and a proposed wording of a transcription they wrote
+  or confirmed (`strom source proposal`, also undoing it, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
 
 <a id="R6.7"></a>
 ## R6.7 Sent, the answer and the return to the queue

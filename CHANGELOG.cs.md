@@ -5,6 +5,140 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.29.0
+
+*8. 11. 2026 · patří k aplikaci Strom 3.25.0.*
+
+- **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
+  v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
+  *rozhoduje AI* nebo *rozhoduje člověk*. Když rozhoduje AI, agent hypotézu rozhodne sám, jakmile
+  citovaný záznam podpoří jednu verzi, vždy s verzí a důvodem; rozhodnutí uživatele nikdy nemění a větev deseti a více
+  lidí mimo strom připojí jen na dva prameny bez námitky – jinak navrhne. Každé jeho rozhodnutí je označené jako
+  rozhodnutí agenta, objeví se v přehledu změn a dá se kdykoli změnit; přepnutí volby nemění nic už rozhodnutého.
+  Kde nic zvoleno není, rozhoduje AI – i v dříve založeném výzkumu; zpět na rozhodování člověka:
+  `strom config set hypotheses.decide person`. Úvodní nastavení stromu doporučí rozhodování AI a nabídne ho jako první,
+  zvolené *rozhoduje člověk* se uloží; kde rozhoduje člověk, zapne rozhodování AI znovu jen člověk, po druhém ano.
+
+- **Každou hypotézu jde rozhodnout z menu.** Když rozhoduje uživatel, Co čeká nabízí i otevřené hypotézy bez návrhu
+  agenta – rozhodnout s verzí a důvodem, nebo nechat otevřenou; když rozhoduje AI (výchozí), nabízí jen návrhy agenta.
+  Z revize osoby a z odkazu aplikace Strom jde rozhodnout každou hypotézu, ať rozhoduje kdokoli, a rozhodnutou či
+  odloženou hypotézu jde rozhodnout znovu s důvodem, staré rozhodnutí zůstane čitelné. Když rozhoduje uživatel, agent
+  navrhne rozhodnutí všude, kde záznamy ukazují na jednu verzi.
+
+- **Výzkum v aplikaci Strom zůstává zapnutý.** Propojení s aplikací Strom (most) se už samo nevypíná po dvou
+  hodinách, kdy se ho nikdo neptá: běží, dokud se nevypne nebo dokud se nevypne počítač (`live.idleMinutes` je nově
+  0; dříve nastavená hodnota zůstává). Aplikace Strom dostane přepínač u každého výzkumu a volbu v nastavení – do
+  vypnutí počítače, nebo po dvou hodinách nečinnosti –, obojí se zapisuje přes most. Vypnutý v aplikaci zůstane most
+  vypnutý (nová práce ve výzkumu ho nevrátí) a ponechá si adresu, takže opětovné zapnutí – z aplikace odkazem stromu,
+  nebo příkazem `strom live start` – nepotřebuje nové propojení.
+
+- **Aplikace agentů hlídané stejně jako agent v terminálu.** Vestavěný prohlížeč aplikace agenta dodržuje podmínky archivů stejně
+  jako prohlížeč agenta v Chromu: archiv, který pouští jen prohlížeč člověka, je bez svolení člověka odmítnut se stejnou
+  radou, povolený se zapíše a drží své tempo; místní stránky nic neomezuje. Příkazy stromu v terminálu aplikace platí
+  stejně jako v příkazové řádce (co dělá jen člověk, most aplikace Strom); agent dostane pokyn spouštět strom přes svou
+  příkazovou řádku. Z aplikace se nic nevypíná. Terminál aplikace pozná strom pod jakýmkoli jménem – jiného kanálu,
+  druhé instalace, balíček spuštěný přes spouštěč balíčků, cestu k němu. Prohlížeč Codexu (v aplikaci ChatGPT) drží stejná
+  pravidla podle adres v jeho kódu, jakmile jsou hooky stromu v Codexu potvrzené – `strom doctor` a `strom chat` řeknou,
+  když čekají; kód bez adresy se nikdy neodmítne, jen zapíše. S potvrzenými hooky pustí archiv, který pouští jen
+  prohlížeč člověka, se svolením „přes prohlížeč“ i prohlížeč Codexu, stejně jako prohlížeč agenta v Chrome (`strom net web
+  --check --browser`, `strom doctor`, podklady agenta, aplikace Strom); bez potvrzení beze změny. Computer use zůstává
+  nehlídané. Co strom u kterého agenta
+  a aplikace hlídá: `strom doc R12`; agent s computer use dostane pokyn ovládat aplikaci Strom přes nástroje stránky
+  v prohlížeči a výzkum přes strom.
+
+- **Aplikace agenta bez agenta v terminálu.** Strom teď říká, co jde a co ne: rozhovor v aplikaci pokračuje, samostatná práce,
+  čtení skenů a práce z aplikace Strom potřebují agenta v terminálu – řečeno dřív, než padne jakákoli otázka nebo
+  odhad ceny. Nastavení a `strom doctor --fix` nabídnou jeho instalaci (lze odmítnout); `strom doctor` rozliší
+  prohlížeč v rozhovoru a v samostatném běhu. Rozhovor bez něj čte skeny vlastním čtenářem skenů stromu.
+
+- **Zdroj je přečtený uživatelem, jen když ho uživatel přečetl, a údaj doložený jen z originálu záznamu.** Čtenářem je
+  uživatel u přepisu napsaného ručně v terminálu nebo potvrzeného v aplikaci Strom; co pod jeho účtem zapsaly importy,
+  převody a dávky, už ne. Údaj je doložený jen s citovaným originálem záznamu s primární informací; bez něj se převede
+  na pravděpodobný a důvod zůstane v jeho historii, ten, který doložil uživatel, zůstane a čeká v Co čeká na ponechání,
+  nebo převedení na pravděpodobný (`strom fixes review proven-originals keep|lower`). Existující výzkumy se samy jednou
+  opraví, změny jsou v přehledu změn (`strom fixes undo readers|proven-originals` je vrátí). GEDCOM z jiného programu
+  nikdy neudělá uživatele čtenářem ani údaj doloženým. Potvrzení v aplikaci platí pro znění, ke kterému bylo dané, a dá
+  se tam vzít zpět; s originálem záznamu s primární informací pak údaj smí být doložený, jinak nejvýš pravděpodobný.
+  **Přepis, který uživatel přečetl nebo potvrdil, je uživatelův.** Mění ho jen uživatelův vlastní terminál nebo
+  aplikace Strom – ať jde o jakýkoli příkaz (úprava, dávka, synchronizace, oprava, vrácení, import). Jiné znění od
+  agenta se místo toho navrhne: poznámka u zdroje a jeden úkol pro uživatele na zdroj, který žádný agent nevezme ani
+  neuzavře; rozhoduje se v Co čeká, odkazem z aplikace Strom nebo v aplikaci – navržené znění přijaté jako
+  uživatelovo, nebo přepis ponechaný a totéž znění se už znovu nenavrhne; obojí jde vrátit (předchozí přepis i s potvrzením zpět,
+  návrh čeká znovu).
+
+- **Každý čtenář dokumentu s vlastním agentem, modelem a hloubkou uvažování a zdroj přečtený znovu z originálu.** `strom
+  document read|again --agent/--model/--effort` (a `--blind-…` pro slepého čtenáře) nebo volba v aplikaci Strom; bez
+  volby čte podle nastavení výzkumu, nikdy levnějším modelem. Výsledek říká, kdo četl – v terminálu, v souboru čtení i v
+  aplikaci Strom. Zdroj se přečte znovu z originálu na tomto počítači (`strom document read --source S… [--clip …]` nebo
+  z aplikace Strom), čtenáři přepis nevidí; nové čtení zůstane vedle zdroje, a kde se liší, postaví úkol obě znění vedle
+  sebe – přepis, kdo ho četl, i potvrzení uživatele zůstanou, jak byly. Výřezy jednoho snímku, které se překrývají nebo
+  dotýkají, se čtou jako jeden pohled a slova přepisu mimo přečtený výřez (záhlaví strany nad ním) se za rozdíl
+  nepočítají. `strom fixes` bere čtení dvou čtenářů jako čtení prvního z nich: slepý čtenář s jiným modelem není nikdy
+  dřívější model, se kterým číst znovu, a čtení, jehož některý čtenář četl dnešním modelem, se počítá jako přečtené jím.
+  Přečíst znovu z originálu čte co nejlépe. Čtenáři dostanou, co výzkum o záznamu ví – druh, jazyk, datum a kde stojí,
+  nikdy přepis ani jména –, a čtenář s modelem GPT navíc pokyn přepsat zápis uprostřed výřezu, sousední zápisy z okraje
+  vynechat a zachovat původní pravopis písmeno po písmenu. S přepisem se porovná jen zápis zdroje (ten, který čtenář
+  označí, jinak ten, který ve výřezu leží nejvíc); popisky sloupců bez protějšku („Dies:“, „Vater:“), záhlaví záznamu,
+  které si píše výzkum, poznámky výzkumu i čtenáře v závorkách, dlouhé ſ proti s, nečitelné místo proti ničemu a slova
+  mimo to, co přečetli oba, se za rozdíl nepočítají. Aplikace Strom dostane ve výsledku čtení, který zápis je zdroje,
+  celý text slepého čtenáře, upozornění, když čtenáři určili jiný druh zápisu (sňatek × křest), a když porovnání nejde
+  zapsat do výzkumu – třeba u výzkumu zapečetěného na jiném počítači –, řekne se to místo tichého vynechání. Čtenáři s
+  modelem GPT (Codex, OpenCode) vidí malý výřez zvětšený až na zhruba 2000 px (nejvýš třikrát), i když je čtení snímků
+  vyladěné na menší velikost (ladění měří celé strany a poloviny, nikdy malý výřez), ostatní jako dosud; zaregistrovaná
+  ostřejší část snímku, která ukazuje celé místo – nebo celý výřez a mimo ní zůstane jen jeho okraj –, se použije, a u místa malého na skenu se nabídne ostřejší výřez z
+  archivu – sám se nikdy nestáhne. Čtenář Codex běží bez upozorňovacího programu, pluginů, aplikací, hooků a pamětí z
+  nastavení Codexu a bez prohlížeče a ovládání počítače jeho aplikace; nastavení Codexu se nemění.
+  Model, který nainstalovaná verze Codex CLI nemá, ukončí čtení jako selhání čtenáře s tímto důvodem a s ním se zastaví i
+  běh stromu: aktualizovat Codex (`npm install -g @openai/codex@latest`), nebo zvolit jiný model; modely z katalogu, který
+  stáhl novější Codex než nainstalovaný, se nabízejí s poznámkou.
+  Čtení vyžádané z aplikace Strom se přijme hned, i když jeho zařazení trvá déle (výzkum drží jiný proces): od první
+  chvíle je vidět jako zařazené pod svým ID a pod ním se i přečte, a čtení, které pak zařadit nejde, je vidět jako
+  selhané, i s důvodem; tentýž zdroj vyžádaný mezitím znovu se odmítne jako právě čtený.
+  Volba modelu výzkumu (průvodce nastavením, Nastavení v nabídce stromu)
+  u Opusu, Sonnetu i vlastního výchozího modelu agenta jmenuje model, na kterém naposledy běžel, když ho některý
+  výzkum na tomto počítači viděl běžet – „Opus (teď Opus 5.5)“; `strom doctor` a nastavení to řeknou u uloženého
+  modelu a aplikace Strom to dostane s nabídkou čtenářů. Neznámý se říká jako dřív. Uložený zůstává Opus nebo Sonnet,
+  takže novější model své řady se použije sám; pevná verze zadaná ručně (`strom config set model.lead <model>`)
+  se nabídne jako zvolená teď a zůstane pevná.
+  Čtení, jehož slepý čtenář nepřečetl nic (selhal, nebo skončil bez zápisu), je čtením jen prvního čtenáře, jako čtení
+  jedním čtenářem – nikdy se o všech zápisech neřekne, že se liší. Aplikace Strom dostane u každého místa, kde se dvě
+  čtení liší, o jaký rozdíl jde – věcný (jméno, číslo, datum, osoba, místo, které nejde přečíst), nebo drobnost
+  (pravopis, zkratka, interpunkce, popisek, velikost písmen) –, a kde je každý čtenář: čeká, čte, dočetl za tolik
+  sekund, nebo selhal, i to, kterému čtenáři byl odmítnut model.
+  **Zdroj přečtený znovu: co dál, volí uživatel.** Úkol vznikne jen z věcného údaje, který oba čtenáři přečtou proti
+  přepisu stejně (jméno, číslo, datum, osoba, slovo, které přepis nepřečetl) – nikdy z drobností (pravopis, zkratka,
+  interpunkce), z místa, na kterém se čtenáři neshodnou nebo které označí jako nečitelné, ani z místa, které už
+  posoudil dřívější úkol. Úkol říká, kdo četl (agent · model · hloubka), že dva čtenáři stejného modelu jsou slabší
+  doklad, a že čtení je jen vodítko: přepis se mění jen tam, kde to ukazuje sám snímek. Nová volba `read.sourceTask`
+  říká, co dál: *ptát se* (výchozí) – čtení zůstane u zdroje jako neověřené, dokud uživatel nezvolí: projít ho
+  s agentem hned, dát ho do fronty, nebo ho jen uložit (v terminálu hned po čtení, později `strom source reading S…`,
+  nebo v aplikaci Strom); *vždy* – úkol hned; *nikdy* – bez úkolu. Jeden zdroj má najednou jeden úkol svých čtení.
+  Čtení bez věcného údaje k rozhodnutí, jen s místy, kterými si čtenáři nejsou jistí, úkol samo nezaloží – ani při
+  *vždy*; jen na slovo uživatele (`strom source reading S… --take queue --unsure` nebo v aplikaci Strom) dostane agent
+  úkol projít každé takové místo na snímku: kde to snímek ukazuje jistě, přepis opraví i s důvodem, jinde napíše
+  poznámku k prameni. Přepis potvrzený uživatelem agent nikdy nemění: místa, která nové čtení přečetlo, se místo toho
+  navrhnou uživateli k posouzení (`--take review --unsure`).
+
+- **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
+  `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku
+  výzkumů upraví i pokyny agenta tohoto výzkumu a zadaný web (example.org) pokryje i adresy, které používají knihy
+  výzkumu. Podmínky Hlavního archivu starých aktů ve Varšavě podle odpovědi archivu: snímky volně k užití, každý
+  citovaný místem originálu – archiv, fond, signatura, strana nebo list. Rozpor zapsaný v dávce se štítkem pramene
+  (`--claim "@s: …"`) teď cituje ten pramen; rozpor, který tak zapsala starší verze, ukazuje hodnotu bez syrového
+  štítku a tam, kde to jde poznat, cituje svůj pramen v aplikaci Strom i v GEDCOMu. Skončený rozhovor už v aplikaci
+  Strom nezůstává „při práci“, ani na vytíženém počítači, ani po změně jména počítače. Místo zapsané ve větě („v Lhotě
+  v čp. 12“) si už neponechává předložky: kontrola nabídne obec tak, jak ji výzkum píše jinde, a záznam místa už
+  nedostane jméno jako „v Lhotě v“ – taková jména zapsaná dřív se jednou opraví (vrátit: strom place undo).
+  **Překrývající se výřezy jednoho obrázku jsou jeden.** Dva výřezy téhož obrázku, které označil výzkum a které se
+  překrývají aspoň o 30 % menšího z nich, se spojí v jeden, který pokryje oba (výřez skoro celý uvnitř většího – detail,
+  zápis vedle celé strany – zůstane); výřezy označené uživatelem zůstávají.
+  Ve výzkumu z dřívějška se překrývající výřezy spojí jednou, každé spojení zapsané v historii; přepis i potvrzení
+  uživatele zůstávají.
+  **Úkol ve frontě z aplikace Strom.** Odkaz z aplikace na úkol ve frontě ho ukáže (co, proč, kdy hotovo) a nabídne
+  projít ho s agentem hned (s tím, kolik podobné úkoly tady trvaly), dát ho ve frontě dopředu, nebo ho nechat.
+  `strom doctor` říká, proč se dražší změna ladění ve prospěch přesnosti ponechává, a soubor hooků Codexu, který jen
+  chybí nebo je zastaralý, už není varování – zapíše se znovu, až strom příště spustí agenta.
+
 ## 1.28.0
 
 *6. 11. 2026 · patří k aplikaci Strom 3.24.0.*

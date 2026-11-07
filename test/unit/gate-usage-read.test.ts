@@ -4,6 +4,7 @@
 // with how to log in (found 2026-11-03: CLAUDE_CONFIG_DIR=~/.claude, /usage a bare /cost, the run stopped at once).
 // A stand-in `claude` of the test's own: never the real one.
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

@@ -449,3 +449,45 @@ test("sameLineNewer: a newer version of the same line only, never across lines",
   assert.equal(sameLineNewer("grok-4.6-build", "grok-4.7-build"), true);
   assert.equal(sameLineNewer("m-old", "m-new"), false);
 });
+
+test("strom fixes new-model: a document's blind reader is never an earlier model — the first reader counts, and any reader with the model now is read now", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  try {
+    const dir = path.join(w.dir, "doklady Lhota");
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, "reader.mjs"), DOC_READER);
+    fs.writeFileSync(path.join(dir, "first.md"), docReport("Lhoták[?]"));
+    const photo = path.join(dir, "křest.jpg");
+    fs.writeFileSync(photo, jpegWithOrientation(halves(1600, 1200), 1));
+    Object.assign(w.env, { STROM_AGENT: "script", STROM_RUNNER_SCRIPT: path.join(dir, "reader.mjs"), DOC_FIRST: path.join(dir, "first.md"), STROM_NO_CONVERT: "1", STROM_MODEL_VISION: "m-old" });
+    const old = (await w.ok(["document", "read", photo, "--json"])).json;
+    assert.equal(old.state, "done");
+    // a blind second reader of it, with another agent and model (its record says the model it read with)
+    const file = path.join(w.cwd, ".strom", "reads", `${old.id}.json`);
+    const state = JSON.parse(fs.readFileSync(file, "utf8"));
+    state.readers = 2;
+    state.reports.push({ n: 2, group: 0, blind: true, version: state.version, outcome: "ok", agent: "codex", model: "gpt-lhota" });
+    fs.writeFileSync(file, JSON.stringify(state));
+    const at = new Date().toISOString();
+    append(path.join(w.cwd, ".strom", "metrics", "readers.jsonl"), { reader: `document-${old.id}-2`, kind: "document", agent: "codex", model: "gpt-lhota", reported: "gpt-lhota", outcome: "ok", at });
+    const check = async () => (await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model");
+
+    // another model now: the reading is the first reader's, never the blind one's
+    w.env.STROM_MODEL_VISION = "m-new";
+    const c = await check();
+    assert.equal(c.items.length, 1);
+    assert.equal(c.items[0].before, "script m-old");
+
+    // the first reader read with the model now: nothing read earlier by another model
+    w.env.STROM_MODEL_VISION = "m-old";
+    assert.ok(!(await check())?.items?.length);
+
+    // the blind reader read with the model now: the same image read now already
+    append(path.join(w.cwd, ".strom", "metrics", "readers.jsonl"), { reader: `document-${old.id}-2`, kind: "document", agent: "script", model: "m-new", reported: "m-new", outcome: "ok", at });
+    w.env.STROM_MODEL_VISION = "m-new";
+    assert.ok(!(await check())?.items?.length);
+  } finally {
+    w.cleanup();
+  }
+});

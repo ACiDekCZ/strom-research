@@ -13,6 +13,8 @@ import { splitCommand } from "../../src/cli/main.ts";
 import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
+import { Tree } from "../../src/core/tree.ts";
+import { keepSourceReading } from "../../src/core/sourceread.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
 import { makePdf } from "../image-samples.ts";
@@ -40,7 +42,7 @@ async function seeded(): Promise<World> {
   await w.ok(["place", "add", "Týnec nad Labem"]);
   await w.ok(["place", "add", "Horní Lhota", "--lat", "49.61", "--lon", "15.23"]); // L0002: place verify, rewrite --to, queue
   await w.ok(["place", "jurisdiction", "L0002", "--kind", "parish", "--name", "Lhotov"]); // place verify --drop-jurisdiction
-  await w.ok(["place", "verify", "L0002", "--ok", "--form", "v Lhotě v", "--why", "a form of the register"]); // place names --drop
+  await w.ok(["place", "verify", "L0002", "--ok", "--form", "Lhotta", "--why", "a form of the register"]); // place names --drop
   await w.ok(["event", "add", "P0002", "RESI", "--date", "1890", "--place", "H. Lhota"]); // place identify|queue|rewrite
   await w.ok(["event", "add", "P0003", "RESI", "--date", "1895", "--place", "Lhota"]); // place unlocated|propose
   await w.ok(["event", "add", "P0002", "DEAT", "--date", "1930", "--place", "Lhota, Dlouhá"]); // place rewrite --house
@@ -131,6 +133,17 @@ async function seeded(): Promise<World> {
   await w.ok(["surname", "group", "Lhota", "Lhotaa"]);
   await w.ok(["name", "add", "P0003", "Marie /Swobodová/", "--cite", "S0001"]);
   await w.ok(["surname", "reject", "svobod|swobod"]);
+  // S0001 read again from its original, differing in a matter of fact nobody decided (source reading S0001 --take queue)
+  await w.ok(["source", "edit", "S0001", "--transcript", "Jan, syn Josefa Nováka z Týnce č. 12.", "--reason", "přepis"]);
+  {
+    const entry = "Jan, syn Josefa Nováka z Týnce č. 13.";
+    const result = { id: "D20261107100000-x001", state: "done", version: 1, lang: "cs", at: "2026-11-07T10:00:00Z", since: "2026-11-07T09:59:00Z", doc: {}, readers: { asked: 2, ran: 2, agree: null, who: [{ agent: "claude", model: "claude-opus-5-5" }, { agent: "codex", model: "gpt-5.5" }] }, blind: { doc: {}, entries: [{ id: "b1", page: 1, transcript: entry, of: "e1" }] }, pages: [], entries: [{ id: "e1", page: 1, transcript: entry, persons: [], events: [], relations: [] }] } as never;
+    const tree = Tree.open(w.cwd, w.env);
+    const kept = tree.withTreeLock(() => keepSourceReading(tree, { id: "S0001" }, result, "ask"));
+    fs.mkdirSync(path.join(w.cwd, "notes", "readings"), { recursive: true });
+    fs.writeFileSync(path.join(w.cwd, "notes", "readings", "D20261107100000-x001.json"), JSON.stringify({ ...(result as object), source: kept }));
+    assert.equal(kept.offer, 1, JSON.stringify(kept));
+  }
   // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
@@ -164,11 +177,13 @@ test("every example in the help runs", opts, async () => {
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
       // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr), a fix decided (fixes
-      // run|decline|reopen): in their terminal —
+      // run|decline|reopen), a reading again decided (source reading): in their terminal —
       // this test's own settings (R8)
       const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" ||
-        ["fixes run", "fixes decline", "fixes reopen"].includes(def.path.join(" "));
-      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true } : {});
+        ["fixes run", "fixes decline", "fixes reopen", "source reading"].includes(def.path.join(" "));
+      // a reading again asked about at the person's terminal (no --take): left undecided (0)
+      const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : {};
+      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
       if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }

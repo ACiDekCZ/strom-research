@@ -16,7 +16,8 @@ import type { Input, Media, TreeConfig } from "../core/model.ts";
 import type { UserConfig } from "../core/config.ts";
 import { gitVersion, runGit } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
-import { fixGit, offerAgent } from "../cli/fixes.ts";
+import { fixGit, offerAgent, offerAgentCli } from "../cli/fixes.ts";
+import { appWithoutCli, claudeInstallLine, CLI_MISSING } from "../core/agentcli.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { openForUser } from "../core/open.ts";
 import { isValidLang, langName } from "../core/lang.ts";
@@ -24,6 +25,7 @@ import { detectAgent, isAgent } from "../core/which.ts";
 import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
+import { codexHookState } from "../core/codexhook.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { holdsPath, insideProgram, installation, lastingLauncher, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
 import { busyIn, isBusy, type Busy } from "../core/busy.ts";
@@ -58,7 +60,7 @@ import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../c
 import { kindsAdded, kindsOf } from "../core/eventkinds.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
-import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
+import { agentSettingsLine, aliasesHere, chooseEffort, modelSaid } from "../cli/model-choice.ts";
 import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, researchKey, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
@@ -201,6 +203,7 @@ register({
     const where = has ? whereToTalk(agent, s.agentWhere(), ctx.env) : undefined;
     // in the research's language, also when an agent or a script runs it (found on Windows: English to STROM_LANG=cs)
     const t = (k: UIKey, v: Record<string, string> = {}) => ui(lang, k, v);
+    const cliGone = !!has?.app && !has.cli;
     const talk = !where
       ? undefined
       : `${where === "app" ? t("ui.setup.summary.app", { app: DESKTOP_APPS[agent]!.name }) : t("ui.setup.summary.terminal")}${has!.app && has!.cli ? t("ui.setup.summary.both", { where: where === "app" ? "terminal" : "app" }) : ""}`;
@@ -220,11 +223,15 @@ register({
         ...taught.map((a) => [`  ${t("ui.setup.summary.knows")}`, t("ui.setup.summary.anywhere", { agent: PROFILES[a]!.name })]),
         [`  ${t("ui.setup.summary.config")}`, ctx.display(configFile(ctx.env))],
       ]),
+      // its app here without its CLI: said in one line, nothing installed (--yes; the wizard and strom doctor --fix offer it)
+      ...(cliGone ? ["", t("ui.setup.cli.apponly", { app: DESKTOP_APPS[agent]!.name, cli: PROFILES[agent]!.name })] : []),
+      // Codex: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3)
+      ...(agent === "codex" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how") })] : []),
       "",
       ...(found.lines.length ? [...found.lines, ""] : []),
       t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
     );
-    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), config: configFile(ctx.env), ...(found.lines.length ? { found: ctx.knownTrees().map((k) => ({ name: k.name, root: k.root, sealed: !found.foreign.some((f) => f.root === k.root) })) } : {}) } };
+    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), ...(cliGone ? { cliMissing: true } : {}), config: configFile(ctx.env), ...(found.lines.length ? { found: ctx.knownTrees().map((k) => ({ name: k.name, root: k.root, sealed: !found.foreign.some((f) => f.root === k.root) })) } : {}) } };
   },
 });
 
@@ -236,7 +243,7 @@ interface Check {
   detail: string;
   fix?: string;
   /** What strom doctor --fix can do about it itself. */
-  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links" | "tune" | "packaged" | "unite";
+  repair?: "git" | "agent" | "cli" | "knows" | "shortcut" | "app" | "links" | "tune" | "packaged" | "unite";
   /** What a program reads of a problem (--json), where the detail alone would not say it. */
   code?: string;
 }
@@ -250,7 +257,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "codex", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -461,10 +468,17 @@ function diagnoseInto(
         where === "app" ? t("ui.doc.where.app", { app: DESKTOP_APPS[chosen]!.name }) : t("ui.doc.where.terminal", { agent: PROFILES[chosen]!.name }),
         other.app && other.cli ? `strom config set agent.where ${where === "app" ? "terminal" : "app"}` : undefined,
       );
+      // its app here, its CLI not (Claude without Claude Code in the terminal): the conversation works, what strom starts by
+      // itself does not — a warning, never a failure; strom doctor --fix offers Claude Code (core/agentcli.ts)
+      if (other.app && !other.cli) {
+        add("cli", "warn", t("ui.doc.cli.missing", { cli: PROFILES[chosen]!.name }), chosen === "claude" ? `${FIX}  (${claudeInstallLine()})` : PROFILES[chosen]!.url, "cli");
+        checks.at(-1)!.code = CLI_MISSING;
+      }
     }
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));
     const model = ctx.settings.models(chosen, tree).lead;
-    if (model) add("model", "ok", model);
+    // an alias with the model it last ran on, where a research here saw it run ("opus (now Opus 5.5)")
+    if (model) add("model", "ok", modelSaid(lang, chosen, model, aliasesHere(ctx), model));
     else {
       // none chosen: the agent's own, when strom knows it is weak or refused — said with the command, never set here
       // (the model is the person's choice); the code for a program (--json)
@@ -488,13 +502,16 @@ function diagnoseInto(
   }
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
+  // Claude's app without Claude Code in the terminal: its conversation has Claude in Chrome, a run of strom's
+  // (strom run --chrome) does not — said beside the extension found
+  const appOnly = chosen === "claude" && appWithoutCli("claude", ctx.env) ? t("ui.doc.browser.apponly", { app: DESKTOP_APPS.claude!.name, cli: PROFILES.claude!.name }) : "";
   const shared = ctx.settings.shared()?.value;
   const viaBrowser = shared ? timed("doctor.browser", () => browserConnectors(ctx.env, shared)) : [];
   if (viaBrowser.length) {
     const names = viaBrowser.map((c) => c.manifest.title ?? c.name).join(", ");
     const ext = claudeInChrome(ctx.env).extension;
     if (chosen !== "claude") add("browser", "warn", t("ui.doc.browser.agent", { names, agent: PROFILES[chosen]?.name ?? chosen }), found.includes("claude") ? "strom agents use claude" : undefined);
-    else if (ext.length) add("browser", "ok", t("ui.doc.browser.ok", { browsers: ext.join(", ") }));
+    else if (ext.length) add("browser", "ok", t("ui.doc.browser.ok", { browsers: ext.join(", ") }) + appOnly);
     else add("browser", "warn", t("ui.doc.browser.noext", { names }), CLAUDE_IN_CHROME_URL);
   }
   // Archives only a person's browser goes to, named by the tree's records: the agent saves their images itself only
@@ -503,15 +520,29 @@ function diagnoseInto(
   const only = tree && !ctx.archiveHere() ? timed("doctor.browser.archives", () => treeBrowserArchives(ctx.tree(), shared)) : [];
   if (only.length) {
     const names = only.map((a) => a.title ?? a.host).join(", ");
-    const s = browserState(ctx.env, chosen);
+    const s = browserState(ctx.env, chosen, rootHere(ctx));
     if (s.state === "agent-without-browser") add("browser", "warn", t("ui.doc.browser.archives.agent", { names, agent: PROFILES[chosen]?.name ?? chosen }), found.includes("claude") ? "strom agents use claude" : undefined);
     else if (s.state === "no-extension") add("browser", "warn", t("ui.doc.browser.archives.noext", { names }), CLAUDE_IN_CHROME_URL);
     else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
-    else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }));
+    else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }) + appOnly);
   }
-  // The desktop apps' own browser, preview and computer use (Claude's, ChatGPT's/Codex's): nothing switched off, strom
-  // neither watches nor recommends them — said where those agents are here; it watches Claude in Chrome alone
-  if ((found.includes("claude") || found.includes("codex")) && !ctx.archiveHere()) add("desktop", "ok", t("ui.doc.desktop.unwatched"));
+  // The desktop apps' own browser and computer use (Claude's, ChatGPT's/Codex's, OpenCode's): nothing switched off, never
+  // recommended — what strom watches of each, said where those agents are here (strom doc R12.1; computer use R12.10)
+  const apps = (["claude", "codex", "opencode"] as const).filter((a) => found.includes(a));
+  if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1, R12.10)");
+  // Codex's hooks: strom's rules before its browser run once the person confirms them in Codex (/hooks) — strom never
+  // confirms them for the person (spec 062 K3.3); said with what to do (strom doc R12.5)
+  const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;
+  if (codexRoot) {
+    const state = codexHookState(codexRoot, ctx.env);
+    // a hook file only missing or out of date is written again by itself the next time strom starts the agent (strom
+    // chat, strom run, strom session start: agents/files.ts syncAgentFiles) — said so, not a warning; the command only
+    // an option. Turned off in Codex or an untrusted folder stays a warning (nothing of strom's mends it).
+    const fine = state === "trusted" || state === "disabled" || state === "missing";
+    const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t("ui.doc.codexhooks.how")}  (strom doc R12.5)` : "strom doc R12.5";
+    add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine && state !== "missing" ? undefined : fix);
+    checks.at(-1)!.code = `codex.hooks.${state}`;
+  }
 
   // For a person: the shortcut on the desktop, the Strom app.
   const desktop = desktopDir(ctx.env);
@@ -667,6 +698,8 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
   const todo = new Set(checks.filter((c) => c.status !== "ok" || c.repair === "app").map((c) => c.repair).filter(Boolean));
   if (todo.has("git")) await fixGit(ctx, out);
   if (todo.has("agent") && person) await offerAgent(ctx, out);
+  // the agent's app here without its CLI: Claude Code offered (a person here), else the line that installs it
+  if (todo.has("cli")) await offerAgentCli(ctx, out, ctx.settings.agent(treeSettings(ctx)).value);
   if (todo.has("knows") || todo.has("agent")) {
     const found = agentsHere(ctx.env).map((a) => a.id);
     for (const a of new Set(globalTargets(ctx.env).filter((x) => found.includes(x.agent) && installGlobal(x)).map((x) => x.agent)))
@@ -705,7 +738,11 @@ register({
   description:
     "In the user's language; each problem says what to do. --fix puts right what strom can itself, each with the user's yes\n" +
     "(in the terminal, or in a window of the system when an agent runs it): git (Windows: strom's own; macOS: Apple's tools),\n" +
-    "an AI agent, what the agents know, the shortcut on the desktop, the Strom app.",
+    "an AI agent, what the agents know, the shortcut on the desktop, the Strom app. The agent's desktop app without its CLI\n" +
+    "(Claude without Claude Code in the terminal) is a warning, check cli (code agent.cli-missing in --json): working\n" +
+    "alone, reading scans and work from the Strom app need the CLI; --fix offers to install Claude Code. What strom watches\n" +
+    "of each way of working (the desktop apps' browsers, computer use, Codex's hooks — check codexhooks, codes codex.hooks.*):\n" +
+    "strom doc R12.",
   options: [{ name: "fix", type: "boolean", description: "put right what strom can, with the user's yes" }],
   examples: ["strom doctor", "strom doctor --fix", "strom doctor --json"],
   async run(ctx, { opts }) {
@@ -1083,6 +1120,8 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "stories.history": () => "yes",
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
+  "read.sourceTask": () => "ask",
+  "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,
   "excerpts.mb": (s, tree) => s.excerpts(tree).mb,
@@ -1180,8 +1219,21 @@ function layerChange(ctx: Context, key: string, value: string | number | undefin
   return { now: readStored(treeSettings(ctx), key, agent) ?? user, next: value ?? user };
 }
 
-/** What only the user decides about what the Strom app sends: their edits winning over records, sends written unasked. */
+/** What only the user decides: their edits in the Strom app winning over records, sends written unasked, the agent deciding the hypotheses. */
 function syncDecisions(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key === "hypotheses.decide") {
+    // undefined is the default (the agent): storing agent where the person is set, or removing the person, lets the agent
+    // decide — the person's yes alone; agent stored where nothing is set changes nothing of who decides now, still the person's
+    const { now, next } = layerChange(ctx, key, value, scope);
+    if (next !== now && (next ?? "agent") === "agent" && now !== "agent")
+      ctx.requireHuman(
+        "Let the agent decide the hypotheses (the uncertain links between people) itself, once a cited record points to one variant?",
+        next === undefined ? `strom config unset hypotheses.decide${scope === "tree" ? " --for-tree" : ""}` : `strom config set hypotheses.decide agent${scope === "tree" ? " --for-tree" : ""}`,
+        "hypotheses.decide",
+        ui(ctx.uiLang(), "ui.consent.hypotheses.agent"),
+      );
+    return;
+  }
   if (key !== "sync.edits" && key !== "sync.review") return;
   const { now, next } = layerChange(ctx, key, value, scope);
   if (key === "sync.edits" && next === "user" && now !== "user")
@@ -1651,8 +1703,17 @@ register(
       { name: "key", description: SETTINGS.map((s) => s.key).join(", "), required: true },
       { name: "value", description: "a folder, a language code, an agent, a model name or a number", required: true },
     ],
+    description: [
+      "A setting of choices takes one of its values:",
+      ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
+      "hypotheses.decide: agent (default where nothing is set, a research of 1.28 or older too) — the agent decides once a",
+      "cited record points to one variant (strom hypothesis decide), never changing the user's decision; person — the agent",
+      "proposes a decision (strom hypothesis propose), the user decides it in What waits. Back to the person at any time:",
+      "strom config set hypotheses.decide person (--for-tree: this tree only); agent again only by the user (in their own",
+      "terminal, or strom setup — it recommends agent). strom config where shows each one.",
+    ].join("\n"),
     options: [{ name: "for-tree", type: "boolean", description: "only for the current tree (saved in its strom.json)" }],
-    examples: ["strom config set lang cs", 'strom config set shared "/Volumes/Big/strom-shared"', "strom config set model.vision opus --for-tree", "strom config set run.minutes 45"],
+    examples: ["strom config set lang cs", 'strom config set shared "/Volumes/Big/strom-shared"', "strom config set model.vision opus --for-tree", "strom config set run.minutes 45", "strom config set hypotheses.decide person --for-tree"],
     run: async (ctx, { args, opts }) => {
       const def = settingDef(args[0]!);
       const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p), ctx.env);

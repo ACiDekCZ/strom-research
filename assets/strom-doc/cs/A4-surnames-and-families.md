@@ -199,7 +199,9 @@ slučování osob i rody pak berou tvary jako jedno jméno, i u osob přidaných
 - **Hranice:**
   - Skupina, která se překrývá s jinou, se s ní spojí do jedné.
   - Odebraný tvar si strom pamatuje jako odmítnutou dvojici.
-  - Tvar jedné osoby (přezdívka, jméno po statku) patří do **Další tvary jména** u osoby, ne do skupin stromu.
+  - Tvar jedné osoby (přezdívka, jméno po statku) patří do **Další tvary jména** u osoby, ne do skupin stromu. Hledání ([A4.8](#A4.8)) i slučování osob
+    porovnávají i tyto tvary; po sloučení zůstanou tvary obou osob a tvar, který prohrál ve sporu o jméno, přibude
+    mezi ně.
   - **Navrhnout z výzkumu** zobrazí návrhy výzkumu ve dvou úrovních: **Doloženo** a **Podle pravidel**, každý s
     důvodem a doklady. Nic se nespojí bez potvrzení (**Přijmout** / **Odmítnout**, **Vrátit**).
   - Návrhy se nenabídnou, když jsou odmítnuté, už leží v jedné skupině, nebo by spojily dvě skupiny. Ukazuje se 10
@@ -211,7 +213,7 @@ slučování osob i rody pak berou tvary jako jedno jméno, i u osob přidaných
   **Navrhnout z výzkumu**. Tvar jednoho rodu: **Upravit rod… → + tvar** ([A4.1.1](#A4.1.1)).
 - **Platí od:** aplikace 1.15.0 (návrhy z výzkumu 3.17.0)
 
-<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* -->
+<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* · src/merge/matching.ts:197 writtenSurnames · src/merge/executor.ts:781 addLosingNameVariant, :951 nameVariants -->
 
 <a id="A4.8"></a>
 ## A4.8 Hledání a řazení jmen

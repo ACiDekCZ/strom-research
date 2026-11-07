@@ -10,7 +10,7 @@ Změny z novější verze mají u sebe její číslo.
 Linie výzkumu je jeden cíl: předkové osoby, potomci osoby, nebo jedna otázka. Každý úkol patří k některé linii
 a agent pracuje na úkolech linií.
 
-- **Ovládání:** aplikace: panel výzkumu, oddíl **Linie · {n} aktivní** · terminál: menu **Rozšířit výzkum →
+- **Ovládání:** aplikace: panel výzkumu, oddíl **Linie · N aktivní** · terminál: menu **Rozšířit výzkum →
   Nová linie výzkumu**, příkaz `strom research new`
 - **Platí od:** výzkum 1.0.0
 
@@ -199,7 +199,7 @@ velikosti. Větev s vlastní volbou a volba **nikdy** návrh nedostanou.
 Každý úkol ve frontě říká důvod svého místa: v linii, pomáhá linii (a jak), mimo linie (a v jaké větvi), ruční volba,
 nebo čeká, protože je linie pozastavená.
 
-- **Ovládání:** aplikace 3.22.0: oddíl **Fronta**, řádek u úkolu (např. „pomáhá linii {n} · {jak}“).
+- **Ovládání:** aplikace 3.22.0: oddíl **Fronta**, řádek u úkolu (např. „pomáhá linii N · …“).
 - **Platí od:** výzkum 1.26.0
 
 <!-- zdroj: research:src/core/queue.ts:312-349 · app:strings.ts live.qWhyLine, qWhyHelps, qWhyOut, qWhyManualNext, qWhyPaused -->

@@ -124,7 +124,7 @@ register({
       };
 
     const r0 = readers(ctx, tree, shared, "transcripts", "read", opts);
-    const { parallel, reportsDir, failed, progress } = r0;
+    const { parallel, reportsDir, failed, progress, viewMin } = r0;
     const facts = (s: Source) =>
       [
         s.locator || s.date ? `where: ${[s.locator, s.date ? `recorded ${s.date}` : ""].filter(Boolean).join("; ")}` : "",
@@ -135,7 +135,7 @@ register({
       source: s.id,
       title: s.title,
       facts: facts(s),
-      views: cutsOf(s).map((c) => ({ media: c.media, view: makeView(tree, c.file, c.media, { ...(c.crop ? { crop: c.crop } : {}), max: CUT_MAX }, { reader: true }).file })),
+      views: cutsOf(s).map((c) => ({ media: c.media, view: makeView(tree, c.file, c.media, { ...(c.crop ? { crop: c.crop } : {}), max: CUT_MAX, min: viewMin }, { reader: true }).file })),
     });
 
     // 1. Read: the words from the cut-out.

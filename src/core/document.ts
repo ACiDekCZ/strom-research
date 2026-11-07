@@ -14,11 +14,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { foldText } from "./text.ts";
+import { gptReader } from "../agents/images.ts";
 import { MONTHS, dateYears, normalizeDate } from "./gdate.ts";
 import { langName } from "./lang.ts";
 import { birthEvent, sameFamilyName, surnameForms } from "./people.ts";
 import { sameFamily } from "./surnames.ts";
-import type { Person, Place } from "./model.ts";
+import { variantKind, type VariantKind } from "./variantkind.ts";
+import type { Person, Place, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
 /** D + the time it began (UTC, to the second) + 4 hex: D20261019153012-a1b2. */
@@ -77,15 +79,66 @@ export interface DocPageView {
   parts?: { label: string; view: string }[];
   /** Only a part of the page is read (fractions of the page). */
   region?: Region;
+  /** What of the page the view shows where it is not all of the region: a sharper part cut the place to it (fractions of the page). */
+  shows?: Region;
 }
 
-export function docPrompt(o: { pages: DocPageView[]; report: string; lang: string; note?: string | undefined; blind?: boolean }): string {
+/**
+ * What the research knows of a source read again from its original, told its readers (spec 059 K6.2): its kind,
+ * language, date and where it stands — never its transcript, never a name of it.
+ */
+export interface SourceAbout {
+  kind?: string;
+  language?: string;
+  date?: string;
+  locator?: string;
+  /**
+   * Its views are cut out around its entry (its excerpts): the entry in the middle, its neighbours at the margins — told
+   * a GPT reader alone (see spelling).
+   */
+  cut?: boolean;
+  /**
+   * The reader told to keep the original spelling letter by letter: a GPT reader alone. Claude read the source's entry
+   * worse with this line and the one of the entry in the middle (a long s, the marks of abbreviations where the
+   * transcript has neither; 2026-11-07, Opus on one excerpt four times each: as before 28.75 words, all the block 26.5,
+   * what is known of the record alone 28) — the format's "its own spelling, abbreviations as written" says enough, and
+   * the source's entry is the one most within the excerpt where no reader marks it.
+   */
+  spelling?: boolean;
+}
+
+/** What a reader of this agent and model is told of a source read again: all of it a GPT reader, else no middle nor spelling. */
+export function aboutFor(a: SourceAbout, agent: string | undefined, model: string | undefined): SourceAbout {
+  if (gptReader(agent, model)) return { ...a, spelling: true };
+  const { cut: _cut, spelling: _spelling, ...rest } = a;
+  return rest;
+}
+
+/** A source read again: what is known of it; a GPT reader also the entry in the middle, its spelling kept (a block of docPrompt). */
+function aboutSource(a: SourceAbout): string {
+  const facts = [a.kind ? `kind: ${a.kind}` : "", a.language ? `language: ${a.language}` : "", a.date ? `date: ${a.date}` : "", a.locator ? `where it stands: ${a.locator.replace(/\s*\n\s*/gu, " ")}` : ""].filter(Boolean);
+  return `
+THIS RECORD
+It is one record the research has a transcript of, read again from its original. What the research knows of it
+(no transcript, no names — a description only, never a hint to what is written):
+${facts.length ? facts.map((f) => `- ${f}`).join("\n") : "- nothing more"}
+${
+    a.cut
+      ? `The view is cut out around this one entry: the entry to transcribe is the one in the middle of the view. Lines cut
+at the top or bottom edge and words at its margins belong to the neighbouring entries — leave them out. When you
+write a neighbouring entry all the same, add the line "this: yes" to the block of the entry in the middle.
+`
+      : ""
+  }${a.spelling ? "Keep the original spelling letter by letter (ż, qv, ʒ, a long s, a doubled letter as written): never modernise it.\n" : ""}`;
+}
+
+export function docPrompt(o: { pages: DocPageView[]; report: string; lang: string; note?: string | undefined; blind?: boolean; source?: SourceAbout | undefined }): string {
   const into = langName(o.lang);
   const blind = !!o.blind;
   return `You are a READER of one document for a family history research: a record from a register, a letter, a deed,
 a gravestone, the back of a photo — anything written. You are not the researcher: you decide nothing and you write
 nowhere except your report file. Do not run any commands.
-${blind ? "\nThis is a BLIND reading: another reader reads the same document; write what YOU read, exactly.\n" : ""}${o.note ? `\nWhat the person said the document is (a description only — never a hint to what is written on it):\n${o.note.replace(/\s*\n\s*/g, " ")}\n` : ""}
+${blind ? "\nThis is a BLIND reading: another reader reads the same document; write what YOU read, exactly.\n" : ""}${o.source ? aboutSource(o.source) : ""}${o.note ? `\nWhat the person said the document is (a description only — never a hint to what is written on it):\n${o.note.replace(/\s*\n\s*/g, " ")}\n` : ""}
 THE PAGES (open each file with your image reader, in this order)
 ${o.pages
   .map((p) => {
@@ -129,7 +182,7 @@ region: x,y,w,h — where the entry stands on its page: fractions (0–1) of the
 transcript: the entry word for word as written — its own language and spelling, abbreviations as written, "|" where
   a line ends; "[?]" right after a word you are not sure of, "[...]" for what you cannot read. Never complete a word,
   a name or a date from what you expect: "[...]" beats a guess.
-${
+${o.source?.cut ? "this: yes — only on the entry in the middle of the view, when you write a neighbouring entry too\n" : ""}${
   blind
     ? ""
     : `translation: the transcript in ${into}, as close as it goes; keep "[?]" and "[...]" where they are
@@ -204,6 +257,8 @@ export interface RawEntry {
   persons: RawPerson[];
   events: RawEvent[];
   relations: string[][];
+  /** The reader marked it the entry in the middle of the view (a source read again: the source's own entry). */
+  this?: boolean;
 }
 
 export interface DocReport {
@@ -216,7 +271,7 @@ export interface DocReport {
 
 const KEY = /^\s*(?:[-*]\s+)?\**(\p{L}+)\**\s*:\**\s*(.*)$/u;
 const MULTI = new Set(["transcript", "translation", "context"]);
-const ENTRY_KEYS = new Set(["region", "transcript", "translation", "term", "person", "event", "relation"]);
+const ENTRY_KEYS = new Set(["region", "transcript", "translation", "term", "person", "event", "relation", "this"]);
 const DOC_KEYS = new Set(["kind", "language", "script", "date", "legible", "why", "context"]);
 
 /** A report without the line its reader added each block at. */
@@ -318,6 +373,7 @@ export function parseDocReport(text: string): DocReport {
     const entry: RawEntry = { id, page, transcript, terms: [], persons: [], events: [], relations: [] };
     const region = parseRegion(one("region"));
     if (region) entry.region = region;
+    if (/^(?:yes|y|true|1)(?![\p{L}\p{N}])/iu.test(one("this") ?? "")) entry.this = true;
     const tr = one("translation");
     if (tr) entry.translation = tr;
     for (const t of fields.get("term") ?? []) {
@@ -556,8 +612,8 @@ export interface DocEntry {
   persons: DocPerson[];
   events: DocEvent[];
   relations: ({ type: "parent"; parent: string; child: string } | { type: "spouse"; a: string; b: string })[];
-  /** Two readers: where the blind one read otherwise. */
-  variants?: { field: string; at: string; other: string }[];
+  /** Two readers: where the blind one read otherwise (kind: for the Strom app alone, resultForApp — never kept). */
+  variants?: { field: string; at: string; other: string; kind?: VariantKind }[];
   agree?: "same" | "differ";
 }
 
@@ -855,6 +911,14 @@ function partOf(r: Region | undefined, entry: Region | undefined): Region | unde
 
 /** The hunks where two transcripts differ, word by word (their keys; the marks [?] are no difference). */
 export function wordDiff(a: string, b: string): { at: string; other: string }[] {
+  return wordHunks(a, b).map(({ at, other }) => ({ at, other }));
+}
+
+/**
+ * As wordDiff, each place saying whether it lies at the start or the end of both texts (edge): nothing alike before
+ * it, or after it — and at the start (start), at the end (end).
+ */
+export function wordHunks(a: string, b: string): { at: string; other: string; edge: boolean; start: boolean; end: boolean }[] {
   // letters one reader spaced out joined as the other wrote the word
   const x = words(a, nameKeys(b));
   const y = words(b, nameKeys(a));
@@ -862,12 +926,12 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
   const m = y.length;
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i]![j] = x[i]!.key === y[j]!.key ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
-  const out: { at: string; other: string }[] = [];
+  const out: { at: string; other: string; edge: boolean; start: boolean; end: boolean }[] = [];
   let i = 0;
   let j = 0;
-  let hunk: { at: Word[]; other: Word[] } | undefined;
+  let hunk: { at: Word[]; other: Word[]; start: boolean } | undefined;
   const flush = () => {
-    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" ") });
+    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" "), edge: hunk.start || (i >= n && j >= m), start: hunk.start, end: i >= n && j >= m });
     hunk = undefined;
   };
   while (i < n || j < m) {
@@ -876,16 +940,19 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
       i++;
       j++;
     } else if (j < m && (i >= n || lcs[i]![j + 1]! >= lcs[i + 1]![j]!)) {
-      (hunk ??= { at: [], other: [] }).other.push(y[j++]!);
+      (hunk ??= { at: [], other: [], start: i === 0 && j === 0 }).other.push(y[j++]!);
     } else {
-      (hunk ??= { at: [], other: [] }).at.push(x[i++]!);
+      (hunk ??= { at: [], other: [], start: i === 0 && j === 0 }).at.push(x[i++]!);
     }
   }
   flush();
   return out;
 }
 
-const same = (a: string | undefined, b: string | undefined) => foldText(a ?? "") === foldText(b ?? "");
+/** A stop, comma or colon closing a word ("22." for "22", "Lhota," for "Lhota"): no difference of two readers. */
+const closing = (t: string) => foldText(t).replace(/[.,;:]+(?=\s|$)/gu, "").replace(/\s+/gu, " ").trim();
+
+const same = (a: string | undefined, b: string | undefined) => closing(a ?? "") === closing(b ?? "");
 
 /**
  * The people of one reader paired with the other's by the name written, the best match first: the whole name alike,
@@ -925,23 +992,20 @@ function pairByName(mine: DocPerson[], theirs: DocPerson[]): Map<number, number>
 }
 
 /**
- * The first reader's entries against the blind reader's: paired by page and order; the transcripts word by word, the
- * people by role and order (given name, surname), the events by type and order (date, place). Where they differ is a
- * variant of the entry; an entry only one of them has differs whole.
+ * The first reader's entries against the blind reader's: paired by page — where the two read as many entries of it,
+ * or one of them gave no place of an entry, in their order; else each with the one its place overlaps most (a reader
+ * that wrote an entry beside the one asked as well, the other not). The transcripts word by word, the people by role
+ * and order (given name, surname), the events by type and order (date, place). Where they differ is a variant of the
+ * entry; an entry only one of them has differs whole. of: each blind entry (its index) → the first one's it was held against.
  */
-export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: "same" | "differ"; entries: DocEntry[] } {
+export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: "same" | "differ"; entries: DocEntry[]; of: Map<number, string> } {
   let all = true;
-  const byPage = (list: DocEntry[]) => {
-    const m = new Map<number, DocEntry[]>();
-    for (const e of list) m.set(e.page, [...(m.get(e.page) ?? []), e]);
-    return m;
-  };
-  const other = byPage(blind);
-  const used = new Map<number, number>();
-  const out = first.map((e) => {
-    const k = used.get(e.page) ?? 0;
-    used.set(e.page, k + 1);
-    const b = other.get(e.page)?.[k];
+  const pairs = pairEntries(first, blind);
+  const of = new Map<number, string>();
+  for (const [i, j] of pairs) of.set(j, first[i]!.id);
+  const out = first.map((e, i) => {
+    const j = pairs.get(i);
+    const b = j === undefined ? undefined : blind[j];
     const variants: { field: string; at: string; other: string }[] = [];
     const regions = new Map<DocPerson | DocEvent, Region>();
     if (!b) variants.push({ field: "entry", at: e.id, other: "" });
@@ -1003,8 +1067,41 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
     return { ...e, persons: e.persons.map(placed), events: e.events.map(placed), agree, ...(variants.length ? { variants } : {}) } as DocEntry;
   });
   // entries only the blind reader has
-  for (const [page, list] of other) if (list.length > (used.get(page) ?? 0)) all = false;
-  return { agree: all ? "same" : "differ", entries: out };
+  if (of.size < blind.length) all = false;
+  return { agree: all ? "same" : "differ", entries: out, of };
+}
+
+/** The area two regions share. */
+export function overlapArea(a: Region, b: Region): number {
+  const across = Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]);
+  const down = Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]);
+  return across > 0 && down > 0 ? across * down : 0;
+}
+
+/**
+ * The first reader's entries paired with the blind one's (index → index), page by page: as many of a page, or a place
+ * missing, in their order; else the most overlapping pair first, entries overlapping none unpaired.
+ */
+function pairEntries(first: DocEntry[], blind: DocEntry[]): Map<number, number> {
+  const out = new Map<number, number>();
+  const pages = new Set([...first, ...blind].map((e) => e.page));
+  for (const page of pages) {
+    const a = first.flatMap((e, i) => (e.page === page ? [i] : []));
+    const b = blind.flatMap((e, j) => (e.page === page ? [j] : []));
+    if (a.length === b.length || ![...a.map((i) => first[i]!), ...b.map((j) => blind[j]!)].every((e) => e.region)) {
+      a.forEach((i, k) => {
+        if (k < b.length) out.set(i, b[k]!);
+      });
+      continue;
+    }
+    let open = a.flatMap((i) => b.map((j) => ({ i, j, s: overlapArea(first[i]!.region!, blind[j]!.region!) }))).filter((x) => x.s > 0);
+    while (open.length) {
+      const best = open.reduce((m, x) => (x.s > m.s ? x : m));
+      out.set(best.i, best.j);
+      open = open.filter((x) => x.i !== best.i && x.j !== best.j);
+    }
+  }
+  return out;
 }
 
 // ── the research's tree: who a person may be, which place a place is ─────────────────────────────────────────────
@@ -1132,6 +1229,8 @@ export interface ReadPage {
   h?: number;
   /** Only this part of it read (fractions of the page). */
   region?: Region;
+  /** What of it the readers' view showed where not all of the region: a sharper part of the image cut the place to it (fractions of the page). */
+  shows?: Region;
 }
 
 export interface ReadReport {
@@ -1145,6 +1244,91 @@ export interface ReadReport {
   partial?: boolean;
   /** When the agent says its limit resets (a reader stopped by its usage limit). */
   resets?: string;
+  /** Who read it: the agent, its model (none: the agent's own), its effort (none: the agent's own setting). */
+  agent?: string;
+  model?: string;
+  effort?: string;
+  /** Its agent refused the model (Codex: "model_not_found", a model its CLI installed here does not have). */
+  rejected?: "model";
+  /** When its reader began and ended (none of a report before strom kept them). */
+  began?: string;
+  ended?: string;
+}
+
+/** Who reads, as asked for one reader (each field left out: as the research reads — its settings). */
+export interface ReaderWith {
+  agent?: string;
+  /** "": the agent's own model. */
+  model?: string;
+  /** "": the agent's own setting. */
+  effort?: string;
+}
+
+/** Who read (or reads) one reader of a reading: the agent, its model and effort (none: the agent's own). */
+export interface ReaderWho {
+  agent: string;
+  model?: string;
+  effort?: string;
+  /** The reading ended and this reader did not read to an end. */
+  ran?: false;
+  /**
+   * Where this reader is (feature read.readerState): waiting its turn, reading, read to an end, could not read — none
+   * where strom cannot tell (a reading cancelled before it ended, one of a page too small that no reader read).
+   */
+  state?: ReaderState;
+  /** done: the seconds it took to read, from its first page begun to its last ended (none of a reading before strom kept when). */
+  secs?: number;
+}
+
+export const READER_STATES = ["queued", "reading", "done", "failed"] as const;
+export type ReaderState = (typeof READER_STATES)[number];
+
+/** A reading of a source again from its original (strom document read --source): the source, and how it compares. */
+export interface SourceRead {
+  id: string;
+  /** Only this excerpt of it (its mark, _STROM_CLIP). */
+  clip?: string;
+  /** The new reading against the source's transcript (at: the transcript, other: the new reading) — once it ended. */
+  agree?: "same" | "differ";
+  /**
+   * kind: for the Strom app alone (resultForApp), never kept. sure false: no evidence of a matter of fact — the
+   * readers disagree there, or the new reading cannot read it ([...], [?]); never a task of it. judged: the task an
+   * earlier reading of the source put the same place in (the same words both sides) — asked again in none.
+   */
+  variants?: { at: string; other: string; kind?: VariantKind; sure?: false; judged?: string }[];
+  /**
+   * The task to hold the two against each other, where they differ in a matter of fact (trifles alone: none) — the
+   * agent's, or (taskFor person) the person's own task of a wording proposed for a transcript they confirmed.
+   */
+  task?: string;
+  /** Whose the task is: the person's (a wording proposed for their transcript, core/proposal.ts); none: the agent's. */
+  taskFor?: "person";
+  /** The places went into the source's task not ended (one task of a source at a time). */
+  appended?: true;
+  /**
+   * What became of a matter of fact it differs in (read.sourceTask; the bridge: always for an app that cannot ask):
+   * ask, always (a task), never — kept as the reading was asked.
+   */
+  taskWith?: "ask" | "always" | "never";
+  /** The places of a matter of fact no task holds yet, offered to the person (ask, never): how many; none: nothing to hand over. */
+  offer?: number;
+  /**
+   * The entries of the reading that are the source's record (entries[].id): at most one of each view — the one its
+   * reader marked, else the one most within the source's excerpt; the others are entries beside it in the excerpt's
+   * margin. Only a reading that kept it (none before strom did).
+   */
+  entries?: string[];
+  /** The new reading not held against the transcript, or not written to the research: why (agree is then missing, but for write). */
+  failed?: { code: "no-entry" | "no-source" | "write" | "other"; why: string };
+}
+
+/** Why a reading failed, said for the person (`code` stable, `text` in the reading's language — else the research's —, `params` its values). */
+export interface ReadFailure {
+  code: "model";
+  text: string;
+  params: { agent: string; model: string };
+  /** Which reader failed (1 the first, 2 the blind one; feature read.readerState): none where both did, or strom cannot tell. */
+  reader?: 1 | 2;
 }
 
 export interface ReadState {
@@ -1167,6 +1351,8 @@ export interface ReadState {
   pid?: number;
   why?: string;
   error?: string;
+  /** Why it failed, for the person: a stable code, the sentence in the reading's language (else the research's) and its values. */
+  failure?: ReadFailure;
   model?: string;
   /** The agent its readers read with. */
   agent?: string;
@@ -1174,12 +1360,16 @@ export interface ReadState {
   only?: "blind";
   /** Read again (strom document again): the reading as it stood, back again when the new one is cancelled or gone. */
   before?: ReadBefore;
+  /** Who reads: each reader (0 the first, 1 the blind one) as resolved when it was asked (agent, model, effort). */
+  with?: ReaderWho[];
+  /** A reading of a source again from its original. */
+  source?: SourceRead;
 }
 
 /** What a reading read again was before: its state, version and readers (its reports stay in the list). */
-export type ReadBefore = Pick<ReadState, "state" | "version" | "readers" | "since" | "groups"> & Partial<Pick<ReadState, "why" | "error" | "only" | "model">>;
+export type ReadBefore = Pick<ReadState, "state" | "version" | "readers" | "since" | "groups"> & Partial<Pick<ReadState, "why" | "error" | "only" | "model" | "with">>;
 
-const BEFORE_OPTIONAL = ["why", "error", "only", "model"] as const;
+const BEFORE_OPTIONAL = ["why", "error", "only", "model", "with"] as const;
 
 /** A reading as it stands, kept to come back to when it is read again. */
 export function beforeOf(s: ReadState): ReadBefore {
@@ -1270,12 +1460,20 @@ export interface ReadResult {
   at: string;
   since: string;
   doc: { kind?: string; language?: string[]; script?: string; date?: string; legible?: "yes" | "partly" | "no"; why?: string | null };
-  readers: { asked: number; ran: number; agree: "same" | "differ" | null };
+  /** who: each reader (0 the first, 1 the blind one) — its agent, model and effort; none of a reading before strom kept them. */
+  readers: { asked: number; ran: number; agree: "same" | "differ" | null; who?: ReaderWho[]; kinds?: { first: string; blind: string } };
+  /** A reading of a source again from its original: the source, and how the new reading compares with its transcript. */
+  source?: SourceRead;
   /** The agent and model its readers read with (kept with the research: a later check of strom's knows them). */
   agent?: string;
   model?: string;
   pages: ReadPage[];
   entries: DocEntry[];
+  /**
+   * Two readers: what the blind one read, as it wrote it — its document, its entries (of: the first reader's entry it
+   * was held against). It has no translation, terms or context: it was never asked for them.
+   */
+  blind?: { doc: ReadResult["doc"]; entries: { id: string; page: number; region?: Region; transcript: string; of?: string }[] };
   context?: string;
   /** What strom left out of the readers' entries, and why. */
   checks: Check[];
@@ -1285,6 +1483,7 @@ export interface ReadResult {
   note?: string;
   cost?: { amount: number; currency: "USD"; partial?: true };
   error?: string;
+  failure?: ReadFailure;
 }
 
 const LEGIBLE_ORDER = { yes: 0, partly: 1, no: 2 } as const;
@@ -1296,16 +1495,21 @@ const ROLE_VARIANT = /^[\p{L}\p{N}_-]+\.role$/u;
  * The result as the Strom app is given it (GET /read/<id>): a variant of a person's role is no words of the
  * transcript, and the app (3.14) marks each variant where its words stand in the transcript and counts it as a
  * difference — a role code ("other") stood inside "Mother". So the role the blind reader gave goes to the person
- * (`blindRole`) and out of `variants`; the result kept and `strom document show` keep it as a variant.
+ * (`blindRole`) and out of `variants`; the result kept and `strom document show` keep it as a variant. Each place
+ * that differs (the readers', the new reading's against a source's transcript) says its kind (core/variantkind.ts).
  */
 export function resultForApp(r: ReadResult): ReadResult {
+  // each place the readings differ: what kind of difference it is (feature read.variantKind), worked out now — a
+  // reading kept before has it too
+  const kinded = <T extends { at: string; other: string; field?: string }>(vs: T[]): T[] => vs.map((v) => ({ ...v, kind: variantKind(v.at, v.other, v.field ?? undefined) }));
   return {
     ...r,
+    ...(r.source?.variants ? { source: { ...r.source, variants: kinded(r.source.variants) } } : {}),
     entries: r.entries.map((e) => {
       const roles = new Map<string, string>();
       for (const v of e.variants ?? []) if (ROLE_VARIANT.test(v.field)) roles.set(v.field.slice(0, -".role".length), v.other);
-      if (!roles.size) return e;
-      const variants = (e.variants ?? []).filter((v) => !ROLE_VARIANT.test(v.field));
+      if (!roles.size) return e.variants ? { ...e, variants: kinded(e.variants) } : e;
+      const variants = kinded((e.variants ?? []).filter((v) => !ROLE_VARIANT.test(v.field)));
       const { variants: _, ...rest } = e;
       return {
         ...rest,
@@ -1337,12 +1541,16 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   const firsts = s.groups.map((_, g) => mine.find((r) => r.group === g && !r.blind) ?? reportOfEarlier(s, g, false));
   const blinds = s.groups.map((_, g) => mine.find((r) => r.group === g && r.blind));
   const doc: ReadResult["doc"] = {};
+  const blindDoc: ReadResult["doc"] = {};
   const contexts: string[] = [];
   const incomplete: number[] = [];
+  // the entries a reader marked as the one in the middle of a source's excerpt (this: yes)
+  const marked = new Set<string>();
   const entriesOf = (reports: (ReadReport | undefined)[], blind: boolean): DocEntry[] => {
     const out: DocEntry[] = [];
     reports.forEach((r, g) => {
       const rep = r ? read(r) : undefined;
+      if (blind && rep) mergeDoc(blindDoc, rep.doc);
       if (!blind) {
         if (rep) mergeDoc(doc, rep.doc);
         if (rep?.context && rep.doc.legible !== "no") contexts.push(rep.context);
@@ -1360,10 +1568,11 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
         // a region of a part asked (--region): of the whole page
         const page = s.pages.find((p) => p.n === e.page);
         if (page?.region) {
-          const part = page.region;
+          const part = page.shows ?? page.region;
           if (c.entry.region) c.entry.region = within(part, c.entry.region);
           for (const x of [...c.entry.persons, ...c.entry.events]) if (x.region) x.region = within(part, x.region);
         }
+        if (!blind && e.this) marked.add(id);
         out.push(c.entry);
       }
     });
@@ -1371,15 +1580,35 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   };
   let entries = entriesOf(firsts, false);
   const firstRead = entries.length > 0;
-  const blindRan = blinds.some((r) => r);
+  // a blind reader that wrote nothing (failed before its first entry, not begun yet): nothing to hold the first one
+  // against — never every entry said to differ; one that says its pages cannot be read is held against it
+  const blindRan = blinds.some((r) => {
+    if (!r) return false;
+    const rep = read(r);
+    return !!rep && (rep.entries.length > 0 || rep.doc.legible === "no");
+  });
   // the first reader failed, the blind one read: its entries, untranslated — never held against themselves
   if (!entries.length && blindRan) entries = entriesOf(blinds, false);
   let agree: ReadResult["readers"]["agree"] = null;
+  let blind: ReadResult["blind"];
   if (blindRan && s.readers > 1 && firstRead) {
     const blindEntries = entriesOf(blinds, true);
     const c = compareReadings(entries, blindEntries);
     entries = c.entries;
     agree = c.agree;
+    if (blindEntries.length)
+      blind = {
+        doc: { ...blindDoc },
+        entries: blindEntries.map((e, k) => ({ id: `b${k + 1}`, page: e.page, ...(e.region ? { region: e.region } : {}), transcript: e.transcript, ...(c.of.has(k) ? { of: c.of.get(k)! } : {}) })),
+      };
+  }
+  // the readers of two kinds of record (a marriage, a baptism): said, the one and the other
+  const kinds = blind && doc.kind && blindDoc.kind && doc.kind !== blindDoc.kind ? { first: doc.kind, blind: blindDoc.kind } : undefined;
+  // a source read again, not held against its transcript yet: which of its entries are the source's record
+  let source = s.source;
+  if (source && source.agree === undefined && !source.failed && !source.entries) {
+    const ids = sourceEntriesOf(tree, s, entries, marked);
+    if (ids.length) source = { ...source, entries: ids };
   }
   entries = withTree(tree, entries);
   // a reader ran when it ended well and its report says something (an answer in prose only is no reading)
@@ -1389,6 +1618,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     return !!rep && (rep.entries.length > 0 || rep.done || rep.doc.legible !== undefined);
   };
   const ran = (firsts.some(said) ? 1 : 0) + (blinds.some(said) ? 1 : 0);
+  const who = whoRead(s, [firsts, blinds], (rs) => rs.some(said), s.state === "reading" || s.state === "queued");
   const usd = s.reports.reduce((n, r) => n + (r.usd ?? 0), 0);
   const partial = s.reports.some((r) => r.outcome !== undefined && (r.usd === undefined || r.partial));
   return {
@@ -1399,11 +1629,13 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     at: s.at,
     since: s.since,
     doc: { ...doc, why: doc.why ?? (s.why || null) },
-    readers: { asked: s.readers, ran, agree },
+    readers: { asked: s.readers, ran, agree, ...(who ? { who } : {}), ...(kinds ? { kinds } : {}) },
+    ...(source ? { source } : {}),
     ...(s.agent ? { agent: s.agent } : {}),
     ...(s.model ? { model: s.model } : {}),
     pages: s.pages,
     entries,
+    ...(blind ? { blind } : {}),
     ...(contexts.length ? { context: contexts.join("\n\n") } : {}),
     checks,
     ...(incomplete.length ? { incomplete: [...new Set(incomplete)].sort((a, b) => a - b) } : {}),
@@ -1411,7 +1643,93 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     ...(s.note ? { note: s.note } : {}),
     ...(usd || s.reports.some((r) => r.usd !== undefined) ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}) } } : {}),
     ...(s.error ? { error: s.error } : {}),
+    ...(s.failure ? { failure: s.failure } : {}),
   };
+}
+
+/**
+ * The entries of a reading of a source again that are the source's record: of each view (page) the one its reader
+ * marked; else, a view of the source's excerpt, the entry most within the excerpt itself (its margin left out) —
+ * entries beside it in the margin are not; a view of a whole image, entries with no place, or none within the excerpt:
+ * all of the view's (as a reading before strom told them apart).
+ */
+function sourceEntriesOf(tree: Tree, s: ReadState, entries: DocEntry[], marked: Set<string>): string[] {
+  const src = s.source ? tree.get<Source>(s.source.id) : undefined;
+  const clips = src?.type === "source" ? (src.clips ?? []) : [];
+  const out: string[] = [];
+  for (const page of s.pages) {
+    const on = entries.filter((e) => e.page === page.n);
+    if (!on.length) continue;
+    const mark = on.find((e) => marked.has(e.id));
+    if (mark) {
+      out.push(mark.id);
+      continue;
+    }
+    const cut = clips.filter((c) => c.media === page.file).map((c) => [c.region.x, c.region.y, c.region.w, c.region.h] as Region);
+    if (on.length === 1 || !page.region || !cut.length || on.some((e) => !e.region)) {
+      out.push(...on.map((e) => e.id));
+      continue;
+    }
+    let best: DocEntry | undefined;
+    let most = 0;
+    for (const e of on) {
+      const a = cut.reduce((n, c) => n + overlapArea(e.region!, c), 0);
+      if (a > most) {
+        best = e;
+        most = a;
+      }
+    }
+    out.push(...(best ? [best.id] : on.map((e) => e.id)));
+  }
+  return out;
+}
+
+/**
+ * Who read each reader of a reading (0 the first, 1 the blind one): as its report says (the first one of its pages),
+ * else as it was asked; a reading ended whose reader did not read to an end says so (ran: false). None when strom kept
+ * nobody (a reading before it did).
+ */
+function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs: (ReadReport | undefined)[]) => boolean, atWork: boolean): ReaderWho[] | undefined {
+  if (!s.with?.length && !s.reports.some((r) => r.agent)) return undefined;
+  const ended = FINAL_STATES.includes(s.state);
+  const out: ReaderWho[] = [];
+  for (let i = 0; i < Math.min(s.readers, 2); i++) {
+    const r = reports[i]!.find((x) => x?.agent);
+    const asked = s.with?.[i];
+    const agent = r?.agent ?? asked?.agent;
+    if (!agent) return out.length ? out : undefined;
+    const model = r ? r.model : asked?.model;
+    const effort = r ? r.effort : asked?.effort;
+    const state = readerState(s, reports[i]!, read, atWork);
+    const secs = state === "done" ? readerSecs(reports[i]!) : undefined;
+    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}), ...(state ? { state } : {}), ...(secs !== undefined ? { secs } : {}) });
+  }
+  return out;
+}
+
+/**
+ * Where one reader of a reading is (its reports: one for each part of the document, none of a part not begun): queued
+ * with its reading, or while no part of it began; reading while a part is being read or waits; at its end read to an
+ * end (done — as its result counts it, ran), or not (failed); none where strom cannot tell — a reading cancelled before
+ * this reader ended, a reading no reader of began (a page too small).
+ */
+function readerState(s: ReadState, reps: (ReadReport | undefined)[], read: (rs: (ReadReport | undefined)[]) => boolean, atWork: boolean): ReaderState | undefined {
+  const begun = reps.filter((r): r is ReadReport => !!r);
+  const open = begun.length < reps.length || begun.some((r) => r.outcome === undefined);
+  if (s.state === "queued") return "queued";
+  if (atWork) return !begun.length ? "queued" : open ? "reading" : read(reps) ? "done" : "failed";
+  if (!begun.length) return s.state === "failed" ? "failed" : undefined;
+  if (open && s.state === "cancelled") return undefined;
+  return read(reps) ? "done" : "failed";
+}
+
+/** The seconds a reader took, from its first part begun to its last ended — none where a report does not say when. */
+function readerSecs(reps: (ReadReport | undefined)[]): number | undefined {
+  const begun = reps.filter((r): r is ReadReport => !!r);
+  if (!begun.length || begun.some((r) => !r.began || !r.ended)) return undefined;
+  const from = Math.min(...begun.map((r) => Date.parse(r.began!)));
+  const to = Math.max(...begun.map((r) => Date.parse(r.ended!)));
+  return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / 1000) : undefined;
 }
 
 /** The readers of a reading that read to an end, as its result counts them: the first (of this version or before), the blind one. */

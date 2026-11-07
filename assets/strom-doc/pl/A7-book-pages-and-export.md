@@ -181,3 +181,31 @@ instalacji. **Eksportuj jako aplikację** w **Eksportuj wszystkie drzewa** umies
 - **Obowiązuje od:** aplikacja 1.0.0
 
 <!-- zdroj: app:strings.ts importExport.app, importExport.appDesc, importExport.exportAllApp, importExport.fromHtml, embeddedMode.* · src/ui/import-export.ts -->
+
+<a id="A7.8"></a>
+## A7.8 Opowieść
+
+Opowieść to spójny tekst o osobie albo o małżeństwie, zbudowany na faktach drzewa. Nie jest źródłem: fakty
+dokumentują źródła, opowieść je tylko opowiada ([A3.6](A3-evidence-in-the-app.md#A3.6)).
+
+- **Gdzie ją widać:** okno **Opowieść** (z menu karty osoby), strona osoby ([A7.6](#A7.6)) i w Księdze rodu część
+  **Opowieści** dopiero po **Rodzinach** ([A7.4](#A7.4)). Opowieść pary, jedna na każde małżeństwo, stoi pod
+  opowieścią osoby; w księdze ma własny podrozdział.
+- **Format tekstu:** pusty wiersz dzieli akapity; wiersz `## …` to podtytuł; wiersze `- …` to wypunktowanie;
+  `**pogrubienie**` i `*kursywa*`. Inne znaki zostają zwykłym tekstem. Ani `* 1831` (urodzenie), ani `1. ledna` na
+  początku wiersza nie zaczyna wypunktowania. Początkowe `# …`, które tylko powtarza podtytuł rozdziału, jest
+  pomijane. Goły kod źródła w tekście czyta się jako jego tytuł.
+- **Granice:**
+  - własną opowieść osoby można pisać i zmieniać w edycji osoby, sekcja **Opowieść**: **Podtytuł rozdziału**
+    i **Tekst opowieści**. Sekcja jest widoczna, gdy włączone jest **Ustawienia → Karta osoby → Pola zaawansowane**
+    albo jakiś tekst już istnieje. Opowieść pary i **Opiera się na** (fakty i zastrzeżenie autora) przychodzą
+    z plikiem i są tylko do odczytu;
+  - szkic z badania, jeszcze niezatwierdzony, ma etykietę **Szkic** i odnośnik **Zatwierdź w badaniu**. Nowa wersja
+    z badania czeka obok zatwierdzonej („Nowa wersja czeka”, **Porównaj**); edycja w aplikacji jej nie usuwa,
+    rozstrzyga się w badaniu ([R3.9.1](R3-verification-and-citation.md#R3.9.1));
+  - w księdze ani w druku pod tekstem nie ma źródeł; źródła opowieści są ponumerowane w spisie źródeł księgi;
+  - w pliku GEDCOM opowieść jest we własnym znaczniku `_STORY`, nie w notatce.
+- **Obsługa:** menu karty osoby → **Opowieść**; edycja osoby → sekcja **Opowieść**.
+- **Obowiązuje od:** aplikacja 2.8.0; opowieści par i strona osoby 3.18.0; w Księdze rodu 3.19.0
+
+<!-- zdroj: app:src/story-text.ts:1 storyProseHtml (odstavce, ##, -, **, *) · src/ui/person-modal.ts:662 fillStoryFields · index.html pm-story-section · src/book-blocks.ts:594 storyBlock · src/book.ts proseHtml · src/person-page.ts · src/ged-exporter.ts:449 pushStory _STORY · strings.ts story.* · commit 52000825 (aplikace 2.8.0) · CHANGELOG.cs.md 3.18.0, 3.22.0 -->

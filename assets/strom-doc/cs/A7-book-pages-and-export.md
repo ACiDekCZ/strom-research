@@ -180,3 +180,30 @@ instalace. **Exportovat jako aplikaci** v **Exportovat všechny stromy** dá vš
 - **Platí od:** aplikace 1.0.0
 
 <!-- zdroj: app:strings.ts importExport.app, importExport.appDesc, importExport.exportAllApp, importExport.fromHtml, embeddedMode.* · src/ui/import-export.ts -->
+
+<a id="A7.8"></a>
+## A7.8 Vyprávění
+
+Vyprávění je souvislý text o osobě nebo o manželství, sestavený nad fakty stromu. Není to pramen: fakta dokládají
+prameny, vyprávění je jen převypráví ([A3.6](A3-evidence-in-the-app.md#A3.6)).
+
+- **Kde je vidět:** okno **Vyprávění** (z nabídky karty osoby), stránka osoby ([A7.6](#A7.6)) a v knize rodu část
+  **Vyprávění** až za **Rodinami** ([A7.4](#A7.4)). Vyprávění páru, jedno za každé manželství, stojí pod vyprávěním
+  osoby; v knize má vlastní podkapitolu.
+- **Formát textu:** prázdný řádek dělí odstavce; řádek `## …` je podnadpis; řádky `- …` jsou odrážky; `**tučně**`
+  a `*kurzíva*`. Jiné značky zůstanou obyčejným textem. `* 1831` (narození) ani `1. ledna` na začátku řádku odrážku
+  nezačnou. Úvodní `# …`, který jen opakuje podnadpis kapitoly, se vynechá. Holý kód pramene v textu se čte jako
+  jeho název.
+- **Hranice:**
+  - vlastní vyprávění osoby jde psát a upravovat v úpravě osoby, oddíl **Vyprávění**: **Podnadpis kapitoly** a **Text
+    vyprávění**. Oddíl je vidět, když je zapnuté **Nastavení → Karta osoby → Pokročilá pole** nebo už nějaký text
+    existuje. Vyprávění páru a **Opírá se o** (fakta a výhrada autora) přicházejí se souborem a jsou jen ke čtení;
+  - koncept od výzkumu, dosud neschválený, nese štítek **Návrh** a odkaz **Schválit ve výzkumu**. Nová verze od
+    výzkumu čeká vedle schválené („Nová verze čeká“, **Porovnat**); úprava v aplikaci ji nezruší, rozhoduje se ve
+    výzkumu ([R3.9.1](R3-verification-and-citation.md#R3.9.1));
+  - v knize ani v tisku pod textem nejsou prameny; prameny vyprávění jsou očíslované v seznamu pramenů knihy;
+  - v souboru GEDCOM je vyprávění ve vlastní značce `_STORY`, ne v poznámce.
+- **Ovládání:** nabídka karty osoby → **Vyprávění**; úprava osoby → oddíl **Vyprávění**.
+- **Platí od:** aplikace 2.8.0; vyprávění páru a stránka osoby 3.18.0; v knize rodu 3.19.0
+
+<!-- zdroj: app:src/story-text.ts:1 storyProseHtml (odstavce, ##, -, **, *) · src/ui/person-modal.ts:662 fillStoryFields · index.html pm-story-section · src/book-blocks.ts:594 storyBlock · src/book.ts proseHtml · src/person-page.ts · src/ged-exporter.ts:449 pushStory _STORY · strings.ts story.* · commit 52000825 (aplikace 2.8.0) · CHANGELOG.cs.md 3.18.0, 3.22.0 -->

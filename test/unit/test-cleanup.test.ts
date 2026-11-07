@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import "../helpers.ts"; // run alone too: never the person's home and settings
 
 const here = import.meta.dirname;
 
@@ -32,4 +33,15 @@ test("test/setup.ts and test/helpers.ts leave no home and no git config in the t
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test("a test file that makes a tree or reads the environment imports test/helpers.ts: run alone (node --test <file>) it never reaches the person's home and settings (found 2026-11-07: two seal keys of test trees in the real ~/.config/strom)", () => {
+  const root = path.join(here, "..");
+  const files = (fs.readdirSync(root, { recursive: true }) as string[]).filter((f) => f.endsWith(".test.ts"));
+  assert.ok(files.length > 50);
+  const bare = files.filter((f) => {
+    const s = fs.readFileSync(path.join(root, f), "utf8");
+    return /Tree\.(?:create|open)|process\.env/u.test(s) && !/^import [^\n]*["'][^"'\n]*(?:helpers|setup)\.ts["']/mu.test(s);
+  });
+  assert.deepEqual(bare, []);
 });

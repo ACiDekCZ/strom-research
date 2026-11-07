@@ -171,6 +171,34 @@ tree from the research, places are identified by the research ([R4](R4-places.md
 
 <!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
+<a id="A6.5.2"></a>
+### A6.5.2 Looking up places off the map in the research
+
+For a tree with a research, the map's status bar offers the places without a location for looking up in the research
+([R4.4](R4-places.md#R4.4)). The button opens the **Places** window with a preview; places go to the research's queue
+only after **Queue**.
+
+- **Limits:**
+  - before the map's lookup the bar has **In the research** beside the map's own lookup. After the lookup, when the
+    map did not find some places, the bar shows "N places on the map · K not found by the map" and **Look up in the
+    research (K)**, possibly "N to confirm ›" (opens **Waiting** in the research panel);
+  - the button is there only for a tree with a research and only when something can be looked up: a place without a
+    location or not identified that is not in the queue yet, not being worked on and not waiting for an answer;
+  - the **Places** window shows the preview "Look up N places not on the map in the research". Nothing is queued
+    before **Queue N places**, and no place is queued twice;
+  - when the research runs on another computer, or on a phone, the app says instead of the window where the lookup
+    works: "Look up and check work in the research on the computer where it runs. Place states come here with the
+    tree.", on a phone "Look up and check work on the computer with the research. Questions about places can be
+    answered here too, in Waiting." An older research: "This version of the research does not look up places yet.";
+  - while following the research on the map ([S4.1.3](S4-research-from-the-app.md#S4.1.3)) the line "… – no position
+    on the map" offers **Look up in the research**: it queues that one place at once, without a preview; the queuing
+    can be undone in the notice.
+- **Controls:** app: the map → the status bar → **In the research**, after the map's lookup **Look up in the research
+  (K)** → the **Places** window → **Queue N places**.
+- **Since:** app 3.25.0
+
+<!-- zdroj: app:src/ui/map-ui.ts (stavový pruh, lookResearch, lookable), src/ui/place-actions.ts, src/ui/places-research-ui.ts (bulkLook, bulkLookHead, bulkLookGo, nic dvakrát), src/ui/map-follow-ui.ts (noCoords + places.research.look, Undo) · strings.ts map.onMap.notFound, lookResearch, lookResearchShort, lookResearchTitle, confirm; places.dialog.elsewhere, phoneLine, oldResearch · CHANGELOG.cs.md 3.25.0 · commit 2246ca28 · spec 058 -->
+
 <a id="A6.6"></a>
 ## A6.6 A family line in the view
 

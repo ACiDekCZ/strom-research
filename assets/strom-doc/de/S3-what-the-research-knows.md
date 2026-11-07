@@ -11,7 +11,7 @@ Abschnitt im Panel der Forschung. Beschrieben werden die Strom-App 3.21.2 (und d
 Die Forschung fügt zu jeder Person in den Stammbaum für die App besondere Blöcke hinzu: Widersprüche, Hypothesen,
 durchsuchte Quellen und den Rand des Stammbaums über der Person. Die App zeigt sie nur an. Nichts davon ändert sich in
 der App, und die App sendet sie nicht zurück; sie leben in der Forschung. Der Kopf des Dialogs trägt das Datum der
-Forschung „Stand {Datum}“.
+Forschung „Stand …“.
 
 - **Woher:** von der Brücke (der Stammbaum, den die App aus der laufenden Forschung lädt, siehe
   [S1](S1-connecting-app-and-research.md)) oder aus der Datei `output/tree-strom.ged`. Beides entsteht durch
@@ -103,12 +103,12 @@ Elternteil, oder kein Eintrag belegt die Eltern. Er sagt, warum die Suche hier s
   *nicht erhalten*.
 - **Aufgaben:** Platz in der Warteschlange oder warum sie steht (*pausierte Richtung*, *beendete Richtung*, *Familie
   außerhalb des Baums*, *zurückgestellt bis …*); erledigte unter **Versuchte Aufgaben · n**.
-- **Arbeit:** Zahl der Suchen, Zahl der Sitzungen des Agenten mit Kosten, „zuletzt {Datum}“. Im Archiv gibt es
+- **Arbeit:** Zahl der Suchen, Zahl der Sitzungen des Agenten mit Kosten, „zuletzt …“. Im Archiv gibt es
   weder Sitzungen noch Kosten.
 - **Hypothesen:** mögliche Verbindung zu einer anderen Person, Familie außerhalb des Stammbaums („Familie außerhalb
   des Baums, 4 Personen“), wie viele Aufgaben warten, welche Aufgaben die Hypothese testen.
 - Der Link „2 offene Widersprüche ↓“ springt zum Abschnitt **Widersprüche**.
-- **Grenzen:** „Stand {Datum}“ steht im Kopf des Abschnitts nur, wenn die Forschung älter als heute ist.
+- **Grenzen:** „Stand …“ steht im Kopf des Abschnitts nur, wenn die Forschung älter als heute ist.
 - **Bedienung:** App: **Einstellungen → Stammbaumansicht → Forschungsrand** (*Aus* / *Zu entscheiden* / *Alle*)
   steuert nur die offenen Ansätze über den Karten, nicht diesen Abschnitt. Die Auswahl gibt es nur bei einem
   Stammbaum aus der Forschung. *Zu entscheiden* fehlt bei einer Kopie, die keine Warteschlange hat. Terminal:
@@ -141,7 +141,7 @@ Elternteil, oder kein Eintrag belegt die Eltern. Er sagt, warum die Suche hier s
 ## S3.4 Widersprüche
 
 Der Abschnitt **Widersprüche** zeigt die Widersprüche der Person und der Familien, in denen die Person Partner ist.
-Offene stehen zuerst, dann entschiedene mit der Zeile „entschieden: {Wert} ({Quelle})“. Die Quelle lässt sich im
+Offene stehen zuerst, dann entschiedene mit der Zeile „entschieden: … (…)“. Die Quelle lässt sich im
 Quellenbetrachter öffnen. Was ein Widerspruch ist, wo er zu sehen ist und wie er entschieden wird, beschreibt
 [R5.6](R5-conflicts.md#R5.6). Die Entscheidung durch eine Seite aus der App beschreibt
 [R5.6.1](R5-conflicts.md#R5.6.1).
@@ -170,12 +170,25 @@ B*, *verworfen*, die Zahl der Versionen und eine Notiz. Offene sind aufgeklappt.
   verbunden“, „Nicht mehr gültig: …“.
 - **Welche Hypothesen die Forschung sendet:** offene; entschiedene und verworfene nur die, deren Versionen
   Verbindungen tragen. Zurückgezogene nie.
-- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; sie entscheidet der Mensch in der Forschung,
-  im Terminal ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
-- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)).
+- **Wer entschieden hat:** eine Hypothese, die der Agent entschieden hat ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)),
+  trägt *vom Agenten entschieden* mit dem Tag und **Begründung** (der Text der Entscheidung in der Sprache der
+  Forschung; ein langer klappt auf).
+- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; entschieden wird in der Forschung, im Terminal
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Wer entscheidet, der Mensch oder der Agent, ist eine Wahl der
+  Forschung ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Angebot Die KI entscheidet:** bei gespeichertem **Der Mensch entscheidet** und 10 oder mehr offenen Hypothesen
+  im Stammbaum steht über den Hypothesen der Satz „N offene Hypothesen warten auf die Entscheidung eines Menschen;
+  mit „Die KI entscheidet“ entscheidet der Agent sie selbst, jede mit Begründung.“ Das Umstellen wird in der
+  Forschung bestätigt, in der App wird die KI nicht eingeschaltet ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)); **In der Forschung entscheiden**, bei
+  einer entschiedenen **In der Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer; **Auf
+  „Die KI entscheidet“ umstellen** öffnet die Forschung im Terminal, **Ausblenden** blendet das Angebot für diese
+  Forschung aus.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0 (Versionen, Stand, **Zeigen**); Liste der Hypothesen seit App 3.4.0
+- **Ab App 3.25.0:** *vom Agenten entschieden* mit Begründung (mit Forschung 1.29.0), **In der Forschung
+  entscheiden**, **In der Forschung ändern** und das Angebot **Die KI entscheidet**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople · CHANGELOG 3.11.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Zeigen: nur in der Ansicht verbunden

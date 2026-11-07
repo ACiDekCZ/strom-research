@@ -151,7 +151,7 @@ test("the bridge: /status waiting from the same list, feature waiting.groups, ev
   w.cleanup();
 });
 
-test("strom chat --task: the first message in the research language names the task, what it waits for, the place and the other tasks waiting there; a task that does not wait is refused", opts, async () => {
+test("strom chat --task: the first message in the research language names the task, what it waits for, the place and the other tasks waiting there; a task in the queue gone through now; one put aside is refused", opts, async () => {
   const { w } = await world();
   const r = (await w.ok(["chat", "--task", "T1", "--where", "terminal", "--agent", "claude", "--print", "--json"])).json;
   const first = (r.args as string[]).find((a) => a.startsWith("Pojďme na úkol"))!;
@@ -169,9 +169,14 @@ test("strom chat --task: the first message in the research language names the ta
   assert.match(decodeURIComponent(String(app.link)), /Pojďme na úkol T0001/);
   // a task that waits for nothing; --say and --task together
   await w.ok(["task", "add", "Křest Kryštofa", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]); // T9
-  const open = await w.run(["chat", "--task", "T9", "--print"]);
-  assert.notEqual(open.code, 0);
-  assert.match(open.err + open.out, /T0009 does not wait for the user \(it is open\)/);
+  // a task in the queue (open): gone through now, taken up in the conversation (the Strom app's link to it)
+  const open = (await w.ok(["chat", "--task", "T9", "--where", "terminal", "--agent", "claude", "--print", "--json"])).json.args as string[];
+  assert.ok(open.some((a) => /^Pojďme teď projít úkol T0009: Křest Kryštofa\. .*strom session start T0009/u.test(a)), JSON.stringify(open));
+  // a task put aside: refused
+  await w.ok(["task", "park", "T9", "--reason", "později"]);
+  const parked = await w.run(["chat", "--task", "T9", "--print"]);
+  assert.notEqual(parked.code, 0);
+  assert.match(parked.err + parked.out, /T0009 neither waits for the user nor is in the queue \(it is parked\)/);
   assert.notEqual((await w.run(["chat", "--task", "T1", "--say", "Ahoj", "--print"])).code, 0);
   // a task's words that end their sentence themselves: no period after them (T0010)
   await w.ok(["task", "add", "Dům Kryštofa čp. 14, nebo 16?", "--level", "request", "--where", "matrika Lhota", "--why", "rodiče", "--done-when", "odpověď", "--about", "P1", "--anyway"]);

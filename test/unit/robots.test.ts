@@ -1,6 +1,7 @@
 // robots.txt as strom reads it, the kinds of a refusal, what a host's state keeps of them, the times said in the clock
 // on the wall here — and a refusal strom cannot read its record of taken as one (fail closed).
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

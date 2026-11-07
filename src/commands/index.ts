@@ -15,6 +15,7 @@ import "./surname.ts";
 import "./quality.ts";
 import "./batch.ts";
 import "./sources.ts";
+import "./source-reading.ts";
 import "./placeid.ts";
 import "./media.ts";
 import "./connectors.ts";

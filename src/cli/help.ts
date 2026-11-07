@@ -31,7 +31,7 @@ const WORK_WORDS = /\btasks?\b|\bqueue[ds]?\b|\bsessions?\b/i;
 const notInArchive = (text: string): boolean => AI_WORDS.test(text) || WORK_WORDS.test(text);
 const ARCHIVE_COMMANDS = new Set([
   "help", "menu", "status", "tidy",
-  "init", "trees", "trees use", "trees remove", "mode", "lang", "pack", "unpack", "backup", "sync", "sync undo", "sync discard",
+  "init", "trees", "trees use", "trees remove", "trees forget", "mode", "lang", "pack", "unpack", "seal adopt", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
   "find", "stats", "pedigree", "recent", "history", "history back", "doc",
@@ -64,9 +64,9 @@ const ARCHIVE_DESCRIPTION: Record<string, string> = {
     "Family trees are imported at once — every person and fact as a lead citing that tree.",
   live:
     "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
-    "strom app --live, takes the tree from it and hears what changes. It ends by itself when nobody asks it anything for\n" +
-    "two hours (strom config set live.idleMinutes <minutes>; 0: never), or with strom live stop. One error does not end\n" +
-    "it; what it did and what went wrong is in .strom/live.log.\n" +
+    "strom app --live, takes the tree from it and hears what changes. It runs until strom live stop (or the app's switch)\n" +
+    "or the computer goes off; to end by itself after a while with nobody asking: strom config set live.idleMinutes 120\n" +
+    "(minutes; 0, the default: never). One error does not end it; what it did and what went wrong is in .strom/live.log.\n" +
     "Started again by itself (strom updated) it takes the address it had, so the app following it goes on by itself.",
   phone:
     "A server of its own on this computer's private addresses (Wi-Fi or a cable at home: 10.x, 172.16–31.x, 192.168.x —\n" +
@@ -215,14 +215,15 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
 /** The commands a person uses, in the order a person meets them. */
 export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "update", "uninstall", "shortcut",
-  "init", "trees", "trees use", "trees remove", "lang", "mode",
+  "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
-  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "task list", "task wake", "task order", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",
-  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check",
-  "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "media calibrate",
-  "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
+  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "backup", "tidy", "check",
+  "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "fixes review", "media calibrate",
+  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "quality dismiss", "quality undo", "place answer", "place undo",
+  "config get", "config set", "login", "connector add", "connector remove", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 
 export interface HelpAs {

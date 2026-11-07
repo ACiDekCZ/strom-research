@@ -190,3 +190,34 @@ Installation öffnet. **Als App exportieren** in **Alle Stammbäume exportieren*
 - **Gilt seit:** App 1.0.0
 
 <!-- zdroj: app:strings.ts importExport.app, importExport.appDesc, importExport.exportAllApp, importExport.fromHtml, embeddedMode.* · src/ui/import-export.ts -->
+
+<a id="A7.8"></a>
+## A7.8 Erzählungen
+
+Eine Erzählung ist ein zusammenhängender Text über eine Person oder eine Ehe, über den Fakten des Stammbaums
+geschrieben. Sie ist keine Quelle: Die Fakten belegen Quellen, die Erzählung gibt sie nur wieder
+([A3.6](A3-evidence-in-the-app.md#A3.6)).
+
+- **Wo sie zu sehen ist:** das Fenster **Erzählung** (aus dem Menü der Personenkarte), die Personenseite
+  ([A7.6](#A7.6)) und im Familienbuch der Teil **Erzählungen** nach **Familien** ([A7.4](#A7.4)). Die Erzählung eines
+  Paares, eine je Ehe, steht unter der Erzählung der Person; im Buch hat sie ein eigenes Unterkapitel.
+- **Textformat:** Eine Leerzeile trennt Absätze; eine Zeile `## …` ist ein Untertitel; Zeilen `- …` sind
+  Aufzählungspunkte; `**fett**` und `*kursiv*`. Andere Zeichen bleiben einfacher Text. Weder `* 1831` (Geburt) noch
+  `1. ledna` am Zeilenanfang beginnt einen Aufzählungspunkt. Ein einleitendes `# …`, das nur den Untertitel des
+  Kapitels wiederholt, entfällt. Ein bloßer Quellcode im Text wird als Titel der Quelle gelesen.
+- **Grenzen:**
+  - die eigene Erzählung der Person lässt sich beim Bearbeiten einer Person schreiben und ändern, Abschnitt
+    **Erzählung**: **Untertitel des Kapitels** und **Der Text**. Der Abschnitt ist zu sehen, wenn **Einstellungen →
+    Personenkarte → Erweiterte Felder** eingeschaltet ist oder schon ein Text existiert. Die Erzählung eines Paares
+    und **Stützt sich auf** (Fakten und Vorbehalt des Autors) kommen mit der Datei und sind nur lesbar;
+  - ein noch nicht freigegebener Entwurf der Forschung trägt die Marke **Entwurf** und den Link **In der Forschung
+    freigeben**. Eine neue Fassung der Forschung wartet neben der freigegebenen („Neue Fassung wartet“,
+    **Vergleichen**); Bearbeiten in der App verwirft sie nicht, entschieden wird in der Forschung
+    ([R3.9.1](R3-verification-and-citation.md#R3.9.1));
+  - im Buch und im Druck stehen unter dem Text keine Quellen; die Quellen der Erzählung sind im Quellenverzeichnis
+    des Buchs nummeriert;
+  - in einer GEDCOM-Datei steht die Erzählung im eigenen Tag `_STORY`, nicht in einer Notiz.
+- **Bedienung:** Menü der Personenkarte → **Erzählung**; Person bearbeiten → Abschnitt **Erzählung**.
+- **Gilt seit:** App 2.8.0; Erzählungen von Paaren und die Personenseite 3.18.0; im Familienbuch 3.19.0
+
+<!-- zdroj: app:src/story-text.ts:1 storyProseHtml (odstavce, ##, -, **, *) · src/ui/person-modal.ts:662 fillStoryFields · index.html pm-story-section · src/book-blocks.ts:594 storyBlock · src/book.ts proseHtml · src/person-page.ts · src/ged-exporter.ts:449 pushStory _STORY · strings.ts story.* · commit 52000825 (aplikace 2.8.0) · CHANGELOG.cs.md 3.18.0, 3.22.0 -->

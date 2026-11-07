@@ -148,7 +148,7 @@ test("the bridge: GET /fixes — every check in cs/en/de, its state, count, undo
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     info = (await w.ok(["live", "start", "--json"])).json;
     const archived = (await get(`${info.url}/fixes`)).body;
-    assert.deepEqual(archived.fixes.map((f: any) => f.id), ["participant-names", "app-shapes", "street-places"]);
+    assert.deepEqual(archived.fixes.map((f: any) => f.id), ["participant-names", "app-shapes", "street-places", "proven-originals"]);
     assert.doesNotMatch(JSON.stringify(archived), AI);
     assert.ok((await get(`${info.url}/status`)).body.features.includes("fixes.list"));
   } finally {

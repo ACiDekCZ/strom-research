@@ -8,8 +8,8 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { StromError, UsageError } from "../core/errors.ts";
-import { which } from "../core/which.ts";
+import { UsageError } from "../core/errors.ts";
+import { requireAgentCli } from "../core/agentcli.ts";
 import { isArchive } from "../core/mode.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { RUNNERS } from "../runners/index.ts";
@@ -488,7 +488,8 @@ register({
 
     const runner = RUNNERS[agent];
     if (!runner) throw new UsageError(`no reader for agent "${agent}"`, { hint: "strom agents use claude (or codex, opencode, grok, antigravity)" });
-    if (agent !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed: its readers read the sample`, { hint: "strom doctor" });
+    // its readers read the sample: the agent's CLI not here (its desktop app alone) said before anything is asked
+    requireAgentCli(agent, ctx.env, "strom media calibrate");
     const shared = ctx.settings.shared()?.value;
     if (!shared) throw new UsageError("no shared folder with the images is set", { hint: "strom setup" });
     const sizes = sizesOption(opts.sizes, defaults.max);

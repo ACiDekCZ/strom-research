@@ -12,7 +12,7 @@ import { findAgent, withoutAgentMarks } from "../core/which.ts";
 import { spawnAgent, stopTree } from "../runners/runner.ts";
 import { PROFILES } from "./profiles.ts";
 import { agentSettingsSaid } from "./effort.ts";
-import { resolveKey, splitKey, type Aliases } from "../core/modelkey.ts";
+import { calibrationKey, modelId, resolveKey, splitKey, type Aliases } from "../core/modelkey.ts";
 
 export interface ModelOption {
   /** What the agent takes (--model). */
@@ -28,6 +28,8 @@ export interface ModelChoices {
   source: "agent" | "builtin";
   /** The model the agent takes when it is given none, when it says so. */
   agentDefault?: string;
+  /** Codex: the list is its kept catalog, fetched by a newer Codex than the one installed here (a model may be missing in it). */
+  catalogNewer?: { catalog: string; installed: string };
 }
 
 /** Claude Code: its aliases (always the newest of each line). */
@@ -265,16 +267,18 @@ export async function modelChoices(agent: string, env: Env, ms = Number(env.STRO
     }
   }
   // Codex keeps its catalog for the account beside its config: read when the command would not say it
+  let newer: ModelChoices["catalogNewer"];
   if (!list.length && agent === "codex") {
     try {
       list = parseCodex(fs.readFileSync(path.join(env.CODEX_HOME || path.join(userHome(env), ".codex"), "models_cache.json"), "utf8"));
+      newer = codexCatalogNewer(env);
     } catch {
       // none
     }
   }
   const strong = strongModels(list);
   if (!strong.length) return fallback();
-  return { models: strong, source: "agent", ...(agentDefault ? { agentDefault } : {}) };
+  return { models: strong, source: "agent", ...(agentDefault ? { agentDefault } : {}), ...(newer ? { catalogNewer: newer } : {}) };
 }
 
 /** The model an agent takes on its own, as strom knows it (ownModel). */
@@ -322,4 +326,89 @@ export function ownModel(agent: string, env: Env, aliases?: Aliases): OwnModel |
   if (seen) return { model: seen, from: "seen", weak: weakModel({ id: seen }), refused: false };
   const known = OWN_KNOWN[agent];
   return known ? { model: known, from: "known", weak: true, refused: false } : undefined;
+}
+
+/**
+ * The model an alias (or the agent alone: `asked` none) was last seen to run on in the aliases given (core/modelkey.ts:
+ * the model its agent said, never a guess): "opus" → "claude-opus-5-5". None when nobody saw it run, or when what is
+ * asked is a model of its own ("claude-opus-5": itself). Only said: what strom asks for and keeps stays the alias.
+ */
+export function aliasNow(agent: string, asked: string | undefined, aliases: Aliases | undefined): string | undefined {
+  if (!aliases) return undefined;
+  const key = calibrationKey(agent, asked);
+  const now = resolveKey(key, aliases);
+  return now === key ? undefined : splitKey(now).model;
+}
+
+/**
+ * A model's name as a person reads it, for Claude's models: claude-opus-5-5 → "Opus 5.5", claude-sonnet-4 → "Sonnet 4",
+ * claude-3-5-sonnet → "Sonnet 3.5" (a snapshot's date and the context window's mark left out). Any other: as it is.
+ */
+export function modelTitle(agent: string, model: string): string {
+  const id = agent === "claude" ? modelId(agent, model) : undefined;
+  if (!id) return model;
+  const cap = (w: string) => w[0]!.toUpperCase() + w.slice(1);
+  const now = /^claude-(\p{Ll}+)-(\p{N}+)(?:-(\p{N}{1,2}))?$/u.exec(id);
+  if (now) return `${cap(now[1]!)} ${now[2]}${now[3] ? `.${now[3]}` : ""}`;
+  const old = /^claude-(\p{N}+)(?:-(\p{N}{1,2}))?-(\p{Ll}+)$/u.exec(id);
+  if (old) return `${cap(old[3]!)} ${old[1]}${old[2] ? `.${old[2]}` : ""}`;
+  return model;
+}
+
+/** A version's numbers (0.164.0-alpha → [0, 164, 0]); none: not a version. */
+function versionNumbers(v: string): number[] | undefined {
+  const m = /^\s*v?(\d+)\.(\d+)(?:\.(\d+))?/u.exec(v);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)] : undefined;
+}
+
+/** a newer than b (by their numbers; either not a version: false). */
+export function newerVersion(a: string, b: string): boolean {
+  const x = versionNumbers(a);
+  const y = versionNumbers(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! > y[i]!;
+  return false;
+}
+
+/**
+ * The version of the Codex CLI installed here, read without starting it: the package.json of the npm package its
+ * command leads to (a link to bin/codex.js, npm's shim on Windows beside node_modules); none: not installed, or not
+ * from npm (a native build) — unknown, never a guess.
+ */
+export function installedCodexVersion(env: Env): string | undefined {
+  const program = findAgent(PROFILES.codex?.command ?? "codex", env);
+  if (!program) return undefined;
+  let real = program;
+  try {
+    real = fs.realpathSync(program);
+  } catch {
+    // as found
+  }
+  const tries = [path.join(path.dirname(real), "..", "package.json"), path.join(path.dirname(program), "node_modules", "@openai", "codex", "package.json"), path.join(path.dirname(program), "..", "lib", "node_modules", "@openai", "codex", "package.json")];
+  for (const file of tries) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(file, "utf8")) as { name?: unknown; version?: unknown };
+      if (pkg.name === "@openai/codex" && typeof pkg.version === "string") return pkg.version;
+    } catch {
+      // not there
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Codex's catalog kept beside its config (models_cache.json) fetched by a newer Codex than the one installed here
+ * (its `client_version`): a model in it may not be in this one — Codex then says "model_not_found". Both versions; none
+ * when the catalog is of this Codex or an older one, or either is unknown. Only read: nothing is written to ~/.codex.
+ */
+export function codexCatalogNewer(env: Env): { catalog: string; installed: string } | undefined {
+  let catalog: unknown;
+  try {
+    catalog = (JSON.parse(fs.readFileSync(path.join(env.CODEX_HOME || path.join(userHome(env), ".codex"), "models_cache.json"), "utf8")) as { client_version?: unknown }).client_version;
+  } catch {
+    return undefined;
+  }
+  if (typeof catalog !== "string") return undefined;
+  const installed = installedCodexVersion(env);
+  return installed && newerVersion(catalog, installed) ? { catalog, installed } : undefined;
 }

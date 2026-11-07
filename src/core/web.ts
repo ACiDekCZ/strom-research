@@ -52,7 +52,7 @@ import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
 import { browserGate, otherWay, webGate, type WebGate } from "./webgate.ts";
 import { humanPace } from "./terms.ts";
-import { CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "./browser.ts";
+import { APP_BROWSER_HOOK_MATCHER, APP_BROWSER_NAVIGATE_MATCHER, CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "./browser.ts";
 import { searchText } from "./knownterms.ts";
 import { forHistory } from "./pastevents.ts";
 import type { Env } from "./paths.ts";
@@ -93,7 +93,7 @@ export const WEB_SEARCH_TOOLS = ["WebSearch", "web_search"] as const;
 
 /** One hook event as the agent sends it (Claude Code: snake_case; Grok: camelCase, Claude's keys accepted too). */
 export interface WebEvent {
-  agent: "claude" | "grok";
+  agent: "claude" | "grok" | "codex";
   tool: string;
   via: "web" | "search";
   url?: string;
@@ -173,8 +173,8 @@ export interface WebAnswer {
   record?: AgentWebRecord;
   /** After a call (PostToolUse, PostToolUseFailure): a note for the agent beside the call's result — near the threshold. */
   context?: string;
-  /** The event the note answers. */
-  event?: "PostToolUse" | "PostToolUseFailure";
+  /** The event the note answers (before a call: Codex's browser code with no address strom can see, core/codexhook.ts). */
+  event?: "PreToolUse" | "PostToolUse" | "PostToolUseFailure";
 }
 
 /** The hook's answer as the agent reads it on stdout (Claude Code's and Grok's shape alike); none: nothing at all. */
@@ -665,15 +665,16 @@ export function treeHookCommand(root: string, args: string, platform: NodeJS.Pla
 /**
  * Claude Code's hooks of the tree (its .claude/settings.json): strom's before each web fetch and search, and after each
  * web fetch ran or failed — where a call the person was asked about went out and is counted; the same for the browser's
- * navigate (Claude in Chrome), and before each of its tools on a page (core/chromehook.ts).
+ * navigate (Claude in Chrome), and before each of its tools on a page (core/chromehook.ts); the same for the built-in
+ * browser of Claude's desktop app (its tools to an address, after them the tab they opened, its tools on a page).
  */
 export function claudeWebHooks(root: string, platform: NodeJS.Platform = process.platform): Record<string, unknown> {
   const { command, shell } = webHookCommand(root, platform);
   const hooks = [{ type: "command", command, timeout: WEB_HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }];
   return {
-    PreToolUse: [{ matcher: "WebFetch|WebSearch", hooks }, { matcher: CHROME_HOOK_MATCHER, hooks }],
-    PostToolUse: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }],
-    PostToolUseFailure: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }],
+    PreToolUse: [{ matcher: "WebFetch|WebSearch", hooks }, { matcher: CHROME_HOOK_MATCHER, hooks }, { matcher: APP_BROWSER_HOOK_MATCHER, hooks }],
+    PostToolUse: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }, { matcher: APP_BROWSER_NAVIGATE_MATCHER, hooks }],
+    PostToolUseFailure: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }, { matcher: APP_BROWSER_NAVIGATE_MATCHER, hooks }],
   };
 }
 

@@ -23,7 +23,7 @@ Research** a z něj větší **Přehled výzkumu**. Oba jen čtou. Co ukazují, 
   - **Průběh** slučuje kroky po 15 minutách, ukáže nejvýš 20 kroků.
   - Přehled je na širokém okně (od 1280 px) bočním panelem vedle stromu, na tabletu vrstvou přes strom, na telefonu
     celou obrazovkou. Na telefonu je z panelu pruh a klepnutí otevře přehled.
-  - Bez sledování panel ukáže poslední známé **Čeká na vyřízení** s větou **Stav k {d}. Výzkum teď neběží.**
+  - Bez sledování panel ukáže poslední známé **Čeká na vyřízení** s větou **Stav k …. Výzkum teď neběží.**
 - **Ovládání:** aplikace: panel, tlačítka **⤢ Otevřít přehled** a **Ukončit sledování**; menu **Výzkum → Přehled
   výzkumu**.
 - **Platí od:** aplikace 3.5.0
@@ -42,6 +42,7 @@ Strom může sám přecházet na osobu, na které agent právě pracuje (první 
   se pamatuje pro zařízení.
 - **Ovládání:** aplikace: **Přehled výzkumu → Sledovat agenta ve stromu** / **Přestat sledovat**.
 - **Platí od:** aplikace 3.5.0
+- **Od aplikace 3.24.0:** sledovat jde i ve vějíři a na mapě ([S4.1.3](#S4.1.3)); posun mapy ji pozastaví stejně.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -62,9 +63,9 @@ i Přehled.
   - **Vrátit výchozí** zruší všechny volby. Vrácení výchozího i skrytí oddílu z jeho menu jde chvíli vzít zpět
     (**Vrátit**). Když jsou skryté všechny oddíly, panel řekne **Všechny sekce jsou skryté.**
 - **Čeká na vyřízení sbalené nebo skryté:**
-  - nová položka oddíl nerozbalí. Nadpis ukáže počet a **{n} nových**; zvýrazněně, když je mezi nimi rozhodnutí
+  - nová položka oddíl nerozbalí. Nadpis ukáže počet a **N nových**; zvýrazněně, když je mezi nimi rozhodnutí
     nebo povolení (**mezi nimi rozhodnutí nebo povolení**);
-  - skryté nechá štítek **Čeká {n}** v hlavičce panelu, ve shrnutí sbaleného panelu, v pruhu na telefonu
+  - skryté nechá štítek **Čeká N** v hlavičce panelu, ve shrnutí sbaleného panelu, v pruhu na telefonu
     a v Přehledu. Klik ukáže oddíl v Přehledu, dokud se Přehled nezavře (**Skrytá sekce, ukázaná do zavření
     Přehledu.**).
 - **Ovládání:** aplikace: **⋯ → Upravit panel…** v hlavičce panelu i Přehledu; pravé tlačítko nebo dlouhý stisk na
@@ -73,6 +74,68 @@ i Přehled.
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
 
+<a id="S4.1.3"></a>
+### S4.1.3 Sledovat ve vějíři a na mapě
+
+Sledování agenta ([S4.1.1](#S4.1.1)) běží v Rodině, ve vějíři i na mapě. Přepínač **Sledovat v** mění pohled a
+sledování zůstane zapnuté. Vějíř se při tom nehýbe, jen označí, kde se pracuje; mapa ukáže místo práce kruhem.
+
+- **Vějíř:**
+  - střed vějíře je **Osoba v zaměření** před zapnutím sledování (výchozí), **Výchozí osoba**, nebo **Vybraná osoba**
+    (pro jeden strom). Nikdy to není osoba, na které agent pracuje. **Zafixovat jako střed** podrží osobu jako střed,
+    **Uvolnit střed** ho pustí; nový střed se prolne za 150 ms;
+  - osoba, na které se pracuje, má obrys v barvě sezení a dvakrát blikne, když se práce přesune a když sledování
+    přejde do vějíře. Úzká výseč dostane značku vně vějíře;
+  - osoba mimo vějíř dostane štítek **Pracuje se mimo vějíř:** u nejbližší osoby vějíře, v tomto pořadí: manžel nebo
+    manželka, sourozenec, předek za okraji vějíře, u potomka střed, jinak první předek až 12 generací zpět.
+- **Mapa:**
+  - místo práce má kruh v barvě sezení: plný kruh je **místo záznamu** (místo pramene, na kterém agent pracuje, když
+    ho výzkum posílá), přerušovaný **místo osoby** (první místo s polohou z narození, bydliště, sňatku, úmrtí).
+    Sídlo archivu to nikdy není;
+  - kruh jednou pulzne, když sledování přejde na mapu. Mapa se posune jen tehdy, když je místo prvního sezení mimo
+    výhled a mapa není pozastavená. Ruční posun mapy ji pozastaví (**Posun mapy pozastaven**) do **Zpět k agentovi**;
+  - místo bez polohy ukáže nahoře řádek „… – bez polohy na mapě“ s **Dohledat polohu** (u stromu s výzkumem
+    **Dohledat ve výzkumu**, [A6.5.2](A6-views.md#A6.5.2)); osoba bez místa „… – bez místa“;
+  - legenda **Co značí zvýraznění** vysvětlí kruhy, stopu a dutou značku.
+- **Stopa sezení:** v Rodině, vějíři i na mapě slábnou osoby a místa, na kterých se pracovalo, podle stáří: nejvýš
+  posledních 8 změn, žádná starší než 60 minut. Na mapě jsou to prázdné kruhy, místa jednoho sezení spojuje tečkovaná
+  čára (ne na telefonu). Stopa jde vypnout.
+- **Hranice:**
+  - běží-li víc sezení, každé má číslo (ukáže se od dvou) a barvu: první hlavní, další doplňkovou;
+  - práce na sňatku se sleduje u páru: v zaměření je manžel, jinak manželka;
+  - volby platí na tomto zařízení pro všechny stromy, vybraná osoba jen pro svůj strom. Na telefonu je zobrazení
+    zjednodušené.
+- **Ovládání:** aplikace: při sledování **Sledovat v** (Rodina, Vějíř, Mapa); **Nastavení → Sledování výzkumu** →
+  **Sledovat agenta v** (použije se při zapnutí sledování a při **Zpět k agentovi**), **Střed vějíře při sledování**
+  (**Vybrat osobu**, **Změnit**), **Stopa sezení v Rodině, vějíři a na mapě**; ve vějíři **Zafixovat jako střed** /
+  **Uvolnit střed**.
+- **Platí od:** aplikace 3.24.0
+- **Od aplikace 3.25.0:** legenda mapy říká „Dutá značka: místo bez osoby v zobrazených místech“ a místo práce bez
+  osoby na mapě „zatím bez osoby na mapě“ (dřív „mimo rozsah mapy“).
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Změny z výzkumu bez blikání
+
+Změna z výzkumu se do stromu promítne hned a bez překreslení celé obrazovky. Karty, které zůstávají, drží své místo;
+co přibylo, ubylo nebo se změnilo, se krátce ukáže pohybem.
+
+- **Hranice:**
+  - zůstávající karty se přesunou plynule (320 ms). Nová osoba vyroste ze své linky a linkou proběhne světlo;
+    odebraná se stáhne zpět do své linky; sloučená osoba splyne s tou, která zůstává (podle stejného příjmení,
+    narození ±1 rok, společného rodiče nebo partnera); změněná karta má obrys v barvě sezení;
+  - pohybem se ukáže nejvýš 12 nových karet; při víc než 60 změněných osobách se pohyb vynechá a změny se ukážou
+    hned. Na telefonu a tabletu jsou časy kratší (×0,875);
+  - nová osoba mimo výhled dostane značku u okraje („Přibyla mimo obraz: …“, 4 s). Přiblížení ani osoba v zaměření
+    se nezmění. Čtečka obrazovky změny oznámí;
+  - vypnutý **Pohyb při načtení změn** i omezený pohyb v systému ukážou změny hned, jen zvýrazněné („Systém má
+    zapnutý omezený pohyb, změny se proto ukážou bez pohybu.“).
+- **Ovládání:** aplikace: **Nastavení → Sledování výzkumu → Pohyb při načtení změn** (výchozí zapnuto).
+- **Platí od:** aplikace 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
+
 <a id="S4.2"></a>
 ## S4.2 Fronta v aplikaci
 
@@ -80,7 +143,7 @@ Aplikace ukazuje začátek fronty výzkumu v pořadí, v jakém je agent bere ([
 fronta zůstává ve výzkumu.
 
 - **Hranice:**
-  - Panel ukáže 3 úkoly (**Na řadě**), přehled 20 (**Fronta**). Zbytek ukazuje řádek **a dalších {n} ve výzkumu**,
+  - Panel ukáže 3 úkoly (**Na řadě**), přehled 20 (**Fronta**). Zbytek ukazuje řádek **a dalších N ve výzkumu**,
     který otevře výzkum.
   - Se dvěma a více běžícími liniemi jdou úkoly filtrovat podle linie (**Fronta podle linie**).
   - Úkol mimo linie má poznámku: **Čeká až po liniích · nepomáhá žádné linii**, **Nebere se · práce mimo linie je
@@ -95,7 +158,7 @@ fronta zůstává ve výzkumu.
   **Udělat hned** a **Na konec** (a **Vrátit výchozí**) mění místo úkolu přímo z aplikace, bez terminálu
   ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); u úkolu, na kterém agent pracuje, to nejde. Fronta se čte po stránkách:
   **Načíst další** přidá 50 úkolů, seznam drží nejvýš 300, zbytek zúží filtr linie nebo větve.
-  Štítek větve (**Větev {n} {k}**) zúží celou frontu na úkoly větve; **Ukázat celou frontu** ho zruší.
+  Štítek větve (**Větev … K**) zúží celou frontu na úkoly větve; **Ukázat celou frontu** ho zruší.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
 
@@ -106,8 +169,8 @@ Přehled ukazuje linie výzkumu ([R2.1](R2-lines-and-queue.md#R2.1)): co na kter
 se linie jen čtou; každá změna se potvrzuje v terminálu výzkumu.
 
 - **Hranice:**
-  - Oddíl **Linie · {n} aktivní** je jen při dvou a více liniích, nebo při jedné linii, když běží i práce mimo ni
-    (řádek **Mimo linie**). Pozastavené a ukončené linie jsou sbalené pod **Pozastavené a ukončené · {n}**.
+  - Oddíl **Linie · N aktivní** je jen při dvou a více liniích, nebo při jedné linii, když běží i práce mimo ni
+    (řádek **Mimo linie**). Pozastavené a ukončené linie jsou sbalené pod **Pozastavené a ukončené · N**.
   - Řádek linie: druh (↑ předci, ↓ potomci, ⌕ otázka), název, osoba, počet úkolů a co čeká na vyřízení. Linie bez
     práce má **Nic nečeká, lze ji ukončit.**
   - Detail linie: známí předci po generacích, kdy se na ní naposledy pracovalo, **Pracovat na této linii**
@@ -120,9 +183,9 @@ se linie jen čtou; každá změna se potvrzuje v terminálu výzkumu.
 - **Ovládání:** aplikace: **Přehled výzkumu → Linie**, u linie **⋯**.
 - **Platí od:** aplikace 3.5.0 (výzkum 1.8.0). Dělení panelu po liniích od 3.13.1.
 - **Od aplikace 3.22.0:** s výzkumem 1.26.0 se linie mění přímo v aplikaci ([S4.3.1](#S4.3.1)). Řádek linie
-  ukáže, na čem se teď pracuje (**Teď: …**), a meze (**do {n} generací**, **před {rok}**; u pozastavené linie ne).
-  Detail linie řekne, co linie našla za poslední dny (**Za {n} dní:** sezení, osoby, prameny); osoby ukáže ve
-  stromu. Ukončené linie jsou sbalené na konci (**Ukončené · {n}**). V úzkém okně a na telefonu je přehled listem:
+  ukáže, na čem se teď pracuje (**Teď: …**), a meze (**do N generací**, **před …** (rok); u pozastavené linie ne).
+  Detail linie řekne, co linie našla za poslední dny (**Za N dní:** sezení, osoby, prameny); osoby ukáže ve
+  stromu. Ukončené linie jsou sbalené na konci (**Ukončené · N**). V úzkém okně a na telefonu je přehled listem:
   místo úchytu pořadí šipky ▲▼.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -139,7 +202,7 @@ S výzkumem, který to umí, zapisuje aplikace změny linií přímo přes most.
   - Pořadí linií: tažením, šipkami nebo **Přesunout na začátek**. Pod seznamem stojí, jak výzkum pořadí bere:
     **Výzkum se věnuje nejvíc liniím nahoře, ostatní nestojí.** nebo **Výzkum bere linie popořadě.**
   - **Pozastavit** a **Znovu spustit** se dají vzít zpět (**Zpět**). **Ukončit…** se zeptá a vezme nepovinný důvod.
-  - Když už stejná linie je, formulář to řekne (**Linie {n} už běží.**) a nabídne **Ukázat ji** nebo **Založit
+  - Když už stejná linie je, formulář to řekne (**Linie … už běží.**) a nabídne **Ukázat ji** nebo **Založit
     přesto**.
   - **Hledat předky** a **Hledat potomky** u osoby otevřou tento formulář.
   - Jen ke čtení: v Archivu Stromu (**Archiv: linie jen ke čtení.**), na telefonu (**Linie jde měnit ve Stromu na
@@ -159,18 +222,18 @@ Při dvou a více liniích ukazuje přehled práci mimo linie po větvích. Volb
 
 - **Hranice:**
   - Pro celý výzkum: **Jak se bere práce mimo linie**: **Občas**, **Na konci**, **Normálně**, **Nikdy**.
-  - Řádek větve: osoba větve, vztah k linii (**u linie {n}**), počet úkolů, **roste**, **vlastní volba**.
-  - Klik na větev ukáže její první úkoly s místem ve frontě (**Ve frontě · první {k} z {n}**, **{i}. ve frontě**)
-    a odkaz **Všechny {n} úkolů ve Frontě ›**. Když úkoly větve stojí za načtenou částí fronty: **Úkoly větve
-    stojí ve frontě dál ({n}).**
+  - Řádek větve: osoba větve, vztah k linii (**u linie …**), počet úkolů, **roste**, **vlastní volba**.
+  - Klik na větev ukáže její první úkoly s místem ve frontě (**Ve frontě · první K z N**, **I. ve frontě**)
+    a odkaz **Všechny N úkolů ve Frontě ›**. Když úkoly větve stojí za načtenou částí fronty: **Úkoly větve
+    stojí ve frontě dál (N).**
   - Pro větev: **Bere se:** **Občas** / **Na konci** / **Normálně** (volba výzkumu má **(výchozí)**), **Přidat
-    k linii {n}** (nejbližší linie první), **Založit linii z této větve**, **Nezkoumat** (úkoly odejdou z fronty,
-    nic se nesmaže), **Vrátit výchozí**. Nezkoumané větve jsou pohromadě (**Nezkoumá se · {n} větví**).
+    k linii …** (nejbližší linie první), **Založit linii z této větve**, **Nezkoumat** (úkoly odejdou z fronty,
+    nic se nesmaže), **Vrátit výchozí**. Nezkoumané větve jsou pohromadě (**Nezkoumá se · N větví**).
   - Otázky k rostoucím větvím ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) jsou v **Čeká na vyřízení**: přidat k linii
-    (u pozastavené linie **Přidat k linii {n} (pozastavená)**), založit linii, **Nechat, jak je**, nezkoumat. Bez
+    (u pozastavené linie **Přidat k linii … (pozastavená)**), založit linii, **Nechat, jak je**, nezkoumat. Bez
     odpovědi se větev bere dál jako dosud.
   - Okno **Výzkum u tohoto stromu…**, skupina **Práce mimo linie**: volba pro celý výzkum (**Občas**: „Zhruba 1 úkol
-    mimo linie na {k} úkolů linií.“), **Navrhovat linie u rostoucích větví**, **Větve s vlastní volbou**
+    mimo linie na K úkolů linií.“), **Navrhovat linie u rostoucích větví**, **Větve s vlastní volbou**
     a úkoly s ručním pořadím.
 - **Ovládání:** aplikace: **Přehled výzkumu**, oddíl práce mimo linie, u větve **⋯** (**Možnosti větve**);
   **Výzkum u tohoto stromu…**.
@@ -202,11 +265,11 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
   - Akce je vidět jen na počítači (ne na dotykovém zařízení), jen když výzkum odkaz ohlásil a jen když je zapnuté
     **Strom Research na tomto počítači**.
   - Odkaz nese jen čísla záznamů a pevné hodnoty, žádná jména ani volný text.
-  - Terminál začne **Aplikace Strom žádá: {co} / Výzkum: {název}** a zeptá se **Pokračovat?** U práce agenta
+  - Terminál začne **Aplikace Strom žádá: … / Výzkum: …** a zeptá se **Pokračovat?** U práce agenta
     připíše **Agent pracuje na předplatné nebo kredit AI.**, u zadání úkolů **Výzkum zapíše úkoly pro agenta – teď
     se nic nehledá a nic se neplatí.**
   - Archiv Stromu a výzkum, který čeká na agenta, práci agenta odmítnou (rozhovor, prověření, hledání, místa, dějiny).
-  - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „{name}“ – agent v ní
+  - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „…“ – agent v ní
     pokračuje.**
   - Aplikace nepozná, jestli se terminál otevřel. Ukáže **Otevírám výzkum…** a radu **Když se nic neotevře, je potřeba
     spustit Strom Research a zkusit to znovu.**
@@ -253,6 +316,26 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
   3.5.0
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
+
+<a id="S4.5.3"></a>
+### S4.5.3 Otevřít úkol ve frontě
+
+**Otevřít úkol T…** otevře úkol ve frontě v terminálu výzkumu. Terminál úkol ukáže a zeptá se, co s ním teď.
+
+- **Hranice:**
+  - terminál ukáže **Úkol T… je ve frontě: agent ho vezme, až na něj přijde řada.**, **Proč: …** a **Hotovo, když:
+    …** a zeptá se **Co teď?**:
+    - **Projít ho s agentem (…) teď, v rozhovoru**: nejdřív se zeptá a řekne, co podobná sezení tady stála, nebo že
+      to zatím není známo;
+    - **Dát ho ve frontě dopředu (nejvyšší priorita)**: priorita 5; má-li ji úkol už, nic se nestane;
+    - **Nechat ho ve frontě, jak je**;
+  - Enter nebo 0 nic nezapíše. Na úkolu, na kterém právě pracuje agent, se nic nestane;
+  - úkol, který čeká na člověka, otevře svou dosavadní otázku.
+- **Ovládání:** aplikace: **Otevřít úkol T…** (značka terminál) po založení úkolu z nového čtení a v řádku u pramene
+  ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminál: `strom chat --task T…` vezme úkol z fronty rovnou do rozhovoru.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
 <a id="S4.6"></a>
 ## S4.6 Co je jen v terminálu

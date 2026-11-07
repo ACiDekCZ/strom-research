@@ -229,8 +229,17 @@ export const DEFAULT_HISTORY_PACE: HistoryPace = "sometimes";
 export const DEFAULT_READ_PARALLEL = 5;
 export const READ_PARALLEL_MAX = 10;
 
-/** Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never). */
-export const DEFAULT_LIVE_IDLE_MINUTES = 120;
+/**
+ * Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never — the
+ * default since 1.29.0: the bridge only reads, on this computer only, and costs nothing; a value stored stays).
+ */
+export const DEFAULT_LIVE_IDLE_MINUTES = 0;
+/** The other choice the Strom app offers beside never (/status live.idleChoices): ended after two hours with nobody asking. */
+export const LIVE_IDLE_AFTER_MINUTES = 120;
+/** What the Strom app offers for live.idleMinutes: never by itself, or after two hours (/status live.idleChoices). */
+export const LIVE_IDLE_CHOICES = [DEFAULT_LIVE_IDLE_MINUTES, LIVE_IDLE_AFTER_MINUTES] as const;
+/** The most minutes live.idleMinutes takes from the Strom app (POST <token>/live): a week. */
+export const LIVE_IDLE_MAX_MINUTES = 7 * 24 * 60;
 
 /** One setting: where it can live and how it is checked. */
 export interface SettingDef {
@@ -297,6 +306,10 @@ export const SETTINGS: SettingDef[] = [
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
   // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
+  // Read from the config files only (the user's or the tree's) — no variable: what a reading again asks of the person is theirs.
+  { key: "read.sourceTask", env: "", tree: true, kind: "choice", choices: ["ask", "always", "never"], description: "a source read again from its original that differs from its transcript in a matter of fact both its readers are sure of: ask (default — no task, the reading kept beside the source, said to differ and not verified until you decide: now with the agent, into the queue, or just keep it; a transcript you confirmed: set aside for your review or just keep it — strom source reading S…, the Strom app; a task of the source not ended takes nothing until then), always (a task to hold the two against each other at once, or the source's task not ended takes the places; a transcript you confirmed: a wording with the new places proposed to you for review, never a task of the agent's) or never (kept beside the source, said not verified, no task)" },
+  // Read from the config files only (the user's or the tree's) — no variable: letting the agent decide is the user's decision.
+  { key: "hypotheses.decide", env: "", tree: true, kind: "choice", choices: ["person", "agent"], description: "who decides the hypotheses (the uncertain links between people): agent (default where nothing is set — the agent decides once a cited record points to one variant; a branch of 10 or more people off the tree only with two sources and no objection, else it proposes; it never changes your decision) or person (the agent proposes, you decide in What waits for you; back to it: strom config set hypotheses.decide person) — only you let the agent decide where person is set (strom setup recommends agent); an archive: nobody decides" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
   { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
   { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all (every source with an excerpt: the entries nobody cites too, where they still fit under excerpts.mb, the cited never made smaller for them)" },
@@ -338,7 +351,7 @@ export const SETTINGS: SettingDef[] = [
   // Measured and set by strom itself (tune.auto), never typed: shown with their reason; unset returns to the default.
   { key: "reading.batch", env: "", tree: false, kind: "tuned", description: "how many scans are read in one batch (by a delegate, the agent itself, a reader of strom read) and how many views one call of strom media view gives — default about 6 scans, 24 views; strom makes it smaller by itself when the context clears or readers end without a result; strom config unset reading.batch returns to the default" },
   { key: "reading.views", env: "", tree: false, kind: "tuned", description: "after how many views a reader stops and reports (the agent reading itself writes down and goes on) — default about 30; strom makes it smaller by itself from the context it measured; strom config unset reading.views returns to the default" },
-  { key: "live.idleMinutes", env: "", tree: false, kind: "number", description: `minutes the bridge to the Strom app (strom live) runs on while nobody asks it anything and nobody works in the tree, then it ends by itself (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: it never ends by itself — only strom live stop ends it. A bridge running takes it when it starts again` },
+  { key: "live.idleMinutes", env: "", tree: false, kind: "number", description: `minutes the bridge to the Strom app (strom live) runs on while nobody asks it anything and nobody works in the tree, then it ends by itself; 0 (the default): it never ends by itself — only strom live stop (or the Strom app's switch) ends it. A value stored stays; a bridge running takes a new one within a minute` },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -518,7 +531,7 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       const n = Number(v);
       // the bridge's idle time: whole minutes, 0 for never
       if (def.key === "live.idleMinutes") {
-        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends (default ${DEFAULT_LIVE_IDLE_MINUTES}); 0: never by itself — strom config set live.idleMinutes ${DEFAULT_LIVE_IDLE_MINUTES}` });
+        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends; 0 (the default): never by itself — strom config set live.idleMinutes ${LIVE_IDLE_AFTER_MINUTES}` });
         return n;
       }
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
@@ -708,9 +721,14 @@ export class Settings {
   liveIdleMs(): number {
     const raw = this.env.STROM_LIVE_IDLE_MS;
     if (raw !== undefined && raw !== "" && Number.isFinite(Number(raw)) && Number(raw) >= 0) return Number(raw);
+    return this.liveIdleMinutes() * 60_000;
+  }
+
+  /** live.idleMinutes as stored (whole minutes, 0: never by itself), else DEFAULT_LIVE_IDLE_MINUTES — what /status live says. */
+  liveIdleMinutes(): number {
     const v = readStored(this.config, "live.idleMinutes", "");
     const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
-    return (Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES) * 60_000;
+    return Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES;
   }
 
   /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */
@@ -907,10 +925,24 @@ export class Settings {
     return this.experimentsHistory(tree) && this.resolve("stories.history", tree)?.value !== "no";
   }
 
+  /** A source read again that differs in a matter of fact: ask (default), always a task, never one (read.sourceTask). */
+  readSourceTask(tree?: TreeConfig): "ask" | "always" | "never" {
+    const v = this.resolve("read.sourceTask", tree)?.value;
+    return v === "always" || v === "never" ? v : "ask";
+  }
+
   /** strom sync: whether the user's edit to a fact a record proves wins, or becomes a conflict. */
   /** Each send of the Strom app waits for the user's word (sync.review on); off (default): written at once. */
   syncReview(tree?: TreeConfig): boolean {
     return this.resolve("sync.review", tree)?.value === "on";
+  }
+
+  /**
+   * Who decides the hypotheses (hypotheses.decide): the agent where nothing is set (spec 060 K1.9 — a research of 1.28
+   * or older too), the person where the person chose it; the agent again only on the person's yes.
+   */
+  hypothesesDecide(tree?: TreeConfig): "person" | "agent" {
+    return this.resolve("hypotheses.decide", tree)?.value === "person" ? "person" : "agent";
   }
 
   syncEdits(tree?: TreeConfig): "conflict" | "user" {

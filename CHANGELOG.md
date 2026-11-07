@@ -5,6 +5,147 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.29.0
+
+*2026-11-08 · goes with the Strom app 3.25.0.*
+
+- **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
+  the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
+  or *the user decides*. With the AI deciding, the agent decides a hypothesis itself once a cited
+  record supports one variant, with the variant and its reason; it never overturns the user's own decision, and a branch
+  of ten or more people off the tree it joins only on two sources with nothing against them – otherwise it proposes.
+  Each of its decisions is marked as the agent's, listed among the changes and changeable at any time; switching the
+  setting changes no decision made. Where nothing is chosen, the AI decides – in a research made before too; back to the
+  user deciding: `strom config set hypotheses.decide person`. strom's setup recommends the AI's deciding and offers it
+  first, *the user decides* chosen there is kept; once the user decides, only a person turns the AI's deciding on again,
+  with a second yes.
+
+- **Every hypothesis can be decided from the menu.** With the user deciding, what waits offers also the open
+  hypotheses without the agent's proposal – decided with a variant and a reason, or left open; with the AI deciding
+  (the default) it offers only the agent's proposals. From one person's review and from a link of the Strom app any
+  hypothesis can be decided, whoever decides, and a decided or set-aside hypothesis can be decided again with a reason,
+  the earlier decision kept readable. With the user deciding, the agent proposes a decision wherever the records point
+  to one variant.
+
+- **The research in the Strom app stays on.** The bridge to the Strom app no longer ends by itself after two hours with
+  nobody asking: it runs until it is turned off or the computer goes off (`live.idleMinutes` 0 by default; a value set
+  before stays). The Strom app gets a switch for each research and a choice in its settings – until the computer goes
+  off, or after two hours with nobody asking – both written through the bridge. Turned off in the app, the bridge stays
+  off (new work in the research does not bring it back) and keeps its address, so turning it on again – from the app
+  through a link of strom, or with `strom live start` – needs no new connection.
+
+- **The agents' desktop apps watched as the agent in the terminal is.** The built-in browser of the agent's app keeps the archives' terms as
+  the agent's browser in Chrome does: an archive that lets in only a person's browser without the person's yes is
+  refused with the same advice, an allowed one is recorded and kept to its pace; local pages are left alone. strom's
+  commands typed into the app's own terminal follow the same rules as in the shell (what only a person does, the bridge
+  of the Strom app); the agent is told to run strom through its shell. Nothing of the app is switched off. The app's
+  terminal knows strom under any of its names – another channel's, a second installation's, the package through a
+  package runner, a path to it. Codex's browser (in the ChatGPT app) keeps the same rules by the addresses its code names,
+  once strom's hooks are confirmed in Codex – `strom doctor` and `strom chat` say when they wait; code naming no address
+  is never refused, only recorded. With them confirmed, an archive that lets in only a person's browser opens to Codex's
+  browser too with the person's permission "through the browser", as to the agent's browser in Chrome (`strom net web --check
+  --browser`, `strom doctor`, the brief, the Strom app); unconfirmed, as before. Computer use stays unwatched. What strom watches in each agent and app: `strom doc R12`;
+  an agent with computer use is told to drive the Strom app through a browser's page tools and the research through strom.
+
+- **The agent's desktop app without the agent in the terminal.** strom now says what goes and what does not: the conversation in the app
+  goes on, while working alone, reading scans and the work from the Strom app need the agent in the terminal – said
+  before any question or estimate of the cost. The settings and `strom doctor --fix` offer to install it (it can be
+  declined); `strom doctor` tells the browser in a conversation from the browser of a run alone. A conversation without it
+  reads scans with strom's own scan reader.
+
+- **A source counts as read by the user only when the user read it, and a fact is proven only from the original
+  record.** A transcript typed by hand at the terminal, or confirmed in the Strom app, makes the user its reader; what
+  imports, conversions and batches wrote under the user's account no longer does. A fact is proven only on a cited
+  original record with primary information; one without it becomes probable, the reason kept in its history, while one
+  the user made proven stays and waits in What waits to be kept or made probable (`strom fixes review proven-originals
+  keep|lower`). Existing researches are set right once by themselves, listed among the changes (`strom fixes undo
+  readers|proven-originals` puts it back). A GEDCOM of another program never makes the user a reader nor a fact proven.
+  A confirmation in the app holds for the wording it was given to and can be taken back there; on an original record
+  with primary information a fact may then be proven, otherwise at most probable.
+  **A transcript the user read or confirmed is the user's.** Nothing but the user's own terminal or the Strom app
+  changes it – whatever the command (an edit, a batch, a sync, a fix, an undo, an import). An agent's other wording is
+  proposed instead: a note at the source and one task for the user per source, which no agent takes or closes;
+  decided in What waits, through a link of the Strom app or in the app – the proposed wording taken as the user's, or
+  the transcript kept and the same wording never proposed again; either decision can be taken back (the earlier
+  transcript with its confirmation back, the proposal waiting again).
+
+- **Each reader of a document with its own agent, model and effort, and a source read again from its original.** `strom
+  document read|again --agent/--model/--effort` (and `--blind-…` for the blind reader), or the choice in the Strom app;
+  with nothing chosen it reads as the research's settings say, never with a cheaper model. The result says who read it –
+  in the terminal, in the reading's file and in the Strom app. A source is read again from its original on this computer
+  (`strom document read --source S… [--clip …]`, or from the Strom app), its readers never shown the transcript; the new
+  reading is kept beside the source, and where it differs a task holds the two against each other – the transcript, who
+  read it and the user's confirmation stay as they were. Excerpts of one image that overlap or touch are read as one
+  view, and words of the transcript outside the excerpt read (a heading of the page above it) count as no difference.
+  `strom fixes` takes a reading of two readers as its first reader's: a blind reader of another model is never an
+  earlier model to read again with, and a reading one of whose readers read with today's model counts as read with it.
+  Reading again from the original reads as well as it can. The readers are told what the research knows of the record –
+  its kind, language, date and where it stands, never its transcript or a name –, and a reader with a GPT model also to
+  transcribe the entry in the middle of the excerpt, to leave out the neighbouring entries at its edge and to keep the
+  original spelling letter by letter. Only the source's entry (the one the reader marks, else the one most within the
+  excerpt) is held against the transcript; column labels without a counterpart („Dies:“, „Vater:“), the research's own
+  heading of the record, notes of the research or a reader in brackets, a long ſ against s, an illegible place against
+  nothing and words outside what both read are no difference. The Strom app gets in the reading's result which entry is
+  the source's, the blind reader's whole text, a warning when the readers took the record for different kinds (a
+  marriage × a baptism), and when the comparison cannot be written to the research – a research sealed on another
+  computer, say – it is said instead of left out silently. Readers with a GPT model (Codex, OpenCode) see a small
+  excerpt enlarged to about 2000 px (at most three times), also where the reading of scans was tuned to a smaller size
+  (the tuning measures whole pages and halves, never a small excerpt), the others as before; a registered sharper part
+  of the image that shows the whole place – or the whole excerpt, only its margin left out – is used, and for a place small on its scan a sharper crop from the archive is
+  offered – never fetched by itself. The Codex reader runs without the notice program, plugins, apps, hooks and memories
+  of Codex's settings and without its app's browser and computer use; Codex's settings are not changed.
+  A model the Codex CLI installed here does not have ends the reading as a reader that failed with that reason, and a
+  run of strom stops with it: the advice is to update Codex (`npm install -g @openai/codex@latest`) or to choose another
+  model; models of Codex's catalog fetched by a newer Codex than the one installed are offered with a note.
+  A reading asked from the Strom app is accepted at once though its strom takes long to queue it (another process holding
+  the research, say): it is said as queued under its ID from the first moment and read under it, and one that cannot be
+  queued then is said as failed, with the reason; the same source asked again meanwhile is refused as being read.
+  The choice of the research's model (the setup, Settings in strom's menu)
+  names the model Opus, Sonnet and the agent's own default last ran on, where a research on this computer saw it
+  run – "Opus (now Opus 5.5)"; `strom doctor` and the settings say it beside the model kept, and the Strom app gets it
+  with the readers to choose from. Unknown, it is said as before. What is kept stays Opus or Sonnet, so a newer model of
+  its line is taken by itself; a fixed version set by hand (`strom config set model.lead <model>`) is offered as chosen
+  now and stays that version.
+  A reading whose blind reader read nothing (it failed, or ended with no entry) is its first reader's alone, as a
+  reading of one reader – never every entry said to differ. The Strom app gets with each place two readings differ
+  what kind of difference it is – a matter of fact (a name, number, date, person, a place one cannot read) or a trifle
+  (spelling, an abbreviation, punctuation, a label, letter case) –, and where each reader is: waiting, reading, done in
+  so many seconds, or failed, and which reader it was whose model was refused.
+  **A source read again: what follows is the user's choice.** A task arises only of a matter of fact both readers
+  read the same against the transcript (a name, number, date, person, a word the transcript could not read) – never of
+  trifles (spelling, an abbreviation, punctuation), of a place the readers disagree on or one marked as not legible,
+  nor of a place an earlier task judged already. The task says who read (agent · model · effort), that two readers of
+  the same model are weaker evidence, and that the reading is only a lead: the transcript is changed only where the scan
+  itself shows it. A new setting `read.sourceTask` says what follows: *ask* (the default) – the reading is kept beside
+  the source as not verified until the user chooses: go through it with the agent now, put it in the queue, or just
+  keep it (in the terminal right after the reading, later with `strom source reading S…`, or in the Strom app);
+  *always* – a task at once; *never* – no task. One source has one task of its readings at a time. A reading with no
+  matter of fact to decide, only places its readers are not sure of, makes no task by itself – not even with *always*;
+  on the user's word alone (`strom source reading S… --take queue --unsure`, or in the Strom app) the agent gets a
+  task to look at each such place on the scan: the transcript corrected with its reason where the scan surely shows
+  it, elsewhere a note at the source. A transcript the user confirmed is never the agent's to change: the places the
+  new reading read are proposed to the user for review instead (`--take review --unsure`).
+
+- **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
+  hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a
+  research outside the folder of the research updates that research's agent instructions too, and a site given
+  (example.org) covers the addresses of it the research's books use. The terms of the Central Archives of Historical
+  Records in Warsaw as the archive answered: the scans used freely, each cited by the original's place – archive, fonds,
+  signature, page or folio. A conflict recorded in a batch with a labelled source (`--claim "@s: …"`) now cites that
+  source; one an earlier version recorded so shows its value without the raw label and, where it can be told, cites
+  its source in the Strom app and the GEDCOM. A conversation that ended no longer stays at work in the Strom app, even
+  on a busy computer or after the computer's name changed. A place written in a sentence ("v Lhotě v čp. 12") no
+  longer keeps its prepositions: the check offers the municipality as the research writes it, and a place record no
+  longer gains a name like "v Lhotě v" — such names already written are set right once (undo: strom place undo).
+  **Overlapping excerpts of one image are one.** Two excerpts of the same image the research marked overlapping by
+  30 % or more of the smaller one become one covering both (one lying nearly whole inside a larger one – a detail, an
+  entry beside the whole page – stays); excerpts the user marked stay as they are. A research made
+  before has its overlapping excerpts joined once, each logged; the transcript and the user's confirmation stay.
+  **A task in the queue from the Strom app.** A link of the app to a task in the queue shows it (what, why, when done)
+  and offers to go through it with the agent now (with what tasks like it took here), to put it ahead in the queue,
+  or to leave it. `strom doctor` says why a dearer change of its tuning towards accuracy is kept, and Codex's hook
+  file only missing or out of date is no warning – it is written again the next time strom starts the agent.
+
 ## 1.28.0
 
 *2026-11-06 · goes with the Strom app 3.24.0.*

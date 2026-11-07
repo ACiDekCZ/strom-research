@@ -3,6 +3,7 @@
 // sessions and costs tokens every time. Every command in it must exist
 // (test/cli/examples.test.ts checks them against the registry).
 
+import { BIG_BRANCH } from "../core/kin.ts";
 import { langName } from "../core/lang.ts";
 import { appSite } from "../core/stromapp.ts";
 import { WEB_PER_HOST, webRuleLines } from "../core/web.ts";
@@ -34,7 +35,7 @@ export const HISTORY_GUIDE = `THE HISTORY OF THE PLACES (the user has it on: wha
 `;
 
 /** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here; history: the user has the history of the places on here. */
-export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform, history = false): string {
+export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform, history = false, decide: "person" | "agent" = "person"): string {
   const ps = powershellUtf8Rule("", platform);
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language; a record in another language or script gets a translation into ${langName(lang)} too (--translation).`
@@ -78,14 +79,19 @@ HARD RULES
    Chrome; strom net web --check <url> --browser) goes one page at a time
    at a person's pace, from page to page by going to the address (navigate)
    — never clicking through a series of pages; strom's hook counts its
-   navigate with your web fetches of the site. Any other agent's browser or
-   computer use (Codex's, Antigravity's, the browser, preview and computer
-   use of Claude's and Codex's desktop apps, a browser's MCP) strom does
-   not see and does not recommend: never of your own accord to an archive
-   only a person's browser goes to — the person saves its images by hand
+   navigate with your web fetches of the site. The built-in browser of
+   Claude's desktop app strom's hook keeps the same way, yet strom does not
+   recommend it. Codex's browser (its js tool) strom's hook keeps by the
+   addresses its code names, once the person confirmed strom's hooks in
+   Codex: each page's address written out in the call, one at a time; code
+   with none is recorded as unwatched. Any other agent's browser or
+   computer use (Antigravity's, the desktop apps' computer use, a browser's
+   MCP) strom does not see and does not recommend (strom doc R12): never of
+   your own accord — those built-in browsers neither — to an archive only a
+   person's browser goes to — the person saves its images by hand
    (strom task wait T… --images B…:<numbers> --on "…"). Only when the
    person explicitly asks you to use one there: the person's choice — say
-   in one sentence that strom does not watch that way and what the
+   in one sentence whether strom watches that way and what the
    archive's terms say; never a way round them. Claude in Chrome at such
    an archive the person allowed "through the browser": with its
    connector, strom fetch plans the images
@@ -304,6 +310,18 @@ STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   want it, or offer it when the research has a pause. A story is a draft until the user approves it themselves (the Strom app, or strom → What waits). When strom says to tell
   the user (once, not in every conversation): in a sentence, and that they may say no (strom config set
   stories no).
+HYPOTHESES (an uncertain link between people, with variants: the setting hypotheses.decide — the user's; here: ${decide})
+${
+  decide === "agent"
+    ? `  The user lets you decide them: once a support of one variant cites a source (S…), strom hypothesis decide H…
+  --variant <label> --decision "…" (none holds: --abandon), and tell the user in a sentence what and why. One that
+  joins a branch of ${BIG_BRANCH} or more people off the tree: only on two sources and no objection to the variant, else
+  strom hypothesis propose (the user decides it). A decision of the user's you never change: a record that
+  overturns it is proposed again with --reason.`
+    : `  The user decides them: once the records point to one variant (or show none can be), strom hypothesis propose
+  H… --variant <label> --decision "…" and tell the user in a sentence; they decide it in strom's menu (What waits).`
+}
+  What is decided you record on the tree in the next work (the brief lists it).
 ${history ? HISTORY_GUIDE : ""}
 The result: strom export gedcom writes output/tree.ged (standard GEDCOM for any program) and
 output/tree-strom.ged (for the Strom app) — both from the same evidence, also on session close.

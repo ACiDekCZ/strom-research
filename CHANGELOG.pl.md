@@ -5,6 +5,159 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.29.0
+
+*8.11.2026 · współpracuje z aplikacją Strom 3.25.0.*
+
+- **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
+  pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
+  *rozstrzyga AI* lub *rozstrzyga człowiek*. Gdy rozstrzyga AI, agent sam rozstrzyga hipotezę, gdy
+  tylko cytowany zapis potwierdzi jeden wariant, zawsze z wariantem i uzasadnieniem; decyzji użytkownika nigdy nie
+  zmienia, a gałąź dziesięciu lub więcej osób spoza drzewa dołącza tylko na podstawie dwóch źródeł bez zastrzeżeń –
+  w przeciwnym razie proponuje. Każda jego decyzja jest oznaczona jako decyzja agenta, pojawia się w przeglądzie zmian
+  i można ją w każdej chwili zmienić; zmiana ustawienia nie zmienia niczego już rozstrzygniętego. Gdzie nic nie
+  wybrano, rozstrzyga AI – także w badaniu założonym wcześniej; powrót do rozstrzygania przez człowieka:
+  `strom config set hypotheses.decide person`. Konfiguracja początkowa stroma zaleca rozstrzyganie przez AI i proponuje
+  je jako pierwsze, wybrane tam *rozstrzyga człowiek* zostaje zapisane; gdy rozstrzyga człowiek, rozstrzyganie przez AI
+  włącza ponownie tylko człowiek, po drugim „tak”.
+
+- **Każdą hipotezę można rozstrzygnąć z menu.** Gdy rozstrzyga użytkownik, „Co czeka“ oferuje także otwarte hipotezy
+  bez propozycji agenta – rozstrzygnąć z wariantem i uzasadnieniem albo zostawić otwarte; gdy rozstrzyga AI
+  (domyślnie), tylko propozycje agenta. Z przeglądu osoby i z linku aplikacji Strom można rozstrzygnąć każdą hipotezę,
+  niezależnie od tego, kto rozstrzyga, a hipotezę rozstrzygniętą lub odłożoną można rozstrzygnąć ponownie
+  z uzasadnieniem, wcześniejsza decyzja pozostaje czytelna. Gdy rozstrzyga użytkownik, agent proponuje decyzję
+  wszędzie, gdzie zapisy wskazują na jeden wariant.
+
+- **Badanie w aplikacji Strom pozostaje włączone.** Połączenie z aplikacją Strom (most) nie kończy się już samo po
+  dwóch godzinach bez zapytań: działa, dopóki nie zostanie wyłączone albo komputer się nie wyłączy (`live.idleMinutes`
+  wynosi teraz 0; wcześniej ustawiona wartość pozostaje). Aplikacja Strom dostaje przełącznik przy każdym badaniu
+  i wybór w ustawieniach – do wyłączenia komputera albo po dwóch godzinach bez zapytań –, oba zapisywane przez most.
+  Wyłączony w aplikacji most pozostaje wyłączony (nowa praca w badaniu go nie przywraca) i zachowuje swój adres, więc
+  ponowne włączenie – z aplikacji linkiem stroma albo poleceniem `strom live start` – nie wymaga nowego połączenia.
+
+- **Aplikacje agentów pilnowane tak jak agent w terminalu.** Wbudowana przeglądarka aplikacji agenta przestrzega warunków archiwów tak
+  jak przeglądarka agenta w Chrome: archiwum, które wpuszcza tylko przeglądarkę człowieka, bez jego zgody zostaje
+  odrzucone z tą samą radą, dozwolone zostaje zapisane i trzyma swoje tempo; strony lokalne nie są ograniczane.
+  Polecenia stroma w terminalu aplikacji obowiązują tak samo jak w powłoce (to, co robi tylko człowiek, most aplikacji
+  Strom); agent dostaje polecenie uruchamiać stroma przez swoją powłokę. Nic w aplikacji nie jest wyłączane. Terminal
+  aplikacji rozpoznaje strom pod każdą jego nazwą – innego kanału, drugiej instalacji, pakiet przez program
+  uruchamiający pakiety, ścieżkę do niego. Przeglądarka Codexa (w aplikacji ChatGPT) trzyma się tych samych reguł według
+  adresów w jej kodzie, gdy hooki stroma są potwierdzone w Codexie – `strom doctor` i `strom chat` mówią, kiedy czekają;
+  kod bez adresu nigdy nie jest odrzucany, tylko zapisywany. Z potwierdzonymi hookami archiwum, które wpuszcza tylko
+  przeglądarkę człowieka, wpuszcza za zgodą „przez przeglądarkę” także przeglądarkę Codexa, tak jak przeglądarkę agenta w Chrome
+  (`strom net web --check --browser`, `strom doctor`, materiały agenta, aplikacja Strom); bez potwierdzenia bez zmian.
+  Computer use pozostaje niepilnowane. Co strom pilnuje u
+  którego agenta i aplikacji: `strom doc R12`; agent z computer use dostaje polecenie obsługiwać aplikację Strom przez
+  narzędzia strony w przeglądarce, a badania przez strom.
+
+- **Aplikacja agenta bez agenta w terminalu.** strom mówi teraz, co działa, a co nie: rozmowa w aplikacji trwa dalej, praca
+  samodzielna, czytanie skanów i praca z aplikacji Strom potrzebują agenta w terminalu – powiedziane, zanim padnie
+  jakiekolwiek pytanie lub szacunek kosztu. Ustawienia i `strom doctor --fix` proponują jego instalację (można
+  odmówić); `strom doctor` odróżnia przeglądarkę w rozmowie i w pracy samodzielnej. Rozmowa bez niego czyta skany
+  własnym czytnikiem skanów stroma.
+
+- **Źródło jest przeczytane przez użytkownika tylko wtedy, gdy je przeczytał, a dana udowodniona tylko z oryginału
+  zapisu.** Czytelnikiem jest użytkownik przy transkrypcji wpisanej ręcznie w terminalu lub potwierdzonej w aplikacji
+  Strom; to, co pod jego kontem zapisały importy, konwersje i partie, już nie. Dana jest udowodniona tylko z cytowanym
+  oryginałem zapisu z informacją pierwotną; bez niego staje się prawdopodobna, a powód zostaje w jej historii, ta zaś,
+  którą udowodnił użytkownik, zostaje i czeka w Co czeka na pozostawienie albo zmianę na prawdopodobną (`strom fixes
+  review proven-originals keep|lower`). Istniejące badania poprawią się same jeden raz, zmiany są w przeglądzie zmian
+  (`strom fixes undo readers|proven-originals` je przywraca). GEDCOM z innego programu nigdy nie czyni użytkownika
+  czytelnikiem ani danej udowodnioną. Potwierdzenie w aplikacji obowiązuje dla brzmienia, do którego zostało dane, i
+  można je tam cofnąć; z oryginałem zapisu z informacją pierwotną dana może wtedy być udowodniona, inaczej najwyżej
+  prawdopodobna.
+  **Transkrypcja przeczytana lub potwierdzona przez użytkownika należy do użytkownika.** Zmienia ją tylko własny
+  terminal użytkownika lub aplikacja Strom – jakiekolwiek byłoby polecenie (edycja, partia, synchronizacja, poprawka,
+  cofnięcie, import). Inne brzmienie od agenta jest zamiast tego proponowane: notatka przy źródle i jedno zadanie dla
+  użytkownika na źródło, którego żaden agent nie bierze ani nie zamyka; decyzja w Co czeka, przez link aplikacji Strom
+  lub w aplikacji – proponowane brzmienie przyjęte jako użytkownika albo transkrypcja zostawiona, a to samo brzmienie
+  nigdy więcej nie proponowane; obie decyzje można cofnąć (wcześniejsza transkrypcja wraca wraz z potwierdzeniem, a
+  propozycja znów czeka).
+
+- **Każdy czytelnik dokumentu z własnym agentem, modelem i głębokością rozumowania, a źródło przeczytane ponownie z
+  oryginału.** `strom document read|again --agent/--model/--effort` (i `--blind-…` dla czytelnika na ślepo) albo wybór w
+  aplikacji Strom; bez wyboru czyta według ustawień badania, nigdy tańszym modelem. Wynik mówi, kto czytał – w
+  terminalu, w pliku odczytu i w aplikacji Strom. Źródło czyta się ponownie z oryginału na tym komputerze (`strom
+  document read --source S… [--clip …]` albo z aplikacji Strom), a czytelnicy nie widzą transkrypcji; nowy odczyt
+  zostaje obok źródła, a gdzie się różni, zadanie zestawia oba brzmienia – transkrypcja, kto ją czytał, i potwierdzenie
+  użytkownika zostają bez zmian. Wycinki jednego skanu, które się nakładają lub stykają, czyta się jako jeden widok, a
+  słowa transkrypcji spoza przeczytanego wycinka (nagłówek strony nad nim) nie liczą się jako różnica. `strom fixes`
+  traktuje odczyt dwóch czytelników jako odczyt pierwszego z nich: czytelnik na ślepo z innym modelem nigdy nie jest
+  wcześniejszym modelem, z którym czytać ponownie, a odczyt, którego któryś czytelnik czytał dzisiejszym modelem, liczy
+  się jako nim przeczytany. Ponowne czytanie z oryginału czyta najlepiej, jak się da. Czytelnicy dostają to, co badanie
+  wie o zapisie – rodzaj, język, datę i miejsce w księdze, nigdy jednak transkrypcji ani imienia czy nazwiska –, a
+  czytelnik z modelem GPT także polecenie, by przepisać wpis w środku wycinka, pominąć sąsiednie wpisy z krawędzi i
+  zachować pierwotną pisownię litera po literze. Z transkrypcją porównuje się tylko wpis źródła (ten, który czytelnik
+  oznaczy, w przeciwnym razie ten, który najbardziej leży w wycinku); nagłówki kolumn bez odpowiednika („Dies:“,
+  „Vater:“), własny nagłówek badania nad zapisem, uwagi badania lub czytelnika w nawiasach, długie ſ wobec s,
+  nieczytelne miejsce wobec niczego i słowa poza tym, co przeczytali obaj, nie liczą się jako różnica. Aplikacja Strom
+  dostaje w wyniku czytania, który wpis jest wpisem źródła, cały tekst ślepego czytelnika, ostrzeżenie, gdy czytelnicy
+  określili inny rodzaj zapisu (ślub × chrzest), a gdy porównania nie da się zapisać do badania – na przykład przy
+  badaniu zapieczętowanym na innym komputerze –, mówi się to zamiast cichego pominięcia. Czytelnicy z modelem GPT
+  (Codex, OpenCode) widzą mały wycinek powiększony do około 2000 px (najwyżej trzykrotnie), także gdy czytanie skanów
+  dostrojono do mniejszego rozmiaru (dostrojenie mierzy całe strony i połowy, nigdy mały wycinek), pozostali jak dotąd;
+  zarejestrowana ostrzejsza część obrazu, która pokazuje całe miejsce – albo cały wycinek, pomijając tylko jego margines –, zostaje użyta, a gdy miejsce jest na skanie małe,
+  proponuje się pobranie ostrzejszego wycinka z archiwum – nigdy nie dzieje się to samo. Czytelnik Codex działa bez
+  programu powiadomień, wtyczek, aplikacji, hooków i pamięci z ustawień Codexu oraz bez przeglądarki i sterowania
+  komputerem jego aplikacji; ustawienia Codexu się nie zmieniają.
+  Model, którego zainstalowana wersja Codex CLI nie ma, kończy odczyt jako błąd czytelnika z tym powodem i z nim
+  zatrzymuje się też przebieg stromu: zaktualizować Codex (`npm install -g @openai/codex@latest`) albo wybrać inny model;
+  modele z katalogu pobranego przez nowszy Codex niż zainstalowany są oferowane z uwagą.
+  Odczyt zlecony z aplikacji Strom jest przyjmowany od razu, nawet gdy jego zakolejkowanie trwa dłużej (badanie trzyma
+  inny proces): od pierwszej chwili widać go jako zakolejkowany pod jego ID i pod nim jest odczytany, a odczyt, którego
+  potem nie da się zakolejkować, widać jako nieudany, z powodem; to samo źródło zlecone w międzyczasie ponownie jest
+  odrzucane jako właśnie czytane.
+  Wybór modelu badania (kreator ustawień, Ustawienia w menu stroma) przy
+  Opusie, Sonnecie i własnym domyślnym modelu agenta podaje model, na którym ostatnio działał, gdy któreś badanie
+  na tym komputerze widziało go w działaniu – „Opus (teraz Opus 5.5)”; `strom doctor` i ustawienia mówią to przy
+  zapisanym modelu, a aplikacja Strom dostaje to z wyborem czytelników. Nieznany – jak dotąd. Zapisany zostaje Opus
+  albo Sonnet, więc nowszy model jego linii zostanie użyty sam; stała wersja wpisana ręcznie (`strom config set model.lead
+  <model>`) jest proponowana jako wybrana teraz i pozostaje stała.
+  Odczyt, którego czytelnik na ślepo nic nie przeczytał (zawiódł albo skończył bez wpisu), jest odczytem samego
+  pierwszego czytelnika, jak odczyt jednego czytelnika – nigdy nie mówi się, że każdy wpis się różni. Aplikacja Strom
+  dostaje przy każdym miejscu, gdzie dwa odczyty się różnią, jaki to rodzaj różnicy – rzeczowa (imię lub nazwisko,
+  liczba, data, osoba, miejsce nieczytelne) albo drobiazg (pisownia, skrót, interpunkcja, etykieta, wielkość liter) –, i
+  gdzie jest każdy czytelnik: czeka, czyta, skończył w tylu sekundach albo zawiódł, także któremu czytelnikowi odrzucono
+  model.
+  **Źródło przeczytane ponownie: co dalej, wybiera użytkownik.** Zadanie powstaje tylko z danej merytorycznej, którą
+  obaj czytelnicy odczytują wobec transkrypcji tak samo (imię, liczba, data, osoba, słowo, którego transkrypcja nie
+  odczytała) – nigdy z drobiazgów (pisownia, skrót, interpunkcja), z miejsca, w którym czytelnicy się różnią lub które
+  oznaczają jako nieczytelne, ani z miejsca ocenionego już we wcześniejszym zadaniu. Zadanie mówi, kto czytał (agent ·
+  model · głębokość), że dwaj czytelnicy tego samego modelu to słabszy dowód, i że odczyt jest tylko wskazówką:
+  transkrypcja zmienia się tylko tam, gdzie pokazuje to sam skan. Nowe ustawienie `read.sourceTask` mówi, co dalej:
+  *pytać* (domyślnie) – odczyt zostaje przy źródle jako niesprawdzony, dopóki użytkownik nie wybierze: przejrzeć go z
+  agentem od razu, dodać do kolejki albo tylko zapisać (w terminalu zaraz po odczycie, później `strom source reading
+  S…` lub w aplikacji Strom); *zawsze* – zadanie od razu; *nigdy* – bez zadania. Jedno źródło ma naraz jedno zadanie
+  swoich odczytów. Odczyt bez faktu do rozstrzygnięcia, tylko z miejscami, których czytelnicy nie są pewni, sam nie
+  tworzy zadania – nawet przy *zawsze*; tylko na słowo użytkownika (`strom source reading S… --take queue --unsure`
+  lub w aplikacji Strom) agent dostaje zadanie obejrzenia każdego takiego miejsca na skanie: gdzie skan pokazuje to
+  pewnie, transkrypcja poprawiona z powodem, gdzie indziej notatka przy źródle. Transkrypcji potwierdzonej przez
+  użytkownika agent nigdy nie zmienia: miejsca odczytane przez nowy odczyt są zamiast tego proponowane użytkownikowi
+  do oceny (`--take review --unsure`).
+
+- **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
+  hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w
+  badaniu poza folderem badań aktualizuje też instrukcje agenta tego badania, a podana witryna (example.org) obejmuje
+  też adresy, których używają księgi badania. Warunki Archiwum Głównego Akt Dawnych w Warszawie według odpowiedzi
+  archiwum: skany do swobodnego użytku, każdy cytowany miejscem oryginału – archiwum, zespół, sygnatura, strona lub
+  karta. Sprzeczność zapisana w partii z etykietą źródła (`--claim "@s: …"`) cytuje teraz to źródło; taka, którą tak
+  zapisała starsza wersja, pokazuje wartość bez surowej etykiety i tam, gdzie da się to rozpoznać, cytuje swoje źródło
+  w aplikacji Strom i w GEDCOM-ie. Zakończona rozmowa nie pozostaje już w aplikacji Strom „przy pracy“, także na
+  obciążonym komputerze i po zmianie nazwy komputera. Miejsce zapisane w zdaniu („w Lhocie nr 12“) nie zachowuje już
+  przyimków: kontrola proponuje miejscowość tak, jak badanie zapisuje ją gdzie indziej, a rekord miejsca nie dostaje
+  już nazwy w rodzaju „w Lhocie w“ – takie nazwy zapisane wcześniej zostają jednorazowo poprawione (cofnięcie: strom
+  place undo).
+  **Nakładające się wycinki jednego obrazu są jednym.** Dwa wycinki tego samego obrazu zaznaczone przez badanie,
+  nakładające się co najmniej o 30 % mniejszego z nich, łączą się w jeden obejmujący oba (wycinek prawie cały wewnątrz większego – szczegół, wpis obok całej strony –
+  zostaje); wycinki zaznaczone przez
+  użytkownika zostają. We wcześniejszym badaniu nakładające się wycinki łączą się raz, każde połączenie zapisane w
+  historii; transkrypcja i potwierdzenie użytkownika zostają.
+  **Zadanie w kolejce z aplikacji Strom.** Link aplikacji do zadania w kolejce pokazuje je (co, dlaczego, kiedy
+  gotowe) i proponuje przejrzeć je z agentem od razu (z tym, ile podobne zadania trwały tutaj), przesunąć je w kolejce
+  do przodu albo je zostawić. `strom doctor` mówi, dlaczego droższa zmiana strojenia na rzecz dokładności zostaje, a
+  plik hooków Codexa, którego tylko brakuje lub jest nieaktualny, nie jest już ostrzeżeniem – zapisze się ponownie, gdy
+  strom następnym razem uruchomi agenta.
+
 ## 1.28.0
 
 *6.11.2026 · współpracuje z aplikacją Strom 3.24.0.*

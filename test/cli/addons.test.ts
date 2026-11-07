@@ -258,12 +258,12 @@ test("the menu's settings: the agent working alone — without the personal add-
 test("the setup wizard asks it for Claude Code and Codex, the suggested answer without the add-ons", unix, async () => {
   const w = await world();
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // run again: language, folder, model, its effort (0), stories, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
-  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "2", "n"] });
+  // run again: language, folder, model, its effort (0), stories, who decides the hypotheses, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
+  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "2", "n"] });
   assert.match(r.out, /Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\)\?\nAgent při samostatné práci načte jen nástroje výzkumu\.[^\n]*\n {3}1 {2}Ano \(doporučeno\)\n {3}2 {2}Ne – i při samostatné práci s doplňky\n {3}0 {2}Nechat, jak je\nVybrat \[1\]/);
   assert.equal(cfg().agentAddons, "on");
   // again: what is now suggested; Enter keeps it
-  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "n"] });
+  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "", "n"] });
   assert.match(again.out, /Nechat, jak je\nVybrat \[2\]/);
   assert.equal(cfg().agentAddons, "on");
   w.cleanup();
@@ -322,7 +322,7 @@ test("the browser in a run: only for a session whose task may need it — never 
   }
   const browser = briefs.get("T0004")!;
   assert.match(browser, /Its sites: archive\.example\.org — no other\./);
-  assert.match(browser, /The only browser strom watches\. The browser, preview and computer use of Claude's and Codex's desktop apps strom does not watch and does not recommend: never of your own accord\. Only when the person explicitly asks for them: the person's choice — say in one sentence that strom does not watch that way and what the site's terms say; never a way round them, never a check whether a person is there\./);
+  assert.match(browser, /- strom watches it, and the built-in browser of Claude's desktop app the same way \(the same hook before each page\)\. That one, Codex's browser \(strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex\) and the desktop apps' computer use \(strom does not watch it\) strom does not recommend: never of your own accord \(strom doc R12\)\. Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there\./);
   assert.doesNotMatch(browser, / (are|stay) off /);
   assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom \(401\/403\/429\) or its terms forbid or restrict automation; images only through strom fetch/);
   // B8: a site closed to automation is never a connector to build nor the browser's — another way first, the person last

@@ -215,7 +215,8 @@ search, merging people and family lines then take the forms as one name, also fo
   - A group that overlaps with another is combined with it into one.
   - The tree remembers a removed form as a rejected pair.
   - A form of a single person (a nickname, a name after a farm) belongs to **Other spellings of the name** at the
-    person, not to the tree's groups.
+    person, not to the tree's groups. Search ([A4.8](#A4.8)) and merging people compare these forms too; after a
+    merge the forms of both people stay, and the spelling that lost a name conflict is added to them.
   - **Suggest from the research** shows the research's suggestions on two levels: **Documented** and **By rules**,
     each with a reason and records. Nothing is joined without a confirmation (**Accept** / **Reject**, **Undo**).
   - Suggestions are not offered when they are rejected, already lie in one group, or would join two groups. 10
@@ -227,7 +228,7 @@ search, merging people and family lines then take the forms as one name, also fo
   the research**. A form of one family line: **Edit family line… → + form** ([A4.1.1](#A4.1.1)).
 - **Since:** app 1.15.0 (suggestions from the research 3.17.0)
 
-<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* -->
+<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* · src/merge/matching.ts:197 writtenSurnames · src/merge/executor.ts:781 addLosingNameVariant, :951 nameVariants -->
 
 <a id="A4.8"></a>
 ## A4.8 Searching and sorting names

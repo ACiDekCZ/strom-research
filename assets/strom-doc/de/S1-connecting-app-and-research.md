@@ -16,8 +16,10 @@ einen geheimen Schlüssel. Daten des Stammbaums gehen über die Brücke nirgendw
 - **Grenzen:**
   - Die Brücke nimmt eine Anfrage nur von einer Seite der Strom-App auf stromapp.info oder von einer lokalen Adresse an. Kommt ihr Schlüssel von einer fremden Seite, tauscht die Forschung den Schlüssel sofort aus, und diese
     Anfrage bekommt keine Antwort.
-  - Die Brücke endet von selbst, wenn sie zwei Stunden lang niemand etwas fragt und dabei niemand im Stammbaum
-    arbeitet. Die regelmäßige Statusabfrage der App hält die Brücke nicht am Leben.
+  - Die Brücke läuft, bis der Mensch sie ausschaltet (`strom live stop`, in der App der Schalter **Forschung an**,
+    [S1.9](#S1.9)), oder bis der Computer heruntergefahren wird. Von selbst endet sie nur, wenn der Mensch das gewählt
+    hat (`live.idleMinutes`, in der App **Nach 2 Stunden ohne Arbeit**): wenn sie in dieser Zeit niemand etwas fragt
+    und dabei niemand im Stammbaum arbeitet. Die regelmäßige Statusabfrage der App hält die Brücke nicht am Leben.
   - Startet die Brücke von selbst neu (Aktualisierung, Untätigkeit, Absturz), behält sie ihre Adresse: denselben Port,
     wenn er frei ist, und denselben Schlüssel. Die App verbindet sich dann ohne neuen Link.
   - `strom live stop` verwirft den Schlüssel: die App verbindet dann erst wieder `strom app`. Ist der Port von einem
@@ -26,11 +28,13 @@ einen geheimen Schlüssel. Daten des Stammbaums gehen über die Brücke nirgendw
     Dateien des Stammbaums in einem Cloud-Ordner noch nicht heruntergeladen sind und wenn der Datenträger voll ist.
     Die Änderungen warten dann in der App ([S2](S2-edits-from-the-app.md)).
 - **Bedienung:** Terminal: `strom live` (läuft die Brücke?), `strom live start`, `strom live stop` (`--forget`
-  vergisst auch den Port), `strom config set live.idleMinutes <Minuten>` (0: nie von selbst). Das Protokoll des
-  Laufs liegt im Ordner der Forschung in `.strom/live.log`.
+  vergisst auch den Port), `strom config set live.idleMinutes <Minuten>` (0: nie von selbst, Standard). Das Protokoll
+  des Laufs liegt im Ordner der Forschung in `.strom/live.log`.
 - **Gilt seit:** Forschung 1.0.0. Dieselbe Adresse nach einem Neustart seit 1.8.0, `live.idleMinutes` seit 1.25.0.
+- **Ab Forschung 1.29.0:** die Brücke endet bei Untätigkeit nicht mehr von selbst (Standard `live.idleMinutes` 0);
+  vorher endete sie von selbst nach zwei Stunden. Ein Wert, den der Mensch gespeichert hat, bleibt.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
 
 <a id="S1.2"></a>
 ## S1.2 Die Forschung öffnet sich in der App über einen Link aus dem Terminal
@@ -122,7 +126,7 @@ genau geschah, zeigt die App im Fenster **Verbindung zur Forschung fehlgeschlage
 
 | Ursache | Was die App zeigt | Was hilft |
 |---|---|---|
-| der Browser lässt die Seite nicht zu Geräten im lokalen Netzwerk | **{Browser} blockiert die Verbindung** | **Apps auf dem Gerät** (Brave: **Localhost-Zugriff**) in den Website-Einstellungen erlauben |
+| der Browser lässt die Seite nicht zu Geräten im lokalen Netzwerk | **… blockiert die Verbindung** (Name des Browsers) | **Apps auf dem Gerät** (Brave: **Localhost-Zugriff**) in den Website-Einstellungen erlauben |
 | der Browser fragt erst noch | **Der Browser wartet auf eine Erlaubnis** | die Frage des Browsers beantworten |
 | die Brücke läuft nicht | **Die Forschung antwortet nicht** | die Forschung starten; an der neuen Adresse verbindet sie `strom app --live` |
 | an der Adresse antwortet eine andere Brücke (geänderter Schlüssel, anderer Stammbaum) | **Die Forschung hat die Verbindung abgelehnt** | `strom app --live` |
@@ -150,7 +154,7 @@ nur ein, was die Forschung annimmt. Die Forschung wiederum wählt nach der Versi
   - **Ältere Forschung** (ohne automatisches Senden oder ohne Titel): die App zeigt **Die Forschung hat eine ältere
     Version (v)** mit dem Angebot **Forschung aktualisieren**. Änderungen werden dann nur von Hand gesendet: die App
     startet die Forschung im Terminal, und diese holt sie ab. Titel bleiben bis zur Aktualisierung nur in der App.
-  - **Neue Version der Forschung verfügbar:** die App zeigt **Neue Version Strom Research {v}** mit der Schaltfläche
+  - **Neue Version der Forschung verfügbar:** die App zeigt **Neue Version Strom Research …** mit der Schaltfläche
     **Aktualisieren**. Was gerade läuft, endet mit der aktuellen Version.
   - **Eine Forschung, die eine neuere Version des Programms `strom` geschrieben hat:** ein älteres Programm öffnet sie
     nicht und schreibt nicht in sie.
@@ -170,8 +174,8 @@ Jeder Stammbaum aus einer Forschung hat eine eigene Brücke. Die App fragt auch 
 nicht geöffnet sind, und zeigt ihren Status im Stammbaum-Umschalter.
 
 - **Grenzen:**
-  - Marken am Stammbaum im Umschalter: **live** (wird verfolgt), **läuft** oder **{n} Richtungen** (ein Agent
-    arbeitet), **{n} offen** (Dinge zu erledigen), **läuft nicht**.
+  - Marken am Stammbaum im Umschalter: **live** (wird verfolgt), **läuft** oder **N Richtungen** (ein Agent
+    arbeitet), **N offen** (Dinge zu erledigen), **läuft nicht**.
   - Gefragt wird immer nur eine Brücke auf einmal und nur, wenn die Seite sichtbar ist: zuerst nach 3 Sekunden, dann
     jede Minute. Auf eine Antwort wartet die App höchstens 1,5 Sekunden.
   - Eine nicht laufende Forschung verbindet sich wieder, wenn der Stammbaum aus der Forschung geöffnet wird
@@ -195,3 +199,41 @@ auf dem Datenträger. Zwischen beiden geht der Stammbaum nur über die Brücke a
 - **Gilt seit:** App 3.0.0
 
 <!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+
+<a id="S1.9"></a>
+## S1.9 Forschung an: der Schalter der Brücke am Stammbaum
+
+Jeder Stammbaum aus einer Forschung auf diesem Computer hat in der App den Schalter **Forschung an**. Er zeigt den
+wirklichen Zustand der Brücke: an, wenn die Brücke antwortet, sonst aus. Eine eingeschaltete Brücke läuft, bis sie mit
+dem Schalter oder `strom live stop` ausgeschaltet wird, bis der Computer heruntergefahren wird, oder wie es die
+Einstellung **Forschung bei Untätigkeit ausschalten** sagt.
+
+- **Grenzen:**
+  - Das Ausschalten beendet die Brücke wie `strom live stop`, nur behält die Brücke ihre Adresse (Port und
+    Schlüssel). Eine ausgeschaltete Brücke bleibt aus: neue Arbeit im Stammbaum bringt sie nicht zurück. Der
+    Stammbaum in der App bleibt und lässt sich weiter bearbeiten ([S1.5](#S1.5)). Unter dem Schalter steht
+    „Ausgeschaltet. Bleibt aus, bis die Forschung wieder eingeschaltet wird.“
+  - Eine wegen Untätigkeit ausgeschaltete Brücke kommt mit neuer Arbeit im Stammbaum von selbst zurück, an derselben
+    Adresse. Unter dem Schalter steht „Nach einer Zeit ohne Arbeit ausgeschaltet. Neue Arbeit im Stammbaum schaltet
+    sie wieder ein.“
+  - Das Einschalten schickt der Forschung einen Link, der nur die Brücke an ihrer letzten Adresse startet, ohne
+    Fenster. Wenn nichts passiert oder die Forschung sich aus der App nicht einschalten lässt, zeigt die App den Befehl
+    `strom live start` (im Terminal im Ordner des Stammbaums auszuführen) mit der Schaltfläche **Kopieren**. Eine
+    ältere Forschung, die sich aus der App nicht ausschalten lässt, zeigt ebenso den Befehl `strom live stop`.
+  - Nach dem Herunterfahren oder Neustart des Computers läuft die Brücke nicht und startet nicht von selbst. Der
+    Mensch schaltet sie ein: im Panel der Forschung **Einschalten**, oder `strom live start`.
+  - **Forschung bei Untätigkeit ausschalten** hat zwei Wahlmöglichkeiten: **Bis zum Herunterfahren des Computers**
+    (Standard) und **Nach 2 Stunden ohne Arbeit**. Sie gilt für alle Stammbäume auf diesem Computer, und die Forschung
+    hält sie (`live.idleMinutes` 0 oder 120). Laufende Brücken übernehmen sie innerhalb einer Minute. Ein im Terminal
+    gesetzter Wert erscheint als **Eigener Wert (N Min.)**. Läuft keine Forschung, die die Wahl annimmt, zeigt die App
+    statt der Wahlmöglichkeiten die Befehle für das Terminal.
+  - Auf Telefon und Tablet gibt es keinen Schalter (die Forschung läuft auf einem Computer). Eine Kopie eines
+    Stammbaums aus einer Forschung hat keinen Schalter.
+- **Bedienung:** App: der Schalter **Forschung an** im Panel der Forschung (ein Stammbaum, der nicht live verfolgt
+  wird, und nach dem Ende des Verfolgens) und in **Stammbäume verwalten** in der Zeile des Stammbaums; im Panel der
+  Forschung, wenn die Forschung nicht läuft: **Einschalten**; **Einstellungen** → **Forschung auf diesem Computer** →
+  **Forschung bei Untätigkeit ausschalten**. Terminal: `strom live start`, `strom live stop`, `strom config set
+  live.idleMinutes 0` (bis zum Herunterfahren des Computers) oder `120` (nach 2 Stunden ohne Arbeit).
+- **Gilt seit:** App 3.25.0, Forschung 1.29.0
+
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->

@@ -5,11 +5,13 @@
 
 import type { Context } from "./context.ts";
 import { ui } from "./ui.ts";
-import { isAgent } from "../core/which.ts";
+import { AGENTS, findAgent, isAgent } from "../core/which.ts";
 import { gitVersion, resetCache } from "../core/git.ts";
 import { gitWay, installOwnGit, linuxGitCommand, MINGIT } from "../core/deps.ts";
 import { claudeInstaller, runInstaller } from "../core/install.ts";
-import { agentsHere } from "../core/apps.ts";
+import { agentsHere, DESKTOP_APPS } from "../core/apps.ts";
+import { claudeInstallLine } from "../core/agentcli.ts";
+import { PROFILES } from "../agents/profiles.ts";
 import { researchUrl } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
@@ -79,4 +81,46 @@ export async function offerAgent(ctx: Context, out: (line: string) => void): Pro
     openForUser(researchUrl(lang, "agents"), ctx.env);
     out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
   }
+}
+
+/**
+ * The agent's CLI not here, its desktop app is (Claude without Claude Code in the terminal): said in one line — the
+ * conversation goes on in the app, working alone and reading scans need the CLI. A person here chooses: install Claude
+ * Code (strom's installer, as offerAgent does), go on with the conversation in the app (`chat`, where given), or not
+ * now (0: nothing changes). Nobody here (--yes, no terminal, an agent): the line and how it is installed, nothing
+ * installed. True when the CLI is here after it.
+ */
+export async function offerAgentCli(ctx: Context, out: (line: string) => void, agent: string, opts: { lang?: string; chat?: () => Promise<unknown>; said?: boolean } = {}): Promise<boolean> {
+  const lang = opts.lang ?? ctx.uiLang();
+  const a = AGENTS.find((x) => x.id === agent);
+  if (!a || findAgent(a.command, ctx.env)) return true;
+  const app = DESKTOP_APPS[agent]?.name ?? a.name;
+  // (said already by the caller in its own words: the menu's item)
+  if (!opts.said) out(ui(lang, "ui.setup.cli.apponly", { app, cli: a.name }));
+  // strom installs Claude Code only (its installer); another agent's CLI: its page
+  const ours = agent === "claude";
+  const how = () => out(ours ? ui(lang, "ui.setup.cli.line", { cli: a.name, line: claudeInstallLine() }) : ui(lang, "ui.setup.agent.manual", { url: PROFILES[agent]?.url ?? "" }));
+  if (!personHere(ctx)) {
+    how();
+    return false;
+  }
+  const choices = [...(ours ? [{ label: ui(lang, "ui.setup.cli.install", { cli: a.name }) }] : []), ...(opts.chat ? [{ label: ui(lang, "ui.setup.cli.chat", { app }) }] : [])];
+  if (!choices.length) {
+    how();
+    return false;
+  }
+  const i = await ctx.choose(ui(lang, "ui.choose"), choices, 0, { back: ui(lang, "ui.setup.cli.later") });
+  if (i === undefined) return false;
+  if (!ours || i > 0) {
+    await opts.chat!();
+    return false;
+  }
+  const ended = runInstaller(claudeInstaller(), ctx.env);
+  if (findAgent(a.command, ctx.env)) {
+    out(ui(lang, "ui.setup.cli.done", { cli: a.name }));
+    out(ui(lang, "ui.setup.agent.login"));
+    return true;
+  }
+  out(ended ? ui(lang, "ui.setup.cli.newterminal", { cli: a.name }) : ui(lang, "ui.setup.cli.failed", { cli: a.name, line: claudeInstallLine() }));
+  return false;
 }

@@ -236,3 +236,25 @@ test("tuned before for another model: offered again in the orientation, the menu
   assert.match((await w.run(["media", "calibrate"])).err, /Tento výzkum je Archiv Stromu/);
   w.cleanup();
 });
+
+// N2 (2026-11-07): a calibration reads whole images and halves, never a small crop; where it set the reading size
+// below what the model takes, a GPT reader's crop is still enlarged as the model takes it (about 2000 px) — never above
+// a --max asked; Claude's crop as before (800).
+test("a GPT reader's small crop above a calibrated reading size: enlarged as its model takes it, --max holds, Claude as before", opts, async () => {
+  const { w } = await world(0);
+  const long = (j: { width?: number; height?: number; views?: { width: number; height: number }[] }) => Math.max(j.width ?? j.views?.[0]?.width ?? 0, j.height ?? j.views?.[0]?.height ?? 0);
+  const crop = ["media", "view", "B0001:2", "--crop", "0,0,700,400", "--json"];
+  const key = (await w.ok(["config", "get", "views.size", "--agent", "codex", "--json"])).json;
+  assert.equal(key.value, "find 1400 · read 2000 px", JSON.stringify(key));
+  assert.equal(long((await w.ok([...crop, "--agent", "codex"])).json), 2000, "the default: about 2000");
+  const cfg = fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json")) ? config(w) : {};
+  cfg.viewSizes = Object.fromEntries(["codex", "codex gpt-5.5"].map((k) => [k, { find: 1400, read: 1400, at: "2026-11-01", sample: 6, sizes: [1400, 2000], clear: { find: true, read: true } }]));
+  fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(cfg));
+  assert.match((await w.ok(["config", "get", "views.size", "--agent", "codex", "--json"])).json.source, /^calibrated/);
+  assert.equal(long((await w.ok([...crop, "--agent", "codex"])).json), 2000, "a calibrated read of 1400: the crop still about 2000");
+  assert.equal(long((await w.ok([...crop, "--agent", "codex", "--max", "1400"])).json), 1400, "--max asked: never above it");
+  // a half: within the calibrated read (what the calibration measured), as before
+  assert.equal(long((await w.ok(["media", "view", "B0001:2", "--half", "left", "--agent", "codex", "--json"])).json), 1400);
+  assert.equal(long((await w.ok([...crop, "--agent", "claude"])).json), 800, "Claude as before");
+  w.cleanup();
+});

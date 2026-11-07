@@ -63,9 +63,11 @@ test("a hypothesis whose variants have links is decided for one of them: without
   }
 });
 
-test("only the person decides a hypothesis: an agent is refused with what to run instead — on its own, abandoning, again, in a batch", opts, async () => {
+test("where the person decides them, only the person decides a hypothesis: an agent is refused with what to run instead — on its own, abandoning, again, in a batch", opts, async () => {
   const w = await world();
   try {
+    // the person chosen (where nothing is set the AI decides them — hypothesis-agent-decides.test.ts)
+    await w.ok(["config", "set", "hypotheses.decide", "person"]);
     for (const argv of [
       ["hypothesis", "decide", "H1", "--variant", "A", "--decision", "křest"],
       ["hypothesis", "decide", "H2", "--abandon", "--decision", "nelze"],

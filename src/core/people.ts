@@ -4,6 +4,7 @@
 import { AmbiguousError, UsageError } from "./errors.ts";
 import { dateYears, yearLabel } from "./gdate.ts";
 import type { ChildLink, ChildRelation, Conflict, Event, Family, Name, Person } from "./model.ts";
+import { settledClaim } from "./labels.ts";
 import { foldText, tokens } from "./text.ts";
 import type { Tree } from "./tree.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
@@ -635,9 +636,11 @@ export function conflictTitle(tree: Tree, c: Conflict): string {
  * ("… — 14. 1. 1931, Dolní Lhota, čp. 12 × …"; found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in a Czech research);
  * else the claim as written.
  */
-export function claimText(tree: Tree, c: Conflict, claim: Conflict["claims"][number]): string {
+export function claimText(tree: Tree, c: Conflict, claim0: Conflict["claims"][number]): string {
+  // a batch's label an older strom left in it ("@s: aged 27"): the value after it (core/labels.ts)
+  const claim = settledClaim(tree, c, claim0);
   if (claim.text) return claim.text;
-  const i = c.claims.indexOf(claim);
+  const i = c.claims.indexOf(claim0);
   const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
   // a title cut at its length says one side no more
   if (ofApp && c.claims.length === 2 && i >= 0 && c.title.length < 200) {

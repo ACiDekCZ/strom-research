@@ -18,7 +18,7 @@ import { BYPASS_DENY, codexRules } from "../../src/agents/files.ts";
 import { webAppProfile } from "../../src/core/chromium.ts";
 import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
 import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
-import { enterWorker } from "../../src/core/workers.ts";
+import { enterWorker, liveWorkers } from "../../src/core/workers.ts";
 import { writeFileAtomic } from "../../src/core/json.ts";
 import { main } from "../../src/cli/main.ts";
 
@@ -63,6 +63,27 @@ test("a person runs strom: the first family tree, straight into the conversation
   await w.ok(["config", "unset", "agent.browser"]);
   // An agent (or a script) still gets the orientation, never the menu.
   assert.match((await w.ok([])).out, /^strom \S+ — nástroj pro genealogický výzkum s AI agenty/);
+  w.cleanup();
+});
+
+test("strom chat failing before the agent starts: never left at work in the tree (the app showed a conversation that never ended)", unix, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude"]);
+  await w.withTree();
+  // the terminal gone the moment the conversation is announced (a closed pipe): an error between present and the agent
+  let said = "";
+  const io = {
+    stdout: (s: string) => {
+      if (/Otevírám rozhovor/u.test(s)) throw Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+      said += s;
+    },
+    stderr: (s: string) => void (said += s),
+    tty: true,
+  };
+  const code = await main(["chat"], io, w.env, w.cwd).catch(() => 1);
+  assert.notEqual(code, 0, said);
+  assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "the agent never started");
+  assert.deepEqual(liveWorkers(w.cwd), [], "nobody at work");
   w.cleanup();
 });
 
@@ -817,12 +838,12 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // language, folder, model, its effort, stories, level, history off, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "n", "2"] });
+  // language, folder, model, its effort, stories, who decides the hypotheses, level, history off, no shortcut — then the Strom app: not now
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled (the history in the stories asked too, Enter); no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "", "", "n", "3"] });
+  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });

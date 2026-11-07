@@ -7,7 +7,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { readJsonFile } from "../helpers.ts";
 import { opts, world } from "./session.helpers.ts";
-import { CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "../../src/core/browser.ts";
+import { APP_BROWSER_HOOK_MATCHER, CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "../../src/core/browser.ts";
+import { DESKTOP_TERMINAL_MATCHER } from "../../src/core/desktopterminal.ts";
 
 test("an older tree's agent files are refreshed before strom chat (the desktop app's link too) and strom run start an agent", { ...opts, skip: opts.skip || process.platform === "win32" }, async () => {
   const w = await world();
@@ -23,7 +24,7 @@ test("an older tree's agent files are refreshed before strom chat (the desktop a
   };
   const fresh = (what: string) => {
     const hooks = (readJsonFile(settings) as { hooks?: { PreToolUse?: { matcher: string }[] } }).hooks;
-    assert.deepEqual(hooks?.PreToolUse?.map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell"], `${what}: Claude Code's hooks`);
+    assert.deepEqual(hooks?.PreToolUse?.map((g) => g.matcher), ["WebFetch|WebSearch", CHROME_HOOK_MATCHER, APP_BROWSER_HOOK_MATCHER, "Task|Agent", "Bash|PowerShell", DESKTOP_TERMINAL_MATCHER], `${what}: Claude Code's hooks`);
     assert.ok(fs.existsSync(grok), `${what}: Grok's hooks`);
     assert.ok(fs.existsSync(hookShim), `${what}: the hook's shim`);
   };

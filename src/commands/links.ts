@@ -140,6 +140,8 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "history" ||
     link.action === "places" ||
     (link.action === "conflict" && link.do === "agent") ||
+    // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
+    (link.action === "hypotheses" && link.decide === "agent") ||
     (link.action === "task" && link.do === "chat") ||
     (link.action === "fixes" && link.id !== undefined && !quietCheck(fixCheck(link.id) ?? { remedy: "read-again" }));
   if (!forAgent) return undefined;
@@ -191,6 +193,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "open":
     case "app":
     case "live":
+      // only the bridge, no window of the app (the app's switch "research on": it follows the address it has)
+      if (link.action === "live" && link.do === "start") return end(startBridge(ctx, root));
       // the research opened from the Strom app: its bridge up, whatever ended it (idle, stopped, a crash) — at its last
       // address, so the app that asked goes on by itself ("Research is not running" with the menu open, T25)
       if (link.action === "open") {
@@ -213,8 +217,9 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return end(true);
     }
     case "task": {
-      // the person's check of a site (and a wake of one, which only their answer does): its question in the terminal
-      if (link.do === "check" || (link.do === "wake" && Tree.open(root, ctx.env).get<Task>(link.task)?.awaitsCheck)) {
+      // the person's check of a site (and a wake of one, which only their answer does): its question in the terminal; so
+      // the decision on a new wording proposed for a transcript they read (core/proposal.ts), whatever the link asks
+      if (Tree.open(root, ctx.env).get<Task>(link.task)?.proposal || link.do === "check" || (link.do === "wake" && Tree.open(root, ctx.env).get<Task>(link.task)?.awaitsCheck)) {
         const { waitingTask } = await import("../cli/menu-waiting.ts");
         if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");
         return end(true);
@@ -228,6 +233,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       if (link.do) {
         const { taskDo } = await import("../cli/menu-links.ts");
         return end(await taskDo(ctx, run, treeLang, root, link.task, link.do));
+      }
+      // a task in the queue (the one a reading of a source again left, say): shown, then go through it now, ahead, or left
+      if (Tree.open(root, ctx.env).get<Task>(link.task)?.state === "open") {
+        const { openTask } = await import("../cli/menu-links.ts");
+        return end(await openTask(ctx, run, treeLang, root, link.task, agent));
       }
       const { waitingTask } = await import("../cli/menu-waiting.ts");
       if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");
@@ -246,6 +256,16 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // the user's own edit: the agent may decide it only once the user left it so — written first, by the person
       if (isEditConflict(tree.get<Conflict>(link.id)!) && (await run(["conflict", "leave", link.id], true)) !== 0) return end(false);
       return { text: "", data: { done: (await run(["chat", `--say=${say}`])) === 0, action: link.action, tree: root } };
+    }
+    case "hypothesis": {
+      // a hypothesis decided, left open or its decision changed: the screen of What waits, here
+      const { hypothesisDo } = await import("../cli/menu-links.ts");
+      return end(await hypothesisDo(ctx, run, treeLang, root, link.id));
+    }
+    case "hypotheses": {
+      // who decides the hypotheses: the agent only on the person's yes here, back to the person at once
+      const { hypothesesDo } = await import("../cli/menu-links.ts");
+      return end(await hypothesesDo(ctx, run, treeLang, root, link.decide));
     }
     case "sync-undo": {
       const { undoSending } = await import("../cli/menu-links.ts");
@@ -363,6 +383,18 @@ async function inTerminal(ctx: Context, link: TreeLink) {
 }
 
 /**
+ * The bridge of the research started at its last address (strom-research://live?…&do=start, feature live.start): the
+ * app's switch turned on, the app that keeps the address finds it again by itself — no window opened. Whether it runs.
+ */
+function startBridge(ctx: Context, root: string): boolean {
+  try {
+    return !!startLive(root, ctx.env, { current: true, why: "started from the Strom app (strom-research://live&do=start)" });
+  } catch {
+    return false;
+  }
+}
+
+/**
  * What needs no terminal: the research as it is now into the app's window (strom app), a conversation in the
  * agent's desktop app (its first message waits there for the person to send it). Undefined: a terminal is needed.
  */
@@ -370,6 +402,7 @@ async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   const run = await runnerOf(ctx)(root);
   if (link.action === "app") return { text: "", data: { done: (await run(["app"], true)) === 0, action: "app", tree: root } };
   // followed live: the bridge started (or the one running), its address into the app's window — strom app --live
+  if (link.action === "live" && link.do === "start") return { text: "", data: { done: startBridge(ctx, root), action: "live", do: "start", tree: root } };
   if (link.action === "live") return { text: "", data: { done: (await run(["app", "--live"], true)) === 0, action: "live", tree: root } };
   if (link.action !== "chat" && !(link.action === "conflict" && link.do === "agent")) return undefined;
   const tree = Tree.open(root, ctx.env);
@@ -432,6 +465,10 @@ register(
       "  note): strom intake <file> --answers T0007, the task back in the queue.\n" +
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent;\n" +
       "  &take=user|research — the side picked in the app: only confirmed, and why.\n" +
+      "strom-research://hypothesis?tree=<id>&id=H0007&do=decide — the hypothesis decided by the user in the terminal: as proposed\n" +
+      "  or otherwise, one with no proposal decided or left open, a decided one's decision changed (the reason asked).\n" +
+      "strom-research://hypotheses?tree=<id>&decide=agent|person — who decides the hypotheses of the research (hypotheses.decide):\n" +
+      "  the agent only on the user's yes in the terminal, back to the user at once.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +
@@ -512,6 +549,15 @@ register(
         const { experimentDo } = await import("../cli/menu-links.ts");
         let done = true;
         for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off", link.name)) && done;
+        return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
+      }
+      // the hypotheses decided by the person again needs nobody's answer: done in each copy of the research, no terminal
+      if (link.action === "hypotheses" && link.decide === "person" && !ctx.io.tty) {
+        const copies = researchesWithId(ctx, link.tree);
+        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        const { hypothesesDo } = await import("../cli/menu-links.ts");
+        let done = true;
+        for (const c of copies) done = (await hypothesesDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "person")) && done;
         return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
       }
       if (link.action !== "excerpt") {

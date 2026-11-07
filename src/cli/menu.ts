@@ -45,7 +45,7 @@ import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, sub
 import { packPlan } from "../core/pack.ts";
 import { expandHome, isolated, ownCommand } from "../core/paths.ts";
 import { pathOf, startAgain } from "../core/userpath.ts";
-import { offerAgent } from "./fixes.ts";
+import { offerAgent, offerAgentCli } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingCount, waitingForYou } from "./menu-waiting.ts";
 import { waitingLine } from "../core/waiting.ts";
@@ -53,7 +53,7 @@ import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { offerHistory, settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
 import { findAgent } from "../core/which.ts";
-import { agentsHere, waysHere, whereToTalk, type Way } from "../core/apps.ts";
+import { agentsHere, hasDesktopApp, waysHere, whereToTalk, type Way } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { forStory } from "../core/stories.ts";
@@ -298,9 +298,13 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             }
             const who = PROFILES[ctx.settings.agent(tree.config).value];
             if (who && !findAgent(who.command, ctx.env)) {
+              // what strom offers for it: Claude Code installed, the conversation in the agent's app — or not now
               out(t("ui.run.needscli", { agent: who.name }));
-              await pause(lang);
-              return;
+              const app = hasDesktopApp(who.id, ctx.env);
+              if (!(await offerAgentCli(ctx, out, who.id, { lang, said: true, ...(app ? { chat: () => run(["chat"]) } : {}) }))) {
+                await pause(lang);
+                return;
+              }
             }
             // What comes next, as strom run takes it (commands/session.ts): a story now and then, the tasks of history by
             // their pace (the places to map before the research), without what others hold.

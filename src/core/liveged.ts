@@ -13,12 +13,13 @@ import { Settings } from "./config.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { dataUrl, excerptLevel, excerptMarks, excerptSettings, INPUT_MARK, LEVELS, planExcerpts, sourceExcerpts, turned, type ExcerptOmitted } from "./excerpt.ts";
 import { excerptPage } from "./scanlink.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisDecider, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords, appConfirmsTranscripts, appReadsSourcesAgain } from "./stromapp.ts";
 import { surnamesForExport } from "./surnames.ts";
 import { lineMarks } from "./lineages.ts";
 import { LINK_SCHEME, linkScheme } from "./links.ts";
 import { refusal } from "./receive.ts";
 import { actsAsArchive } from "./state.ts";
+import { readsAgain } from "./sourceread.ts";
 import type { WidgetTree } from "./widget.ts";
 import type { Input, Media, Source } from "./model.ts";
 
@@ -82,14 +83,19 @@ export function buildGed(ask: GedAsk): GedMade {
   const storyDrafts = appShowsStoryDrafts(settings, version);
   const coupleResi = appShowsCoupleEvents(settings, version);
   const sourceReads = appShowsSourceReads(settings, version);
+  const confirms = sourceReads && appConfirmsTranscripts(settings, version);
   const factStatus = appShowsFactStatus(settings, version);
   const archive = appKnowsArchive(settings, version);
   const turnsExcerpts = appTurnsExcerpts(settings, version);
   const noCouple = appKnowsNoCouple(settings, version);
   const titles = appReadsTitles(settings, version);
   const hypothesisLinks = appShowsHypothesisLinks(settings, version);
+  const hypothesisDecider = appShowsHypothesisDecider(settings, version);
   const conflictSides = appDecidesConflicts(settings, version);
   const readings = appShowsReadings(settings, version);
+  // …and which sources can be read again from their original here, for an app that offers it (never in an archive)
+  const shared = settings.shared()?.value;
+  const original = appReadsSourcesAgain(settings, version) && !actsAsArchive(tree) ? (s: Source) => readsAgain(tree, shared, s) : undefined;
   // …and why a source has no image though the research has one, for an app that says so and asks for it
   const omitted = !!images && appShowsOmittedImages(settings, version);
   // …and the groups of surname forms and the suggestions rejected, for an app that reads them (strom sync takes them back)
@@ -104,7 +110,7 @@ export function buildGed(ask: GedAsk): GedMade {
     sources: images ? tree.list<Source>("source").flatMap((s) => (s.retracted ? [] : [{ source: s, omitted: images.omitted(s) }])).filter((x): x is LeftOut => !!x.omitted) : [],
   };
   const offered = opens ? ask.links : [];
-  const text = exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
+  const text = exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
   // its bytes in a buffer of their own: handed to the bridge's thread without a copy
   const bytes = Buffer.from(new ArrayBuffer(Buffer.byteLength(text)));
   bytes.write(text);

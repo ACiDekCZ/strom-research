@@ -314,7 +314,7 @@ test("strom doctor: worse after a change of strom's — readings less sure: take
   // (b) a book's bigger views: dearer, the readings no surer — keeping it recommended, no repair
   worse(w, root, { scope: "book", afterUnsure: 0, usdBefore: 0.1, usdAfter: 0.2 });
   const b = await w.run(["doctor"]);
-  assert.match(b.out, /✓ +po samoladění +B0003: dražší od změny stromu z \d{4}-\d\d-\d\d \(větší pohledy\) — \$0[.,]100 → \$0[.,]200 na sken \(60 skenů před, 36 po\), čtení o nic jistější; doporučeno ji ponechat \(šla k přesnosti\), vrátit ji jde {2}→ strom media calibrate --reset --only sizes --recordset B0003/);
+  assert.match(b.out, /✓ +po samoladění +B0003: dražší od změny stromu z \d{4}-\d\d-\d\d \(větší pohledy\) — \$0[.,]100 → \$0[.,]200 na sken \(60 skenů před, 36 po\), čtení o nic jistější; doporučeno ji ponechat: šla k přesnosti a jistota se měří jen podle nejistých míst – bližší pohled může číst přesněji, i když jich neubude; vrátit ji jde {2}→ strom media calibrate --reset --only sizes --recordset B0003/);
 
   // too few readings since a change: nothing said
   const few = Date.now() - 10 * DAY;

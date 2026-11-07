@@ -966,7 +966,7 @@ function oneView(ctx: Context, tree: Tree, shared: string, all: Media[], target:
   const from = whole?.fetched ? listConnectors(shared).find((c) => c.name === whole.fetched!.connector) : undefined;
   const canPart = from && from.manifest.can.includes("part") && !byHandOnly(from) && !missingConsents(ctx.env, from).code;
   const fetchPart =
-    canPart && !noSharper && v.scale > 1.25 && inWhole.w * inWhole.h < 0.9
+    canPart && !noSharper && (v.lifted ?? v.scale) > 1.25 && inWhole.w * inWhole.h < 0.9
       ? `strom fetch ${from.name} --recordset ${whole!.recordset} --images ${whole!.image} --crop ${regionText(inWhole)}`
       : undefined;
   // The same part as a clip of the source read in it: of the whole image where it is registered — as --clip takes it,
@@ -1248,7 +1248,7 @@ register(
       let g = browserGate({ env: ctx.env, tree, url: u.href, shared, task: t.id });
       const runner = detectAgent(ctx.env);
       // an agent whose browser strom does not keep: never at an archive only a person's browser goes to
-      if (runner && !browserKept(runner) && g.level?.browserOnly && (g.allow || g.why === "browser"))
+      if (runner && !browserKept(runner, tree.root, ctx.env) && g.level?.browserOnly && (g.allow || g.why === "browser"))
         g = { ...g, allow: false, why: "browser", reason: withoutBrowserReason(g.level, g.level.title ?? g.host, t.id, bookOn(tree, t.id, g.host, u.href), otherWay(g.host, u.href, t.id)) };
       // what the script saves is an image of the archive: its images through the browser, as the person allowed
       const may = g.level ? allows(g.level, "images", "browser") : { ok: true as const };
@@ -1497,7 +1497,9 @@ register(
           });
       }
       const partsFor = (t: Target) => partsOf.get(t) ?? parts;
-      const spec = viewSpec({ ...opts, half: undefined, crop: undefined });
+      const asked = viewSpec({ ...opts, half: undefined, crop: undefined });
+      // a small crop enlarged as the model takes it, above a calibrated reading size (never above --max asked)
+      const spec: ViewSpec = { min: own.min, ...(asked.max === undefined && asked.scale === undefined ? { liftMax: own.max } : {}), ...asked };
       // a book read worse than the others: its views bigger (never above what the model takes)
       const sizesOf = (t: Target) => bookViewSizes(own, tuned, t.media?.recordset, since);
       const capOf = (t: Target) => spec.max ?? sizesOf(t).read;

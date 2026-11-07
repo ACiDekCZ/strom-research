@@ -260,7 +260,7 @@ register(
       { name: "drop", type: "string", multiple: true, value: "<name>", description: "the name to take off, as the record has it" },
       { name: "why", type: "string", value: "<text>", description: "why it is wrong (kept with the step)" },
     ],
-    examples: ['strom place names L0002 --drop "v Lhotě v" --why "a slip of the register; the facts write Lhota now"'],
+    examples: ['strom place names L0002 --drop "Lhotta" --why "a slip of the register; the facts write Lhota now"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       refuseInArchive(tree, "place names", ctx.settings.agent(tree.config).value);

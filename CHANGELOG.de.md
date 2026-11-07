@@ -5,6 +5,166 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.29.0
+
+*8.11.2026 · gehört zur Strom-App 3.25.0.*
+
+- **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
+  (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
+  von strom, die Forschungseinstellungen der Strom-App): *die KI entscheidet* oder *der Mensch entscheidet*.
+  Entscheidet die KI, entscheidet der Agent eine Hypothese selbst, sobald ein zitierter Eintrag eine
+  Variante stützt, stets mit Variante und Begründung; die Entscheidung des Menschen ändert er nie, und einen Zweig von
+  zehn oder mehr Personen außerhalb des Stammbaums verbindet er nur auf zwei Quellen ohne Einwand – sonst schlägt er
+  vor. Jede seiner Entscheidungen ist als die des Agenten markiert, steht in der Übersicht der Änderungen und lässt
+  sich jederzeit ändern; ein Wechsel der Einstellung ändert nichts bereits Entschiedenes. Wo nichts gewählt ist,
+  entscheidet die KI – auch in einer früher angelegten Forschung; zurück zum Entscheiden des Menschen:
+  `strom config set hypotheses.decide person`. Die Ersteinrichtung von strom empfiehlt das Entscheiden der KI und bietet
+  es zuerst an, *der Mensch entscheidet* wird dort gespeichert; entscheidet der Mensch, schaltet nur ein Mensch das
+  Entscheiden der KI wieder ein, mit einem zweiten Ja.
+
+- **Jede Hypothese lässt sich im Menü entscheiden.** Entscheidet der Mensch, bietet „Was wartet“ auch offene
+  Hypothesen ohne Vorschlag des Agenten an – mit Variante und Begründung entscheiden oder offen lassen; entscheidet die
+  KI (die Voreinstellung), nur die Vorschläge des Agenten. Aus der Prüfung einer Person und über einen Link der
+  Strom-App lässt sich jede Hypothese entscheiden, gleich wer entscheidet, und eine entschiedene oder zurückgestellte
+  Hypothese lässt sich mit Begründung neu entscheiden, die frühere Entscheidung bleibt lesbar. Entscheidet der Mensch,
+  schlägt der Agent überall dort eine Entscheidung vor, wo die Einträge auf eine Variante zeigen.
+
+- **Die Forschung in der Strom-App bleibt eingeschaltet.** Die Verbindung zur Strom-App (die Brücke) endet nicht mehr
+  von selbst nach zwei Stunden ohne Anfrage: Sie läuft, bis sie ausgeschaltet wird oder der Computer ausgeht
+  (`live.idleMinutes` ist neu 0; ein früher gesetzter Wert bleibt). Die Strom-App erhält einen Schalter für jede
+  Forschung und eine Auswahl in ihren Einstellungen – bis der Computer ausgeht, oder nach zwei Stunden ohne Anfrage –,
+  beides über die Brücke geschrieben. In der App ausgeschaltet, bleibt die Brücke aus (neue Arbeit in der Forschung
+  holt sie nicht zurück) und behält ihre Adresse, sodass das erneute Einschalten – aus der App über einen Link von
+  strom oder mit `strom live start` – keine neue Verbindung braucht.
+
+- **Die Apps der Agenten werden wie der Agent im Terminal überwacht.** Der eingebaute Browser der App des Agenten hält die Bedingungen der
+  Archive ein wie der Browser des Agenten in Chrome: Ein Archiv, das nur den Browser eines Menschen zulässt, wird ohne
+  dessen Zustimmung mit demselben Hinweis abgelehnt, ein erlaubtes wird verzeichnet und hält sein Tempo; lokale Seiten
+  bleiben unberührt. Befehle von strom im eigenen Terminal der App gelten wie in der Shell (was nur ein Mensch tut, die
+  Brücke der Strom-App); der Agent wird angewiesen, strom über seine Shell auszuführen. Nichts an der App wird
+  abgeschaltet. Das Terminal der App erkennt strom unter jedem seiner Namen – den eines anderen Kanals, einer zweiten
+  Installation, das Paket über einen Paketstarter, einen Pfad dorthin. Der Browser von Codex (in der App ChatGPT) hält
+  dieselben Regeln anhand der Adressen in seinem Code ein, sobald die Hooks von strom in Codex bestätigt sind –
+  `strom doctor` und `strom chat` sagen, wann sie warten; Code ohne Adresse wird nie abgelehnt, nur verzeichnet. Mit
+  bestätigten Hooks lässt ein Archiv, das nur den Browser eines Menschen zulässt, mit der Erlaubnis „über den Browser“
+  auch den Browser von Codex zu, wie den Browser des Agenten in Chrome (`strom net web --check --browser`, `strom doctor`, die Unterlagen
+  des Agenten, die Strom-App); unbestätigt wie bisher. Computer Use bleibt unüberwacht. Was strom bei welchem Agenten und welcher App überwacht: `strom doc R12`; ein Agent mit Computer
+  Use wird angewiesen, die Strom-App über die Seitenwerkzeuge eines Browsers zu bedienen und die Forschung über strom.
+
+- **Die App des Agenten ohne den Agenten im Terminal.** strom sagt jetzt, was geht und was nicht: Das Gespräch in der App geht weiter,
+  selbstständige Arbeit, das Lesen von Scans und die Arbeit aus der Strom-App brauchen den Agenten im Terminal – gesagt,
+  bevor eine Frage oder eine Kostenschätzung kommt. Die Einstellungen und `strom doctor --fix` bieten seine Installation
+  an (ablehnbar); `strom doctor` unterscheidet den Browser im Gespräch und im selbstständigen Lauf. Ein Gespräch ohne es liest Scans mit dem eigenen Scan-Leser von strom.
+
+- **Eine Quelle gilt nur als vom Benutzer gelesen, wenn er sie gelesen hat, und eine Angabe ist nur aus dem
+  Originaleintrag belegt.** Leser ist der Benutzer bei einer von Hand im Terminal geschriebenen oder in der Strom-App
+  bestätigten Abschrift; was Importe, Umwandlungen und Stapel unter seinem Konto schrieben, nicht mehr. Eine Angabe ist
+  nur mit einem zitierten Originaleintrag mit Primärinformation belegt; ohne ihn wird sie wahrscheinlich, der Grund
+  bleibt in ihrer Geschichte, und eine, die der Benutzer belegt hat, bleibt und wartet unter Was wartet darauf, belassen
+  oder auf wahrscheinlich gesetzt zu werden (`strom fixes review proven-originals keep|lower`). Bestehende Forschungen
+  werden einmal von selbst richtiggestellt, die Änderungen stehen in der Übersicht (`strom fixes undo
+  readers|proven-originals` setzt sie zurück). Ein GEDCOM aus einem anderen Programm macht den Benutzer nie zum Leser
+  und keine Angabe belegt. Eine Bestätigung in der App gilt für den Wortlaut, zu dem sie gegeben wurde, und lässt sich
+  dort zurücknehmen; mit einem Originaleintrag mit Primärinformation darf eine Angabe dann belegt sein, sonst höchstens
+  wahrscheinlich.
+  **Eine Abschrift, die der Nutzer gelesen oder bestätigt hat, gehört dem Nutzer.** Nur das eigene Terminal des
+  Nutzers oder die Strom-App ändert sie – welcher Befehl auch immer (Bearbeitung, Stapel, Synchronisation, Korrektur,
+  Rücknahme, Import). Eine andere Fassung des Agenten wird stattdessen vorgeschlagen: eine Notiz bei der Quelle und eine
+  Aufgabe für den Nutzer je Quelle, die kein Agent übernimmt oder schließt; entschieden in Was wartet, über einen Link
+  der Strom-App oder in der App – die vorgeschlagene Fassung als die des Nutzers übernommen, oder die Abschrift
+  behalten und dieselbe Fassung nie wieder vorgeschlagen; beides lässt sich zurücknehmen (die frühere Abschrift samt
+  Bestätigung zurück, der Vorschlag wartet wieder).
+
+- **Jeder Leser eines Dokuments mit eigenem Agenten, Modell und eigener Denktiefe, und eine Quelle erneut aus dem
+  Original gelesen.** `strom document read|again --agent/--model/--effort` (und `--blind-…` für den blinden Leser) oder
+  die Wahl in der Strom-App; ohne Wahl liest er nach den Einstellungen der Forschung, nie mit einem günstigeren Modell.
+  Das Ergebnis sagt, wer gelesen hat – im Terminal, in der Datei der Lesung und in der Strom-App. Eine Quelle wird
+  erneut aus dem Original auf diesem Computer gelesen (`strom document read --source S… [--clip …]` oder aus der
+  Strom-App), ohne dass die Leser die Abschrift sehen; die neue Lesung bleibt neben der Quelle, und wo sie abweicht,
+  stellt eine Aufgabe beide gegenüber – die Abschrift, wer sie las, und die Bestätigung des Benutzers bleiben, wie sie
+  waren. Ausschnitte eines Bildes, die sich überlappen oder berühren, werden als eine Ansicht gelesen, und Wörter der
+  Abschrift außerhalb des gelesenen Ausschnitts (eine Kopfzeile der Seite darüber) zählen nicht als Abweichung. `strom
+  fixes` nimmt eine Lesung zweier Leser als die des ersten: ein blinder Leser mit einem anderen Modell ist nie ein
+  früheres Modell, mit dem erneut zu lesen wäre, und eine Lesung, von deren Lesern einer mit dem heutigen Modell las,
+  gilt als damit gelesen. Erneut aus dem Original lesen liest so gut wie möglich. Die Leser erfahren, was die Forschung
+  über den Eintrag weiß – Art, Sprache, Datum und wo er steht, nie die Abschrift oder einen Namen –, ein Leser mit
+  einem GPT-Modell zudem die Anweisung, den Eintrag in der Mitte des Ausschnitts abzuschreiben, die Nachbareinträge am
+  Rand wegzulassen und die ursprüngliche Schreibweise Buchstabe für Buchstabe zu bewahren. Mit der Abschrift verglichen
+  wird nur der Eintrag der Quelle (den der Leser markiert, sonst der, der am meisten im Ausschnitt liegt);
+  Spaltenbeschriftungen ohne Gegenstück („Dies:“, „Vater:“), die eigene Überschrift der Forschung zum Eintrag,
+  Anmerkungen der Forschung oder eines Lesers in Klammern, ein langes ſ gegen s, eine unleserliche Stelle gegen nichts
+  und Wörter außerhalb dessen, was beide gelesen haben, zählen nicht als Unterschied. Die Strom-App erhält im Ergebnis
+  des Lesens, welcher Eintrag der der Quelle ist, den ganzen Text des blinden Lesers, einen Hinweis, wenn die Leser
+  eine andere Art des Eintrags bestimmt haben (Trauung × Taufe), und wenn sich der Vergleich nicht in die Forschung
+  schreiben lässt – etwa bei einer auf einem anderen Computer versiegelten Forschung –, wird das gesagt statt still
+  weggelassen. Leser mit einem GPT-Modell (Codex, OpenCode) sehen einen kleinen Ausschnitt auf etwa 2000 px vergrößert
+  (höchstens dreifach), auch wenn das Lesen der Scans auf eine kleinere Größe abgestimmt ist (die Abstimmung misst
+  ganze Seiten und Hälften, nie einen kleinen Ausschnitt), die übrigen wie bisher; ein registrierter schärferer Teil
+  des Bildes, der die ganze Stelle zeigt – oder den ganzen Ausschnitt, nur ohne seinen Rand –, wird verwendet, und bei einer auf dem Scan kleinen Stelle wird ein schärferer
+  Ausschnitt aus dem Archiv angeboten – nie von selbst geladen. Der Codex-Leser läuft ohne das
+  Benachrichtigungsprogramm, die Plugins, Apps, Hooks und Erinnerungen aus den Einstellungen von Codex und ohne Browser
+  und Computer Use seiner App; die Einstellungen von Codex bleiben unverändert.
+  Ein Modell, das die installierte Codex-CLI nicht hat, beendet das Lesen als gescheiterten Leser mit diesem Grund, und
+  ein Lauf von strom hält damit an: Codex aktualisieren (`npm install -g @openai/codex@latest`) oder ein anderes Modell
+  wählen; Modelle aus dem Katalog eines neueren Codex als des installierten werden mit einem Hinweis angeboten.
+  Ein in der App Strom angefordertes Lesen wird sofort angenommen, auch wenn sein Einreihen länger dauert (ein anderer
+  Prozess hält die Forschung): es erscheint vom ersten Moment an unter seiner ID als eingereiht und wird unter ihr
+  gelesen, und eines, das sich dann nicht einreihen lässt, erscheint als gescheitert, mit dem Grund; dieselbe
+  Quelle, inzwischen erneut angefordert, wird als gerade gelesen abgelehnt.
+  Die Wahl des Modells der Forschung (die Einrichtung, die
+  Einstellungen im Menü von strom) nennt bei Opus, Sonnet und dem eigenen Standardmodell des Agenten das Modell, auf
+  dem es zuletzt lief, wenn eine Forschung auf diesem Computer es laufen sah – „Opus (jetzt Opus 5.5)“; `strom doctor`
+  und die Einstellungen sagen es beim gespeicherten Modell, und die App Strom erhält es mit der Auswahl der Leser.
+  Unbekannt bleibt es wie bisher. Gespeichert bleibt Opus oder Sonnet, so wird ein neueres Modell seiner Reihe von
+  selbst genommen; eine von Hand gesetzte feste Version (`strom config set model.lead <model>`) wird als jetzt
+  gewählt angeboten und bleibt fest.
+  Eine Lesung, deren blinder Leser nichts gelesen hat (er ist gescheitert oder ohne Eintrag zu Ende gekommen), ist
+  die des ersten Lesers allein, wie eine Lesung eines Lesers – nie heißt es von jedem Eintrag, er weiche ab. Die App
+  Strom erhält bei jeder Stelle, an der zwei Lesungen abweichen, welcher Art die Abweichung ist – sachlich (ein Name,
+  eine Zahl, ein Datum, eine Person, eine unleserliche Stelle) oder eine Kleinigkeit (Schreibweise, Abkürzung,
+  Zeichensetzung, Beschriftung, Groß- und Kleinschreibung) –, und wo jeder Leser steht: wartet, liest, fertig in so
+  vielen Sekunden oder gescheitert, auch welchem Leser das Modell abgelehnt wurde.
+  **Eine Quelle neu gelesen: was folgt, wählt der Nutzer.** Eine Aufgabe entsteht nur aus einer Sachangabe, die beide
+  Leser gegen die Abschrift gleich lesen (ein Name, eine Zahl, ein Datum, eine Person, ein Wort, das die Abschrift nicht
+  lesen konnte) – nie aus Kleinigkeiten (Schreibweise, Abkürzung, Zeichensetzung), aus einer Stelle, an der die Leser
+  abweichen oder die sie als unleserlich markieren, noch aus einer Stelle, die eine frühere Aufgabe schon beurteilt hat.
+  Die Aufgabe sagt, wer las (Agent · Modell · Denktiefe), dass zwei Leser desselben Modells ein schwächerer Beleg sind,
+  und dass die Lesung nur ein Hinweis ist: Die Abschrift ändert sich nur dort, wo es der Scan selbst zeigt. Die neue
+  Einstellung `read.sourceTask` sagt, was folgt: *fragen* (Standard) – die Lesung bleibt bei der Quelle als nicht
+  geprüft, bis der Nutzer wählt: jetzt mit dem Agenten durchgehen, in die Warteschlange, oder nur speichern (im Terminal
+  gleich nach der Lesung, später mit `strom source reading S…` oder in der Strom-App); *immer* – sofort eine Aufgabe;
+  *nie* – keine Aufgabe. Eine Quelle hat zugleich eine Aufgabe ihrer Lesungen. Eine Lesung ohne Sachangabe zum
+  Entscheiden, nur mit Stellen, deren sich die Leser nicht sicher sind, legt von selbst keine Aufgabe an – auch nicht
+  bei *immer*; nur auf das Wort des Nutzers (`strom source reading S… --take queue --unsure` oder in der Strom-App)
+  bekommt der Agent eine Aufgabe, jede solche Stelle auf dem Scan anzusehen: wo der Scan es sicher zeigt, die
+  Abschrift mit Begründung berichtigt, sonst eine Notiz an der Quelle. Eine vom Nutzer bestätigte Abschrift ändert der
+  Agent nie: die Stellen, die die neue Lesung gelesen hat, werden stattdessen dem Nutzer zur Prüfung vorgeschlagen
+  (`--take review --unsure`).
+
+- **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
+  Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein
+  Archiv, in einer Forschung außerhalb des Forschungsordners gegeben, passt auch die Anweisungen des Agenten dieser
+  Forschung an, und eine angegebene Website (example.org) umfasst auch die Adressen, die die Bücher der Forschung
+  verwenden. Die Bedingungen des Hauptarchivs alter Akten in Warschau nach der Antwort des Archivs: die Scans frei
+  nutzbar, jeder mit dem Ort des Originals zitiert – Archiv, Bestand, Signatur, Seite oder Blatt. Ein Widerspruch, der
+  in einem Stapel mit der Marke einer Quelle verzeichnet wird (`--claim "@s: …"`), zitiert jetzt diese Quelle; einer,
+  den eine frühere Version so verzeichnet hat, zeigt seinen Wert ohne die rohe Marke und zitiert, wo es sich erkennen
+  lässt, seine Quelle in der Strom-App und im GEDCOM. Ein beendetes Gespräch bleibt in der Strom-App nicht mehr „bei
+  der Arbeit“, auch auf einem ausgelasteten Computer oder nach einer Änderung des Computernamens. Ein in einem Satz
+  geschriebener Ort („in Lhotau Nr. 3“) behält seine Präpositionen nicht mehr: Die Prüfung bietet die Gemeinde so an,
+  wie die Forschung sie sonst schreibt, und ein Ortseintrag erhält keinen Namen wie „in Lhotau“ mehr – solche bereits
+  geschriebenen Namen werden einmal richtiggestellt (rückgängig: strom place undo).
+  **Überlappende Ausschnitte eines Bildes sind einer.** Zwei Ausschnitte desselben Bildes, die die Forschung markiert
+  hat und die sich um mindestens 30 % des kleineren überlappen, werden zu einem, der beide abdeckt
+  (einer fast ganz in einem größeren – ein Detail, ein Eintrag neben der ganzen Seite – bleibt); vom Nutzer markierte
+  Ausschnitte bleiben. In einer früheren Forschung werden überlappende Ausschnitte einmal vereint, jede Vereinigung im
+  Verlauf vermerkt; die Abschrift und die Bestätigung des Nutzers bleiben.
+  **Eine Aufgabe der Warteschlange aus der Strom-App.** Ein Link der App zu einer Aufgabe in der Warteschlange zeigt sie
+  (was, warum, wann erledigt) und bietet an, sie jetzt mit dem Agenten durchzugehen (mit der Dauer ähnlicher Aufgaben
+  hier), sie in der Warteschlange vorzuziehen oder sie zu lassen. `strom doctor` sagt, warum eine teurere Änderung der
+  Abstimmung zugunsten der Genauigkeit bleibt, und eine nur fehlende oder veraltete Hook-Datei von Codex ist keine
+  Warnung mehr – sie wird neu geschrieben, wenn strom den Agenten das nächste Mal startet.
+
 ## 1.28.0
 
 *6.11.2026 · gehört zur Strom-App 3.24.0.*

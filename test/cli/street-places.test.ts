@@ -231,7 +231,7 @@ test("strom fixes street-places: an undo never over a change since; in an archiv
     const ids = await lhotaci(w);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const list = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(list.json.checks.map((c: { id: string }) => c.id), ["participant-names", "app-shapes", "street-places"]);
+    assert.deepEqual(list.json.checks.map((c: { id: string }) => c.id), ["participant-names", "app-shapes", "street-places", "proven-originals"]);
     const show = await w.ok(["fixes", "show", "street-places"]);
     assert.doesNotMatch(show.out, /agent|\bAI\b|umělá inteligence|Claude|Codex|\bmodel/i);
     const r = await w.ok(["fixes", "run", "street-places"], { tty: true, answers: ["1"] });

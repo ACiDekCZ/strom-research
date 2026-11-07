@@ -80,7 +80,7 @@ w [R3.5.1](R3-verification-and-citation.md#R3.5.1).
   - Z opcją badania `sync.review on` badanie nie zapisuje wysłania od razu. Czeka na słowo człowieka w terminalu
     ([R6](R6-awaiting-action.md)); aplikacja w tym czasie pokazuje **Czeka na potwierdzenie w badaniu.**
   - Po zapisie aplikacja sama wczytuje nową wersję badania, gdy nic by się przez to w aplikacji nie straciło.
-  - Sprzeczności powstałe przez wysłanie aplikacja pokazuje komunikatem **Zapisano, {n} sprzeczności do
+  - Sprzeczności powstałe przez wysłanie aplikacja pokazuje komunikatem **Zapisano, N sprzeczności do
     rozstrzygnięcia** z **Pokaż**. Rozstrzyga się w badaniu (**Rozstrzygnij w badaniu**); wartość z aplikacji do tego
     czasu zostaje w aplikacji.
 - **Obsługa:** terminal: `strom config set sync.review on|off`, `strom config set sync.edits conflict|user`
@@ -127,7 +127,7 @@ i nic się nie traci.
   - Zapis badanie odkłada, gdy drzewo jest zapieczętowane na innym komputerze (**Przejmij na tym komputerze**), gdy
     pliki w folderze w chmurze nie są jeszcze pobrane albo gdy dysk jest pełny. Zmiany do tego czasu czekają
     niewysłane.
-  - Gdy badanie zapisze tylko część, aplikacja pokazuje **Zapisano {n}, nie zapisano {m}** i przy każdej niezapisanej
+  - Gdy badanie zapisze tylko część, aplikacja pokazuje **Zapisano N, nie zapisano M** i przy każdej niezapisanej
     zmianie powód (na przykład „brak wspólnej podstawy: wybór należy do badania”).
   - Po odrzuceniu automatyczne wysyłanie się zatrzymuje. Samo wyśle się ponownie dopiero po kolejnej zmianie.
 - **Obsługa:** aplikacja: **Badanie nie przyjęło zmian** w panelu badania, **Spróbuj ponownie**, **Szczegóły (do

@@ -51,8 +51,9 @@ const CHILDREN: Record<string, string[]> = {
   FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", "_STAT", "_STROM_NO_COUPLE", ...FAM_EVENTS],
   // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
   // and WWW: the page of its scan in the online archive (the app links it)
-  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED"],
+  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED", "_STROM_ORIG"],
   "SOUR._STROM_READING": ["_STROM_ENTRY"],
+  "SOUR._STROM_READ": ["_CONF", "_TXT"],
   "SOUR._STROM_IMG_OMITTED": ["_STROM_CLIP"],
   "SOUR.REPO": ["CALN", "NOTE"],
   REPO: ["NAME", "ADDR", "NOTE", "REFN", "RIN", "CHAN"],
@@ -97,6 +98,10 @@ const EXTENSIONS = new Set([
   "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE",
   // who read a source, the user's verification, the reading it is an entry of; how sure a fact is
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
+  // the wording of a source's transcript, and the day the user confirmed it (under _STROM_READ)
+  "_TXT", "_CONF",
+  // a source the research can read again from its original here
+  "_STROM_ORIG",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
   // the bounds of a lineage the person set (on a person), and the header's mark that the file says them

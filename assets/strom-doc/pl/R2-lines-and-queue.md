@@ -10,7 +10,7 @@ Strom 3.21.2. Zmiany z nowszej wersji mają przy sobie jej numer.
 Linia badania to jeden cel: przodkowie osoby, potomkowie osoby albo jedno pytanie. Każde zadanie należy do którejś
 linii, a agent pracuje nad zadaniami linii.
 
-- **Obsługa:** aplikacja: panel badania, sekcja **Linie · aktywne: {n}** · terminal: menu **Rozszerz badanie →
+- **Obsługa:** aplikacja: panel badania, sekcja **Linie · aktywne: N** · terminal: menu **Rozszerz badanie →
   Nowa linia badania**, polecenie `strom research new`
 - **Obowiązuje od:** badanie 1.0.0
 
@@ -209,7 +209,7 @@ dwukrotnej wielkości. Gałąź z własnym wyborem i wybór **nigdy** propozycji
 Każde zadanie w kolejce podaje powód swojego miejsca: w linii, pomaga linii (i jak), poza liniami (i w jakiej
 gałęzi), ręczny wybór albo czeka, bo linia jest wstrzymana.
 
-- **Obsługa:** aplikacja 3.22.0: sekcja **Kolejka**, wiersz przy zadaniu (np. „pomaga linii {n} · {jak}”).
+- **Obsługa:** aplikacja 3.22.0: sekcja **Kolejka**, wiersz przy zadaniu (np. „pomaga linii N · …”).
 - **Obowiązuje od:** badanie 1.26.0
 
 <!-- zdroj: research:src/core/queue.ts:312-349 · app:strings.ts live.qWhyLine, qWhyHelps, qWhyOut, qWhyManualNext, qWhyPaused -->

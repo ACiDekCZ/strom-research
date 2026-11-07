@@ -2,6 +2,7 @@
 // errors (block the automatic commit) or warnings.
 
 import { streetPlaces } from "./streetfix.ts";
+import { streetsOf, withoutPrepositions } from "./streets.ts";
 import { editDecisions } from "./editdecisionfix.ts";
 import { wokenWaits } from "./wokenwaitfix.ts";
 import { isArchive } from "./mode.ts";
@@ -101,7 +102,9 @@ export function check(tree: Tree): Finding[] {
         out.push({ level: "warn", code: "open-conflict", id: x.id, message: `open while ${id} has proven facts — resolve it: strom conflict resolve ${x.id} --resolution … --reasoning …` });
     }
 
-  // 5b. a house number written into the place: the place stops matching its books and its other facts
+  // 5b. a house number written into the place: the place stops matching its books and its other facts; a municipality
+  // written in a sentence ("v Lhotici v čp. 46") offered as the research writes it elsewhere ("Lhotice")
+  let towns: ReturnType<typeof streetsOf> | undefined;
   for (const owner of [...persons, ...families])
     for (const e of owner.events) {
       const m = e.place && !e.retracted ? houseIn(e.place) : undefined;
@@ -111,7 +114,7 @@ export function check(tree: Tree): Finding[] {
           code: "house-in-place",
           id: e.id,
           message: `place "${e.place}" holds a house number`,
-          hint: `strom event edit ${e.id} --place "${m.place}" --house ${m.house} --reason "the house number out of the place"`,
+          hint: `strom event edit ${e.id} --place "${m.sentence ? (towns ??= streetsOf(tree)).townOf(m.place, true) : m.place}" --house ${m.house} --reason "the house number out of the place"`,
         });
     }
 
@@ -195,11 +198,16 @@ export function hasErrors(findings: Finding[]): boolean {
   return findings.some((f) => f.level === "error");
 }
 
-/** "Vavřinec čp. 13", "Týnec, Haus-Nr. 5", "Oakham No. 12" → the settlement and the house. */
-export function houseIn(place: string): { place: string; house: string } | undefined {
-  const m = /^(.*?)[\s,]+(?:č\.\s?p\.?|čp\.?|č\.\s?d\.?|c\.\s?p\.?|cp\.|Haus-?\s?N(?:r|ro)\.?|Nr\.|No\.|house\s+(?:No\.?)?|dům\s+(?:č\.)?)\s*(\d+[\w/-]*)\s*$/iu.exec(place.trim());
-  if (!m || !m[1]!.trim()) return undefined;
-  return { place: m[1]!.trim().replace(/,$/, ""), house: m[2]! };
+/**
+ * "Vavřinec čp. 13", "Týnec, Haus-Nr. 5", "Oakham No. 12" → the settlement and the house; a settlement written in a
+ * sentence ("v Lhotě v čp. 12") without its prepositions ("Lhotě").
+ */
+export function houseIn(place: string): { place: string; house: string; sentence?: true } | undefined {
+  const m = /^(.*?)[\s,]+(?:č\.\s?p\.?|čp\.?|č\.\s?d\.?|c\.\s?p\.?|cp\.|Haus-?\s?N(?:r|ro)\.?|Nr\.|No\.|house\s+(?:No\.?)?|dům\s+(?:č\.)?)\s*(\d+[\w/-]*)\s*$/iu.exec(place.normalize("NFC").trim());
+  const written = m ? m[1]!.trim().replace(/,$/, "") : "";
+  const settlement = withoutPrepositions(written);
+  if (!m || !settlement) return undefined;
+  return { place: settlement, house: m[2]!, ...(settlement !== written ? { sentence: true as const } : {}) };
 }
 
 export const SHARED_MISSING = "shared-missing";

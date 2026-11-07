@@ -210,7 +210,8 @@ wyszukiwanie, scalanie osób i rody traktują wtedy formy jako jedno nazwisko, t
   - Grupa, która nakłada się na inną, łączy się z nią w jedną.
   - Usuniętą formę drzewo pamięta jako odrzuconą parę.
   - Forma jednej osoby (przydomek, nazwisko od gospodarstwa) należy do **Inne formy imienia i nazwiska** przy osobie,
-    nie do grup drzewa.
+    nie do grup drzewa. Wyszukiwanie ([A4.8](#A4.8)) i scalanie osób porównują także te formy; po scaleniu zostają
+    formy obu osób, a dochodzi do nich zapis, który przegrał w sporze o nazwisko.
   - **Zaproponuj z badania** pokazuje propozycje badania na dwóch poziomach: **Udokumentowane** i **Według reguł**,
     każda z powodem i dowodami. Nic się nie połączy bez potwierdzenia (**Przyjmij** / **Odrzuć**, **Cofnij**).
   - Propozycji się nie pokazuje, gdy są odrzucone, już leżą w jednej grupie albo połączyłyby dwie grupy. Pokazuje się
@@ -223,7 +224,7 @@ wyszukiwanie, scalanie osób i rody traktują wtedy formy jako jedno nazwisko, t
   **Zaproponuj z badania**. Forma jednego rodu: **Edytuj ród… → + forma** ([A4.1.1](#A4.1.1)).
 - **Obowiązuje od:** aplikacja 1.15.0 (propozycje z badania 3.17.0)
 
-<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* -->
+<!-- zdroj: app:src/surnames.ts:291 addSurnameGroup · :329 removeSurnameForm · src/surname-suggest.ts:197 isRejected · :208 suggestionGroup · src/ui/surname-suggest-ui.ts:41 PAGE · src/ui/surnames-ui.ts · src/ui/tree-actions.ts:217 · strings.ts surnames.*, surnameSuggest.* · src/merge/matching.ts:197 writtenSurnames · src/merge/executor.ts:781 addLosingNameVariant, :951 nameVariants -->
 
 <a id="A4.8"></a>
 ## A4.8 Wyszukiwanie i sortowanie imion i nazwisk

@@ -22,6 +22,7 @@ import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
+import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
@@ -34,6 +35,22 @@ export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platfor
   const ps = powershellUtf8Rule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
+  // who decides the hypotheses (hypotheses.decide — the user's; refreshed when a conversation or a run starts)
+  const hypotheses =
+    new Settings(tree.env, {}).hypothesesDecide(tree.config) === "agent"
+      ? `- **The user lets you decide the hypotheses**: once a cited record points
+  to one variant, decide it (\`strom hypothesis decide H… --variant B
+  --decision "…"\`, the variant's support citing the source S…) and tell them
+  in a sentence what and why. One that joins a branch of ten or more people
+  off the tree only on two sources and no objection — else propose it
+  (\`strom hypothesis propose …\`) for them to decide. A decision of theirs
+  you never change: a record that overturns it is proposed again with
+  \`--reason\`. What is decided you then record on the tree (the brief lists it).`
+      : `- **A hypothesis is theirs to decide**: once the records point to one
+  variant (or show none can be), propose it (\`strom hypothesis propose H…
+  --variant B --decision "…"\`) and tell them in a sentence what and why —
+  they decide it in strom's menu (What waits); the work goes on meanwhile.
+  What they decided you then record on the tree (the brief lists it).`;
   return `# Family research: ${tree.config.name}
 
 This folder is a family tree researched with **strom**, a command-line tool
@@ -85,13 +102,19 @@ the researcher; \`strom\` is your only way to read and change the research.
     through strom's rules, one page at a time at a person's pace, from page
     to page by going to the address (navigate), never clicking through a
     series of pages; a site strom refused or whose terms forbid automation
-    never. Any other agent's browser or computer use (Codex's, Antigravity's,
-    the desktop apps' own, a browser's MCP) strom does not see and does not
-    recommend: never of your own accord to an archive only a person's
-    browser goes to — the person saves its images by hand
+    never. The built-in browser of Claude's desktop app strom watches the
+    same way, yet does not recommend it. Codex's browser (its \`js\` tool),
+    once the person confirmed strom's hooks in Codex, strom watches by the
+    addresses your code names: write each page's address out in the call
+    (\`tab.goto("https://…")\`), one page at a time;
+    code with none strom records as unwatched. Any other agent's browser or
+    computer use (Antigravity's, the desktop apps' computer use, a browser's
+    MCP) strom does not see and does not recommend (\`strom doc R12\`): never
+    of your own accord — those built-in browsers neither — to an archive only
+    a person's browser goes to — the person saves its images by hand
     (\`strom task wait T… --images B…:<numbers> --on "…"\`); only when the
     person explicitly asks for one there, their choice: say in one sentence
-    that strom does not watch that way, and the archive's terms; elsewhere
+    whether strom watches that way, and the archive's terms; elsewhere
     \`strom net web --check <url> --browser\` first. An image of such an
     archive the person allowed "through the browser", with no connector of
     it: one at a time, \`strom media save T… --image <n> --at <its page>\`
@@ -120,11 +143,7 @@ says how it ends.)
   documents, photos, a family tree file.
 - **The user decides**: whom to research, what next, anything that costs
   money, what you may do. Suggest; do not decide for them.
-- **A hypothesis is theirs to decide**: once the records point to one
-  variant (or show none can be), propose it (\`strom hypothesis propose H…
-  --variant B --decision "…"\`) and tell them in a sentence what and why —
-  they decide it in strom's menu (What waits); the work goes on meanwhile.
-  What they decided you then record on the tree (the brief lists it).
+${hypotheses}
 - **Ways of working** — explain them when it helps:
   - this conversation: the two of you together;
   - the agent working on its own: they start it from strom's menu ("Let the
@@ -190,6 +209,26 @@ says how it ends.)
   page on the web); only for the person's question — the method stays the
   rules of the work.
 
+## When you have computer use
+
+Never suggest turning it on; when it is there:
+
+- The Strom app: it is the page \`strom app\` opens (the research's own
+  tree in it), or one the person has open; a person is found by the field
+  "Search person..." in its bar, then a click on the person's card opens
+  their menu (\`strom doc A9.1\`). Through a browser's page tools (the
+  built-in browser of Claude's app, Claude in Chrome), not by the screen's
+  pixels — click an element by the reference \`find\` gives, never by
+  coordinates, and wait until a sliding panel has stopped before the next
+  click. Claude's computer use only looks at browsers and only clicks in
+  terminals (\`strom doc A9.4\`, \`strom doc R12.10\`).
+- The research: through \`strom\` in your own command line, never by typing
+  into a terminal window.
+- A consent or a setting of the person's (the map's OpenStreetMap, how edits
+  are sent to the research): left to the person — say what waits for them.
+- An archive's pages: its rules hold the same way (its pace, "by hand
+  only"); what strom does not watch is no exception (\`strom doc R12\`).
+
 ${selfReading(treeReading(tree, new Settings(tree.env, {}).agent(tree.config).value))}
 ${MARKER}
 `;
@@ -199,8 +238,10 @@ function claudeMd(tree: Tree): string {
   const models = new Settings(tree.env, {}).models("claude", tree.config);
   return `@AGENTS.md
 
-Claude Code: use Bash for \`strom\` commands only; read images and documents
-with the Read tool. You can choose a model for a subagent: delegate reading as
+Claude Code: use Bash for \`strom\` commands only — in Claude's desktop app
+too, never its terminal (run_in_terminal): strom's rules hold for Bash, and
+in that terminal strom refuses what is the person's. Read images and
+documents with the Read tool. You can choose a model for a subagent: delegate reading as
 below, not the way "Reading scans" in AGENTS.md says for other agents.
 
 ${PROFILES.claude!.instructions({ ...models, vision: scanReaderModel(tree, "claude") }, treeReading(tree, "claude"))}
@@ -623,6 +664,7 @@ function dropAgentFiles(tree: Tree): string[] {
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
     [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
     [CODEX_RULES, codexRules(tree)],
+    [CODEX_HOOKS, JSON.stringify(codexHooks(tree.root), null, 2) + "\n"],
   ];
   const codexOld = dropOldCodexConfig(tree);
   if (codexOld) gone.push(codexOld);
@@ -667,7 +709,10 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES];
+// Antigravity has none of its own here: agy takes its permissions only from the person's settings
+// (~/.gemini/antigravity-cli/settings.json, strom's `command(strom)` there: agents/global.ts) and knows no rules file of a
+// folder strom could write — it reads AGENTS.md, and in a run alone what its settings do not allow is refused (strom doc R12.7)
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -700,6 +745,8 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
   write(GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n");
   write(CODEX_RULES, codexRules(tree));
+  // strom's hook before Codex's browser: written only when it changed (each change asks the person to confirm it again)
+  write(CODEX_HOOKS, JSON.stringify(codexHooks(tree.root), null, 2) + "\n");
   // what strom wrote there before 1.27.0 left the desktop apps' browser on: taken back
   const codexOld = dropOldCodexConfig(tree);
   if (codexOld) written.push(codexOld);

@@ -18,7 +18,7 @@ session is one task. A run starts one or more sessions in a row; between them it
   - every run ends when no open task is left in the queue.
 - **Controls:** terminal: the menu **Let the agent work on its own**, the choices **Work through the queue in this
   order – as many as chosen** (1–100, like `--max`), **Only the tasks picked from the list** (like `--task`) and
-  **Let it work on while there is work and the condition “{name}” allows it** (like `--loop`, only with a condition
+  **Let it work on while there is work and the condition “…” allows it** (like `--loop`, only with a condition
   set); the command `strom run`. The Strom app 3.21.2 does not set up working alone; it shows the state of the run
   ([R7.4](#R7.4)), and a session can be finished from it ([R7.3](#R7.3)).
 - **Since:** research 1.0.0 (`--max`, `--until`, `--task`), `--loop` from 1.2.0
@@ -28,11 +28,11 @@ session is one task. A run starts one or more sessions in a row; between them it
 <a id="R7.1.1"></a>
 ### R7.1.1 Why a run ends
 
-- At the end the run prints **{n} sessions · stopped: {reason}**: **done**, **no open tasks**, **time limit**
+- At the end the run prints **N sessions · stopped: …**: **done**, **no open tasks**, **time limit**
   (`--until`), **by hand** ([R7.3](#R7.3)), **subscription limit** ([R7.6](#R7.6)), **the agent is not logged in**
   ([R7.7](#R7.7)), the condition's answer ([R7.4](#R7.4)), or an error (credentials, the agent failed, the model).
 - When the remaining tasks need an archive that does not answer, a run with `--loop` and `--until` waits
-  (**⏸ waiting until {at}**); any other run ends.
+  (**⏸ waiting until …**); any other run ends.
 - **Since:** research 1.0.0; waiting for an archive that does not answer from 1.22.0
 
 <!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
@@ -48,12 +48,12 @@ strom reminds it. At the limit strom stops it and returns the unfinished task to
     the last 3 minutes (a short session: the last eighth) it asks the agent to write what it found and close the
     session;
   - at the limit, an agent that can (Claude Code, Codex, OpenCode, Grok) gets 5 more minutes to write and close;
-  - a task on which 2 sessions in a row wrote nothing is parked (**{task} parked**); sessions ended by a person do not
+  - a task on which 2 sessions in a row wrote nothing is parked (**… parked**); sessions ended by a person do not
     count;
   - the order: `--minutes` > the variable `STROM_RUN_MINUTES` > the family tree's setting > the computer's setting
     > 60.
 - **Controls:** terminal: **Settings: the agent, working alone, messages, archives, maintenance → The agent working
-  alone → Time for one task: {minutes} min** (5–600; 0 goes back without a change); `strom config set run.minutes <n>`
+  alone → Time for one task: N min** (5–600; 0 goes back without a change); `strom config set run.minutes <n>`
   (`--for-tree`: only this family tree). App: nothing.
 - **Since:** research 1.0.0 (60 minutes, parking a task); reminders and 5 minutes to write from 1.2.0
 
@@ -92,9 +92,9 @@ computer. Without a condition the run goes on while there is work.
   - strom ships the condition `claude-usage` ([R7.5](#R7.5)); an own condition is a folder
     `plugins/gates/<name>/`;
   - a run without the condition set (`--no-gate`) or with another one (`--gate`) needs a person's consent.
-- **Controls:** terminal: **Settings → The agent working alone → Working on and on under a condition: {gate}**
+- **Controls:** terminal: **Settings → The agent working alone → Working on and on under a condition: …**
   (a condition, or **none**); `strom config set run.gate "<name> [what to give it]"`, `strom config unset run.gate`;
-  a person confirms both. App: **Research overview** shows **Paused** and **resumes at {t}** at a waiting run.
+  a person confirms both. App: **Research overview** shows **Paused** and **resumes at …** at a waiting run.
 - **Since:** research 1.2.0, app 3.5.0 (the state Paused)
 
 <!-- zdroj: research:src/core/gate.ts:27-34 DEFAULT_TIMEOUT_S, DEFAULT_WAIT_MS, MIN_WAIT_MS, askGate :209-254, SHIPPED :124 · session.ts:911 gateHolds, :1038-1063 wait, markPaused, runGate :1357-1380 · config.ts run.gate tree:false · setup.ts:1537-1548 · app:v3.21.2 research-overview-ui.ts:340-347, strings.ts live.statePaused, live.pausedUntil -->
@@ -103,9 +103,9 @@ computer. Without a condition the run goes on while there is work.
 ### R7.4.1 Tasks started by hand: “Start anyway?”
 
 - One session, `--max`, `--task` and the menu are a person's choice. The condition is asked once, before the first
-  session. When it would not start (wait, stop, error), the question **The condition “{name}” would not start now —
-  {reason}. Start anyway?** comes up. Enter means no: the run ends (**not started — the condition “{name}”:
-  {reason}**). Yes: the sessions start and the condition is not asked again, except for the cap
+  session. When it would not start (wait, stop, error), the question **The condition “…” would not start now —
+  …. Start anyway?** comes up. Enter means no: the run ends (**not started — the condition “…”:
+  …**). Yes: the sessions start and the condition is not asked again, except for the cap
   ([R7.4.2](#R7.4.2)).
 - When the agent starts the run, a person answers in a system window. A script that no one can be asked keeps to the
   condition.
@@ -117,7 +117,7 @@ computer. Without a condition the run goes on while there is work.
 ### R7.4.2 The cap: a hard limit
 
 - A condition can mark its answer as a person's hard limit (`hard`). The run then ends (**the cap of the condition
-  “{name}”**), and no “anyway” goes past it.
+  “…”**), and no “anyway” goes past it.
 - A condition can watch the agent's plan window (`watch`). It is then asked before each session of every run, and
   a session at work gets a request to finish ([R7.3](#R7.3)) when the agent reports the window's use at the given
   limit.
@@ -128,7 +128,7 @@ computer. Without a condition the run goes on while there is work.
 <a id="R7.4.3"></a>
 ### R7.4.3 The record of the condition's answers
 
-- Each answer has a line in the run's output: **· condition {name}: {word}{reason} (exit {status}; .strom/gate.log)**.
+- Each answer has a line in the run's output: **· condition …: … (exit …; .strom/gate.log)**: the condition's name, its answer with the reason and the code.
 - At the same time a JSON line in the family tree's `.strom/gate.log`: when, the condition and what was given to it,
   the exit code, the verdict, the reason, the waiting, the plan's limits and what the run did (`go`, `wait`, `stop`,
   `anyway`). It is kept for 90 days, at most 2 MB.
@@ -214,7 +214,7 @@ of the week have passed since it reset (a day ≈ 14.3 %) with the week's usage.
 ## R7.6 The subscription limit stops the run
 
 When the agent runs into the limit of its subscription during a session, the session closes and the run ends:
-**subscription limit (resets {at})**. The run does not wait, not even with `--loop`. This does not depend on the
+**subscription limit (resets …)**. The run does not wait, not even with `--loop`. This does not depend on the
 condition.
 
 - **Limits:** the task returns to the queue; the reset time shows only when the agent said it. Only a condition can
@@ -227,7 +227,7 @@ condition.
 ## R7.7 An agent not logged in
 
 An agent that is not logged in to its subscription does not do a session. The run ends: **the agent is not logged
-in — run {command} once and log in**.
+in — run … once and log in**.
 
 - **Limits:**
   - before the first session strom checks this only for Claude Code with a separate folder

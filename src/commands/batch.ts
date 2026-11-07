@@ -13,8 +13,7 @@ import type { Context } from "../cli/context.ts";
 import { counted, lines, table } from "../cli/format.ts";
 import { AmbiguousError, StromError, UsageError } from "../core/errors.ts";
 
-/** A label: a word in any script ("anna", "šimon", "otec_2"), its accents composed or not. */
-const LABEL = "[\\p{L}_][\\p{L}\\p{M}\\p{N}_-]*";
+import { LABEL } from "../core/labels.ts";
 import { callMistake, checkArgs, parseOptions, resolveCommand, usageOf } from "../cli/execute.ts";
 import type { CommandDef } from "../cli/registry.ts";
 import { isAgent } from "../core/which.ts";
@@ -137,17 +136,26 @@ const FREE_TEXT = new Set(["note", "quote", "transcript", "translation", "text",
 /** A reference to a label: a whole word, a role's ("godparent:@anna"), an option's (--partner=@anna) or a list item. */
 const LABEL_REF = new RegExp(`(^|[:=,])@(${LABEL})(?=$|[,:])`, "gu");
 
+/**
+ * A label before the colon of words with spaces — a claim's source ("@s: aged 27", "@s : aged 27", "--claim=@s: …"):
+ * the one place a label is read in them (found: --claim "@s: …" kept as written, the raw "@s:" in the conflict, in
+ * the Strom app and the GEDCOM, its source not cited).
+ */
+const LEADING_REF = new RegExp(`^(--[^=\\s]+=)?(\\s*)@\\s*(${LABEL})(?=\\s*:)`, "u");
+
 /** The words of a line with each label replaced by the ID its line created; `unknown` gets those no line defined. */
 export function withLabels(argv: string[], labels: Map<string, string>, unknown: string[] = []): string[] {
+  const put = (m: string, before: string, name: string): string => {
+    const id = labels.get(name.normalize("NFC"));
+    if (id) return `${before}${id}`;
+    unknown.push(name);
+    return m;
+  };
   return argv.map((t, i) => {
     const opt = /^--([^=\s]+)=/u.exec(t)?.[1] ?? (i > 0 ? /^--([^=\s]+)$/u.exec(argv[i - 1]!)?.[1] : undefined);
-    if ((opt && FREE_TEXT.has(opt)) || /\s/u.test(t)) return t;
-    return t.replace(LABEL_REF, (m, before: string, name: string) => {
-      const id = labels.get(name.normalize("NFC"));
-      if (id) return `${before}${id}`;
-      unknown.push(name);
-      return m;
-    });
+    if (opt && FREE_TEXT.has(opt)) return t;
+    if (/\s/u.test(t)) return t.replace(LEADING_REF, (m, o: string | undefined, space: string, name: string) => put(m, `${o ?? ""}${space}`, name));
+    return t.replace(LABEL_REF, put);
   });
 }
 
@@ -187,6 +195,7 @@ register({
     const batch = parseBatch(source);
     if (batch.length === 0) throw new UsageError("no commands in the batch", { hint: "strom help batch" });
     const tree = ctx.tree();
+    ctx.inBatch = true;
     const labels = new Map<string, string>();
     // the labels of lines that failed: a line using one is skipped, said with the line it waits for
     const failedLabels = new Map<string, number>();
@@ -222,7 +231,7 @@ register({
         if (parsed.values["dry-run"]) throw new UsageError("--dry-run applies to the whole batch: strom batch --dry-run …");
         checkArgs(def, parsed.positionals, parsed.fix, "", parsed.values);
         // the person's own (a hypothesis decided, a conflict left): never an agent's, in a batch as on its own (main.ts)
-        if (def.person && isAgent(ctx.env)) ctx.requireHuman(def.person, ["strom", ...def.path, ...rest].join(" "), def.path[0]!, undefined, { window: false });
+        if (def.person && isAgent(ctx.env) && !def.agentMay?.check(ctx, { args: parsed.positionals, opts: parsed.values })) ctx.requireHuman(def.person, ["strom", ...def.path, ...rest].join(" "), def.path[0]!, undefined, { window: false });
         const before = tree.written.length;
         const r = await def.run(ctx, { args: parsed.positionals, opts: parsed.values });
         if (r.exitCode) throw new StromError(r.text.split("\n")[0] ?? "failed");

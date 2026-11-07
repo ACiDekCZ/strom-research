@@ -1489,23 +1489,26 @@
       "level": "unknown",
       "terms": "https://agad.gov.pl/inwentarze/uwagigen.html",
       "robots": "User-agent: * · Disallow: /wp-admin",
-      "scope": "its website, the inventories (XML/HTML) of the registers of the former eastern territories (fonds 298–557) and their links to the image galleries on agadd.home.net.pl and agadd2.home.net.pl; no terms of use of the images found",
-      "checked": "2026-11-04"
+      "scope": "its website, the inventories (XML/HTML) of the registers of the former eastern territories (fonds 298–557) and their links to the image galleries on agadd.home.net.pl and agadd2.home.net.pl; the galleries' scans may be used without restriction, downloaded and used freely, the place of the originals given (the archive's reply of 2026-11-06, quoted); cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
+      "checked": "2026-11-06",
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
     },
     {
       "host": "agadd.home.net.pl",
       "name": "Archiwum Główne Akt Dawnych (image galleries of the registers)",
       "level": "unknown",
       "robots": "none (404)",
-      "scope": "static galleries of the registers of the former eastern territories (Roman and Greek Catholic, Protestant, Jewish), linked from AGAD's inventories: one image at a time, never a whole book; registers younger than 100 (births) or 80 years (marriages, deaths) are not in them; no terms of use found",
-      "checked": "2026-11-04"
+      "scope": "static galleries of the registers of the former eastern territories (Roman and Greek Catholic, Protestant, Jewish), linked from AGAD's inventories: one image at a time at a slow pace, never a whole book (strom's own rule; the archive's reply of 2026-11-06 sets no limit and lets the scans be downloaded and used freely); registers younger than 100 (births) or 80 years (marriages, deaths) are not in them; cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
+      "checked": "2026-11-06",
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
     },
     {
       "host": "agadd2.home.net.pl",
       "name": "Archiwum Główne Akt Dawnych (image galleries of the registers)",
       "level": "unknown",
-      "scope": "static galleries of registers linked from AGAD's inventories: one image at a time, never a whole book; no terms of use found",
-      "checked": "2026-11-04"
+      "scope": "static galleries of registers linked from AGAD's inventories: one image at a time at a slow pace, never a whole book (strom's own rule; the archive's reply of 2026-11-06 sets no limit and lets the scans be downloaded and used freely); cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
+      "checked": "2026-11-06",
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
     },
     {
       "host": "archiwum.mkw.pl",

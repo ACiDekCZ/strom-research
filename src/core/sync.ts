@@ -655,6 +655,9 @@ export function readGedcom(text: string): Snapshot {
   const fromApp = stromAppFile(head);
   // the research's own file (what it gave the app, the research now): it says every choice of a name shown by
   const research = val(head, "SOUR")?.trim() === "STROM_RESEARCH";
+  // what only the Strom app or the research writes of the user's readings (a transcript that counts, one verified): from
+  // any other program's file nothing — its words never make the user a reader or a fact more than a lead (spec 022 O4)
+  const trusted = fromApp.app || research;
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
   const noteText = (n: GedNode) => (/^@[^@]+@$/.test(n.value.trim()) ? (notes.get(n.value.trim()) ?? "") : n.value);
   // the sources: ours by their REFN, the file's own by their xref
@@ -679,8 +682,8 @@ export function readGedcom(text: string): Snapshot {
       ...(text?.value.trim() ? { text: text.value.trim() } : {}),
       ...(url ? { url } : {}),
       ...(note ? { note } : {}),
-      ...(/^y(es)?$/i.test(val(r, "_STROM_VERIFIED")?.trim() ?? "") ? { verified: true } : {}),
-      ...readingMarkOf(r),
+      ...(trusted && /^y(es)?$/i.test(val(r, "_STROM_VERIFIED")?.trim() ?? "") ? { verified: true } : {}),
+      ...(trusted ? readingMarkOf(r) : {}),
     });
   }
   const cite = (n: GedNode): SCite | undefined => {
@@ -821,7 +824,7 @@ export function readGedcom(text: string): Snapshot {
   citedDetails(sources, [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)));
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
-  const transcripts = val(head, "_STROM_TRANSCRIPTS")?.trim().toLowerCase() === "evidence" ? "evidence" : "lead";
+  const transcripts = trusted && val(head, "_STROM_TRANSCRIPTS")?.trim().toLowerCase() === "evidence" ? "evidence" : "lead";
   // SEX U where the sex is unknown in the app (its header's mark, an app from 3.10.0-beta.11): no guess of it (U01)
   const sexU = fromApp.sexUnknown;
   const appTree = val(head, "_STROM_APP_TREE")?.trim();

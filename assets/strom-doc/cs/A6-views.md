@@ -163,6 +163,33 @@ název místa, jak je zapsaný ve stromu, a jen se souhlasem. Ve stromu z výzku
 
 <!-- zdroj: app:src/geocode.ts hlavička, REQUEST_INTERVAL_MS=1100, geocodePlace (limit 1, parseGeocodeResponse první výsledek), geocodeTown/pickTownHit nearestTo (od v3.21.0), geocodePlaces townFallback · app:src/strings.ts map.consentTitle, consentBody, settingLabel, wrongSpot (v1.10.1), searchLabel, attachOnly, useForOthers, cleanOrphans (v2.1.0), nearestTown, byTown, doneWithMisses · FB podnět 2026-11-04 (stejnojmenná obec) · od 3.24.0: geocode.ts treeCenter (medián, PERSONS_CENTER_MIN=3), sameNamedTowns, pickPlaceHit (townChoices), buildGeocodeUrl limit · place-check.ts multi count · strings.ts checkMulti(n) · merge-executor test (ruční poloha zůstane) · commit 046967d -->
 
+<a id="A6.5.2"></a>
+### A6.5.2 Místa mimo mapu dohledat ve výzkumu
+
+U stromu s výzkumem nabízí stavový pruh mapy místa bez polohy k dohledání ve výzkumu ([R4.4](R4-places.md#R4.4)).
+Tlačítko otevře okno **Místa** s náhledem; do fronty výzkumu jdou místa až po **Zařadit**.
+
+- **Hranice:**
+  - před dohledáním mapou stojí v pruhu vedle dohledání mapou **Ve výzkumu**. Po dohledání, když mapa některá místa
+    nenašla, pruh ukáže „N míst na mapě · K mapa nenašla“ a **Dohledat ve výzkumu (K)**, případně „N k potvrzení ›“
+    (otevře **Čeká** v panelu výzkumu);
+  - tlačítko je jen u stromu s výzkumem a jen když je co dohledat: místo bez polohy nebo neztotožněné, které ještě
+    není ve frontě, nepracuje se na něm a nečeká na odpověď;
+  - okno **Místa** ukáže náhled „Dohledat ve výzkumu N míst mimo mapu“. Před **Zařadit N míst** se nic nezařadí
+    a žádné místo se nezařadí dvakrát;
+  - když výzkum běží na jiném počítači, nebo jde o telefon, aplikace místo okna řekne, kde dohledání jde: „Dohledat
+    a prověřit jde ve výzkumu na počítači, kde běží. Stav míst se sem přenáší se stromem.“, na telefonu „Dohledat
+    a prověřit jde na počítači s výzkumem. Na otázky k místům jde odpovědět i odsud, v Čeká.“ Starší výzkum: „Tato
+    verze výzkumu místa ještě nedohledává.“;
+  - při sledování výzkumu na mapě ([S4.1.3](S4-research-from-the-app.md#S4.1.3)) řádek „… – bez polohy na
+    mapě“ nabízí **Dohledat ve výzkumu**: zařadí to jedno místo hned, bez náhledu; zařazení jde vrátit
+    v oznámení.
+- **Ovládání:** aplikace: mapa → stavový pruh → **Ve výzkumu**, po dohledání mapou **Dohledat ve výzkumu (K)** →
+  okno **Místa** → **Zařadit N míst**.
+- **Platí od:** aplikace 3.25.0
+
+<!-- zdroj: app:src/ui/map-ui.ts (stavový pruh, lookResearch, lookable), src/ui/place-actions.ts, src/ui/places-research-ui.ts (bulkLook, bulkLookHead, bulkLookGo, nic dvakrát), src/ui/map-follow-ui.ts (noCoords + places.research.look, Undo) · strings.ts map.onMap.notFound, lookResearch, lookResearchShort, lookResearchTitle, confirm; places.dialog.elsewhere, phoneLine, oldResearch · CHANGELOG.cs.md 3.25.0 · commit 2246ca28 · spec 058 -->
+
 <a id="A6.6"></a>
 ## A6.6 Rod v pohledu
 

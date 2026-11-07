@@ -16,6 +16,7 @@ import { phrase, type PhraseKey } from "./phrases.ts";
 import { foldText } from "./text.ts";
 import { weighedSources } from "./conflicts.ts";
 import { loadState } from "./document.ts";
+import { readersSettled, userReading } from "./readers.ts";
 import type { Tree } from "./tree.ts";
 import { parseYears } from "./years.ts";
 
@@ -124,28 +125,41 @@ export function livingBorn(tree: Tree, p: Person): number | undefined {
   return born !== undefined && born > new Date().getFullYear() - DEATH_AFTER_YEARS ? born : undefined;
 }
 
-/** The models that read each source: the sessions that recorded or corrected it (the user's hand counts as "user"). */
+/**
+ * The models that read each source: the sessions that recorded or corrected it — and "user" for a real reading of the
+ * user's alone (core/readers.ts): the app's transcript that counts, the transcript confirmed in the app or typed by hand
+ * at the person's terminal. A write of "user" in the history is none once the readers are set right (READERS_SETTLED):
+ * an import, a conversion, a batch, a script or an agent strom does not know write as "user" too.
+ */
 export function readersOf(tree: Tree): Map<string, Set<string>> {
   const model = new Map(tree.list<Session>("session").map((s) => [s.id, s.model ?? "unknown"]));
+  const settled = readersSettled(tree);
+  const sources = tree.list<Source>("source");
   // a source the user wrote in the Strom app: theirs is a reading only when it counts (Source.app), whoever ran the
   // sync; an agent read it when it edited it
-  const fromApp = new Map(tree.list<Source>("source").filter((s) => s.app).map((s) => [s.id, s.app!]));
+  const fromApp = new Map(sources.filter((s) => s.app).map((s) => [s.id, s.app!]));
   const out = new Map<string, Set<string>>();
-  for (const [id, app] of fromApp) if (app.read) out.set(id, new Set(["user"]));
+  const add = (id: string, who: string) => (out.get(id) ?? out.set(id, new Set()).get(id)!).add(who);
+  for (const [id, app] of fromApp) if (app.read) add(id, "user");
   // an entry of a reading of a document the app sent back: its readers read it (their model), not whoever ran the sync
   const readings = new Set<string>();
-  for (const s of tree.list<Source>("source")) {
-    if (!s.reading) continue;
-    readings.add(s.id);
-    if (!out.has(s.id)) out.set(s.id, new Set([loadState(tree.root, s.reading)?.model ?? "unknown"]));
+  for (const s of sources) {
+    if (s.reading) {
+      readings.add(s.id);
+      if (!out.has(s.id)) out.set(s.id, new Set([loadState(tree.root, s.reading)?.model ?? "unknown"]));
+    }
+    // the user's own reading of the transcript as it is now: typed by hand, confirmed in the app, kept by the fix
+    if (userReading(s)) add(s.id, "user");
   }
   for (const op of tree.readOps()) {
     if (op.op !== "source.add" && op.op !== "source.edit") continue;
+    // a write of "user" is no reading of theirs once the readers are set right (before: as an older strom counted it)
+    if (op.by === "user" && settled) continue;
     const who = op.by === "user" ? "user" : (model.get(op.by) ?? "unknown");
     for (const id of op.targets) {
       if (!id.startsWith("S")) continue;
       if ((fromApp.has(id) || readings.has(id)) && (op.op === "source.add" || !model.has(op.by))) continue;
-      (out.get(id) ?? out.set(id, new Set()).get(id)!).add(who);
+      add(id, who);
     }
   }
   return out;
@@ -154,10 +168,13 @@ export function readersOf(tree: Tree): Map<string, Set<string>> {
 /**
  * A second reading by `model` is worth it: every reading of the source was by
  * another model, none by the user. A reading by a model nobody recorded counts
- * only when asked (`unknown`): the sessions before strom kept the model.
+ * only when asked (`unknown`): the sessions before strom kept the model — as
+ * does a source nobody read (a lead: its transcript nobody's reading).
  */
 export function readByOthers(readers: Set<string> | undefined, model: string, unknown = true): boolean {
-  if (!readers?.size || readers.has("user")) return false;
+  if (readers?.has("user")) return false;
+  // nobody read it (what a write of "user" wrote is no reading): worth a reading as one by a model nobody recorded is
+  if (!readers?.size) return unknown;
   if (!unknown && readers.has("unknown")) return false;
   return ![...readers].some((m) => m !== "unknown" && sameModel(m, model));
 }

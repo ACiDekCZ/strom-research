@@ -20,7 +20,7 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
   - ohne offene Aufgabe in der Warteschlange endet jeder Lauf.
 - **Bedienung:** Terminal: Menü **Den Agenten allein arbeiten lassen**, Optionen **Die Warteschlange in dieser
   Reihenfolge abarbeiten – wie viele, steht zur Wahl** (1–100, wie `--max`), **Nur die aus der Liste gewählten
-  Aufgaben** (wie `--task`) und **Weiterarbeiten lassen, solange es Arbeit gibt und die Bedingung „{name}“ es
+  Aufgaben** (wie `--task`) und **Weiterarbeiten lassen, solange es Arbeit gibt und die Bedingung „…“ es
   erlaubt** (wie `--loop`, nur mit gesetzter Bedingung); Befehl `strom run`. Die Strom-App 3.21.2 stellt die Arbeit
   allein nicht ein; sie zeigt den Zustand des Laufs ([R7.4](#R7.4)), und eine Sitzung lässt sich aus ihr abschließen
   ([R7.3](#R7.3)).
@@ -31,12 +31,12 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
 <a id="R7.1.1"></a>
 ### R7.1.1 Warum ein Lauf endet
 
-- Am Ende gibt der Lauf **Sitzungen: {n} · Ende: {Grund}** aus: **fertig**, **keine offenen Aufgaben**,
+- Am Ende gibt der Lauf **Sitzungen: N · Ende: …** aus: **fertig**, **keine offenen Aufgaben**,
   **Zeitlimit** (`--until`), **von Hand angehalten** ([R7.3](#R7.3)), **Limit des Abonnements** ([R7.6](#R7.6)),
   **der Agent ist nicht angemeldet** ([R7.7](#R7.7)), die Antwort der Bedingung ([R7.4](#R7.4)) oder ein Fehler
   (Belege, Versagen des Agenten, Modell).
 - Wenn die übrigen Aufgaben ein Archiv brauchen, das nicht antwortet, wartet ein Lauf mit `--loop` und `--until`
-  (**⏸ warte bis {at}**), ein anderer endet.
+  (**⏸ warte bis …**), ein anderer endet.
 - **Gilt seit:** Forschung 1.0.0; das Warten auf ein Archiv, das nicht antwortet, seit 1.22.0
 
 <!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
@@ -54,12 +54,12 @@ Warteschlange zurück.
     Sitzung zu schließen;
   - beim Limit bekommt ein Agent, der das kann (Claude Code, Codex, OpenCode, Grok), noch 5 Minuten zum Erfassen und
     Schließen;
-  - eine Aufgabe, bei der 2 Sitzungen nacheinander nichts erfasst haben, wird zurückgestellt (**{task} zurückgestellt**);
+  - eine Aufgabe, bei der 2 Sitzungen nacheinander nichts erfasst haben, wird zurückgestellt (**… zurückgestellt**);
     vom Menschen beendete Sitzungen zählen nicht;
   - Reihenfolge: `--minutes` > Variable `STROM_RUN_MINUTES` > Einstellung des Stammbaums >
     Einstellung des Computers > 60.
 - **Bedienung:** Terminal: **Einstellungen: Agent, allein arbeiten, Nachrichten, Archive, Wartung → Der Agent allein →
-  Zeit für eine Aufgabe: {minutes} Min.** (5–600; 0 kehrt ohne Änderung zurück); `strom config set run.minutes <n>`
+  Zeit für eine Aufgabe: N Min.** (5–600; 0 kehrt ohne Änderung zurück); `strom config set run.minutes <n>`
   (`--for-tree`: nur dieser Stammbaum). App: nichts.
 - **Gilt seit:** Forschung 1.0.0 (60 Minuten, Zurückstellen der Aufgabe); Erinnerungen und 5 Minuten zum Erfassen seit
   1.2.0
@@ -102,10 +102,10 @@ Menschen gesetzt, für den ganzen Computer. Ohne Bedingung läuft der Lauf weite
     `plugins/gates/<název>/`;
   - ein Lauf ohne gesetzte Bedingung (`--no-gate`) oder mit einer anderen (`--gate`) braucht die Zustimmung des
     Menschen.
-- **Bedienung:** Terminal: **Einstellungen → Der Agent allein → Immer weiter unter einer Bedingung: {gate}** (eine
+- **Bedienung:** Terminal: **Einstellungen → Der Agent allein → Immer weiter unter einer Bedingung: …** (eine
   Bedingung oder **keine**); `strom config set run.gate "<název> [co jí předat]"`, `strom config unset run.gate`;
   beides bestätigt der Mensch. App: die **Forschungsübersicht** zeigt bei einem wartenden Lauf **Pausiert** und
-  **weiter um {t}**.
+  **weiter um …**.
 - **Gilt seit:** Forschung 1.2.0, App 3.5.0 (Zustand Pausiert)
 
 <!-- zdroj: research:src/core/gate.ts:27-34 DEFAULT_TIMEOUT_S, DEFAULT_WAIT_MS, MIN_WAIT_MS, askGate :209-254, SHIPPED :124 · session.ts:911 gateHolds, :1038-1063 wait, markPaused, runGate :1357-1380 · config.ts run.gate tree:false · setup.ts:1537-1548 · app:v3.21.2 research-overview-ui.ts:340-347, strings.ts live.statePaused, live.pausedUntil -->
@@ -114,9 +114,9 @@ Menschen gesetzt, für den ganzen Computer. Ohne Bedingung läuft der Lauf weite
 ### R7.4.1 Von Hand gestartete Aufgaben: „Trotzdem starten?“
 
 - Eine Sitzung, `--max`, `--task` und das Menü sind eine Wahl des Menschen. Die Bedingung wird einmal gefragt, vor
-  der ersten Sitzung. Würde sie nicht starten (warten, anhalten, Fehler), kommt die Frage **Die Bedingung „{name}“
-  würde jetzt nicht starten — {reason}. Trotzdem starten?** Enter bedeutet nein: der Lauf endet (**nicht gestartet —
-  die Bedingung „{name}“: {reason}**). Ja: die Sitzungen beginnen, und die Bedingung wird nicht mehr gefragt, außer
+  der ersten Sitzung. Würde sie nicht starten (warten, anhalten, Fehler), kommt die Frage **Die Bedingung „…“
+  würde jetzt nicht starten — …. Trotzdem starten?** Enter bedeutet nein: der Lauf endet (**nicht gestartet —
+  die Bedingung „…“: …**). Ja: die Sitzungen beginnen, und die Bedingung wird nicht mehr gefragt, außer
   bei der Obergrenze ([R7.4.2](#R7.4.2)).
 - Startet den Lauf der Agent, antwortet der Mensch in einem Systemfenster. Ein Skript, das niemand fragen kann, hält
   sich an die Bedingung.
@@ -128,7 +128,7 @@ Menschen gesetzt, für den ganzen Computer. Ohne Bedingung läuft der Lauf weite
 ### R7.4.2 Obergrenze: eine feste Grenze
 
 - Die Bedingung kann eine Antwort als feste Grenze des Menschen kennzeichnen (`hard`). Der Lauf endet dann (**die
-  Obergrenze der Bedingung „{name}“**), und kein „trotzdem“ überschreitet sie.
+  Obergrenze der Bedingung „…“**), und kein „trotzdem“ überschreitet sie.
 - Die Bedingung kann das Fenster des Plans des Agenten überwachen (`watch`). Dann fragt sie vor jeder Sitzung jedes
   Laufs, und eine Sitzung in Arbeit bekommt die Bitte um Abschluss ([R7.3](#R7.3)), wenn der Agent eine Nutzung des
   Fensters an der angegebenen Grenze meldet.
@@ -139,8 +139,8 @@ Menschen gesetzt, für den ganzen Computer. Ohne Bedingung läuft der Lauf weite
 <a id="R7.4.3"></a>
 ### R7.4.3 Aufzeichnung der Antworten der Bedingung
 
-- Jede Antwort hat eine Zeile in der Ausgabe des Laufs: **· Bedingung {name}: {word}{reason} (Code {status};
-  .strom/gate.log)**.
+- Jede Antwort hat eine Zeile in der Ausgabe des Laufs: **· Bedingung …: … (Code …;
+  .strom/gate.log)**: der Name der Bedingung, ihre Antwort mit Grund und der Code.
 - Zugleich eine JSON-Zeile in `.strom/gate.log` des Stammbaums: wann, die Bedingung und was ihr übergeben wurde, Code,
   Urteil, Grund, Warten, Limits des Plans und was der Lauf tat (`go`, `wait`, `stop`, `anyway`). Aufbewahrt werden
   90 Tage, höchstens 2 MB.
@@ -229,7 +229,7 @@ Sitzung beginnt nur, wenn der Vorsprung (vergangen − genutzt) mindestens die a
 ## R7.6 Das Limit des Abonnements hält den Lauf an
 
 Wenn der Agent während einer Sitzung auf das Limit seines Abonnements stößt, wird die Sitzung geschlossen, und der
-Lauf endet: **Limit des Abonnements (erneuert sich {at})**. Der Lauf wartet nicht, auch nicht mit `--loop`. Das hängt
+Lauf endet: **Limit des Abonnements (erneuert sich …)**. Der Lauf wartet nicht, auch nicht mit `--loop`. Das hängt
 nicht von der Bedingung ab.
 
 - **Grenzen:** die Aufgabe kehrt in die Warteschlange zurück; die Zeit der Erneuerung erscheint nur, wenn der Agent
@@ -242,7 +242,7 @@ nicht von der Bedingung ab.
 ## R7.7 Ein nicht angemeldeter Agent
 
 Ein Agent, der nicht bei seinem Abonnement angemeldet ist, führt keine Sitzung aus. Der Lauf endet: **der Agent ist
-nicht angemeldet – einmal {command} starten und anmelden**.
+nicht angemeldet – einmal … starten und anmelden**.
 
 - **Grenzen:**
   - vor der ersten Sitzung prüft strom das nur bei Claude Code mit einem eigenen Ordner (`agent.claudeConfigDir` oder

@@ -43,6 +43,7 @@ na to warunek ustawiony przez człowieka (na przykład tempo tygodniowego limitu
 
 - Badanie może być też tylko **Archiwum Strom**, nad którym agent nie pracuje: [R7.8](R7-when-the-agent-works.md#R7.8).
 - Szczegółowo: [R7](R7-when-the-agent-works.md).
+- Gdzie rozmawia się z agentem (terminal, aplikacja Claude albo ChatGPT) i czego strom gdzie pilnuje: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 
@@ -73,8 +74,10 @@ człowieka.
 
 - Co czeka na człowieka (listy, skany do pobrania, pytania o miejsca, sprzeczności, hipotezy, opowieści do
   zatwierdzenia) i gdzie się to załatwia: [R6](R6-awaiting-action.md).
-- Hipotezę rozstrzyga tylko człowiek; agent proponuje rozstrzygnięcie (od badania 1.28.0):
-  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
+- Hipotezę rozstrzyga człowiek, a agent proponuje rozstrzygnięcie (od badania 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1). Od badania 1.29.0 to wybór badania: bez zapisanego wyboru
+  rozstrzyga agent (**Rozstrzyga AI**), **Rozstrzyga człowiek** wybiera człowiek:
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2).
 - Decyzja człowieka obowiązuje. Agent zmienia ją tylko na podstawie nowego źródła: [R5.4](R5-conflicts.md#R5.4).
 - Położenie miejsca wprowadzone przez człowieka się nie zmienia: [R4.3](R4-places.md#R4.3).
 - Ustawienia, które zmieniają, co wolno agentowi, potwierdza człowiek (na przykład warunek samodzielnej pracy,

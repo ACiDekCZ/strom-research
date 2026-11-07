@@ -5,6 +5,7 @@
 import { register } from "../cli/registry.ts";
 import { lines } from "../cli/format.ts";
 import { answerShellEvent, BRIDGE_NOTES, SHELL_TOOLS, shellEvent, shellHookOutput } from "../core/bridgeguard.ts";
+import { DESKTOP_TERMINAL_TOOLS } from "../core/desktopterminal.ts";
 import { answerDelegateEvent, delegateEvent, delegateHookOutput, delegateModel, STROM_DELEGATES } from "../core/delegate.ts";
 
 register({
@@ -49,7 +50,11 @@ register({
     "The bridge (strom live) takes what the person writes in the Strom app — an answer to a task that waits for them, a\n" +
     "scan for it. You never read or call it: the tree's settings run strom agents shell --hook before each shell command\n" +
     "(Bash, PowerShell; Grok's shell) and refuse one that reads .strom/live.json or .strom/live-last.json or names the\n" +
-    "bridge's address; a web fetch of it is refused as well (strom net web --hook). Without --hook: what it would refuse.",
+    "bridge's address; a web fetch of it is refused as well (strom net web --hook).\n" +
+    "The terminal of Claude's desktop app (run_in_terminal) the same, and there also what the tree's rules deny to Bash\n" +
+    "(git, strom login, strom seal, strom connector add|remove), the person's own commands of strom and its consents\n" +
+    "(strom allow …): there strom cannot tell you from the person. Run strom commands through Bash, never the app's\n" +
+    "terminal. Without --hook: what it would refuse.",
   options: [{ name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" }],
   examples: ["strom agents shell"],
   run: (ctx, { opts }) => {
@@ -58,17 +63,18 @@ register({
       try {
         const ev = shellEvent(ctx.io.stdinText?.() ?? "");
         if (!ev) return { text: "" };
-        return { text: shellHookOutput(answerShellEvent(ev, { cwd: ctx.cwd })) };
+        return { text: shellHookOutput(answerShellEvent(ev, { cwd: ctx.cwd, env: ctx.env })) };
       } catch {
         return { text: "" };
       }
     }
     return {
       text: lines(
-        `Refused before a shell command (${SHELL_TOOLS.join(", ")}) or a web fetch: reading ${BRIDGE_NOTES.map((n) => `.strom/${n}`).join(", ")}, the bridge's address.`,
+        `Refused before a shell command (${[...SHELL_TOOLS, ...DESKTOP_TERMINAL_TOOLS].join(", ")}) or a web fetch: reading ${BRIDGE_NOTES.map((n) => `.strom/${n}`).join(", ")}, the bridge's address.`,
+        `In the desktop app's terminal (${DESKTOP_TERMINAL_TOOLS.join(", ")}) also what the tree's rules deny to Bash, the person's own commands of strom and its consents (strom allow …): run strom through Bash.`,
         "What you record goes through strom commands; a task that waits for the person is woken by the person.",
       ),
-      data: { tools: [...SHELL_TOOLS], notes: BRIDGE_NOTES.map((n) => `.strom/${n}`) },
+      data: { tools: [...SHELL_TOOLS, ...DESKTOP_TERMINAL_TOOLS], terminal: [...DESKTOP_TERMINAL_TOOLS], notes: BRIDGE_NOTES.map((n) => `.strom/${n}`) },
     };
   },
 });

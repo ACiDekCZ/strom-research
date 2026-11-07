@@ -4,7 +4,7 @@
 // (the agent neither sees nor clicks it), and when nobody can be asked the question waits in strom's menu while the
 // work goes on with other sources. An agent may make an archive stricter; nothing milder is ever its to decide.
 
-import { browserAdviceFor, browserHelps, browserKept } from "../core/browserhelp.ts";
+import { browserAdviceFor, browserHelps, browserKept, treeBrowserArchives } from "../core/browserhelp.ts";
 import { detectAgent } from "../core/which.ts";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -402,9 +402,10 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
 export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, images?: string, pages = false): UsageError {
   const agent = detectAgent(ctx.env);
   // what the agent's own browser may do there (none for an agent whose browser strom does not keep)
-  const advice = browserAdviceFor(ctx.env, agent, a);
+  const root = ctx.hasTree() ? ctx.tree().root : undefined;
+  const advice = browserAdviceFor(ctx.env, agent, a, undefined, undefined, root);
   // the person's "through the browser" opens it to an agent's browser strom keeps — said to the person running it too
-  const browser = browserHelps(a) && (!agent || browserKept(agent));
+  const browser = browserHelps(a) && (!agent || browserKept(agent, root, ctx.env));
   const allow = `strom allow archive ${a.host} --way browser`;
   const manual = byHand(ctx, images);
   const kept = a.permission === "slow" ? ` — the person's permission "slowly" from before is kept as given, and takes no direct request there` : "";
@@ -525,16 +526,22 @@ export async function gateArchive(
   return { levels, human: activity === "catalogue" ? new Map() : humanPaces(ctx, levels, activity, route) };
 }
 
-/** The agents' permissions of every tree follow a change of the browser's way (browser tools for these sites, or none). */
+/**
+ * The agents' permissions of every tree follow a change of the browser's way (browser tools for these sites, or none):
+ * the tree the command runs in first — also one outside the folder of the trees, which strom does not list (N-U4-1 of
+ * 062: only the trees listed followed, the one here kept its old permissions) — then every tree known.
+ */
 export function syncTrees(ctx: Context): string[] {
   const synced: string[] = [];
-  for (const known of ctx.knownTrees()) {
+  const here = rootHere(ctx);
+  const roots = [...new Set([...(here ? [path.resolve(here)] : []), ...ctx.knownTrees().map((k) => path.resolve(k.root))])];
+  for (const root of roots) {
     try {
-      const tree = Tree.open(known.root, ctx.env);
+      const tree = Tree.open(root, ctx.env);
       const files = syncAgentFiles(tree);
       if (files.length) {
         tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
-        synced.push(known.name);
+        synced.push(tree.config.name);
       }
     } catch {
       // a tree strom cannot open now gets them at its next strom run
@@ -558,7 +565,13 @@ function targetHosts(ctx: Context, target: string): { hosts: string[]; connector
   // browser, one at a time (strom media save), as the person allows
   if (!hosts.length) {
     const bare = bareArchive(ctx, given);
-    if (bare) return { hosts: [bare.host], connectors: [], bare };
+    // a site given (example.org): the hosts of it the research here names (www.example.org) with it — one archive,
+    // one decision, else the permission would miss the books' own host
+    if (bare) {
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      const named = tree ? treeBrowserArchives(tree, shared(ctx)).map((a) => a.host).filter((h) => within(h, given)) : [];
+      return { hosts: [...new Set([bare.host, ...named])], connectors: [], bare };
+    }
   }
   if (!hosts.length)
     throw new UsageError(`no connector reaches ${given}`, { hint: all.length ? `connectors: ${all.map((c) => `${c.name} (${c.manifest.hosts.join(", ")})`).join(", ")}` : "none yet: strom connector list" });
@@ -701,7 +714,7 @@ register({
         way === "browser" && switchable.length ? `  through the browser: strom connector use ${(switchable.find((c) => c === named) ?? switchable[0]!).name} --via browser` : undefined,
         way === "browser" && viaBrowser && !switchable.length && connectors.length ? `  ${connectors.map((c) => c.name).join(", ")} ${connectors.length === 1 ? "goes" : "go"} only directly: never there — the agent's browser saves its images one at a time (strom media save)` : undefined,
         !needed ? "  (its terms need no permission now — kept for when they do)" : undefined,
-        synced.length ? `  permissions of ${synced.join(", ")} updated` : undefined,
+        synced.length ? `  the agents' permissions updated in ${synced.join(", ")} — the permission is this computer's, for every research here` : undefined,
         ...wokenLines(lang, woken, rootHere(ctx)),
       ),
       data: { hosts, way, by: how, woken: woken.map((r) => ({ tree: r.name, path: r.root, woken: r.woken, inbox: r.inbox, kept: r.kept })), pace: { minIntervalMs: p.minIntervalMs, perHour: Number.isFinite(p.perHour) ? p.perHour : null } },

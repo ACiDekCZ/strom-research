@@ -10,7 +10,8 @@
 //   M5  unsure readings             a reader's image it could not read (result: unclear); what it marked illegible
 //                                   and the transcripts with [?] are shown beside it, never a signal (nearly every
 //                                   report says what it could not read)
-//   M6  enlarged views              shown bigger than the scan has detail (scale > 1.25)
+//   M6  enlarged views              shown bigger than the scan has detail (scale > 1.25 at the default enlargement:
+//                                   a GPT reader's view enlarged further is judged by its `lifted`)
 //   M7  no sharper                  a part the portal gave (or would give) no sharper than the whole image
 //   M8  waits for an archive's limit  minutes waited, a limit used up, requests per image
 //   M9  negatives on weak scans     a negative search whose views of the book were mostly enlarged — shown only
@@ -634,6 +635,8 @@ interface ViewRec {
   t: number;
   key: string;
   by: string;
+  /** Its file's name (a reader's record names the views it was given by it). */
+  view: string;
   scan: string;
   book: string;
   kind: "whole" | "half" | "crop" | "split" | "grid";
@@ -667,10 +670,13 @@ function readViews(root: string, media: Map<string, Media>): ViewRec[] {
       t,
       key,
       by: str(v.by) ?? "",
+      view: str(v.view) ?? "",
       scan: rs && img !== undefined ? `${rs}:${img}` : key,
       book: rs ?? "-",
       kind,
-      enlarged: scale > 1.25,
+      // judged at the default enlargement (800 px), as the view's own hint judges it: a GPT reader's crop enlarged to
+      // about 2000 px is no weaker scan for it (views.ts lifted; a line without it: its scale)
+      enlarged: (num(v.lifted) ?? scale) > 1.25,
       cached: v.cached === true,
       px: w * h,
       reader: v.reader === 1 || v.reader === true,
@@ -864,7 +870,7 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
 
   // readers: each its own unit; the views made for it are its own
   const readers = readJournal(path.join(metricsDir(root), "readers.jsonl"));
-  const readerUnits: { u: Unit; by: string; t: number; from: number; ids: Set<string> }[] = [];
+  const readerUnits: { u: Unit; by: string; t: number; from: number; ids: Set<string>; files: Set<string>; taken: Set<string> }[] = [];
   const reports = new Set<string>();
   for (const r of readers) {
     const name = str(r.reader);
@@ -902,7 +908,8 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
       const kind = str(r.kind);
       if (!kind || kind === "read") readReport(u, path.join(root, report), media);
     }
-    readerUnits.push({ u, by, t, from: t - (num(r.ms) ?? 0) - 15 * 60_000, ids: new Set(Array.isArray(r.imageIds) ? r.imageIds.map(String) : []) });
+    const files = new Set(Array.isArray(r.viewFiles) ? r.viewFiles.map(String) : []);
+    readerUnits.push({ u, by, t, from: t - (num(r.ms) ?? 0) - 15 * 60_000, ids: new Set(Array.isArray(r.imageIds) ? r.imageIds.map(String) : []), files, taken: new Set() });
     if (use) clearAt.set(u.id, applySeries(u, use));
   }
 
@@ -912,7 +919,11 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
     let u: Unit | undefined;
     if (v.reader) {
       const cands = readerUnits.filter((r) => r.by === v.by && v.t <= r.t && v.t >= r.from);
-      u = (cands.find((r) => r.ids.has(v.key)) ?? cands[0])?.u;
+      // the reader given this very view file (each line of a file two readers were given to one of them), else the one
+      // of its image (strom read), else the first (a record of before: as it was)
+      const own = cands.find((r) => r.files.has(v.view) && !r.taken.has(v.view)) ?? cands.find((r) => r.files.has(v.view));
+      own?.taken.add(v.view);
+      u = (own ?? cands.find((r) => r.ids.has(v.key)) ?? cands[0])?.u;
     }
     u ??= unitForBy(v.by, v.t, v.derived);
     if (!u) continue;

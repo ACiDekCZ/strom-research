@@ -43,6 +43,17 @@ export const WITHOUT_READERS =
   '"Blind second reading of …" --level verify … — for a session in which a reader can start; until then the fact stays ' +
   "at most probable";
 
+/**
+ * What the agent of a conversation does where strom's readers cannot start because the agent's CLI is not here (Claude's
+ * desktop app without Claude Code in the terminal: core/agentcli.ts) — the scans read by the tree's own subagent.
+ */
+export const WITHOUT_CLI =
+  "read the scans with this tree's subagent strom-scan-reader — the Agent tool, subagent_type strom-scan-reader, no model " +
+  "(strom set it): about six to ten images a call, each with the whole question (what counts as a find, which years and " +
+  "names), independent batches in ONE message — and record what it read as your own reading (a search: --by main). A " +
+  'blind second reading needs strom\'s readers: leave it as a task — strom task add "Blind second reading of …" --level ' +
+  "verify … — for a session in which Claude Code runs in the terminal; until then the fact stays at most probable";
+
 /** strom read and the other readers inside such a sandbox: said at once, with what to do instead. */
 export function noReaderHere(sb: Sandbox, command: string): StromError {
   return new StromError(`no reader can start here: ${sb.name} lets no other agent start from inside it (${command} starts one)`, {

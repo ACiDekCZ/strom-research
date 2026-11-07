@@ -4,6 +4,7 @@
 // pipe's buffer (the script runner's also goes into its environment, STROM_PROMPT: within the system's limit — Linux
 // takes one string of the environment up to 128 KiB, MAX_ARG_STRLEN; more is E2BIG at the spawn).
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

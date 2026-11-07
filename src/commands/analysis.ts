@@ -32,6 +32,7 @@ import {
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { settledClaim, leadingLabel } from "../core/labels.ts";
 import { sameFamily } from "../core/surnames.ts";
 import { changeLines } from "../core/changelog.ts";
 import { isAgent } from "../core/which.ts";
@@ -42,11 +43,12 @@ import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/c
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
-import { childLink, decidedToRecord, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
+import { agentDecided, childLink, decidedToRecord, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { refuseNegativeOverUnclear } from "./readings.ts";
 import { hypothesisPeople } from "../core/directions.ts";
+import { BIG_BRANCH, branchJoined } from "../core/kin.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -93,7 +95,10 @@ function conflictConcerns(tree: Tree, id: string): (c: Conflict) => boolean {
   if (h?.type === "hypothesis") for (const ref of [...(h as Hypothesis).subject, ...(h as Hypothesis).variants.flatMap((v) => v.linked ?? [])]) add(ref);
   return (c) =>
     c.subject.some((s) => ids.has(s)) ||
-    c.claims.some((cl) => cl.source !== undefined && ids.has(cl.source)) ||
+    c.claims.some((cl) => {
+      const source = settledClaim(tree, c, cl).source;
+      return source !== undefined && ids.has(source);
+    }) ||
     (c.edit !== undefined && (ids.has(c.edit.event) || (c.edit.cites ?? []).some((ci) => ids.has(ci.source)))) ||
     (c.parents !== undefined && [c.parents.child, c.parents.from, c.parents.to ?? "", ...c.parents.partners].some((s) => ids.has(s)));
 }
@@ -155,6 +160,41 @@ function decidedVariant(h: Hypothesis, variant: unknown, abandon: boolean, verb:
       hint: `strom hypothesis ${verb} ${h.id} --variant <${labels}> --decision "…"${h.state !== "open" ? ' --reason "…"' : ""} · none holds: --abandon`,
     });
   return chosen;
+}
+
+/** The sources (S…) a variant's support cites that the research has. */
+function citedInSupport(tree: Tree, v: HypothesisVariant): string[] {
+  const found = v.support.join("\n").match(/(?<![\p{L}\p{M}\p{N}])S\d+(?![\p{L}\p{M}\p{N}])/gu) ?? [];
+  const named = [...new Set(found.map((s) => `S${s.slice(1).replace(/^0+(?=\d)/, "").padStart(4, "0")}`))];
+  return named.filter((id) => {
+    const src = tree.get(id);
+    return src?.type === "source" && !src.retracted;
+  });
+}
+
+/**
+ * What an agent the person lets decide (hypotheses.decide agent) may not decide: a decision of the person's, a variant
+ * no cited record supports, a big branch off the tree without two sources or with an objection. Throws its refusal.
+ */
+function agentMayDecide(tree: Tree, h: Hypothesis, chosen: HypothesisVariant | undefined, abandon: boolean): void {
+  const labels = h.variants.map((x) => x.label).join("|");
+  const propose = `strom hypothesis propose ${h.id} --variant ${chosen?.label ?? `<${labels}>`} --decision "…"${h.state !== "open" ? ' --reason "…"' : ""}`;
+  if (h.state !== "open" && h.decidedBy === "user")
+    throw new UsageError(`${h.id} was ${h.state} by the user: an agent never changes the user's decision`, { hint: `a new record that overturns it: propose it again — ${propose}`, code: "hypothesis.user" });
+  if (abandon || !chosen) return;
+  const cited = citedInSupport(tree, chosen);
+  if (!cited.length)
+    throw new UsageError(`${h.id} ${chosen.label}: no support of it cites a source (S…) — an agent decides only on a cited record`, {
+      hint: `strom hypothesis argue ${h.id} ${chosen.label} --for "S… <what the record says>" first — or propose it: ${propose}`,
+      code: "hypothesis.evidence",
+    });
+  const branch = branchJoined(tree, h, chosen);
+  if (branch >= BIG_BRANCH && (new Set(cited).size < 2 || chosen.against.length))
+    throw new UsageError(`${h.id} ${chosen.label} joins ${branch} people off the tree to it: the user decides it unless two sources support it and nothing objects`, {
+      hint: `${propose} — and tell the user in a sentence`,
+      code: "hypothesis.branch",
+      params: { n: String(branch) },
+    });
 }
 
 function stillOpen(tree: Tree, id: string): string | undefined {
@@ -479,7 +519,7 @@ register(
     args: [{ name: "title", description: 'e.g. "Birth year of Antonín: 1811 or 1813?"', required: true }],
     options: [
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record concerned (repeatable)" },
-      { name: "claim", type: "string", multiple: true, value: "<S…: value>", description: 'a claim, e.g. "S0027: aged 27 at marriage 1839" (repeat for each)' },
+      { name: "claim", type: "string", multiple: true, value: "<S…: value>", description: 'a claim, e.g. "S0027: aged 27 at marriage 1839" (repeat for each; in a batch "@s: …" cites the source of the line ending #s)' },
       { name: "fact", type: "string", value: "<TAG>", description: "the fact it is about, by its GEDCOM tag: BIRT, DEAT, BAPM, BURI, MARR, NAME, SEX… (the Strom app shows it there)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
@@ -487,8 +527,18 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const claims = listOpt(opts.claim).map((c) => {
-        const m = /^([Ss]\d+)\s*:\s*(.+)$/.exec(c);
+        // the source by its ID ("S0012: …"; "@S0012: …" names it too)
+        const m = /^\s*@?\s*([Ss]\d+)\s*:\s*(.+)$/su.exec(c);
         if (m) return { source: requireRecord(tree, m[1]!, "source").id, value: m[2]!.trim() };
+        // a batch's label no line of a batch put an ID in its place (found: "@s: …" kept as the claim, its source not
+        // cited, the raw "@s:" in the Strom app and the GEDCOM) — never kept: said, with the way
+        const lead = leadingLabel(c);
+        if (lead)
+          throw new UsageError(`--claim "${truncate(c.trim(), 60)}": @${lead.label} is no source — a label stands for a record only inside one batch, on a line after the one ending #${lead.label}`, {
+            hint: `give the source's ID: --claim "S…: ${truncate(lead.rest.trim(), 40)}" (strom source list) — or in one batch: source add … #${lead.label}, then conflict add … --claim "@${lead.label}: …"`,
+            code: "conflict.claim-label",
+            params: { label: lead.label },
+          });
         return { value: c.trim() };
       });
       if (claims.length < 2) throw new UsageError("a conflict needs at least two --claim", { hint: '--claim "S0027: 27 years" --claim "S0031: 70 years"' });
@@ -674,7 +724,10 @@ register(
           `${c.id} ${conflictTitle(tree, c)}  [${t(c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open")}]`,
           `${t("ui.conflict.about")}  ${c.subject.join(" ")}`,
           taskLines(tree, c.id),
-          ...c.claims.map((cl) => `${t("ui.conflict.claim")}  ${cl.source ? `${cl.source}: ` : ""}${value(claimText(tree, c, cl))}`),
+          ...c.claims.map((cl) => {
+            const source = settledClaim(tree, c, cl).source;
+            return `${t("ui.conflict.claim")}  ${source ? `${source}: ` : ""}${value(claimText(tree, c, cl))}`;
+          }),
           c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${c.reasoning ?? ""}` : undefined,
           ...c.notes.map((n) => `${t("ui.conflict.note")}  ${decisionNote(tree.lang, n.text)}`),
         ),
@@ -828,15 +881,18 @@ register(
   },
   {
     path: ["hypothesis", "propose"],
-    summary: "Propose how a hypothesis is decided (or abandoned) — the user decides it",
+    summary: "Propose how a hypothesis is decided (or abandoned) — the user decides it, unless they let the agent decide",
     group: "analysis",
     tree: true,
     writes: true,
     description: [
-      "A hypothesis is the user's to decide: once the records point to one variant (or show that none can be decided),",
-      "propose it and tell the user in a sentence — they decide it in strom's menu (What waits). A new proposal replaces",
-      "the one before it; a decided hypothesis a new record overturns is proposed again with --reason. Nothing waits for",
-      "the answer: the work goes on.",
+      "Where the user decides the hypotheses (hypotheses.decide person; strom config where shows it), a hypothesis is",
+      "theirs to decide: once the records point to one variant (or show that none can be decided), propose it and tell",
+      "the user in a sentence — they decide it in strom's menu (What waits). A new proposal replaces the one before it;",
+      "a decided hypothesis a new record overturns is proposed again with --reason. Nothing waits for the answer.",
+      "Where the agent decides them (hypotheses.decide agent — the default where nothing is set), decide it yourself",
+      `with strom hypothesis decide — propose only what is still the user's: a branch of ${BIG_BRANCH} or more people off the tree`,
+      "without two sources or with an objection, or overturning the user's own decision.",
     ].join("\n"),
     args: [{ name: "hypothesis", description: "hypothesis ID (H0001)", required: true }],
     options: [
@@ -877,11 +933,22 @@ register(
     group: "analysis",
     tree: true,
     writes: true,
-    person: 'Deciding a hypothesis is the user\'s own: an agent proposes it (strom hypothesis propose H… --variant <label> --decision "…") and tells the user, who decides it in strom\'s menu (What waits)',
+    person: 'Deciding a hypothesis is the user\'s own (unless they let the agent decide them: hypotheses.decide agent): an agent proposes it (strom hypothesis propose H… --variant <label> --decision "…") and tells the user, who decides it in strom\'s menu (What waits)',
+    agentMay: {
+      when: 'the user let the agent decide the hypotheses (hypotheses.decide agent): --variant <label> (or --abandon) with --decision "…", the variant supported by a cited source (S…), a branch of 10 or more people off the tree only on two sources and no objection; never a decision of the user\'s',
+      check(ctx, { opts }) {
+        if (opts.proposed || opts["keep-open"] || (opts.variant === undefined && !opts.abandon)) return false;
+        if (typeof opts.decision !== "string" || !opts.decision.trim()) return false;
+        const tree = ctx.tree();
+        return !actsAsArchive(tree) && ctx.settings.hypothesesDecide(tree.config) === "agent";
+      },
+    },
     description: [
       "Deciding again keeps the earlier decision in a note; it needs --reason.",
       "An agent's proposal (strom hypothesis propose): --proposed takes it as it is; --keep-open decides nothing and keeps",
-      "the proposal in a note.",
+      "the proposal in a note — an open hypothesis with no proposal is left open (What waits no longer shows it).",
+      "An agent decides only where the user lets it (hypotheses.decide agent): a variant a cited source supports; a",
+      `branch of ${BIG_BRANCH} or more people off the tree only on two sources and no objection, else it proposes; never the user's decision.`,
     ].join("\n"),
     args: [{ name: "hypothesis", description: "hypothesis ID", required: true }],
     options: [
@@ -889,7 +956,7 @@ register(
       { name: "variant", type: "string", value: "<label>", description: "the variant it is decided for (always when its variants have links)" },
       { name: "abandon", type: "boolean", description: "none of the variants can be decided" },
       { name: "proposed", type: "boolean", description: "as the agent proposed it (its variant, decision and reason)" },
-      { name: "keep-open", type: "boolean", description: "the proposal not taken: nothing decided, the proposal kept in a note" },
+      { name: "keep-open", type: "boolean", description: "the proposal not taken: nothing decided, the proposal kept in a note (no proposal: the open hypothesis left open)" },
     ],
     examples: ["strom hypothesis decide H0001 --proposed", 'strom hypothesis decide H0001 --variant A --decision "the baptism names both parents"', "strom hypothesis decide H0001 --keep-open"],
     run(ctx, { args, opts }) {
@@ -898,9 +965,16 @@ register(
       const h0 = requireRecord<Hypothesis>(tree, id, "hypothesis");
       const p = h0.proposal;
       const said = typeof opts.decision === "string" ? opts.decision.trim() : "";
+      const now = new Date().toISOString();
       if (opts["keep-open"]) {
         if (said || opts.variant !== undefined || opts.abandon || opts.proposed) throw new UsageError("--keep-open decides nothing: it goes alone");
-        if (!p) throw new UsageError(`${id} has no proposal to leave`, { hint: `strom hypothesis show ${id}` });
+        // an open hypothesis with no proposal: the person leaves it open — What waits no longer shows it until an
+        // agent proposes how to decide it
+        if (!p) {
+          if (h0.state !== "open") throw new UsageError(`${id} has no proposal to leave (it is ${h0.state})`, { hint: `strom hypothesis show ${id}` });
+          const h = update<Hypothesis>(tree, id, "hypothesis", (h) => ({ ...h, leftOpen: now }), { op: "hypothesis.keep", summary: `${id} left open` });
+          return { text: written(tree), data: { hypothesis: h } };
+        }
         const what = `${p.abandon ? "abandon" : p.variant ? `decide for ${p.variant}` : "decide"}: ${p.decision}`;
         const h = update<Hypothesis>(
           tree,
@@ -908,7 +982,7 @@ register(
           "hypothesis",
           (h) => {
             const { proposal: _was, ...rest } = h;
-            return { ...rest, notes: [...h.notes, makeNote(tree, truncate(`proposal not taken (${what})`, 480))] };
+            return { ...rest, ...(h.state === "open" ? { leftOpen: now } : {}), notes: [...h.notes, makeNote(tree, truncate(`proposal not taken (${what})`, 480))] };
           },
           { op: "hypothesis.keep", summary: `${id} kept ${h0.state}: the proposal not taken` },
         );
@@ -925,7 +999,12 @@ register(
       const reason = reasonOf(opts) ?? (opts.proposed ? p!.reason : undefined);
       againNeedsReason(h0, reason, "decide");
       const chosen = decidedVariant(h0, variant, abandon, "decide");
-      const asProposed = !!p && !!p.abandon === abandon && (p.variant ?? "") === (chosen?.label ?? "");
+      // an agent here: the person let it decide (hypotheses.decide agent — cli/main.ts let it through); what it may not
+      // decide is refused, with the way to propose it instead
+      const byAgent = isAgent(ctx.env);
+      if (byAgent) agentMayDecide(tree, h0, chosen, abandon);
+      const asProposed = !byAgent && !!p && !!p.abandon === abandon && (p.variant ?? "") === (chosen?.label ?? "");
+      const who = tree.actor === "user" ? "agent" : tree.actor;
       const h = update<Hypothesis>(
         tree,
         id,
@@ -933,17 +1012,21 @@ register(
         (h) => {
           // A decision is overturned in the open: the earlier one stays readable.
           const earlier = h.state !== "open" && h.decision ? h.decision : undefined;
-          const notes = earlier ? [...h.notes, makeNote(tree, truncate(`earlier ${h.state}: ${earlier}`, 480))] : h.notes;
-          const { chosen: _was, proposal: _proposed, ...rest } = h;
-          return { ...rest, state: abandon ? "abandoned" : "decided", decision, ...(chosen ? { chosen: chosen.label } : {}), decidedBy: "user", notes };
+          const notes = earlier ? [...h.notes, makeNote(tree, truncate(`earlier ${h.state}${agentDecided(h) ? " by the agent" : ""}: ${earlier}`, 480))] : h.notes;
+          const { chosen: _was, proposal: _proposed, decidedBy: _by, decidedByAgent: _agent, leftOpen: _left, ...rest } = h;
+          const state = abandon ? ("abandoned" as const) : ("decided" as const);
+          // the person's decision takes the agent's mark off; an agent's never sets the person's (an older strom reads
+          // a decision without it as the agent's, as before)
+          return { ...rest, state, decision, ...(chosen ? { chosen: chosen.label } : {}), ...(byAgent ? { decidedByAgent: who } : { decidedBy: "user" as const }), decidedAt: now, notes };
         },
-        { op: "hypothesis.decide", summary: `${id} ${abandon ? "abandoned" : "decided"}${chosen ? ` for ${chosen.label}` : ""}${reason ? " again" : ""}${asProposed ? " as proposed" : ""}`, reason },
+        { op: "hypothesis.decide", summary: `${id} ${abandon ? "abandoned" : "decided"}${chosen ? ` for ${chosen.label}` : ""}${reason ? " again" : ""}${asProposed ? " as proposed" : ""}${byAgent ? " by the agent" : ""}`, reason },
       );
       // decided: what its variant connects and the sources it names that its people's facts do not cite yet go on the
       // tree in the agent's next work (the brief lists them: decidedToRecord) — the person is told so in their language
       const todo = abandon ? undefined : decidedToRecord(tree).find((x) => x.hypothesis.id === id);
       const unrecorded = todo?.sources ?? [];
-      const next = todo && !actsAsArchive(tree) ? ui(tree.lang, "ui.hypothesis.decided.next") : undefined;
+      // the agent that decided it records it now: what its variant connects and the sources it names (the brief lists them)
+      const next = todo && !actsAsArchive(tree) ? (byAgent ? `record it on the tree now: ${[...todo.links.map((l) => linkText(l)), ...unrecorded.map((s) => `${s.person}: ${s.sources.join(", ")}`)].join(" · ")} — and tell the user in a sentence what you decided and why` : ui(tree.lang, "ui.hypothesis.decided.next")) : undefined;
       return { text: lines(written(tree), next, stillOpen(tree, id)), data: { hypothesis: h, ...(unrecorded.length ? { unrecorded } : {}) } };
     },
   },
@@ -999,7 +1082,7 @@ register(
             ...(v.links ?? []).map((l) => `  ⇢ ${linkText(l)}`),
             ...(recorded[v.label] ? [`  = ${recordedText(recorded[v.label]!)}`] : []),
           ]),
-          h.decision ? `\ndecision${h.chosen ? ` (for ${h.chosen})` : ""}  ${h.decision}` : undefined,
+          h.decision ? `\ndecision${h.chosen ? ` (for ${h.chosen})` : ""}${agentDecided(h) ? ` by the agent (${h.decidedByAgent})` : ""}  ${h.decision}` : undefined,
           // an agent's proposal: the user decides it (an archive says nothing of an agent)
           h.proposal && !actsAsArchive(tree) ? `\n${proposalText(h.proposal)}` : undefined,
         ),

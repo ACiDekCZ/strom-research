@@ -8,6 +8,7 @@
 // /log and change events): strom's own commit subjects and the summaries of its
 // operations are English and name records by their IDs — never shown as they are.
 
+import { agentDecided } from "./hypolinks.ts";
 import type { Op, Tree } from "./tree.ts";
 import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
@@ -84,6 +85,7 @@ const SAID: Record<string, PhraseKey> = {
   "source.retract": "log.source.retract",
   "source.sync": "log.source.edit",
   "source.media": "log.source.edit",
+  "source.clips": "log.source.edit",
   "person.import": "log.person.add",
   "family.import": "log.family.add",
   "media.retract": "log.media.retract",
@@ -356,6 +358,17 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(phrase(lang, "log.family.child", { who: who(first), child: who(second ?? /\+child (P\d+)/.exec(o.summary)?.[1]) }));
       continue;
     }
+    // a hypothesis an agent decided (hypotheses.decide agent, spec 060 K2.1): its own line — which, for what, and why
+    if (o.op === "hypothesis.decide" && / by the agent$/u.test(o.summary)) {
+      const m = /^(H\d+) (decided|abandoned)(?: for (\S+))?/u.exec(o.summary);
+      const h = get<Hypothesis>(first);
+      // the decision as the agent wrote it while it stands; decided again since (the person): what it was about
+      const decision = h?.type !== "hypothesis" ? "" : agentDecided(h) && h.decision && (h.chosen ?? "") === (m?.[3] ?? "") ? short(h.decision) : short(h.question);
+      if (m) {
+        say(m[2] === "abandoned" ? phrase(lang, "log.hypothesis.abandon.agent", { id: m[1]!, decision }) : phrase(lang, "log.hypothesis.decide.agent", { id: m[1]!, variant: m[3] ?? "", decision }));
+        continue;
+      }
+    }
     // what the line is about besides its person, from what the operation says of it: the name, the note, the fact
     if (o.op === "person.name" || o.op === "name.remove") {
       const m = o.op === "person.name" ? /^\S+ name (.+?)(?: \([\w-]+\))?(?: ← \S+)?$/.exec(o.summary) : /^\S+ name (.+?) removed[:,]/.exec(o.summary);
@@ -487,6 +500,30 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "wokenwait.fix" || o.op === "wokenwait.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
       say(phrase(lang, o.op === "wokenwait.fix" ? "log.wokenwait.fix" : "log.wokenwait.unfix", { n }));
+      continue;
+    }
+    // the user confirming the research's transcript in the Strom app, or taking it back: what it does to how sure the
+    // source's facts may be (spec 022 O6) — proven only on the original record with primary information
+    if (o.op === "source.confirm" || o.op === "source.unconfirm") {
+      const key = o.op === "source.unconfirm" ? "log.source.unconfirm" : / may be proven$/u.test(o.summary) ? "log.source.confirm.proves" : "log.source.confirm";
+      say(phrase(lang, key, { name: name(first) }));
+      continue;
+    }
+    // sources counted as read by the user for a write of the user alone, set right by strom's fix, or given the reading
+    // back (quality/readers.json); the sources kept as the user's own change nothing a person sees
+    if (o.op === "readers.fix" || o.op === "readers.unfix") {
+      const n = Number(/: (\d+) in /u.exec(o.summary)?.[1] ?? o.targets.length);
+      if (n) say(phrase(lang, o.op === "readers.fix" ? "log.readers.fix" : "log.readers.unfix", { n }));
+      continue;
+    }
+    // facts proven without the original record: made probable by strom's fix (those a person made proven left to look
+    // at), proven again, kept or made probable by the person (quality/proven.json)
+    if (o.op === "proven.fix" || o.op === "proven.unfix" || o.op === "proven.keep" || o.op === "proven.lower") {
+      const n = Number(/: (\d+)(?: in |$)/u.exec(o.summary)?.[1] ?? o.targets.length);
+      const key = o.op === "proven.fix" ? "log.proven.fix" : o.op === "proven.unfix" ? "log.proven.unfix" : o.op === "proven.keep" ? "log.proven.keep" : "log.proven.lower";
+      if (n) say(phrase(lang, key, { n }));
+      const review = o.op === "proven.fix" ? Number(/, (\d+) a person made proven/u.exec(o.summary)?.[1] ?? 0) : 0;
+      if (review) say(phrase(lang, "log.proven.fix.review", { n: review }));
       continue;
     }
     // the research returned to its state after an earlier change (strom history back): one line, the day of then

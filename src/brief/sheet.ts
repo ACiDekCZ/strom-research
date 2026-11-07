@@ -34,6 +34,8 @@ const RARE: Record<string, string[]> = {
   // a book the research has already: the refusal says --again where it applies; --status and --stop: the method and the brief name them;
   // --task: strom takes the task the agent works on where it is plain, and says --task where it took one
   fetch: ["take", "result", "again", "status", "stop", "task"],
+  // the person's own options (an agent decides only with --variant or --abandon and --decision)
+  "hypothesis decide": ["proposed", "keep-open"],
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
   "recordset add": ["images", "again"],
@@ -134,9 +136,10 @@ function connectorLine(list: SheetConnector[]): string {
 }
 
 /** The section of the brief: the commands of this level, or nothing (no level, or no registry — a unit test). */
-export function commandSheet(level: string | undefined, extra: { connectors?: SheetConnector[]; without?: readonly string[] } = {}): string {
-  // (a command that cannot work in this session left out: strom read where no reader can start)
-  const names = level ? LEVELS[level]?.filter((n) => !extra.without?.includes(n)) : undefined;
+export function commandSheet(level: string | undefined, extra: { connectors?: SheetConnector[]; without?: readonly string[]; decides?: boolean } = {}): string {
+  // (a command that cannot work in this session left out: strom read where no reader can start; the agent the user lets
+  // decide the hypotheses — hypotheses.decide agent — decides them where it would propose)
+  const names = level ? LEVELS[level]?.filter((n) => !extra.without?.includes(n)).flatMap((n) => (extra.decides && n === "hypothesis propose" ? [n, "hypothesis decide"] : [n])) : undefined;
   if (!names) return "";
   const defs = names.map((n) => commands().find((c) => c.path.join(" ") === n)).filter((d): d is CommandDef => !!d);
   if (!defs.length) return "";

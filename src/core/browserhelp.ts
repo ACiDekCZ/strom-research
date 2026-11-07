@@ -1,9 +1,10 @@
 // Where the agent's browser helps: an archive only a person's browser goes to (strom's list of archives' terms, or its
 // robots.txt keeping automated tools off the whole site) lets its images through the agent's browser with the person's
 // permission "through the browser" — and only where strom keeps that browser (its hook before each page: Claude Code
-// with the Claude in Chrome extension). Another agent's browser or computer use strom does not see: there the person
-// saves the images by hand (strom task wait --images), and the person is told that with Claude Code and Claude in
-// Chrome the agent would save them itself (spec 048 story 5). Read only; derived each time, nothing written.
+// with the Claude in Chrome extension; Codex's browser once the person confirmed strom's hooks of the tree in Codex,
+// core/codexhook.ts). Another agent's browser or computer use strom does not see: there the person saves the images by
+// hand (strom task wait --images), and the person is told that with Claude Code and Claude in Chrome the agent would
+// save them itself (spec 048 story 5). Read only; derived each time, nothing written.
 
 import path from "node:path";
 import type { Env } from "./paths.ts";
@@ -12,28 +13,42 @@ import type { Tree } from "./tree.ts";
 import { allows, archiveLevel, type ArchiveLevel } from "./terms.ts";
 import { knownDisallow } from "./knownterms.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "./browser.ts";
+import { codexHookState } from "./codexhook.ts";
 
 /**
  * The agents whose browser strom keeps — its hook runs before each page and each tool on a page (count, pace, an
- * archive only a person's browser goes to, the bridge): Claude Code's Claude in Chrome. Any other agent's browser or
- * computer use goes unseen: strom does not recommend it — never of the agent's own accord to such an archive; only the
- * person's explicit request makes it the person's choice (ON_REQUEST).
+ * archive only a person's browser goes to, the bridge): Claude Code's Claude in Chrome; Codex's browser (its node_repl
+ * js) only in a tree whose hooks the person confirmed in Codex (codexHookState "trusted", strom doc R12.5) — else
+ * Codex does not run them. Any other agent's browser, and every agent's computer use, goes unseen: strom does not
+ * recommend it — never of the agent's own accord to such an archive; only the person's explicit request makes it the
+ * person's choice (ON_REQUEST). Nothing of it is switched off.
  */
-export const GUARDED_BROWSER_AGENTS: readonly string[] = ["claude"];
+export const GUARDED_BROWSER_AGENTS: readonly string[] = ["claude", "codex"];
 
-/** Whether strom keeps this agent's browser (its hooks before each page). */
-export function browserKept(agent: string | undefined): boolean {
-  return !!agent && GUARDED_BROWSER_AGENTS.includes(agent);
+/** The agents whose browser strom keeps only once the person confirmed strom's hooks of the tree in the agent. */
+const KEPT_WHEN_CONFIRMED: readonly string[] = ["codex"];
+
+/** Whether strom keeps this agent's browser (its hooks before each page) — in the tree at root (Codex: its hooks confirmed there). */
+export function browserKept(agent: string | undefined, root?: string, env?: Env): boolean {
+  if (!agent || !GUARDED_BROWSER_AGENTS.includes(agent)) return false;
+  if (!KEPT_WHEN_CONFIRMED.includes(agent)) return true;
+  if (!root || !env) return false;
+  try {
+    return codexHookState(root, env) === "trusted";
+  } catch {
+    return false;
+  }
 }
 
 /**
- * The agent's browser here: ready (Claude Code, the extension in a browser), no extension (Claude Code without it:
- * its address), or an agent whose browser strom does not keep.
+ * The agent's browser here: ready (Claude Code, the extension in a browser; Codex, strom's hooks of the tree at root
+ * confirmed in it), no extension (Claude Code without it: its address), or an agent whose browser strom does not keep.
  */
 export type BrowserState = "ready" | "no-extension" | "agent-without-browser";
 
-export function browserState(env: Env, agent: string | undefined): { state: BrowserState; url?: string; browsers?: string[] } {
-  if (!browserKept(agent)) return { state: "agent-without-browser" };
+export function browserState(env: Env, agent: string | undefined, root?: string): { state: BrowserState; url?: string; browsers?: string[] } {
+  if (!browserKept(agent, root, env)) return { state: "agent-without-browser" };
+  if (agent !== "claude") return { state: "ready" };
   const found = claudeInChrome(env).extension;
   return found.length ? { state: "ready", browsers: found } : { state: "no-extension", url: CLAUDE_IN_CHROME_URL };
 }
@@ -94,16 +109,17 @@ export function bookBrowserArchive(tree: Tree, url: string | undefined, shared: 
  * For the agent (English): what its browser may do at an archive only a person's browser goes to — Claude Code with
  * the extension and the person's permission: its own browser, page by page; anything else: the person's hand.
  */
-export function agentBrowserAdvice(env: Env, agent: string | undefined, a: BrowserArchive, task = "T…", book = "B…", withWait = true): string {
+export function agentBrowserAdvice(env: Env, agent: string | undefined, a: BrowserArchive, task = "T…", book = "B…", withWait = true, root?: string): string {
   const wait = withWait ? `: strom task wait ${task} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"` : "";
-  const s = browserState(env, agent);
+  const s = browserState(env, agent, root);
   if (s.state === "agent-without-browser")
     return `strom does not keep your browser or computer use (no hook of strom's before a page) and does not recommend them: not of your own accord for ${a.title ?? a.host} — the person saves the images by hand${wait}. ${ON_REQUEST} ${tellClaude}`;
   if (s.state === "no-extension")
     return `the Claude in Chrome extension is in no browser here — the person saves the images by hand${wait}. Tell the user once: with the extension (${s.url}) and the permission "through the browser" the agent would save them itself.`;
   if (!a.permitted)
     return `your browser goes there only with the person's permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours); until then the person saves the images by hand${wait}.`;
-  return `through your browser (Claude in Chrome), one image at a time at a person's pace: strom media save ${task} --image <n> --at <the archive's page of that image> gives the script that saves it in your tab, strom media add --inbox --waiting takes it; else the person saves them by hand${wait}.`;
+  const yours = agent === "claude" ? "Claude in Chrome" : `its address written out in your code, tab.goto("<the page>") — strom's hook sees only an address it can read`;
+  return `through your browser (${yours}), one image at a time at a person's pace: strom media save ${task} --image <n> --at <the archive's page of that image> gives the script that saves it in your tab, strom media add --inbox --waiting takes it; else the person saves them by hand${wait}.`;
 }
 
 /**
@@ -126,10 +142,10 @@ export function browserHelps(a: ArchiveLevel): boolean {
  * its own browser may do there — never anything for an agent whose browser strom does not keep (nor its computer use);
  * none for a person (no agent known).
  */
-export function browserAdviceFor(env: Env, agent: string | undefined, a: ArchiveLevel, task?: string, book?: string): string | undefined {
+export function browserAdviceFor(env: Env, agent: string | undefined, a: ArchiveLevel, task?: string, book?: string, root?: string): string | undefined {
   if (!agent || !a.browserOnly) return undefined;
-  if (!browserHelps(a)) return browserKept(agent) ? undefined : `strom does not keep your browser or computer use and does not recommend them: not of your own accord there. ${ON_REQUEST}`;
-  return agentBrowserAdvice(env, agent, { host: a.host, ...(a.title ? { title: a.title } : {}), permitted: a.permission === "browser" }, task, book, false);
+  if (!browserHelps(a)) return browserKept(agent, root, env) ? undefined : `strom does not keep your browser or computer use and does not recommend them: not of your own accord there. ${ON_REQUEST}`;
+  return agentBrowserAdvice(env, agent, { host: a.host, ...(a.title ? { title: a.title } : {}), permitted: a.permission === "browser" }, task, book, false, root);
 }
 
 /**
@@ -148,8 +164,8 @@ export function withoutBrowserReason(a: ArchiveLevel, name: string, task: string
  * What the person is told beside images of such an archive saved by hand (strom's menu, the bridge's waiting): a
  * catalogue key and its words — nothing where the agent would save them itself now.
  */
-export function personBrowserNote(env: Env, agent: string | undefined, a: BrowserArchive): { key: "ui.waiting.browser.agent" | "ui.waiting.browser.noext" | "ui.waiting.browser.permission"; params: Record<string, string> } | undefined {
-  const s = browserState(env, agent);
+export function personBrowserNote(env: Env, agent: string | undefined, a: BrowserArchive, root?: string): { key: "ui.waiting.browser.agent" | "ui.waiting.browser.noext" | "ui.waiting.browser.permission"; params: Record<string, string> } | undefined {
+  const s = browserState(env, agent, root);
   if (s.state === "agent-without-browser") return { key: "ui.waiting.browser.agent", params: { agent: agent ?? "" } };
   if (s.state === "no-extension") return { key: "ui.waiting.browser.noext", params: { url: s.url ?? CLAUDE_IN_CHROME_URL } };
   if (!a.permitted) return { key: "ui.waiting.browser.permission", params: { archive: a.title ?? a.host } };

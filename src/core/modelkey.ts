@@ -238,6 +238,20 @@ export function noteAliases(root: string, pairs: AliasPair[]): Aliases {
 }
 
 /**
+ * The aliases of several researches together (this computer's: each research's own, each model with the first time any
+ * of them saw it) — what an alias runs on now is the account's, not one research's.
+ */
+export function aliasesOfTrees(roots: readonly string[]): Aliases {
+  const out: Aliases = {};
+  for (const root of new Set(roots))
+    mergeAliases(
+      out,
+      Object.entries(loadAliases(root)).flatMap(([asked, list]) => list.map((e) => ({ asked, key: e.key, at: e.at }))),
+    );
+  return out;
+}
+
+/**
  * The key a key stands for: itself written as one key, an alias the model it ran on (at a time: the model of that
  * time — the first one seen before it, else the first ever; no time: the one it runs on now).
  */

@@ -4,12 +4,15 @@
 // the tree's hooks of the agent refuse what would reach it: a shell command that reads the bridge's notes
 // (.strom/live.json, .strom/live-last.json) or names its address (its secret, or this computer's address with its
 // port), and a web fetch of it. A fence, not a vault: an agent without hooks (Codex, OpenCode, Antigravity) is kept
-// off by its rules and by the bridge's own checks alone.
+// off by its rules and by the bridge's own checks alone. The terminal of Claude's desktop app the same, and there what
+// the tree's rules of Bash deny too (core/desktopterminal.ts).
 
 import path from "node:path";
 import { readJsonIfExists } from "./json.ts";
 import { findTreeUpwards } from "./tree.ts";
 import { treeHookCommand } from "./web.ts";
+import { DESKTOP_TERMINAL_MATCHER, DESKTOP_TERMINAL_TOOLS, desktopTerminalRefusal } from "./desktopterminal.ts";
+import type { Env } from "./paths.ts";
 
 /** The bridge's notes in .strom (live.ts liveFile, lastFile). */
 export const BRIDGE_NOTES = ["live.json", "live-last.json"] as const;
@@ -24,6 +27,8 @@ export interface ShellEvent {
   tool: string;
   command: string;
   cwd?: string;
+  /** The terminal of Claude's desktop app (no permission rule of the tree reaches it). */
+  terminal?: true;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
@@ -39,12 +44,13 @@ export function shellEvent(text: string): ShellEvent | undefined {
     return undefined;
   }
   const tool = str(j.tool_name) ?? str(j.toolName);
-  if (!tool || !(SHELL_TOOLS as readonly string[]).includes(tool)) return undefined;
+  const terminal = !!tool && (DESKTOP_TERMINAL_TOOLS as readonly string[]).includes(tool);
+  if (!tool || (!terminal && !(SHELL_TOOLS as readonly string[]).includes(tool))) return undefined;
   const input = (j.tool_input ?? j.toolInput ?? {}) as Record<string, unknown>;
   const command = str(input.command) ?? str(input.cmd) ?? str(input.script);
   if (!command) return undefined;
   const cwd = str(j.cwd) ?? str(j.workspaceRoot);
-  return { tool, command, ...(cwd ? { cwd } : {}) };
+  return { tool, command, ...(cwd ? { cwd } : {}), ...(terminal ? { terminal: true as const } : {}) };
 }
 
 /** What the bridge of a tree was and is: its ports and secrets from its notes (none: no bridge ever ran). */
@@ -126,12 +132,18 @@ export function bridgeRefusal(what: string): string {
   );
 }
 
-/** Answer one call of a shell tool: a refusal when it reaches the bridge, else nothing (never fails). */
-export function answerShellEvent(ev: ShellEvent, o: { cwd: string }): { decision?: "deny"; reason?: string } {
+/**
+ * Answer one call of a shell tool: a refusal when it reaches the bridge — in the desktop app's terminal also what the
+ * tree's rules of Bash deny and the person's own commands of strom (core/desktopterminal.ts) —, else nothing.
+ */
+export function answerShellEvent(ev: ShellEvent, o: { cwd: string; env?: Env }): { decision?: "deny"; reason?: string } {
   const root = findTreeUpwards(ev.cwd && path.isAbsolute(ev.cwd) ? ev.cwd : o.cwd);
   if (!root) return {};
   const why = reachesBridge(ev.command, bridgeMarks(root));
-  return why ? { decision: "deny", reason: bridgeRefusal(why) } : {};
+  if (why) return { decision: "deny", reason: bridgeRefusal(why) };
+  if (!ev.terminal) return {};
+  const refused = desktopTerminalRefusal(root, ev.command, o.env ?? {});
+  return refused ? { decision: "deny", reason: refused } : {};
 }
 
 /** A web fetch's address that reaches the bridge of the tree: why, else undefined. */
@@ -159,10 +171,11 @@ export function shellHookOutput(a: { decision?: "deny"; reason?: string }): stri
   return JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: a.decision, permissionDecisionReason: a.reason ?? "" } });
 }
 
-/** Claude Code's hook of the tree (its .claude/settings.json) before each shell command. */
+/** Claude Code's hook of the tree (its .claude/settings.json) before each shell command, and each of the desktop app's terminal. */
 export function claudeShellHooks(root: string, platform: NodeJS.Platform = process.platform): { PreToolUse: Record<string, unknown>[] } {
   const { command, shell } = treeHookCommand(root, "agents shell --hook", platform);
-  return { PreToolUse: [{ matcher: "Bash|PowerShell", hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }] }] };
+  const hooks = [{ type: "command", command, timeout: HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }];
+  return { PreToolUse: [{ matcher: "Bash|PowerShell", hooks }, { matcher: DESKTOP_TERMINAL_MATCHER, hooks }] };
 }
 
 /** Grok Build's own hook before each shell command (its .grok/hooks/strom.json, beside the web hooks). */

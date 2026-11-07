@@ -10,7 +10,7 @@ Kapitola popisuje, co aplikace ukazuje o osobě z výzkumu: dialog **Co ví výz
 
 Výzkum ke každé osobě přidá do rodokmenu pro aplikaci zvláštní bloky: rozpory, hypotézy, prohledané prameny
 a kraj stromu nad osobou. Aplikace je jen ukazuje. Nic z nich se v aplikaci nezmění a aplikace je zpět
-nepošle; žijí ve výzkumu. Hlavička dialogu nese datum výzkumu „stav k {datum}“.
+nepošle; žijí ve výzkumu. Hlavička dialogu nese datum výzkumu „stav k …“.
 
 - **Odkud:** z mostu (rodokmen, který aplikace načte z běžícího výzkumu, viz [S1](S1-connecting-app-and-research.md))
   nebo ze souboru `output/tree-strom.ged`. Obojí vzniká stejným exportem výzkumu.
@@ -93,11 +93,11 @@ Oddíl je u osoby, nad kterou strom nepokračuje: nemá rodiče, má jen jednoho
   *nedochováno*.
 - **Úkoly:** pořadí ve frontě, nebo proč stojí (*pozastavená linie*, *ukončená linie*, *rodina mimo strom*,
   *odloženo do …*); hotové pod **Zkoušené úkoly · n**.
-- **Práce:** počet hledání, počet sezení agenta s cenou, „naposledy {datum}“. V archivu sezení ani cena nejsou.
+- **Práce:** počet hledání, počet sezení agenta s cenou, „naposledy …“. V archivu sezení ani cena nejsou.
 - **Hypotézy:** možné napojení na jinou osobu, rodina mimo strom („rodina mimo strom, 4 lidé“), kolik úkolů
   čeká, které úkoly hypotézu testují.
 - Odkaz „2 otevřené rozpory ↓“ sjede na oddíl **Rozpory**.
-- **Hranice:** „stav k {datum}“ je v hlavičce oddílu, jen když je výzkum starší než dnešek.
+- **Hranice:** „stav k …“ je v hlavičce oddílu, jen když je výzkum starší než dnešek.
 - **Ovládání:** aplikace: **Nastavení → Zobrazení stromu → Kraj výzkumu** (*Vypnuto* / *K vyřízení* / *Vše*)
   řídí jen pahýly nad kartami, ne tento oddíl. Volba je jen u rodokmenu z výzkumu. *K vyřízení* chybí
   u kopie, která nemá frontu. Terminál: `strom edge`.
@@ -127,7 +127,7 @@ Oddíl je u osoby, nad kterou strom nepokračuje: nemá rodiče, má jen jednoho
 ## S3.4 Rozpory
 
 Oddíl **Rozpory** ukazuje rozpory osoby a rodin, kde je osoba partnerem. Otevřené jsou první, pak rozhodnuté
-s řádkem „rozhodnuto: {hodnota} ({pramen})“. Pramen jde otevřít v prohlížeči pramenů. Co rozpor je, kde je vidět
+s řádkem „rozhodnuto: … (…)“. Pramen jde otevřít v prohlížeči pramenů. Co rozpor je, kde je vidět
 a jak se rozhoduje, popisuje [R5.6](R5-conflicts.md#R5.6). Rozhodnutí stranou z aplikace popisuje
 [R5.6.1](R5-conflicts.md#R5.6.1).
 
@@ -152,12 +152,22 @@ a poznámka. Otevřené jsou rozbalené.
   „+ 2 lidí“, „Tak to strom už vede“, „Jen text, nedá se ukázat.“, „bez vazby k osobám stromu“,
   u rozhodnuté *zvolená*, „Teď spojeno doopravdy“, „Už neplatí: …“.
 - **Které hypotézy výzkum pošle:** otevřené; rozhodnuté a zrušené jen ty, jejichž verze nesou vazby. Odvolané nikdy.
-- **Hranice:** rozhodnout hypotézu z aplikace nejde; rozhoduje ji člověk ve výzkumu, v terminálu
-  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
-- **Ovládání:** aplikace: přepínač **Ukázat** u verze ([S3.5.1](#S3.5.1)).
+- **Kdo rozhodl:** hypotéza, kterou rozhodl agent ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)), nese
+  *rozhodl agent* se dnem a **Důvod** (text rozhodnutí v jazyce výzkumu; dlouhý se rozbalí).
+- **Hranice:** rozhodnout hypotézu z aplikace nejde; rozhoduje se ve výzkumu, v terminálu
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Kdo rozhoduje, člověk, nebo agent, je volba výzkumu
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Nabídka Rozhoduje AI:** při uložené **Rozhoduje člověk** a 10 a více otevřených hypotézách stromu stojí nad hypotézami
+  věta „N otevřených hypotéz čeká na rozhodnutí člověka; při „Rozhoduje AI“ je agent rozhodne sám, každou s
+  důvodem.“ Přepnutí se potvrdí ve výzkumu, v aplikaci se AI nezapne ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Ovládání:** aplikace: přepínač **Ukázat** u verze ([S3.5.1](#S3.5.1)); **Rozhodnout ve výzkumu**, u rozhodnuté
+  **Změnit ve výzkumu** otevře hypotézu ve výzkumu na tomto počítači; **Přepnout na „Rozhoduje AI“** otevře výzkum
+  v terminálu, **Skrýt** nabídku u tohoto výzkumu skryje.
 - **Platí od:** aplikace 3.11.0 s výzkumem 1.14.0 (verze, stav, **Ukázat**); seznam hypotéz od aplikace 3.4.0
+- **Od aplikace 3.25.0:** *rozhodl agent* s důvodem (s výzkumem 1.29.0), **Rozhodnout ve výzkumu**, **Změnit ve
+  výzkumu** a nabídka **Rozhoduje AI**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople · CHANGELOG 3.11.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Ukázat: připojeno jen v zobrazení

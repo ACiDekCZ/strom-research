@@ -80,8 +80,8 @@ treści części A, R i S, **Słowniczek pojęć** i wyszukiwanie według słowa
   panelu przy sekcjach **Kolejka** ([R2.4](R2-lines-and-queue.md#R2.4)), **Czeka na decyzję** ([R6.4](R6-awaiting-action.md#R6.4))
   i **Teraz** ([R7](R7-when-the-agent-works.md), przy wstrzymaniu [R7.6](R7-when-the-agent-works.md#R7.6)), w oknie **Miejsca** ([R4.5](R4-places.md#R4.5)), w menedżerze miejsc
   ([R4.4](R4-places.md#R4.4)), w panelu sprzeczności ([R5.3](R5-conflicts.md#R5.3)) i w **Co wie badanie → Sprzeczności**
-  ([R5.6](R5-conflicts.md#R5.6)). W oknie jest też **Przewodnik po aplikacji**. W badaniu: `strom doc`
+  ([R5.6](R5-conflicts.md#R5.6)). W badaniu: `strom doc`
   ([R1.8](R1-research-in-brief.md#R1.8)).
 - **Obowiązuje od:** aplikacja 3.24.0
 
-<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics; tour.menu · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->
+<!-- zdroj: app:src/help/help-data.ts, src/help/topics.ts HELP_TOPICS · src/ui/help-mark.ts · strings.ts help.title, index, search, searchPh, web, back, unknown, verRes, topics · vendor/strom-doc/PIN · prace/1105-app-napoveda-impl (§1–§11, e2e help.spec: otevření okna bez síťového požadavku) -->

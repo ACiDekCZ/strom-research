@@ -11,7 +11,7 @@ the research panel. Describes the Strom app 3.21.2 (and the research 1.25.2). Ch
 For each person the research adds special blocks to the family tree for the app: conflicts, hypotheses, searched
 sources and the edge of the tree above the person. The app only shows them. Nothing in them changes in the app and the
 app does not send them back; they live in the research. The dialog's header carries the date of the research "as of
-{date}".
+…".
 
 - **Where from:** from the bridge (the family tree the app loads from the running research, see
   [S1](S1-connecting-app-and-research.md)) or from the file `output/tree-strom.ged`. Both come from the same export of
@@ -100,12 +100,12 @@ supports the parents. It says why the search stops here and what happens next.
   preserved*.
 - **Tasks:** the position in the queue, or why it stands (*paused direction*, *ended direction*, *family outside the
   tree*, *put off until …*); finished ones under **Tried tasks · n**.
-- **Work:** the number of searches, the number of the agent's sessions with the cost, "last {date}". In an archive
+- **Work:** the number of searches, the number of the agent's sessions with the cost, "last …". In an archive
   there are neither sessions nor cost.
 - **Hypotheses:** a possible link to another person, a family outside the tree ("family outside the tree, 4
   people"), how many tasks are waiting, which tasks test the hypothesis.
 - The link "2 open conflicts ↓" scrolls to the section **Conflicts**.
-- **Limits:** "as of {date}" is in the section header only when the research is older than today.
+- **Limits:** "as of …" is in the section header only when the research is older than today.
 - **Controls:** app: **Settings → Tree view → Research edge** (*Off* / *To decide* / *All*) controls only the stubs
   above the cards, not this section. The option is only for a family tree from the research. *To decide* is missing
   for a copy that has no queue. Terminal: `strom edge`.
@@ -136,7 +136,7 @@ supports the parents. It says why the search stops here and what happens next.
 ## S3.4 Conflicts
 
 The section **Conflicts** shows the conflicts of the person and of the families where the person is a partner. Open
-ones come first, then decided ones with the row "decided: {value} ({source})". The source can be opened in the source
+ones come first, then decided ones with the row "decided: … (…)". The source can be opened in the source
 viewer. What a conflict is, where it is visible and how it is decided is described in [R5.6](R5-conflicts.md#R5.6).
 Deciding by a side from the app is described in [R5.6.1](R5-conflicts.md#R5.6.1).
 
@@ -163,12 +163,23 @@ B*, *abandoned*, the number of versions and a note. Open ones are expanded.
   to people in the tree", for a decided one *chosen*, "Now linked for real", "No longer valid: …".
 - **Which hypotheses the research sends:** open ones; decided and abandoned ones only those whose versions carry
   links. Withdrawn ones never.
-- **Limits:** a hypothesis cannot be decided from the app; a person decides it in the research, in the terminal
-  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
-- **Controls:** app: the switch **Show** at a version ([S3.5.1](#S3.5.1)).
+- **Who decided:** a hypothesis the agent decided ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)) carries *decided
+  by the agent* with the day and **Reason** (the text of the decision in the research's language; a long one expands).
+- **Limits:** a hypothesis cannot be decided from the app; it is decided in the research, in the terminal
+  ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Who decides, a person or the agent, is a choice of the research
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **The offer The AI decides:** with **The user decides** saved and 10 or more open hypotheses in the tree, the
+  sentence "N open hypotheses wait for a person to decide; with "The AI decides" the agent decides them itself, each
+  with its reason." stands above the hypotheses. The switch is confirmed in the research; the app does not turn the AI
+  on ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Controls:** app: the switch **Show** at a version ([S3.5.1](#S3.5.1)); **Decide in the research**, at a decided
+  one **Change in the research**, opens the hypothesis in the research on this computer; **Switch to "The AI
+  decides"** opens the research in the terminal, **Hide** hides the offer for this research.
 - **Since:** app 3.11.0 with research 1.14.0 (versions, state, **Show**); the list of hypotheses from app 3.4.0
+- **From app 3.25.0:** *decided by the agent* with the reason (with research 1.29.0), **Decide in the research**,
+  **Change in the research** and the offer **The AI decides**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople · CHANGELOG 3.11.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Show: linked in the view only

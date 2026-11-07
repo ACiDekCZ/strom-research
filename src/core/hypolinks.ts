@@ -576,7 +576,7 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
 }
 
 /** Nobody at work on the tree (an agent present, a run) or holding its lock, and its seal this computer's own. */
-function quiet(tree: Tree): boolean {
+export function quiet(tree: Tree): boolean {
   // somebody at work on it or holding its lock: next time
   if (liveWorkers(tree.root).length || runsAtWork(tree.root).length || liveHolder(path.join(tree.root, ".strom", "tree.lock"))) return false;
   // another computer's seal (a copy, a research brought here): the person adopts it first — nothing written till then
@@ -634,7 +634,7 @@ export function raiseHypothesisLinkTasks(tree: Tree): string[] | undefined {
  * strom.json as it is on disk now (another strom may have written it since this one opened the tree): what is written
  * next is written on top of that, never of what this one read before. False: unreadable — nothing written.
  */
-function freshConfig(tree: Tree): boolean {
+export function freshConfig(tree: Tree): boolean {
   let now: Record<string, unknown>;
   try {
     now = readJson<Record<string, unknown>>(path.join(tree.root, TREE_FILE));
@@ -710,6 +710,14 @@ function recordedNow(tree: Tree, l: VariantLink): boolean {
   return !!a && !!b && (pa?.mergedInto === b || pb?.mergedInto === a);
 }
 
+/**
+ * Whether an agent decided a hypothesis (hypotheses.decide agent): its mark, and no mark of the person's — an older strom
+ * the person decided with after the agent kept the agent's field but set the person's.
+ */
+export function agentDecided(h: Hypothesis): boolean {
+  return h.state !== "open" && !!h.decidedByAgent && h.decidedBy !== "user";
+}
+
 /** A hypothesis the user decided whose decision is not on the tree yet: the links of its variant, the sources it names. */
 export interface DecidedToRecord {
   hypothesis: Hypothesis;
@@ -718,14 +726,15 @@ export interface DecidedToRecord {
 }
 
 /**
- * The hypotheses the user decided (strom hypothesis decide is the person's own) whose chosen variant's links the tree
- * does not record yet, or whose named sources none of its people's facts cite: the agent's next work records them
- * (the brief says so). Abandoned ones have nothing to record; one an agent decided (an older strom) was its own work.
+ * The hypotheses the user decided (strom hypothesis decide is the person's own) — or an agent the person let decide
+ * them (hypotheses.decide agent) — whose chosen variant's links the tree does not record yet, or whose named sources
+ * none of its people's facts cite: the agent's next work records them (the brief says so). Abandoned ones have nothing
+ * to record; one an agent decided under an older strom (no mark) was its own work.
  */
 export function decidedToRecord(tree: Tree): DecidedToRecord[] {
   const out: DecidedToRecord[] = [];
   for (const h of tree.list<Hypothesis>("hypothesis")) {
-    if (h.state !== "decided" || h.decidedBy !== "user" || h.retracted) continue;
+    if (h.state !== "decided" || (h.decidedBy !== "user" && !agentDecided(h)) || h.retracted) continue;
     const v = h.variants.find((x) => x.label === h.chosen);
     const links = (v?.links ?? []).filter((l) => !recordedNow(tree, l));
     const sources = sourcesNotOnPeople(tree, h);

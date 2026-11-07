@@ -24,7 +24,7 @@ through the bridge.
   - **Progress** merges steps by 15 minutes and shows at most 20 steps.
   - On a wide window (from 1280 px) the overview is a side panel next to the tree, on a tablet a layer over the tree,
     on a phone the whole screen. On a phone the panel is a strip, and a tap opens the overview.
-  - Without following, the panel shows the last known **Awaiting action** with the sentence **As of {d}. The research
+  - Without following, the panel shows the last known **Awaiting action** with the sentence **As of …. The research
     is not running.**
 - **Controls:** app: the panel, buttons **⤢ Open overview** and **Stop following**; menu **Research → Research
   overview**.
@@ -45,6 +45,7 @@ The tree can move by itself to the person the agent is working on right now (the
   touch it returns by itself. The choice is remembered for the device.
 - **Controls:** app: **Research overview → Follow the agent in the tree** / **Stop following**.
 - **Since:** app 3.5.0
+- **From app 3.24.0:** following also works in the fan and on the map ([S4.1.3](#S4.1.3)); moving the map pauses it the same way.
 
 <!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
 
@@ -67,9 +68,9 @@ the panel and the overview.
   - **Restore defaults** cancels all choices. Restoring the defaults and hiding a section from its menu can be taken
     back for a while (**Undo**). When all sections are hidden, the panel says **All sections are hidden.**
 - **Awaiting action collapsed or hidden:**
-  - a new item does not expand the section. The heading shows the count and **{n} new**; highlighted when a decision
+  - a new item does not expand the section. The heading shows the count and **N new**; highlighted when a decision
     or a permission is among them (**includes a decision or permission**);
-  - hidden, it leaves the chip **Waiting {n}** in the panel's header, in the summary of the collapsed panel, in the
+  - hidden, it leaves the chip **Waiting N** in the panel's header, in the summary of the collapsed panel, in the
     strip on a phone and in the overview. A click shows the section in the overview until the overview closes
     (**Hidden section, shown until the overview closes.**).
 - **Controls:** app: **⋯ → Customize panel…** in the header of the panel and of the overview; right click or long
@@ -79,6 +80,72 @@ the panel and the overview.
 
 <!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
 
+<a id="S4.1.3"></a>
+### S4.1.3 Following in the fan and on the map
+
+Following the agent ([S4.1.1](#S4.1.1)) works in Family, in the fan and on the map. The switch **Follow in** changes
+the view and following stays on. The fan does not move; it only marks where the work is; the map shows the place of
+the work with a ring.
+
+- **Fan:**
+  - the centre of the fan is the **Focused person** before following was turned on (the default), the **Default
+    person**, or a **Chosen person** (for one tree). It is never the person the agent works on. **Pin as centre** holds
+    a person as the centre, **Release centre** lets it go; a new centre cross-fades in 150 ms;
+  - the person worked on has an outline in the session's colour and flashes twice when the work moves and when
+    following comes to the fan. A narrow sector gets a mark outside the fan;
+  - a person outside the fan gets the label **Work outside the fan:** at the nearest person of the fan, in this order:
+    husband or wife, sibling, an ancestor beyond the edge of the fan, for a descendant the centre, otherwise the first
+    ancestor up to 12 generations back.
+- **Map:**
+  - the place of the work has a ring in the session's colour: a solid ring is the **record place** (the place of the
+    source the agent works on, when the research sends it), a dashed one the **person's place** (the first place with a
+    position from birth, residence, marriage, death). It is never an archive's seat;
+  - the ring pulses once when following comes to the map. The map moves only when the place of the first session is
+    out of view and the map is not paused. Moving the map by hand pauses it (**Map panning paused**) until **Back to
+    the agent**;
+  - a place without a position shows a line at the top "… – no position on the map" with **Find position** (for a
+    tree with a research **Look up in the research**, [A6.5.2](A6-views.md#A6.5.2)); a person without a place "… – no
+    place";
+  - the legend **What the highlights mean** explains the rings, the trail and the hollow marker.
+- **Session trail:** in Family, the fan and on the map the people and places worked on fade with age: at most the last
+  8 changes, none older than 60 minutes. On the map these are empty rings; a dotted line joins the places of one
+  session (not on a phone). The trail can be turned off.
+- **Limits:**
+  - when several sessions run, each has a number (shown from two) and a colour: the first the main one, the others an
+    accent one;
+  - work on a marriage is followed at the couple: the husband is focused, otherwise the wife;
+  - the choices apply on this device for all trees, the chosen person only for its tree. On a phone the display is
+    simplified.
+- **Controls:** app: while following **Follow in** (Family, Fan, Map); **Settings → Following research** → **Follow the
+  agent in** (used when following is turned on and at **Back to the agent**), **Fan centre while following** (**Choose
+  person**, **Change**), **Session trail in Family, fan and map**; in the fan **Pin as centre** / **Release centre**.
+- **Since:** app 3.24.0
+- **From app 3.25.0:** the map's legend says "Hollow marker: a place without a person among the places shown" and a
+  place of work without a person on the map "no person on the map yet" (before, "out of the map's range").
+
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+
+<a id="S4.1.4"></a>
+### S4.1.4 Changes from the research without flicker
+
+A change from the research shows in the tree at once, without redrawing the whole screen. Cards that stay keep their
+place; what was added, removed or changed shows briefly with motion.
+
+- **Limits:**
+  - cards that stay move smoothly (320 ms). A new person grows out of their line and a light runs along the line; a
+    removed one shrinks back into their line; a merged person flows into the one that stays (by the same surname, birth
+    ±1 year, a common parent or partner); a changed card has an outline in the session's colour;
+  - at most 12 new cards show with motion; with more than 60 changed people the motion is skipped and the changes show
+    at once. On a phone and a tablet the times are shorter (×0.875);
+  - a new person out of view gets a mark at the edge ("Added outside the view: …", 4 s). The zoom and the focused
+    person do not change. A screen reader announces the changes;
+  - **Motion when changes load** turned off, and reduced motion in the system, show the changes at once, only
+    highlighted ("Reduced motion is on in the system, so changes appear without motion.").
+- **Controls:** app: **Settings → Following research → Motion when changes load** (on by default).
+- **Since:** app 3.24.0
+
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
+
 <a id="S4.2"></a>
 ## S4.2 The queue in the app
 
@@ -86,7 +153,7 @@ The app shows the beginning of the research's queue in the order in which the ag
 ([R2.2](R2-lines-and-queue.md#R2.2)). The whole queue stays in the research.
 
 - **Limits:**
-  - The panel shows 3 tasks (**Up next**), the overview 20 (**Queue**). The rest is shown by the row **and {n} more in
+  - The panel shows 3 tasks (**Up next**), the overview 20 (**Queue**). The rest is shown by the row **and N more in
     the research**, which opens the research.
   - With two or more running directions, tasks can be filtered by direction (**Queue by direction**).
   - A task outside the directions has a note: **Waits until the directions' work is done · helps no direction**,
@@ -103,7 +170,7 @@ The app shows the beginning of the research's queue in the order in which the ag
   terminal ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); not for the task the agent is working on. The queue is read in
   pages: **Load more** adds 50 tasks, the list holds at most 300, and the filter of a direction or a branch narrows
   the rest.
-  The branch chip (**Branch {n} {k}**) narrows the whole queue to the branch's tasks; **Show the whole queue**
+  The branch chip (**Branch … K**) narrows the whole queue to the branch's tasks; **Show the whole queue**
   cancels it.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
@@ -115,9 +182,9 @@ The overview shows the research's directions ([R2.1](R2-lines-and-queue.md#R2.1)
 got. In app 3.21.2 directions are only read; every change is confirmed in the research's terminal.
 
 - **Limits:**
-  - The section **Directions · {n} active** is there only with two or more directions, or with one direction when work
+  - The section **Directions · N active** is there only with two or more directions, or with one direction when work
     outside it runs too (row **Outside the directions**). Paused and ended directions are folded under **Paused and
-    ended · {n}**.
+    ended · N**.
   - A direction's row: kind (↑ ancestors, ↓ descendants, ⌕ question), name, person, number of tasks and what awaits
     action. A direction without work has **Nothing to do, it can be ended.**
   - Direction detail: known ancestors by generations, when it was last worked on, **Work on this direction** (a
@@ -130,10 +197,10 @@ got. In app 3.21.2 directions are only read; every change is confirmed in the re
 - **Controls:** app: **Research overview → Directions**, at a direction **⋯**.
 - **Since:** app 3.5.0 (research 1.8.0). The panel divided by direction from 3.13.1.
 - **From app 3.22.0:** with research 1.26.0 directions are changed right in the app ([S4.3.1](#S4.3.1)). A
-  direction's row shows what is being worked on now (**Now: …**) and the limits (**up to {n} generations**, **before
-  {year}**; not for a paused direction). The direction detail says what the direction found over the last days
-  (**Last {n} days:** sessions, people, sources); it shows the people in the tree. Ended directions are collapsed at
-  the end (**Ended · {n}**). In a narrow window and on a phone the overview is a sheet: arrows ▲▼ instead of the
+  direction's row shows what is being worked on now (**Now: …**) and the limits (**up to N generations**, **before
+  …** (year); not for a paused direction). The direction detail says what the direction found over the last days
+  (**Last N days:** sessions, people, sources); it shows the people in the tree. Ended directions are collapsed at
+  the end (**Ended · N**). In a narrow window and on a phone the overview is a sheet: arrows ▲▼ instead of the
   order handle.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
@@ -154,7 +221,7 @@ nothing is paid.
     the order: **The research spends most time on the directions at the top; the others keep going.** or **The
     research takes the directions in order.**
   - **Pause** and **Restart** can be taken back (**Undo**). **End…** asks and takes an optional reason.
-  - When the same direction already exists, the form says so (**The direction {n} is already running.**) and offers
+  - When the same direction already exists, the form says so (**The direction … is already running.**) and offers
     **Show it** or **Create anyway**.
   - **Find ancestors** and **Find descendants** at a person open this form.
   - Read-only: in a Strom archive (**Archive: directions are read-only.**), on a phone (**Directions can be changed in
@@ -178,20 +245,20 @@ With two or more directions, the overview shows the work outside the directions 
 - **Limits:**
   - For the whole research: **How work outside the directions is taken**: **Now and then**, **At the end**, **As
     usual**, **Never**.
-  - A branch's row: the branch's person, its relation to a direction (**near the direction {n}**), the number of
+  - A branch's row: the branch's person, its relation to a direction (**near the direction …**), the number of
     tasks, **growing**, **own choice**.
-  - A click on a branch shows its first tasks with their place in the queue (**In the queue · first {k} of {n}**,
-    **{i} in the queue**) and the link **All {n} tasks in the queue ›**. When the branch's tasks stand beyond the
-    loaded part of the queue: **The branch's tasks stand further on in the queue ({n}).**
+  - A click on a branch shows its first tasks with their place in the queue (**In the queue · first K of N**,
+    **I in the queue**) and the link **All N tasks in the queue ›**. When the branch's tasks stand beyond the
+    loaded part of the queue: **The branch's tasks stand further on in the queue (N).**
   - For a branch: **Taken:** **Now and then** / **At the end** / **As usual** (the research's choice has
-    **(default)**), **Add to the direction {n}** (the nearest direction first), **Create a direction from this
+    **(default)**), **Add to the direction …** (the nearest direction first), **Create a direction from this
     branch**, **Do not research** (the tasks leave the queue, nothing is deleted), **Reset to default**. Branches not
-    researched are together (**Not researched · {n} branches**).
+    researched are together (**Not researched · N branches**).
   - Questions about growing branches ([R2.3.2](R2-lines-and-queue.md#R2.3.2)) are in **Awaiting action**: add to a
-    direction (for a paused direction **Add to the direction {n} (paused)**), create a direction, **Leave as it is**,
+    direction (for a paused direction **Add to the direction … (paused)**), create a direction, **Leave as it is**,
     do not research. Without an answer the branch goes on being taken as before.
   - The window **Research for this tree…**, the group **Work outside the directions**: the choice for the whole
-    research (**Now and then**: “About 1 task outside the directions per {k} tasks of the directions.”), **Suggest
+    research (**Now and then**: “About 1 task outside the directions per K tasks of the directions.”), **Suggest
     directions for growing branches**, **Branches with their own choice** and tasks with a manual order.
 - **Controls:** app: **Research overview**, the section of work outside the directions, at a branch **⋯** (**Branch
   options**); **Research for this tree…**.
@@ -225,13 +292,13 @@ or paid.
   - An action is visible only on a computer (not on a touch device), only when the research has announced the link and
     only when **Strom Research on this computer** is on.
   - The link carries only record numbers and fixed values, no names and no free text.
-  - The terminal begins **The Strom app asks for: {what} / Research: {name}** and asks **Go on?** For the agent's work
+  - The terminal begins **The Strom app asks for: … / Research: …** and asks **Go on?** For the agent's work
     it adds **The agent works on the subscription or AI credit of its account.**, for assigning tasks **The research
     writes tasks for the agent — nothing is searched and nothing is paid now.**
   - A Strom archive and a research waiting for an agent refuse the agent's work (conversation, review, search,
     places, history).
   - When the same active direction already exists, **Find ancestors** only says **This research is there already:
-    “{name}” — the agent goes on with it.**
+    “…” — the agent goes on with it.**
   - The app does not know whether the terminal opened. It shows **Opening the research…** and the hint **If nothing
     happens, Strom Research is not running yet.**
 - **Controls:** app: **Settings → Data and privacy → Strom Research on this computer**.
@@ -276,6 +343,28 @@ Each research action has one of three marks according to what it opens.
 - **Since:** app 3.4.0; the top 6 items from 3.14.0, **Research tools** from 3.19.0, **Finish and stop** from 3.5.0
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
+
+<a id="S4.5.3"></a>
+### S4.5.3 Opening a task in the queue
+
+**Open task T…** opens a task in the queue in the research's terminal. The terminal shows the task and asks what to do
+with it now.
+
+- **Limits:**
+  - the terminal shows **Task T… is in the queue: the agent takes it up in its turn.**, **Why: …** and **Done when:
+    …** and asks **What now?**:
+    - **Go through it with the agent (…) now, in a conversation**: it asks first and says what similar sessions cost
+      here, or that this is not known yet;
+    - **Put it ahead in the queue (the highest priority)**: priority 5; if the task already has it, nothing happens;
+    - **Leave it in the queue as it is**;
+  - Enter or 0 writes nothing. Nothing happens to a task the agent is working on right now;
+  - a task that waits for a person opens its existing question.
+- **Controls:** app: **Open task T…** (terminal mark) after a task from a new reading is created, and in the line at
+  the source ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` takes the task from the queue
+  straight into a conversation.
+- **Since:** research 1.29.0, app 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
 <a id="S4.6"></a>
 ## S4.6 What is only in the terminal

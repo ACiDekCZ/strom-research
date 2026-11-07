@@ -3,9 +3,10 @@
 // secret token in every address) that only reads: the app, opened with
 // ?live=<address>, takes the tree's GEDCOM from it and hears what changes —
 // who is at work on what, what was recorded, what waits for the user. Nothing
-// leaves the computer. The bridge ends by itself when nobody has asked it
-// anything for a while (LIVE_IDLE_MS) and nobody works in the tree, or with
-// strom live stop.
+// leaves the computer. It runs until strom live stop (or the app's switch,
+// POST /live) or the computer goes off — or, when the person chose so
+// (live.idleMinutes, 0 by default: never), ends by itself when nobody has asked
+// it anything for that while and nobody works in the tree.
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits; what the research takes from
 //                          the app (accepts). ?poll=1: the app asking now and then — the bridge's idle time goes on.
@@ -107,6 +108,46 @@
 //                          {read: D…}; /status reads and the event read follow it; never in an archive
 //   GET <token>/read/<D…>  its result (what its readers wrote so far too); /read/<D…>/page/<n>.jpg each page's picture
 //   POST <token>/read/<D…>/again {readers}, /read/<D…>/cancel; GET <token>/reads — the readings of the last 90 days
+//                          (feature read.choose: /status accepts.read.choices — the agents, models, efforts each reader
+//                          may read with and the defaults; "with": [{agent, model, effort}] per reader in POST /read and
+//                          again; readers.who in the result, who (no modelName) in /status reads and /reads; feature
+//                          read.choices.now: each model's now/nowName — what an alias last ran on here, when known;
+//                          feature read.variantKind: each variant's kind in the result, entries[].variants and
+//                          source.variants — core/variantkind.ts; feature read.readerState: each reader's state
+//                          queued|reading|done|failed and secs in who, failure.reader)
+//   POST <token>/sources/read {source, clip, readers, lang, with, taskChoice}: a source's record read again from its
+//                          original here, never from its transcript (feature read.source) — 202 {read, state, version,
+//                          source}; its result's source {id, agree, variants, task}, nothing of the source changed;
+//                          404 read.source.none, 409 read.source.noscan | notext | running (+read). A task only of a
+//                          matter of fact both readers are sure of (variants[].sure false: not; judged: T… an earlier
+//                          task held it or a wording the person declined, D… the person just kept that reading).
+//                          taskChoice true (feature read.sourceTask): as read.sourceTask says (/status
+//                          accepts.read.sourceTask ask|always|never) — the result's source: taskSetting, taskOffer (places
+//                          the person may decide on), task + taskFor agent|person (person: a wording proposed for their
+//                          review of a transcript they confirmed), decided saved (just kept), openTask (the source's task
+//                          not ended a task chosen would go into), appended (the places went into it), state (as /status
+//                          readAgain), unsureOffer (feature read.sourceTask.unsure: no matter of fact sure left to
+//                          decide, places not sure no task holds — the person may hand them over; a transcript they
+//                          confirmed: only with a place the new reading read, found in it); without taskChoice
+//                          (an older app): a task at once, as before
+//   POST <token>/sources/<S…>/read/<D…>/task {"how": "now"|"queue"|"save"|"review"}: the person's word on that reading
+//                          (strom source reading; save = just keep; review only for a transcript the person confirmed,
+//                          now|queue never for one) — {ok, source, reading, how, task?, taskFor?, appended?, chat? (now:
+//                          strom-research://task?…&do=chat), head, parent}; 400 read.decide.invalid, 404 read.decide.none
+//                          | noreading, 409 read.decide.task (+task) | done | nothing | confirmed | unconfirmed |
+//                          noproposal | declined, 503 research.busy. With "unsure": true (feature
+//                          read.sourceTask.unsure; how queue or review alone, else 400): the reading's places not sure
+//                          handed over by the person's word — queue: a task of the agent's to look at each on the scan,
+//                          review: a wording proposed to the person; {…, unsure: true}; 409 read.decide.sure (a matter
+//                          of fact sure waits: decide without unsure) | nothing (no place not sure left unjudged)
+//   POST <token>/sourceTask {"sourceTask": "ask"|"always"|"never"}: what a source read again that differs in a matter of
+//                          fact becomes in this research (read.sourceTask in its strom.json) — {ok, sourceTask, head,
+//                          parent}; 400 sourceTask.invalid, 409 sourceTask.archive, 503 research.busy. /status readAgain
+//                          {"S…": {read, state unchecked|saved|task, task?, taskFor?, taskOpen?, taskQueued?, minorOnly?,
+//                          unsureOnly?, unsureOffer?, proposal? {text, by, task, at}}}: each source whose newest reading again differs
+//                          (core/sourceread.ts readAgainOf; none in an archive or a research waiting for its agent)
+//                          The Strom file: 1 _STROM_ORIG Y under SOUR where the original is here and a transcript to
+//                          hold a reading against (APP_READS_SOURCES_AGAIN; never in an archive)
 //   GET <token>/history    what the ancestors lived through (the experiment experiments.history, core/pastevents.ts):
 //                          the events at the places of the tree's facts, the places with their state, what the person
 //                          hid, the state of the search and its rev (an archive's too; what was found stays while off);
@@ -174,6 +215,27 @@
 //                          refused 400 stories.body, 409 history.off (+ link: the history itself is turned on by the
 //                          person, in the terminal), 503 research.busy (feature stories.history). /status: stories.history
 //                          (on while the history is on, unless turned off); an approved story is never rewritten for it
+//   POST <token>/hypotheses {"decide": "person"|"agent"}: who decides the hypotheses of this research (hypotheses.decide in
+//                          its strom.json) — {ok, decide, head, parent}; "agent" is the person's alone: 403 hypotheses.link
+//                          with the link strom-research://hypotheses?tree=…&decide=agent (the terminal asks); 400
+//                          hypotheses.invalid, 409 hypotheses.archive, 503 research.busy (feature hypotheses.decide).
+//                          /status hypotheses {decide} (none in an archive or a research waiting for its agent)
+//   POST <token>/sources/confirm {"source": "S…", "txt": "<its _TXT>", "confirm": true|false}: the user confirms the
+//                          research's transcript of a source (the user's reading of that wording), or takes it back —
+//                          {ok, source, read, conf?, txt, head, parent}; the same state again: 200, nothing written;
+//                          400 confirm.invalid, 404 confirm.none, 409 confirm.archive | confirm.merged (+into) |
+//                          confirm.retracted (taking back passes) | confirm.reader (not the research's reading, or the
+//                          user's own of another kind) | confirm.changed (+txt: the wording now), 503 research.busy
+//                          (feature sources.confirm). The Strom file: 2 _TXT, 2 _CONF under 1 _STROM_READ (APP_CONFIRMS_TRANSCRIPTS)
+//   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
+//                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
+//                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
+//                          confirm) or the transcript kept (the wording never proposed again); undo takes the decision of
+//                          that task back (the transcript and their reading as before, their confirmation too; the
+//                          proposal waits again) — {ok, source, read?, conf?, txt, task, take, head, parent}; 400
+//                          proposal.invalid, 404 proposal.none, 409 proposal.archive | proposal.decided | proposal.changed
+//                          (+proposed: the mark now; undo: the transcript changed since, or another wording waits) |
+//                          proposal.undo (nothing to undo), 503 research.busy (features sources.proposal, sources.proposal.undo)
 //   POST <token>/experiments   {"regions": false} | {"places": false} | {"history": false} (both) |
 //                          {"historyPlaces": false} (each place's history by itself): off for this research (its
 //                          strom.json; the person's own config stays; off already: 200, nothing written) — {experiments,
@@ -258,6 +320,12 @@
 //   POST <token>/offline/<B-…>  {mode: occasional|last|normal|never|default} | {mode: "line", line: G…}: strom offline
 //                          set (for the branch's new tasks too) — {branch, head, parent}; 400 offline.body, 404
 //                          offline.none, 404 directions.none (the line)
+//   POST <token>/live      {idleMinutes: 0…10080}: strom config set live.idleMinutes (this computer's, every bridge takes
+//                          it; nothing committed) — {live: {idleMinutes, idleChoices}} as /status live says it (feature
+//                          live.idle) — or {do: "stop"}: 202 {stopping: true}, ended as strom live stop ends it (end
+//                          {reason: stopped, back: false, by: "app"}) but its address kept, never brought back by new
+//                          work in the tree (feature live.stop; the link live&do=start starts it again: live.start); 400
+//                          live.body, 503 research.busy, 500 live.failed
 //   POST <token>/offline   {mode?: occasional|last|normal|never|default, suggest?: true|false}: strom config set
 //                          queue.offLine … / queue.suggestLines yes|no --for-tree (default: config unset) — {offLine
 //                          (without branches), head, parent}; 400 offline.body
@@ -333,7 +401,11 @@ import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livesta
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
+import { transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
+import { settleReaders } from "./readerfix.ts";
+import { settleProven } from "./provenfix.ts";
+import { settleClips } from "./clipmerge.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
@@ -364,7 +436,7 @@ import { appOpensLinks, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStro
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { configFile, readStored, Settings } from "./config.ts";
+import { configFile, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
@@ -374,12 +446,14 @@ import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
 import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
+import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
 import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
+import { readAgainAll } from "./sourceread.ts";
 import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
 import { alignData, alignEmpty, planAlign } from "./historyalign.ts";
 import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventKind } from "./eventkinds.ts";
@@ -424,6 +498,7 @@ const CODES = {
   "ui.places.link": "places.link",
   "ui.history.kinds.link": "history.kinds.link",
   "ui.history.align.link": "history.align.link",
+  "ui.hypotheses.link": "hypotheses.link",
 } as const;
 
 /**
@@ -517,6 +592,10 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  *   `read.large` 413 {sha, mb}; `read.pages` 413 {pages}
  * - `read.limit` 429 {per: queue | hour | day, most} (and Retry-After, `retry`); `read.busy` 409 {id} — again while read
  * - `read.no-page` 404, `read.page-gone` 410 {id, page}; `research.busy` 503 (`retry`); `read.failed` 500
+ * - `read.with` 400 {at, field: agent | model | effort} — a reader not offered; `read.agent` 409 {at, agent, why, resets}
+ *   — its agent cannot read now (limit, auth)
+ * - POST /sources/read: `read.source.none` 404 {source}; `read.source.noscan` 409 {source, clip} — no original here;
+ *   `read.source.notext` 409 {source} — no transcript to hold it against; `read.source.running` 409 {source, read}
  */
 /** Where a running bridge of a tree is noted. */
 export function liveFile(root: string): string {
@@ -530,6 +609,12 @@ export function liveLogFile(root: string): string {
 
 const LIVE_LOG_BYTES = 200 * 1024;
 
+/** How a bridge ended (the end event's reason, live-last.json's ended.kind). */
+type EndKind = "stopped" | "restart" | "idle" | "gone" | "signal";
+
+/** How often a running bridge reads live.idleMinutes again (STROM_LIVE_IDLE_READ_MS of the tests). */
+const IDLE_READ_MS = Number(process.env.STROM_LIVE_IDLE_READ_MS ?? 60_000);
+
 /** The last bridge of a tree, kept after it ended: its address to take again, whether it ended as it should. */
 interface LiveLast {
   port: number;
@@ -537,8 +622,11 @@ interface LiveLast {
   token?: string;
   pid: number;
   started: string;
-  /** How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. */
-  ended?: { at: string; reason: string };
+  /**
+   * How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. kind (1.29.0): which
+   * end it was — only one that ended idle comes back with new work in the tree; none: an older strom's (its reason read).
+   */
+  ended?: { at: string; reason: string; kind?: EndKind };
   /** The tree's folder (its real path) the bridge was of: a copy of the research with its .strom is another folder. None: an older strom's. */
   root?: string;
 }
@@ -866,6 +954,8 @@ interface StopAsk {
   pid: number;
   why: string;
   back?: boolean;
+  /** Asked by the Strom app (POST <token>/live {"do": "stop"}): said so in the end event. */
+  by?: "app";
 }
 
 /** Where a bridge asked to end says it writes what the app sent (a send, an original, an adoption): it ends after it. */
@@ -984,7 +1074,7 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
   if (!info) return "none";
   noteLive(root, `stop asked: ${why}`);
   const last = readLast(root);
-  if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why } });
+  if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why, kind: opts.back ? "restart" : "stopped" } });
   const how = endBridge(info.pid, root, { why, back: opts.back ?? false });
   if (how === "elsewhere") {
     noteLive(root, `a bridge of another folder (${info.pid}) is named in live.json: not ended, not this tree's`);
@@ -1011,8 +1101,9 @@ export function appHasTree(root: string, settings: Settings): boolean {
   return !!liveRunning(root) || !!readLast(root)?.token;
 }
 
-/** Whether a bridge's end was its idle time running out (the reason it wrote: "idle: …"). */
+/** Whether a bridge's end was its idle time running out (its kind, else the reason an older strom wrote: "idle: …"). */
 function endedIdle(last: LiveLast): boolean {
+  if (last.ended?.kind) return last.ended.kind === "idle";
   return /^idle\b/.test(last.ended?.reason ?? "");
 }
 
@@ -1145,7 +1236,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -1888,6 +1979,14 @@ function lastIntake(root: string, tree: Tree): { id: string; at: string; state: 
  * sources and citations are taken; verified: its transcripts weigh as the app says (_STROM_TRANSCRIPTS,
  * _STROM_VERIFIED); media: originals through PUT /media/<sha256> — how large one may be, what room is left, which kinds.
  */
+/**
+ * /status live (feature live.idle): how long the bridge runs on with nobody asking — whole minutes, 0: until it is
+ * stopped or the computer goes off (the default) — and the choices the app offers (POST <token>/live writes one).
+ */
+export function liveState(env: Env): { idleMinutes: number; idleChoices: number[] } {
+  return { idleMinutes: new Settings(env, {}).liveIdleMinutes(), idleChoices: [...LIVE_IDLE_CHOICES] };
+}
+
 function accepts(tree: Tree, settings: Settings, env: Env, seen?: ReadingsSeen): Record<string, unknown> {
   const mode = modeOf(tree);
   // a document read at once (live-read.ts): none in an archive, nor where the research waits for its agent
@@ -1956,6 +2055,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
       locked: { code: refused.code, reason: refused.message, way: refused.hint, ...(refused.params ?? {}) },
+      live: liveState(env),
       links: links(env),
       ...linkSchemeOf(env),
       phone: phoneSummaryNow(env),
@@ -2022,6 +2122,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       stories: appShowsStoryDrafts(settings, version),
       scopes: all,
     }).map((w) => w.item),
+    live: liveState(env),
     links: links(env),
     ...linkSchemeOf(env),
     // the experiments searched for this tree, and the fingerprint of what GET /history answers (only for a tree that has
@@ -2030,6 +2131,12 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     experiments: { history: historyOn(tree, settings), regions: regionsOn(tree, settings), places: placesOn(tree, settings), historyPace: settings.historyPace(tree.config), ...kindsStatus(tree, settings) },
     // the history of the places in the stories (stories.history): on while the history is on, unless turned off
     stories: { history: settings.storyHistory(tree.config) },
+    // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
+    // waiting for its agent — no key there
+    ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
+    // what became of each source's newest reading again that differs from its transcript (the app's source viewer,
+    // core/sourceread.ts readAgainOf): none in an archive or a research waiting for its agent
+    ...(archive ? {} : { readAgain: readAgainAll(tree) }),
     ...historyOfStatus(tree, settings, last.head, archive),
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
@@ -2149,6 +2256,27 @@ export function serveLive(root: string, env: Env): Promise<void> {
   } catch (e) {
     noteLive(root, `the links of the hypotheses' variants not filled in now: ${errorText(e)}`);
   }
+  // a write of the user alone is no reading of a source, proven needs the original record: what an older strom counted
+  // otherwise set right (once; strom fixes undo puts it back)
+  try {
+    const done = settleReaders(Tree.open(root, env));
+    if (done) noteLive(root, `readers of the sources: ${counted(done.changed, "source")} no more read by the user, ${counted(done.kept, "source")} kept as the user's own`);
+  } catch (e) {
+    noteLive(root, `the readers of the sources not set right now: ${errorText(e)}`);
+  }
+  try {
+    const done = settleProven(Tree.open(root, env));
+    if (done) noteLive(root, `facts proven without the original record: ${counted(done.changed, "fact")} made probable, ${counted(done.left, "fact")} a person made proven waiting for a look`);
+  } catch (e) {
+    noteLive(root, `the facts proven without the original record not set right now: ${errorText(e)}`);
+  }
+  // the overlapping clips of one image the research wrote: joined into one (once)
+  try {
+    const done = settleClips(Tree.open(root, env));
+    if (done) noteLive(root, `overlapping clips of one image: ${counted(done.joined.length, "source")} joined into one, ${counted(done.left.length, "source")} left as they are (a person's, or not told whose)`);
+  } catch (e) {
+    noteLive(root, `the overlapping clips of one image not joined now: ${errorText(e)}`);
+  }
   // the phone connection on and its server gone (the computer started again): started again beside the bridge
   try {
     if (phoneConfig(env).on && !phoneRunning(env)) {
@@ -2167,8 +2295,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
   let token = last?.token ?? crypto.randomBytes(16).toString("hex");
   // what this bridge says of itself (live.json), once it listens
   let live: LiveInfo | undefined;
-  // how long it runs on with nobody asking (STROM_LIVE_IDLE_MS > live.idleMinutes > 2 hours; 0: never by itself)
-  const idleMs = new Settings(env, {}).liveIdleMs();
+  // how long it runs on with nobody asking (STROM_LIVE_IDLE_MS > live.idleMinutes > 0: never by itself); read again
+  // now and then (the person's choice changes for every bridge of this computer) and at once when the app writes it
+  let idleMs = new Settings(env, {}).liveIdleMs();
+  let idleRead = Date.now();
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
   let lastAsked = Date.now();
@@ -2235,7 +2365,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
     root,
     env,
     git: gitProgram() ?? "git",
-    stateNow: () => [now().slice(0, 10), JSON.stringify(liveWorkers(root)), stamp(path.join(root, TREE_FILE)), stamp(configFile(env)), stamp(path.join(root, ...OFFLINE_FILE.split("/"))), historyRevs.get(root)?.rev ?? "", JSON.stringify(agentsHere(env)), diskVersion(env)?.version ?? ""].join("|"),
+    atWork: () => JSON.stringify(liveWorkers(root)),
+    stateNow: () => [now().slice(0, 10), stamp(path.join(root, TREE_FILE)), stamp(configFile(env)), stamp(path.join(root, ...OFFLINE_FILE.split("/"))), historyRevs.get(root)?.rev ?? "", JSON.stringify(agentsHere(env)), diskVersion(env)?.version ?? ""].join("|"),
     known: () => historyRevKnown(root),
     inline: (version, key) => splitStatus(status(root, env, version, reads.seen), key),
     logHere: (h) => JSON.stringify({ entries: histories.log(Tree.open(root, env), h) }),
@@ -2513,7 +2644,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const [, t, what, sub, act, rest] = (req.url ?? "").split("?")[0]!.split("/");
+    const [, t, what, sub, act, rest, tail, past] = (req.url ?? "").split("?")[0]!.split("/");
     // the app asking now and then (?poll=1) or by itself what is new keeps no bridge running; anything else does
     if (!(req.method === "GET" && ((what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? "")) || what === "whats-new"))) lastAsked = Date.now();
     // the secret from a page that is no Strom app: replaced, this request answered as one without it (no data, no CORS)
@@ -2597,6 +2728,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, /^W-B-/iu.test(id) ? branchAnswerWrite(id) : waitingWrite(id));
       return;
     }
+    // the bridge itself: how long it runs on with nobody asking (this computer's choice), or ended now from the app
+    if (req.method === "POST" && t === token && what === "live" && !sub) {
+      writeFor(req, res, origin, liveWrite());
+      return;
+    }
     // work off the lines: a branch's choice, the tree's, a task's own turn — each a strom command
     if (req.method === "POST" && t === token && what === "offline" && !act) {
       writeFor(req, res, origin, sub ? offlineBranchWrite(decoded(sub)) : offlineTreeWrite());
@@ -2650,6 +2786,26 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, storiesWrite());
       return;
     }
+    if (req.method === "POST" && t === token && what === "hypotheses" && !sub) {
+      writeFor(req, res, origin, hypothesesWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sources" && sub === "confirm" && !act) {
+      writeFor(req, res, origin, confirmWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sourceTask" && !sub) {
+      writeFor(req, res, origin, sourceTaskWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sources" && sub && act === "read" && rest && tail === "task" && past === undefined) {
+      writeFor(req, res, origin, readTaskWrite(decoded(sub), decoded(rest)));
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sources" && sub === "proposal" && !act) {
+      writeFor(req, res, origin, proposalWrite());
+      return;
+    }
     // the lines of the research: made, changed, paused / ended / resumed, put in order — each a strom command
     if (req.method === "POST" && t === token && what === "directions" && !rest) {
       const id = sub ? decoded(sub).toUpperCase() : undefined;
@@ -2696,7 +2852,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       phone(req, res, origin, sub, act);
       return;
     }
-    if ((req.method === "GET" || req.method === "POST") && t === token && (what === "read" || what === "reads") && reads.answer(req, res, origin, what, sub === undefined ? undefined : decoded(sub), act, rest)) return;
+    if ((req.method === "GET" || req.method === "POST") && t === token && (what === "read" || what === "reads" || (what === "sources" && sub === "read")) && reads.answer(req, res, origin, what, sub === undefined ? undefined : decoded(sub), act, rest)) return;
     if (req.method !== "GET" || t !== token) {
       res.writeHead(404).end();
       return;
@@ -4528,6 +4684,47 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
+   * The bridge itself (POST /live): {"idleMinutes": n} — strom config set live.idleMinutes n (this computer's, every
+   * tree's bridge; nothing of the research committed; as it is already: 200, nothing written) — or {"do": "stop"}: ended
+   * as strom live stop ends it (the end event says by: "app"), once what the app sent is written — but its address kept,
+   * so the bridge started again (strom live start, the link live&do=start, the research opened from the app) is where the
+   * app looks; new work in the tree never brings it back (only an end when idle does). An archive too: no agent in it.
+   */
+  const liveWrite = (): AppWrite => ({
+    what: "the bridge's idle time",
+    codes: { badBody: "live.body", busy: "research.busy", failed: "live.failed" },
+    busyStatus: 503,
+    ask(_tree, body) {
+      const keys = Object.keys(body);
+      if (keys.length === 1 && body.do === "stop") {
+        const was = readLast(root);
+        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: "stopped in the Strom app", kind: "stopped" } });
+        noteLive(root, "stop asked: in the Strom app (its address kept)");
+        // taken by the stop's own watch: it waits for what the app sent being written, then ends (the answer goes first)
+        try {
+          fs.writeFileSync(`${liveStopFile(root)}.${process.pid}`, JSON.stringify({ pid: process.pid, why: "stopped in the Strom app", back: false, by: "app" } satisfies StopAsk));
+          fs.renameSync(`${liveStopFile(root)}.${process.pid}`, liveStopFile(root));
+        } catch (e) {
+          return { code: 500, body: refusal(`the bridge could not be asked to end: ${errorText(e)}`, "live.failed") };
+        }
+        return { code: 202, body: { stopping: true } };
+      }
+      const n = body.idleMinutes;
+      if (keys.length !== 1 || typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > LIVE_IDLE_MAX_MINUTES)
+        return { code: 400, body: refusal(`the body: {"idleMinutes": 0…${LIVE_IDLE_MAX_MINUTES}} (whole minutes; 0: never by itself) or {"do": "stop"}`, "live.body") };
+      if (new Settings(env, {}).liveIdleMinutes() === n && readStored(loadUserConfig(env), "live.idleMinutes", "") !== undefined) return { code: 200, body: { live: liveState(env) } };
+      return { args: ["config", "set", "live.idleMinutes", String(n)] };
+    },
+    done() {
+      idleMs = new Settings(env, {}).liveIdleMs();
+      idleRead = Date.now();
+      lastAsked = Date.now();
+      return { live: liveState(env) };
+    },
+    refused: () => undefined,
+  });
+
+  /**
    * A task's own turn (POST /queue/<T…> {"do": "next"|"last"|"default"}): strom task order T… --next|--last|--default —
    * next once, before everything but the work at hand; last after everything; default back to the queue's order. Any
    * open task. {task (as queue[] has it now), head, parent}; 404 queue.none (no open task), 409 queue.doing (at work).
@@ -4624,6 +4821,198 @@ export function serveLive(root: string, env: Env): Promise<void> {
       },
       refused() {
         return undefined;
+      },
+    };
+  };
+
+  /**
+   * Who decides the hypotheses as the app sets it (POST /hypotheses {"decide": "person"|"agent"}): for this tree (strom
+   * config set hypotheses.decide … --for-tree). Back to the person at once; the agent deciding is the person's yes alone,
+   * in the terminal: 403 hypotheses.link with the link strom-research://hypotheses?tree=…&decide=agent. 409
+   * hypotheses.archive (nobody decides there), 400 hypotheses.invalid.
+   */
+  const hypothesesWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "who decides the hypotheses",
+      codes: { badBody: "hypotheses.invalid", busy: "research.busy", failed: "hypotheses.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || (body.decide !== "person" && body.decide !== "agent")) return { code: 400, body: refusal(`the body: {"decide": "person"} or {"decide": "agent"}`, "hypotheses.invalid") };
+        if (actsAsArchive(tree)) return { code: 409, body: refusal("nobody researches here: no hypothesis is decided by an agent", "hypotheses.archive") };
+        const settings = new Settings(env, {});
+        before = head(root);
+        if (settings.hypothesesDecide(tree.config) === body.decide) return { code: 200, body: { ok: true, decide: body.decide, head: before, parent: before } };
+        if (body.decide === "agent") {
+          // the person's yes in the terminal the link opens (the link's action registered by cli/menu-links.ts)
+          const link = `${linkScheme(env)}://hypotheses?${new URLSearchParams({ tree: tree.config.id, decide: "agent" })}`;
+          return { code: 403, body: { ...said(tree.lang, "ui.hypotheses.link"), link } };
+        }
+        return { args: ["config", "set", "hypotheses.decide", "person", "--for-tree"] };
+      },
+      done(_tree, _data, h) {
+        return { ok: true, decide: "person", head: h, parent: before };
+      },
+      refused() {
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The user confirming the research's transcript of a source, or taking it back (POST /sources/confirm {source, txt,
+   * confirm}): strom source confirm, as the person's in the app — checked first against the research as it is now
+   * (core/confirm.ts), again under the tree's lock by the command. {ok, source, read, conf?, txt, head, parent}; the same
+   * state again: 200, nothing written. 400 confirm.invalid, 404 confirm.none, 409 confirm.archive | confirm.merged (+into)
+   * | confirm.retracted | confirm.reader | confirm.changed (+txt: the wording now), 503 research.busy.
+   */
+  const confirmWrite = (): AppWrite => {
+    let before = "";
+    const refused = (r: ConfirmRefusal) => ({ code: r.status, body: { ...refusal(r.why, r.code, r.params ?? {}), ...(r.params?.into ? { into: r.params.into } : {}), ...(r.code === "confirm.changed" && r.params?.txt ? { txt: r.params.txt } : {}) } });
+    return {
+      what: "a transcript confirmed",
+      codes: { badBody: "confirm.invalid", busy: "research.busy", failed: "confirm.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).sort().join(",");
+        const { source, txt, confirm } = body;
+        if (keys !== "confirm,source,txt" || typeof source !== "string" || !/^S\d{1,9}$/iu.test(source.trim()) || typeof txt !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(txt) || typeof confirm !== "boolean")
+          return { code: 400, body: refusal(`the body: {"source": "S…", "txt": "<the source's _TXT>", "confirm": true | false}`, "confirm.invalid") };
+        const id = normId(source);
+        const asked = confirmCheck(tree, id, txt, confirm);
+        if ("refused" in asked) return refused(asked.refused);
+        before = head(root);
+        if ("same" in asked) return { code: 200, body: { ok: true, ...asked.same, head: before, parent: before } };
+        return { args: ["source", "confirm", id, "--txt", txt, ...(confirm ? [] : ["--undo"])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, ...data, head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (!code.startsWith("confirm.") || code === "confirm.app") return undefined;
+        const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
+        return refused({ status: code === "confirm.none" ? 404 : 409, code: code as ConfirmRefusal["code"], why, params });
+      },
+    };
+  };
+
+  /**
+   * The person's word on a source read again that differs in a matter of fact (POST /sources/<S…>/read/<D…>/task
+   * {how: now|queue|save|review}): strom source reading, as theirs in the app (save: just keep). {ok, source, reading,
+   * how, task?, taskFor?, appended?, chat?, head, parent} — chat: the link that opens the conversation about the task (now).
+   * unsure true (feature read.sourceTask.unsure; how queue or review): its places not sure handed over (--unsure),
+   * {…, unsure: true}; 409 read.decide.sure while a matter of fact sure waits for a decision.
+   */
+  const readTaskWrite = (source: string, reading: string): AppWrite => {
+    let before = "";
+    let how = "";
+    return {
+      what: "a reading again decided",
+      codes: { badBody: "read.decide.invalid", busy: "research.busy", failed: "read.decide.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body).filter((k) => k !== "unsure");
+        const unsure = body.unsure === true;
+        if (keys.length !== 1 || (body.how !== "now" && body.how !== "queue" && body.how !== "save" && body.how !== "review") || ("unsure" in body && typeof body.unsure !== "boolean") || (unsure && body.how !== "queue" && body.how !== "review"))
+          return { code: 400, body: refusal(`the body: {"how": "now" | "queue" | "save" | "review"} — with "unsure": true only queue or review`, "read.decide.invalid") };
+        if (!/^S\d{1,9}$/iu.test(source) || !/^D\d{14}-[0-9a-f]{4}$/u.test(reading)) return { code: 400, body: refusal("the address: sources/<S…>/read/<D…>/task", "read.decide.invalid") };
+        how = body.how;
+        before = head(root);
+        return { args: ["source", "reading", normId(source), "--take", how === "save" ? "keep" : how, "--reading", reading, ...(unsure ? ["--unsure"] : [])] };
+      },
+      done(_tree, data, h) {
+        const { link, take: _t, places: _p, ...rest } = data;
+        return { ok: true, ...rest, how, ...(typeof link === "string" ? { chat: link } : {}), head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (!code.startsWith("read.decide.") || code === "read.decide.person") return undefined;
+        const params = data.params && typeof data.params === "object" ? (data.params as Record<string, unknown>) : {};
+        const status = code === "read.decide.invalid" ? 400 : code === "read.decide.none" || code === "read.decide.noreading" ? 404 : 409;
+        return { code: status, body: { ...refusal(why, code, {}), ...(typeof params.task === "string" ? { task: params.task } : {}) } };
+      },
+    };
+  };
+
+  /**
+   * What a source read again that differs in a matter of fact becomes in this research, as the app sets it (POST
+   * /sourceTask {"sourceTask": "ask"|"always"|"never"}): strom config set read.sourceTask … --for-tree, the person's
+   * choice in the app. {ok, sourceTask, head, parent}; the same again: 200, nothing written. 400 sourceTask.invalid, 409
+   * sourceTask.archive (nobody reads there), 503 research.busy.
+   */
+  const sourceTaskWrite = (): AppWrite => {
+    let before = "";
+    let want = "";
+    return {
+      what: "what a reading again becomes",
+      codes: { badBody: "sourceTask.invalid", busy: "research.busy", failed: "sourceTask.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || (body.sourceTask !== "ask" && body.sourceTask !== "always" && body.sourceTask !== "never"))
+          return { code: 400, body: refusal(`the body: {"sourceTask": "ask" | "always" | "never"}`, "sourceTask.invalid") };
+        if (actsAsArchive(tree)) return { code: 409, body: refusal("nobody researches here: no source is read again", "sourceTask.archive") };
+        want = body.sourceTask;
+        before = head(root);
+        if (new Settings(env, {}).readSourceTask(tree.config) === want) return { code: 200, body: { ok: true, sourceTask: want, head: before, parent: before } };
+        return { args: ["config", "set", "read.sourceTask", want, "--for-tree"] };
+      },
+      done(_tree, _data, h) {
+        return { ok: true, sourceTask: want, head: h, parent: before };
+      },
+      refused() {
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The user deciding a new wording an agent proposed for a transcript they read (POST /sources/proposal {source, task,
+   * take, proposed?}): strom source proposal, as the person's in the app (core/proposal.ts) — checked first against the
+   * research as it is now, again under the tree's lock by the command. {ok, source, read?, conf?, txt, task, take, head,
+   * parent}. 400 proposal.invalid, 404 proposal.none, 409 proposal.archive | proposal.decided | proposal.changed
+   * (+proposed: the mark of the wording proposed now) | proposal.undo, 503 research.busy. take undo: the decision of
+   * the task taken back (core/proposal.ts undoProposal).
+   */
+  const proposalWrite = (): AppWrite => {
+    let before = "";
+    const no = (status: number, why: string, code: string, params: Record<string, string> = {}) => ({ code: status, body: { ...refusal(why, code, params), ...(params.proposed ? { proposed: params.proposed } : {}) } });
+    return {
+      what: "a proposed transcript decided",
+      codes: { badBody: "proposal.invalid", busy: "research.busy", failed: "proposal.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).filter((k) => k !== "proposed").sort().join(",");
+        const { source, task, take, proposed } = body;
+        if (
+          keys !== "source,take,task" ||
+          typeof source !== "string" ||
+          !/^S\d{1,9}$/iu.test(source.trim()) ||
+          typeof task !== "string" ||
+          !/^T\d{1,9}$/iu.test(task.trim()) ||
+          (take !== "proposal" && take !== "keep" && take !== "undo") ||
+          (proposed !== undefined && (typeof proposed !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(proposed)))
+        )
+          return no(400, `the body: {"source": "S…", "task": "T…", "take": "proposal" | "keep" | "undo", "proposed"?: "<the proposal's mark>"}`, "proposal.invalid");
+        const id = normId(source);
+        const tid = normId(task);
+        if (actsAsArchive(tree)) return no(409, "an archive: no proposal is decided here", "proposal.archive");
+        const s = tree.get<Source>(id);
+        const tk = tree.get<Task>(tid);
+        if (!s || s.type !== "source" || !tk || tk.type !== "task" || tk.proposal?.source !== s.id) return no(404, `${tid} proposes no wording for ${id}`, "proposal.none", { source: id, task: tid });
+        if (take !== "undo" && (tk.state === "done" || tk.state === "dropped")) return no(409, `${tid} is decided already`, "proposal.decided", { source: id, task: tid });
+        const mark = transcriptMark(tk.proposal.text);
+        if (proposed && proposed !== mark) return no(409, `another wording was proposed for ${id} since — decide the one proposed now`, "proposal.changed", { source: id, task: tid, proposed: mark });
+        before = head(root);
+        return { args: ["source", "proposal", id, "--task", tid, "--take", take, ...(proposed ? ["--proposed", proposed] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, ...data, head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (!code.startsWith("proposal.") || code === "proposal.person" || code === "proposal.failed") return undefined;
+        const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
+        return no(code === "proposal.none" ? 404 : code === "proposal.invalid" ? 400 : 409, why, code, params);
       },
     };
   };
@@ -5263,6 +5652,15 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what /status says of the readings changed without a commit: made again at the next ask
         if (readsChanged.length) keeper.forget();
         if (streams.size || anyoneAtWork(root) || reads.active()) lastAsked = Date.now();
+        if (Date.now() - idleRead > IDLE_READ_MS) {
+          idleRead = Date.now();
+          const was = idleMs;
+          idleMs = safe("the idle time", () => new Settings(env, {}).liveIdleMs()) ?? idleMs;
+          // turned on now: its time counts from now, not from the last ask before it
+          if (was === 0 && idleMs > 0) lastAsked = Date.now();
+          // what /status says of it (live) changed without a commit: made again at the next ask
+          if (was !== idleMs) keeper.forget();
+        }
         if (idleMs > 0 && Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
         if (researchGone()) return stop("the research is no longer there", "gone", false);
@@ -5330,11 +5728,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
           return;
         }
         fs.rmSync(liveStopFile(root), { force: true });
-        stop(ask.why, ask.back ? "restart" : "stopped", ask.back ?? false);
+        stop(ask.why, ask.back ? "restart" : "stopped", ask.back ?? false, ask.by);
       }, Number(env.STROM_LIVE_STOP_MS ?? 200));
       // the end said to the app on its streams before they close: whether another bridge comes at this address (it goes
       // on following) or none (following ends now); a signal from outside: not known (the app asks /status)
-      const stop = (why: string, reason: "stopped" | "restart" | "idle" | "gone" | "signal" = "stopped", back?: boolean) => {
+      const stop = (why: string, reason: EndKind = "stopped", back?: boolean, by?: "app") => {
         // the bridge of the newer strom on disk asked to take over: handed over to it (live.json left for it to write
         // over in a moment, as the bridge before the hand-over left it)
         const handed = !!handing && reason === "restart";
@@ -5350,7 +5748,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         inbox.end();
         if (stopWaits) safe("the stop's wait", () => fs.rmSync(liveBusyFile(root), { force: true }));
         safe("the widget", () => widget?.end(reason === "gone"));
-        send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });
+        send("end", { reason, ...(back === undefined ? {} : { back }), ...(by ? { by } : {}), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();
         try {
@@ -5360,7 +5758,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // gone already
         }
         const was = readLast(root);
-        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why } });
+        if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });
         noteLive(root, `ended: ${why}`);
         resolve();
       };
@@ -5372,7 +5770,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
 /** /status `browser`: the agent's browser here and the tree's archives only a person's browser goes to. */
 function browserStatus(tree: Tree, env: Env, agent: string | undefined, shared: string | undefined): Record<string, unknown> {
-  const s = browserState(env, agent);
+  const s = browserState(env, agent, tree.root);
   return {
     state: s.state,
     ...(s.url ? { url: s.url } : {}),

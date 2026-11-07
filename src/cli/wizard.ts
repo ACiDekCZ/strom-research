@@ -10,7 +10,7 @@ import type { Context } from "./context.ts";
 import { ui } from "./ui.ts";
 import { isValidLang, langName } from "../core/lang.ts";
 import { gitVersion } from "../core/git.ts";
-import { fixGit, offerAgent } from "./fixes.ts";
+import { fixGit, offerAgent, offerAgentCli } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
 import { chooseTerminal, suggestedTerminal } from "./terminals.ts";
@@ -158,6 +158,9 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   if (agent) {
     cfg.agent = agent;
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, { agent, where: whereToTalk(agent, cfg.agentWhere, ctx.env) }) }));
+    // its app here, its CLI not (Claude without Claude Code): said, Claude Code offered — "not now" changes nothing
+    const way = here.find((a) => a.id === agent);
+    if (way?.app && !way.cli) await offerAgentCli(ctx, out, agent);
   } else if (installed.length && !archiveFirst && !archived && !quiet) out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
 
   // 4b. An archive chosen: new researches are archives. No agent here: nothing set — a research waits for its agent,
@@ -191,6 +194,26 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   if (agent) {
     const si = await ctx.choose(ui(lang, "ui.setup.stories"), [{ label: ui(lang, "ui.setup.stories.yes") }, { label: ui(lang, "ui.setup.stories.no") }], cfg.stories === "no" ? 1 : 0, keep);
     cfg.stories = (si ?? (cfg.stories === "no" ? 1 : 0)) === 1 ? "no" : "yes";
+  }
+
+  // 5c. Who decides the hypotheses (the uncertain links between people): the person (the agent proposes) or the agent
+  // (on a cited record, its decisions marked and changeable) — the AI recommended, offered first where the person is not
+  // chosen (spec 060 K1.6), and the default where nothing is set (K1.9): Enter keeps it with no second yes; the second
+  // yes only where the person was chosen. Only a person at a terminal answers it — asked nowhere else (no terminal, an
+  // agent running the setup: nothing written, the default holds, K1.7); kept as this computer's, like the stories, the
+  // person's choice written as it is, so a setup run again offers it. The tree here with a value of its own (the Strom
+  // app set it for it): the person's answer takes its place.
+  let ownHypotheses = false;
+  if (agent && ctx.interactive && !isAgent(ctx.env)) {
+    const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+    ownHypotheses = readStored(tree, "hypotheses.decide", agent) !== undefined;
+    const stored = ownHypotheses ? readStored(tree, "hypotheses.decide", agent) : readStored(cfg, "hypotheses.decide", agent);
+    const was = stored === "person" ? 0 : 1;
+    const ai = ui(lang, "ui.setup.model.recommended", { model: ui(lang, "ui.hypotheses.decide.agent") });
+    const hi = await ctx.choose(`${ui(lang, "ui.setup.hypotheses")}\n${ui(lang, "ui.setup.hypotheses.recommended")}`, [{ label: ui(lang, "ui.hypotheses.decide.person") }, { label: ai }], was, keep);
+    // the agent deciding them where the person decided: what it means, and the person's second yes (no: as it was)
+    if (hi === undefined || (hi === 1 && was !== 1 && !(await ctx.confirm(ui(lang, "ui.consent.hypotheses.agent"), false)))) ownHypotheses = false;
+    else writeStored(cfg, "hypotheses.decide", agent, hi === 1 ? "agent" : "person");
   }
 
   // 6. What the agent may do without asking (none here: nothing to ask).
@@ -244,6 +267,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   }
   s.save();
   if (ownStoryHistory) setTreeSetting(ctx, "stories.history", undefined);
+  if (ownHypotheses) setTreeSetting(ctx, "hypotheses.decide", undefined);
 
   // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated
   // installation (found on Windows: asked, while doctor said "none, on purpose")

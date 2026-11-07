@@ -20,6 +20,8 @@ export function claudeInstaller(platform: NodeJS.Platform = process.platform): I
 /** Run an installer in the user's terminal; true when it ended well. */
 export function runInstaller(inst: Installer, env: Env): boolean {
   if (env.STROM_NO_INSTALL === "1") return false;
+  // tests: as if the installer ran and ended well (nothing run)
+  if (env.STROM_NO_INSTALL === "ok") return true;
   const r = spawnSync(inst.command, inst.args, { stdio: "inherit", env: env as NodeJS.ProcessEnv });
   return !r.error && r.status === 0;
 }

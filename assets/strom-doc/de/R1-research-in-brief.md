@@ -48,6 +48,7 @@ das Tempo des wöchentlichen Limits des Abonnements).
 - Die Forschung kann auch nur ein **Strom-Archiv** sein, an dem kein Agent arbeitet:
   [R7.8](R7-when-the-agent-works.md#R7.8).
 - Ausführlich: [R7](R7-when-the-agent-works.md).
+- Wo mit dem Agenten gesprochen wird (Terminal, App Claude oder ChatGPT) und was strom wo überwacht: [R12](R12-where-the-agent-works.md).
 
 <!-- zdroj: research:src/commands/run.ts · assets/method/core.md „The time is strom's to say“ -->
 
@@ -81,8 +82,10 @@ Agent antwortet nicht an Stelle des Menschen.
 
 - Was auf den Menschen wartet (Briefe, Bilder zum Herunterladen, Fragen zu Orten, Widersprüche, Hypothesen,
   Erzählungen zur Freigabe) und wo es erledigt wird: [R6](R6-awaiting-action.md).
-- Eine Hypothese entscheidet nur der Mensch; der Agent schlägt die Entscheidung vor (ab Forschung 1.28.0):
-  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
+- Eine Hypothese entscheidet der Mensch, und der Agent schlägt die Entscheidung vor (ab Forschung 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1). Ab Forschung 1.29.0 ist das eine Wahl der Forschung: ohne
+  gespeicherte Wahl entscheidet der Agent (**Die KI entscheidet**), **Der Mensch entscheidet** wählt der Mensch:
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2).
 - Die Entscheidung des Menschen gilt. Der Agent ändert sie nur auf Grund einer neuen Quelle: [R5.4](R5-conflicts.md#R5.4).
 - Eine vom Menschen eingetragene Lage eines Ortes wird nicht geändert: [R4.3](R4-places.md#R4.3).
 - Einstellungen, die ändern, was der Agent darf, bestätigt der Mensch (zum Beispiel die Bedingung für die Arbeit des

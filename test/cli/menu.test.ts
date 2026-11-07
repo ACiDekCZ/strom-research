@@ -534,7 +534,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const consents = path.join(w.env.STROM_CONFIG_DIR!, "consents.json");
   fs.writeFileSync(consents, JSON.stringify({ connectors: { zkouska: { dir: path.join(old, "shared", "plugins", "connectors", "zkouska"), hash: "x", hosts: [], at: "2026-01-01" } }, hosts: {} }));
   // 0 for the folder keeps it
-  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "0", "0", "n", "0"] });
+  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.equal(config().home, old);
   assert.ok(!fs.existsSync(path.join(w.cwd, "0")) && !fs.existsSync(path.join(w.dir, "0")));
   // moved from the menu's settings into a folder Finder has been in: the menu goes on, with the tree where it is now
@@ -542,7 +542,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
   // 8 settings · 1 the setup · Enter: everything, step by step · …
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);
@@ -550,7 +550,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   // the top of a disk (only its own hidden folders): into a folder of its own there
   const disk = path.join(w.dir, "USB");
   fs.mkdirSync(path.join(disk, ".fseventsd"), { recursive: true });
-  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "0", "0", "n", "0"] });
+  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.match(d.out, /✓ Výzkum je teď ve složce .*USB\/Nové místo\./);
   assert.equal(config().home, path.join(disk, "Nové místo"));
   w.cleanup();

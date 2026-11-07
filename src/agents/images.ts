@@ -52,3 +52,21 @@ export function imageMax(agent: string | undefined, model: string | undefined): 
       return IMAGE_MAX;
   }
 }
+
+/** The long side a small crop or half is enlarged to by default (script bigger, not sharper): what Claude reads well. */
+export const VIEW_MIN = 800;
+
+/**
+ * The long side a small crop or half is enlarged to for this agent and model (never above imageMax, at most 3×):
+ * GPT models (Codex, OpenCode on an OpenAI model) read small script far better from a view of about 2000 px (a
+ * simulation of reading again, 2026-11-06); Claude reads it as well at 800, which costs fewer tokens.
+ */
+export function imageMin(agent: string | undefined, model: string | undefined): number {
+  return gptReader(agent, model) ? Math.min(IMAGE_MAX_LARGE, imageMax(agent, model)) : VIEW_MIN;
+}
+
+/** Whether a reader reads with a GPT model: Codex, OpenCode on an OpenAI model. */
+export function gptReader(agent: string | undefined, model: string | undefined): boolean {
+  const m = (model ?? "").trim().toLowerCase();
+  return agent === "codex" || (agent === "opencode" && (m.includes("gpt") || m.startsWith("openai/")));
+}

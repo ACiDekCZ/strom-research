@@ -50,7 +50,7 @@ erklärt und nicht nach der Mehrheit der Einträge entschieden.
 zwischen dem Wert aus der App und dem Wert der Forschung.
 
 - **Grenzen:** was mit einer Änderung aus der App geschieht:
-  1. eine neue Angabe oder Person: sie wird als **Hinweis** mit der Quelle „Änderungen in der Strom-App ({Tag})“
+  1. eine neue Angabe oder Person: sie wird als **Hinweis** mit der Quelle „Änderungen in der Strom-App (…)“
      erfasst;
   2. Änderung einer Angabe, die kein Eintrag belegt: die Angabe wird berichtigt (mit Grund);
   3. Präzisierung einer durch einen Eintrag belegten Angabe (ein Ort, wo keiner war, ein Tag zum Jahr, ein genauerer
@@ -66,7 +66,7 @@ zwischen dem Wert aus der App und dem Wert der Forschung.
 - Bis zur Entscheidung bleibt in der App der Wert aus der App, die Forschung hat an dieser Stelle ihren eigenen.
 - Dieselbe Änderung, erneut gesendet, legt keinen neuen Widerspruch an. Eine anders geänderte Änderung überschreibt
   nur die Seite der App im offenen Widerspruch.
-- **Bedienung:** App: nach dem Senden **Geschrieben, {n} Widersprüche zu entscheiden** und **Anzeigen**. Terminal: die
+- **Bedienung:** App: nach dem Senden **Geschrieben, N Widersprüche zu entscheiden** und **Anzeigen**. Terminal: die
   Ausgabe von `strom sync` sagt bei jeder Änderung **ein Widerspruch zum Entscheiden (die Forschung hat es aus einem
   Eintrag)** oder **ein Widerspruch zum Entscheiden (die Forschung hat andere Eltern)**. Das Senden lässt sich
   zurücknehmen: `strom sync undo I…`.

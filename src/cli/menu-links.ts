@@ -17,7 +17,7 @@ import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
 import { DEFAULT_RUN_MINUTES, readStored } from "../core/config.ts";
 import { choosePace } from "../commands/setup.ts";
-import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, Hypothesis, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
@@ -32,9 +32,13 @@ import { stromReadsTags } from "../gedcom/export.ts";
 import { appMarkFromInstall } from "../core/links.ts";
 import { settleFromApp } from "./wizard.ts";
 import { isValidLang } from "../core/lang.ts";
-import { agentsHere, suggestedWay, waysHere, type Where } from "../core/apps.ts";
+import { agentsHere, hasDesktopApp, suggestedWay, waysHere, type Where } from "../core/apps.ts";
+import { cliMissing } from "../core/agentcli.ts";
+import { offerAgentCli } from "./fixes.ts";
 import { chooseWay } from "./ways.ts";
 import { claimText } from "../core/people.ts";
+import { normId } from "../core/records.ts";
+import { settledClaim } from "../core/labels.ts";
 import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
@@ -97,6 +101,62 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   if ((await run(["task", what, id, ...reason], true)) !== 0) return false;
   out(ctx, t(`ui.link.task.${what}.done`));
   return true;
+}
+
+/** Sessions measured before an estimate of a task's price is said (fewer: not known, never guessed). */
+const TASK_MEASURED_MIN = 3;
+
+/**
+ * What a session on a task like this one took here: the middle half of the sessions ended on tasks of its origin (else
+ * of its level), their agent's and readers' cost; undefined below TASK_MEASURED_MIN measured — never guessed.
+ */
+export function taskEstimate(tree: Tree, task: Task): [number, number] | undefined {
+  const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
+  const costs = (pick: (t: Task) => boolean) =>
+    tree
+      .list<Session>("session")
+      .filter((s) => s.state !== "open" && !s.metrics?.costPartial && (s.metrics?.costUsd ?? 0) > 0 && !!s.task && tasks.has(s.task) && pick(tasks.get(s.task)!))
+      .map((s) => s.metrics!.costUsd! + (s.metrics!.readersUsd ?? 0))
+      .sort((a, b) => a - b);
+  const own = costs((t) => t.origin === task.origin);
+  const all = own.length >= TASK_MEASURED_MIN ? own : costs((t) => t.level === task.level);
+  if (all.length < TASK_MEASURED_MIN) return undefined;
+  const q = (f: number) => all[Math.min(all.length - 1, Math.max(0, Math.round((all.length - 1) * f)))]!;
+  const round = (x: number) => Math.max(0.1, Math.round(x * 10) / 10);
+  return [round(q(0.25)), round(Math.max(q(0.75), q(0.25)))];
+}
+
+/**
+ * A link of the Strom app to a task in the queue (open, not waiting for the person — e.g. the task a reading of a source
+ * again left): the task said (what, why with its differences, when it is done), then the person's choice — go through
+ * it with the agent now (a conversation; said and asked first with what it takes: it draws on the subscription), put it
+ * ahead in the queue (the highest priority), or leave it as it is (0 too: nothing done). No agent where nobody
+ * researches (an archive, a research waiting for its agent): put ahead or left. True: something was done.
+ */
+export async function openTask(ctx: Context, run: Run, lang: string, root: string, id: string, agent: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const task = tree.get<Task>(id);
+  if (!task || task.type !== "task" || task.retracted) return stop(ctx, t("ui.link.task.none", { task: id }));
+  if (task.state !== "open") return stop(ctx, t("ui.link.task.cannot"));
+  if (tree.list<Session>("session").some((s) => s.state === "open" && s.task === task.id)) return stop(ctx, t("ui.link.open.busy", { task: task.id }));
+  const shown = humanTask(tree, task.what, lang);
+  out(ctx, lines(` ${shown}`, "", t("ui.link.open.title", { task: task.id }), task.why ? t("ui.link.open.why", { why: task.why }) : undefined, task.doneWhen ? t("ui.link.open.done", { done: task.doneWhen }) : undefined));
+  const withAgent = !actsAsArchive(tree);
+  const choices = [...(withAgent ? [{ key: "chat", label: t("ui.link.open.chat", { agent }) }] : []), { key: "ahead", label: t("ui.link.open.ahead") }, { key: "keep", label: t("ui.link.open.keep") }];
+  const i = await ctx.choose(t("ui.link.open.pick"), choices.map(({ label }) => ({ label })), choices.length - 1, { back: t("ui.browse.back") });
+  const chosen = i === undefined ? "keep" : choices[i]!.key;
+  if (chosen === "keep") return stop(ctx, t("ui.link.open.kept"));
+  if (chosen === "ahead") {
+    if (task.priority >= 5) return stop(ctx, t("ui.link.open.already"));
+    if ((await run(["task", "edit", task.id, "--priority", "5"], true)) !== 0) return false;
+    out(ctx, t("ui.link.open.ahead.done"));
+    return true;
+  }
+  const usd = taskEstimate(tree, task);
+  const note = lines(usd ? t("ui.link.open.estimate", { from: humanCost(usd[0], lang), to: humanCost(usd[1], lang) }) : t("ui.link.open.estimate.none"), t("ui.link.cost"));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false))) return false;
+  return (await run(["chat", "--task", task.id])) === 0;
 }
 
 /**
@@ -316,6 +376,17 @@ async function placesDo(ctx: Context, run: Run, lang: string, root: string, what
 }
 
 /**
+ * What strom starts by itself (strom run, the readers) where the research's agent has only its desktop app here (Claude
+ * without Claude Code in the terminal): said before any estimate or question, the conversation in the app and Claude
+ * Code offered (offerAgentCli). True: the CLI is here, go on.
+ */
+export async function agentCliHere(ctx: Context, run: Run, lang: string, tree: Tree): Promise<boolean> {
+  const agent = ctx.settings.agent(tree.config).value;
+  if (!cliMissing(agent, ctx.env)) return true;
+  return offerAgentCli(ctx, (l) => out(ctx, l), agent, { lang, ...(hasDesktopApp(agent, ctx.env) ? { chat: () => run(["chat"]) } : {}) });
+}
+
+/**
  * The history of one place and its surroundings asked for from the Strom app (strom-research://history&place=L…):
  * the estimate said and asked here, its task on top of the queue (strom history place), then started now if wanted.
  */
@@ -326,6 +397,8 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
   if (!p) return stop(ctx, t("ui.link.history.place.none", { place: id }));
   if (!ctx.settings.historyPlace(tree.config)) return stop(ctx, t("ui.link.history.off"));
   const place = placeLabel(p, lang);
+  // its session is strom run's: the agent's CLI not here said before the estimate and the question
+  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
   if (!(await asks(ctx, lang, root, t("ui.link.what.history.place", { place }), placeCost(t, lang, tree), false))) return false;
   if ((await run(["history", "place", p.id], true)) !== 0) return false;
   const task = placeTask(Tree.open(root, ctx.env), p.id);
@@ -353,6 +426,8 @@ export async function placesRun(ctx: Context, run: Run, lang: string, root: stri
   const inQueue = state === "queued" || state === "running";
   if (p && p.coords && !inQueue) return stop(ctx, t("ui.link.places.placed", { place: placeLabel(p, lang) }));
   if (!p && !queue.queued) return stop(ctx, t("ui.link.places.empty"));
+  // its sessions are strom run's: the agent's CLI not here said before the estimate and the question
+  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
   const n = queue.queued + (p && !inQueue ? 1 : 0);
   const batches = Math.max(1, queue.batches + (p && !inQueue && !queue.batches ? 1 : 0));
   const est = identifyEstimate(tree, batches);
@@ -432,6 +507,8 @@ export async function fixesDo(ctx: Context, run: Run, lang: string, root: string
     return (await run(["fixes", "undo", check.id])) === 0;
   }
   const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).some((p) => p.check.id === check.id);
+  // one that reads again (paid readings, strom's readers): the agent's CLI not here said before its estimate
+  if (waits && !quietCheck(check) && !(await agentCliHere(ctx, run, lang, tree))) return false;
   return (await run(waits ? ["fixes", "run", check.id] : ["fixes", "show", check.id])) === 0;
 }
 
@@ -533,6 +610,36 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   return pickClaim(ctx, run, lang, tree, c);
 }
 
+/**
+ * A hypothesis the Strom app asks to decide (strom-research://hypothesis?…&do=decide): open with or without a proposal,
+ * or decided — its decision changed — on the screen of What waits; an unknown one only said.
+ */
+export async function hypothesisDo(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const h = tree.get<Hypothesis>(normId(id, "hypothesis"));
+  if (!h || h.type !== "hypothesis" || h.retracted || h.mergedInto) return stop(ctx, t("ui.link.hypothesis.none", { id }));
+  if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(h.question, 120) })))) return false;
+  const { decideHypothesis } = await import("./menu-waiting.ts");
+  return decideHypothesis(ctx, run, lang, root, h.id);
+}
+
+/**
+ * Who decides the hypotheses, as the Strom app asks it (strom-research://hypotheses?…&decide=agent|person): the agent
+ * only on the person's yes here — what it means said first (strom config set hypotheses.decide agent --for-tree, the
+ * person's own in this terminal); back to the person at once.
+ */
+export async function hypothesesDo(ctx: Context, run: Run, lang: string, root: string, decide: "agent" | "person"): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  if (ctx.settings.hypothesesDecide(tree.config) === decide) return stop(ctx, t(decide === "agent" ? "ui.link.hypotheses.agent.already" : "ui.link.hypotheses.person.already"));
+  if (decide === "agent" && !(await asks(ctx, lang, root, t("ui.link.what.hypotheses.agent"), t("ui.consent.hypotheses.agent"), false))) return false;
+  if ((await run(["config", "set", "hypotheses.decide", decide, "--for-tree"], true)) !== 0) return false;
+  ctx.settings.reload();
+  out(ctx, t(decide === "agent" ? "ui.link.hypotheses.agent.done" : "ui.link.hypotheses.person.done"));
+  return true;
+}
+
 /** Why the person decides so: asked until said ("0" or no more answers: nothing decided). */
 export async function askWhy(ctx: Context, lang: string): Promise<string | undefined> {
   const t = translator(lang);
@@ -549,10 +656,14 @@ export async function askWhy(ctx: Context, lang: string): Promise<string | undef
 export async function pickClaim(ctx: Context, run: Run, lang: string, tree: Tree, c: Conflict, back?: string): Promise<boolean> {
   const t = translator(lang);
   const id = c.id;
-  const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
+  const sourceOf = (x: Conflict["claims"][number]) => settledClaim(tree, c, x).source;
+  const claim = (x: Conflict["claims"][number]) => {
+    const s = sourceOf(x);
+    return `${claimText(tree, c, x)}${s ? ` — ${tree.get<Source>(s)?.title ?? s}` : ""}`;
+  };
   const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], back ? c.claims.length + 1 : 0, { back: back ?? t("ui.browse.back") });
   if (i === undefined) return false;
-  let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${c.claims[i]!.source ? ` (${c.claims[i]!.source})` : ""}` : "";
+  let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${sourceOf(c.claims[i]!) ? ` (${sourceOf(c.claims[i]!)})` : ""}` : "";
   if (!resolution) {
     resolution = (await ctx.ask(t("ui.link.conflict.own"))).trim();
     if (!resolution || resolution === "0") return false;

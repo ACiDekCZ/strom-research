@@ -8,10 +8,12 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree } from "../core/tree.ts";
-import { scopes } from "../core/directions.ts";
+import { cliMissing } from "../core/agentcli.ts";
+import { PROFILES } from "../agents/profiles.ts";
+import { hypothesisPeople, scopes } from "../core/directions.ts";
 import { lineOf } from "../core/offline.ts";
 import type { UIKey } from "./ui.ts";
-import type { Research, Task } from "../core/model.ts";
+import type { Hypothesis, Research, Task } from "../core/model.ts";
 import { sameDirection } from "../core/actions.ts";
 import { workOrder } from "../core/order.ts";
 import { displayName, lifespan } from "../core/people.ts";
@@ -19,6 +21,7 @@ import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
 import { planSync, readTreeFile, receivedAll, receivedSince, SYNC_INBOX, type Received, type SyncInput } from "../core/sync.ts";
 import { undoSending } from "./menu-links.ts";
 import { humanWhen } from "./human.ts";
+import { truncate } from "./format.ts";
 import { appSendsChanges, stromAppState } from "../core/stromapp.ts";
 import { UNPROVEN_BATCH } from "../commands/research.ts";
 import { expandHome } from "../core/paths.ts";
@@ -116,6 +119,20 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
   if (actsAsArchive(kept)) return void out(t(isArchive(kept) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added }) + app);
   out(t("ui.intake.done", { n: added }) + app);
   await offerChat(ctx, run, lang, root, t("ui.intake.chat"), t("ui.intake.say"));
+}
+
+/**
+ * The agent offered to work on the tasks now, on its own — only where it can start (its CLI here); with only its app
+ * here, said that the tasks wait for a conversation (nothing offered strom cannot start: core/agentcli.ts).
+ */
+async function runAloneAsked(ctx: Context, lang: string, tree: Tree, n: number): Promise<boolean> {
+  const t = translator(lang);
+  const agent = ctx.settings.agent(tree.config).value;
+  if (cliMissing(agent, ctx.env)) {
+    ctx.io.stdout(t("ui.review.cli", { n, cli: PROFILES[agent]?.name ?? agent }) + "\n");
+    return false;
+  }
+  return ctx.confirm(t("ui.review.run", { n }), false);
 }
 
 /** On with the agent now — when there is one; else it is said that the agent takes it up once it is here. */
@@ -440,7 +457,7 @@ async function reviewUnproven(ctx: Context, run: Run, lang: string, root: string
     .list<Research>("research")
     .find((r) => r.direction === "person" && r.state === "active" && (ids.length ? r.review?.people?.length === ids.length && ids.every((id) => r.review!.people!.includes(id)) : r.review?.unproven));
   const waiting = research ? after.list<Task>("task").filter((x) => x.research === research.id && x.state === "open").length : 0;
-  if (research && waiting && (await ctx.confirm(t("ui.review.run", { n: waiting }), false))) await run(["run", "--research", research.id, "--max", String(waiting)]);
+  if (research && waiting && (await runAloneAsked(ctx, lang, after, waiting))) await run(["run", "--research", research.id, "--max", String(waiting)]);
   await pause(ctx, lang);
 }
 
@@ -480,12 +497,47 @@ async function reviewPerson(ctx: Context, run: Run, lang: string, root: string):
   await pause(ctx, lang);
 }
 
-/** One person's review (the menu, a link of the Strom app), then the agent offered for its tasks — the person's choice, no suggested. */
+/**
+ * One person's review (the menu, a link of the Strom app), then the hypotheses about them offered (open and decided —
+ * decided, left open or their decision changed on the screen of What waits), then the agent offered for its tasks — the
+ * person's choice, no suggested.
+ */
 export async function reviewOne(ctx: Context, run: Run, lang: string, root: string, person: string, scope: "person" | "family" | "line"): Promise<void> {
   const t = translator(lang);
   if ((await run(["review", person, ...(scope !== "person" ? ["--scope", scope] : [])])) !== 0) return;
+  await personHypotheses(ctx, run, lang, root, person);
   const tree = Tree.open(root, ctx.env);
   const research = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === person && r.review && !r.review.people);
   const open = research ? tree.list<Task>("task").filter((x) => x.research === research.id && x.state === "open").length : 0;
-  if (research && open && (await ctx.confirm(t("ui.review.run", { n: open }), false))) await run(["run", "--research", research.id, "--max", String(open)]);
+  if (research && open && (await runAloneAsked(ctx, lang, tree, open))) await run(["run", "--research", research.id, "--max", String(open)]);
+}
+
+/** The hypotheses about a person (open first, then decided and set aside): none — nothing said. */
+function hypothesesAbout(tree: Tree, person: string): Hypothesis[] {
+  const rank = { open: 0, decided: 1, abandoned: 2 } as const;
+  return tree
+    .list<Hypothesis>("hypothesis")
+    .filter((h) => !h.retracted && !h.mergedInto && hypothesisPeople(tree, h).includes(person))
+    .sort((a, b) => rank[a.state] - rank[b.state] || a.id.localeCompare(b.id));
+}
+
+/**
+ * The hypotheses about a person, offered after the review ("Hypotheses about the person (N)"): a list of them, each with
+ * its state, one picked opens the screen of What waits (decided, left open, its decision changed); 0 goes on.
+ */
+async function personHypotheses(ctx: Context, run: Run, lang: string, root: string, person: string): Promise<void> {
+  const t = translator(lang);
+  const n = hypothesesAbout(Tree.open(root, ctx.env), person).length;
+  if (!n) return;
+  if ((await ctx.choose("", [{ label: t("ui.review.hypotheses", { n }) }], 1, { back: t("ui.review.hypotheses.on") })) === undefined) return;
+  const { decideHypothesis } = await import("./menu-waiting.ts");
+  for (;;) {
+    const tree = Tree.open(root, ctx.env);
+    const all = hypothesesAbout(tree, person);
+    if (!all.length) return;
+    const state = (h: Hypothesis) => t(h.state === "open" ? (h.proposal && !actsAsArchive(tree) ? "ui.review.hypothesis.proposed" : "ui.review.hypothesis.open") : h.state === "decided" ? "ui.review.hypothesis.decided" : "ui.review.hypothesis.abandoned");
+    const i = await ctx.choose(t("ui.review.hypotheses.title"), all.map((h) => ({ label: `${h.id} · ${state(h)} · ${truncate(h.question, 70)}` })), all.length, { back: t("ui.browse.back") });
+    if (i === undefined) return;
+    await decideHypothesis(ctx, run, lang, root, all[i]!.id);
+  }
 }

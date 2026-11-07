@@ -56,7 +56,7 @@ export function isWorkerId(id: string | undefined): id is string {
 
 /** Be present in the tree until the returned function is called (or the process ends); `version`: the strom it works with. */
 export function enterWorker(root: string, id: string, label: string, version?: string): () => void {
-  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000, ...(version ? { version } : {}) });
+  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000, machine: true, ...(version ? { version } : {}) });
 }
 
 /** The workers present now; files of workers that are gone are cleared away. */

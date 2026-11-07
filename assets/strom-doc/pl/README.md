@@ -22,6 +22,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [R9 Archiwa: co wolno agentowi, a co robi człowiek](R9-archives.md): rodzaje archiwów, zgoda, przeglądarka agenta, oczekiwanie na skany, co robi człowiek
 - [R10 Osoby: identyfikacja, imiona i hipotezy](R10-people-and-hypotheses.md): imiennicy, scalenie dwóch wpisów, hipotezy, rodzina poza drzewem, imiona i nazwiska osoby
 - [R11 Materiały od użytkownika](R11-material-from-the-user.md): pliki i teksty od użytkownika, dokument i wskazówka, przejęte drzewo genealogiczne, partia z aplikacji
+- [R12 Gdzie agent pracuje i czego strom pilnuje](R12-where-the-agent-works.md): terminal, aplikacje Claude, ChatGPT (Codex) i OpenCode, Antigravity i Grok Build, samodzielny bieg: czego strom gdzie pilnuje i co robi człowiek
 
 ## A Aplikacja Strom
 
@@ -33,6 +34,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [A6 Widoki i wybór osób](A6-views.md): Rodzina, Potomkowie, Oś czasu, Wachlarz, Mapa i ród w widoku
 - [A7 Księga, strony i eksport](A7-book-pages-and-export.md): kto jest żyjący, ochrona żyjących, księga rodu, strony, zapisany HTML
 - [A8 Scalanie drzew](A8-merging-trees.md): scalanie pliku, drzewa lub widoku w nowe drzewo, parowanie osób
+- [A9 Obsługa aplikacji](A9-using-the-app.md): gdzie co jest, czytelne nazwy elementów, edycja podczas śledzenia badania, agent w aplikacji
 
 ## S Aplikacja i badanie razem
 

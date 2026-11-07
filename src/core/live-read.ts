@@ -18,13 +18,15 @@ import type { Env } from "./paths.ts";
 import { newerTree, Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
-import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
+import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, newReadId, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReaderState, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
 import { knownOriginal } from "./originals.ts";
 import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
 import { inputPath } from "./media.ts";
 import { sandboxOf } from "./sandbox.ts";
 import { AGENTS, findAgent } from "./which.ts";
+import { hasDesktopApp } from "./apps.ts";
+import { CLI_MISSING } from "./agentcli.ts";
 import { assetPath } from "./assets.ts";
 import { EXIT } from "./errors.ts";
 import { forApp, refusal } from "./receive.ts";
@@ -33,6 +35,8 @@ import { normId } from "./records.ts";
 import { metricsDir } from "./metrics.ts";
 import { readJournal } from "./readstats.ts";
 import type { Input, Media, Person, Source } from "./model.ts";
+import { checkWith, readChoices, whoForApp, withArgs, type AgentHeld, type ReadChoices } from "./readchoice.ts";
+import { notAgain, readingOfSource, sourceReadForApp } from "./sourceread.ts";
 
 /** The readings the app may ask, unless the person set others (read.app). */
 export const APP_READ_DEFAULT = { hour: 20, day: 60 } as const;
@@ -49,6 +53,13 @@ const STATUS_DAYS = 7;
 const LIST_DAYS = 90;
 /** A queued reading whose strom was started and has not begun: started again after so long, given up after so many tries. */
 const START_WAIT_MS = 30_000;
+/**
+ * A new reading the app asked for, accepted (202) after this long though its strom has not queued it yet — the bridge
+ * busy (its order kept on its thread, the history packed): the app waits 15 s for the answer. Its ID is given to its
+ * strom beforehand (--id); until its strom has queued it, it is said as queued; a strom that fails then leaves it failed,
+ * said why. Ended sooner: answered as it says, as before.
+ */
+const ACCEPT_MS = 3_000;
 const START_TRIES = 3;
 /** How long the agent's limit or login said by a reader keeps the app from asking (unless the agent says when it resets). */
 const LIMIT_MS = 3600_000;
@@ -157,6 +168,10 @@ export interface AppRead {
   inSource?: boolean;
   /** /status reads, a reading at work or queued: the seconds it is expected to take from its start. */
   expectSecs?: number;
+  /** Who reads (read): each reader's agent, its name, model and effort — none of a reading before strom kept them. */
+  who?: { agent: string; name: string; model?: string; effort?: string; ran?: false; state?: ReaderState; secs?: number }[];
+  /** A reading of a source again from its original: the source (S…). */
+  source?: string;
 }
 
 /** What /status, the event read and GET /reads say of each reading, made again only when one of its files changed. */
@@ -213,27 +228,35 @@ export class ReadingsSeen {
   private ofState(tree: Tree, s: ReadState): AppRead {
     let entries = 0;
     let done = 0;
+    let who: ReadResult["readers"]["who"];
     try {
       const r = buildResult(tree, s);
       entries = r.entries.length;
       done = r.readers.ran;
+      who = r.readers.who;
     } catch {
       // a report being written: counted the next time
     }
-    return this.summary(s, entries, done, s.from === APP_READ_FROM);
+    const { source, ...rest } = s;
+    return this.summary({ ...rest, who, ...(source ? { source: source.id } : {}) }, entries, done, s.from === APP_READ_FROM);
   }
 
   private ofResult(id: string): AppRead | undefined {
     try {
       const r = JSON.parse(fs.readFileSync(resultPath(this.root, id), "utf8")) as ReadResult & { from?: string };
       if (r.id !== id || !Array.isArray(r.pages)) return undefined;
-      return this.summary({ ...r, readers: r.readers?.asked ?? 1 }, r.entries?.length ?? 0, r.readers?.ran ?? 0, false);
+      const { source, ...rest } = r;
+      return this.summary({ ...rest, readers: r.readers?.asked ?? 1, who: r.readers?.who, ...(source?.id ? { source: source.id } : {}) }, r.entries?.length ?? 0, r.readers?.ran ?? 0, false);
     } catch {
       return undefined;
     }
   }
 
-  private summary(s: { id: string; state: ReadStateName; version: number; at: string; since: string; pages: ReadState["pages"]; readers: number; persons?: string[] }, entries: number, done: number, app: boolean): AppRead {
+  private summary(s: { id: string; state: ReadStateName; version: number; at: string; since: string; pages: ReadState["pages"]; readers: number; persons?: string[]; who?: ReadResult["readers"]["who"]; source?: string }, entries: number, done: number, app: boolean): AppRead {
+    const who = whoForApp(s.who, false);
+    // read to an end: as each reader says where every one does (feature read.readerState) — a reader of a long document
+    // read in parts is done once its last part is, so done and the readers' states agree
+    if (who?.length && who.length === s.readers && who.every((w) => w.state)) done = who.filter((w) => w.state === "done").length;
     return {
       id: s.id,
       state: s.state,
@@ -248,6 +271,8 @@ export class ReadingsSeen {
       ...(s.pages[0]?.name ? { name: s.pages[0].name } : {}),
       ...(s.persons?.[0] ? { person: s.persons[0] } : {}),
       from: app ? "app" : "research",
+      ...(who ? { who } : {}),
+      ...(s.source ? { source: s.source } : {}),
     };
   }
 }
@@ -304,6 +329,10 @@ export interface ReadAccepts {
   langs: string[];
   /** The seconds a reading of one document is expected to take with the agent of the research (expectSecs). */
   expectSecs?: number;
+  /** ready: the readers the person may choose — agents, models, efforts — and what each reader reads with by default (spec 059). */
+  choices?: ReadChoices;
+  /** What a source read again that differs in a matter of fact becomes (read.sourceTask, the tree's): ask, always, never — POST <token>/sourceTask sets it. */
+  sourceTask: "ask" | "always" | "never";
 }
 
 /**
@@ -312,7 +341,8 @@ export interface ReadAccepts {
  */
 export function readAccepts(tree: Tree, settings: Settings, env: Env, seen?: ReadingsSeen, now = Date.now()): ReadAccepts | undefined {
   if (actsAsArchive(tree)) return undefined;
-  const not = notReady(tree, settings, env, seen, now);
+  const held = heldOf(tree, env, seen, now);
+  const not = notReady(tree, settings, env, held);
   return {
     ready: !not,
     why: not?.why ?? null,
@@ -322,29 +352,53 @@ export function readAccepts(tree: Tree, settings: Settings, env: Env, seen?: Rea
     max: READ_MAX_BYTES,
     pages: DOC_PAGES,
     langs: readLangs(),
-    ...(not ? {} : { expectSecs: expectSecs(tree.root, settings.agent(tree.config).value) }),
+    ...(not ? {} : { expectSecs: expectSecs(tree.root, settings.agent(tree.config).value), choices: readChoices(tree, settings, env, settings.agent(tree.config).value, held) }),
+    sourceTask: settings.readSourceTask(tree.config),
   };
 }
 
-function notReady(tree: Tree, settings: Settings, env: Env, seen: ReadingsSeen | undefined, now: number): { why: string; resets?: string } | undefined {
+/**
+ * Why an agent's readers cannot start now, from the readings here: the last one of it that ended failed — out of its
+ * limit (until it resets, else an hour) or not signed in (a while) — until another of it reads.
+ */
+function heldOf(tree: Tree, env: Env, seen: ReadingsSeen | undefined, now: number): AgentHeld {
+  const ended = (seen ?? new ReadingsSeen(tree.root, env))
+    .all()
+    .map((r) => r.state)
+    .filter((s): s is ReadState => !!s && FINAL_STATES.includes(s.state));
+  const research = (s: ReadState) => s.agent;
+  return (agent) => {
+    // a reading's readers of this agent (one before strom kept each reader's: its agent; none known: the research's)
+    const of = (s: ReadState) => {
+      const mine = s.reports.filter((r) => r.version === s.version && (r.agent ?? research(s) ?? agent) === agent);
+      return mine.length ? mine : undefined;
+    };
+    const last = ended.find((s) => of(s));
+    if (!last) return undefined;
+    const mine = of(last)!;
+    if (mine.some((r) => r.outcome === "ok")) return undefined;
+    const outcomes = mine.map((r) => r.outcome);
+    const at = Date.parse(last.since);
+    if (outcomes.includes("limit")) {
+      const resets = mine.map((r) => r.resets).find((r): r is string => !!r && Date.parse(r) > 0);
+      if (resets ? Date.parse(resets) > now : at + LIMIT_MS > now) return { why: "limit", ...(resets ? { resets } : {}) };
+    } else if (outcomes.includes("auth") && at + AUTH_MS > now) return { why: "auth" };
+    return undefined;
+  };
+}
+
+function notReady(tree: Tree, settings: Settings, env: Env, held: AgentHeld): { why: string; resets?: string } | undefined {
   // started inside a sandbox no agent starts from (a bridge an agent of Codex started)
   if (sandboxOf(env)) return { why: "agent.sandbox" };
   if (!settings.shared()?.value) return { why: "shared.none" };
   const agent = settings.agent(tree.config).value;
   // (the agents' table of core, not the runners': a runner's module reaches the bridge, and so would come round to itself)
   const known = AGENTS.find((a) => a.id === agent);
-  if (agent !== "script" && (!known || !findAgent(known.command, env))) return { why: "agent.none" };
-  // the last reading that ended: its agent out of its limit, or not signed in — until another reads
-  const last = (seen ?? new ReadingsSeen(tree.root, env)).all().find((r) => r.state && FINAL_STATES.includes(r.state.state))?.state;
-  if (last?.state === "failed") {
-    const outcomes = last.reports.filter((r) => r.version === last.version).map((r) => r.outcome);
-    const ended = Date.parse(last.since);
-    if (outcomes.includes("limit")) {
-      const resets = last.reports.map((r) => r.resets).find((r): r is string => !!r && Date.parse(r) > 0);
-      if (resets ? Date.parse(resets) > now : ended + LIMIT_MS > now) return { why: "limit", ...(resets ? { resets } : {}) };
-    } else if (outcomes.includes("auth") && ended + AUTH_MS > now) return { why: "auth" };
-  }
-  return undefined;
+  // its CLI missing where its desktop app is here (Claude without Claude Code in the terminal): the conversation goes on
+  // in the app, the readers start only the CLI (core/agentcli.ts)
+  if (agent !== "script" && (!known || !findAgent(known.command, env))) return { why: known && hasDesktopApp(agent, env) ? CLI_MISSING : "agent.none" };
+  // the last reading of its readers that ended: the agent out of its limit, or not signed in — until another reads
+  return held(agent);
 }
 
 // ── how long a reading takes ────────────────────────────────────────────────────────────────────────────────────
@@ -472,6 +526,7 @@ export class AppReadings {
     else if (req.method === "GET" && what === "read" && sub && !act) this.result(res, id);
     else if (req.method === "GET" && what === "read" && act === "page" && rest) this.page(res, id, rest);
     else if (req.method === "GET" && what === "reads" && !sub) this.list(res);
+    else if (req.method === "POST" && what === "sources" && sub === "read" && !act) this.post(req, res, origin, (body, tree) => this.sourceAsked(tree, body));
     else return false;
     return true;
   }
@@ -492,7 +547,7 @@ export class AppReadings {
     if (!READ_ID.test(id)) return undefined;
     const tree = Tree.open(this.b.root, this.b.env);
     if (actsAsArchive(tree)) return undefined;
-    const s = loadState(this.b.root, id);
+    const s = loadState(this.b.root, id) ?? this.waiting.get(id);
     if (s) return { tree, result: buildResult(tree, shown(s)) };
     try {
       const r = JSON.parse(fs.readFileSync(resultPath(this.b.root, id), "utf8")) as ReadResult;
@@ -509,7 +564,10 @@ export class AppReadings {
       const n = this.none(id);
       return this.json(res, n.code, n.body);
     }
-    const r = resultForApp(got.result);
+    const kept = resultForApp(got.result);
+    const app = kept.source && FINAL_STATES.includes(kept.state) ? { ...kept, source: sourceReadForApp(got.tree, kept.source, id, this.b.settings().readSourceTask(got.tree.config)) } : kept;
+    const who = whoForApp(app.readers.who, true);
+    const r = { ...app, readers: { ...app.readers, ...(who ? { who } : {}) } };
     // at work or queued: how long it is expected to take from its start
     const s = FINAL_STATES.includes(got.result.state) ? undefined : loadState(this.b.root, id);
     const expect = s ? { expectSecs: expectOf(this.b.root, s, this.b.settings().agent(got.tree.config).value) } : {};
@@ -647,25 +705,74 @@ export class AppReadings {
       const name = this.names.get(sha);
       if (name) names.push(`--name=${records.length}:${name}`);
     }
+    const w = this.withOf(tree, body.with, readers);
+    if ("code" in w) return w;
     const limited = this.limited();
     if (limited) return limited;
     return {
       what: "a reading",
-      args: ["document", "read", ...records, "--queue", "--readers", String(readers), "--into", lang, ...(person ? ["--person", person] : []), ...(note ? [`--note=${note}`] : []), ...(region ? [`--region=${region}`] : []), ...names],
+      args: ["document", "read", ...records, "--queue", "--readers", String(readers), "--into", lang, ...(person ? ["--person", person] : []), ...(note ? [`--note=${note}`] : []), ...(region ? [`--region=${region}`] : []), ...names, ...w.args],
       asked: "read",
+      early: { readers, lang },
     };
   }
 
+  /**
+   * The readers the app chose (`with`: one item per reader, each field left out as by default), checked against what
+   * /status offers: as options of strom document read / again, or why not (400 read.with, 409 read.agent).
+   */
+  private withOf(tree: Tree, raw: unknown, readers: number): { args: string[] } | { code: number; body: Record<string, unknown> } {
+    if (raw === undefined || raw === null) return { args: [] };
+    const settings = this.b.settings();
+    const choices = readChoices(tree, settings, this.b.env, settings.agent(tree.config).value, heldOf(tree, this.b.env, this.seen, Date.now()));
+    const c = checkWith(choices, raw, readers);
+    if ("refused" in c) return { code: c.refused.code, body: { ...refusal(c.refused.why, c.refused.reason, c.refused.params), ...c.refused.params } };
+    return { args: withArgs(c.with) };
+  }
+
+  /**
+   * POST /sources/read {source, clip, readers, lang, with, taskChoice}: the record of a source read again from its
+   * original here — its readers never shown its transcript — queued as the person's; the new reading kept beside the
+   * source, held against its transcript when it ends. Where it differs in a matter of fact: taskChoice true (an app that
+   * offers the person the choice, feature read.sourceTask) as read.sourceTask says (ask: the person decides, POST
+   * /sources/<S…>/read/<D…>/task); without it (an older app) a task at once, as before. Nothing of the source changes.
+   */
+  private sourceAsked(tree: Tree, body: Record<string, unknown>): Ask {
+    const bad = (why: string): Ask => ({ code: 400, body: refusal(`the body: ${why}`, "read.bad-body") });
+    if (typeof body.source !== "string" || !/^[Ss]\d{1,9}$/u.test(body.source.trim())) return bad(`"source": a source of the research, S…`);
+    const source = normId(body.source.trim(), "source");
+    if (body.clip !== undefined && body.clip !== null && (typeof body.clip !== "string" || !/^(?:c[0-9a-f]{10}|input)$/u.test(body.clip))) return bad(`"clip": an excerpt's mark (_STROM_CLIP)`);
+    const clip = typeof body.clip === "string" ? body.clip : undefined;
+    const readers = body.readers === undefined ? 1 : body.readers;
+    if (readers !== 1 && readers !== 2) return bad(`"readers": 1 or 2`);
+    const langs = readLangs();
+    const lang = body.lang === undefined ? tree.lang : body.lang;
+    if (typeof lang !== "string" || !langs.includes(lang)) return { code: 400, body: refusal(`"lang": one of ${langs.join(", ")}`, "read.lang", { lang: String(lang).slice(0, 12) }) };
+    const no = notAgain(tree, this.b.settings().shared()?.value, source, clip);
+    if (no === "none") return { code: 404, body: refusal(`no source ${source} in this research`, "read.source.none", { source }) };
+    if (no === "notext") return { code: 409, body: refusal(`${source} has no transcript to hold a new reading against`, "read.source.notext", { source }) };
+    if (no === "noscan") return { code: 409, body: refusal(`${source} has no original here to read${clip ? ` (excerpt ${clip})` : ""}`, "read.source.noscan", { source, ...(clip ? { clip } : {}) }) };
+    const running = readingOfSource(this.b.root, source) ?? [...this.waiting.values()].find((s) => s.source?.id === source)?.id;
+    if (running) return { code: 409, body: { ...refusal(`${source} is being read again now (${running})`, "read.source.running", { source, read: running }), read: running } };
+    const w = this.withOf(tree, body.with, readers);
+    if ("code" in w) return w;
+    const limited = this.limited();
+    if (limited) return limited;
+    return { what: `${source} read again`, args: ["document", "read", "--source", source, ...(clip ? [`--clip=${clip}`] : []), "--queue", "--readers", String(readers), "--into", lang, ...(body.taskChoice === true ? [] : ["--source-task", "always"]), ...w.args], asked: "read", early: { readers, lang, source } };
+  }
+
   /** POST /read/<id>/again {readers}: the app's reading read again (after one reader: the blind second alone). */
-  private again(_tree: Tree, id: string, body: Record<string, unknown>): Ask {
+  private again(tree: Tree, id: string, body: Record<string, unknown>): Ask {
     const s = READ_ID.test(id) ? loadState(this.b.root, id) : undefined;
     if (!s || s.from !== APP_READ_FROM) return this.none(id);
     if (!FINAL_STATES.includes(shown(s).state)) return { code: 409, body: refusal(`${id} is being read now`, "read.busy", { id }) };
     const readers = body.readers === undefined ? s.readers : body.readers;
     if (readers !== 1 && readers !== 2) return { code: 400, body: refusal(`the body: "readers": 1 or 2`, "read.bad-body") };
+    const w = this.withOf(tree, body.with, readers);
+    if ("code" in w) return w;
     const limited = this.limited();
     if (limited) return limited;
-    return { what: `${id} again`, args: ["document", "again", id, "--queue", "--readers", String(readers)], asked: "again" };
+    return { what: `${id} again`, args: ["document", "again", id, "--queue", "--readers", String(readers), ...w.args], asked: "again" };
   }
 
   /** POST /read/<id>/cancel: its readers stopped (what they wrote stays), or a queued one cancelled. */
@@ -675,8 +782,12 @@ export class AppReadings {
     return { what: `${id} cancelled`, args: ["document", "cancel", id] };
   }
 
-  /** The command run as the person's (forApp), its --json said as the answer. */
-  private run(asked: Command, reply: (code: number, body: Record<string, unknown>) => void): void {
+  /**
+   * The command run as the person's (forApp), its --json said as the answer. A new reading whose strom has not queued
+   * it within ACCEPT_MS: accepted at once with the ID given to it (202), said as queued until it is; what its strom says
+   * then is written to it (failed, why).
+   */
+  private run(asked: Command, answer: (code: number, body: Record<string, unknown>) => void): void {
     const { command, args } = stromLauncher();
     if (asked.asked) this.pending++;
     let counted = !!asked.asked;
@@ -684,7 +795,30 @@ export class AppReadings {
       if (counted) this.pending--;
       counted = false;
     };
-    const child: ChildProcess = spawn(command, [...args, ...asked.args, "--json"], { cwd: this.b.root, env: forApp(this.b.env, this.b.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const early = asked.early ? this.accepting(asked.early) : undefined;
+    let replied = false;
+    let timer: NodeJS.Timeout | undefined;
+    const reply = (code: number, body: Record<string, unknown>) => {
+      if (timer) clearTimeout(timer);
+      if (replied) {
+        // answered already: what its strom said is the reading's
+        if (early) this.settled(early, code, body);
+        return;
+      }
+      replied = true;
+      if (early) this.waiting.delete(early.id);
+      answer(code, body);
+    };
+    if (early) {
+      timer = setTimeout(() => {
+        if (replied) return;
+        replied = true;
+        this.b.note(`${asked.what} accepted, still being queued: ${early.id}`);
+        answer(202, { read: early.id, state: "queued", version: 1, ...(early.source ? { source: early.source.id } : {}) });
+      }, Number(this.b.env.STROM_READ_ACCEPT_MS ?? ACCEPT_MS));
+      timer.unref?.();
+    }
+    const child: ChildProcess = spawn(command, [...args, ...asked.args, ...(early ? ["--id", early.id] : []), "--json"], { cwd: this.b.root, env: forApp(this.b.env, this.b.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let out = "";
     let err = "";
     child.stdout!.on("data", (d: Buffer) => (out += d.toString("utf8")));
@@ -709,7 +843,8 @@ export class AppReadings {
         }
         if (asked.asked) {
           this.b.note(`${asked.what} queued: ${id}${data.version && Number(data.version) > 1 ? ` (version ${String(data.version)})` : ""}`);
-          reply(202, { read: id, state: String(data.state ?? "queued"), version: Number(data.version ?? 1) });
+          const source = (data.source as { id?: unknown } | undefined)?.id;
+          reply(202, { read: id, state: String(data.state ?? "queued"), version: Number(data.version ?? 1), ...(typeof source === "string" ? { source } : {}) });
           this.dispatch();
         } else reply(200, { read: String(data.id ?? ""), state: String(data.state ?? ""), cancelled: data.cancelled === true });
         return;
@@ -723,8 +858,35 @@ export class AppReadings {
       // what the reading cannot read (a type, a PDF no system here draws, a HEIC not converted), too many pages
       if (/^read\.(type|pdf-render|heic|convert|page)/u.test(said)) return reply(415, refusal(why, said, params));
       if (said === "read.pages") return reply(413, refusal(why, said, params));
+      // a source read again that cannot be (it went, its original, read again meanwhile), a reader the CLI has none of
+      if (said === "read.source.none") return reply(404, refusal(why, said, params));
+      if (/^read\.source\.(noscan|notext|running)$/u.test(said)) return reply(409, { ...refusal(why, said, params), ...(params.read ? { read: params.read } : {}) });
+      if (said === "read.with") return reply(400, { ...refusal(why, said, params), ...params });
       reply(500, { ...refusal(why, "read.failed"), ...(said ? { reasonCode: said } : {}) });
     });
+  }
+
+  /** New readings accepted before their strom has queued them: said as queued meanwhile (GET /read/<id>). */
+  private readonly waiting = new Map<string, ReadState>();
+
+  /** A new reading's ID given beforehand, and what it is said as until its strom has queued it. */
+  private accepting(e: NonNullable<Command["early"]>): ReadState {
+    const at = new Date().toISOString();
+    const s: ReadState = { id: newReadId(), state: "queued", version: 1, readers: e.readers, lang: e.lang, pages: [], groups: [], reports: [], ...(e.source ? { source: { id: e.source } } : {}), at, since: at, from: APP_READ_FROM };
+    this.waiting.set(s.id, s);
+    return s;
+  }
+
+  /** What the strom of a reading accepted early said: queued (its own state now), or not — written failed, why. */
+  private settled(s: ReadState, code: number, body: Record<string, unknown>): void {
+    this.waiting.delete(s.id);
+    if (code === 202 || loadState(this.b.root, s.id)) return;
+    const why = String(body.error ?? body.text ?? body.reason ?? "its strom did not queue it");
+    try {
+      saveState(this.b.root, { ...s, state: "failed", since: new Date().toISOString(), error: why });
+    } catch (e) {
+      this.b.note(`${s.id}: not written as failed: ${(e as Error).message}`);
+    }
   }
 
   // ── the queue ──
@@ -792,5 +954,7 @@ interface Command {
   args: string[];
   /** A new reading, one again: counted against the limits. */
   asked?: "read" | "again";
+  /** A new reading: what it is said with when it is accepted before its strom has queued it (ACCEPT_MS). */
+  early?: { readers: number; lang: string; source?: string };
 }
 type Ask = Command | { code: number; body: Record<string, unknown> };
