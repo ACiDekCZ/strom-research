@@ -60,7 +60,7 @@ import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../c
 import { kindsAdded, kindsOf } from "../core/eventkinds.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
-import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
+import { agentSettingsLine, aliasesHere, chooseEffort, modelSaid } from "../cli/model-choice.ts";
 import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, researchKey, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
@@ -477,7 +477,8 @@ function diagnoseInto(
     }
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));
     const model = ctx.settings.models(chosen, tree).lead;
-    if (model) add("model", "ok", model);
+    // an alias with the model it last ran on, where a research here saw it run ("opus (now Opus 5.5)")
+    if (model) add("model", "ok", modelSaid(lang, chosen, model, aliasesHere(ctx), model));
     else {
       // none chosen: the agent's own, when strom knows it is weak or refused — said with the command, never set here
       // (the model is the person's choice); the code for a program (--json)

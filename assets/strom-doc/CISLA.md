@@ -271,6 +271,7 @@ nenapsáno) · `neplatí od <verze>`.
 | S1.6 | S1-connecting-app-and-research.md | aplikace 3.9.0, výzkum 1.12.0 | platí | Starší a novější verze | Older and newer versions | Ältere und neuere Versionen | Starsze i nowsze wersje |
 | S1.7 | S1-connecting-app-and-research.md | aplikace 3.13.1 | platí | Více výzkumů na jednom počítači | Several researches on one computer | Mehrere Forschungen auf einem Computer | Kilka badań na jednym komputerze |
 | S1.8 | S1-connecting-app-and-research.md | aplikace 3.0.0 | platí | Data zůstávají na počítači | Data stay on the computer | Die Daten bleiben auf dem Computer | Dane zostają na komputerze |
+| S1.9 | S1-connecting-app-and-research.md | aplikace 3.25.0, výzkum 1.29.0 | platí | Výzkum zapnutý: přepínač mostu u stromu | Research on: the bridge's switch at a tree | Forschung an: der Schalter der Brücke am Stammbaum | Badanie włączone: przełącznik mostu przy drzewie |
 | S2 | S2-edits-from-the-app.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Úpravy z aplikace ve výzkumu | Edits from the app in the research | Änderungen aus der App in der Forschung | Zmiany z aplikacji w badaniu |
 | S2.1 | S2-edits-from-the-app.md | výzkum 1.0.0 | platí | Hlavní je strom v aplikaci | The tree in the app is the main one | Maßgeblich ist der Stammbaum in der App | Główne jest drzewo w aplikacji |
 | S2.2 | S2-edits-from-the-app.md | aplikace 3.9.0, výzkum 1.12.0 | platí | Kdy se úpravy posílají | When edits are sent | Wann Änderungen gesendet werden | Kiedy zmiany są wysyłane |

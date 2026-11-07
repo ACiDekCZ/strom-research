@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -68,6 +68,31 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   dotýkají, se čtou jako jeden pohled a slova přepisu mimo přečtený výřez (záhlaví strany nad ním) se za rozdíl
   nepočítají. `strom fixes` bere čtení dvou čtenářů jako čtení prvního z nich: slepý čtenář s jiným modelem není nikdy
   dřívější model, se kterým číst znovu, a čtení, jehož některý čtenář četl dnešním modelem, se počítá jako přečtené jím.
+  Přečíst znovu z originálu čte co nejlépe. Čtenáři dostanou, co výzkum o záznamu ví – druh, jazyk, datum a kde stojí,
+  nikdy přepis ani jména –, a čtenář s modelem GPT navíc pokyn přepsat zápis uprostřed výřezu, sousední zápisy z okraje
+  vynechat a zachovat původní pravopis písmeno po písmenu. S přepisem se porovná jen zápis zdroje (ten, který čtenář
+  označí, jinak ten, který ve výřezu leží nejvíc); popisky sloupců bez protějšku („Dies:“, „Vater:“), záhlaví záznamu,
+  které si píše výzkum, poznámky výzkumu i čtenáře v závorkách, dlouhé ſ proti s, nečitelné místo proti ničemu a slova
+  mimo to, co přečetli oba, se za rozdíl nepočítají. Aplikace Strom dostane ve výsledku čtení, který zápis je zdroje,
+  celý text slepého čtenáře, upozornění, když čtenáři určili jiný druh zápisu (sňatek × křest), a když porovnání nejde
+  zapsat do výzkumu – třeba u výzkumu zapečetěného na jiném počítači –, řekne se to místo tichého vynechání. Čtenáři s
+  modelem GPT (Codex, OpenCode) vidí malý výřez zvětšený až na zhruba 2000 px (nejvýš třikrát), i když je čtení snímků
+  vyladěné na menší velikost (ladění měří celé strany a poloviny, nikdy malý výřez), ostatní jako dosud; zaregistrovaná
+  ostřejší část snímku, která ukazuje celé místo – nebo celý výřez a mimo ní zůstane jen jeho okraj –, se použije, a u místa malého na skenu se nabídne ostřejší výřez z
+  archivu – sám se nikdy nestáhne. Čtenář Codex běží bez upozorňovacího programu, pluginů, aplikací, hooků a pamětí z
+  nastavení Codexu a bez prohlížeče a ovládání počítače jeho aplikace; nastavení Codexu se nemění.
+  Model, který nainstalovaná verze Codex CLI nemá, ukončí čtení jako selhání čtenáře s tímto důvodem a s ním se zastaví i
+  běh stromu: aktualizovat Codex (`npm install -g @openai/codex@latest`), nebo zvolit jiný model; modely z katalogu, který
+  stáhl novější Codex než nainstalovaný, se nabízejí s poznámkou.
+  Čtení vyžádané z aplikace Strom se přijme hned, i když jeho zařazení trvá déle (výzkum drží jiný proces): od první
+  chvíle je vidět jako zařazené pod svým ID a pod ním se i přečte, a čtení, které pak zařadit nejde, je vidět jako
+  selhané, i s důvodem; tentýž zdroj vyžádaný mezitím znovu se odmítne jako právě čtený.
+  Volba modelu výzkumu (průvodce nastavením, Nastavení v nabídce stromu)
+  u Opusu, Sonnetu i vlastního výchozího modelu agenta jmenuje model, na kterém naposledy běžel, když ho některý
+  výzkum na tomto počítači viděl běžet – „Opus (teď Opus 5.5)“; `strom doctor` a nastavení to řeknou u uloženého
+  modelu a aplikace Strom to dostane s nabídkou čtenářů. Neznámý se říká jako dřív. Uložený zůstává Opus nebo Sonnet,
+  takže novější model své řady se použije sám; pevná verze zadaná ručně (`strom config set model.lead <model>`)
+  se nabídne jako zvolená teď a zůstane pevná.
 
 - **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku

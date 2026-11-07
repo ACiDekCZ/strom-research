@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -78,7 +78,38 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Abschrift außerhalb des gelesenen Ausschnitts (eine Kopfzeile der Seite darüber) zählen nicht als Abweichung. `strom
   fixes` nimmt eine Lesung zweier Leser als die des ersten: ein blinder Leser mit einem anderen Modell ist nie ein
   früheres Modell, mit dem erneut zu lesen wäre, und eine Lesung, von deren Lesern einer mit dem heutigen Modell las,
-  gilt als damit gelesen.
+  gilt als damit gelesen. Erneut aus dem Original lesen liest so gut wie möglich. Die Leser erfahren, was die Forschung
+  über den Eintrag weiß – Art, Sprache, Datum und wo er steht, nie die Abschrift oder einen Namen –, ein Leser mit
+  einem GPT-Modell zudem die Anweisung, den Eintrag in der Mitte des Ausschnitts abzuschreiben, die Nachbareinträge am
+  Rand wegzulassen und die ursprüngliche Schreibweise Buchstabe für Buchstabe zu bewahren. Mit der Abschrift verglichen
+  wird nur der Eintrag der Quelle (den der Leser markiert, sonst der, der am meisten im Ausschnitt liegt);
+  Spaltenbeschriftungen ohne Gegenstück („Dies:“, „Vater:“), die eigene Überschrift der Forschung zum Eintrag,
+  Anmerkungen der Forschung oder eines Lesers in Klammern, ein langes ſ gegen s, eine unleserliche Stelle gegen nichts
+  und Wörter außerhalb dessen, was beide gelesen haben, zählen nicht als Unterschied. Die Strom-App erhält im Ergebnis
+  des Lesens, welcher Eintrag der der Quelle ist, den ganzen Text des blinden Lesers, einen Hinweis, wenn die Leser
+  eine andere Art des Eintrags bestimmt haben (Trauung × Taufe), und wenn sich der Vergleich nicht in die Forschung
+  schreiben lässt – etwa bei einer auf einem anderen Computer versiegelten Forschung –, wird das gesagt statt still
+  weggelassen. Leser mit einem GPT-Modell (Codex, OpenCode) sehen einen kleinen Ausschnitt auf etwa 2000 px vergrößert
+  (höchstens dreifach), auch wenn das Lesen der Scans auf eine kleinere Größe abgestimmt ist (die Abstimmung misst
+  ganze Seiten und Hälften, nie einen kleinen Ausschnitt), die übrigen wie bisher; ein registrierter schärferer Teil
+  des Bildes, der die ganze Stelle zeigt – oder den ganzen Ausschnitt, nur ohne seinen Rand –, wird verwendet, und bei einer auf dem Scan kleinen Stelle wird ein schärferer
+  Ausschnitt aus dem Archiv angeboten – nie von selbst geladen. Der Codex-Leser läuft ohne das
+  Benachrichtigungsprogramm, die Plugins, Apps, Hooks und Erinnerungen aus den Einstellungen von Codex und ohne Browser
+  und Computer Use seiner App; die Einstellungen von Codex bleiben unverändert.
+  Ein Modell, das die installierte Codex-CLI nicht hat, beendet das Lesen als gescheiterten Leser mit diesem Grund, und
+  ein Lauf von strom hält damit an: Codex aktualisieren (`npm install -g @openai/codex@latest`) oder ein anderes Modell
+  wählen; Modelle aus dem Katalog eines neueren Codex als des installierten werden mit einem Hinweis angeboten.
+  Ein in der App Strom angefordertes Lesen wird sofort angenommen, auch wenn sein Einreihen länger dauert (ein anderer
+  Prozess hält die Forschung): es erscheint vom ersten Moment an unter seiner ID als eingereiht und wird unter ihr
+  gelesen, und eines, das sich dann nicht einreihen lässt, erscheint als gescheitert, mit dem Grund; dieselbe
+  Quelle, inzwischen erneut angefordert, wird als gerade gelesen abgelehnt.
+  Die Wahl des Modells der Forschung (die Einrichtung, die
+  Einstellungen im Menü von strom) nennt bei Opus, Sonnet und dem eigenen Standardmodell des Agenten das Modell, auf
+  dem es zuletzt lief, wenn eine Forschung auf diesem Computer es laufen sah – „Opus (jetzt Opus 5.5)“; `strom doctor`
+  und die Einstellungen sagen es beim gespeicherten Modell, und die App Strom erhält es mit der Auswahl der Leser.
+  Unbekannt bleibt es wie bisher. Gespeichert bleibt Opus oder Sonnet, so wird ein neueres Modell seiner Reihe von
+  selbst genommen; eine von Hand gesetzte feste Version (`strom config set model.lead <model>`) wird als jetzt
+  gewählt angeboten und bleibt fest.
 
 - **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
   Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein

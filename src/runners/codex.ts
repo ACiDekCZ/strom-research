@@ -83,6 +83,20 @@ export function codexBrowserOff(env: Env | undefined): string[] {
   return CODEX_BROWSER_SERVERS.filter((n) => named.has(n)).flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]);
 }
 
+/** Codex's own notice program (`notify` of its config) off for this run: a reader of strom finishing is no news to the user. */
+export const CODEX_NO_NOTIFY = ["-c", "notify=[]"] as const;
+
+/**
+ * What of the user's add-ons a run goes without: none with them on (a conversation, a run with agent.addons on); else
+ * plugins, apps, hooks, memories and the desktop app's browser and computer use off (CODEX_CLEAN, codexBrowserOff). A
+ * reader of strom always without them and without the user's notice program: it only reads its views and writes its
+ * report — the user's configuration itself is never changed.
+ */
+function cleanArgs(opts: Pick<RunOptions, "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
+  const reader = !!opts.readerFiles;
+  return [...(opts.clean || reader ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(reader ? CODEX_NO_NOTIFY : [])];
+}
+
 /** Command-line arguments of a headless run (exported for tests). */
 export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
   const sandbox = opts.readerFiles
@@ -90,7 +104,7 @@ export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
+  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...cleanArgs(opts), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
 }
 
 /**
@@ -103,7 +117,7 @@ export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "ef
     : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? [...codexBrowserOff(opts.env), ...CODEX_CLEAN] : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
+  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...cleanArgs(opts), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];
 }
 
 /**

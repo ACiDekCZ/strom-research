@@ -3,6 +3,7 @@
 // tells it to go on in the same conversation (--conversation) with what is allowed, while time is left, at most twice,
 // each said in the output and the log, the level never raised; every process's use adds up.
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

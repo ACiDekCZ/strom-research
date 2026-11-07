@@ -176,13 +176,19 @@ B*, *verworfen*, die Zahl der Versionen und eine Notiz. Offene sind aufgeklappt.
 - **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; entschieden wird in der Forschung, im Terminal
   ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Wer entscheidet, der Mensch oder der Agent, ist eine Wahl der
   Forschung ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Angebot Die KI entscheidet:** bei gespeichertem **Der Mensch entscheidet** und 10 oder mehr offenen Hypothesen
+  im Stammbaum steht über den Hypothesen der Satz „N offene Hypothesen warten auf die Entscheidung eines Menschen;
+  mit „Die KI entscheidet“ entscheidet der Agent sie selbst, jede mit Begründung.“ Das Umstellen wird in der
+  Forschung bestätigt, in der App wird die KI nicht eingeschaltet ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
 - **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)); **In der Forschung entscheiden**, bei
-  einer entschiedenen **In der Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer.
+  einer entschiedenen **In der Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer; **Auf
+  „Die KI entscheidet“ umstellen** öffnet die Forschung im Terminal, **Ausblenden** blendet das Angebot für diese
+  Forschung aus.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0 (Versionen, Stand, **Zeigen**); Liste der Hypothesen seit App 3.4.0
 - **Ab App 3.25.0:** *vom Agenten entschieden* mit Begründung (mit Forschung 1.29.0), **In der Forschung
-  entscheiden** und **In der Forschung ändern**.
+  entscheiden**, **In der Forschung ändern** und das Angebot **Die KI entscheidet**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Zeigen: nur in der Ansicht verbunden

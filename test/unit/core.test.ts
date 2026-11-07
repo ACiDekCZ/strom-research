@@ -164,6 +164,7 @@ test("names: GEDCOM slashes, plain names, folding", () => {
   assert.equal(noName(""), false);
   assert.equal(foldText("Víšek  Antonín"), "visek antonin");
   assert.equal(foldText("Weiß Łukasz"), "weiss lukasz");
+  assert.equal(foldText("Joſef Lhoták 1ª 2º"), "josef lhotak 1a 2o");
   assert.equal(safeFolderName('Novák: "rod"'), "Novák rod");
   assert.equal(safeFolderName("shared"), "shared-1");
 });

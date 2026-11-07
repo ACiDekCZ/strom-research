@@ -82,9 +82,9 @@ A, B, C… with what speaks for each and what against.
 ### R10.3.1 Deciding a hypothesis
 
 A hypothesis is decided for one version, or abandoned when none can be decided. Who decides it is a choice of the
-research ([R10.3.2](#R10.3.2)): by default **The user decides** (the agent only proposes the decision), or **The AI
-decides** (the agent decides itself, only by a cited record). The app does not let a hypothesis be decided; it points
-to the research.
+research ([R10.3.2](#R10.3.2)): **The AI decides** (the agent decides itself, only by a cited record; the default
+when no choice is saved), or **The user decides** (the agent only proposes the decision). The app does not let a
+hypothesis be decided; it points to the research.
 
 - **Enforced by the code:**
   - with **The user decides**, a decision is a person's step. When the agent runs `strom hypothesis decide` (also
@@ -121,7 +121,8 @@ to the research.
 - **Since:** research 1.0.0; the list of sources not recorded 1.12.0
 - **From research 1.28.0:** only a person decides, the agent proposes; the code enforces the named version (formerly
   method only). Hypotheses the agent decided before stay as they were.
-- **From research 1.29.0:** who decides is a choice of the research ([R10.3.2](#R10.3.2)). What waits also offers
+- **From research 1.29.0:** who decides is a choice of the research ([R10.3.2](#R10.3.2)); without a saved choice the
+  AI decides, also in a research set up earlier. What waits also offers
   open hypotheses without a proposal (**Decide**, **Leave it open**) and the menu **Change the decision**. Up to 1.28.0
   an open hypothesis without a proposal was not in What waits and was decided only by the command `strom hypothesis
   decide`.
@@ -133,16 +134,30 @@ to the research.
 <a id="R10.3.2"></a>
 ### R10.3.2 Who decides the hypotheses: the user or the AI
 
-The research's choice **Who decides the hypotheses** sets who decides a hypothesis. **The user decides** is the
-default: the agent only proposes and the decision waits in **What waits**. **The AI decides**: the agent decides itself
-once a cited record points to one version; its decision is marked and a person can change it at any time.
+The research's choice **Who decides the hypotheses** sets who decides a hypothesis. **The AI decides** is the
+default: the agent decides itself once a cited record points to one version; its decision is marked and a person can
+change it at any time. **The user decides**: the agent only proposes and the decision waits in **What waits**. Back to
+the user deciding: `strom config set hypotheses.decide person`.
 
 - **Enforced by the code:**
-  - the default is **The user decides**, also for a research without this choice (set up earlier). Switching does not
-    change hypotheses already decided;
-  - **The AI decides** is turned on only by a person in the terminal: the question explains what it means and asks for
-    a second yes. strom refuses it to the agent. Going back to **The user decides** is possible at any time, without
-    confirmation;
+  - without a saved choice the AI decides: in a new research, in a research set up earlier (up to version 1.28.0 the
+    choice did not exist), in a setup without a terminal and when an agent runs the setup. A saved choice (**The user
+    decides** and **The AI decides** alike) stays. Switching does not change hypotheses already decided;
+  - the setup (`strom setup`) offers **The AI decides (recommended)** first, with the sentence "Recommended: the AI
+    decides – the research goes on without hypotheses waiting; each of its decisions is marked and can be changed."
+    Enter takes it without a further confirmation. **The user decides**, when chosen, is saved, and the next `strom
+    setup` offers it as the current choice;
+  - where **The user decides** is saved, only a person in the terminal turns **The AI decides** on again: the question
+    explains what it means and asks for a second yes. The same holds for removing the saved choice (`strom config unset
+    hypotheses.decide`), because without it the AI decides. strom refuses both to the agent. Going back to **The user
+    decides** is possible at any time, without confirmation;
+  - with **The user decides** saved and 10 or more open hypotheses in the tree, the app offers the switch in one
+    sentence in **What the research knows**, the section **Hypotheses**: "N open hypotheses wait for a person to decide;
+    with "The AI decides" the agent decides them itself, each with its reason." **Switch to "The AI decides"** opens
+    the research in the terminal, where the choice is confirmed with a second yes; the app does not turn the AI on.
+    **Hide** hides the offer for this research for good (in this browser). The offer is only at a research on this
+    computer that knows the choice and offers the link into the research
+    ([S3.5](S3-what-the-research-knows.md#S3.5));
   - the choice applies to the research on this computer. One research can have its own (`--for-tree`); the choice from
     the app is written only for that research;
   - the agent decides only a version that a cited source of the research (S…) supports. Without one strom refuses and
@@ -161,15 +176,18 @@ once a cited record points to one version; its decision is marked and a person c
   - in a Strom archive the choice does not exist.
 - **Method only:** the agent tells the person in one sentence what it decided.
 - **Controls:** terminal: the setup `strom setup`, the step **Who decides the hypotheses — the uncertain links between
-  people?** (only when a person runs the setup in the terminal; without a terminal it does not ask and **The user
-  decides** applies); the menu **Settings** → **Language, agent, model, what the agent may do alone, stories… (the
+  people?** (only when a person runs the setup in the terminal; without a terminal it does not ask and the saved
+  choice applies, without one **The AI decides**; the recommendation is only here, the menu Settings offers the
+  current choice); the menu **Settings** → **Language, agent, model, what the agent may do alone, stories… (the
   setup)** → **Who decides the hypotheses: …**; `strom config set hypotheses.decide person|agent [--for-tree]`, the
-  value in force is shown by `strom config where`. App: **Research** → **Other actions** → **Research for this tree…** →
+  value in force is shown by `strom config where`. Back to the user deciding: `strom config set hypotheses.decide
+  person`. App: **Research** → **Other actions** → **Research for this tree…** →
   **Who decides hypotheses**: **The user decides** is written to the research at once, **The AI decides** the research
-  confirms in the terminal (**Confirm in the research**). The row shows only with a research that knows the choice.
+  confirms in the terminal (**Confirm in the research**). The row shows only with a research that knows the choice. The offer in **What the research knows** →
+  **Hypotheses**: **Switch to "The AI decides"**, **Hide**.
 - **Since:** research 1.29.0, app 3.25.0
 
-<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 -->
+<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 · výchozí AI (výzkum 1.29.0): research:src/core/config.ts hypothesesDecide (=== person ? person : agent), getDefault hypotheses.decide agent · src/commands/setup.ts syncDecisions/layerChange (agent nebo unset tam, kde je person → requireHuman) · src/cli/wizard.ts 5c (was = stored === person ? 0 : 1; druhé ano jen při uloženém person; person uloženo; ui.setup.model.recommended, ui.setup.hypotheses.recommended) · src/cli/menu-settings.ts hypothesesStep (bez doporučení) · CHANGELOG.cs.md 1.29.0 „Kde nic zvoleno není, rozhoduje AI“ · spec 060 K1.9 · nabídka: app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN = 10, researchHypothesesOffer (HYPOTHESES_DECIDE_FEATURE, hypothesesDecide === person, isOpenHypothesis celého stromu, activeResearchLink hypotheses decide=agent), hideHypothesesOffer (localStorage na výzkum) · strings.ts research.hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · spec 060 K1.6–K1.8 -->
 
 <a id="R10.4"></a>
 ## R10.4 A family outside the tree waits for a proven link

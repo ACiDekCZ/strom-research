@@ -15,8 +15,10 @@ nejdou.
 - **Hranice:**
   - Most přijme dotaz jen ze stránky aplikace Strom na stromapp.info nebo z místní adresy. Přijde-li jeho
     klíč z cizí stránky, výzkum klíč hned vymění a ten dotaz nedostane odpověď.
-  - Most skončí sám, když se ho dvě hodiny nikdo na nic nezeptá a ve stromu přitom nikdo nepracuje. Pravidelný
-    dotaz aplikace na stav most při životě nedrží.
+  - Most běží, dokud ho člověk nevypne (`strom live stop`, v aplikaci přepínač **Výzkum zapnutý**, [S1.9](#S1.9)),
+    nebo do vypnutí počítače. Sám skončí jen tehdy, když to člověk zvolil (`live.idleMinutes`, v aplikaci **Po
+    2 hodinách nečinnosti**): když se ho ta doba nikdo na nic nezeptá a ve stromu přitom nikdo nepracuje.
+    Pravidelný dotaz aplikace na stav most při životě nedrží.
   - Když se most spustí znovu sám (aktualizace, nečinnost, pád), drží si adresu: stejný port, je-li volný, a stejný
     klíč. Aplikace se pak spojí bez nového odkazu.
   - `strom live stop` klíč zahodí: aplikaci pak znovu spojí až `strom app`. Je-li port obsazený jiným programem,
@@ -24,11 +26,13 @@ nejdou.
   - Zápis most odmítne, když je strom zapečetěný na jiném počítači, když soubory stromu ve složce v cloudu ještě
     nejsou stažené a když je plný disk. Úpravy pak čekají v aplikaci ([S2](S2-edits-from-the-app.md)).
 - **Ovládání:** terminál: `strom live` (běží most?), `strom live start`, `strom live stop` (`--forget` zapomene
-  i port), `strom config set live.idleMinutes <minuty>` (0: nikdy sám). Záznam běhu je ve složce výzkumu
+  i port), `strom config set live.idleMinutes <minuty>` (0: nikdy sám, výchozí). Záznam běhu je ve složce výzkumu
   v `.strom/live.log`.
 - **Platí od:** výzkum 1.0.0. Stejná adresa po novém spuštění od 1.8.0, `live.idleMinutes` od 1.25.0.
+- **Od výzkumu 1.29.0:** most sám po nečinnosti nekončí (výchozí `live.idleMinutes` 0); dřív skončil sám po dvou
+  hodinách. Hodnota, kterou si člověk uložil, zůstává.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
 
 <a id="S1.2"></a>
 ## S1.2 Výzkum se otevře v aplikaci odkazem z terminálu
@@ -181,3 +185,34 @@ nimi jde strom jen přes most na tomto počítači ([S1.1](#S1.1)).
 - **Platí od:** aplikace 3.0.0
 
 <!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+
+<a id="S1.9"></a>
+## S1.9 Výzkum zapnutý: přepínač mostu u stromu
+
+Každý strom z výzkumu na tomto počítači má v aplikaci přepínač **Výzkum zapnutý**. Ukazuje skutečný stav mostu:
+zapnutý, když most odpovídá, jinak vypnutý. Zapnutý most běží do vypnutí přepínačem nebo `strom live stop`, do vypnutí
+počítače, nebo podle nastavení **Vypnout výzkum po nečinnosti**.
+
+- **Hranice:**
+  - Vypnutí ukončí most jako `strom live stop`, jen si most nechá adresu (port a klíč). Vypnutý most zůstane vypnutý:
+    nová práce ve stromu ho sama nevrátí. Strom v aplikaci zůstává a jde dál upravovat
+    ([S1.5](#S1.5)). Pod přepínačem stojí „Vypnutý. Zůstane vypnutý, dokud se znovu nezapne.“
+  - Most vypnutý nečinností se vrátí sám s novou prací ve stromu, na téže adrese. Pod přepínačem stojí „Vypnul se po
+    nečinnosti. S novou prací ve stromu se zase zapne sám.“
+  - Zapnutí pošle výzkumu odkaz, který spustí jen most na jeho poslední adrese, bez okna. Když se nic nestane, nebo
+    výzkum zapnutí z aplikace neumí, aplikace ukáže příkaz `strom live start` (spustit v terminálu ve složce stromu)
+    s tlačítkem **Kopírovat**. Starší výzkum, který vypnutí z aplikace neumí, ukáže stejně příkaz `strom live stop`.
+  - Po vypnutí nebo restartu počítače most neběží a sám se nespustí. Zapne ho člověk: v panelu výzkumu **Zapnout**,
+    nebo `strom live start`.
+  - **Vypnout výzkum po nečinnosti** má dvě volby: **Do vypnutí počítače** (výchozí) a **Po 2 hodinách nečinnosti**.
+    Platí pro všechny stromy na tomto počítači a drží ji výzkum (`live.idleMinutes` 0 nebo 120). Běžící mosty ji
+    převezmou do minuty. Hodnota nastavená v terminálu se ukáže jako **Vlastní hodnota (N min)**. Neběží-li výzkum,
+    který volbu umí, aplikace místo voleb ukáže příkazy do terminálu.
+  - Na telefonu a tabletu přepínač není (výzkum běží na počítači). Kopie stromu z výzkumu přepínač nemá.
+- **Ovládání:** aplikace: přepínač **Výzkum zapnutý** v panelu výzkumu (strom bez sledování živě a po skončení
+  sledování) a ve **Správě stromů** u řádku stromu; panel výzkumu, když výzkum neběží: **Zapnout**; **Nastavení** →
+  **Výzkum na tomto počítači** → **Vypnout výzkum po nečinnosti**. Terminál: `strom live start`, `strom live stop`,
+  `strom config set live.idleMinutes 0` (do vypnutí počítače) nebo `120` (po 2 hodinách nečinnosti).
+- **Platí od:** aplikace 3.25.0, výzkum 1.29.0
+
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->

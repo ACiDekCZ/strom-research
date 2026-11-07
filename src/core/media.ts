@@ -376,9 +376,11 @@ function stripsOutside(r: Region, m: Region): Region[] {
  * (COVERS, as coveringPart takes a part of an image registered only in parts — a crop drawn a little past the entry
  * fetched sharper), the one that shows the most, then the sharpest, the place cut to it (`use.cut`, `use.out`). A
  * sharper part that shows less of the place, but much of it or lies mostly in it, is not used: `near` says it — the
- * part, its detail and what of the place it shows. Nothing sharper: {}.
+ * part, its detail and what of the place it shows. Nothing sharper: {}. `holds`: what of the place must be read (a
+ * source's excerpts in it, the place their margin): a sharper part that holds all of them counts as one that shows
+ * nearly all of the place — what it leaves out is only the margin.
  */
-export function sharperCover(all: Media[], whole: Media, r: Region): { use?: SharperCover; near?: { part: Media; gain: number; shows: Region } } {
+export function sharperCover(all: Media[], whole: Media, r: Region, holds?: Region[]): { use?: SharperCover; near?: { part: Media; gain: number; shows: Region } } {
   const full = sharperPart(all, whole, r);
   if (full) return { use: full };
   if (!whole.width || whole.part || whole.recordset === undefined || whole.image === undefined) return {};
@@ -391,7 +393,7 @@ export function sharperCover(all: Media[], whole: Media, r: Region): { use?: Sha
     if (!o) continue;
     const gain = m.width / p.w / whole.width;
     if (gain < SHARPER) continue;
-    if (o.of >= COVERS) {
+    if (o.of >= COVERS || (holds?.length && holds.every((h) => inside(h, p)))) {
       if (!best || o.of > best.of || (o.of === best.of && gain > best.gain)) best = { part: m, gain, of: o.of, meet: o.meet };
     } else if ((o.of >= 0.25 || o.ofPart >= 0.5) && (!near || o.of > near.of || (o.of === near.of && gain > near.gain))) near = { part: m, gain, of: o.of, meet: o.meet };
   }

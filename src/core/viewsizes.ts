@@ -4,7 +4,7 @@
 // cheapest sizes that read the research's own known records as well as the largest. Kept in the user config per
 // agent and model, with its date; strom media view, strom read and the readers go by it.
 
-import { imageMax, OVERVIEW_MAX } from "../agents/images.ts";
+import { imageMax, imageMin, OVERVIEW_MAX, VIEW_MIN } from "../agents/images.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import type { Settings, UserConfig } from "./config.ts";
 import type { TreeConfig } from "./model.ts";
@@ -47,6 +47,13 @@ export interface ViewSizes {
   read: number;
   /** What the model takes in whole: no view is bigger. */
   max: number;
+  /**
+   * What a small crop or half is enlarged to for this agent and model (agents/images.ts imageMin), never above max. A
+   * calibration measures how far a view may be reduced (whole images, halves, pages), never a small crop enlarged: a
+   * GPT reader's crop goes by the model alone (a view made with `liftMax: max`; a half within the calibrated read); the
+   * default enlargement (800) stays within a calibrated read as before.
+   */
+  min: number;
   /** The key of the agent and the model it runs on (core/modelkey.ts): what is measured and tuned goes by it. */
   key: string;
   /** The key as asked (an alias: "claude opus"), when it is another: kept beside a reader's record. */
@@ -55,9 +62,9 @@ export interface ViewSizes {
 }
 
 /** The defaults of an agent and model, without a calibration. */
-export function defaultViewSizes(agent: string | undefined, model: string | undefined): { find: number; read: number; max: number } {
+export function defaultViewSizes(agent: string | undefined, model: string | undefined): { find: number; read: number; max: number; min: number } {
   const max = imageMax(agent, model);
-  return { find: Math.min(OVERVIEW_MAX, max), read: max, max };
+  return { find: Math.min(OVERVIEW_MAX, max), read: max, max, min: Math.min(imageMin(agent, model), max) };
 }
 
 /**
@@ -71,7 +78,8 @@ export function viewSizes(cfg: UserConfig, agent: string, model: string | undefi
   const named = key !== asked ? { key, asked } : { key };
   const c = calibrationOf(cfg, key, aliases);
   if (!c) return { ...d, ...named };
-  return { find: Math.min(c.find, d.max), read: Math.min(c.read, d.max), max: d.max, ...named, calibrated: c };
+  const read = Math.min(c.read, d.max);
+  return { find: Math.min(c.find, d.max), read, max: d.max, min: d.min > VIEW_MIN ? d.min : Math.min(d.min, read), ...named, calibrated: c };
 }
 
 /**

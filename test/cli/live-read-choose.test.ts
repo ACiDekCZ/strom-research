@@ -275,7 +275,7 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     fs.rmSync(path.join(dir, "hold"));
     await until("read again", async () => json(await request("GET", `${url}/read/${a.read}`, undefined, app)).state === "done", { ms: 60_000 });
     const done = json(await request("GET", `${url}/read/${a.read}`, undefined, app));
-    assert.deepEqual(done.source, { id: "S0001", agree: "same", variants: [] });
+    assert.deepEqual(done.source, { id: "S0001", entries: ["e1"], agree: "same", variants: [] });
     assert.deepEqual(done.readers.who, [{ agent: "script", name: "script" }]);
     assert.ok(fs.readFileSync(path.join(dir, "saw.log"), "utf8").trim().split("\n").every((l) => l === "no-transcript"), "never shown the transcript");
     const after = src(w, "S0001");

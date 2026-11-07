@@ -34,12 +34,16 @@ export interface Readers {
   effort: string | undefined;
   /** The longest side of a view the readers' model takes in whole. */
   viewMax: number;
+  /** What a small crop is enlarged to for this agent and model (core/viewsizes.ts min). */
+  viewMin: number;
+  /** What that enlargement may reach: what the model takes in whole, above a calibrated viewMax (views.ts liftMax). */
+  viewLift: number;
   parallel: number;
   /** The name of this run's reports: notes/readings/<stem>-<reader>.md. */
   stem: string;
   reportsDir: string;
   /** One reader: it looks at these views and writes its report; the report's text comes back. */
-  read: (name: string, views: string[], title: string, prompt: (report: string) => string, more?: ReadMore) => Promise<{ report: string; text: string; outcome: string; costUsd?: number; costPartial?: boolean; resumeAt?: string }>;
+  read: (name: string, views: string[], title: string, prompt: (report: string) => string, more?: ReadMore) => Promise<{ report: string; text: string; outcome: string; costUsd?: number; costPartial?: boolean; resumeAt?: string; modelRejected?: true }>;
   cost: () => number;
   /** How many readers ran, and whether one stopped before it said what it cost. */
   runs: () => number;
@@ -217,6 +221,8 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       model,
       reported: r.metrics.model,
       views: views.length,
+      // the views it was given, by their file: two readers of one reading (a document read twice) each get their own
+      viewFiles: views.map((v) => path.basename(v)),
       px: views.reduce((n, v) => {
         const s = imageSizeOfFile(v);
         return n + (s ? s.width * s.height : 0);
@@ -240,10 +246,10 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     runs++;
     if (r.metrics.costUsd === undefined || r.metrics.costPartial) partial = true;
     // refused by a sandbox that does not say so: said as such, never only "error"
-    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
+    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.stalled ? READER_STALLED : r.outcome === "error" && r.modelRejected ? `${agentId === "codex" ? `the model ${model ?? "it reads with"} is not available in the Codex CLI installed here — update Codex: npm install -g @openai/codex@latest, or another model` : `${agentId} does not take the model ${model ?? "it reads with"} — another model`}` : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
-    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
+    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}), ...(r.outcome === "error" && r.modelRejected ? { modelRejected: true as const } : {}) };
   };
-  return { agent: agentId, model, effort, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
+  return { agent: agentId, model, effort, viewMax: sizes.read, viewMin: sizes.min, viewLift: sizes.max, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

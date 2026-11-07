@@ -14,11 +14,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { foldText } from "./text.ts";
+import { gptReader } from "../agents/images.ts";
 import { MONTHS, dateYears, normalizeDate } from "./gdate.ts";
 import { langName } from "./lang.ts";
 import { birthEvent, sameFamilyName, surnameForms } from "./people.ts";
 import { sameFamily } from "./surnames.ts";
-import type { Person, Place } from "./model.ts";
+import type { Person, Place, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
 /** D + the time it began (UTC, to the second) + 4 hex: D20261019153012-a1b2. */
@@ -77,15 +78,66 @@ export interface DocPageView {
   parts?: { label: string; view: string }[];
   /** Only a part of the page is read (fractions of the page). */
   region?: Region;
+  /** What of the page the view shows where it is not all of the region: a sharper part cut the place to it (fractions of the page). */
+  shows?: Region;
 }
 
-export function docPrompt(o: { pages: DocPageView[]; report: string; lang: string; note?: string | undefined; blind?: boolean }): string {
+/**
+ * What the research knows of a source read again from its original, told its readers (spec 059 K6.2): its kind,
+ * language, date and where it stands — never its transcript, never a name of it.
+ */
+export interface SourceAbout {
+  kind?: string;
+  language?: string;
+  date?: string;
+  locator?: string;
+  /**
+   * Its views are cut out around its entry (its excerpts): the entry in the middle, its neighbours at the margins — told
+   * a GPT reader alone (see spelling).
+   */
+  cut?: boolean;
+  /**
+   * The reader told to keep the original spelling letter by letter: a GPT reader alone. Claude read the source's entry
+   * worse with this line and the one of the entry in the middle (a long s, the marks of abbreviations where the
+   * transcript has neither; 2026-11-07, Opus on one excerpt four times each: as before 28.75 words, all the block 26.5,
+   * what is known of the record alone 28) — the format's "its own spelling, abbreviations as written" says enough, and
+   * the source's entry is the one most within the excerpt where no reader marks it.
+   */
+  spelling?: boolean;
+}
+
+/** What a reader of this agent and model is told of a source read again: all of it a GPT reader, else no middle nor spelling. */
+export function aboutFor(a: SourceAbout, agent: string | undefined, model: string | undefined): SourceAbout {
+  if (gptReader(agent, model)) return { ...a, spelling: true };
+  const { cut: _cut, spelling: _spelling, ...rest } = a;
+  return rest;
+}
+
+/** A source read again: what is known of it; a GPT reader also the entry in the middle, its spelling kept (a block of docPrompt). */
+function aboutSource(a: SourceAbout): string {
+  const facts = [a.kind ? `kind: ${a.kind}` : "", a.language ? `language: ${a.language}` : "", a.date ? `date: ${a.date}` : "", a.locator ? `where it stands: ${a.locator.replace(/\s*\n\s*/gu, " ")}` : ""].filter(Boolean);
+  return `
+THIS RECORD
+It is one record the research has a transcript of, read again from its original. What the research knows of it
+(no transcript, no names — a description only, never a hint to what is written):
+${facts.length ? facts.map((f) => `- ${f}`).join("\n") : "- nothing more"}
+${
+    a.cut
+      ? `The view is cut out around this one entry: the entry to transcribe is the one in the middle of the view. Lines cut
+at the top or bottom edge and words at its margins belong to the neighbouring entries — leave them out. When you
+write a neighbouring entry all the same, add the line "this: yes" to the block of the entry in the middle.
+`
+      : ""
+  }${a.spelling ? "Keep the original spelling letter by letter (ż, qv, ʒ, a long s, a doubled letter as written): never modernise it.\n" : ""}`;
+}
+
+export function docPrompt(o: { pages: DocPageView[]; report: string; lang: string; note?: string | undefined; blind?: boolean; source?: SourceAbout | undefined }): string {
   const into = langName(o.lang);
   const blind = !!o.blind;
   return `You are a READER of one document for a family history research: a record from a register, a letter, a deed,
 a gravestone, the back of a photo — anything written. You are not the researcher: you decide nothing and you write
 nowhere except your report file. Do not run any commands.
-${blind ? "\nThis is a BLIND reading: another reader reads the same document; write what YOU read, exactly.\n" : ""}${o.note ? `\nWhat the person said the document is (a description only — never a hint to what is written on it):\n${o.note.replace(/\s*\n\s*/g, " ")}\n` : ""}
+${blind ? "\nThis is a BLIND reading: another reader reads the same document; write what YOU read, exactly.\n" : ""}${o.source ? aboutSource(o.source) : ""}${o.note ? `\nWhat the person said the document is (a description only — never a hint to what is written on it):\n${o.note.replace(/\s*\n\s*/g, " ")}\n` : ""}
 THE PAGES (open each file with your image reader, in this order)
 ${o.pages
   .map((p) => {
@@ -129,7 +181,7 @@ region: x,y,w,h — where the entry stands on its page: fractions (0–1) of the
 transcript: the entry word for word as written — its own language and spelling, abbreviations as written, "|" where
   a line ends; "[?]" right after a word you are not sure of, "[...]" for what you cannot read. Never complete a word,
   a name or a date from what you expect: "[...]" beats a guess.
-${
+${o.source?.cut ? "this: yes — only on the entry in the middle of the view, when you write a neighbouring entry too\n" : ""}${
   blind
     ? ""
     : `translation: the transcript in ${into}, as close as it goes; keep "[?]" and "[...]" where they are
@@ -204,6 +256,8 @@ export interface RawEntry {
   persons: RawPerson[];
   events: RawEvent[];
   relations: string[][];
+  /** The reader marked it the entry in the middle of the view (a source read again: the source's own entry). */
+  this?: boolean;
 }
 
 export interface DocReport {
@@ -216,7 +270,7 @@ export interface DocReport {
 
 const KEY = /^\s*(?:[-*]\s+)?\**(\p{L}+)\**\s*:\**\s*(.*)$/u;
 const MULTI = new Set(["transcript", "translation", "context"]);
-const ENTRY_KEYS = new Set(["region", "transcript", "translation", "term", "person", "event", "relation"]);
+const ENTRY_KEYS = new Set(["region", "transcript", "translation", "term", "person", "event", "relation", "this"]);
 const DOC_KEYS = new Set(["kind", "language", "script", "date", "legible", "why", "context"]);
 
 /** A report without the line its reader added each block at. */
@@ -318,6 +372,7 @@ export function parseDocReport(text: string): DocReport {
     const entry: RawEntry = { id, page, transcript, terms: [], persons: [], events: [], relations: [] };
     const region = parseRegion(one("region"));
     if (region) entry.region = region;
+    if (/^(?:yes|y|true|1)(?![\p{L}\p{N}])/iu.test(one("this") ?? "")) entry.this = true;
     const tr = one("translation");
     if (tr) entry.translation = tr;
     for (const t of fields.get("term") ?? []) {
@@ -858,8 +913,11 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
   return wordHunks(a, b).map(({ at, other }) => ({ at, other }));
 }
 
-/** As wordDiff, each place saying whether it lies at the start or the end of both texts (edge): nothing alike before it, or after it. */
-export function wordHunks(a: string, b: string): { at: string; other: string; edge: boolean }[] {
+/**
+ * As wordDiff, each place saying whether it lies at the start or the end of both texts (edge): nothing alike before
+ * it, or after it — and at the start (start), at the end (end).
+ */
+export function wordHunks(a: string, b: string): { at: string; other: string; edge: boolean; start: boolean; end: boolean }[] {
   // letters one reader spaced out joined as the other wrote the word
   const x = words(a, nameKeys(b));
   const y = words(b, nameKeys(a));
@@ -867,12 +925,12 @@ export function wordHunks(a: string, b: string): { at: string; other: string; ed
   const m = y.length;
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i]![j] = x[i]!.key === y[j]!.key ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
-  const out: { at: string; other: string; edge: boolean }[] = [];
+  const out: { at: string; other: string; edge: boolean; start: boolean; end: boolean }[] = [];
   let i = 0;
   let j = 0;
   let hunk: { at: Word[]; other: Word[]; start: boolean } | undefined;
   const flush = () => {
-    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" "), edge: hunk.start || (i >= n && j >= m) });
+    if (hunk && (hunk.at.length || hunk.other.length)) out.push({ at: hunk.at.map((w) => w.text).join(" "), other: hunk.other.map((w) => w.text).join(" "), edge: hunk.start || (i >= n && j >= m), start: hunk.start, end: i >= n && j >= m });
     hunk = undefined;
   };
   while (i < n || j < m) {
@@ -890,7 +948,10 @@ export function wordHunks(a: string, b: string): { at: string; other: string; ed
   return out;
 }
 
-const same = (a: string | undefined, b: string | undefined) => foldText(a ?? "") === foldText(b ?? "");
+/** A stop, comma or colon closing a word ("22." for "22", "Lhota," for "Lhota"): no difference of two readers. */
+const closing = (t: string) => foldText(t).replace(/[.,;:]+(?=\s|$)/gu, "").replace(/\s+/gu, " ").trim();
+
+const same = (a: string | undefined, b: string | undefined) => closing(a ?? "") === closing(b ?? "");
 
 /**
  * The people of one reader paired with the other's by the name written, the best match first: the whole name alike,
@@ -930,23 +991,20 @@ function pairByName(mine: DocPerson[], theirs: DocPerson[]): Map<number, number>
 }
 
 /**
- * The first reader's entries against the blind reader's: paired by page and order; the transcripts word by word, the
- * people by role and order (given name, surname), the events by type and order (date, place). Where they differ is a
- * variant of the entry; an entry only one of them has differs whole.
+ * The first reader's entries against the blind reader's: paired by page — where the two read as many entries of it,
+ * or one of them gave no place of an entry, in their order; else each with the one its place overlaps most (a reader
+ * that wrote an entry beside the one asked as well, the other not). The transcripts word by word, the people by role
+ * and order (given name, surname), the events by type and order (date, place). Where they differ is a variant of the
+ * entry; an entry only one of them has differs whole. of: each blind entry (its index) → the first one's it was held against.
  */
-export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: "same" | "differ"; entries: DocEntry[] } {
+export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: "same" | "differ"; entries: DocEntry[]; of: Map<number, string> } {
   let all = true;
-  const byPage = (list: DocEntry[]) => {
-    const m = new Map<number, DocEntry[]>();
-    for (const e of list) m.set(e.page, [...(m.get(e.page) ?? []), e]);
-    return m;
-  };
-  const other = byPage(blind);
-  const used = new Map<number, number>();
-  const out = first.map((e) => {
-    const k = used.get(e.page) ?? 0;
-    used.set(e.page, k + 1);
-    const b = other.get(e.page)?.[k];
+  const pairs = pairEntries(first, blind);
+  const of = new Map<number, string>();
+  for (const [i, j] of pairs) of.set(j, first[i]!.id);
+  const out = first.map((e, i) => {
+    const j = pairs.get(i);
+    const b = j === undefined ? undefined : blind[j];
     const variants: { field: string; at: string; other: string }[] = [];
     const regions = new Map<DocPerson | DocEvent, Region>();
     if (!b) variants.push({ field: "entry", at: e.id, other: "" });
@@ -1008,8 +1066,41 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
     return { ...e, persons: e.persons.map(placed), events: e.events.map(placed), agree, ...(variants.length ? { variants } : {}) } as DocEntry;
   });
   // entries only the blind reader has
-  for (const [page, list] of other) if (list.length > (used.get(page) ?? 0)) all = false;
-  return { agree: all ? "same" : "differ", entries: out };
+  if (of.size < blind.length) all = false;
+  return { agree: all ? "same" : "differ", entries: out, of };
+}
+
+/** The area two regions share. */
+export function overlapArea(a: Region, b: Region): number {
+  const across = Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]);
+  const down = Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]);
+  return across > 0 && down > 0 ? across * down : 0;
+}
+
+/**
+ * The first reader's entries paired with the blind one's (index → index), page by page: as many of a page, or a place
+ * missing, in their order; else the most overlapping pair first, entries overlapping none unpaired.
+ */
+function pairEntries(first: DocEntry[], blind: DocEntry[]): Map<number, number> {
+  const out = new Map<number, number>();
+  const pages = new Set([...first, ...blind].map((e) => e.page));
+  for (const page of pages) {
+    const a = first.flatMap((e, i) => (e.page === page ? [i] : []));
+    const b = blind.flatMap((e, j) => (e.page === page ? [j] : []));
+    if (a.length === b.length || ![...a.map((i) => first[i]!), ...b.map((j) => blind[j]!)].every((e) => e.region)) {
+      a.forEach((i, k) => {
+        if (k < b.length) out.set(i, b[k]!);
+      });
+      continue;
+    }
+    let open = a.flatMap((i) => b.map((j) => ({ i, j, s: overlapArea(first[i]!.region!, blind[j]!.region!) }))).filter((x) => x.s > 0);
+    while (open.length) {
+      const best = open.reduce((m, x) => (x.s > m.s ? x : m));
+      out.set(best.i, best.j);
+      open = open.filter((x) => x.i !== best.i && x.j !== best.j);
+    }
+  }
+  return out;
 }
 
 // ── the research's tree: who a person may be, which place a place is ─────────────────────────────────────────────
@@ -1137,6 +1228,8 @@ export interface ReadPage {
   h?: number;
   /** Only this part of it read (fractions of the page). */
   region?: Region;
+  /** What of it the readers' view showed where not all of the region: a sharper part of the image cut the place to it (fractions of the page). */
+  shows?: Region;
 }
 
 export interface ReadReport {
@@ -1154,6 +1247,8 @@ export interface ReadReport {
   agent?: string;
   model?: string;
   effort?: string;
+  /** Its agent refused the model (Codex: "model_not_found", a model its CLI installed here does not have). */
+  rejected?: "model";
 }
 
 /** Who reads, as asked for one reader (each field left out: as the research reads — its settings). */
@@ -1184,6 +1279,21 @@ export interface SourceRead {
   variants?: { at: string; other: string }[];
   /** The task to hold the two against each other, where they differ. */
   task?: string;
+  /**
+   * The entries of the reading that are the source's record (entries[].id): at most one of each view — the one its
+   * reader marked, else the one most within the source's excerpt; the others are entries beside it in the excerpt's
+   * margin. Only a reading that kept it (none before strom did).
+   */
+  entries?: string[];
+  /** The new reading not held against the transcript, or not written to the research: why (agree is then missing, but for write). */
+  failed?: { code: "no-entry" | "no-source" | "write" | "other"; why: string };
+}
+
+/** Why a reading failed, said for the person (`code` stable, `text` in the reading's language — else the research's —, `params` its values). */
+export interface ReadFailure {
+  code: "model";
+  text: string;
+  params: { agent: string; model: string };
 }
 
 export interface ReadState {
@@ -1206,6 +1316,8 @@ export interface ReadState {
   pid?: number;
   why?: string;
   error?: string;
+  /** Why it failed, for the person: a stable code, the sentence in the reading's language (else the research's) and its values. */
+  failure?: ReadFailure;
   model?: string;
   /** The agent its readers read with. */
   agent?: string;
@@ -1314,7 +1426,7 @@ export interface ReadResult {
   since: string;
   doc: { kind?: string; language?: string[]; script?: string; date?: string; legible?: "yes" | "partly" | "no"; why?: string | null };
   /** who: each reader (0 the first, 1 the blind one) — its agent, model and effort; none of a reading before strom kept them. */
-  readers: { asked: number; ran: number; agree: "same" | "differ" | null; who?: ReaderWho[] };
+  readers: { asked: number; ran: number; agree: "same" | "differ" | null; who?: ReaderWho[]; kinds?: { first: string; blind: string } };
   /** A reading of a source again from its original: the source, and how the new reading compares with its transcript. */
   source?: SourceRead;
   /** The agent and model its readers read with (kept with the research: a later check of strom's knows them). */
@@ -1322,6 +1434,11 @@ export interface ReadResult {
   model?: string;
   pages: ReadPage[];
   entries: DocEntry[];
+  /**
+   * Two readers: what the blind one read, as it wrote it — its document, its entries (of: the first reader's entry it
+   * was held against). It has no translation, terms or context: it was never asked for them.
+   */
+  blind?: { doc: ReadResult["doc"]; entries: { id: string; page: number; region?: Region; transcript: string; of?: string }[] };
   context?: string;
   /** What strom left out of the readers' entries, and why. */
   checks: Check[];
@@ -1331,6 +1448,7 @@ export interface ReadResult {
   note?: string;
   cost?: { amount: number; currency: "USD"; partial?: true };
   error?: string;
+  failure?: ReadFailure;
 }
 
 const LEGIBLE_ORDER = { yes: 0, partly: 1, no: 2 } as const;
@@ -1383,12 +1501,16 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   const firsts = s.groups.map((_, g) => mine.find((r) => r.group === g && !r.blind) ?? reportOfEarlier(s, g, false));
   const blinds = s.groups.map((_, g) => mine.find((r) => r.group === g && r.blind));
   const doc: ReadResult["doc"] = {};
+  const blindDoc: ReadResult["doc"] = {};
   const contexts: string[] = [];
   const incomplete: number[] = [];
+  // the entries a reader marked as the one in the middle of a source's excerpt (this: yes)
+  const marked = new Set<string>();
   const entriesOf = (reports: (ReadReport | undefined)[], blind: boolean): DocEntry[] => {
     const out: DocEntry[] = [];
     reports.forEach((r, g) => {
       const rep = r ? read(r) : undefined;
+      if (blind && rep) mergeDoc(blindDoc, rep.doc);
       if (!blind) {
         if (rep) mergeDoc(doc, rep.doc);
         if (rep?.context && rep.doc.legible !== "no") contexts.push(rep.context);
@@ -1406,10 +1528,11 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
         // a region of a part asked (--region): of the whole page
         const page = s.pages.find((p) => p.n === e.page);
         if (page?.region) {
-          const part = page.region;
+          const part = page.shows ?? page.region;
           if (c.entry.region) c.entry.region = within(part, c.entry.region);
           for (const x of [...c.entry.persons, ...c.entry.events]) if (x.region) x.region = within(part, x.region);
         }
+        if (!blind && e.this) marked.add(id);
         out.push(c.entry);
       }
     });
@@ -1421,11 +1544,25 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   // the first reader failed, the blind one read: its entries, untranslated — never held against themselves
   if (!entries.length && blindRan) entries = entriesOf(blinds, false);
   let agree: ReadResult["readers"]["agree"] = null;
+  let blind: ReadResult["blind"];
   if (blindRan && s.readers > 1 && firstRead) {
     const blindEntries = entriesOf(blinds, true);
     const c = compareReadings(entries, blindEntries);
     entries = c.entries;
     agree = c.agree;
+    if (blindEntries.length)
+      blind = {
+        doc: { ...blindDoc },
+        entries: blindEntries.map((e, k) => ({ id: `b${k + 1}`, page: e.page, ...(e.region ? { region: e.region } : {}), transcript: e.transcript, ...(c.of.has(k) ? { of: c.of.get(k)! } : {}) })),
+      };
+  }
+  // the readers of two kinds of record (a marriage, a baptism): said, the one and the other
+  const kinds = blind && doc.kind && blindDoc.kind && doc.kind !== blindDoc.kind ? { first: doc.kind, blind: blindDoc.kind } : undefined;
+  // a source read again, not held against its transcript yet: which of its entries are the source's record
+  let source = s.source;
+  if (source && source.agree === undefined && !source.failed && !source.entries) {
+    const ids = sourceEntriesOf(tree, s, entries, marked);
+    if (ids.length) source = { ...source, entries: ids };
   }
   entries = withTree(tree, entries);
   // a reader ran when it ended well and its report says something (an answer in prose only is no reading)
@@ -1446,12 +1583,13 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     at: s.at,
     since: s.since,
     doc: { ...doc, why: doc.why ?? (s.why || null) },
-    readers: { asked: s.readers, ran, agree, ...(who ? { who } : {}) },
-    ...(s.source ? { source: s.source } : {}),
+    readers: { asked: s.readers, ran, agree, ...(who ? { who } : {}), ...(kinds ? { kinds } : {}) },
+    ...(source ? { source } : {}),
     ...(s.agent ? { agent: s.agent } : {}),
     ...(s.model ? { model: s.model } : {}),
     pages: s.pages,
     entries,
+    ...(blind ? { blind } : {}),
     ...(contexts.length ? { context: contexts.join("\n\n") } : {}),
     checks,
     ...(incomplete.length ? { incomplete: [...new Set(incomplete)].sort((a, b) => a - b) } : {}),
@@ -1459,7 +1597,45 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     ...(s.note ? { note: s.note } : {}),
     ...(usd || s.reports.some((r) => r.usd !== undefined) ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}) } } : {}),
     ...(s.error ? { error: s.error } : {}),
+    ...(s.failure ? { failure: s.failure } : {}),
   };
+}
+
+/**
+ * The entries of a reading of a source again that are the source's record: of each view (page) the one its reader
+ * marked; else, a view of the source's excerpt, the entry most within the excerpt itself (its margin left out) —
+ * entries beside it in the margin are not; a view of a whole image, entries with no place, or none within the excerpt:
+ * all of the view's (as a reading before strom told them apart).
+ */
+function sourceEntriesOf(tree: Tree, s: ReadState, entries: DocEntry[], marked: Set<string>): string[] {
+  const src = s.source ? tree.get<Source>(s.source.id) : undefined;
+  const clips = src?.type === "source" ? (src.clips ?? []) : [];
+  const out: string[] = [];
+  for (const page of s.pages) {
+    const on = entries.filter((e) => e.page === page.n);
+    if (!on.length) continue;
+    const mark = on.find((e) => marked.has(e.id));
+    if (mark) {
+      out.push(mark.id);
+      continue;
+    }
+    const cut = clips.filter((c) => c.media === page.file).map((c) => [c.region.x, c.region.y, c.region.w, c.region.h] as Region);
+    if (on.length === 1 || !page.region || !cut.length || on.some((e) => !e.region)) {
+      out.push(...on.map((e) => e.id));
+      continue;
+    }
+    let best: DocEntry | undefined;
+    let most = 0;
+    for (const e of on) {
+      const a = cut.reduce((n, c) => n + overlapArea(e.region!, c), 0);
+      if (a > most) {
+        best = e;
+        most = a;
+      }
+    }
+    out.push(...(best ? [best.id] : on.map((e) => e.id)));
+  }
+  return out;
 }
 
 /**

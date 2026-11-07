@@ -16,6 +16,7 @@ import { confirmedOn, transcriptMark } from "../../src/core/readers.ts";
 import { clipMark } from "../../src/core/excerpt.ts";
 import { compareWithSource, joinedClips } from "../../src/core/sourceread.ts";
 import { parseDocReport } from "../../src/core/document.ts";
+import { computeUnits } from "../../src/core/readstats.ts";
 import type { Source, Task } from "../../src/core/model.ts";
 
 // a reader that says who it read as, and writes the report it is given
@@ -80,6 +81,15 @@ test("K2.1, K2.2: each reader reads with its own model and effort, the result an
       { agent: "script", model: "model-á", effort: "high" },
       { agent: "script", model: "model-б", effort: "low" },
     ]);
+    // N6: each reader's record names the views it was given; each reader's views measured under its own key
+    const lines = (f: string) => fs.readFileSync(path.join(w.cwd, ".strom", f), "utf8").trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const recs = lines(path.join("metrics", "readers.jsonl")).filter((r) => String(r.reader).startsWith(`document-${d.id}-`));
+    assert.equal(recs.length, 2);
+    const made = new Set(lines(path.join("views", "views.jsonl")).map((v) => v.view));
+    for (const r of recs) assert.ok(Array.isArray(r.viewFiles) && r.viewFiles.length > 0 && r.viewFiles.every((f) => made.has(f)), JSON.stringify(r));
+    const units = computeUnits(Tree.open(w.cwd, w.env), { guess: () => "script" }).filter((u) => u.kind === "reader");
+    const viewsOf = (key: string) => units.filter((u) => u.key === key).reduce((n, u) => n + Object.values(u.books).reduce((m, b) => m + b.views, 0), 0);
+    assert.ok(viewsOf("script model-á") > 0 && viewsOf("script model-á") === viewsOf("script model-б"), JSON.stringify(units.map((u) => [u.key, u.books])));
     // kept on the reading: shown again from its state, and in its result file
     assert.deepEqual((await w.ok(["document", "show", d.id, "--json"])).json.readers.who, d.readers.who);
     // the text says it too: each reader's agent · model · effort, the blind one so said
@@ -125,7 +135,7 @@ test("K3.1, K3.2: a source read again from its original — never from its trans
     // alike: kept beside the source, nothing else of it changed, no task
     const same = (await w.ok(["document", "read", "--source", "S0001", "--readers", "2", "--agent", "script", "--json"])).json;
     assert.equal(same.state, "done", JSON.stringify(same.checks));
-    assert.deepEqual(same.source, { id: "S0001", agree: "same", variants: [] });
+    assert.deepEqual(same.source, { id: "S0001", entries: ["e1"], agree: "same", variants: [] });
     const sameText = (await w.ok(["document", "show", same.id])).out;
     assert.match(sameText, /^source: S0001 read again from its original — alike its transcript$/mu, sameText);
     assert.match(sameText, /^next: .*alike its transcript — nothing to record, no new source of it$/mu);

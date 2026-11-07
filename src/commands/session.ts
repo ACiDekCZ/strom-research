@@ -1324,7 +1324,7 @@ register(
         // the agent does not take its model: said with what to do, never only its raw error
         if (result.outcome === "error" && result.modelRejected) {
           stopCode = "model";
-          stopValues = { model: models.lead ?? "—", agent: runnerId };
+          stopValues = { model: models.lead ?? said.model ?? "—", agent: runnerId };
           break;
         }
         if (result.outcome === "error") {
@@ -1342,7 +1342,7 @@ register(
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
     const reason =
-      historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
+      historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, (stopCode === "model" && stopValues.agent === "codex" ? "ui.run.stop.model.codex" : `ui.run.stop.${stopCode}`) as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },

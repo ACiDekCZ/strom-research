@@ -1,12 +1,16 @@
 // The model of the research, chosen by the person (the setup wizard, the menu's settings): for Claude Code Opus or
 // Sonnet, for the other agents the strong models of their own list (agents/models.ts) — the strongest suggested, a word
 // on what it costs, and always "leave it to the agent". Never chosen for the person. With the model its reasoning
-// effort, for the agents that take one (agents/effort.ts): high recommended.
+// effort, for the agents that take one (agents/effort.ts): high recommended. An alias (Claude Code's "opus", "sonnet",
+// the agent's own) is offered with the model it last ran on where a research here saw it run ("Opus (now Opus 5.5)"),
+// never guessed; what is kept is the alias all the same, so a newer model of its line is taken by itself.
 
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { modelChoices } from "../agents/models.ts";
+import { aliasNow, modelChoices, modelTitle } from "../agents/models.ts";
+import { aliasesOfTrees, type Aliases } from "../core/modelkey.ts";
+import { knownTreesIn } from "../core/tree.ts";
 import { hasEffort, offeredEfforts, readCodexConfig, type AgentSettingsSaid, type EffortSource } from "../agents/effort.ts";
 
 export interface ModelPick {
@@ -20,17 +24,25 @@ export interface ModelPick {
  * Ask which model the agent does the research with. `current`: the model kept for it now (suggested); none kept: the
  * strongest on the first setup, else the agent's own (as it is now). `back` adds 0: nothing changed.
  */
-export async function chooseModel(ctx: Context, lang: string, agent: string, current: string | undefined, opts: { first: boolean; back?: string }): Promise<ModelPick> {
+export async function chooseModel(ctx: Context, lang: string, agent: string, current: string | undefined, opts: { first: boolean; back?: string; aliases?: Aliases }): Promise<ModelPick> {
   const back = opts.back ? { back: opts.back } : {};
+  const aliases = opts.aliases ?? aliasesHere(ctx);
+  const ownNow = aliasNow(agent, undefined, aliases);
   if (agent === "claude") {
-    const models = ["opus", "sonnet", undefined];
-    const suggested = current === undefined ? (opts.first ? 0 : 2) : Math.max(0, models.indexOf(current));
-    const i = await ctx.choose(
-      ui(lang, "ui.setup.model"),
-      [{ label: ui(lang, "ui.setup.model.opus") }, { label: ui(lang, "ui.setup.model.sonnet") }, { label: ui(lang, "ui.setup.model.own") }],
-      suggested,
-      back,
-    );
+    const models: (string | undefined)[] = ["opus", "sonnet"];
+    const labels = models.map((m) => {
+      const now = aliasNow(agent, m, aliases);
+      return now ? ui(lang, `ui.setup.model.${m}.is` as UIKey, { model: modelTitle(agent, now) }) : ui(lang, `ui.setup.model.${m}` as UIKey);
+    });
+    // a model of its own kept (typed by hand: claude-opus-5): offered as it is, and Enter keeps it — never the alias
+    if (current !== undefined && !models.includes(current)) {
+      models.push(current);
+      labels.push(ui(lang, "ui.setup.model.now", { model: titled(agent, current) }));
+    }
+    models.push(undefined);
+    labels.push(ownNow ? ui(lang, "ui.setup.model.own.is", { model: modelTitle(agent, ownNow) }) : ui(lang, "ui.setup.model.own"));
+    const suggested = current === undefined ? (opts.first ? 0 : models.length - 1) : models.indexOf(current);
+    const i = await ctx.choose(ui(lang, "ui.setup.model"), labels.map((label) => ({ label })), suggested, back);
     return { value: models[i ?? suggested], picked: i !== undefined };
   }
   const found = await modelChoices(agent, ctx.env);
@@ -45,10 +57,45 @@ export async function chooseModel(ctx: Context, lang: string, agent: string, cur
     labels.push(ui(lang, "ui.setup.model.now", { model: current }));
   }
   models.push(undefined);
-  labels.push(found.agentDefault ? ui(lang, "ui.setup.model.own.is", { model: found.agentDefault }) : ui(lang, "ui.setup.model.own"));
+  const own = found.agentDefault ?? ownNow;
+  labels.push(own ? ui(lang, "ui.setup.model.own.is", { model: own }) : ui(lang, "ui.setup.model.own"));
   const suggested = current !== undefined ? models.indexOf(current) : opts.first && models.length > 1 ? 0 : models.length - 1;
-  const i = await ctx.choose(ui(lang, "ui.setup.model.agent", { agent: PROFILES[agent]?.name ?? agent }), labels.map((label) => ({ label })), suggested, back);
+  // Codex's kept catalog from a newer Codex than the one here: offered all the same, said with the question
+  const asked = ui(lang, "ui.setup.model.agent", { agent: PROFILES[agent]?.name ?? agent });
+  const question = found.catalogNewer ? `${asked} ${ui(lang, "ui.setup.model.catalog.newer", found.catalogNewer)}` : asked;
+  const i = await ctx.choose(question, labels.map((label) => ({ label })), suggested, back);
   return { value: models[i ?? suggested], picked: i !== undefined };
+}
+
+/**
+ * The aliases the researches on this computer saw run (the tree here and every one known; core/modelkey.ts): what
+ * Claude Code's "opus" ran on last. Only read; none known: {}.
+ */
+export function aliasesHere(ctx: Context): Aliases {
+  const roots = knownTreesIn(ctx.treesDir(), ctx.settings.config.extraTrees ?? []).map((t) => t.root);
+  try {
+    const here = ctx.locateTree();
+    if (here) roots.push(here);
+  } catch {
+    // no tree here
+  }
+  return aliasesOfTrees(roots);
+}
+
+/** A model of Claude's as a person reads it beside its id ("Opus 5 · claude-opus-5"); any other as it is. */
+function titled(agent: string, model: string): string {
+  const title = modelTitle(agent, model);
+  return title === model ? model : `${title} · ${model}`;
+}
+
+/**
+ * A model kept for the research as the person reads it (the settings, strom doctor): an alias with the model it last
+ * ran on where it is known ("opus (now Opus 5.5)"), the agent's own (`model` none: `own`) likewise; else as it is.
+ */
+export function modelSaid(lang: string, agent: string, model: string | undefined, aliases: Aliases, own: string): string {
+  const now = aliasNow(agent, model, aliases);
+  const said = model ?? own;
+  return now ? ui(lang, "ui.model.alias.now", { model: said, now: modelTitle(agent, now) }) : said;
 }
 
 /**

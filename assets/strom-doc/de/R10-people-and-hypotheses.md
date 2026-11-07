@@ -88,9 +88,10 @@ A, B, C… mit dem, was für jede spricht und was dagegen.
 ### R10.3.1 Entscheidung einer Hypothese
 
 Eine Hypothese wird für eine Version entschieden oder verworfen, wenn sich keine entscheiden lässt. Wer sie
-entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)): standardmäßig **Der Mensch entscheidet** (der Agent
-schlägt die Entscheidung nur vor) oder **Die KI entscheidet** (der Agent entscheidet selbst, nur anhand eines zitierten
-Eintrags). Die App lässt eine Hypothese nicht entscheiden, sie verweist auf die Forschung.
+entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)): **Die KI entscheidet** (der Agent entscheidet selbst,
+nur anhand eines zitierten Eintrags; Standard, wenn keine Wahl gespeichert ist) oder **Der Mensch entscheidet** (der
+Agent schlägt die Entscheidung nur vor). Die App lässt eine Hypothese nicht entscheiden, sie verweist auf die
+Forschung.
 
 - **Prüft der Code:**
   - bei **Der Mensch entscheidet** ist die Entscheidung ein Schritt des Menschen. Startet der Agent `strom hypothesis
@@ -131,7 +132,8 @@ Eintrags). Die App lässt eine Hypothese nicht entscheiden, sie verweist auf die
 - **Gilt seit:** Forschung 1.0.0; Ausgabe nicht erfasster Quellen 1.12.0
 - **Ab Forschung 1.28.0:** entscheidet nur der Mensch, der Agent schlägt vor; die angegebene Version prüft der Code
   (früher nur Methodik). Hypothesen, die früher der Agent entschieden hat, bleiben, wie sie waren.
-- **Ab Forschung 1.29.0:** wer entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)). Was wartet bietet auch
+- **Ab Forschung 1.29.0:** wer entscheidet, ist eine Wahl der Forschung ([R10.3.2](#R10.3.2)); ohne gespeicherte Wahl
+  entscheidet die KI, auch in einer früher eingerichteten Forschung. Was wartet bietet auch
   offene Hypothesen ohne Vorschlag (**Entscheiden**, **Offen lassen**) und das Menü **Entscheidung ändern**. Bis 1.28.0
   stand eine offene Hypothese ohne Vorschlag nicht in Was wartet und wurde nur mit dem Befehl `strom hypothesis
   decide` entschieden.
@@ -143,17 +145,32 @@ Eintrags). Die App lässt eine Hypothese nicht entscheiden, sie verweist auf die
 <a id="R10.3.2"></a>
 ### R10.3.2 Wer die Hypothesen entscheidet: der Mensch oder die KI
 
-Die Wahl der Forschung **Wer die Hypothesen entscheidet** legt fest, wer eine Hypothese entscheidet. **Der Mensch
-entscheidet** ist der Standard: der Agent schlägt nur vor, und die Entscheidung wartet in **Was wartet**. **Die KI
-entscheidet**: der Agent entscheidet selbst, sobald ein zitierter Eintrag auf eine Version zeigt; seine Entscheidung
-ist gekennzeichnet, und der Mensch kann sie jederzeit ändern.
+Die Wahl der Forschung **Wer die Hypothesen entscheidet** legt fest, wer eine Hypothese entscheidet. **Die KI
+entscheidet** ist der Standard: der Agent entscheidet selbst, sobald ein zitierter Eintrag auf eine Version zeigt;
+seine Entscheidung ist gekennzeichnet, und der Mensch kann sie jederzeit ändern. **Der Mensch entscheidet**: der Agent
+schlägt nur vor, und die Entscheidung wartet in **Was wartet**. Zurück zur Entscheidung durch den Menschen:
+`strom config set hypotheses.decide person`.
 
 - **Prüft der Code:**
-  - Standard ist **Der Mensch entscheidet**, auch bei einer Forschung ohne diese Wahl (früher eingerichtet). Das
-    Umschalten ändert bereits entschiedene Hypothesen nicht;
-  - **Die KI entscheidet** schaltet nur der Mensch im Terminal ein: die Frage erklärt, was das bedeutet, und verlangt
-    ein zweites Ja. Dem Agenten lehnt strom das Einschalten ab. Zurück zu **Der Mensch entscheidet** geht jederzeit,
-    ohne Bestätigung;
+  - ohne gespeicherte Wahl entscheidet die KI: in einer neuen Forschung, in einer früher eingerichteten Forschung (bis
+    Version 1.28.0 gab es die Wahl nicht), bei einer Einrichtung ohne Terminal und wenn ein Agent die Einrichtung
+    startet. Eine gespeicherte Wahl (**Der Mensch entscheidet** wie **Die KI entscheidet**) bleibt. Das Umschalten
+    ändert bereits entschiedene Hypothesen nicht;
+  - die Einrichtung (`strom setup`) bietet **Die KI entscheidet (empfohlen)** zuerst an, mit dem Satz „Empfohlen: Die
+    KI entscheidet – die Forschung geht weiter, ohne dass Hypothesen warten; jede ihrer Entscheidungen ist
+    gekennzeichnet und lässt sich ändern.“ Enter nimmt sie ohne weitere Bestätigung. Gewähltes **Der Mensch
+    entscheidet** wird gespeichert, und das nächste `strom setup` bietet es als aktuelle Wahl an;
+  - wo **Der Mensch entscheidet** gespeichert ist, schaltet **Die KI entscheidet** nur der Mensch im Terminal wieder
+    ein: die Frage erklärt, was das bedeutet, und verlangt ein zweites Ja. Dasselbe gilt für das Entfernen der
+    gespeicherten Wahl (`strom config unset hypotheses.decide`), weil ohne sie die KI entscheidet. Dem Agenten lehnt
+    strom beides ab. Zurück zu **Der Mensch entscheidet** geht jederzeit, ohne Bestätigung;
+  - bei gespeichertem **Der Mensch entscheidet** und 10 oder mehr offenen Hypothesen im Stammbaum bietet die App in
+    **Was die Forschung weiß**, Abschnitt **Hypothesen**, in einem Satz das Umstellen an: „N offene Hypothesen warten
+    auf die Entscheidung eines Menschen; mit „Die KI entscheidet“ entscheidet der Agent sie selbst, jede mit
+    Begründung.“ **Auf „Die KI entscheidet“ umstellen** öffnet die Forschung im Terminal, wo die Wahl mit einem
+    zweiten Ja bestätigt wird; in der App wird die KI nicht eingeschaltet. **Ausblenden** blendet das Angebot für
+    diese Forschung dauerhaft aus (in diesem Browser). Das Angebot gibt es nur bei einer Forschung auf diesem Computer,
+    die die Wahl kennt und den Link in die Forschung anbietet ([S3.5](S3-what-the-research-knows.md#S3.5));
   - die Wahl gilt für die Forschungen auf diesem Computer. Eine Forschung kann eine eigene haben (`--for-tree`); die
     Wahl aus der App wird nur dieser Forschung geschrieben;
   - der Agent entscheidet nur eine Version, die eine zitierte Quelle der Forschung (S…) stützt. Ohne sie lehnt strom
@@ -173,15 +190,18 @@ ist gekennzeichnet, und der Mensch kann sie jederzeit ändern.
 - **Nur Methodik:** der Agent sagt dem Menschen in einem Satz, was er entschieden hat.
 - **Bedienung:** Terminal: die Einrichtung `strom setup`, Schritt **Wer entscheidet die Hypothesen – die unsicheren
   Verbindungen zwischen Personen?** (nur wenn ein Mensch die Einrichtung im Terminal macht; ohne Terminal fragt sie
-  nicht, und es gilt **Der Mensch entscheidet**); Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent
+  nicht, und es gilt die gespeicherte Wahl, ohne sie **Die KI entscheidet**; die Empfehlung gibt es nur hier, das Menü
+  Einstellungen bietet die aktuelle Wahl an); Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent
   allein darf, Geschichten… (die Einrichtung)** → **Wer die Hypothesen entscheidet: …**; `strom config set
-  hypotheses.decide person|agent [--for-tree]`, den geltenden Wert zeigt `strom config where`. App: **Forschung** →
+  hypotheses.decide person|agent [--for-tree]`, den geltenden Wert zeigt `strom config where`. Zurück zur
+  Entscheidung durch den Menschen: `strom config set hypotheses.decide person`. App: **Forschung** →
   **Weitere Aktionen** → **Forschung für diesen Stammbaum…** → **Wer über Hypothesen entscheidet**: **Der Mensch
   entscheidet** wird sofort in die Forschung geschrieben, **Die KI entscheidet** bestätigt die Forschung im Terminal
-  (**In der Forschung bestätigen**). Die Zeile erscheint nur mit einer Forschung, die die Wahl kennt.
+  (**In der Forschung bestätigen**). Die Zeile erscheint nur mit einer Forschung, die die Wahl kennt. Das Angebot in **Was die Forschung weiß** →
+  **Hypothesen**: **Auf „Die KI entscheidet“ umstellen**, **Ausblenden**.
 - **Gilt seit:** Forschung 1.29.0, App 3.25.0
 
-<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 -->
+<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 · výchozí AI (výzkum 1.29.0): research:src/core/config.ts hypothesesDecide (=== person ? person : agent), getDefault hypotheses.decide agent · src/commands/setup.ts syncDecisions/layerChange (agent nebo unset tam, kde je person → requireHuman) · src/cli/wizard.ts 5c (was = stored === person ? 0 : 1; druhé ano jen při uloženém person; person uloženo; ui.setup.model.recommended, ui.setup.hypotheses.recommended) · src/cli/menu-settings.ts hypothesesStep (bez doporučení) · CHANGELOG.cs.md 1.29.0 „Kde nic zvoleno není, rozhoduje AI“ · spec 060 K1.9 · nabídka: app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN = 10, researchHypothesesOffer (HYPOTHESES_DECIDE_FEATURE, hypothesesDecide === person, isOpenHypothesis celého stromu, activeResearchLink hypotheses decide=agent), hideHypothesesOffer (localStorage na výzkum) · strings.ts research.hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · spec 060 K1.6–K1.8 -->
 
 <a id="R10.4"></a>
 ## R10.4 Eine Familie außerhalb des Stammbaums wartet auf eine belegte Verbindung

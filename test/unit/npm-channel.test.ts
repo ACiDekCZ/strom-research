@@ -3,6 +3,7 @@
 // beta tarball's own publishConfig.tag (a release's tarball has none: latest). The release build refuses any other
 // prerelease before it builds anything. The workflow npm-beta.yml publishes a beta's tag and a release's tag.
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

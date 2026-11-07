@@ -135,8 +135,10 @@ z aplikace a čtení snímků. Rozhodnutí jdou v seznamu první.
   **Nechat otevřenou**. Ponechaná hypotéza se v Co čeká znovu ukáže, až agent navrhne, jak ji rozhodnout.
 - Rozhodnutá nebo zrušená hypotéza otevřená z menu nabízí **Změnit rozhodnutí**: nový text rozhodnutí je povinný
   a je zároveň důvodem změny. Rozhodl-li ji agent, stojí u ní **Rozhodl agent (den).**
-- **Hranice:** platí, když hypotézy rozhoduje člověk (**Rozhoduje člověk**, výchozí;
-  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozhoduje jen člověk ([R6.6](#R6.6)). Při **Rozhoduje AI** agent
+- **Hranice:** platí, když hypotézy rozhoduje člověk (uložená volba **Rozhoduje člověk**; bez uložené volby
+  rozhoduje AI, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozhoduje jen člověk ([R6.6](#R6.6)). Čeká-li
+  10 a více otevřených hypotéz, aplikace v **Co ví výzkum** nabídne přepnutí na **Rozhoduje AI** (potvrdí se ve
+  výzkumu). Při **Rozhoduje AI** agent
   rozhodne sám, co citovaný záznam dokládá, a čekají jen jeho návrhy (rozhodnutí, které sám udělat nesmí). Skupina je
   jen v terminálu, aplikace Strom ji neukazuje ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
 - **Ovládání:** terminál: **Co čeká** → položka, `strom hypothesis decide H… --proposed | --keep-open`. Tytéž volby
@@ -145,7 +147,7 @@ z aplikace a čtení snímků. Rozhodnutí jdou v seznamu první.
 - **Od výzkumu 1.29.0:** i otevřené hypotézy bez návrhu (**Rozhodnout**, **Nechat otevřenou**), **Změnit
   rozhodnutí** a volba **Kdo rozhoduje hypotézy**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 · src/cli/wizard.ts 5c (doporučení) · app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN -->
 
 <a id="R6.4"></a>
 ## R6.4 Skupiny a pořadí
@@ -207,8 +209,11 @@ v systémovém okně, nebo příkaz odmítne.
   a opravy `strom fixes … edit-decisions|woken-waits`.
 - **Od výzkumu 1.28.0:** jen člověk také rozhoduje hypotézu (`strom hypothesis decide`, i uvnitř `strom batch`);
   agent ji jen navrhne ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
+- **Od výzkumu 1.29.0:** to platí při **Rozhoduje člověk**; bez uložené volby rozhoduje AI
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Uložit **Rozhoduje AI** tam, kde je uložené **Rozhoduje člověk**,
+  nebo tu volbu smazat, smí jen člověk.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
 
 <a id="R6.7"></a>
 ## R6.7 Odesláno, odpověď a návrat do fronty

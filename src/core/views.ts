@@ -21,7 +21,7 @@ import { readableFile } from "./readable.ts";
 import { knownOrient, rememberOrient } from "./orients.ts";
 import { findImage } from "./media.ts";
 import type { Media, Region } from "./model.ts";
-import { IMAGE_MAX } from "../agents/images.ts";
+import { IMAGE_MAX, VIEW_MIN } from "../agents/images.ts";
 import { isWorkerId } from "./workers.ts";
 
 /**
@@ -29,8 +29,6 @@ import { isWorkerId } from "./workers.ts";
  * an agent goes by what its model takes (agents/images.ts imageMax: 2000 for the newer ones).
  */
 export const VIEW_MAX = IMAGE_MAX;
-/** Small crops are enlarged at least to this long side (script gets bigger, not sharper). */
-const VIEW_MIN = 800;
 
 export interface ViewSpec {
   /** "x,y,w,h": fractions of the image (all ≤ 1) or pixels. */
@@ -40,6 +38,14 @@ export interface ViewSpec {
   scale?: number | undefined;
   /** Longest side of the result when no --scale is given. */
   max?: number | undefined;
+  /** A crop or a half smaller than this is enlarged to it, at most 3× and never above max (default 800; agents/images.ts imageMin). */
+  min?: number | undefined;
+  /**
+   * What the enlargement of a crop to min may reach where max is a calibrated reading size: what the model takes in
+   * whole (viewsizes.ts max). A calibration measures whole images and halves (or pages) as far as they may be reduced,
+   * never a small crop of an entry enlarged; a half, a page and a part of --split stay within max.
+   */
+  liftMax?: number | undefined;
   contrast?: boolean | undefined;
   grey?: boolean | undefined;
   grid?: boolean | undefined;
@@ -59,6 +65,11 @@ export interface View {
   /** The part of the original shown, in original pixels. */
   region: { x: number; y: number; w: number; h: number };
   cached: boolean;
+  /**
+   * Its scale at the default enlargement (VIEW_MIN), when a larger min (a GPT reader) enlarged it more: whether the
+   * scan holds little detail there is judged by it (viewSize), as for every other reader.
+   */
+  lifted?: number;
   /**
    * The EXIF orientation the picture was turned by (2–8): `original` and `region` are of the picture as it is shown,
    * upright; a place kept of it (a clip) is kept as the picture lies in its file (image.ts shownToFile).
@@ -219,14 +230,19 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   let region = viewRegion(spec, W, H);
   region = { x: Math.round(region.x), y: Math.round(region.y), w: Math.max(1, Math.round(region.w)), h: Math.max(1, Math.round(region.h)) };
   const long = Math.max(region.w, region.h);
+  const viewKind = meta.kind ?? kindOf(spec, region, W, H);
+  // a crop of an entry (never a half, a page or a part of --split: what a calibration measures) enlarged up to liftMax
+  const ceiling = viewKind === "crop" ? Math.max(spec.max ?? VIEW_MAX, spec.liftMax ?? 0) : (spec.max ?? VIEW_MAX);
+  const enlarge = (to: number) => Math.min(3, Math.max(1, Math.min(to, ceiling) / long));
   const scale =
     spec.scale !== undefined
       ? spec.scale
       : long > (spec.max ?? VIEW_MAX)
         ? (spec.max ?? VIEW_MAX) / long
         : spec.crop || spec.half
-          ? Math.min(3, Math.max(1, VIEW_MIN / long))
+          ? enlarge(spec.min ?? VIEW_MIN)
           : 1;
+  const lifted = spec.scale === undefined && long <= (spec.max ?? VIEW_MAX) && (spec.crop || spec.half) && scale > enlarge(VIEW_MIN) ? enlarge(VIEW_MIN) : undefined;
   if (!(scale > 0) || scale > 8) throw new UsageError("--scale must be between 0 and 8");
   const outW = Math.max(1, Math.round(region.w * scale));
   const outH = Math.max(1, Math.round(region.h * scale));
@@ -235,7 +251,7 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   const sha = crypto
     .createHash("sha256")
     .update(bytes)
-    .update(JSON.stringify({ region, scale, spec: { ...spec, crop: undefined, half: undefined, scale: undefined, max: undefined, page: undefined }, ...(orient ? { upright: orient } : {}) }))
+    .update(JSON.stringify({ region, scale, spec: { ...spec, crop: undefined, half: undefined, scale: undefined, max: undefined, min: undefined, liftMax: undefined, page: undefined }, ...(orient ? { upright: orient } : {}) }))
     .digest("hex");
   const ext = spec.png ? "png" : "jpg";
   const dir = path.join(tree.root, ".strom", "views");
@@ -269,11 +285,13 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
     view: path.basename(file),
     region,
     scale,
+    // its scale at the default enlargement, where a GPT reader's enlarged it more: the scan judged by it (readstats M6, M9)
+    ...(lifted !== undefined ? { lifted } : {}),
     w: dims.width,
     h: dims.height,
     W,
     H,
-    kind: meta.kind ?? kindOf(spec, region, W, H),
+    kind: viewKind,
     ...imageOfKey(tree, key),
     ...(cap !== undefined ? { cap } : {}),
     ...(meta.capFrom ? { capFrom: meta.capFrom } : {}),
@@ -288,7 +306,7 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   } catch {
     // the record is no reason to fail the view
   }
-  return { file, ...dims, scale, original: { width: W, height: H }, region, cached, ...(orient ? { orient } : {}) };
+  return { file, ...dims, scale, original: { width: W, height: H }, region, cached, ...(lifted !== undefined ? { lifted } : {}), ...(orient ? { orient } : {}) };
 }
 
 /** What a view shows: "1000×1568 px · part 0,0 1200×2000 px of 2400×2000 · 78 %". */
@@ -302,7 +320,7 @@ export const REDUCED_BELOW = 0.75;
 
 /** A view smaller than the part of the scan it shows (crop to read it), or bigger (no more detail than the scan has). */
 export function viewSize(v: View): "reduced" | "enlarged" | undefined {
-  return v.scale < REDUCED_BELOW ? "reduced" : v.scale > 1.25 ? "enlarged" : undefined;
+  return v.scale < REDUCED_BELOW ? "reduced" : (v.lifted ?? v.scale) > 1.25 ? "enlarged" : undefined;
 }
 
 export const REDUCED_HINT = "crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)";

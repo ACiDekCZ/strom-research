@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -75,7 +75,35 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   słowa transkrypcji spoza przeczytanego wycinka (nagłówek strony nad nim) nie liczą się jako różnica. `strom fixes`
   traktuje odczyt dwóch czytelników jako odczyt pierwszego z nich: czytelnik na ślepo z innym modelem nigdy nie jest
   wcześniejszym modelem, z którym czytać ponownie, a odczyt, którego któryś czytelnik czytał dzisiejszym modelem, liczy
-  się jako nim przeczytany.
+  się jako nim przeczytany. Ponowne czytanie z oryginału czyta najlepiej, jak się da. Czytelnicy dostają to, co badanie
+  wie o zapisie – rodzaj, język, datę i miejsce w księdze, nigdy jednak transkrypcji ani imienia czy nazwiska –, a
+  czytelnik z modelem GPT także polecenie, by przepisać wpis w środku wycinka, pominąć sąsiednie wpisy z krawędzi i
+  zachować pierwotną pisownię litera po literze. Z transkrypcją porównuje się tylko wpis źródła (ten, który czytelnik
+  oznaczy, w przeciwnym razie ten, który najbardziej leży w wycinku); nagłówki kolumn bez odpowiednika („Dies:“,
+  „Vater:“), własny nagłówek badania nad zapisem, uwagi badania lub czytelnika w nawiasach, długie ſ wobec s,
+  nieczytelne miejsce wobec niczego i słowa poza tym, co przeczytali obaj, nie liczą się jako różnica. Aplikacja Strom
+  dostaje w wyniku czytania, który wpis jest wpisem źródła, cały tekst ślepego czytelnika, ostrzeżenie, gdy czytelnicy
+  określili inny rodzaj zapisu (ślub × chrzest), a gdy porównania nie da się zapisać do badania – na przykład przy
+  badaniu zapieczętowanym na innym komputerze –, mówi się to zamiast cichego pominięcia. Czytelnicy z modelem GPT
+  (Codex, OpenCode) widzą mały wycinek powiększony do około 2000 px (najwyżej trzykrotnie), także gdy czytanie skanów
+  dostrojono do mniejszego rozmiaru (dostrojenie mierzy całe strony i połowy, nigdy mały wycinek), pozostali jak dotąd;
+  zarejestrowana ostrzejsza część obrazu, która pokazuje całe miejsce – albo cały wycinek, pomijając tylko jego margines –, zostaje użyta, a gdy miejsce jest na skanie małe,
+  proponuje się pobranie ostrzejszego wycinka z archiwum – nigdy nie dzieje się to samo. Czytelnik Codex działa bez
+  programu powiadomień, wtyczek, aplikacji, hooków i pamięci z ustawień Codexu oraz bez przeglądarki i sterowania
+  komputerem jego aplikacji; ustawienia Codexu się nie zmieniają.
+  Model, którego zainstalowana wersja Codex CLI nie ma, kończy odczyt jako błąd czytelnika z tym powodem i z nim
+  zatrzymuje się też przebieg stromu: zaktualizować Codex (`npm install -g @openai/codex@latest`) albo wybrać inny model;
+  modele z katalogu pobranego przez nowszy Codex niż zainstalowany są oferowane z uwagą.
+  Odczyt zlecony z aplikacji Strom jest przyjmowany od razu, nawet gdy jego zakolejkowanie trwa dłużej (badanie trzyma
+  inny proces): od pierwszej chwili widać go jako zakolejkowany pod jego ID i pod nim jest odczytany, a odczyt, którego
+  potem nie da się zakolejkować, widać jako nieudany, z powodem; to samo źródło zlecone w międzyczasie ponownie jest
+  odrzucane jako właśnie czytane.
+  Wybór modelu badania (kreator ustawień, Ustawienia w menu stroma) przy
+  Opusie, Sonnecie i własnym domyślnym modelu agenta podaje model, na którym ostatnio działał, gdy któreś badanie
+  na tym komputerze widziało go w działaniu – „Opus (teraz Opus 5.5)”; `strom doctor` i ustawienia mówią to przy
+  zapisanym modelu, a aplikacja Strom dostaje to z wyborem czytelników. Nieznany – jak dotąd. Zapisany zostaje Opus
+  albo Sonnet, więc nowszy model jego linii zostanie użyty sam; stała wersja wpisana ręcznie (`strom config set model.lead
+  <model>`) jest proponowana jako wybrana teraz i pozostaje stała.
 
 - **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
   hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w

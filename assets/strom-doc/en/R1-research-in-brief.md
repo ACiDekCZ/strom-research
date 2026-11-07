@@ -74,8 +74,10 @@ answer for the person.
 
 - What waits for a person (letters, images to download, questions about places, conflicts, hypotheses, stories to
   approve) and where it is dealt with: [R6](R6-awaiting-action.md).
-- Only a person decides a hypothesis; the agent proposes the decision (from research 1.28.0):
-  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1).
+- A person decides a hypothesis and the agent proposes the decision (from research 1.28.0):
+  [R10.3.1](R10-people-and-hypotheses.md#R10.3.1). From research 1.29.0 this is a choice of the research: without a
+  saved choice the agent decides (**The AI decides**), **The user decides** a person chooses:
+  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2).
 - A person's decision holds. The agent changes it only on the strength of a new source: [R5.4](R5-conflicts.md#R5.4).
 - A place position set by a person does not change: [R4.3](R4-places.md#R4.3).
 - Settings that change what the agent may do are confirmed by a person (for example the condition for working alone,

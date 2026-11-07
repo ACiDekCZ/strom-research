@@ -15,8 +15,10 @@ nigdzie indziej.
 - **Granice:**
   - Most przyjmuje zapytanie tylko ze strony aplikacji Strom na stromapp.info lub z adresu lokalnego. Jeśli jego
     klucz przyjdzie z obcej strony, badanie od razu wymienia klucz, a to zapytanie nie dostaje odpowiedzi.
-  - Most kończy się sam, gdy przez dwie godziny nikt o nic go nie pyta i nikt przy tym nie pracuje w drzewie.
-    Regularne zapytanie aplikacji o stan nie utrzymuje mostu przy życiu.
+  - Most działa, dopóki człowiek go nie wyłączy (`strom live stop`, w aplikacji przełącznik **Badanie włączone**,
+    [S1.9](#S1.9)), albo do wyłączenia komputera. Sam kończy się tylko wtedy, gdy człowiek tak wybrał
+    (`live.idleMinutes`, w aplikacji **Po 2 godzinach bez pracy**): gdy przez ten czas nikt o nic go nie pyta i nikt
+    przy tym nie pracuje w drzewie. Regularne zapytanie aplikacji o stan nie utrzymuje mostu przy życiu.
   - Gdy most uruchomi się ponownie sam (aktualizacja, bezczynność, awaria), zachowuje adres: ten sam port, jeśli jest
     wolny, i ten sam klucz. Aplikacja łączy się wtedy bez nowego linku.
   - `strom live stop` porzuca klucz: aplikację połączy wtedy ponownie dopiero `strom app`. Jeśli port zajmuje inny
@@ -24,11 +26,13 @@ nigdzie indziej.
   - Zapis most odrzuca, gdy drzewo jest zapieczętowane na innym komputerze, gdy pliki drzewa w folderze w chmurze nie
     są jeszcze pobrane i gdy dysk jest pełny. Zmiany czekają wtedy w aplikacji ([S2](S2-edits-from-the-app.md)).
 - **Obsługa:** terminal: `strom live` (czy most działa?), `strom live start`, `strom live stop` (`--forget` zapomina
-  też port), `strom config set live.idleMinutes <minuty>` (0: nigdy sam). Zapis przebiegu jest w folderze badania
-  w `.strom/live.log`.
+  też port), `strom config set live.idleMinutes <minuty>` (0: nigdy sam, domyślnie). Zapis przebiegu jest w folderze
+  badania w `.strom/live.log`.
 - **Obowiązuje od:** badanie 1.0.0. Ten sam adres po ponownym uruchomieniu od 1.8.0, `live.idleMinutes` od 1.25.0.
+- **Od badania 1.29.0:** most nie kończy się już sam po bezczynności (domyślne `live.idleMinutes` 0); wcześniej
+  kończył się sam po dwóch godzinach. Wartość zapisana przez człowieka zostaje.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
 
 <a id="S1.2"></a>
 ## S1.2 Badanie otwiera się w aplikacji linkiem z terminala
@@ -190,3 +194,38 @@ dysku. Między nimi drzewo przechodzi tylko przez most na tym komputerze ([S1.1]
 - **Obowiązuje od:** aplikacja 3.0.0
 
 <!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+
+<a id="S1.9"></a>
+## S1.9 Badanie włączone: przełącznik mostu przy drzewie
+
+Każde drzewo z badania na tym komputerze ma w aplikacji przełącznik **Badanie włączone**. Pokazuje rzeczywisty stan
+mostu: włączony, gdy most odpowiada, w przeciwnym razie wyłączony. Włączony most działa do wyłączenia przełącznikiem
+lub `strom live stop`, do wyłączenia komputera albo według ustawienia **Wyłączanie badania po bezczynności**.
+
+- **Granice:**
+  - Wyłączenie kończy most jak `strom live stop`, tylko że most zachowuje adres (port i klucz). Wyłączony most
+    zostaje wyłączony: nowa praca w drzewie go nie przywróci. Drzewo w aplikacji zostaje i można je dalej edytować
+    ([S1.5](#S1.5)). Pod przełącznikiem: „Wyłączone. Pozostanie wyłączone, dopóki nie zostanie włączone ponownie.”
+  - Most wyłączony z powodu bezczynności wraca sam z nową pracą w drzewie, pod tym samym adresem. Pod przełącznikiem:
+    „Wyłączyło się po czasie bez pracy. Nowa praca w drzewie włączy je ponownie.”
+  - Włączenie wysyła badaniu link, który uruchamia tylko most pod jego ostatnim adresem, bez okna. Gdy nic się nie
+    stanie albo badania nie da się włączyć z aplikacji, aplikacja pokazuje polecenie `strom live start` (do
+    uruchomienia w terminalu, w folderze drzewa) z przyciskiem **Kopiuj**. Starsze badanie, którego nie da się wyłączyć
+    z aplikacji, tak samo pokazuje polecenie `strom live stop`.
+  - Po wyłączeniu lub ponownym uruchomieniu komputera most nie działa i sam się nie uruchomi. Włącza go człowiek:
+    w panelu badania **Włącz** albo `strom live start`.
+  - **Wyłączanie badania po bezczynności** ma dwie opcje: **Do wyłączenia komputera** (domyślnie) i **Po 2 godzinach
+    bez pracy**. Obowiązuje dla wszystkich drzew na tym komputerze i przechowuje je badanie (`live.idleMinutes` 0 lub
+    120). Działające mosty przejmują je w ciągu minuty. Wartość ustawiona w terminalu pokazuje się jako **Własna
+    wartość (N min)**. Gdy nie działa żadne badanie, które przyjmuje ten wybór, aplikacja zamiast opcji pokazuje
+    polecenia do terminala.
+  - Na telefonie i tablecie przełącznika nie ma (badanie działa na komputerze). Kopia drzewa z badania przełącznika
+    nie ma.
+- **Obsługa:** aplikacja: przełącznik **Badanie włączone** w panelu badania (drzewo nieśledzone na żywo i po
+  zakończeniu śledzenia) i w **Zarządzanie drzewami** przy wierszu drzewa; panel badania, gdy badanie nie działa:
+  **Włącz**; **Ustawienia** → **Badania na tym komputerze** → **Wyłączanie badania po bezczynności**. Terminal:
+  `strom live start`, `strom live stop`, `strom config set live.idleMinutes 0` (do wyłączenia komputera) lub `120`
+  (po 2 godzinach bez pracy).
+- **Obowiązuje od:** aplikacja 3.25.0, badanie 1.29.0
+
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.5. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
@@ -71,6 +71,33 @@ The changes of each version in short. The full notes and the install lines are o
   view, and words of the transcript outside the excerpt read (a heading of the page above it) count as no difference.
   `strom fixes` takes a reading of two readers as its first reader's: a blind reader of another model is never an
   earlier model to read again with, and a reading one of whose readers read with today's model counts as read with it.
+  Reading again from the original reads as well as it can. The readers are told what the research knows of the record –
+  its kind, language, date and where it stands, never its transcript or a name –, and a reader with a GPT model also to
+  transcribe the entry in the middle of the excerpt, to leave out the neighbouring entries at its edge and to keep the
+  original spelling letter by letter. Only the source's entry (the one the reader marks, else the one most within the
+  excerpt) is held against the transcript; column labels without a counterpart („Dies:“, „Vater:“), the research's own
+  heading of the record, notes of the research or a reader in brackets, a long ſ against s, an illegible place against
+  nothing and words outside what both read are no difference. The Strom app gets in the reading's result which entry is
+  the source's, the blind reader's whole text, a warning when the readers took the record for different kinds (a
+  marriage × a baptism), and when the comparison cannot be written to the research – a research sealed on another
+  computer, say – it is said instead of left out silently. Readers with a GPT model (Codex, OpenCode) see a small
+  excerpt enlarged to about 2000 px (at most three times), also where the reading of scans was tuned to a smaller size
+  (the tuning measures whole pages and halves, never a small excerpt), the others as before; a registered sharper part
+  of the image that shows the whole place – or the whole excerpt, only its margin left out – is used, and for a place small on its scan a sharper crop from the archive is
+  offered – never fetched by itself. The Codex reader runs without the notice program, plugins, apps, hooks and memories
+  of Codex's settings and without its app's browser and computer use; Codex's settings are not changed.
+  A model the Codex CLI installed here does not have ends the reading as a reader that failed with that reason, and a
+  run of strom stops with it: the advice is to update Codex (`npm install -g @openai/codex@latest`) or to choose another
+  model; models of Codex's catalog fetched by a newer Codex than the one installed are offered with a note.
+  A reading asked from the Strom app is accepted at once though its strom takes long to queue it (another process holding
+  the research, say): it is said as queued under its ID from the first moment and read under it, and one that cannot be
+  queued then is said as failed, with the reason; the same source asked again meanwhile is refused as being read.
+  The choice of the research's model (the setup, Settings in strom's menu)
+  names the model Opus, Sonnet and the agent's own default last ran on, where a research on this computer saw it
+  run – "Opus (now Opus 5.5)"; `strom doctor` and the settings say it beside the model kept, and the Strom app gets it
+  with the readers to choose from. Unknown, it is said as before. What is kept stays Opus or Sonnet, so a newer model of
+  its line is taken by itself; a fixed version set by hand (`strom config set model.lead <model>`) is offered as chosen
+  now and stays that version.
 
 - **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
   hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a

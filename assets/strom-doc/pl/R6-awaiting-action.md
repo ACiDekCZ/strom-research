@@ -145,8 +145,10 @@ pierwsze.
 - Rozstrzygnięta albo porzucona hipoteza otwarta z menu oferuje **Zmienić rozstrzygnięcie**: nowy tekst
   rozstrzygnięcia jest obowiązkowy i jest zarazem powodem zmiany. Jeśli rozstrzygnął ją agent, stoi przy niej
   **Rozstrzygnął agent (dzień).**
-- **Granice:** obowiązuje, gdy hipotezy rozstrzyga człowiek (**Rozstrzyga człowiek**, domyślnie;
-  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozstrzyga tylko człowiek ([R6.6](#R6.6)). Przy **Rozstrzyga AI**
+- **Granice:** obowiązuje, gdy hipotezy rozstrzyga człowiek (zapisany wybór **Rozstrzyga człowiek**; bez zapisanego
+  wyboru rozstrzyga AI, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozstrzyga tylko człowiek ([R6.6](#R6.6)).
+  Gdy czeka 10 lub więcej otwartych hipotez, aplikacja w **Co wie badanie** proponuje przełączenie na **Rozstrzyga
+  AI** (potwierdza się w badaniu). Przy **Rozstrzyga AI**
   agent rozstrzyga sam to, co potwierdza cytowany akt, i czekają tylko jego propozycje (rozstrzygnięcia, których sam
   podjąć nie może). Grupa jest tylko w terminalu, aplikacja Strom jej nie pokazuje ([R6.1.1](#R6.1.1)). W Archiwum
   Strom tej grupy nie ma.
@@ -156,7 +158,7 @@ pierwsze.
 - **Od badania 1.29.0:** także otwarte hipotezy bez propozycji (**Rozstrzygnąć**, **Zostawić otwartą**), **Zmienić
   rozstrzygnięcie** i wybór **Kto rozstrzyga hipotezy**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 · src/cli/wizard.ts 5c (doporučení) · app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN -->
 
 <a id="R6.4"></a>
 ## R6.4 Grupy i kolejność
@@ -220,8 +222,11 @@ człowieka w oknie systemowym albo odrzuca polecenie.
   (`strom sync undo|discard`) oraz poprawki `strom fixes … edit-decisions|woken-waits`.
 - **Od badania 1.28.0:** tylko człowiek także rozstrzyga hipotezę (`strom hypothesis decide`, także wewnątrz
   `strom batch`); agent ją tylko proponuje ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
+- **Od badania 1.29.0:** obowiązuje to przy **Rozstrzyga człowiek**; bez zapisanego wyboru rozstrzyga AI
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Zapisać **Rozstrzyga AI** tam, gdzie zapisane jest **Rozstrzyga
+  człowiek**, albo ten wybór usunąć może tylko człowiek.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
 
 <a id="R6.7"></a>
 ## R6.7 Wysłano, odpowiedź i powrót do kolejki

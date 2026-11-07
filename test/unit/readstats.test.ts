@@ -673,3 +673,97 @@ test("a log without its images (as a run writes it, as strom tidy shrinks it) re
     done();
   }
 });
+
+// N1 (2026-11-07): a GPT reader's crop is enlarged to about 2000 px (K6.1); the views' record kept its real scale, and
+// M6 and M9 took nearly every crop of 640–1600 px for an enlarged view — a false A1, "read worse" in the brief, the
+// question of sharper parts (requests to the archive). Judged at the default enlargement (800, `lifted`), as the
+// view's own hint judges it; a line without it (Claude, every line of before) by its scale as before.
+test("N1: a GPT reader's crop enlarged to about 2000 px is no enlarged view for M6 and A1; a crop truly enlarged, and lines without lifted, as before", () => {
+  const now = Date.parse("2026-11-07T12:00:00Z");
+  const run = (b4: { scale: number; lifted?: number }) => {
+    const { tree, root, done } = fakeTree({});
+    try {
+      const views: Record<string, unknown>[] = [];
+      const readers: Record<string, unknown>[] = [];
+      for (const [r, hoursAgo] of [["r1", 30], ["r2", 6]] as const) {
+        const t = now - hoursAgo * 3600_000;
+        readers.push({ at: iso(t), by: "agent", reader: `read-${r}`, kind: "read", agent: "codex", key: "codex gpt-5.5", model: "gpt-5.5", images: 80, imageIds: [], views: 80, outcome: "ok", ms: 600_000 });
+        for (let i = 0; i < 20; i++) {
+          const at = iso(t - 60_000 - i * 1000);
+          const line = (rs: string, v: Record<string, unknown>) => views.push({ at, key: `M${rs}${i}`, by: "agent", view: `M${rs}${i}-${r}.jpg`, region: { x: 0, y: 0, w: 900, h: 600 }, w: 2000, h: 1333, W: 3000, H: 2000, kind: "crop", rs, img: i + 1, cached: false, reader: 1, ...v });
+          line("B1", { scale: 1 });
+          line("B2", { scale: 1 });
+          // a line of before (or Claude's): its scale decides
+          line("B3", { scale: i < 9 ? 1.6 : 1 });
+          line("B4", b4);
+        }
+      }
+      fs.mkdirSync(path.join(root, ".strom", "metrics"), { recursive: true });
+      fs.mkdirSync(path.join(root, ".strom", "views"), { recursive: true });
+      fs.writeFileSync(path.join(root, ".strom", "metrics", "readers.jsonl"), readers.map((x) => JSON.stringify(x)).join("\n") + "\n");
+      fs.writeFileSync(path.join(root, ".strom", "views", "views.jsonl"), views.map((x) => JSON.stringify(x)).join("\n") + "\n");
+      const r = summarize(groups(computeUnits(tree, { guess: () => "codex gpt-5.5", now }), now)[0]!, { now });
+      return { book: r.books.find((b) => b.id === "B4")!, a1: r.recommend.filter((x) => x.id === "A1").map((x) => x.scope), r };
+    } finally {
+      done();
+    }
+  };
+  // the crop of 900 px a GPT reader sees at 2000 px (scale 2.22): at 800 px it would be shown 1:1 — not enlarged
+  const gpt = run({ scale: 2000 / 900, lifted: 1 });
+  assert.equal(gpt.book.enlarged, 0);
+  assert.deepEqual(gpt.book.signals, [], "no M6");
+  assert.ok(!gpt.a1.includes("book:B4"), "no A1, nothing asked of the archive for it");
+  assert.equal(gpt.r.books.find((b) => b.id === "B3")!.enlarged, 0.45, "a line without lifted: by its scale, as before");
+  // a crop of 500 px: enlarged at 800 too (1.6×) — the signal stays
+  const weak = run({ scale: 3, lifted: 1.6 });
+  assert.equal(weak.book.enlarged, 1);
+  assert.deepEqual(weak.book.signals, ["M6"]);
+  assert.ok(weak.a1.includes("book:B4"));
+  // Claude's lines (no lifted): as before
+  const claude = run({ scale: 1.6 });
+  assert.deepEqual(claude.book.signals, ["M6"]);
+  assert.deepEqual(run({ scale: 1 }).book.signals, []);
+});
+
+// N6 (2026-11-07): a document read again by two readers (a GPT reader and Claude, each its own views) — every view
+// went to the first reader of the window, under its key. Each reader's record names the files it was given; a view
+// goes to the reader given that very file, a file both were given once to each; a record without files as before.
+test("N6: two readers of one reading each get the views they were given, under their own key; a record without view files as before", () => {
+  const now = Date.parse("2026-11-07T12:00:00Z");
+  const { tree, root, done } = fakeTree({});
+  try {
+    const t = now - 3600_000;
+    const view = (file: string, rs: string, scale: number, lifted?: number) => ({ at: iso(t - 300_000), key: "M0001", by: "agent", view: file, region: { x: 0, y: 0, w: 500, h: 300 }, scale, ...(lifted ? { lifted } : {}), w: 1500, h: 900, W: 3000, H: 2000, kind: "crop", rs, img: 1, cached: false, reader: 1 });
+    const views = [
+      view("M0001-gpt.jpg", "B1", 3, 1.6),
+      view("M0001-gpt2.jpg", "B1", 3, 1.6),
+      view("M0001-claude.jpg", "B1", 1.6),
+      // the same file made for both (the same sizes): a line each, one to each reader
+      view("M0001-both.jpg", "B1", 1),
+      { ...view("M0001-both.jpg", "B1", 1), cached: true },
+    ];
+    const reader = (name: string, agent: string, key: string, files: string[], at = t) => ({ at: iso(at), by: "agent", reader: name, kind: "document", agent, key, views: files.length, viewFiles: files, outcome: "ok", ms: 600_000 });
+    const readers = [
+      reader("document-D1-1", "claude", "claude claude-opus-5-5", ["M0001-claude.jpg", "M0001-both.jpg"]),
+      reader("document-D1-2", "codex", "codex gpt-5.5", ["M0001-gpt.jpg", "M0001-gpt2.jpg", "M0001-both.jpg"], t + 1000),
+    ];
+    fs.mkdirSync(path.join(root, ".strom", "metrics"), { recursive: true });
+    fs.mkdirSync(path.join(root, ".strom", "views"), { recursive: true });
+    const write = (rs: Record<string, unknown>[]) => {
+      fs.writeFileSync(path.join(root, ".strom", "metrics", "readers.jsonl"), rs.map((x) => JSON.stringify(x)).join("\n") + "\n");
+      fs.writeFileSync(path.join(root, ".strom", "views", "views.jsonl"), views.map((x) => JSON.stringify(x)).join("\n") + "\n");
+    };
+    write(readers);
+    const units = computeUnits(tree, { guess: () => "claude claude-opus-5-5", now });
+    const of = (key: string) => units.find((u) => u.key === key)!.books.B1!;
+    assert.deepEqual([of("claude claude-opus-5-5").views, of("claude claude-opus-5-5").enlarged], [2, 1]);
+    assert.deepEqual([of("codex gpt-5.5").views, of("codex gpt-5.5").enlarged], [3, 2]);
+    // records of before (no view files): every view to the first reader of the window, as it was
+    write(readers.map(({ viewFiles: _, ...r }) => r));
+    const old = computeUnits(tree, { guess: () => "claude claude-opus-5-5", now });
+    assert.equal(old.find((u) => u.key === "claude claude-opus-5-5")!.books.B1!.views, 5);
+    assert.equal(old.find((u) => u.key === "codex gpt-5.5")!.books.B1, undefined);
+  } finally {
+    done();
+  }
+});

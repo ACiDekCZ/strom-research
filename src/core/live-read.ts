@@ -18,7 +18,7 @@ import type { Env } from "./paths.ts";
 import { newerTree, Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
-import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
+import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, newReadId, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
 import { knownOriginal } from "./originals.ts";
 import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
@@ -53,6 +53,13 @@ const STATUS_DAYS = 7;
 const LIST_DAYS = 90;
 /** A queued reading whose strom was started and has not begun: started again after so long, given up after so many tries. */
 const START_WAIT_MS = 30_000;
+/**
+ * A new reading the app asked for, accepted (202) after this long though its strom has not queued it yet — the bridge
+ * busy (its order kept on its thread, the history packed): the app waits 15 s for the answer. Its ID is given to its
+ * strom beforehand (--id); until its strom has queued it, it is said as queued; a strom that fails then leaves it failed,
+ * said why. Ended sooner: answered as it says, as before.
+ */
+const ACCEPT_MS = 3_000;
 const START_TRIES = 3;
 /** How long the agent's limit or login said by a reader keeps the app from asking (unless the agent says when it resets). */
 const LIMIT_MS = 3600_000;
@@ -534,7 +541,7 @@ export class AppReadings {
     if (!READ_ID.test(id)) return undefined;
     const tree = Tree.open(this.b.root, this.b.env);
     if (actsAsArchive(tree)) return undefined;
-    const s = loadState(this.b.root, id);
+    const s = loadState(this.b.root, id) ?? this.waiting.get(id);
     if (s) return { tree, result: buildResult(tree, shown(s)) };
     try {
       const r = JSON.parse(fs.readFileSync(resultPath(this.b.root, id), "utf8")) as ReadResult;
@@ -699,6 +706,7 @@ export class AppReadings {
       what: "a reading",
       args: ["document", "read", ...records, "--queue", "--readers", String(readers), "--into", lang, ...(person ? ["--person", person] : []), ...(note ? [`--note=${note}`] : []), ...(region ? [`--region=${region}`] : []), ...names, ...w.args],
       asked: "read",
+      early: { readers, lang },
     };
   }
 
@@ -735,13 +743,13 @@ export class AppReadings {
     if (no === "none") return { code: 404, body: refusal(`no source ${source} in this research`, "read.source.none", { source }) };
     if (no === "notext") return { code: 409, body: refusal(`${source} has no transcript to hold a new reading against`, "read.source.notext", { source }) };
     if (no === "noscan") return { code: 409, body: refusal(`${source} has no original here to read${clip ? ` (excerpt ${clip})` : ""}`, "read.source.noscan", { source, ...(clip ? { clip } : {}) }) };
-    const running = readingOfSource(this.b.root, source);
+    const running = readingOfSource(this.b.root, source) ?? [...this.waiting.values()].find((s) => s.source?.id === source)?.id;
     if (running) return { code: 409, body: { ...refusal(`${source} is being read again now (${running})`, "read.source.running", { source, read: running }), read: running } };
     const w = this.withOf(tree, body.with, readers);
     if ("code" in w) return w;
     const limited = this.limited();
     if (limited) return limited;
-    return { what: `${source} read again`, args: ["document", "read", "--source", source, ...(clip ? [`--clip=${clip}`] : []), "--queue", "--readers", String(readers), "--into", lang, ...w.args], asked: "read" };
+    return { what: `${source} read again`, args: ["document", "read", "--source", source, ...(clip ? [`--clip=${clip}`] : []), "--queue", "--readers", String(readers), "--into", lang, ...w.args], asked: "read", early: { readers, lang, source } };
   }
 
   /** POST /read/<id>/again {readers}: the app's reading read again (after one reader: the blind second alone). */
@@ -765,8 +773,12 @@ export class AppReadings {
     return { what: `${id} cancelled`, args: ["document", "cancel", id] };
   }
 
-  /** The command run as the person's (forApp), its --json said as the answer. */
-  private run(asked: Command, reply: (code: number, body: Record<string, unknown>) => void): void {
+  /**
+   * The command run as the person's (forApp), its --json said as the answer. A new reading whose strom has not queued
+   * it within ACCEPT_MS: accepted at once with the ID given to it (202), said as queued until it is; what its strom says
+   * then is written to it (failed, why).
+   */
+  private run(asked: Command, answer: (code: number, body: Record<string, unknown>) => void): void {
     const { command, args } = stromLauncher();
     if (asked.asked) this.pending++;
     let counted = !!asked.asked;
@@ -774,7 +786,30 @@ export class AppReadings {
       if (counted) this.pending--;
       counted = false;
     };
-    const child: ChildProcess = spawn(command, [...args, ...asked.args, "--json"], { cwd: this.b.root, env: forApp(this.b.env, this.b.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const early = asked.early ? this.accepting(asked.early) : undefined;
+    let replied = false;
+    let timer: NodeJS.Timeout | undefined;
+    const reply = (code: number, body: Record<string, unknown>) => {
+      if (timer) clearTimeout(timer);
+      if (replied) {
+        // answered already: what its strom said is the reading's
+        if (early) this.settled(early, code, body);
+        return;
+      }
+      replied = true;
+      if (early) this.waiting.delete(early.id);
+      answer(code, body);
+    };
+    if (early) {
+      timer = setTimeout(() => {
+        if (replied) return;
+        replied = true;
+        this.b.note(`${asked.what} accepted, still being queued: ${early.id}`);
+        answer(202, { read: early.id, state: "queued", version: 1, ...(early.source ? { source: early.source.id } : {}) });
+      }, Number(this.b.env.STROM_READ_ACCEPT_MS ?? ACCEPT_MS));
+      timer.unref?.();
+    }
+    const child: ChildProcess = spawn(command, [...args, ...asked.args, ...(early ? ["--id", early.id] : []), "--json"], { cwd: this.b.root, env: forApp(this.b.env, this.b.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let out = "";
     let err = "";
     child.stdout!.on("data", (d: Buffer) => (out += d.toString("utf8")));
@@ -820,6 +855,29 @@ export class AppReadings {
       if (said === "read.with") return reply(400, { ...refusal(why, said, params), ...params });
       reply(500, { ...refusal(why, "read.failed"), ...(said ? { reasonCode: said } : {}) });
     });
+  }
+
+  /** New readings accepted before their strom has queued them: said as queued meanwhile (GET /read/<id>). */
+  private readonly waiting = new Map<string, ReadState>();
+
+  /** A new reading's ID given beforehand, and what it is said as until its strom has queued it. */
+  private accepting(e: NonNullable<Command["early"]>): ReadState {
+    const at = new Date().toISOString();
+    const s: ReadState = { id: newReadId(), state: "queued", version: 1, readers: e.readers, lang: e.lang, pages: [], groups: [], reports: [], ...(e.source ? { source: { id: e.source } } : {}), at, since: at, from: APP_READ_FROM };
+    this.waiting.set(s.id, s);
+    return s;
+  }
+
+  /** What the strom of a reading accepted early said: queued (its own state now), or not — written failed, why. */
+  private settled(s: ReadState, code: number, body: Record<string, unknown>): void {
+    this.waiting.delete(s.id);
+    if (code === 202 || loadState(this.b.root, s.id)) return;
+    const why = String(body.error ?? body.text ?? body.reason ?? "its strom did not queue it");
+    try {
+      saveState(this.b.root, { ...s, state: "failed", since: new Date().toISOString(), error: why });
+    } catch (e) {
+      this.b.note(`${s.id}: not written as failed: ${(e as Error).message}`);
+    }
   }
 
   // ── the queue ──
@@ -887,5 +945,7 @@ interface Command {
   args: string[];
   /** A new reading, one again: counted against the limits. */
   asked?: "read" | "again";
+  /** A new reading: what it is said with when it is accepted before its strom has queued it (ACCEPT_MS). */
+  early?: { readers: number; lang: string; source?: string };
 }
 type Ask = Command | { code: number; body: Record<string, unknown> };

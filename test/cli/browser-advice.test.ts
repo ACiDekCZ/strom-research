@@ -19,7 +19,7 @@ import { browserKept, browserState } from "../../src/core/browserhelp.ts";
 import { CODEX_HOOKS, codexHookHash, codexHooks } from "../../src/core/codexhook.ts";
 import { CLAUDE_IN_CHROME_URL } from "../../src/core/browser.ts";
 import { BRIDGE_FEATURES, status } from "../../src/core/live.ts";
-import { codexArgs, codexBrowserOff, CODEX_CLEAN } from "../../src/runners/codex.ts";
+import { codexArgs, codexBrowserOff, codexResumeArgs, CODEX_CLEAN, CODEX_NO_NOTIFY } from "../../src/runners/codex.ts";
 
 const opts = { skip: !hasGit };
 let ahead = 0;
@@ -227,6 +227,20 @@ test("Codex without the person's add-ons: its desktop app's browser and computer
     assert.ok(args.join(" ").includes([...off, ...CODEX_CLEAN].join(" ")), args.join(" "));
     // the person's add-ons on: theirs, untouched
     assert.ok(!codexArgs({ cwd: home, shared: undefined, clean: false, env }).includes("mcp_servers.node_repl.enabled=false"));
+    assert.ok(!codexArgs({ cwd: home, shared: undefined, clean: false, env }).includes("notify=[]"), "the user's notice program stays outside a reader");
+    // a reader of strom: always without the add-ons, the browser, computer use and the user's notice program —
+    // with the add-ons on too; the user's config file stays as it was
+    const before = fs.readFileSync(path.join(home, "config.toml"), "utf8");
+    const readerFiles = { views: [path.join(home, "v.jpg")], report: path.join(home, "r.md") };
+    for (const clean of [false, true]) {
+      for (const a of [codexArgs({ cwd: home, shared: undefined, clean, env, readerFiles }), codexResumeArgs("t1", { cwd: home, shared: undefined, clean, env, readerFiles })]) {
+        const line = a.join(" ");
+        assert.ok(line.includes([...off, ...CODEX_CLEAN, ...CODEX_NO_NOTIFY].join(" ")), line);
+        assert.equal(a.filter((x) => x === "notify=[]").length, 1, line);
+      }
+    }
+    assert.deepEqual(CODEX_NO_NOTIFY, ["-c", "notify=[]"]);
+    assert.equal(fs.readFileSync(path.join(home, "config.toml"), "utf8"), before);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }

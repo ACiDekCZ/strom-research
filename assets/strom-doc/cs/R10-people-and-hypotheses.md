@@ -77,8 +77,9 @@ nevybírá potichu. Zapíše hypotézu: otázku a její verze A, B, C… s tím,
 ### R10.3.1 Rozhodnutí hypotézy
 
 Hypotéza se rozhodne pro jednu verzi, nebo se zruší, když žádnou rozhodnout nejde. Kdo ji rozhoduje, určuje volba
-výzkumu ([R10.3.2](#R10.3.2)): výchozí **Rozhoduje člověk** (agent rozhodnutí jen navrhne), nebo **Rozhoduje AI**
-(agent rozhodne sám, jen podle citovaného záznamu). Aplikace hypotézu rozhodnout nedá, odkáže do výzkumu.
+výzkumu ([R10.3.2](#R10.3.2)): **Rozhoduje AI** (agent rozhodne sám, jen podle citovaného záznamu; výchozí, když
+volba není uložená), nebo **Rozhoduje člověk** (agent rozhodnutí jen navrhne). Aplikace hypotézu rozhodnout nedá,
+odkáže do výzkumu.
 
 - **Hlídá kód:**
   - při **Rozhoduje člověk** je rozhodnutí krok člověka. Když `strom hypothesis decide` spustí agent (i uvnitř
@@ -113,7 +114,8 @@ výzkumu ([R10.3.2](#R10.3.2)): výchozí **Rozhoduje člověk** (agent rozhodnu
 - **Platí od:** výzkum 1.0.0; výpis nezapsaných pramenů 1.12.0
 - **Od výzkumu 1.28.0:** rozhoduje jen člověk, agent navrhuje; uvedenou verzi hlídá kód (dřív jen metodika).
   Hypotézy, které dřív rozhodl agent, zůstávají, jak byly.
-- **Od výzkumu 1.29.0:** kdo rozhoduje, je volba výzkumu ([R10.3.2](#R10.3.2)). Co čeká nabízí i otevřené
+- **Od výzkumu 1.29.0:** kdo rozhoduje, je volba výzkumu ([R10.3.2](#R10.3.2)); bez uložené volby rozhoduje AI, i ve
+  výzkumu založeném dřív. Co čeká nabízí i otevřené
   hypotézy bez návrhu (**Rozhodnout**, **Nechat otevřenou**) a menu **Změnit rozhodnutí**. Do 1.28.0 otevřená
   hypotéza bez návrhu v Co čeká nebyla a rozhodla se jen příkazem `strom hypothesis decide`.
 - **Od aplikace 3.25.0:** **Rozhodnout ve výzkumu** a **Změnit ve výzkumu** v **Co ví výzkum**, kde je výzkum na
@@ -124,15 +126,27 @@ výzkumu ([R10.3.2](#R10.3.2)): výchozí **Rozhoduje člověk** (agent rozhodnu
 <a id="R10.3.2"></a>
 ### R10.3.2 Kdo rozhoduje hypotézy: člověk, nebo AI
 
-Volba výzkumu **Kdo rozhoduje hypotézy** určuje, kdo hypotézu rozhodne. **Rozhoduje člověk** je výchozí: agent jen
-navrhne a rozhodnutí čeká v **Co čeká**. **Rozhoduje AI**: agent rozhodne sám, jakmile citovaný záznam ukazuje na
-jednu verzi; jeho rozhodnutí je označené a člověk ho kdykoli změní.
+Volba výzkumu **Kdo rozhoduje hypotézy** určuje, kdo hypotézu rozhodne. **Rozhoduje AI** je výchozí: agent rozhodne
+sám, jakmile citovaný záznam ukazuje na jednu verzi; jeho rozhodnutí je označené a člověk ho kdykoli změní.
+**Rozhoduje člověk**: agent jen navrhne a rozhodnutí čeká v **Co čeká**. Zpět na rozhodování člověka:
+`strom config set hypotheses.decide person`.
 
 - **Hlídá kód:**
-  - výchozí je **Rozhoduje člověk**, i u výzkumu bez této volby (založeného dřív). Přepnutí nemění hypotézy, které už
-    jsou rozhodnuté;
-  - **Rozhoduje AI** zapne jen člověk v terminálu: otázka vysvětlí, co to znamená, a chce druhé ano. Agentovi strom
-    zapnutí odmítne. Zpět na **Rozhoduje člověk** jde kdykoli, bez potvrzení;
+  - bez uložené volby rozhoduje AI: u nového výzkumu, u výzkumu založeného dřív (do verze 1.28.0 volba nebyla), při
+    nastavení bez terminálu a když nastavení spustí agent. Uložená volba (**Rozhoduje člověk** i **Rozhoduje AI**)
+    zůstává. Přepnutí nemění hypotézy, které už jsou rozhodnuté;
+  - úvodní nastavení (`strom setup`) nabídne jako první **Rozhoduje AI (doporučeno)** s větou „Doporučeno: rozhoduje
+    AI – výzkum pokračuje, aniž by hypotézy čekaly; každé její rozhodnutí je označené a dá se změnit.“ Enter ji
+    vezme bez dalšího potvrzení. Zvolené **Rozhoduje člověk** se uloží a další `strom setup` ho nabídne jako
+    současnou volbu;
+  - kde je uložené **Rozhoduje člověk**, zapne **Rozhoduje AI** znovu jen člověk v terminálu: otázka vysvětlí, co to
+    znamená, a chce druhé ano. Totéž platí pro smazání uložené volby (`strom config unset hypotheses.decide`), protože
+    bez ní rozhoduje AI. Agentovi strom obojí odmítne. Zpět na **Rozhoduje člověk** jde kdykoli, bez potvrzení;
+  - aplikace při uložené **Rozhoduje člověk** a 10 a více otevřených hypotézách stromu nabídne v **Co ví výzkum**, oddíl
+    **Hypotézy**, jednou větou přepnutí: „N otevřených hypotéz čeká na rozhodnutí člověka; při „Rozhoduje AI“ je agent
+    rozhodne sám, každou s důvodem.“ **Přepnout na „Rozhoduje AI“** otevře výzkum v terminálu, kde se volba potvrdí
+    druhým ano; v aplikaci se AI nezapne. **Skrýt** nabídku u tohoto výzkumu skryje natrvalo (v tomto prohlížeči).
+    Nabídka je jen u výzkumu na tomto počítači, který volbu umí a odkaz do výzkumu nabízí ([S3.5](S3-what-the-research-knows.md#S3.5));
   - volba platí pro výzkumy na tomto počítači. Výzkum může mít vlastní (`--for-tree`); volba z aplikace se zapíše
     jen tomu výzkumu;
   - agent rozhodne jen verzi, kterou podporuje citovaný pramen výzkumu (S…). Bez něj strom odmítne a nabídne návrh
@@ -148,15 +162,17 @@ jednu verzi; jeho rozhodnutí je označené a člověk ho kdykoli změní.
   - v Archivu Stromu volba není.
 - **Jen metodika:** agent řekne člověku jednou větou, co rozhodl.
 - **Ovládání:** terminál: úvodní nastavení `strom setup`, krok **Kdo rozhoduje hypotézy – nejistá spojení lidí?** (jen
-  když nastavení dělá člověk v terminálu; bez terminálu se neptá a platí **Rozhoduje člověk**); menu **Nastavení** →
+  když nastavení dělá člověk v terminálu; bez terminálu se neptá a platí uložená volba, bez ní **Rozhoduje AI**;
+  doporučení je jen tady, menu Nastavení nabídne současnou volbu); menu **Nastavení** →
   **Jazyk, agent, model, co smí agent sám, příběhy… (průvodce nastavením)** → **Kdo rozhoduje hypotézy: …**;
   `strom config set hypotheses.decide person|agent [--for-tree]`, platnou hodnotu ukáže `strom config where`.
+  Zpět na rozhodování člověka: `strom config set hypotheses.decide person`.
   Aplikace: **Výzkum** → **Další** → **Výzkum u tohoto stromu…** → **Kdo rozhoduje hypotézy**: **Rozhoduje člověk** se
   do výzkumu zapíše hned, **Rozhoduje AI** potvrdí výzkum v terminálu (**Potvrdit ve výzkumu**). Řádek se ukáže jen
-  s výzkumem, který volbu umí.
+  s výzkumem, který volbu umí. Nabídka v **Co ví výzkum** → **Hypotézy**: **Přepnout na „Rozhoduje AI“**, **Skrýt**.
 - **Platí od:** výzkum 1.29.0, aplikace 3.25.0
 
-<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 -->
+<!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 · výchozí AI (výzkum 1.29.0): research:src/core/config.ts hypothesesDecide (=== person ? person : agent), getDefault hypotheses.decide agent · src/commands/setup.ts syncDecisions/layerChange (agent nebo unset tam, kde je person → requireHuman) · src/cli/wizard.ts 5c (was = stored === person ? 0 : 1; druhé ano jen při uloženém person; person uloženo; ui.setup.model.recommended, ui.setup.hypotheses.recommended) · src/cli/menu-settings.ts hypothesesStep (bez doporučení) · CHANGELOG.cs.md 1.29.0 „Kde nic zvoleno není, rozhoduje AI“ · spec 060 K1.9 · nabídka: app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN = 10, researchHypothesesOffer (HYPOTHESES_DECIDE_FEATURE, hypothesesDecide === person, isOpenHypothesis celého stromu, activeResearchLink hypotheses decide=agent), hideHypothesesOffer (localStorage na výzkum) · strings.ts research.hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · spec 060 K1.6–K1.8 -->
 
 <a id="R10.4"></a>
 ## R10.4 Rodina mimo strom čeká na doloženou vazbu

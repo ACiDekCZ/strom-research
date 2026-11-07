@@ -150,8 +150,10 @@ Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-p
 - Eine entschiedene oder verworfene Hypothese, aus dem Menü geöffnet, bietet **Entscheidung ändern**: der neue Text der
   Entscheidung ist nötig und zugleich der Grund der Änderung. Hat der Agent sie entschieden, steht bei ihr **Vom
   Agenten entschieden (Tag).**
-- **Grenzen:** das gilt, wenn der Mensch die Hypothesen entscheidet (**Der Mensch entscheidet**, Standard;
-  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); es entscheidet nur der Mensch ([R6.6](#R6.6)). Bei **Die KI
+- **Grenzen:** das gilt, wenn der Mensch die Hypothesen entscheidet (gespeicherte Wahl **Der Mensch entscheidet**;
+  ohne gespeicherte Wahl entscheidet die KI, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); es entscheidet nur der
+  Mensch ([R6.6](#R6.6)). Warten 10 oder mehr offene Hypothesen, bietet die App in **Was die Forschung weiß** das
+  Umstellen auf **Die KI entscheidet** an (bestätigt in der Forschung). Bei **Die KI
   entscheidet** entscheidet der Agent selbst, was ein zitierter Eintrag belegt, und es warten nur seine Vorschläge
   (Entscheidungen, die er nicht selbst treffen darf). Die Gruppe ist nur im Terminal, die Strom-App zeigt sie nicht
   ([R6.1.1](#R6.1.1)). Im Strom-Archiv gibt es die Gruppe nicht.
@@ -162,7 +164,7 @@ Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-p
 - **Ab Forschung 1.29.0:** auch offene Hypothesen ohne Vorschlag (**Entscheiden**, **Offen lassen**), **Entscheidung
   ändern** und die Wahl **Wer die Hypothesen entscheidet**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 · src/cli/wizard.ts 5c (doporučení) · app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN -->
 
 <a id="R6.4"></a>
 ## R6.4 Gruppen und Reihenfolge
@@ -231,8 +233,11 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
   die Korrekturen `strom fixes … edit-decisions|woken-waits`.
 - **Ab Forschung 1.28.0:** nur der Mensch entscheidet auch eine Hypothese (`strom hypothesis decide`, auch innerhalb
   von `strom batch`); der Agent schlägt sie nur vor ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
+- **Ab Forschung 1.29.0:** das gilt bei **Der Mensch entscheidet**; ohne gespeicherte Wahl entscheidet die KI
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). **Die KI entscheidet** dort speichern, wo **Der Mensch
+  entscheidet** gespeichert ist, oder diese Wahl entfernen, darf nur der Mensch.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
 
 <a id="R6.7"></a>
 ## R6.7 Gesendet, Antwort und Rückkehr in die Warteschlange

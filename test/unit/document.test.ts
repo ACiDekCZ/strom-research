@@ -319,6 +319,15 @@ test("two readers: a person the blind one gave another role is the same one, the
   assert.deepEqual(c.entries[0]!.persons.map((p) => p.ref), ["p1"]);
 });
 
+test("two readers: a stop, comma or colon closing a date's, a place's or a name's word is no difference; another number is", () => {
+  const e = (date: string, place: string, surname: string) =>
+    checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: Die 22 Petrus Lhoták\nperson: p1 | child | written=Petrus ${surname} | given=Petrus | surname=${surname}\nevent: BAPM | date=${date} | place=${place} | persons=p1:principal\n`).entries[0]!, "e1").entry;
+  assert.deepEqual(compareReadings([e("22", "Lhota", "Lhoták")], [e("22.", "Lhota,", "Lhoták.".normalize("NFD"))]).entries[0]!.variants ?? [], []);
+  assert.deepEqual(compareReadings([e("22", "Лхота", "Лхотак")], [e("22.", "Лхота:", "Лхотак")]).entries[0]!.variants ?? [], [], "any script");
+  assert.deepEqual(compareReadings([e("22", "Lhota", "Lhoták")], [e("23.", "Lhota", "Lhoták")]).entries[0]!.variants, [{ field: "BAPM.date", at: "22", other: "23." }]);
+  assert.deepEqual(compareReadings([e("1.5.1846", "Lhota", "Lhoták")], [e("15.1846", "Lhota", "Lhoták")]).entries[0]!.variants, [{ field: "BAPM.date", at: "1.5.1846", other: "15.1846" }], "a stop within a date stays");
+});
+
 test("two readers: the people of another role paired by the best match of the name, a tie paired with none", () => {
   const e = (transcript: string, persons: string[]) =>
     checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: ${transcript}\n${persons.map((p, i) => `person: p${i + 1} | ${p}`).join("\n")}\n`).entries[0]!, "e1").entry;

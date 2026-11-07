@@ -10,7 +10,8 @@ import type { Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { userHome, type Env } from "./paths.ts";
 import { AGENTS, findAgent } from "./which.ts";
-import { BUILTIN_MODELS, parseCodex, strongModels, type ModelOption } from "../agents/models.ts";
+import { aliasNow, BUILTIN_MODELS, codexCatalogNewer, modelTitle, parseCodex, strongModels, type ModelOption } from "../agents/models.ts";
+import { loadAliases } from "./modelkey.ts";
 import { EFFORTS, offeredEfforts, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import type { ReaderWho } from "./document.ts";
 
@@ -22,8 +23,13 @@ export interface ChoiceAgent {
   ready: boolean;
   why?: string;
   resets?: string;
-  /** The models offered (id "": the agent's own model). */
-  models: { id: string; name: string }[];
+  /**
+   * The models offered (id "": the agent's own model); `now`: the model an alias (Claude Code's "opus", the agent's own)
+   * last ran on in this research, as its agent said it (feature read.choices.now; `nowName` as a person reads it: "Opus
+   * 5.5") — only when it is known, never guessed; what is asked stays the alias. `unsure`: from Codex's kept catalog, fetched by a newer Codex than the one installed here (catalogNewer) — it may not have the model. */
+  models: { id: string; name: string; unsure?: true; now?: string; nowName?: string }[];
+  /** Codex: its kept catalog was fetched by a newer Codex than the one installed here (both versions): its models offered with a note. */
+  catalogNewer?: { catalog: string; installed: string };
   /** The efforts it takes ("": the agent's own setting); none: it has no effort to set. */
   efforts: string[];
   /** What a reader of it reads with when only the agent is chosen. */
@@ -64,17 +70,23 @@ export function readerDefault(tree: Tree, settings: Settings, id: string, resear
 }
 
 export function readChoices(tree: Tree, settings: Settings, env: Env, agent: string, held: AgentHeld = () => undefined): ReadChoices {
+  const aliases = loadAliases(tree.root);
   const ids = [agent, ...installed(env).filter((a) => a !== agent)];
   const agents = ids.map((id): ChoiceAgent => {
     const set = settings.models(id, tree.config);
     const own = [set.vision, set.lead].filter((m): m is string => !!m);
     const { model, effort } = readerDefault(tree, settings, id, agent);
     const offered = offeredModels(id, env);
+    // Codex's kept catalog from a newer Codex than this one: its models offered with a note, never left out
+    const newer = id === "codex" && offered.some((m) => m.kept) ? codexCatalogNewer(env) : undefined;
     // the person's own models first, then those the settings offer for it, and the agent's own model ("") as they do
-    const models = [...new Set([...(model ? [model] : []), ...own, ...offered.map((m) => m.id), ""])].map((m) => ({ id: m, name: m === "" ? "" : modelName(id, m, offered) }));
+    const models = [...new Set([...(model ? [model] : []), ...own, ...offered.map((m) => m.id), ""])].map((m) => {
+      const now = aliasNow(id, m || undefined, aliases);
+      return { id: m, name: m === "" ? "" : modelName(id, m, offered), ...(newer && offered.some((o) => o.id === m && o.kept) ? { unsure: true as const } : {}), ...(now ? { now, nowName: modelTitle(id, now) } : {}) };
+    });
     const efforts = EFFORTS[id] ? [...new Set([...(effort ? [effort] : []), ...offeredEfforts(id), ""])] : [];
     const h = held(id);
-    return { id, name: agentName(id), ready: !h, ...(h ? { why: h.why, ...(h.resets ? { resets: h.resets } : {}) } : {}), models, efforts, default: { model, effort } };
+    return { id, name: agentName(id), ready: !h, ...(h ? { why: h.why, ...(h.resets ? { resets: h.resets } : {}) } : {}), models, ...(newer ? { catalogNewer: newer } : {}), efforts, default: { model, effort } };
   });
   const first = agents[0]!;
   const dflt = { agent: first.id, model: first.default.model, effort: first.default.effort };
@@ -99,11 +111,11 @@ function installed(env: Env): string[] {
  * starts an agent's CLI to list them): Codex's catalog for the account it keeps beside its config, its strong ones;
  * else the strong ones strom knows (agents/models.ts).
  */
-function offeredModels(id: string, env: Env): ModelOption[] {
+function offeredModels(id: string, env: Env): (ModelOption & { kept?: true })[] {
   if (id === "codex") {
     try {
       const strong = strongModels(parseCodex(fs.readFileSync(path.join(env.CODEX_HOME || path.join(userHome(env), ".codex"), "models_cache.json"), "utf8")));
-      if (strong.length) return strong;
+      if (strong.length) return strong.map((m) => ({ ...m, kept: true as const }));
     } catch {
       // none kept
     }

@@ -11,7 +11,7 @@ import type { Input, Media, Source, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { inputPath } from "./media.ts";
 import { clipMark, INPUT_MARK, withMargin } from "./excerpt.ts";
-import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, wordHunks, type ReadResult, type Region, type SourceRead } from "./document.ts";
+import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, wordHunks, words, type ReadResult, type Region, type SourceRead } from "./document.ts";
 import { create, update } from "./records.ts";
 import { phrase } from "./phrases.ts";
 
@@ -130,18 +130,131 @@ export function readsAgain(tree: Tree, shared: string | undefined, s: Source): b
   return sourceOk(s) && !!s.transcript?.trim() && originalPages(tree, shared, s).length > 0;
 }
 
+/** A label at the start of a line (a column's heading of a register: "Dies:", "Vater:", "Hat getauft:"), its line's start before it. */
+const LABEL = /(^|[\n|/])([ \t]*)([\p{L}\p{M}][\p{L}\p{M}.]*(?:[ \t]+[\p{L}\p{M}][\p{L}\p{M}.]*)?):(?=\s|$)/gu;
+
+/**
+ * A note of the research's own in a transcript: a group in brackets standing alone ("[Copulati]", "[page torn]") or
+ * in parentheses — never the marks [?] and [...], never letters added within a word ("Lhotá[ka]").
+ */
+const EDITORIAL = /(?<![\p{L}\p{M}\p{N}])(?:\[(?!\s*(?:\?|\.{2,}|…)\s*\])[^\[\]\n]*\]|\([^()\n]*\))(?![\p{L}\p{M}\p{N}])/gu;
+
+const keysOf = (t: string) => words(t).map((w) => w.key);
+
+/** The keys of a text, each alone and two or three in a row as one word ("In præsent": "inpraesent" too). */
+function keysJoined(t: string): Set<string> {
+  const keys = keysOf(t);
+  const out = new Set(keys);
+  for (let i = 0; i < keys.length; i++) for (let n = 2; n <= 3 && i + n <= keys.length; n++) out.add(keys.slice(i, i + n).join(""));
+  return out;
+}
+
+/**
+ * A text without its labels whose words the other text has none of (a column's heading the other did not write) — a
+ * label the other has with its words written apart or together ("Inpraesent:" for "In præsent") is no such label.
+ */
+function withoutLabels(t: string, other: string, lines: RegExp = LABEL): string {
+  const there = keysJoined(other);
+  return t.replace(lines, (all, at: string, space: string, label: string) => {
+    const keys = keysOf(label);
+    return keys.some((k) => there.has(k)) || there.has(keys.join("")) ? all : `${at}${space}`;
+  });
+}
+
+/** Two texts of the same letters, their words written apart in one and together in the other ("In præsent" × "Inpraesent"). */
+const joinedAlike = (a: string, b: string) => keysOf(a).join("") === keysOf(b).join("");
+
+/** A text without its notes in brackets the other has not the words of (the research's own, a reader's: "[col. 2:]"). */
+function withoutNotes(t: string, other: string): string {
+  const there = ` ${keysOf(other).join(" ")} `;
+  return t.replace(EDITORIAL, (all) => {
+    const k = keysOf(all).join(" ");
+    return k && there.includes(` ${k} `) ? all : " ";
+  });
+}
+
+/**
+ * A transcript without the words of its heading the new reading has not: its first line where it is the research's
+ * own heading of the record (at least five words, two thirds of them in the source's locator: "Book 12, fol. 60, 1st
+ * entry of November") — never a line of the record itself.
+ */
+function withoutHeading(t: string, other: string, locator: string | undefined): string {
+  if (!locator) return t;
+  const lines = t.split("\n");
+  const at = lines.findIndex((l) => l.trim());
+  if (at < 0) return t;
+  const keys = keysOf(lines[at]!);
+  const loc = new Set(keysOf(locator));
+  if (keys.length < 5 || keys.filter((k) => loc.has(k)).length * 3 < keys.length * 2) return t;
+  const there = new Set(keysOf(other));
+  lines[at] = lines[at]!.split(/(\s+)/u).map((w) => (/^\s+$/u.test(w) || keysOf(w).every((k) => there.has(k)) ? w : "")).join("");
+  return lines.join("\n");
+}
+
+/** Words that are nothing read: a mark that the place cannot be read, or none. */
+const nothingRead = (t: string) => words(t).every((w) => w.illegible || !w.key);
+
+/** One word as another, written shorter: "Mens." for "Mense". */
+function shortFor(a: string, b: string): boolean {
+  const [x, y] = [keysOf(a).join(""), keysOf(b).join("")];
+  if (x === y) return true;
+  const [short, long, text] = x.length < y.length ? [x, y, a] : [y, x, b];
+  return short.length >= 2 && text.trimEnd().endsWith(".") && long.startsWith(short);
+}
+
 /**
  * The new reading against the source's transcript (at: the transcript, other: the new reading): its words alike, or
- * where they differ. Read from its excerpts, words one side has alone at the very start or end of both (a heading of
- * the page above the excerpt, a word of the next entry in its margin) are outside what was read: no place that differs.
+ * where they differ. Only the entries of the reading that are the source's record (r.source.entries; a reading that
+ * did not tell them apart: all of them). No place that differs: a column's label one wrote and the other not, words
+ * written apart in one and together in the other, a note of
+ * the research's own in the transcript (its heading of the record too), nothing against a mark that it cannot be read; and read from its excerpts, the
+ * words at the very start or end of both that only one has, or more of than the other (a heading of the page above
+ * the excerpt, a word of the next entry in its margin) — outside what both read.
  */
-export function compareWithSource(s: Pick<Source, "transcript" | "clips">, r: Pick<ReadResult, "entries">): { agree: "same" | "differ"; variants: { at: string; other: string }[] } {
-  const read = r.entries.map((e) => e.transcript).join("\n");
+export function compareWithSource(s: Pick<Source, "transcript" | "clips"> & Partial<Pick<Source, "locator">>, r: Pick<ReadResult, "entries"> & { source?: Pick<SourceRead, "entries"> }): { agree: "same" | "differ"; variants: { at: string; other: string }[] } {
+  const ids = r.source?.entries;
+  const read = (ids ? r.entries.filter((e) => ids.includes(e.id)) : r.entries).map((e) => e.transcript).join("\n").normalize("NFC");
+  const was = (s.transcript ?? "").normalize("NFC");
   const clipped = !!s.clips?.length;
-  const variants = wordHunks((s.transcript ?? "").normalize("NFC"), read.normalize("NFC"))
-    .filter((v) => !(clipped && v.edge && (!v.at || !v.other)))
-    .map(({ at, other }) => ({ at, other }));
+  const at = withoutNotes(withoutHeading(withoutLabels(was, read), read, s.locator), read);
+  const other = withoutNotes(withoutLabels(read, at), at);
+  const variants: { at: string; other: string }[] = [];
+  for (const v of wordHunks(at, other)) {
+    if (!v.at && !v.other) continue;
+    if ((!v.at && nothingRead(v.other)) || (!v.other && nothingRead(v.at))) continue;
+    if (v.at && v.other && joinedAlike(v.at, v.other)) continue;
+    if (clipped && v.edge) {
+      if (!v.at || !v.other) continue;
+      // both at an edge: as many words of each as the other has, those nearest what both read
+      if (v.start !== v.end) {
+        const a = v.at.split(/\s+/u);
+        const b = v.other.split(/\s+/u);
+        const n = Math.min(a.length, b.length);
+        const cut = (x: string[]) => (v.start ? x.slice(x.length - n) : x.slice(0, n));
+        const [x, y] = [cut(a), cut(b)];
+        if (x.every((w, i) => shortFor(w, y[i]!))) continue;
+        variants.push({ at: x.join(" "), other: y.join(" ") });
+        continue;
+      }
+    }
+    variants.push({ at: v.at, other: v.other });
+  }
   return { agree: variants.length ? "differ" : "same", variants };
+}
+
+/**
+ * A reading of a source again held against its transcript, nothing written: the entries that are the source's, how
+ * they compare — or why they cannot be (the source gone, no entry of it read).
+ */
+export function heldAgainst(tree: Tree, at: SourceRead, r: ReadResult): SourceRead {
+  const { agree: _a, variants: _v, failed: _f, entries: _e, ...base } = at;
+  const s = tree.get<Source>(at.id);
+  if (!sourceOk(s)) return { ...base, failed: { code: "no-source", why: `${at.id} is no source of the research any more (gone, retracted or merged)` } };
+  const ids = r.source?.entries ?? at.entries;
+  const mine = ids ? r.entries.filter((e) => ids.includes(e.id)) : r.entries;
+  if (!mine.length) return { ...base, failed: { code: "no-entry", why: "no entry of the reading is the source's record: nothing read, or only entries beside it" } };
+  const c = compareWithSource(s, { entries: mine });
+  return { ...base, ...(ids ? { entries: mine.map((e) => e.id) } : {}), agree: c.agree, variants: c.variants };
 }
 
 /**
@@ -150,15 +263,15 @@ export function compareWithSource(s: Pick<Source, "transcript" | "clips">, r: Pi
  * differ, a task to hold the two against each other. What it came to, for the reading's state.
  */
 export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult): SourceRead {
-  const s = tree.get<Source>(at.id);
-  if (!sourceOk(s)) return at;
-  const c = compareWithSource(s, r);
+  const c = heldAgainst(tree, at, r);
+  if (c.failed) return c;
+  const s = tree.get<Source>(at.id)!;
   // (a source.reading, never a source.edit: the history's edits of a source say who read it — this one changes none)
   update<Source>(tree, s.id, "source", (x) => ({ ...x, readings: [...new Set([...(x.readings ?? []), r.id])] }), { op: "source.reading", summary: `${s.id} read again from its original: ${r.id} (${c.agree === "same" ? "alike its transcript" : "differs from its transcript"})` });
-  if (c.agree === "same") return { ...at, agree: "same", variants: [] };
+  if (c.agree === "same") return { ...c, variants: [] };
   // read again (strom document again) while its task is still open: that task holds this reading too
   const open = at.task ? tree.get<Task>(at.task) : undefined;
-  if (open && open.type === "task" && open.state === "open") return { ...at, agree: "differ", variants: c.variants };
+  if (open && open.type === "task" && open.state === "open") return c;
   const lang = tree.lang;
   const where = [...new Set([...(s.clips ?? []).map((x) => x.media), ...(s.media ?? []), ...(s.input ? [s.input] : [])])];
   const list = (ws: string[]) => ws.slice(0, 6).join(" · ") + (ws.length > 6 ? " · …" : "");
@@ -170,7 +283,7 @@ export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult): So
       priority: 2,
       what: phrase(lang, "read.source.what", { source: s.id, now: r.id }),
       where: [s.id, ...where],
-      why: phrase(lang, "read.source.why", { source: s.id, now: r.id, before: list(c.variants.map((v) => v.at || "—")), after: list(c.variants.map((v) => v.other || "—")) }),
+      why: phrase(lang, "read.source.why", { source: s.id, now: r.id, before: list(c.variants!.map((v) => v.at || "—")), after: list(c.variants!.map((v) => v.other || "—")) }),
       doneWhen: phrase(lang, "read.source.done", { source: s.id, now: r.id }),
       subject: [s.id],
       state: "open",
@@ -178,5 +291,5 @@ export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult): So
     } as never,
     (id) => `+${id} task "hold the reading ${r.id} against the transcript of ${s.id}"`,
   );
-  return { ...at, agree: "differ", variants: c.variants, task: task.id };
+  return { ...c, task: task.id };
 }

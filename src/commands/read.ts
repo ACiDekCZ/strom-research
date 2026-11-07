@@ -352,7 +352,8 @@ register({
     const byMedia = new Map(images.map((m) => [m.id, m]));
     const pixels = new Map<string, number>();
     const view =(file: string, m: Media, spec: Parameters<typeof makeView>[3], kind?: "whole" | "half" | "crop" | "split") => {
-      const v = makeView(tree, file, m.id, spec, { reader: true, capFrom: capOf(m).capFrom, ...(kind ? { kind } : {}) });
+      // a small crop enlarged as the model takes it, above a calibrated reading size (never above --max asked)
+      const v = makeView(tree, file, m.id, { min: sizes.min, ...(opts.max === undefined ? { liftMax: sizes.max } : {}), ...spec }, { reader: true, capFrom: capOf(m).capFrom, ...(kind ? { kind } : {}) });
       pixels.set(v.file, v.width * v.height);
       return v;
     };

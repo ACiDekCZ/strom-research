@@ -107,7 +107,7 @@ register({
       };
 
     const r0 = readers(ctx, tree, shared, "clips", "find", opts);
-    const { model, parallel, reportsDir, failed, progress, viewMax } = r0;
+    const { model, parallel, reportsDir, failed, progress, viewMax, viewMin, viewLift } = r0;
     const reader = r0.read;
 
     // 1. Find: each image whole, with a grid, and what the entry says.
@@ -123,7 +123,7 @@ register({
         words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
         images: s.media!.flatMap((id) => {
           const m = imageOf(id);
-          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: viewMax }, { reader: true }).file }] : [];
+          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: viewMax, min: viewMin, liftMax: viewLift }, { reader: true }).file }] : [];
         }),
       }));
       progress(`▶ finding ${k + 1}/${groups.length}: ${group.map((s) => s.id).join(" ")}`);
@@ -145,7 +145,7 @@ register({
           media: l.media,
           title: s.title,
           words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
-          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax }, { reader: true }).file,
+          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax, min: viewMin, liftMax: viewLift }, { reader: true }).file,
         };
       });
       const checkGroups = batches(checks, size);

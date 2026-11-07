@@ -3,6 +3,7 @@
 // and remembered by their content, the sizes of a research measured only when asked for, and a network drive or a
 // cloud's folder told by what Windows says of it — its files' attributes only, nothing opened or downloaded.
 
+import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

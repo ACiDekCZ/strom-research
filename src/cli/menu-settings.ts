@@ -14,6 +14,7 @@ import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./m
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
+import { aliasesHere, modelSaid } from "./model-choice.ts";
 import { DEFAULT_RUN_MINUTES, readStored, type HistoryPace } from "../core/config.ts";
 import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
 import { byTree, offLineView, type BranchView } from "../core/offline.ts";
@@ -73,7 +74,9 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             const parts: { label: string; act: () => Promise<void> }[] = [];
             if (modelShown) {
               const kept = ctx.settings.resolve("model.lead", tree, agent);
-              parts.push({ label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }), act: () => modelStep(ctx, run, lang, agent, tree) });
+              // the model with what an alias (or the agent's own) last ran on, where a research here saw it ("opus (now Opus 5.5)")
+              const said = modelSaid(lang, agent, kept ? String(kept.value) : undefined, aliasesHere(ctx), t("ui.settings.model.own"));
+              parts.push({ label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: said }), act: () => modelStep(ctx, run, lang, agent, tree) });
             }
             // macOS: the terminal chosen here; Windows: the system decides it, said where
             if (process.platform === "darwin" || process.platform === "win32")

@@ -157,13 +157,17 @@ a poznámka. Otevřené jsou rozbalené.
 - **Hranice:** rozhodnout hypotézu z aplikace nejde; rozhoduje se ve výzkumu, v terminálu
   ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Kdo rozhoduje, člověk, nebo agent, je volba výzkumu
   ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Nabídka Rozhoduje AI:** při uložené **Rozhoduje člověk** a 10 a více otevřených hypotézách stromu stojí nad hypotézami
+  věta „N otevřených hypotéz čeká na rozhodnutí člověka; při „Rozhoduje AI“ je agent rozhodne sám, každou s
+  důvodem.“ Přepnutí se potvrdí ve výzkumu, v aplikaci se AI nezapne ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
 - **Ovládání:** aplikace: přepínač **Ukázat** u verze ([S3.5.1](#S3.5.1)); **Rozhodnout ve výzkumu**, u rozhodnuté
-  **Změnit ve výzkumu** otevře hypotézu ve výzkumu na tomto počítači.
+  **Změnit ve výzkumu** otevře hypotézu ve výzkumu na tomto počítači; **Přepnout na „Rozhoduje AI“** otevře výzkum
+  v terminálu, **Skrýt** nabídku u tohoto výzkumu skryje.
 - **Platí od:** aplikace 3.11.0 s výzkumem 1.14.0 (verze, stav, **Ukázat**); seznam hypotéz od aplikace 3.4.0
-- **Od aplikace 3.25.0:** *rozhodl agent* s důvodem (s výzkumem 1.29.0), **Rozhodnout ve výzkumu** a **Změnit ve
-  výzkumu**.
+- **Od aplikace 3.25.0:** *rozhodl agent* s důvodem (s výzkumem 1.29.0), **Rozhodnout ve výzkumu**, **Změnit ve
+  výzkumu** a nabídka **Rozhoduje AI**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Ukázat: připojeno jen v zobrazení

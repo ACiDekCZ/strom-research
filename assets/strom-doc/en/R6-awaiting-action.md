@@ -148,8 +148,10 @@ confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)
 - A decided or abandoned hypothesis opened from the menu offers **Change the decision**: the new text of the decision
   is required and is also the reason for the change. When the agent decided it, it carries **Decided by the agent
   (day).**
-- **Limits:** this applies when a person decides the hypotheses (**The user decides**, the default;
-  [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); only a person decides ([R6.6](#R6.6)). With **The AI decides** the
+- **Limits:** this applies when a person decides the hypotheses (the saved choice **The user decides**; without a
+  saved choice the AI decides, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); only a person decides ([R6.6](#R6.6)).
+  When 10 or more open hypotheses wait, the app offers the switch to **The AI decides** in **What the research
+  knows** (confirmed in the research). With **The AI decides** the
   agent decides itself what a cited record supports, and only its proposals wait (decisions it may not make itself).
   The group is only in the terminal; the Strom app does not show it ([R6.1.1](#R6.1.1)). In a Strom archive the group
   does not exist.
@@ -160,7 +162,7 @@ confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)
 - **From research 1.29.0:** also open hypotheses without a proposal (**Decide**, **Leave it open**), **Change the
   decision** and the choice **Who decides the hypotheses**.
 
-<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 -->
+<!-- zdroj: research:src/core/waiting.ts (kind hypothesis, section decide, DECIDE_RANK 0, open: priority -1 a hypothesesOpen jen při person, leftOpen, TERMINAL_ONLY hypotheses, actsAsArchive) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided) · src/cli/menu-research.ts:532 · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.proposed/accept/other/keep/decide/keepOpen/change/byAgent · CHANGELOG.cs.md 1.29.0 · src/cli/wizard.ts 5c (doporučení) · app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN -->
 
 <a id="R6.4"></a>
 ## R6.4 Groups and order
@@ -226,8 +228,11 @@ asks the person in a system window, or refuses the command.
   the app (`strom sync undo|discard`) and the fixes `strom fixes … edit-decisions|woken-waits`.
 - **From research 1.28.0:** only a person also decides a hypothesis (`strom hypothesis decide`, also inside
   `strom batch`); the agent only proposes it ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
+- **From research 1.29.0:** this holds with **The user decides**; without a saved choice the AI decides
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Saving **The AI decides** where **The user decides** is saved, or
+  removing that choice, only a person may do.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
 
 <a id="R6.7"></a>
 ## R6.7 Sent, the answer and the return to the queue

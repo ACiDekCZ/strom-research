@@ -165,13 +165,18 @@ liczba wersji i uwaga. Otwarte są rozwinięte.
 - **Granice:** rozstrzygnąć hipotezy z aplikacji nie można; rozstrzyga się ją w badaniu, w terminalu
   ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Kto rozstrzyga, człowiek czy agent, jest wyborem badania
   ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
+- **Propozycja Rozstrzyga AI:** przy zapisanym **Rozstrzyga człowiek** i 10 lub więcej otwartych hipotezach drzewa
+  nad hipotezami stoi zdanie „N otwartych hipotez czeka na rozstrzygnięcie człowieka; przy „Rozstrzyga AI” agent
+  rozstrzyga je sam, każdą z uzasadnieniem.” Przełączenie potwierdza się w badaniu, w aplikacji AI się nie włącza
+  ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
 - **Obsługa:** aplikacja: przełącznik **Pokaż** przy wersji ([S3.5.1](#S3.5.1)); **Rozstrzygnij w badaniu**, przy
-  rozstrzygniętej **Zmień w badaniu**, otwiera hipotezę w badaniu na tym komputerze.
+  rozstrzygniętej **Zmień w badaniu**, otwiera hipotezę w badaniu na tym komputerze; **Przełącz na „Rozstrzyga AI”**
+  otwiera badanie w terminalu, **Ukryj** ukrywa propozycję dla tego badania.
 - **Obowiązuje od:** aplikacja 3.11.0 z badaniem 1.14.0 (wersje, stan, **Pokaż**); lista hipotez od aplikacji 3.4.0
-- **Od aplikacji 3.25.0:** *rozstrzygnął agent* z uzasadnieniem (z badaniem 1.29.0), **Rozstrzygnij w badaniu**
-  i **Zmień w badaniu**.
+- **Od aplikacji 3.25.0:** *rozstrzygnął agent* z uzasadnieniem (z badaniem 1.29.0), **Rozstrzygnij w badaniu**,
+  **Zmień w badaniu** i propozycja **Rozstrzyga AI**.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.* · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
+<!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
 <a id="S3.5.1"></a>
 ### S3.5.1 Pokaż: połączone tylko w widoku
