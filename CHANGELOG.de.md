@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü

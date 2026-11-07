@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.8. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*

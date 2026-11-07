@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.8. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):

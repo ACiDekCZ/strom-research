@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):

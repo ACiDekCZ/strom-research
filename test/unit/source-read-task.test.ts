@@ -25,9 +25,22 @@ function folder(t: TestContext): string {
 
 const TRANSCRIPT = "Die 3. Novembris 1822 baptizatus est Lhotimír filius Lhotomili Lhoták et Lhotislavae, Lhota No. 12.";
 
+/**
+ * The research's agent here, the same on every computer: a stand-in Claude Code first on PATH (never the real one, nor
+ * the marks of an agent the tests happen to run in) — without it a research waiting for its agent acts as an archive.
+ */
+function agentHere(dir: string): NodeJS.ProcessEnv {
+  const agents = path.join(dir, "agents");
+  fs.mkdirSync(agents);
+  if (process.platform === "win32") fs.writeFileSync(path.join(agents, "claude.cmd"), "@exit /b 0\r\n");
+  else fs.writeFileSync(path.join(agents, "claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  return { ...process.env, PATH: [agents, process.env.PATH ?? ""].join(path.delimiter) };
+}
+
 function treeWithSource(t: TestContext): { tree: Tree; source: Source } {
-  const root = path.join(folder(t), "Lhotákovi");
-  const tree = Tree.create(root, "Lhotákovi", "cs", process.env);
+  const dir = folder(t);
+  const root = path.join(dir, "Lhotákovi");
+  const tree = Tree.create(root, "Lhotákovi", "cs", agentHere(dir));
   const source = create<Source>(
     tree,
     "source",
