@@ -319,7 +319,7 @@ test("what became of the newest reading again: unchecked, saved (trifles alone, 
   assert.deepEqual(state(tree, source.id), { read: "D20261107100000-g002", state: "saved", minorOnly: true });
   // the blind reader reads as the transcript: not sure — with a trifle beside it, still only unsure
   readAgain(tree, source.id, "D20261107100000-g003", FACT.replace("baptizatus", "bapt."), "ask", TRANSCRIPT);
-  assert.deepEqual(state(tree, source.id), { read: "D20261107100000-g003", state: "saved", unsureOnly: true });
+  assert.deepEqual(state(tree, source.id), { read: "D20261107100000-g003", state: "saved", unsureOnly: true, unsureOffer: true });
   readAgain(tree, source.id, "D20261107100000-g004", FACT, "never");
   assert.deepEqual(state(tree, source.id), { read: "D20261107100000-g004", state: "unchecked" });
   const now = decideReading(tree, source.id, "now");
@@ -332,4 +332,101 @@ test("what became of the newest reading again: unchecked, saved (trifles alone, 
   // always: a task at once, in the queue
   const held = readAgain(tree, source.id, "D20261107100000-g006", FACT.replace("No. 12.", "No. 13."), "always");
   assert.deepEqual(state(tree, source.id), { read: "D20261107100000-g006", state: "task", task: held.task, taskFor: "agent", taskOpen: true, taskQueued: true });
+});
+
+// places its readers are not sure of, handed over only by the person's word (spec 059 K8.3–K8.5): a task of the agent's
+// to look at each on the scan, or — a transcript the person confirmed — a wording proposed to them; never by always
+
+test("unsure places alone: never a task by always; offered (unsureOffer) — queue --unsure: the agent's task to look at each on the scan, judged after; a later reading of the same places offers nothing", (t) => {
+  const { tree, source } = treeWithSource(t);
+  // the blind reader reads as the transcript: the place not sure
+  const r = readAgain(tree, source.id, "D20261107100000-h001", FACT, "always", TRANSCRIPT);
+  assert.deepEqual([r.task, r.offer], [undefined, undefined], "always: no task of places not sure");
+  assert.deepEqual(tasks(tree), []);
+  const app = sourceReadForApp(tree, r, "D20261107100000-h001", "always");
+  assert.deepEqual([app.taskOffer, app.unsureOffer, app.task], [false, true, undefined], JSON.stringify(app));
+  assert.deepEqual(readAgainOf(tree, tree.get<Source>(source.id)!), { read: "D20261107100000-h001", state: "saved", unsureOnly: true, unsureOffer: true });
+  // the plain word on it: nothing sure to decide; now, keep with unsure: not so
+  assert.throws(() => decideReading(tree, source.id, "queue"), { code: "read.decide.nothing" });
+  for (const take of ["now", "keep"] as const) assert.throws(() => decideReading(tree, source.id, take, undefined, { unsure: true }), { code: "read.decide.invalid" });
+  assert.throws(() => decideReading(tree, source.id, "review", undefined, { unsure: true }), { code: "read.decide.unconfirmed" });
+  const out = decideReading(tree, source.id, "queue", undefined, { unsure: true });
+  assert.deepEqual([out.take, out.taskFor, out.unsure, out.places, out.appended], ["queue", "agent", true, 1, undefined]);
+  const task = tree.get<Task>(out.task!)!;
+  assert.deepEqual([task.origin, task.level, task.priority, task.state], ["read:source", "verify", 3, "open"]);
+  assert.match(task.what, /nejistá místa/u);
+  assert.match(task.why, /Lhotislavae,/u);
+  assert.match(task.why, /Lhotěnae,/u);
+  assert.match(task.why, /kde to sám snímek ukazuje jistě, přepis opravit \(strom source edit S0001 --transcript … --reason/u);
+  assert.match(task.why, /přepis nechat, jak je, a u pramene poznámku/u);
+  assert.match(task.why, /Na nic se člověka neptat/u);
+  assert.match(task.doneWhen, /každé nejisté místo prohlédnuté/u);
+  assert.equal(tree.get<Source>(source.id)!.readDecided?.unsure, true);
+  assert.deepEqual(readAgainOf(tree, tree.get<Source>(source.id)!), { read: "D20261107100000-h001", state: "task", task: task.id, taskFor: "agent", taskOpen: true, taskQueued: true });
+  assert.equal(sourceReadForApp(tree, r, "D20261107100000-h001", "ask").unsureOffer, undefined, "handed over: offered no more");
+  assert.throws(() => decideReading(tree, source.id, "queue", undefined, { unsure: true }), { code: "read.decide.task" });
+  // read again with the same place not sure (NFD), the task ended: judged in it — offered no more, refused as nothing
+  update<Task>(tree, task.id, "task", (x) => ({ ...x, state: "done" }), { op: "task.done", summary: "done" });
+  const again = readAgain(tree, source.id, "D20261107100000-h002", FACT.normalize("NFD"), "ask", TRANSCRIPT);
+  assert.deepEqual(again.variants?.map((v) => [v.sure, v.judged]), [[false, task.id]]);
+  assert.equal(sourceReadForApp(tree, again, "D20261107100000-h002", "ask").unsureOffer, undefined);
+  assert.equal(readAgainOf(tree, tree.get<Source>(source.id)!)?.unsureOffer, undefined);
+  assert.throws(() => decideReading(tree, source.id, "queue", undefined, { unsure: true }), { code: "read.decide.nothing" });
+});
+
+test("unsure: a matter of fact sure waiting — decided first (read.decide.sure); trifles not sure alone — nothing; a place the new reading could not read goes into the agent's task", (t) => {
+  const { tree, source } = treeWithSource(t);
+  // a sure place (one reader: another house number) beside a place not read
+  readAgain(tree, source.id, "D20261107100000-i001", FACT.replace("Lhotěnae", "[...]").replace("No. 12.", "No. 13."), "ask");
+  assert.throws(() => decideReading(tree, source.id, "queue", undefined, { unsure: true }), { code: "read.decide.sure" });
+  assert.equal(sourceReadForApp(tree, JSON.parse(fs.readFileSync(path.join(tree.root, "notes", "readings", "D20261107100000-i001.json"), "utf8")).source, "D20261107100000-i001", "ask").unsureOffer, undefined, "the sure place offered, not the unsure one");
+  // trifles the readers are not sure of: nothing
+  const { tree: t2, source: s2 } = treeWithSource(t);
+  const trifle = TRANSCRIPT.replace("baptizatus", "bapt.");
+  const r2 = readAgain(t2, s2.id, "D20261107100000-i002", trifle, "ask", TRANSCRIPT);
+  assert.ok(r2.variants?.every((v) => v.sure === false), JSON.stringify(r2.variants));
+  assert.equal(sourceReadForApp(t2, r2, "D20261107100000-i002", "ask").unsureOffer, undefined);
+  assert.throws(() => decideReading(t2, s2.id, "queue", undefined, { unsure: true }), { code: "read.decide.nothing" });
+  // one reader who could not read a word: a place not sure — into the agent's task on the person's word
+  const { tree: t3, source: s3 } = treeWithSource(t);
+  readAgain(t3, s3.id, "D20261107100000-i003", TRANSCRIPT.replace("Lhotislavae", "[...]"), "ask");
+  const out = decideReading(t3, s3.id, "queue", undefined, { unsure: true });
+  assert.match(t3.get<Task>(out.task!)!.why, /nové čtení: \[\.\.\.\]/u);
+});
+
+test("unsure on a transcript the person confirmed: never the agent's task — review proposes the places the new reading read (proposal unsure), none it could not; only unread places: not offered, noproposal", (t) => {
+  const { tree, source } = treeWithSource(t);
+  confirm(tree, source.id);
+  // two places not sure: one read otherwise by the new reading (the blind one as the transcript), one it could not read
+  const both = readAgain(tree, source.id, "D20261107100000-j001", FACT.replace("No. 12.", "No. [...]"), "ask", TRANSCRIPT);
+  assert.equal(sourceReadForApp(tree, both, "D20261107100000-j001", "ask").unsureOffer, true, "a place the new reading read: offered");
+  assert.equal(readAgainOf(tree, tree.get<Source>(source.id)!)?.unsureOffer, true);
+  assert.throws(() => decideReading(tree, source.id, "queue", undefined, { unsure: true }), { code: "read.decide.confirmed" });
+  const out = decideReading(tree, source.id, "review", undefined, { unsure: true });
+  assert.deepEqual([out.taskFor, out.unsure], ["person", true]);
+  const p = tree.get<Task>(out.task!)!;
+  assert.deepEqual([p.origin, p.state, p.proposal?.unsure], ["transcript:proposal", "waiting", true]);
+  assert.equal(p.proposal?.text, FACT, "the place read in it, the one not read left as the transcript has it");
+  assert.match(p.proposal!.why!, /nejsou jistí/u);
+  assert.deepEqual(tasks(tree), [], "no task of the agent's");
+  assert.equal(tree.get<Source>(source.id)!.transcript, TRANSCRIPT);
+  // the person keeps theirs: the same places read again are judged in that proposal
+  tree.personWrites = true;
+  decideProposal(tree, source.id, "keep", { how: "confirm" });
+  tree.personWrites = false;
+  const again = readAgain(tree, source.id, "D20261107100000-j002", FACT.replace("No. 12.", "No. [...]"), "ask", TRANSCRIPT);
+  assert.ok(again.variants?.every((v) => v.judged === p.id), JSON.stringify(again.variants));
+  assert.throws(() => decideReading(tree, source.id, "review", undefined, { unsure: true }), { code: "read.decide.nothing" });
+  // only a place the new reading could not read: nothing to put into a wording
+  const { tree: t2, source: s2 } = treeWithSource(t);
+  confirm(t2, s2.id);
+  const unread = readAgain(t2, s2.id, "D20261107100000-j003", TRANSCRIPT.replace("Lhotislavae", "[...]"), "ask");
+  assert.equal(sourceReadForApp(t2, unread, "D20261107100000-j003", "ask").unsureOffer, undefined, "review would only refuse it: not offered");
+  const state = readAgainOf(t2, t2.get<Source>(s2.id)!);
+  assert.deepEqual([state?.state, state?.unsureOnly, state?.unsureOffer], ["saved", true, undefined]);
+  assert.throws(() => decideReading(t2, s2.id, "review", undefined, { unsure: true }), { code: "read.decide.noproposal" });
+  // not confirmed, the same unread place: offered — the agent looks at it on the scan
+  const { tree: t4, source: s4 } = treeWithSource(t);
+  const open = readAgain(t4, s4.id, "D20261107100000-j004", TRANSCRIPT.replace("Lhotislavae", "[...]"), "ask");
+  assert.equal(sourceReadForApp(t4, open, "D20261107100000-j004", "ask").unsureOffer, true);
 });

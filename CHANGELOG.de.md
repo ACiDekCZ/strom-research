@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -132,7 +132,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Einstellung `read.sourceTask` sagt, was folgt: *fragen* (Standard) – die Lesung bleibt bei der Quelle als nicht
   geprüft, bis der Nutzer wählt: jetzt mit dem Agenten durchgehen, in die Warteschlange, oder nur speichern (im Terminal
   gleich nach der Lesung, später mit `strom source reading S…` oder in der Strom-App); *immer* – sofort eine Aufgabe;
-  *nie* – keine Aufgabe. Eine Quelle hat zugleich eine Aufgabe ihrer Lesungen.
+  *nie* – keine Aufgabe. Eine Quelle hat zugleich eine Aufgabe ihrer Lesungen. Eine Lesung ohne Sachangabe zum
+  Entscheiden, nur mit Stellen, deren sich die Leser nicht sicher sind, legt von selbst keine Aufgabe an – auch nicht
+  bei *immer*; nur auf das Wort des Nutzers (`strom source reading S… --take queue --unsure` oder in der Strom-App)
+  bekommt der Agent eine Aufgabe, jede solche Stelle auf dem Scan anzusehen: wo der Scan es sicher zeigt, die
+  Abschrift mit Begründung berichtigt, sonst eine Notiz an der Quelle. Eine vom Nutzer bestätigte Abschrift ändert der
+  Agent nie: die Stellen, die die neue Lesung gelesen hat, werden stattdessen dem Nutzer zur Prüfung vorgeschlagen
+  (`--take review --unsure`).
 
 - **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
   Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein

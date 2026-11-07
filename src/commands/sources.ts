@@ -1126,7 +1126,7 @@ export function readAgainState(tree: Tree, s: Source): ReadAgain | undefined {
 
 function againLine(a: ReadAgain | undefined, id: string, places: number): string | undefined {
   if (!a) return undefined;
-  const proposal = a.proposal ? ` · a wording proposed to the person waits in ${a.proposal.task}` : "";
+  const proposal = (a.proposal ? ` · a wording proposed to the person waits in ${a.proposal.task}` : "") + (a.unsureOffer ? ` · places its readers are not sure of no task holds: the person may hand them over for a look on the scan (strom source reading ${id} --take queue --unsure; a transcript they confirmed: --take review --unsure) — never without their word` : "");
   if (a.state === "unchecked") return `\nread again ${a.read} — differs from the transcript in ${counted(places, "matter of fact", "matters of fact")} both readers are sure of, NOT verified: the person decides (strom source reading ${id}) — the transcript stays as it is${proposal}`;
   if (a.state === "saved")
     return `\nread again ${a.read} — differs, ${a.minorOnly ? "in trifles alone" : a.unsureOnly ? "only in places its readers are not sure of" : "just kept by the person's word (asked no more)"}${proposal}`;

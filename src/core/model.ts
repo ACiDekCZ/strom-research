@@ -342,9 +342,11 @@ export interface Source extends BaseRecord {
    * The person's word on a reading again that differs in a matter of fact with no task of it (read.sourceTask ask or
    * never): now with the agent, into the queue (task: the task it made), just keep it — that reading asked no more —,
    * or (a transcript the person confirmed) review: a wording proposed to the person (task: theirs, core/proposal.ts).
-   * appended: the places went into a task of the source not ended.
+   * appended: the places went into a task of the source not ended. unsure: asked by the person of a reading with no
+   * matter of fact both readers are sure of, only of places they are not sure of (queue or review; optional: an older
+   * strom keeps it and ignores it).
    */
-  readDecided?: { reading: string; take: "now" | "queue" | "keep" | "review"; at: string; task?: string; appended?: true };
+  readDecided?: { reading: string; take: "now" | "queue" | "keep" | "review"; at: string; task?: string; appended?: true; unsure?: true };
   /**
    * Who read it beyond what the history says (core/readers.ts): the user's own reading — typed by hand at the person's
    * terminal, the transcript confirmed in the Strom app (the bridge), or kept by the fix of the readers (an earlier
@@ -694,6 +696,8 @@ export interface TranscriptProposal {
   why?: string;
   /** The reading of a document it came from (D…), when it did. */
   reading?: string;
+  /** Proposed of the places that reading's readers are not sure of, by the person's word (optional: an older strom ignores it). */
+  unsure?: true;
   /**
    * What the person's decision replaced, so that it can be undone (core/proposal.ts, take undo): the decision, the
    * transcript and the person's reading before it, the wordings declined before, and how the task waited. Optional:

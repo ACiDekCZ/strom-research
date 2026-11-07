@@ -82,11 +82,17 @@ register({
     "review proposes them a wording of it with the new reading's places (their task, What waits — never the queue's)\n" +
     "or keep. Places an earlier task judged, or a wording the person declined, are not handed over again; a task of\n" +
     "the source not ended takes the new places (now, queue). The person's alone: at their terminal (no --take: asked),\n" +
-    "or through the Strom app; an agent never decides it — it tells the person what waits (strom source show S…).",
+    "or through the Strom app; an agent never decides it — it tells the person what waits (strom source show S…).\n" +
+    "--unsure: a reading with no matter of fact both readers are sure of left to decide, only places they are not\n" +
+    "sure of (never trifles, never places a task judged), handed over only by the person's word (read.sourceTask\n" +
+    "always never does it): queue — a task of the agent's to look at each on the scan, correct the transcript where\n" +
+    "sure (with the reason), else a note at the source; review — a transcript they confirmed: a wording with the\n" +
+    "places the new reading read proposed to them.",
   args: [{ name: "source", description: "source ID (S0001)", required: true }],
   options: [
     { name: "take", type: "string", value: "now|queue|keep|review", description: "the decision (at a terminal without it: asked); review: only a transcript the person confirmed, now and queue never for one" },
     { name: "reading", type: "string", value: "<D…>", description: "the reading decided on (default: the newest reading again of the source)" },
+    { name: "unsure", type: "boolean", description: "hand over the places its readers are not sure of (with --take queue, or review for a transcript the person confirmed): only a reading with no matter of fact sure to decide" },
   ],
   examples: ["strom source reading S0001", "strom source reading S0001 --take queue"],
   async run(ctx: Context, { args, opts }) {
@@ -97,6 +103,9 @@ register({
     const take = opts.take === undefined ? undefined : String(opts.take);
     if (take !== undefined && !(TAKES as readonly string[]).includes(take)) throw new UsageError("--take: now, queue, keep or review", { code: "read.decide.invalid", hint: `strom source reading ${id} --take queue` });
     const reading = opts.reading === undefined ? undefined : String(opts.reading).trim();
+    const unsure = !!opts.unsure;
+    if (unsure && take !== "queue" && take !== "review")
+      throw new UsageError("--unsure: with --take queue (a task of the agent's) or review (a transcript the person confirmed)", { code: "read.decide.invalid", hint: `strom source reading ${id} --take queue --unsure` });
     const fail = (e: unknown): never => {
       const x = e as Error & { code?: string; task?: string; hint?: string };
       if (!x.code?.startsWith("read.decide.")) throw e;
@@ -113,7 +122,7 @@ register({
     }
     let out: ReturnType<typeof decideReading>;
     try {
-      out = tree.withTreeLock(() => decideReading(tree, id, chosen!, reading));
+      out = tree.withTreeLock(() => decideReading(tree, id, chosen!, reading, { unsure }));
     } catch (e) {
       return fail(e);
     }

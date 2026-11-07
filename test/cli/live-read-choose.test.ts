@@ -373,6 +373,34 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     assert.match((await readAgain()).S0001.proposal.text, /Josefa/u);
     assert.match((await readAgain()).S0001.proposal.text, /Anny/u);
 
+    // places not sure alone (spec 059 K8.3–K8.6, feature read.sourceTask.unsure): never a task by itself, handed over only
+    // by the person's word — queue into the agent's task (here the source's task not ended), review never an agent's
+    assert.ok(status.features.includes("read.sourceTask.unsure"));
+    const unsure = await readAgainOf("S0002", "Войтех Лхотак, сын [...]", false);
+    const offeredUnsure = await sourceOf(unsure);
+    assert.deepEqual([offeredUnsure.taskSetting, offeredUnsure.task, offeredUnsure.taskOffer, offeredUnsure.unsureOffer, offeredUnsure.openTask], ["always", undefined, false, true, took.task], JSON.stringify(offeredUnsure));
+    assert.deepEqual(offeredUnsure.variants, [{ at: "Иржи", other: "[...]", kind: offeredUnsure.variants[0].kind, sure: false }]);
+    assert.deepEqual((await readAgain()).S0002, { read: unsure, state: "saved", unsureOnly: true, unsureOffer: true });
+    for (const bad of [{ how: "save", unsure: true }, { how: "now", unsure: true }, { how: "queue", unsure: "yes" }, { how: "queue", unsure: true, also: 1 }])
+      assert.deepEqual((await said(decide("S0002", unsure, bad))).slice(0, 2), [400, "read.decide.invalid"], JSON.stringify(bad));
+    assert.deepEqual((await said(decide("S0002", unsure, { how: "queue" }))).slice(0, 2), [409, "read.decide.nothing"], "without unsure: as before");
+    assert.deepEqual((await said(decide("S0002", unsure, { how: "review", unsure: true }))).slice(0, 2), [409, "read.decide.unconfirmed"]);
+    const before = Tree.open(w.cwd, w.env).get<Task>(took.task)!.why;
+    const handed = await decide("S0002", unsure, { how: "queue", unsure: true });
+    assert.equal(handed.status, 200, handed.body.toString());
+    const hu = json(handed);
+    assert.deepEqual([hu.ok, hu.how, hu.unsure, hu.task, hu.taskFor, hu.appended, hu.chat], [true, "queue", true, took.task, "agent", true, undefined], JSON.stringify(hu));
+    const inTask = Tree.open(w.cwd, w.env).get<Task>(took.task)!.why;
+    assert.ok(inTask.startsWith(before) && /nejistá místa k prohlédnutí na snímku na žádost člověka — přepis: Иржи; nové čtení: \[\.\.\.\]/u.test(inTask), inTask);
+    assert.deepEqual([(await sourceOf(unsure)).unsureOffer, (await readAgain()).S0002.state], [undefined, "task"]);
+    assert.deepEqual(await said(decide("S0002", unsure, { how: "queue", unsure: true })), [409, "read.decide.task", took.task], "decided: asked no more");
+    // S0001, confirmed: no agent's task; a place the new reading could not read is put into no wording — not offered
+    const unread = await readAgainOf("S0001", TEXT.replace("Jiřího".normalize("NFD"), "[...]"));
+    assert.equal((await sourceOf(unread)).unsureOffer, undefined);
+    assert.equal((await readAgain()).S0001.unsureOffer, undefined);
+    assert.deepEqual((await said(decide("S0001", unread, { how: "queue", unsure: true }))).slice(0, 2), [409, "read.decide.confirmed"]);
+    assert.deepEqual((await said(decide("S0001", unread, { how: "review", unsure: true }))).slice(0, 2), [409, "read.decide.noproposal"]);
+
     // what a reading again becomes, as the app sets it
     const set = async (body: unknown) => {
       const r = await post(`${url}/sourceTask`, body);

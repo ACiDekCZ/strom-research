@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.8. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.9. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -126,7 +126,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   *pytać* (domyślnie) – odczyt zostaje przy źródle jako niesprawdzony, dopóki użytkownik nie wybierze: przejrzeć go z
   agentem od razu, dodać do kolejki albo tylko zapisać (w terminalu zaraz po odczycie, później `strom source reading
   S…` lub w aplikacji Strom); *zawsze* – zadanie od razu; *nigdy* – bez zadania. Jedno źródło ma naraz jedno zadanie
-  swoich odczytów.
+  swoich odczytów. Odczyt bez faktu do rozstrzygnięcia, tylko z miejscami, których czytelnicy nie są pewni, sam nie
+  tworzy zadania – nawet przy *zawsze*; tylko na słowo użytkownika (`strom source reading S… --take queue --unsure`
+  lub w aplikacji Strom) agent dostaje zadanie obejrzenia każdego takiego miejsca na skanie: gdzie skan pokazuje to
+  pewnie, transkrypcja poprawiona z powodem, gdzie indziej notatka przy źródle. Transkrypcji potwierdzonej przez
+  użytkownika agent nigdy nie zmienia: miejsca odczytane przez nowy odczyt są zamiast tego proponowane użytkownikowi
+  do oceny (`--take review --unsure`).
 
 - **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
   hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w

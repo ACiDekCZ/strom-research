@@ -126,18 +126,25 @@
 //                          the person may decide on), task + taskFor agent|person (person: a wording proposed for their
 //                          review of a transcript they confirmed), decided saved (just kept), openTask (the source's task
 //                          not ended a task chosen would go into), appended (the places went into it), state (as /status
-//                          readAgain); without taskChoice (an older app): a task at once, as before
+//                          readAgain), unsureOffer (feature read.sourceTask.unsure: no matter of fact sure left to
+//                          decide, places not sure no task holds — the person may hand them over; a transcript they
+//                          confirmed: only with a place the new reading read, found in it); without taskChoice
+//                          (an older app): a task at once, as before
 //   POST <token>/sources/<S…>/read/<D…>/task {"how": "now"|"queue"|"save"|"review"}: the person's word on that reading
 //                          (strom source reading; save = just keep; review only for a transcript the person confirmed,
 //                          now|queue never for one) — {ok, source, reading, how, task?, taskFor?, appended?, chat? (now:
 //                          strom-research://task?…&do=chat), head, parent}; 400 read.decide.invalid, 404 read.decide.none
 //                          | noreading, 409 read.decide.task (+task) | done | nothing | confirmed | unconfirmed |
-//                          noproposal | declined, 503 research.busy
+//                          noproposal | declined, 503 research.busy. With "unsure": true (feature
+//                          read.sourceTask.unsure; how queue or review alone, else 400): the reading's places not sure
+//                          handed over by the person's word — queue: a task of the agent's to look at each on the scan,
+//                          review: a wording proposed to the person; {…, unsure: true}; 409 read.decide.sure (a matter
+//                          of fact sure waits: decide without unsure) | nothing (no place not sure left unjudged)
 //   POST <token>/sourceTask {"sourceTask": "ask"|"always"|"never"}: what a source read again that differs in a matter of
 //                          fact becomes in this research (read.sourceTask in its strom.json) — {ok, sourceTask, head,
 //                          parent}; 400 sourceTask.invalid, 409 sourceTask.archive, 503 research.busy. /status readAgain
 //                          {"S…": {read, state unchecked|saved|task, task?, taskFor?, taskOpen?, taskQueued?, minorOnly?,
-//                          unsureOnly?, proposal? {text, by, task, at}}}: each source whose newest reading again differs
+//                          unsureOnly?, unsureOffer?, proposal? {text, by, task, at}}}: each source whose newest reading again differs
 //                          (core/sourceread.ts readAgainOf; none in an archive or a research waiting for its agent)
 //                          The Strom file: 1 _STROM_ORIG Y under SOUR where the original is here and a transcript to
 //                          hold a reading against (APP_READS_SOURCES_AGAIN; never in an archive)
@@ -1229,7 +1236,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -4894,6 +4901,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
    * The person's word on a source read again that differs in a matter of fact (POST /sources/<S…>/read/<D…>/task
    * {how: now|queue|save|review}): strom source reading, as theirs in the app (save: just keep). {ok, source, reading,
    * how, task?, taskFor?, appended?, chat?, head, parent} — chat: the link that opens the conversation about the task (now).
+   * unsure true (feature read.sourceTask.unsure; how queue or review): its places not sure handed over (--unsure),
+   * {…, unsure: true}; 409 read.decide.sure while a matter of fact sure waits for a decision.
    */
   const readTaskWrite = (source: string, reading: string): AppWrite => {
     let before = "";
@@ -4903,13 +4912,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
       codes: { badBody: "read.decide.invalid", busy: "research.busy", failed: "read.decide.failed" },
       busyStatus: 503,
       ask(_tree, body) {
-        const keys = Object.keys(body);
-        if (keys.length !== 1 || (body.how !== "now" && body.how !== "queue" && body.how !== "save" && body.how !== "review"))
-          return { code: 400, body: refusal(`the body: {"how": "now" | "queue" | "save" | "review"}`, "read.decide.invalid") };
+        const keys = Object.keys(body).filter((k) => k !== "unsure");
+        const unsure = body.unsure === true;
+        if (keys.length !== 1 || (body.how !== "now" && body.how !== "queue" && body.how !== "save" && body.how !== "review") || ("unsure" in body && typeof body.unsure !== "boolean") || (unsure && body.how !== "queue" && body.how !== "review"))
+          return { code: 400, body: refusal(`the body: {"how": "now" | "queue" | "save" | "review"} — with "unsure": true only queue or review`, "read.decide.invalid") };
         if (!/^S\d{1,9}$/iu.test(source) || !/^D\d{14}-[0-9a-f]{4}$/u.test(reading)) return { code: 400, body: refusal("the address: sources/<S…>/read/<D…>/task", "read.decide.invalid") };
         how = body.how;
         before = head(root);
-        return { args: ["source", "reading", normId(source), "--take", how === "save" ? "keep" : how, "--reading", reading] };
+        return { args: ["source", "reading", normId(source), "--take", how === "save" ? "keep" : how, "--reading", reading, ...(unsure ? ["--unsure"] : [])] };
       },
       done(_tree, data, h) {
         const { link, take: _t, places: _p, ...rest } = data;

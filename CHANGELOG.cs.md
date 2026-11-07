@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.8. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.9. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -112,6 +112,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   říká, co dál: *ptát se* (výchozí) – čtení zůstane u zdroje jako neověřené, dokud uživatel nezvolí: projít ho
   s agentem hned, dát ho do fronty, nebo ho jen uložit (v terminálu hned po čtení, později `strom source reading S…`,
   nebo v aplikaci Strom); *vždy* – úkol hned; *nikdy* – bez úkolu. Jeden zdroj má najednou jeden úkol svých čtení.
+  Čtení bez věcného údaje k rozhodnutí, jen s místy, kterými si čtenáři nejsou jistí, úkol samo nezaloží – ani při
+  *vždy*; jen na slovo uživatele (`strom source reading S… --take queue --unsure` nebo v aplikaci Strom) dostane agent
+  úkol projít každé takové místo na snímku: kde to snímek ukazuje jistě, přepis opraví i s důvodem, jinde napíše
+  poznámku k prameni. Přepis potvrzený uživatelem agent nikdy nemění: místa, která nové čtení přečetlo, se místo toho
+  navrhnou uživateli k posouzení (`--take review --unsure`).
 
 - **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku

@@ -70,7 +70,7 @@ function readPhrase(lang: string, u: UserReading | undefined): string {
  * proposes (default: the tree's actor); `why`: the reason, when said; `reading`: the document's reading (D…) it came
  * from. A source nobody's reading holds is left alone ("unconfirmed": the caller changes it as any other).
  */
-export function proposeTranscript(tree: Tree, sourceId: string, text: string, o: { by?: string; why?: string; reading?: string } = {}): ProposalResult {
+export function proposeTranscript(tree: Tree, sourceId: string, text: string, o: { by?: string; why?: string; reading?: string; unsure?: boolean } = {}): ProposalResult {
   return tree.withTreeLock(() => {
     const s = requireRecord<Source>(tree, sourceId, "source");
     const id = s.id;
@@ -84,7 +84,7 @@ export function proposeTranscript(tree: Tree, sourceId: string, text: string, o:
     const by = o.by ?? tree.actor;
     const why = o.why?.normalize("NFC").trim() || undefined;
     const byWords = `${by}${why ? `: ${why}` : ""}`;
-    const proposal = { source: id, text: words, by, at: now(), ...(why ? { why: truncate(why, 1000) } : {}), ...(o.reading ? { reading: o.reading } : {}) };
+    const proposal = { source: id, text: words, by, at: now(), ...(why ? { why: truncate(why, 1000) } : {}), ...(o.reading ? { reading: o.reading } : {}), ...(o.unsure ? { unsure: true as const } : {}) };
     const waiting = openProposal(tree, id);
     if (waiting?.proposal && !transcriptDiffers(waiting.proposal.text, words))
       return { outcome: "same" as const, source: id, task: waiting.id, line: `${id}: this wording waits for the person's decision already (${waiting.id}) — nothing more to do` };

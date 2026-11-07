@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.8. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.9. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
@@ -117,7 +117,12 @@ The changes of each version in short. The full notes and the install lines are o
   itself shows it. A new setting `read.sourceTask` says what follows: *ask* (the default) – the reading is kept beside
   the source as not verified until the user chooses: go through it with the agent now, put it in the queue, or just
   keep it (in the terminal right after the reading, later with `strom source reading S…`, or in the Strom app);
-  *always* – a task at once; *never* – no task. One source has one task of its readings at a time.
+  *always* – a task at once; *never* – no task. One source has one task of its readings at a time. A reading with no
+  matter of fact to decide, only places its readers are not sure of, makes no task by itself – not even with *always*;
+  on the user's word alone (`strom source reading S… --take queue --unsure`, or in the Strom app) the agent gets a
+  task to look at each such place on the scan: the transcript corrected with its reason where the scan surely shows
+  it, elsewhere a note at the source. A transcript the user confirmed is never the agent's to change: the places the
+  new reading read are proposed to the user for review instead (`--take review --unsure`).
 
 - **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
   hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a
