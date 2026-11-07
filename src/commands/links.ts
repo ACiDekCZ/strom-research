@@ -217,8 +217,9 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return end(true);
     }
     case "task": {
-      // the person's check of a site (and a wake of one, which only their answer does): its question in the terminal
-      if (link.do === "check" || (link.do === "wake" && Tree.open(root, ctx.env).get<Task>(link.task)?.awaitsCheck)) {
+      // the person's check of a site (and a wake of one, which only their answer does): its question in the terminal; so
+      // the decision on a new wording proposed for a transcript they read (core/proposal.ts), whatever the link asks
+      if (Tree.open(root, ctx.env).get<Task>(link.task)?.proposal || link.do === "check" || (link.do === "wake" && Tree.open(root, ctx.env).get<Task>(link.task)?.awaitsCheck)) {
         const { waitingTask } = await import("../cli/menu-waiting.ts");
         if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");
         return end(true);
@@ -232,6 +233,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       if (link.do) {
         const { taskDo } = await import("../cli/menu-links.ts");
         return end(await taskDo(ctx, run, treeLang, root, link.task, link.do));
+      }
+      // a task in the queue (the one a reading of a source again left, say): shown, then go through it now, ahead, or left
+      if (Tree.open(root, ctx.env).get<Task>(link.task)?.state === "open") {
+        const { openTask } = await import("../cli/menu-links.ts");
+        return end(await openTask(ctx, run, treeLang, root, link.task, agent));
       }
       const { waitingTask } = await import("../cli/menu-waiting.ts");
       if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");

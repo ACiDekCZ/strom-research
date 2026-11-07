@@ -127,8 +127,11 @@ test("K1.2: a transcript is the user's reading only when typed by hand at the pe
       assert.ok(!readers(w, id).includes("user"), `${id}: no reading of the user's`);
     }
     assert.deepEqual(readers(w, "S0001"), ["user"]);
-    // the transcript changed afterwards without a terminal: the reading was of other words, it counts no more
+    // without a terminal (an agent's): the person's reading is never changed — the new wording proposed to them (K2.3)
     await w.ok(["source", "edit", "S1", "--transcript", "Křest Vojtěcha Lhotáka, syn Jiřího a Ludmily.", "--reason", "čteno znovu"]);
+    assert.equal(userReading(sourceOf(w, "S0001"))?.how, "hand");
+    // the person's own batch changes it, typed by nobody: the reading was of other words, it counts no more
+    await w.ok(["batch", 'source edit S1 --transcript "Křest Vojtěcha Lhotáka, syn Jiřího a Ludmily." --reason "čteno znovu"'], { tty: true });
     assert.equal(userReading(sourceOf(w, "S0001")), undefined);
     assert.deepEqual(readers(w, "S0001"), []);
   } finally {

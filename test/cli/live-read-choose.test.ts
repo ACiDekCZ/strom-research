@@ -20,7 +20,7 @@ import { Settings } from "../../src/core/config.ts";
 import { confirmedOn, transcriptMark } from "../../src/core/readers.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
 import { APP_READS_SOURCES_AGAIN, APP_READS_SOURCES_AGAIN_BETA, appReadsSourcesAgain } from "../../src/core/stromapp.ts";
-import type { Media, Source } from "../../src/core/model.ts";
+import type { Media, Source, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32", timeout: 240_000 };
 const app = { Origin: "https://beta.stromapp.info" };
@@ -277,7 +277,7 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     fs.rmSync(path.join(dir, "hold"));
     await until("read again", async () => json(await request("GET", `${url}/read/${a.read}`, undefined, app)).state === "done", { ms: 60_000 });
     const done = json(await request("GET", `${url}/read/${a.read}`, undefined, app));
-    assert.deepEqual(done.source, { id: "S0001", entries: ["e1"], agree: "same", variants: [] });
+    assert.deepEqual(done.source, { id: "S0001", entries: ["e1"], agree: "same", variants: [], taskSetting: "ask", taskOffer: false }, "alike: nothing to decide (read.sourceTask as the research says)");
     assert.deepEqual(whoOf(done.readers.who), [{ agent: "script", name: "script", state: "done" }]);
     assert.ok(fs.readFileSync(path.join(dir, "saw.log"), "utf8").trim().split("\n").every((l) => l === "no-transcript"), "never shown the transcript");
     const after = src(w, "S0001");
@@ -285,6 +285,115 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     assert.equal(after.transcript, s1.transcript);
     assert.deepEqual(after.read, s1.read, "the user's confirmation of spec 022 stays");
     assert.equal(fs.existsSync(path.join(dir, "codex.calls")), false, "Codex never started");
+
+    // read.sourceTask: an app that offers the person the choice (taskChoice) — a matter of fact both readers are sure of
+    // makes no task (read.sourceTask ask, the default); the result says it is offered, POST /sources/<S>/read/<D>/task
+    // takes the person's word (the app's ZADANI_DEV_ukol-z-cteni.md)
+    assert.ok(status.features.includes("read.sourceTask"));
+    assert.ok(!status.features.includes("read.taskChoice"), "the old name: none");
+    assert.equal(status.accepts.read.sourceTask, "ask");
+    assert.equal(status.readAgain?.S0001, undefined, "read again alike: nothing to say");
+    const readAgain = async () => json(await request("GET", `${url}/status`, undefined, app)).readAgain;
+    const sourceOf = async (read: string) => json(await request("GET", `${url}/read/${read}`, undefined, app)).source;
+    const readAgainOf = async (source: string, text: string, taskChoice = true) => {
+      fs.writeFileSync(path.join(dir, "first.md"), entry(text));
+      const r = json(await ask({ source, ...(taskChoice ? { taskChoice: true } : {}), with: [{ agent: "script" }] }));
+      await until(`read again ${source}`, async () => json(await request("GET", `${url}/read/${r.read}`, undefined, app)).state === "done", { ms: 60_000 });
+      return r.read as string;
+    };
+    const decide = (source: string, read: string, body: unknown) => post(`${url}/sources/${source}/read/${read}/task`, body);
+    const said = async (r: Promise<{ status: number; body: Buffer }>) => {
+      const got = await r;
+      return [got.status, json(got).code, json(got).task];
+    };
+
+    // S0001: a transcript the person confirmed — never an agent's task: review proposes the wording, the person decides
+    const offered = await readAgainOf("S0001", TEXT.replace("Ludmily".normalize("NFD"), "Anny"));
+    const waits = await sourceOf(offered);
+    assert.deepEqual([waits.agree, waits.taskSetting, waits.taskOffer, waits.task, waits.openTask, waits.decided], ["differ", "ask", true, undefined, undefined, undefined], JSON.stringify(waits));
+    for (const old of ["taskWith", "offer", "waits"]) assert.equal(old in waits, false, old);
+    assert.deepEqual(waits.state, { read: offered, state: "unchecked" });
+    assert.deepEqual((await readAgain()).S0001, { read: offered, state: "unchecked" });
+    assert.equal((await post(`${url}/sources/reading`, { source: "S0001", take: "now" })).status, 404, "the old address: none");
+    for (const bad of [{}, { how: "later" }, { how: "keep" }, { how: "now", reading: offered }, "now"]) {
+      assert.deepEqual((await said(decide("S0001", offered, bad))).slice(0, 2), [400, "read.decide.invalid"], JSON.stringify(bad));
+    }
+    assert.deepEqual((await said(decide("S0001", "D1", { how: "now" }))).slice(0, 2), [400, "read.decide.invalid"]);
+    assert.deepEqual((await said(decide("S0099", offered, { how: "now" }))).slice(0, 2), [404, "read.decide.none"]);
+    assert.deepEqual((await said(decide("S0001", "D20261019120000-aaaa", { how: "now" }))).slice(0, 2), [404, "read.decide.noreading"]);
+    assert.deepEqual((await said(decide("S0001", offered, { how: "now" }))).slice(0, 2), [409, "read.decide.confirmed"]);
+    assert.deepEqual((await said(decide("S0001", offered, { how: "queue" }))).slice(0, 2), [409, "read.decide.confirmed"]);
+    const reviewed = await decide("S0001", offered, { how: "review" });
+    assert.equal(reviewed.status, 200, reviewed.body.toString());
+    const rv = json(reviewed);
+    assert.deepEqual([rv.ok, rv.source, rv.reading, rv.how, rv.taskFor, rv.chat, rv.take, rv.places], [true, "S0001", offered, "review", "person", undefined, undefined, undefined], JSON.stringify(rv));
+    assert.ok(rv.head && rv.parent && rv.head !== rv.parent);
+    const proposal = Tree.open(w.cwd, w.env).get<Task>(rv.task)!;
+    assert.deepEqual([proposal.origin, proposal.state, proposal.proposal?.reading], ["transcript:proposal", "waiting", offered]);
+    assert.equal(proposal.proposal?.text, TEXT.replace("Ludmily".normalize("NFD"), "Anny").normalize("NFC"));
+    assert.equal(src(w, "S0001").transcript, s1.transcript, "the confirmed transcript stays");
+    assert.deepEqual(src(w, "S0001").read, s1.read);
+    const inReview = (await readAgain()).S0001;
+    assert.deepEqual({ ...inReview, proposal: undefined }, { read: offered, state: "task", task: rv.task, taskFor: "person", taskOpen: true, taskQueued: false, proposal: undefined });
+    assert.deepEqual([inReview.proposal.text, inReview.proposal.task, inReview.proposal.by, typeof inReview.proposal.at], [proposal.proposal!.text, rv.task, "script", "string"]);
+    const reviewedResult = await sourceOf(offered);
+    assert.deepEqual([reviewedResult.taskOffer, reviewedResult.task, reviewedResult.taskFor], [false, rv.task, "person"]);
+    assert.deepEqual(reviewedResult.state, inReview);
+    assert.deepEqual(await said(decide("S0001", offered, { how: "save" })), [409, "read.decide.task", rv.task], "decided: asked no more");
+
+    // S0002, nobody confirmed it: just kept, then now (a conversation), then queue into the task not ended
+    const kept = await readAgainOf("S0002", "Войтех Лготак, сын Иржи");
+    assert.deepEqual((await said(decide("S0002", kept, { how: "review" }))).slice(0, 2), [409, "read.decide.unconfirmed"]);
+    const save = json(await decide("S0002", kept, { how: "save" }));
+    assert.deepEqual([save.ok, save.how, save.task, save.chat], [true, "save", undefined, undefined], JSON.stringify(save));
+    const saved = await sourceOf(kept);
+    assert.deepEqual([saved.decided, saved.taskOffer, saved.task], ["saved", false, undefined]);
+    assert.deepEqual((await readAgain()).S0002, { read: kept, state: "saved" });
+    const later = await readAgainOf("S0002", "Войтех Лготак, сын Ирже");
+    const now = await decide("S0002", later, { how: "now" });
+    assert.equal(now.status, 200, now.body.toString());
+    const took = json(now);
+    assert.deepEqual([took.source, took.reading, took.how, took.taskFor, took.appended], ["S0002", later, "now", "agent", undefined]);
+    assert.match(took.chat, new RegExp(`^strom-research://task\\?tree=[^&]+&task=${took.task}&do=chat$`, "u"));
+    assert.deepEqual((await readAgain()).S0002, { read: later, state: "task", task: took.task, taskFor: "agent", taskOpen: true, taskQueued: false });
+    const open = await readAgainOf("S0002", "Войтех Лготак, сын Ирже, Лхота Лготак");
+    const pending = await sourceOf(open);
+    assert.deepEqual([pending.taskOffer, pending.openTask, pending.task], [true, took.task, undefined], JSON.stringify(pending));
+    const why = Tree.open(w.cwd, w.env).get<Task>(took.task)!.why;
+    const queued = json(await decide("S0002", open, { how: "queue" }));
+    assert.deepEqual([queued.how, queued.task, queued.appended, queued.taskFor], ["queue", took.task, true, "agent"], JSON.stringify(queued));
+    assert.notEqual(Tree.open(w.cwd, w.env).get<Task>(took.task)!.why, why, "the new places said in it");
+    assert.equal(Tree.open(w.cwd, w.env).list<Task>("task").filter((t) => t.origin === "read:source").length, 1, "one task of the source");
+
+    // an older app (no taskChoice): read.sourceTask always for it — on the confirmed S0001 the new wording goes into the
+    // person's proposal waiting, never an agent's task
+    const old = await readAgainOf("S0001", TEXT.replace("Ludmily".normalize("NFD"), "Anny").replace("Jiřího".normalize("NFD"), "Josefa"), false);
+    const held = await sourceOf(old);
+    assert.deepEqual([held.taskSetting, held.task, held.taskFor, held.appended, held.taskOffer], ["always", rv.task, "person", true, false], JSON.stringify(held));
+    assert.match((await readAgain()).S0001.proposal.text, /Josefa/u);
+    assert.match((await readAgain()).S0001.proposal.text, /Anny/u);
+
+    // what a reading again becomes, as the app sets it
+    const set = async (body: unknown) => {
+      const r = await post(`${url}/sourceTask`, body);
+      return [r.status, json(r)] as const;
+    };
+    const [st, never] = await set({ sourceTask: "never" });
+    assert.deepEqual([st, never.ok, never.sourceTask], [200, true, "never"]);
+    assert.notEqual(never.head, never.parent);
+    assert.equal(json(await request("GET", `${url}/status`, undefined, app)).accepts.read.sourceTask, "never");
+    const [, same] = await set({ sourceTask: "never" });
+    assert.equal(same.head, same.parent, "the same again: nothing written");
+    for (const bad of [{}, { sourceTask: "sometimes" }, { sourceTask: "ask", also: 1 }]) {
+      const [code, body] = await set(bad);
+      assert.deepEqual([code, body.code], [400, "sourceTask.invalid"], JSON.stringify(bad));
+    }
+    await w.ok(["mode", "archive"], { tty: true });
+    const [archived, refusal] = await set({ sourceTask: "ask" });
+    assert.deepEqual([archived, refusal.code], [409, "sourceTask.archive"]);
+    const inArchive = json(await request("GET", `${url}/status`, undefined, app));
+    assert.equal(inArchive.readAgain, undefined, "an archive: no readings again said");
+    assert.equal(inArchive.accepts?.read?.sourceTask, undefined);
   } finally {
     if (started) await w.run(["live", "stop"]);
     w.cleanup();

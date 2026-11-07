@@ -204,8 +204,11 @@ test("K2.2, K2.3, K2.6: POST /sources/confirm — confirmed as the user's readin
     const live = (await request(`${info.url}/tree.ged?app=3.25.0`)).body as string;
     assert.doesNotMatch(live, /_TXT/u);
 
-    // the research reads S1 anew: the confirmation was of other words — gone, the history keeps it
+    // the research reads S1 anew: the confirmed transcript is never changed by it — the new wording proposed (K2.3)
     await w.ok(["source", "edit", s1, "--transcript", "Křest Vojtěcha Lhotáka, syn Jiřího a Ludmily rozené Lhotové.", "--reason", "čteno znovu"]);
+    assert.ok(confirmedOn(sourceOf(w, s1)), "still confirmed");
+    // changed by the person's own batch (no reading typed): the confirmation was of other words — gone, the history keeps it
+    await w.ok(["batch", `source edit ${s1} --transcript "Křest Vojtěcha Lhotáka, syn Jiřího a Ludmily rozené Lhotové." --reason "čteno znovu"`], { tty: true });
     assert.equal(confirmedOn(sourceOf(w, s1)), undefined);
     assert.equal(userReading(sourceOf(w, s1)), undefined);
     const m1b = transcriptMark("Křest Vojtěcha Lhotáka, syn Jiřího a Ludmily rozené Lhotové.");
@@ -291,7 +294,7 @@ test("K2.2 by the file: the app's file back through strom sync keeps the researc
     const synced = await w.run(["sync", file, "--yes", "--json"], { env: BETA_APP });
     assert.equal(synced.code, 0, synced.out + synced.err);
     assert.equal(JSON.stringify(sourceOf(w, s1).read), kept, "the confirmation kept as it is");
-    assert.equal(confirmedOn(sourceOf(w, s1)), new Date().toISOString().slice(0, 10));
+    assert.ok(confirmedOn(sourceOf(w, s1)), "still confirmed");
     assert.equal(sourceOf(w, s2).read, undefined, "a file confirms nothing: the stale _CONF undoes no taking back");
     assert.ok(!readersOf(Tree.open(w.cwd, w.env)).get(s2)?.has("user"));
 

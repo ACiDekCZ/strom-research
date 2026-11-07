@@ -85,6 +85,7 @@ const SAID: Record<string, PhraseKey> = {
   "source.retract": "log.source.retract",
   "source.sync": "log.source.edit",
   "source.media": "log.source.edit",
+  "source.clips": "log.source.edit",
   "person.import": "log.person.add",
   "family.import": "log.family.add",
   "media.retract": "log.media.retract",

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -64,6 +64,13 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   czytelnikiem ani danej udowodnioną. Potwierdzenie w aplikacji obowiązuje dla brzmienia, do którego zostało dane, i
   można je tam cofnąć; z oryginałem zapisu z informacją pierwotną dana może wtedy być udowodniona, inaczej najwyżej
   prawdopodobna.
+  **Transkrypcja przeczytana lub potwierdzona przez użytkownika należy do użytkownika.** Zmienia ją tylko własny
+  terminal użytkownika lub aplikacja Strom – jakiekolwiek byłoby polecenie (edycja, partia, synchronizacja, poprawka,
+  cofnięcie, import). Inne brzmienie od agenta jest zamiast tego proponowane: notatka przy źródle i jedno zadanie dla
+  użytkownika na źródło, którego żaden agent nie bierze ani nie zamyka; decyzja w Co czeka, przez link aplikacji Strom
+  lub w aplikacji – proponowane brzmienie przyjęte jako użytkownika albo transkrypcja zostawiona, a to samo brzmienie
+  nigdy więcej nie proponowane; obie decyzje można cofnąć (wcześniejsza transkrypcja wraca wraz z potwierdzeniem, a
+  propozycja znów czeka).
 
 - **Każdy czytelnik dokumentu z własnym agentem, modelem i głębokością rozumowania, a źródło przeczytane ponownie z
   oryginału.** `strom document read|again --agent/--model/--effort` (i `--blind-…` dla czytelnika na ślepo) albo wybór w
@@ -110,6 +117,16 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   liczba, data, osoba, miejsce nieczytelne) albo drobiazg (pisownia, skrót, interpunkcja, etykieta, wielkość liter) –, i
   gdzie jest każdy czytelnik: czeka, czyta, skończył w tylu sekundach albo zawiódł, także któremu czytelnikowi odrzucono
   model.
+  **Źródło przeczytane ponownie: co dalej, wybiera użytkownik.** Zadanie powstaje tylko z danej merytorycznej, którą
+  obaj czytelnicy odczytują wobec transkrypcji tak samo (imię, liczba, data, osoba, słowo, którego transkrypcja nie
+  odczytała) – nigdy z drobiazgów (pisownia, skrót, interpunkcja), z miejsca, w którym czytelnicy się różnią lub które
+  oznaczają jako nieczytelne, ani z miejsca ocenionego już we wcześniejszym zadaniu. Zadanie mówi, kto czytał (agent ·
+  model · głębokość), że dwaj czytelnicy tego samego modelu to słabszy dowód, i że odczyt jest tylko wskazówką:
+  transkrypcja zmienia się tylko tam, gdzie pokazuje to sam skan. Nowe ustawienie `read.sourceTask` mówi, co dalej:
+  *pytać* (domyślnie) – odczyt zostaje przy źródle jako niesprawdzony, dopóki użytkownik nie wybierze: przejrzeć go z
+  agentem od razu, dodać do kolejki albo tylko zapisać (w terminalu zaraz po odczycie, później `strom source reading
+  S…` lub w aplikacji Strom); *zawsze* – zadanie od razu; *nigdy* – bez zadania. Jedno źródło ma naraz jedno zadanie
+  swoich odczytów.
 
 - **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
   hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w
@@ -123,6 +140,16 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   przyimków: kontrola proponuje miejscowość tak, jak badanie zapisuje ją gdzie indziej, a rekord miejsca nie dostaje
   już nazwy w rodzaju „w Lhocie w“ – takie nazwy zapisane wcześniej zostają jednorazowo poprawione (cofnięcie: strom
   place undo).
+  **Nakładające się wycinki jednego obrazu są jednym.** Dwa wycinki tego samego obrazu zaznaczone przez badanie,
+  nakładające się co najmniej o 30 % mniejszego z nich, łączą się w jeden obejmujący oba (wycinek prawie cały wewnątrz większego – szczegół, wpis obok całej strony –
+  zostaje); wycinki zaznaczone przez
+  użytkownika zostają. We wcześniejszym badaniu nakładające się wycinki łączą się raz, każde połączenie zapisane w
+  historii; transkrypcja i potwierdzenie użytkownika zostają.
+  **Zadanie w kolejce z aplikacji Strom.** Link aplikacji do zadania w kolejce pokazuje je (co, dlaczego, kiedy
+  gotowe) i proponuje przejrzeć je z agentem od razu (z tym, ile podobne zadania trwały tutaj), przesunąć je w kolejce
+  do przodu albo je zostawić. `strom doctor` mówi, dlaczego droższa zmiana strojenia na rzecz dokładności zostaje, a
+  plik hooków Codexa, którego tylko brakuje lub jest nieaktualny, nie jest już ostrzeżeniem – zapisze się ponownie, gdy
+  strom następnym razem uruchomi agenta.
 
 ## 1.28.0
 

@@ -159,6 +159,13 @@ test("strom document read: transcript, translation, terms, people checked and ma
       { field: "transcript", at: "Novák[?]", other: "Nowak" },
       { field: "p2.surname", at: "Novák", other: "Nowak" },
     ]);
+    // strom document show: the blind reader's whole text of the entry too, not only where it differs
+    const otherShown = (await w.ok(["document", "show", other.id])).out;
+    const blindLine = otherShown.split("\n").find((l) => l.startsWith("  blind reader ("));
+    assert.ok(blindLine, otherShown);
+    assert.match(blindLine!, /Nowak/u);
+    assert.equal(blindLine!.replace(/^  blind reader \([^)]*\): /u, ""), other.blind.entries[0].transcript.replace(/\s*\n\s*/g, " | "));
+    assert.match(otherShown, /differs \(transcript\): "Novák\[\?\]" \/ blind reader "Nowak"/u);
     // the same file given again: no second input
     const byFile = (await w.ok(["document", "read", photo, "--agent", "script", "--json"])).json;
     assert.equal(byFile.pages[0].file, "I0001");

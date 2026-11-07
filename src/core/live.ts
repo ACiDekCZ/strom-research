@@ -115,10 +115,30 @@
 //                          feature read.variantKind: each variant's kind in the result, entries[].variants and
 //                          source.variants — core/variantkind.ts; feature read.readerState: each reader's state
 //                          queued|reading|done|failed and secs in who, failure.reader)
-//   POST <token>/sources/read {source, clip, readers, lang, with}: a source's record read again from its original here,
-//                          never from its transcript (feature read.source) — 202 {read, state, version, source}; its
-//                          result's source {id, agree, variants, task}: a task where it differs, nothing of the source
-//                          changed; 404 read.source.none, 409 read.source.noscan | notext | running (+read)
+//   POST <token>/sources/read {source, clip, readers, lang, with, taskChoice}: a source's record read again from its
+//                          original here, never from its transcript (feature read.source) — 202 {read, state, version,
+//                          source}; its result's source {id, agree, variants, task}, nothing of the source changed;
+//                          404 read.source.none, 409 read.source.noscan | notext | running (+read). A task only of a
+//                          matter of fact both readers are sure of (variants[].sure false: not; judged: T… an earlier
+//                          task held it or a wording the person declined, D… the person just kept that reading).
+//                          taskChoice true (feature read.sourceTask): as read.sourceTask says (/status
+//                          accepts.read.sourceTask ask|always|never) — the result's source: taskSetting, taskOffer (places
+//                          the person may decide on), task + taskFor agent|person (person: a wording proposed for their
+//                          review of a transcript they confirmed), decided saved (just kept), openTask (the source's task
+//                          not ended a task chosen would go into), appended (the places went into it), state (as /status
+//                          readAgain); without taskChoice (an older app): a task at once, as before
+//   POST <token>/sources/<S…>/read/<D…>/task {"how": "now"|"queue"|"save"|"review"}: the person's word on that reading
+//                          (strom source reading; save = just keep; review only for a transcript the person confirmed,
+//                          now|queue never for one) — {ok, source, reading, how, task?, taskFor?, appended?, chat? (now:
+//                          strom-research://task?…&do=chat), head, parent}; 400 read.decide.invalid, 404 read.decide.none
+//                          | noreading, 409 read.decide.task (+task) | done | nothing | confirmed | unconfirmed |
+//                          noproposal | declined, 503 research.busy
+//   POST <token>/sourceTask {"sourceTask": "ask"|"always"|"never"}: what a source read again that differs in a matter of
+//                          fact becomes in this research (read.sourceTask in its strom.json) — {ok, sourceTask, head,
+//                          parent}; 400 sourceTask.invalid, 409 sourceTask.archive, 503 research.busy. /status readAgain
+//                          {"S…": {read, state unchecked|saved|task, task?, taskFor?, taskOpen?, taskQueued?, minorOnly?,
+//                          unsureOnly?, proposal? {text, by, task, at}}}: each source whose newest reading again differs
+//                          (core/sourceread.ts readAgainOf; none in an archive or a research waiting for its agent)
 //                          The Strom file: 1 _STROM_ORIG Y under SOUR where the original is here and a transcript to
 //                          hold a reading against (APP_READS_SOURCES_AGAIN; never in an archive)
 //   GET <token>/history    what the ancestors lived through (the experiment experiments.history, core/pastevents.ts):
@@ -200,6 +220,15 @@
 //                          confirm.retracted (taking back passes) | confirm.reader (not the research's reading, or the
 //                          user's own of another kind) | confirm.changed (+txt: the wording now), 503 research.busy
 //                          (feature sources.confirm). The Strom file: 2 _TXT, 2 _CONF under 1 _STROM_READ (APP_CONFIRMS_TRANSCRIPTS)
+//   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
+//                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
+//                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
+//                          confirm) or the transcript kept (the wording never proposed again); undo takes the decision of
+//                          that task back (the transcript and their reading as before, their confirmation too; the
+//                          proposal waits again) — {ok, source, read?, conf?, txt, task, take, head, parent}; 400
+//                          proposal.invalid, 404 proposal.none, 409 proposal.archive | proposal.decided | proposal.changed
+//                          (+proposed: the mark now; undo: the transcript changed since, or another wording waits) |
+//                          proposal.undo (nothing to undo), 503 research.busy (features sources.proposal, sources.proposal.undo)
 //   POST <token>/experiments   {"regions": false} | {"places": false} | {"history": false} (both) |
 //                          {"historyPlaces": false} (each place's history by itself): off for this research (its
 //                          strom.json; the person's own config stays; off already: 200, nothing written) — {experiments,
@@ -365,9 +394,11 @@ import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livesta
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
+import { transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
+import { settleClips } from "./clipmerge.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
@@ -415,6 +446,7 @@ import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts"
 import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
+import { readAgainAll } from "./sourceread.ts";
 import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
 import { alignData, alignEmpty, planAlign } from "./historyalign.ts";
 import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventKind } from "./eventkinds.ts";
@@ -1197,7 +1229,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -2095,6 +2127,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
     // waiting for its agent — no key there
     ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
+    // what became of each source's newest reading again that differs from its transcript (the app's source viewer,
+    // core/sourceread.ts readAgainOf): none in an archive or a research waiting for its agent
+    ...(archive ? {} : { readAgain: readAgainAll(tree) }),
     ...historyOfStatus(tree, settings, last.head, archive),
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
@@ -2227,6 +2262,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
     if (done) noteLive(root, `facts proven without the original record: ${counted(done.changed, "fact")} made probable, ${counted(done.left, "fact")} a person made proven waiting for a look`);
   } catch (e) {
     noteLive(root, `the facts proven without the original record not set right now: ${errorText(e)}`);
+  }
+  // the overlapping clips of one image the research wrote: joined into one (once)
+  try {
+    const done = settleClips(Tree.open(root, env));
+    if (done) noteLive(root, `overlapping clips of one image: ${counted(done.joined.length, "source")} joined into one, ${counted(done.left.length, "source")} left as they are (a person's, or not told whose)`);
+  } catch (e) {
+    noteLive(root, `the overlapping clips of one image not joined now: ${errorText(e)}`);
   }
   // the phone connection on and its server gone (the computer started again): started again beside the bridge
   try {
@@ -2595,7 +2637,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const [, t, what, sub, act, rest] = (req.url ?? "").split("?")[0]!.split("/");
+    const [, t, what, sub, act, rest, tail, past] = (req.url ?? "").split("?")[0]!.split("/");
     // the app asking now and then (?poll=1) or by itself what is new keeps no bridge running; anything else does
     if (!(req.method === "GET" && ((what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? "")) || what === "whats-new"))) lastAsked = Date.now();
     // the secret from a page that is no Strom app: replaced, this request answered as one without it (no data, no CORS)
@@ -2743,6 +2785,18 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "sources" && sub === "confirm" && !act) {
       writeFor(req, res, origin, confirmWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sourceTask" && !sub) {
+      writeFor(req, res, origin, sourceTaskWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sources" && sub && act === "read" && rest && tail === "task" && past === undefined) {
+      writeFor(req, res, origin, readTaskWrite(decoded(sub), decoded(rest)));
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "sources" && sub === "proposal" && !act) {
+      writeFor(req, res, origin, proposalWrite());
       return;
     }
     // the lines of the research: made, changed, paused / ended / resumed, put in order — each a strom command
@@ -4832,6 +4886,123 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (!code.startsWith("confirm.") || code === "confirm.app") return undefined;
         const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
         return refused({ status: code === "confirm.none" ? 404 : 409, code: code as ConfirmRefusal["code"], why, params });
+      },
+    };
+  };
+
+  /**
+   * The person's word on a source read again that differs in a matter of fact (POST /sources/<S…>/read/<D…>/task
+   * {how: now|queue|save|review}): strom source reading, as theirs in the app (save: just keep). {ok, source, reading,
+   * how, task?, taskFor?, appended?, chat?, head, parent} — chat: the link that opens the conversation about the task (now).
+   */
+  const readTaskWrite = (source: string, reading: string): AppWrite => {
+    let before = "";
+    let how = "";
+    return {
+      what: "a reading again decided",
+      codes: { badBody: "read.decide.invalid", busy: "research.busy", failed: "read.decide.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || (body.how !== "now" && body.how !== "queue" && body.how !== "save" && body.how !== "review"))
+          return { code: 400, body: refusal(`the body: {"how": "now" | "queue" | "save" | "review"}`, "read.decide.invalid") };
+        if (!/^S\d{1,9}$/iu.test(source) || !/^D\d{14}-[0-9a-f]{4}$/u.test(reading)) return { code: 400, body: refusal("the address: sources/<S…>/read/<D…>/task", "read.decide.invalid") };
+        how = body.how;
+        before = head(root);
+        return { args: ["source", "reading", normId(source), "--take", how === "save" ? "keep" : how, "--reading", reading] };
+      },
+      done(_tree, data, h) {
+        const { link, take: _t, places: _p, ...rest } = data;
+        return { ok: true, ...rest, how, ...(typeof link === "string" ? { chat: link } : {}), head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (!code.startsWith("read.decide.") || code === "read.decide.person") return undefined;
+        const params = data.params && typeof data.params === "object" ? (data.params as Record<string, unknown>) : {};
+        const status = code === "read.decide.invalid" ? 400 : code === "read.decide.none" || code === "read.decide.noreading" ? 404 : 409;
+        return { code: status, body: { ...refusal(why, code, {}), ...(typeof params.task === "string" ? { task: params.task } : {}) } };
+      },
+    };
+  };
+
+  /**
+   * What a source read again that differs in a matter of fact becomes in this research, as the app sets it (POST
+   * /sourceTask {"sourceTask": "ask"|"always"|"never"}): strom config set read.sourceTask … --for-tree, the person's
+   * choice in the app. {ok, sourceTask, head, parent}; the same again: 200, nothing written. 400 sourceTask.invalid, 409
+   * sourceTask.archive (nobody reads there), 503 research.busy.
+   */
+  const sourceTaskWrite = (): AppWrite => {
+    let before = "";
+    let want = "";
+    return {
+      what: "what a reading again becomes",
+      codes: { badBody: "sourceTask.invalid", busy: "research.busy", failed: "sourceTask.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || (body.sourceTask !== "ask" && body.sourceTask !== "always" && body.sourceTask !== "never"))
+          return { code: 400, body: refusal(`the body: {"sourceTask": "ask" | "always" | "never"}`, "sourceTask.invalid") };
+        if (actsAsArchive(tree)) return { code: 409, body: refusal("nobody researches here: no source is read again", "sourceTask.archive") };
+        want = body.sourceTask;
+        before = head(root);
+        if (new Settings(env, {}).readSourceTask(tree.config) === want) return { code: 200, body: { ok: true, sourceTask: want, head: before, parent: before } };
+        return { args: ["config", "set", "read.sourceTask", want, "--for-tree"] };
+      },
+      done(_tree, _data, h) {
+        return { ok: true, sourceTask: want, head: h, parent: before };
+      },
+      refused() {
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The user deciding a new wording an agent proposed for a transcript they read (POST /sources/proposal {source, task,
+   * take, proposed?}): strom source proposal, as the person's in the app (core/proposal.ts) — checked first against the
+   * research as it is now, again under the tree's lock by the command. {ok, source, read?, conf?, txt, task, take, head,
+   * parent}. 400 proposal.invalid, 404 proposal.none, 409 proposal.archive | proposal.decided | proposal.changed
+   * (+proposed: the mark of the wording proposed now) | proposal.undo, 503 research.busy. take undo: the decision of
+   * the task taken back (core/proposal.ts undoProposal).
+   */
+  const proposalWrite = (): AppWrite => {
+    let before = "";
+    const no = (status: number, why: string, code: string, params: Record<string, string> = {}) => ({ code: status, body: { ...refusal(why, code, params), ...(params.proposed ? { proposed: params.proposed } : {}) } });
+    return {
+      what: "a proposed transcript decided",
+      codes: { badBody: "proposal.invalid", busy: "research.busy", failed: "proposal.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).filter((k) => k !== "proposed").sort().join(",");
+        const { source, task, take, proposed } = body;
+        if (
+          keys !== "source,take,task" ||
+          typeof source !== "string" ||
+          !/^S\d{1,9}$/iu.test(source.trim()) ||
+          typeof task !== "string" ||
+          !/^T\d{1,9}$/iu.test(task.trim()) ||
+          (take !== "proposal" && take !== "keep" && take !== "undo") ||
+          (proposed !== undefined && (typeof proposed !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(proposed)))
+        )
+          return no(400, `the body: {"source": "S…", "task": "T…", "take": "proposal" | "keep" | "undo", "proposed"?: "<the proposal's mark>"}`, "proposal.invalid");
+        const id = normId(source);
+        const tid = normId(task);
+        if (actsAsArchive(tree)) return no(409, "an archive: no proposal is decided here", "proposal.archive");
+        const s = tree.get<Source>(id);
+        const tk = tree.get<Task>(tid);
+        if (!s || s.type !== "source" || !tk || tk.type !== "task" || tk.proposal?.source !== s.id) return no(404, `${tid} proposes no wording for ${id}`, "proposal.none", { source: id, task: tid });
+        if (take !== "undo" && (tk.state === "done" || tk.state === "dropped")) return no(409, `${tid} is decided already`, "proposal.decided", { source: id, task: tid });
+        const mark = transcriptMark(tk.proposal.text);
+        if (proposed && proposed !== mark) return no(409, `another wording was proposed for ${id} since — decide the one proposed now`, "proposal.changed", { source: id, task: tid, proposed: mark });
+        before = head(root);
+        return { args: ["source", "proposal", id, "--task", tid, "--take", take, ...(proposed ? ["--proposed", proposed] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, ...data, head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (!code.startsWith("proposal.") || code === "proposal.person" || code === "proposal.failed") return undefined;
+        const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
+        return no(code === "proposal.none" ? 404 : code === "proposal.invalid" ? 400 : 409, why, code, params);
       },
     };
   };

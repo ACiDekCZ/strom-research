@@ -306,6 +306,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
   // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
+  // Read from the config files only (the user's or the tree's) — no variable: what a reading again asks of the person is theirs.
+  { key: "read.sourceTask", env: "", tree: true, kind: "choice", choices: ["ask", "always", "never"], description: "a source read again from its original that differs from its transcript in a matter of fact both its readers are sure of: ask (default — no task, the reading kept beside the source, said to differ and not verified until you decide: now with the agent, into the queue, or just keep it; a transcript you confirmed: set aside for your review or just keep it — strom source reading S…, the Strom app; a task of the source not ended takes nothing until then), always (a task to hold the two against each other at once, or the source's task not ended takes the places; a transcript you confirmed: a wording with the new places proposed to you for review, never a task of the agent's) or never (kept beside the source, said not verified, no task)" },
   // Read from the config files only (the user's or the tree's) — no variable: letting the agent decide is the user's decision.
   { key: "hypotheses.decide", env: "", tree: true, kind: "choice", choices: ["person", "agent"], description: "who decides the hypotheses (the uncertain links between people): agent (default where nothing is set — the agent decides once a cited record points to one variant; a branch of 10 or more people off the tree only with two sources and no objection, else it proposes; it never changes your decision) or person (the agent proposes, you decide in What waits for you; back to it: strom config set hypotheses.decide person) — only you let the agent decide where person is set (strom setup recommends agent); an archive: nobody decides" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
@@ -921,6 +923,12 @@ export class Settings {
    */
   storyHistory(tree?: TreeConfig): boolean {
     return this.experimentsHistory(tree) && this.resolve("stories.history", tree)?.value !== "no";
+  }
+
+  /** A source read again that differs in a matter of fact: ask (default), always a task, never one (read.sourceTask). */
+  readSourceTask(tree?: TreeConfig): "ask" | "always" | "never" {
+    const v = this.resolve("read.sourceTask", tree)?.value;
+    return v === "always" || v === "never" ? v : "ask";
   }
 
   /** strom sync: whether the user's edit to a fact a record proves wins, or becomes a conflict. */

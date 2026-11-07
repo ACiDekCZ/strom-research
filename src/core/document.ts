@@ -1290,10 +1290,28 @@ export interface SourceRead {
   clip?: string;
   /** The new reading against the source's transcript (at: the transcript, other: the new reading) — once it ended. */
   agree?: "same" | "differ";
-  /** kind: for the Strom app alone (resultForApp), never kept. */
-  variants?: { at: string; other: string; kind?: VariantKind }[];
-  /** The task to hold the two against each other, where they differ. */
+  /**
+   * kind: for the Strom app alone (resultForApp), never kept. sure false: no evidence of a matter of fact — the
+   * readers disagree there, or the new reading cannot read it ([...], [?]); never a task of it. judged: the task an
+   * earlier reading of the source put the same place in (the same words both sides) — asked again in none.
+   */
+  variants?: { at: string; other: string; kind?: VariantKind; sure?: false; judged?: string }[];
+  /**
+   * The task to hold the two against each other, where they differ in a matter of fact (trifles alone: none) — the
+   * agent's, or (taskFor person) the person's own task of a wording proposed for a transcript they confirmed.
+   */
   task?: string;
+  /** Whose the task is: the person's (a wording proposed for their transcript, core/proposal.ts); none: the agent's. */
+  taskFor?: "person";
+  /** The places went into the source's task not ended (one task of a source at a time). */
+  appended?: true;
+  /**
+   * What became of a matter of fact it differs in (read.sourceTask; the bridge: always for an app that cannot ask):
+   * ask, always (a task), never — kept as the reading was asked.
+   */
+  taskWith?: "ask" | "always" | "never";
+  /** The places of a matter of fact no task holds yet, offered to the person (ask, never): how many; none: nothing to hand over. */
+  offer?: number;
   /**
    * The entries of the reading that are the source's record (entries[].id): at most one of each view — the one its
    * reader marked, else the one most within the source's excerpt; the others are entries beside it in the excerpt's

@@ -218,7 +218,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return !held(t);
   };
   // "only": the tasks of history alone, in their order whatever the pace (strom run --history, the person's word)
-  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && (forHistory(t) ? history(t) : opts.history !== "only" && !waits(t)));
+  // a new wording proposed for a transcript the person read is their decision alone, never work of the queue (core/proposal.ts)
+  const open = tasks.filter((t) => !t.proposal && ["open", "doing"].includes(effectiveState(t, today)) && (forHistory(t) ? history(t) : opts.history !== "only" && !waits(t)));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);

@@ -2,7 +2,7 @@
 // research has of the record itself on this computer — the excerpts of its images (each clip with the margin an excerpt
 // keeps), its images whole where nobody cut the entry out, else the scan the person gave — read by readers who are
 // never shown its transcript. The new reading is kept beside the source as one more reading of it (Source.readings);
-// nothing of the source changes: where it differs from the transcript a task holds the two against each other, and
+// nothing of the source changes: where it differs from the transcript in a matter of fact (not trifles alone) a task holds the two against each other, and
 // the user's confirmation of the transcript (spec 022) stays as it was.
 
 import fs from "node:fs";
@@ -11,9 +11,13 @@ import type { Input, Media, Source, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { inputPath } from "./media.ts";
 import { clipMark, INPUT_MARK, withMargin } from "./excerpt.ts";
-import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, wordHunks, words, type ReadResult, type Region, type SourceRead } from "./document.ts";
+import { alive, DOC_PAGES, FINAL_STATES, listReadings, loadState, resultPath, wordHunks, words, type ReadResult, type Region, type SourceRead } from "./document.ts";
 import { create, update } from "./records.ts";
 import { phrase } from "./phrases.ts";
+import { TRIFLES, variantKind } from "./variantkind.ts";
+import { userReading } from "./readers.ts";
+import { readingWords } from "./transcriptguard.ts";
+import { openProposal, PROPOSAL_ORIGIN, proposeTranscript, rejectedProposal } from "./proposal.ts";
 
 /** The origin of the task a reading again that differs from a source's transcript makes. */
 export const SOURCE_READ_ORIGIN = "read:source";
@@ -254,36 +258,164 @@ export function heldAgainst(tree: Tree, at: SourceRead, r: ReadResult): SourceRe
   const mine = ids ? r.entries.filter((e) => ids.includes(e.id)) : r.entries;
   if (!mine.length) return { ...base, failed: { code: "no-entry", why: "no entry of the reading is the source's record: nothing read, or only entries beside it" } };
   const c = compareWithSource(s, { entries: mine });
-  return { ...base, ...(ids ? { entries: mine.map((e) => e.id) } : {}), agree: c.agree, variants: c.variants };
+  return { ...base, ...(ids ? { entries: mine.map((e) => e.id) } : {}), agree: c.agree, variants: surely(s, r, mine.map((e) => e.id), c.variants) };
+}
+
+const keysIn = (t: string) => words(t).filter((w) => !w.illegible).map((w) => w.key).filter(Boolean);
+/** Whether keys b stand within keys a, in a row. */
+function within(a: string[], b: string[]): boolean {
+  if (!b.length) return !a.length;
+  for (let i = 0; i + b.length <= a.length; i++) if (b.every((k, j) => a[i + j] === k)) return true;
+  return false;
 }
 
 /**
- * A reading of a source again that ended with a result: kept beside the source as one more reading of it (nothing of
- * the source changes — its transcript, who read it, the user's confirmation), compared with its transcript; where they
- * differ, a task to hold the two against each other. What it came to, for the reading's state.
+ * Each place the new reading differs from the transcript, said not sure (sure: false) where it is no evidence of a
+ * matter of fact: the new reading there a mark that it cannot be read or is not sure ([...], [?]) — a word of the
+ * transcript the reader could not read is never another word; and, two readers, where the blind one did not read the
+ * same against the transcript (the readers disagree: uncertainty, nothing more). A word where the transcript has
+ * [...] is a place like any other.
  */
-export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult): SourceRead {
+function surely(s: Source, r: ReadResult, ids: string[], variants: { at: string; other: string }[]): SourceRead["variants"] {
+  const two = (r.readers?.ran ?? 1) >= 2 || !!r.blind;
+  const blind = two ? (r.blind?.entries ?? []).filter((b) => b.of && ids.includes(b.of)) : [];
+  const theirs = two && blind.length ? compareWithSource(s, { entries: blind.map((b) => ({ ...b, persons: [], events: [], relations: [] })) as never }).variants : [];
+  return variants.map((v) => {
+    const unread = !!v.other && (nothingRead(v.other) || UNSURE.test(v.other));
+    const agreed = !two || theirs.some((b) => within(keysIn(b.at), keysIn(v.at)) && within(keysIn(b.other), keysIn(v.other)) && (!!b.other === !!v.other) && (!!b.at === !!v.at));
+    return unread || !agreed ? { ...v, sure: false as const } : v;
+  });
+}
+
+/** A mark that a place cannot be read or is not sure: [...], […], [?]. */
+const UNSURE = /\[\s*(?:\.{2,}|…|\?)\s*\]/u;
+
+/** What becomes of a reading again that differs in a matter of fact (read.sourceTask): asked of the person, a task, or kept. */
+export type SourceTaskWith = "ask" | "always" | "never";
+
+/** The person's word on a reading again that differs (decideReading). */
+export type ReadingTake = "now" | "queue" | "keep" | "review";
+
+/**
+ * A reading of a source again that ended with a result: kept beside the source as one more reading of it (nothing of
+ * the source changes — its transcript, who read it, the user's confirmation), compared with its transcript. Where they
+ * differ in a matter of fact both readers are sure of and no task judged yet: with always (read.sourceTask always, an
+ * app that cannot ask) a task to hold the two against each other — said in the source's task not ended where there is
+ * one (appended) — or, the transcript the person's own reading (they confirmed it), a wording of it with the new
+ * reading's places proposed to them for review (their task, never an agent's: core/proposal.ts); with ask or never the
+ * places offered to the person (offer: how many — the source not verified until they decide, decideReading), a task
+ * not ended of the source taking nothing until they say so. What it came to, for the reading's state.
+ */
+export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult, with_: SourceTaskWith = at.taskWith ?? "always"): SourceRead {
   const c = heldAgainst(tree, at, r);
   if (c.failed) return c;
   const s = tree.get<Source>(at.id)!;
   // (a source.reading, never a source.edit: the history's edits of a source say who read it — this one changes none)
   update<Source>(tree, s.id, "source", (x) => ({ ...x, readings: [...new Set([...(x.readings ?? []), r.id])] }), { op: "source.reading", summary: `${s.id} read again from its original: ${r.id} (${c.agree === "same" ? "alike its transcript" : "differs from its transcript"})` });
-  if (c.agree === "same") return { ...c, variants: [] };
-  // read again (strom document again) while its task is still open: that task holds this reading too
-  const open = at.task ? tree.get<Task>(at.task) : undefined;
-  if (open && open.type === "task" && open.state === "open") return c;
+  const { taskWith: _w, offer: _o, taskFor: _f, appended: _a, ...base } = c;
+  if (c.agree === "same") return { ...base, variants: [] };
+  const p = placesOf(tree, s, r.id, c.variants!);
+  const held: SourceRead = { ...base, variants: p.variants, taskWith: with_ };
+  // read again while a task of the source is not ended, nothing new in it: that task holds this reading too
+  const open = openTaskOf(tree, s.id, at.task);
+  if (!p.fresh.length) return open && p.matters.length ? { ...held, task: open.id } : held;
+  if (with_ !== "always") return { ...held, offer: p.fresh.length };
+  if (userReading(s)) {
+    // the person's own transcript: never a task of the agent's to change it — a wording for their review
+    const made = review(tree, s, r, p.fresh);
+    return "refused" in made ? { ...held, offer: p.fresh.length } : { ...held, task: made.task, taskFor: "person", ...(made.appended ? { appended: true as const } : {}) };
+  }
+  return { ...held, task: handOver(tree, s, r, p.ordered, 2, open).id, ...(open ? { appended: true as const } : {}) };
+}
+
+/**
+ * A wording for the person's review of a transcript they read or confirmed: the transcript — or the wording proposed to
+ * them that waits already — with each place of a matter of fact replaced by the new reading's (found in it whatever its
+ * spacing), proposed to them (core/proposal.ts: a note on the source, their task, never an agent's). A place with
+ * nothing of the transcript, or not found in it: left out of the wording, said in its why with the others.
+ */
+function review(tree: Tree, s: Source, r: ReadResult, fresh: { at: string; other: string }[]): { task: string; appended: boolean } | { refused: "noproposal" | "declined" | "same"; why: string; task?: string } {
+  const waiting = openProposal(tree, s.id)?.proposal?.text;
+  const wording = replacePlaces((waiting ?? s.transcript ?? "").normalize("NFC"), fresh);
+  if (wording === undefined) return { refused: "noproposal", why: `no place the reading of ${s.id} differs in could be put into a wording of its transcript (none of its words found there) — nothing proposed; keep it` };
   const lang = tree.lang;
-  const where = [...new Set([...(s.clips ?? []).map((x) => x.media), ...(s.media ?? []), ...(s.input ? [s.input] : [])])];
   const list = (ws: string[]) => ws.slice(0, 6).join(" · ") + (ws.length > 6 ? " · …" : "");
-  const task = create<Task>(
+  const why = phrase(lang, "read.source.why", { source: s.id, now: r.id, who: whoRead(lang, r), same: sameModel(lang, r), before: list(fresh.map((v) => v.at || "—")), after: list(fresh.map((v) => v.other || "—")) });
+  const out = proposeTranscript(tree, s.id, wording, { by: whoRead(lang, r), why, reading: r.id });
+  if (out.outcome === "proposed" || out.outcome === "appended") return { task: out.task!, appended: out.outcome === "appended" };
+  if (out.outcome === "declined") return { refused: "declined", why: `the person declined this wording of the transcript of ${s.id} before and kept theirs — not proposed again` };
+  if (out.outcome === "same") return { refused: "same", why: `this wording of the transcript of ${s.id} waits for the person's decision already (${out.task})`, ...(out.task ? { task: out.task } : {}) };
+  return { refused: "noproposal", why: `the wording of ${s.id} with the reading's places is its transcript's own — nothing to propose` };
+}
+
+/**
+ * A text with each place's words (at) replaced by the other reading's (other): found tolerant of whitespace (its words
+ * joined by any spacing), a word never within a longer one, places never overlapping; none found: undefined.
+ */
+export function replacePlaces(text: string, places: { at: string; other: string }[]): string | undefined {
+  const spans: { from: number; to: number; with: string }[] = [];
+  for (const v of places) {
+    const ws = v.at.normalize("NFC").trim().split(/\s+/u).filter(Boolean);
+    if (!ws.length) continue;
+    const words = ws.map((w) => w.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")).join("\\s+");
+    const pre = /^[\p{L}\p{M}\p{N}]/u.test(ws[0]!) ? "(?<![\\p{L}\\p{M}\\p{N}])" : "";
+    const post = /[\p{L}\p{M}\p{N}]$/u.test(ws.at(-1)!) ? "(?![\\p{L}\\p{M}\\p{N}])" : "";
+    for (const m of text.matchAll(new RegExp(pre + words + post, "gu"))) {
+      const from = m.index;
+      const to = from + m[0].length;
+      if (spans.some((x) => from < x.to && x.from < to)) continue;
+      spans.push({ from, to, with: v.other.normalize("NFC").trim() });
+      break;
+    }
+  }
+  if (!spans.length) return undefined;
+  let out = text;
+  for (const x of spans.sort((a, b) => b.from - a.from)) {
+    const left = out.slice(0, x.from);
+    let right = out.slice(x.to);
+    // words left out by the new reading: no gap of two spaces where they stood
+    if (!x.with && /[ \t]$/u.test(left) && /^[ \t]/u.test(right)) right = right.replace(/^[ \t]+/u, "");
+    out = left + x.with + right;
+  }
+  return out;
+}
+
+/**
+ * The places a reading again differs from the transcript in, as a task would hold them. Only a matter of fact (a
+ * name, number, date, person, a side not read, anything not surely a trifle) both readers are sure of is worth a task:
+ * differing in trifles alone (spelling, an abbreviation, punctuation, a label, letter case) the reading is kept beside
+ * the source as any other, said to differ, and nothing is asked of anyone. A place an earlier reading of the source put
+ * in a task already is judged (variants[].judged) and asked again in none. The matters of fact come first.
+ */
+function placesOf(tree: Tree, s: Source, now: string, vs: NonNullable<SourceRead["variants"]>) {
+  const before = judgedPlaces(tree, s, now);
+  const variants: NonNullable<SourceRead["variants"]> = vs.map(({ judged: _j, kind: _k, ...v }) => (before.get(placeKey(v)) ? { ...v, judged: before.get(placeKey(v))! } : v));
+  const matters = variants.filter((v) => v.sure !== false && !TRIFLES.includes(variantKind(v.at, v.other)));
+  const fresh = matters.filter((v) => !v.judged);
+  const ordered = [...fresh, ...variants.filter((v) => !fresh.includes(v) && !v.judged)];
+  return { variants, matters, fresh, ordered };
+}
+
+/** The task a reading's places are held in: said in the source's open one, else a new one (priority as asked). */
+function handOver(tree: Tree, s: Source, r: ReadResult, ordered: { at: string; other: string }[], priority: number, open = openTaskOf(tree, s.id)): Task {
+  const lang = tree.lang;
+  const list = (ws: string[]) => ws.slice(0, 6).join(" · ") + (ws.length > 6 ? " · …" : "");
+  const said = { now: r.id, who: whoRead(lang, r), same: sameModel(lang, r), before: list(ordered.map((v) => v.at || "—")), after: list(ordered.map((v) => v.other || "—")) };
+  if (open) {
+    // one task of a source at a time: the new places said in it, beside the ones it holds
+    update<Task>(tree, open.id, "task", (x) => ({ ...x, why: `${x.why} ${phrase(lang, "read.source.again", said)}` }), { op: "task.edit", summary: `${open.id} holds the reading ${r.id} of ${s.id} too` });
+    return tree.get<Task>(open.id)!;
+  }
+  const where = [...new Set([...(s.clips ?? []).map((x) => x.media), ...(s.media ?? []), ...(s.input ? [s.input] : [])])];
+  return create<Task>(
     tree,
     "task",
     {
       level: "verify",
-      priority: 2,
+      priority,
       what: phrase(lang, "read.source.what", { source: s.id, now: r.id }),
       where: [s.id, ...where],
-      why: phrase(lang, "read.source.why", { source: s.id, now: r.id, before: list(c.variants!.map((v) => v.at || "—")), after: list(c.variants!.map((v) => v.other || "—")) }),
+      why: phrase(lang, "read.source.why", { source: s.id, ...said }),
       doneWhen: phrase(lang, "read.source.done", { source: s.id, now: r.id }),
       subject: [s.id],
       state: "open",
@@ -291,5 +423,218 @@ export function keepSourceReading(tree: Tree, at: SourceRead, r: ReadResult): So
     } as never,
     (id) => `+${id} task "hold the reading ${r.id} against the transcript of ${s.id}"`,
   );
-  return { ...c, task: task.id };
+}
+
+/** A reading's result as finish kept it (notes/readings/<id>.json), if there is one. */
+function resultOf(tree: Tree, id: string): ReadResult | undefined {
+  try {
+    return JSON.parse(fs.readFileSync(resultPath(tree.root, id), "utf8")) as ReadResult;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The newest reading again of a source that differs in a matter of fact nobody has decided on (read.sourceTask ask or
+ * never): its ID, how many places, and the source's task not ended a task chosen now would go into (open) — the source
+ * "read again, differs, not verified" until the person decides. The person's word on that reading, or a task that holds
+ * it already: none.
+ */
+export function unverifiedReading(tree: Tree, s: Source): { reading: string; places: number; open?: string } | undefined {
+  const id = s.readings?.at(-1);
+  if (!id || s.readDecided?.reading === id) return undefined;
+  const src = resultOf(tree, id)?.source;
+  if (src?.id !== s.id || !src.offer || src.task) return undefined;
+  const open = openTaskOf(tree, s.id);
+  return { reading: id, places: src.offer, ...(open ? { open: open.id } : {}) };
+}
+
+/** A refusal of the person's word on a reading again (its code read.decide.*, the task where one is known). */
+const refuse = (why: string, code: string, more: { task?: string; hint?: string } = {}) => Object.assign(new Error(why), { code: `read.decide.${code}`, ...more });
+
+/**
+ * The person's word on a reading again of a source that differs (unverifiedReading, or one they name): now — a task
+ * to go through with the agent at once; queue — a task in the queue (priority 3); keep — just kept, asked no more; and
+ * for a transcript that is the person's own reading (they confirmed it, core/readers.ts), never a task of the agent's
+ * but review — a wording with the new reading's places proposed to them (their task, core/proposal.ts). A task of the
+ * source not ended takes the places (appended); kept on the source (readDecided). Who may: the caller says (a person alone).
+ */
+export function decideReading(tree: Tree, id: string, take: ReadingTake, reading?: string): { source: string; reading: string; take: ReadingTake; task?: string; taskFor?: "agent" | "person"; appended?: true; places: number } {
+  const s = tree.get<Source>(id);
+  if (!sourceOk(s)) throw refuse(`${id} is no source of the research`, "none");
+  const rid = reading ?? s.readings?.at(-1);
+  const r = rid && s.readings?.includes(rid) ? resultOf(tree, rid) : undefined;
+  if (!rid || !r?.source || r.source.id !== s.id) throw refuse(`${id} has no reading again${reading ? ` ${reading}` : ""} to decide on`, "noreading");
+  if (r.source.task) throw refuse(`the reading ${rid} of ${id} is held in the task ${r.source.task} already`, "task", { task: r.source.task });
+  const d = s.readDecided?.reading === rid ? s.readDecided : undefined;
+  if (d) throw refuse(`the reading ${rid} of ${id} is decided already: ${d.take === "keep" ? "just kept" : `held in the task ${d.task}`}`, d.task ? "task" : "done", d.task ? { task: d.task } : {});
+  const confirmed = !!userReading(s);
+  if (take === "review" && !confirmed) throw refuse(`the transcript of ${id} is no reading of the person's own (not confirmed): nothing to set aside for their review — now, queue or keep`, "unconfirmed", { hint: `strom source reading ${id} --take queue` });
+  if ((take === "now" || take === "queue") && confirmed)
+    throw refuse(`the transcript of ${id} is the person's own reading (${readingWords(s)}): no task of the agent's may change it — review (a wording proposed to the person) or keep`, "confirmed", { hint: `strom source reading ${id} --take review` });
+  const p = placesOf(tree, s, rid, r.source.variants ?? []);
+  if (!p.fresh.length) throw refuse(`the reading ${rid} of ${id} differs in nothing to decide on (trifles, places not sure, places judged already)`, "nothing");
+  let task: string | undefined;
+  let appended = false;
+  if (take === "now" || take === "queue") {
+    const open = openTaskOf(tree, s.id);
+    task = handOver(tree, s, r, p.ordered, 3, open).id;
+    appended = !!open;
+  } else if (take === "review") {
+    const made = review(tree, s, r, p.fresh);
+    if ("refused" in made) throw refuse(made.why, made.refused === "same" ? "task" : made.refused, made.task ? { task: made.task } : {});
+    task = made.task;
+    appended = made.appended;
+  }
+  const decided = { reading: rid, take, at: new Date().toISOString(), ...(task ? { task } : {}), ...(appended ? { appended: true as const } : {}) };
+  const said = take === "keep" ? "just kept, by the person's word" : take === "review" ? `a wording of it proposed to the person in ${task}, by their word` : `held in the task ${task}${appended ? " (not ended, the places said in it)" : ""}, by the person's word${take === "now" ? " (now with the agent)" : ""}`;
+  update<Source>(tree, s.id, "source", (x) => ({ ...x, readDecided: decided }), { op: "source.reading", summary: `${s.id}: the reading ${rid} ${said}` });
+  return { source: s.id, reading: rid, take, ...(task ? { task, taskFor: take === "review" ? ("person" as const) : ("agent" as const) } : {}), ...(appended ? { appended: true as const } : {}), places: p.fresh.length };
+}
+
+/** A place told by its words alone (folded keys of both sides), whatever its spacing, accents or punctuation. */
+const placeKey = (v: { at: string; other: string }) => `${keysIn(v.at).join(" ")}\u0000${keysIn(v.other).join(" ")}`;
+
+/** Whether a task is not ended (open, being done, put aside, waiting). */
+const live = (t: Task | undefined): t is Task => !!t && t.type === "task" && t.state !== "done" && t.state !== "dropped";
+
+/** The task of a source's reading again not ended yet (open, being done, put aside, waiting): one at a time. */
+function openTaskOf(tree: Tree, source: string, hint?: string): Task | undefined {
+  const h = hint ? tree.get<Task>(hint) : undefined;
+  if (live(h) && h.origin === SOURCE_READ_ORIGIN) return h;
+  return tree.list<Task>("task").find((t) => live(t) && t.origin === SOURCE_READ_ORIGIN && t.subject?.includes(source));
+}
+
+/**
+ * The places earlier readings of a source put in a task (its result's source.variants, source.task, or the task the
+ * person's word made of it: readDecided), and those of a wording proposed for the person's review that waits for them or
+ * that they declined (never offered again): each to its task.
+ */
+function judgedPlaces(tree: Tree, s: Source, now: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const id of s.readings ?? []) {
+    if (id === now) continue;
+    const held = resultOf(tree, id)?.source;
+    const task = held?.task ?? (s.readDecided?.reading === id ? (s.readDecided.task ?? (s.readDecided.take === "keep" ? id : undefined)) : undefined); // just kept: judged by the person's word on that reading
+    if (held?.id !== s.id || !task) continue;
+    for (const v of held.variants ?? []) if (v.sure !== false && !v.judged) out.set(placeKey(v), task);
+  }
+  for (const t of tree.list<Task>("task")) {
+    const p = t.proposal;
+    if (t.origin !== PROPOSAL_ORIGIN || p?.source !== s.id || !p.reading || p.reading === now || !s.readings?.includes(p.reading)) continue;
+    if (!(t.state === "waiting" || (t.state === "parked" && t.heldBy === "archive")) && !rejectedProposal(tree, s.id, p.text)) continue;
+    for (const v of resultOf(tree, p.reading)?.source?.variants ?? []) if (v.sure !== false && !v.judged && !out.has(placeKey(v))) out.set(placeKey(v), t.id);
+  }
+  return out;
+}
+
+/** Who read a reading: each reader's agent · model · effort, the blind one after the first; none kept: said so. */
+export function whoRead(lang: string, r: Pick<ReadResult, "readers">): string {
+  const who = (r.readers.who ?? []).filter((w) => w.ran !== false);
+  return who.length ? who.map((w) => [w.agent, w.model, w.effort].filter(Boolean).join(" · ")).join(" + ") : phrase(lang, "read.source.unknown");
+}
+
+/** Two readers of the same model: said, for it is weaker evidence than two models agreeing; else nothing. */
+function sameModel(lang: string, r: Pick<ReadResult, "readers">): string {
+  const who = (r.readers.who ?? []).filter((w) => w.ran !== false);
+  return who.length >= 2 && who[0]!.model && who.every((w) => w.agent === who[0]!.agent && w.model === who[0]!.model) ? phrase(lang, "read.source.same", { model: who[0]!.model! }) : "";
+}
+
+/**
+ * What became of the newest reading again of a source that differs from its transcript (the Strom app's source viewer,
+ * /status readAgain; strom source show): unchecked — places of a matter of fact both readers are sure of wait for the
+ * person; saved — just kept by their word, or differing in trifles alone (minorOnly) or only in places its readers are
+ * not sure of (unsureOnly, also with trifles); task — held in a task (taskFor agent, or person: a wording proposed for
+ * their review), taskOpen while it is not ended, taskQueued while an agent's open one waits in the queue (not taken
+ * now with the agent); every matter of fact judged in a task already: that task. proposal: a wording proposed to the
+ * person for the transcript that waits for them. None read again, or alike: undefined.
+ */
+export interface ReadAgain {
+  read: string;
+  state: "unchecked" | "saved" | "task";
+  task?: string;
+  taskFor?: "agent" | "person";
+  taskOpen?: boolean;
+  taskQueued?: boolean;
+  minorOnly?: true;
+  unsureOnly?: true;
+  proposal?: { text: string; by: string; task: string; at: string };
+}
+
+export function readAgainOf(tree: Tree, s: Source): ReadAgain | undefined {
+  const id = s.readings?.at(-1);
+  const src = id ? resultOf(tree, id)?.source : undefined;
+  if (!id || src?.id !== s.id || src.agree !== "differ") return undefined;
+  const waiting = openProposal(tree, s.id);
+  const proposal = waiting?.proposal ? { proposal: { text: waiting.proposal.text, by: waiting.proposal.by, task: waiting.id, at: waiting.proposal.at } } : {};
+  const held = (task: string, o: { for?: "agent" | "person"; now?: boolean } = {}): ReadAgain => {
+    const t = tree.get<Task>(task);
+    const open = live(t);
+    const taskFor = o.for ?? (t?.origin === PROPOSAL_ORIGIN ? "person" : "agent");
+    return { read: id, state: "task", task, taskFor, taskOpen: open, taskQueued: open && taskFor === "agent" && !o.now, ...proposal };
+  };
+  const d = s.readDecided?.reading === id ? s.readDecided : undefined;
+  if (d) return d.task ? held(d.task, { for: d.take === "review" ? "person" : "agent", now: d.take === "now" }) : { read: id, state: "saved", ...proposal };
+  if (src.task) return held(src.task, src.taskFor ? { for: src.taskFor } : {});
+  if (src.offer) return { read: id, state: "unchecked", ...proposal };
+  const vs = src.variants ?? [];
+  const matters = vs.filter((v) => v.sure !== false && !TRIFLES.includes(variantKind(v.at, v.other)));
+  if (matters.some((v) => !v.judged)) return { read: id, state: "unchecked", ...proposal };
+  // every matter of fact judged before: in a task, or kept by the person's word on an earlier reading (D…)
+  const judged = matters[0]?.judged;
+  if (judged) return judged.startsWith("D") ? { read: id, state: "saved", ...proposal } : held(judged);
+  return { read: id, state: "saved", ...(vs.some((v) => v.sure === false) ? { unsureOnly: true as const } : { minorOnly: true as const }), ...proposal };
+}
+
+/** Every source whose newest reading again differs from its transcript, what became of it (/status readAgain). */
+export function readAgainAll(tree: Tree): Record<string, ReadAgain> {
+  const out: Record<string, ReadAgain> = {};
+  for (const s of tree.list<Source>("source")) {
+    if (!s.readings?.length || s.retracted || s.mergedInto) continue;
+    const a = readAgainOf(tree, s);
+    if (a) out[s.id] = a;
+  }
+  return out;
+}
+
+/** A reading again as the Strom app is given it (feature read.sourceTask: the app's ZADANI_DEV_ukol-z-cteni.md §1, §2). */
+export type SourceReadApp = Omit<SourceRead, "taskWith" | "offer" | "taskFor"> & {
+  /** What read.sourceTask was for this reading: ask, always (a task at once), never. */
+  taskSetting: SourceTaskWith;
+  /** Places of a matter of fact both readers are sure of that nothing decided and no task holds yet: the person may decide. */
+  taskOffer: boolean;
+  /** Whose the task that holds the reading is (task). */
+  taskFor?: "agent" | "person";
+  /** The person just kept it. */
+  decided?: "saved";
+  /** The source's task not ended that a task chosen now would go into (taskOffer). */
+  openTask?: string;
+  /** What became of the source's newest reading again (readAgainOf). */
+  state?: ReadAgain;
+};
+
+/**
+ * A reading again as the Strom app is given it (GET /read/<D…>, feature read.sourceTask): its setting (taskSetting —
+ * the reading's, else the tree's `setting`), whether the person may decide on it (taskOffer, openTask), the task that
+ * holds it and whose (task, taskFor), whether the person just kept it (decided saved), whether its places went into a
+ * task not ended (appended), and the source's state (state). Nothing else of it changes.
+ */
+export function sourceReadForApp(tree: Tree, src: SourceRead, reading: string, setting: SourceTaskWith): SourceReadApp {
+  const { taskWith, offer, taskFor, ...rest } = src;
+  const s = tree.get<Source>(src.id);
+  const d = s?.readDecided?.reading === reading ? s.readDecided : undefined;
+  const task = src.task ?? d?.task;
+  const offered = !!s && !!offer && !task && !d;
+  const open = offered ? openTaskOf(tree, s.id) : undefined;
+  const state = s ? readAgainOf(tree, s) : undefined;
+  return {
+    ...rest,
+    taskSetting: taskWith ?? setting,
+    taskOffer: offered,
+    ...(task ? { task, taskFor: taskFor ?? (d?.take === "review" ? "person" : "agent") } : {}),
+    ...(d?.take === "keep" ? { decided: "saved" as const } : {}),
+    ...(open ? { openTask: open.id } : {}),
+    ...(src.appended || d?.appended ? { appended: true as const } : {}),
+    ...(state ? { state } : {}),
+  };
 }

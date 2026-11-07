@@ -36,7 +36,7 @@ import { metricsDir } from "./metrics.ts";
 import { readJournal } from "./readstats.ts";
 import type { Input, Media, Person, Source } from "./model.ts";
 import { checkWith, readChoices, whoForApp, withArgs, type AgentHeld, type ReadChoices } from "./readchoice.ts";
-import { notAgain, readingOfSource } from "./sourceread.ts";
+import { notAgain, readingOfSource, sourceReadForApp } from "./sourceread.ts";
 
 /** The readings the app may ask, unless the person set others (read.app). */
 export const APP_READ_DEFAULT = { hour: 20, day: 60 } as const;
@@ -331,6 +331,8 @@ export interface ReadAccepts {
   expectSecs?: number;
   /** ready: the readers the person may choose — agents, models, efforts — and what each reader reads with by default (spec 059). */
   choices?: ReadChoices;
+  /** What a source read again that differs in a matter of fact becomes (read.sourceTask, the tree's): ask, always, never — POST <token>/sourceTask sets it. */
+  sourceTask: "ask" | "always" | "never";
 }
 
 /**
@@ -351,6 +353,7 @@ export function readAccepts(tree: Tree, settings: Settings, env: Env, seen?: Rea
     pages: DOC_PAGES,
     langs: readLangs(),
     ...(not ? {} : { expectSecs: expectSecs(tree.root, settings.agent(tree.config).value), choices: readChoices(tree, settings, env, settings.agent(tree.config).value, held) }),
+    sourceTask: settings.readSourceTask(tree.config),
   };
 }
 
@@ -561,7 +564,8 @@ export class AppReadings {
       const n = this.none(id);
       return this.json(res, n.code, n.body);
     }
-    const app = resultForApp(got.result);
+    const kept = resultForApp(got.result);
+    const app = kept.source && FINAL_STATES.includes(kept.state) ? { ...kept, source: sourceReadForApp(got.tree, kept.source, id, this.b.settings().readSourceTask(got.tree.config)) } : kept;
     const who = whoForApp(app.readers.who, true);
     const r = { ...app, readers: { ...app.readers, ...(who ? { who } : {}) } };
     // at work or queued: how long it is expected to take from its start
@@ -727,9 +731,11 @@ export class AppReadings {
   }
 
   /**
-   * POST /sources/read {source, clip, readers, lang, with}: the record of a source read again from its original here —
-   * its readers never shown its transcript — queued as the person's; the new reading kept beside the source, held
-   * against its transcript when it ends (a task where they differ). Nothing of the source changes.
+   * POST /sources/read {source, clip, readers, lang, with, taskChoice}: the record of a source read again from its
+   * original here — its readers never shown its transcript — queued as the person's; the new reading kept beside the
+   * source, held against its transcript when it ends. Where it differs in a matter of fact: taskChoice true (an app that
+   * offers the person the choice, feature read.sourceTask) as read.sourceTask says (ask: the person decides, POST
+   * /sources/<S…>/read/<D…>/task); without it (an older app) a task at once, as before. Nothing of the source changes.
    */
   private sourceAsked(tree: Tree, body: Record<string, unknown>): Ask {
     const bad = (why: string): Ask => ({ code: 400, body: refusal(`the body: ${why}`, "read.bad-body") });
@@ -752,7 +758,7 @@ export class AppReadings {
     if ("code" in w) return w;
     const limited = this.limited();
     if (limited) return limited;
-    return { what: `${source} read again`, args: ["document", "read", "--source", source, ...(clip ? [`--clip=${clip}`] : []), "--queue", "--readers", String(readers), "--into", lang, ...w.args], asked: "read", early: { readers, lang, source } };
+    return { what: `${source} read again`, args: ["document", "read", "--source", source, ...(clip ? [`--clip=${clip}`] : []), "--queue", "--readers", String(readers), "--into", lang, ...(body.taskChoice === true ? [] : ["--source-task", "always"]), ...w.args], asked: "read", early: { readers, lang, source } };
   }
 
   /** POST /read/<id>/again {readers}: the app's reading read again (after one reader: the blind second alone). */

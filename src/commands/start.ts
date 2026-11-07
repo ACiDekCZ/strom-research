@@ -125,9 +125,11 @@ function liveAppData(ctx: Context, bridge: string): { app?: string } {
 function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id: string; say: string } {
   const t = requireRecord<Task>(tree, ref, "task");
   if (t.type !== "task" || t.retracted) throw new UsageError(`no task ${t.id}`, { hint: "strom task list --state waiting" });
-  if (t.state !== "waiting")
-    throw new UsageError(`${t.id} does not wait for the user (it is ${t.state}) — strom chat --task takes a task that waits`, { hint: "strom task list --state waiting · strom chat", code: "chat.task-not-waiting" });
   const lang = tree.lang;
+  // a task in the queue the person wants gone through now (the Strom app's link to it): taken up in the conversation
+  if (t.state === "open") return { id: t.id, say: ui(lang, "ui.chat.task.open.say", { task: t.id, what: ((w) => (/[.?!…]$/u.test(w) ? w : `${w}.`))(truncate(t.what, 160)) }) };
+  if (t.state !== "waiting")
+    throw new UsageError(`${t.id} neither waits for the user nor is in the queue (it is ${t.state}) — strom chat --task takes a task that waits, or one in the queue`, { hint: "strom task list --state waiting · strom chat", code: "chat.task-not-waiting" });
   // the task's words end their sentence by themselves (a question its "?"); what it waits for runs on into its place
   const what = truncate(t.what, 160);
   const first = ui(lang, "ui.chat.task.say", {
@@ -166,7 +168,7 @@ register({
     "stand and suggests what next. What strom watches in each agent and app: strom doc R12.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
-    { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place" },
+    { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place; a task in the queue (open): gone through now, taken up in the conversation" },
     { name: "where", type: "string", value: "<app|terminal>", description: "this time in the agent's desktop app or in this terminal (default: agent.where)" },
     { name: "print", type: "boolean", description: "print the command line instead of starting the agent" },
   ],

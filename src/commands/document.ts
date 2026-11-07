@@ -34,7 +34,8 @@ import { ownModel } from "../agents/models.ts";
 import { ui } from "../cli/ui.ts";
 import { catalog } from "../core/phrases.ts";
 import { readerDefault } from "../core/readchoice.ts";
-import { heldAgainst, keepSourceReading, notAgain, originalPages, readingOfSource } from "../core/sourceread.ts";
+import { heldAgainst, keepSourceReading, notAgain, originalPages, readingOfSource, type SourceTaskWith } from "../core/sourceread.ts";
+import { askOfReading } from "./source-reading.ts";
 import type { Source } from "../core/model.ts";
 import {
   alive,
@@ -561,7 +562,7 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
         let kept: SourceRead | undefined;
         if (keeps)
           try {
-            kept = keepSourceReading(tree, { ...s.source!, ...(result.source?.entries ? { entries: result.source.entries } : {}) }, result);
+            kept = keepSourceReading(tree, { ...s.source!, ...(result.source?.entries ? { entries: result.source.entries } : {}) }, result, s.source!.taskWith ?? ctx.settings.readSourceTask(tree.config));
             s = { ...s, source: kept };
             result = buildResult(tree, s);
             if (kept.failed) kept = undefined;
@@ -596,6 +597,8 @@ function said(ctx: Context, r: ReadResult): string {
   for (const e of r.entries) {
     out.push("", `${e.id} · page ${e.page}${e.region ? ` · region ${e.region.join(",")}` : ""}${e.agree ? ` · ${e.agree === "same" ? "both readers alike" : "readers differ"}` : ""}`);
     out.push(`  transcript: ${e.transcript.replace(/\s*\n\s*/g, " | ")}`);
+    // two readers: the blind one's whole text of the entry too (as the Strom app shows it, reader 1 / reader 2)
+    for (const b of r.blind?.entries.filter((x) => x.of === e.id) ?? []) out.push(`  blind reader (${b.id}): ${b.transcript.replace(/\s*\n\s*/g, " | ")}`);
     if (e.translation) out.push(`  translation (${r.lang}): ${e.translation.replace(/\s*\n\s*/g, " ")}`);
     for (const t of e.glossary ?? []) out.push(`  term: ${t.term} = ${t.meaning} (${t.kind})`);
     for (const p of e.persons) {
@@ -608,6 +611,10 @@ function said(ctx: Context, r: ReadResult): string {
     for (const rel of e.relations) out.push(`  ${rel.type === "parent" ? `${rel.parent} parent of ${rel.child}` : `${rel.a} spouse of ${rel.b}`}`);
     for (const v of e.variants ?? []) out.push(`  differs (${v.field}): "${v.at}" / blind reader "${v.other}"`);
   }
+  // what the blind reader read that is none of the first reader's entries: said whole as well
+  const ids = new Set(r.entries.map((e) => e.id));
+  for (const b of r.blind?.entries.filter((x) => !x.of || !ids.has(x.of)) ?? [])
+    out.push("", `blind reader's ${b.id} · page ${b.page}${b.region ? ` · region ${b.region.join(",")}` : ""} · none of the first reader's entries`, `  transcript: ${b.transcript.replace(/\s*\n\s*/g, " | ")}`);
   if (r.context) out.push("", `context: ${r.context.replace(/\s*\n\s*/g, " ")}`);
   if (r.checks.length) out.push("", `left out by strom (nothing filled in): ${r.checks.map((c) => `${c.entry}${c.ref ? ` ${c.ref}` : ""} ${c.what} (${c.why})`).join("; ")}`);
   if (r.incomplete?.length) out.push(`NOT read to an end: page ${r.incomplete.join(", ")} — strom document again ${r.id}`);
@@ -642,9 +649,9 @@ function sourceSaid(r: ReadResult): string | undefined {
   if (src.agree === "same") return `source: ${of} ${again} — alike its transcript${failed}`;
   if (src.agree === "differ") {
     const v = src.variants ?? [];
-    const shown = v.slice(0, 3).map((x) => `"${x.at || "—"}" / "${x.other || "—"}"`).join(", ");
+    const shown = v.slice(0, 3).map((x) => `"${x.at || "—"}" / "${x.other || "—"}"${x.sure === false ? " (not sure)" : ""}${x.judged ? (x.judged.startsWith("D") ? ` (kept by the person with ${x.judged})` : ` (judged in ${x.judged})`) : ""}`).join(", ");
     const more = v.length > 3 ? ` and ${v.length - 3} more` : "";
-    return `source: ${of} ${again} — differs from its transcript${shown ? ` (transcript / reading: ${shown}${more})` : ""}${src.task ? ` → task ${src.task}` : ""}${failed}`;
+    return `source: ${of} ${again} — differs from its transcript${shown ? ` (transcript / reading: ${shown}${more})` : ""}${src.task ? (src.taskFor === "person" ? ` → the person's task ${src.task}: a wording with its places proposed for their review (the transcript is their own reading)` : ` → task ${src.task}${src.appended ? " (not ended, its new places said in it)" : ""}`) : src.offer ? ` → ${counted(src.offer, "matter of fact", "matters of fact")} for the person to decide on (strom source reading ${src.id})` : ""}${failed}`;
   }
   return `source: ${of} ${again} — ${src.failed ? failed.slice(3) : FINAL_STATES.includes(r.state) ? "not held against its transcript" : "held against its transcript once read"}`;
 }
@@ -655,8 +662,11 @@ function nextOf(r: ReadResult): string[] {
       if (r.source) {
         const src = r.source;
         if (src.failed?.code === "write") return ["", `next: tell the person the reading again of ${src.id} is not written to the research (${src.failed.why}) — the reading itself is kept here (strom document show ${r.id}); strom check says what stops it`];
+        if (src.agree === "differ" && src.task && src.taskFor === "person") return ["", `next: tell the person the reading again of ${src.id} differs from the transcript they confirmed — a wording with its places waits for their decision in ${src.task} (strom's menu, What waits; the Strom app); never change the transcript yourself, no new source of it`];
         if (src.agree === "differ" && src.task) return ["", `next: strom task show ${src.task} — hold this reading against the transcript of ${src.id} there with the person; the source stays as it is, no new source of it`];
         if (src.agree === "same") return ["", `next: tell the person the reading again of ${src.id} from its original is alike its transcript — nothing to record, no new source of it`];
+        if (src.agree === "differ" && src.offer) return ["", `next: tell the person the reading again of ${src.id} differs from its transcript in ${counted(src.offer, "matter of fact", "matters of fact")} both readers are sure of — not verified, theirs to decide: now with the agent, into the queue, or just keep it (strom source reading ${src.id} at their terminal, or the Strom app); the transcript stays as it is, no new source of it`];
+        if (src.agree === "differ") return ["", `next: tell the person the reading again of ${src.id} differs from its transcript only in trifles, places its readers are not sure of, or places judged already — kept beside the source, nothing of the transcript to change, no new source of it`];
         return ["", `next: look at it yourself against the transcript of ${src.id} (strom source show ${src.id}) — no new source of it`];
       }
       const e = r.entries[0];
@@ -762,8 +772,9 @@ register({
     "(left out: as the research's settings say); the result says who read (readers.who). Nothing of it is kept as a setting.\n" +
     "--source S…: the record of a source read again from its original here (its excerpts, else its images or its scan;\n" +
     "--clip <mark>: one excerpt), its readers never shown its transcript. The new reading is kept beside the source and\n" +
-    "held against its transcript: where they differ, a task to hold the two against each other — the source, who read\n" +
-    "it and a transcript the user confirmed stay as they are.",
+    "held against its transcript: where they differ in a matter of fact (a name, number, date, person, a place not\n" +
+    "read), a task to hold the two against each other, those first; trifles alone (spelling, an abbreviation,\n" +
+    "punctuation) no task — the source, who read it and a transcript the user confirmed stay as they are.",
   args: [{ name: "files", description: "the document: a photo, scan or PDF, or its input I… or image M… (several: its pages, in order); or a reading queued: D…", variadic: true }],
   options: [
     { name: "readers", type: "string", value: "1|2", description: "readers: 1 (default), or 2 — the second blind, where they differ is said" },
@@ -775,6 +786,7 @@ register({
     ...WITH_OPTIONS,
     { name: "source", type: "string", value: "<S…>", description: "read a source's record again from its original here, never from its transcript" },
     { name: "clip", type: "string", value: "<mark>", description: "with --source: only this excerpt of it (its mark: c…, or input)" },
+    { name: "source-task", type: "string", value: "ask|always|never", description: "with --source: what a matter of fact it differs in becomes — ask (the person decides: strom source reading), always (a task at once), never (kept, said not verified); default: read.sourceTask" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
     { name: "id", type: "string", value: "<D…>", description: "with --queue: the reading's ID given beforehand (the bridge of the Strom app answers with it at once); a new one, never one there is" },
@@ -786,6 +798,8 @@ register({
     if (args.length === 1 && READ_ID.test(args[0]!.trim())) return readQueued(ctx, tree, args[0]!.trim(), opts);
     const source = typeof opts.source === "string" ? normId(opts.source.trim()) : undefined;
     if (source && args.length) throw new UsageError("--source reads the source's own original: no file is given with it", { hint: `strom document read --source ${source}` });
+    const taskWith = opts["source-task"] === undefined ? undefined : String(opts["source-task"]);
+    if (taskWith !== undefined && (!source || !["ask", "always", "never"].includes(taskWith))) throw new UsageError(source ? `--source-task: ask, always or never` : "--source-task is of a source read again: only with --source", { hint: "strom document read --source S… --source-task always" });
     if (!source && opts.clip !== undefined) throw new UsageError("--clip is an excerpt of a source: only with --source", { hint: "strom document read --source S… --clip <mark>" });
     if (!source && !args.length) throw new UsageError("what to read: a file, an input I… or image M…, a reading queued D…, or --source S…", { hint: "strom document read <file>" });
     const asked = readersOf(opts.readers, 1);
@@ -827,12 +841,15 @@ register({
     // whoever asked: the Strom app (its bridge runs this as the person's), else the agent's worker
     const from = ctx.env.STROM_FOR_APP ? APP_READ_FROM : ctx.env.STROM_WORKER;
     // queued to be read later: no process of its own until it is read; read now: this one's (never taken for gone)
-    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], with: readWho, ...(source ? { source: { id: source, ...(clip ? { clip } : {}) } } : {}), ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
+    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], with: readWho, ...(source ? { source: { id: source, ...(clip ? { clip } : {}), ...(taskWith ? { taskWith: taskWith as SourceTaskWith } : {}) } } : {}), ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     saveState(tree.root, s);
     if (opts.queue) return queuedSaid(ctx, tree, s);
     s = await readNow(ctx, tree, s, opts);
-    const result = buildResult(tree, s);
-    return { text: said(ctx, result), data: result, exitCode: exitOf(s) };
+    let result = buildResult(tree, s);
+    // read at the person's own terminal and it differs in a matter of fact nobody has decided on: asked at once
+    const asks = result.source?.offer && !result.source.task && result.source.taskWith === "ask" ? await askOfReading(ctx, tree, result.source.id, result.id) : undefined;
+    if (asks) result = buildResult(tree, s);
+    return { text: [said(ctx, result), ...(asks ? ["", asks] : [])].join("\n"), data: result, exitCode: exitOf(s) };
   },
 });
 
@@ -865,7 +882,7 @@ register({
     // who reads now: as asked now (the first reader's, when only the blind one reads, as it read)
     const asWho = withOf(ctx, tree, opts);
     const readWho = firstOk ? [before.with?.[0] ?? { agent: before.agent ?? asWho[0]!.agent, ...(before.model ? { model: before.model } : {}) }, asWho[1]!] : asWho;
-    let s: ReadState = { ...before, state: "queued", version: nextVersion(before), readers: asked, since: now(), before: beforeOf(before), with: readWho, ...(before.source ? { source: { id: before.source.id, ...(before.source.clip ? { clip: before.source.clip } : {}), ...(before.source.task ? { task: before.source.task } : {}) } } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
+    let s: ReadState = { ...before, state: "queued", version: nextVersion(before), readers: asked, since: now(), before: beforeOf(before), with: readWho, ...(before.source ? { source: { id: before.source.id, ...(before.source.clip ? { clip: before.source.clip } : {}), ...(before.source.task ? { task: before.source.task } : {}), ...(before.source.taskWith ? { taskWith: before.source.taskWith } : {}) } } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     delete s.why;
     delete s.error;
     delete s.failure;

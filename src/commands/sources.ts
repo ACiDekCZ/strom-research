@@ -7,7 +7,7 @@ import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { LIST_PAGE_MAX, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, counted, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import { ui } from "../cli/ui.ts";
 import {
@@ -37,9 +37,13 @@ import { fileToShown } from "../image/image.ts";
 import { formatName } from "../core/people.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
+import { readAgainOf, unverifiedReading, type ReadAgain } from "../core/sourceread.ts";
 import { levelWords } from "../core/archiveasks.ts";
 import { bookUrlKey, sameBooks, sameBookText } from "../core/samebook.ts";
-import { handReading, typedByHand } from "../core/readers.ts";
+import { handReading, typedByHand, userReading } from "../core/readers.ts";
+import { agentClipped, joinedText, mergeOverlappingClips, researchWritesNow, type JoinedClip } from "../core/clipmerge.ts";
+import { transcriptDiffers } from "../core/transcriptguard.ts";
+import { decideProposal, proposeTranscript, type ProposalResult } from "../core/proposal.ts";
 import { confirmAnswer, confirmCheck, confirmSummary } from "../core/confirm.ts";
 
 function written(tree: Tree): string {
@@ -92,6 +96,12 @@ function clipRefs(tree: Tree, specs: string[], shared: string | undefined): Clip
     const region = partRegion({ half: w[1], crop: w[2] || undefined }, img, mediaOrient(shared, img));
     return { media, region };
   });
+}
+
+/** What the agent learns of clips joined on write: one entry is one clip on its image. */
+function joinedNote(joined: JoinedClip[]): string | undefined {
+  if (!joined.length) return undefined;
+  return `clips that overlap on one image joined into one (one entry, one clip; another only where it goes on apart — another column, a page break — or for a detail or an entry nearly whole inside a larger clip, kept beside it): ${joined.map(joinedText).join("; ")}`;
 }
 
 /** "Teinitz an der Elbe@de:1850-1918" → another name of a place. */
@@ -219,7 +229,10 @@ register(
       const book = opts.recordset ? requireRecord<RecordSet>(tree, opts.recordset as string, "recordset") : undefined;
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       if (opts.input) requireRecord(tree, opts.input as string, "input");
-      const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
+      // the research's clips of one image that overlap are one entry cut twice: one clip (a person's stay as given)
+      const given = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
+      const merged = researchWritesNow(tree, ctx.env, ctx.io.tty) ? mergeOverlappingClips(given) : { clips: given, joined: [] };
+      const clips = merged.clips;
       if (clips.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break — several entries are several sources (one strom source add each)`);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       // a line of an index is a copy made by another hand; a book with its own index holds originals too
@@ -254,7 +267,7 @@ register(
         (id) => `+${id} source "${truncate(args[0]!, 60)}"${media.length ? ` on ${media.join(" ")}` : ""}`,
         media,
       );
-      return { text: lines(written(tree), clipNote(tree, src), transcriptNote(tree, src), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src } };
+      return { text: lines(written(tree), joinedNote(merged.joined), clipNote(tree, src), transcriptNote(tree, src), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src } };
     },
   },
   {
@@ -302,6 +315,7 @@ register(
         for (const c of f.citations ?? []) if (c.source === s.id) citing.push(`${f.id} the family${at(c)}`);
         for (const e of f.events) for (const c of e.citations) if (c.source === s.id) citing.push(`${f.id} ${e.id} ${e.kind}${at(c)}`);
       }
+      const again = readAgainState(tree, s);
       const text = lines(
         `${s.id} ${s.title}`,
         `kind ${s.kind} · ${s.form} · information ${s.information}${s.language ? ` · language ${s.language}` : ""}${s.date ? ` · dated ${s.date}` : ""}`,
@@ -312,10 +326,11 @@ register(
         s.clips?.length ? `clips  ${s.clips.map((c, i) => `${i + 1}. ${clipText({ media: c.media, region: fileToShown(c.region, mediaOrient(shared, tree.get<Media>(c.media))) })}`).join(" · ")} — where the entry is on its image` : undefined,
         s.transcript ? `\ntranscript\n${s.transcript}` : undefined,
         s.translation ? `\ntranslation\n${s.translation}` : undefined,
+        againLine(again, s.id, again?.state === "unchecked" ? (unverifiedReading(tree, s)?.places ?? 0) : 0),
         citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : "\ncited by nothing yet",
         ...s.notes.map((n) => `note   ${n.text}`),
       );
-      return { text, data: { source: s, citedBy: citing } };
+      return { text, data: { source: s, citedBy: citing, ...(again ? { readAgain: again } : {}) } };
     },
   },
 );
@@ -866,8 +881,22 @@ register(
       const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
       const drop = str(opts["clip-remove"]);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
-      const transcript = textOpt(opts.transcript, readText(ctx));
+      let transcript = textOpt(opts.transcript, readText(ctx));
       const hand = transcript?.trim() && typedByHand(ctx.env, { tty: ctx.io.tty, batch: ctx.inBatch });
+      let joined: JoinedClip[] = [];
+      // a transcript the person read or confirmed is theirs (core/transcriptguard.ts): another's new wording of it is
+      // proposed to them instead (a note, their task), and whatever else the edit gives is written as asked
+      const before = requireRecord<Source>(tree, args[0]!, "source");
+      let proposed: ProposalResult | undefined;
+      if (transcript !== undefined && !tree.personWrites && userReading(before) && transcriptDiffers(before.transcript, transcript)) {
+        // a new wording of what the record says is evidence, as any change of a transcript: why, always
+        if (!str(opts.reason))
+          throw new UsageError(`changing transcript of ${before.id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id: before.id, fields: "--transcript" } });
+        proposed = proposeTranscript(tree, before.id, transcript, { why: str(opts.reason)! });
+        transcript = undefined;
+        const rest = [opts.title, opts.kind, opts.recordset, opts.repo, opts.locator, opts.date, opts.translation, opts.language, opts.information, opts.form, opts.url, opts.note, drop].some((v) => v !== undefined) || media.length > 0 || clips.length > 0;
+        if (!rest) return { text: lines(written(tree), proposed.line), data: { source: tree.get<Source>(before.id), proposal: proposed } };
+      }
       const s = editFields<Source>(
         tree,
         args[0]!,
@@ -898,7 +927,13 @@ register(
               throw new UsageError(kept.length ? `--clip-remove takes 1–${kept.length} or all` : `${cur.id} has no clips`, { hint: `strom source show ${cur.id}` });
             kept = kept.filter((_, i) => i !== n - 1);
           }
-          const next = [...kept, ...clips.filter((c) => !kept.some((k) => clipText(k) === clipText(c)))];
+          const all = [...kept, ...clips.filter((c) => !kept.some((k) => clipText(k) === clipText(c)))];
+          // the research's clips of one image that overlap are one entry cut twice: one clip — those there already only
+          // when the history shows the research wrote them (core/clipmerge.ts agentClipped), else they stay as they are
+          let merged = researchWritesNow(tree, ctx.env, ctx.io.tty) ? mergeOverlappingClips(all) : { clips: all, joined: [] };
+          if (merged.joined.length && kept.length && !agentClipped(tree.readOps(), new Set([cur.id])).has(cur.id)) merged = mergeOverlappingClips(all, (_, i) => i < kept.length);
+          joined = merged.joined;
+          const next = merged.clips;
           if (next.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`, { hint: `take one away: --clip-remove <n> (strom source show ${cur.id})` });
           return {
             ...(media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
@@ -909,7 +944,7 @@ register(
           };
         },
       );
-      return { text: lines(written(tree), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined), data: { source: s } };
+      return { text: lines(written(tree), joinedNote(joined), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined, proposed?.line), data: { source: s, ...(proposed ? { proposal: proposed } : {}) } };
     },
   },
   {
@@ -1077,5 +1112,57 @@ register({
     update<Source>(tree, id, "source", () => s, { op: confirm ? "source.confirm" : "source.unconfirm", summary: confirmSummary(s, confirm) });
     const answer = confirmAnswer(tree, id);
     return { text: written(tree), data: answer };
+  },
+});
+
+/**
+ * What became of the newest reading again of a source that differs from its transcript (core/sourceread.ts readAgainOf,
+ * as the Strom app's source viewer has it): unchecked (the person decides: strom source reading), saved, or held in a
+ * task. None read again so: undefined.
+ */
+export function readAgainState(tree: Tree, s: Source): ReadAgain | undefined {
+  return readAgainOf(tree, s);
+}
+
+function againLine(a: ReadAgain | undefined, id: string, places: number): string | undefined {
+  if (!a) return undefined;
+  const proposal = a.proposal ? ` · a wording proposed to the person waits in ${a.proposal.task}` : "";
+  if (a.state === "unchecked") return `\nread again ${a.read} — differs from the transcript in ${counted(places, "matter of fact", "matters of fact")} both readers are sure of, NOT verified: the person decides (strom source reading ${id}) — the transcript stays as it is${proposal}`;
+  if (a.state === "saved")
+    return `\nread again ${a.read} — differs, ${a.minorOnly ? "in trifles alone" : a.unsureOnly ? "only in places its readers are not sure of" : "just kept by the person's word (asked no more)"}${proposal}`;
+  const whose = a.taskFor === "person" ? "the person's task (a wording proposed for their review)" : "the task";
+  return `\nread again ${a.read} — differs, held in ${whose} ${a.task ?? "?"}${a.taskOpen ? (a.taskQueued ? ", in the queue" : ", not ended") : ", ended"}${proposal}`;
+}
+
+register({
+  path: ["source", "proposal"],
+  summary: "The person's decision on a new wording proposed for a transcript they read or confirmed: taken, or theirs kept",
+  group: "sources",
+  tree: true,
+  writes: true,
+  hidden: true,
+  description:
+    "A transcript the person read or confirmed is never changed by an agent: another wording is proposed to them\n" +
+    "(strom source edit --transcript from an agent), one task per source that waits for them. Only the person decides it\n" +
+    "— strom's menu (What waits), a link of the Strom app, or the app through its bridge (POST <token>/sources/proposal):\n" +
+    "--take proposal writes the proposed wording as their transcript (their reading of it), --take keep keeps theirs and\n" +
+    "the wording is never proposed again; --take undo takes their decision back (the transcript and their reading of it\n" +
+    "as before, their confirmation too, or the wording no longer declined) and the proposal waits for them again.",
+  args: [{ name: "source", description: "source ID (S0001)", required: true }],
+  options: [
+    { name: "take", type: "string", value: "proposal|keep|undo", description: "the proposed wording, the transcript as it is, or the decision undone (the newest of the source, or --task)" },
+    { name: "task", type: "string", value: "<T…>", description: "the task of the proposal decided (default: the one that waits for the source)" },
+    { name: "proposed", type: "string", value: "<mark>", description: "only if the wording proposed is still this one (its mark): else refused, proposal.changed" },
+  ],
+  examples: ["strom source proposal S0001 --take keep"],
+  run(ctx, { args, opts }) {
+    const take = str(opts.take);
+    if (take !== "proposal" && take !== "keep" && take !== "undo") throw new UsageError("--take is proposal, keep or undo", { code: "proposal.invalid" });
+    const tree = ctx.tree();
+    const id = normId(args[0]!, "source");
+    const fromApp = ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env);
+    const task = str(opts.task) ? normId(str(opts.task)!, "task") : undefined;
+    const { source, task: t } = decideProposal(tree, id, take, { how: fromApp ? "confirm" : "hand", ...(task ? { task } : {}), ...(str(opts.proposed) ? { expect: str(opts.proposed)! } : {}) });
+    return { text: written(tree), data: { ...confirmAnswer(tree, source.id), task: t.id, take } };
   },
 });

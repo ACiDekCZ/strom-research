@@ -26,7 +26,9 @@ import { askWhy, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Task } from "../core/model.ts";
+import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
+import { transcriptMark, userReading } from "../core/readers.ts";
+import { phrase, type PhraseKey } from "../core/phrases.ts";
 import { agentDecided, decidedToRecord } from "../core/hypolinks.ts";
 import { normId } from "../core/records.ts";
 import { actsAsArchive } from "../core/state.ts";
@@ -59,7 +61,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "hypothesis", "place", "branch", "proven", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "hypothesis", "place", "branch", "proven", "transcript", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -394,7 +396,7 @@ async function requestText(ctx: Context, lang: string, root: string, ids: string
 
 /** One thing: a decision its own screen; a task what it is and waits for, then what makes sense for its kind. */
 async function thing(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
-  if (!w.task || w.task.awaitsCheck) return decide(ctx, run, lang, root, w);
+  if (!w.task || w.task.awaitsCheck || w.task.proposal) return decide(ctx, run, lang, root, w);
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const id = w.task.id;
@@ -491,6 +493,7 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
   if (w.proven) return decideProven(ctx, run, lang, root);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
+  if (w.task?.proposal) return void (await decideTranscript(ctx, run, lang, root, w.task.id));
   const tree = Tree.open(root, ctx.env);
   if (w.story) return void (await decideStory(ctx, run, lang, root, w.story, storyOf(tree, w.story)));
   const q = w.question;
@@ -867,6 +870,7 @@ async function answerTask(ctx: Context, run: Run, lang: string, root: string, x:
  * task and the task back in the queue.
  */
 async function takeUp(ctx: Context, run: Run, lang: string, root: string, x: Task): Promise<void> {
+  if (x.proposal) return void (await decideTranscript(ctx, run, lang, root, x.id));
   const t = translator(lang);
   if (x.awaits) {
     const dir = inbox(ctx, x);
@@ -911,8 +915,50 @@ export async function waitingTask(ctx: Context, run: Run, lang: string, root: st
   const tree = Tree.open(root, ctx.env);
   const x = tree.get<Task>(id);
   if (!x || x.state !== "waiting") return false;
+  // a new wording proposed for a transcript: its own screen says what it is
+  if (x.proposal) return (await decideTranscript(ctx, run, lang, root, x.id), true);
   ctx.io.stdout([` ${x.what}`, ...whatToDo(ctx, lang, tree, x), ...(x.awaits ? ["", ui(lang, "ui.wait.how1"), ui(lang, "ui.wait.how2")] : []), ""].join("\n") + "\n");
   await takeUp(ctx, run, lang, root, x);
+  return true;
+}
+
+/**
+ * A new wording an agent proposed for a transcript the person read or confirmed (core/proposal.ts): the transcript now
+ * and the wording proposed, why, then the person's choice — the proposed wording taken (theirs now, typed at their
+ * terminal), or the transcript kept (that wording never proposed again); 0 back with nothing changed. True when decided.
+ */
+export async function decideTranscript(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const x = tree.get<Task>(id);
+  // meanwhile decided (in the app, another terminal): said, nothing asked
+  if (!x || x.type !== "task" || x.state !== "waiting" || !x.proposal) return (out(t("ui.waiting.gone")), false);
+  const p = x.proposal;
+  const s = tree.get<Source>(p.source);
+  if (!s) return (out(t("ui.waiting.gone")), false);
+  const u = userReading(s);
+  const read = u ? phrase(lang, `proposal.read.${u.how}` as PhraseKey) : "";
+  const indent = (text: string) => text.split("\n").map((l) => `    ${l}`);
+  out(
+    [
+      "",
+      ` ${x.id} · ${kindWord(t, "transcript")}`,
+      ` ${t("ui.proposal.title", { source: s.id, title: s.title })}`,
+      "",
+      `  ${t("ui.proposal.now", { read, day: u ? humanDay(u.at, lang) : "" })}`,
+      ...indent(s.transcript ?? ""),
+      "",
+      `  ${t("ui.proposal.new", { by: p.by, day: humanDay(p.at, lang) })}`,
+      ...indent(p.text),
+      ...(p.why ? ["", `  ${t("ui.proposal.why", { why: p.why })}`] : []),
+    ].join("\n"),
+  );
+  const i = await ctx.choose(t("ui.proposal.pick"), [{ label: t("ui.proposal.take") }, { label: t("ui.proposal.keep") }], 2, { back: t("ui.browse.back") });
+  if (i === undefined) return false;
+  const take = i === 0 ? "proposal" : "keep";
+  if ((await run(["source", "proposal", s.id, "--task", x.id, "--take", take, "--proposed", transcriptMark(p.text)], true)) !== 0) return false;
+  out(t(take === "proposal" ? "ui.proposal.taken" : "ui.proposal.kept"));
   return true;
 }
 

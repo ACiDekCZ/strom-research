@@ -535,9 +535,12 @@ function diagnoseInto(
   const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;
   if (codexRoot) {
     const state = codexHookState(codexRoot, ctx.env);
-    const fine = state === "trusted" || state === "disabled";
+    // a hook file only missing or out of date is written again by itself the next time strom starts the agent (strom
+    // chat, strom run, strom session start: agents/files.ts syncAgentFiles) — said so, not a warning; the command only
+    // an option. Turned off in Codex or an untrusted folder stays a warning (nothing of strom's mends it).
+    const fine = state === "trusted" || state === "disabled" || state === "missing";
     const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t("ui.doc.codexhooks.how")}  (strom doc R12.5)` : "strom doc R12.5";
-    add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine ? undefined : fix);
+    add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine && state !== "missing" ? undefined : fix);
     checks.at(-1)!.code = `codex.hooks.${state}`;
   }
 
@@ -1117,6 +1120,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "stories.history": () => "yes",
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
+  "read.sourceTask": () => "ask",
   "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,

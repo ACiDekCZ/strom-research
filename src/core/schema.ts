@@ -60,7 +60,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     accessed: S(),
     media: { t: "refs", to: "media" },
     clips: { t: "array", of: { media: R("media", true), region: { t: "object", req: true, of: { x: F, y: F, w: F, h: F } } } },
-    read: { t: "object", of: { user: { t: "object", of: { how: S({ req: true, enum: ["hand", "confirm", "earlier"] }), at: S({ req: true }), txt: S({ max: 64 }) } } } },
+    read: { t: "object", of: { user: { t: "object", of: { how: S({ req: true, enum: ["hand", "confirm", "earlier"] }), at: S({ req: true }), txt: S({ max: 64 }) } }, declined: { t: "strings" } } },
   },
   repository: {
     name: S({ req: true, max: 200 }),
@@ -157,6 +157,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     helps: S({ max: 500 }),
     queueAt: { t: "object", of: { do: S({ req: true, enum: ["next", "last"] }), at: S({ req: true }) } },
     kinds: { t: "strings" },
+    proposal: { t: "object", of: { source: R("source", true), text: S({ req: true }), by: S({ req: true, max: 100 }), at: S({ req: true }), why: S({ max: 1000 }), reading: S({ max: 64 }) } },
   },
   conflict: {
     title: S({ req: true, max: 200 }),

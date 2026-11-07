@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -58,6 +58,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   opraví, změny jsou v přehledu změn (`strom fixes undo readers|proven-originals` je vrátí). GEDCOM z jiného programu
   nikdy neudělá uživatele čtenářem ani údaj doloženým. Potvrzení v aplikaci platí pro znění, ke kterému bylo dané, a dá
   se tam vzít zpět; s originálem záznamu s primární informací pak údaj smí být doložený, jinak nejvýš pravděpodobný.
+  **Přepis, který uživatel přečetl nebo potvrdil, je uživatelův.** Mění ho jen uživatelův vlastní terminál nebo
+  aplikace Strom – ať jde o jakýkoli příkaz (úprava, dávka, synchronizace, oprava, vrácení, import). Jiné znění od
+  agenta se místo toho navrhne: poznámka u zdroje a jeden úkol pro uživatele na zdroj, který žádný agent nevezme ani
+  neuzavře; rozhoduje se v Co čeká, odkazem z aplikace Strom nebo v aplikaci – navržené znění přijaté jako
+  uživatelovo, nebo přepis ponechaný a totéž znění se už znovu nenavrhne; obojí jde vrátit (předchozí přepis i s potvrzením zpět,
+  návrh čeká znovu).
 
 - **Každý čtenář dokumentu s vlastním agentem, modelem a hloubkou uvažování a zdroj přečtený znovu z originálu.** `strom
   document read|again --agent/--model/--effort` (a `--blind-…` pro slepého čtenáře) nebo volba v aplikaci Strom; bez
@@ -98,6 +104,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   čtení liší, o jaký rozdíl jde – věcný (jméno, číslo, datum, osoba, místo, které nejde přečíst), nebo drobnost
   (pravopis, zkratka, interpunkce, popisek, velikost písmen) –, a kde je každý čtenář: čeká, čte, dočetl za tolik
   sekund, nebo selhal, i to, kterému čtenáři byl odmítnut model.
+  **Zdroj přečtený znovu: co dál, volí uživatel.** Úkol vznikne jen z věcného údaje, který oba čtenáři přečtou proti
+  přepisu stejně (jméno, číslo, datum, osoba, slovo, které přepis nepřečetl) – nikdy z drobností (pravopis, zkratka,
+  interpunkce), z místa, na kterém se čtenáři neshodnou nebo které označí jako nečitelné, ani z místa, které už
+  posoudil dřívější úkol. Úkol říká, kdo četl (agent · model · hloubka), že dva čtenáři stejného modelu jsou slabší
+  doklad, a že čtení je jen vodítko: přepis se mění jen tam, kde to ukazuje sám snímek. Nová volba `read.sourceTask`
+  říká, co dál: *ptát se* (výchozí) – čtení zůstane u zdroje jako neověřené, dokud uživatel nezvolí: projít ho
+  s agentem hned, dát ho do fronty, nebo ho jen uložit (v terminálu hned po čtení, později `strom source reading S…`,
+  nebo v aplikaci Strom); *vždy* – úkol hned; *nikdy* – bez úkolu. Jeden zdroj má najednou jeden úkol svých čtení.
 
 - **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku
@@ -109,6 +123,15 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   Strom nezůstává „při práci“, ani na vytíženém počítači, ani po změně jména počítače. Místo zapsané ve větě („v Lhotě
   v čp. 12“) si už neponechává předložky: kontrola nabídne obec tak, jak ji výzkum píše jinde, a záznam místa už
   nedostane jméno jako „v Lhotě v“ – taková jména zapsaná dřív se jednou opraví (vrátit: strom place undo).
+  **Překrývající se výřezy jednoho obrázku jsou jeden.** Dva výřezy téhož obrázku, které označil výzkum a které se
+  překrývají aspoň o 30 % menšího z nich, se spojí v jeden, který pokryje oba (výřez skoro celý uvnitř většího – detail,
+  zápis vedle celé strany – zůstane); výřezy označené uživatelem zůstávají.
+  Ve výzkumu z dřívějška se překrývající výřezy spojí jednou, každé spojení zapsané v historii; přepis i potvrzení
+  uživatele zůstávají.
+  **Úkol ve frontě z aplikace Strom.** Odkaz z aplikace na úkol ve frontě ho ukáže (co, proč, kdy hotovo) a nabídne
+  projít ho s agentem hned (s tím, kolik podobné úkoly tady trvaly), dát ho ve frontě dopředu, nebo ho nechat.
+  `strom doctor` říká, proč se dražší změna ladění ve prospěch přesnosti ponechává, a soubor hooků Codexu, který jen
+  chybí nebo je zastaralý, už není varování – zapíše se znovu, až strom příště spustí agenta.
 
 ## 1.28.0
 

@@ -339,12 +339,26 @@ export interface Source extends BaseRecord {
   /** The readings of its record made again from its original (strom document read --source): D…, oldest first; none changes the source. */
   readings?: string[];
   /**
+   * The person's word on a reading again that differs in a matter of fact with no task of it (read.sourceTask ask or
+   * never): now with the agent, into the queue (task: the task it made), just keep it — that reading asked no more —,
+   * or (a transcript the person confirmed) review: a wording proposed to the person (task: theirs, core/proposal.ts).
+   * appended: the places went into a task of the source not ended.
+   */
+  readDecided?: { reading: string; take: "now" | "queue" | "keep" | "review"; at: string; task?: string; appended?: true };
+  /**
    * Who read it beyond what the history says (core/readers.ts): the user's own reading — typed by hand at the person's
    * terminal, the transcript confirmed in the Strom app (the bridge), or kept by the fix of the readers (an earlier
    * strom counted every write of "user" as one). Its mark (`txt`): the transcript it is of — once the research changes
    * the transcript it counts no more (an optional field: an older strom keeps it).
    */
-  read?: { user?: UserReading };
+  read?: {
+    user?: UserReading;
+    /**
+     * The marks (core/readers.ts transcriptMark) of the wordings proposed for this transcript that the person declined,
+     * keeping theirs (core/proposal.ts): never proposed again. Optional: an older strom keeps it and ignores it.
+     */
+    declined?: string[];
+  };
   notes: Note[];
 }
 
@@ -659,8 +673,48 @@ export interface Task extends BaseRecord {
    * done or set back. Optional: an older strom keeps it and ignores it.
    */
   queueAt?: { do: "next" | "last"; at: string };
+  /**
+   * A new wording proposed for a transcript the person read or confirmed (core/proposal.ts): the person's decision alone,
+   * to take it or keep the transcript — never the queue's nor an agent's (core/transcriptguard.ts). The latest
+   * proposal; an earlier one is in the notes. Optional: an older strom keeps it and ignores it.
+   */
+  proposal?: TranscriptProposal;
   origin: string;
   notes: Note[];
+}
+
+/** A new wording proposed for a transcript the person read or confirmed (Task.proposal). */
+export interface TranscriptProposal {
+  source: string;
+  /** The wording proposed (NFC). */
+  text: string;
+  /** Who proposed it (a session ID, "agent"), when, and why when said. */
+  by: string;
+  at: string;
+  why?: string;
+  /** The reading of a document it came from (D…), when it did. */
+  reading?: string;
+  /**
+   * What the person's decision replaced, so that it can be undone (core/proposal.ts, take undo): the decision, the
+   * transcript and the person's reading before it, the wordings declined before, and how the task waited. Optional:
+   * an older strom keeps it and ignores it.
+   */
+  was?: ProposalWas;
+}
+
+/** The state before the person decided a proposal (TranscriptProposal.was). */
+export interface ProposalWas {
+  take: "proposal" | "keep";
+  at: string;
+  transcript?: string;
+  user?: UserReading;
+  declined?: string[];
+  state: string;
+  waitingOn?: string;
+  wait?: Task["wait"];
+  parkedReason?: string;
+  heldBy?: string;
+  heldFrom?: string;
 }
 
 export interface Conflict extends BaseRecord {

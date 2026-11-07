@@ -132,7 +132,9 @@ test("whether Codex runs strom's hook: read from its config.toml — the folder 
   fs.writeFileSync(fake, process.platform === "win32" ? "@echo off\r\n" : "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   const docEnv = { CODEX_HOME: codexHome, PATH: `${path.dirname(fake)}${path.delimiter}${w.env.PATH ?? process.env.PATH}` };
   const missing = ((await w.run(["doctor", "--json"], { env: docEnv })).json.checks as { name: string; status: string; detail: string; fix?: string; code?: string }[]).find((c) => c.name === "codexhooks");
-  assert.deepEqual([missing?.status, missing?.code, missing?.fix], ["warn", "codex.hooks.missing", "strom agents sync"]);
+  // only missing or out of date: written again by itself the next time strom starts the agent — said so, no warning
+  assert.deepEqual([missing?.status, missing?.code, missing?.fix], ["ok", "codex.hooks.missing", "strom agents sync"]);
+  assert.match(missing?.detail ?? "", /zapíše se znovu sám, až strom příště spustí agenta/);
   fs.writeFileSync(path.join(w.cwd, CODEX_HOOKS), JSON.stringify(codexHooks(w.cwd), null, 2) + "\n");
   const all = (await w.run(["doctor", "--json"], { env: { ...docEnv, STROM_LANG: "cs" } })).json.checks as { name: string; status: string; detail: string; fix?: string; code?: string }[];
   const row = all.find((c) => c.name === "codexhooks")!;

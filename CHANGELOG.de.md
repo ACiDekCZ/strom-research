@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -66,6 +66,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   und keine Angabe belegt. Eine Bestätigung in der App gilt für den Wortlaut, zu dem sie gegeben wurde, und lässt sich
   dort zurücknehmen; mit einem Originaleintrag mit Primärinformation darf eine Angabe dann belegt sein, sonst höchstens
   wahrscheinlich.
+  **Eine Abschrift, die der Nutzer gelesen oder bestätigt hat, gehört dem Nutzer.** Nur das eigene Terminal des
+  Nutzers oder die Strom-App ändert sie – welcher Befehl auch immer (Bearbeitung, Stapel, Synchronisation, Korrektur,
+  Rücknahme, Import). Eine andere Fassung des Agenten wird stattdessen vorgeschlagen: eine Notiz bei der Quelle und eine
+  Aufgabe für den Nutzer je Quelle, die kein Agent übernimmt oder schließt; entschieden in Was wartet, über einen Link
+  der Strom-App oder in der App – die vorgeschlagene Fassung als die des Nutzers übernommen, oder die Abschrift
+  behalten und dieselbe Fassung nie wieder vorgeschlagen; beides lässt sich zurücknehmen (die frühere Abschrift samt
+  Bestätigung zurück, der Vorschlag wartet wieder).
 
 - **Jeder Leser eines Dokuments mit eigenem Agenten, Modell und eigener Denktiefe, und eine Quelle erneut aus dem
   Original gelesen.** `strom document read|again --agent/--model/--effort` (und `--blind-…` für den blinden Leser) oder
@@ -116,6 +123,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   eine Zahl, ein Datum, eine Person, eine unleserliche Stelle) oder eine Kleinigkeit (Schreibweise, Abkürzung,
   Zeichensetzung, Beschriftung, Groß- und Kleinschreibung) –, und wo jeder Leser steht: wartet, liest, fertig in so
   vielen Sekunden oder gescheitert, auch welchem Leser das Modell abgelehnt wurde.
+  **Eine Quelle neu gelesen: was folgt, wählt der Nutzer.** Eine Aufgabe entsteht nur aus einer Sachangabe, die beide
+  Leser gegen die Abschrift gleich lesen (ein Name, eine Zahl, ein Datum, eine Person, ein Wort, das die Abschrift nicht
+  lesen konnte) – nie aus Kleinigkeiten (Schreibweise, Abkürzung, Zeichensetzung), aus einer Stelle, an der die Leser
+  abweichen oder die sie als unleserlich markieren, noch aus einer Stelle, die eine frühere Aufgabe schon beurteilt hat.
+  Die Aufgabe sagt, wer las (Agent · Modell · Denktiefe), dass zwei Leser desselben Modells ein schwächerer Beleg sind,
+  und dass die Lesung nur ein Hinweis ist: Die Abschrift ändert sich nur dort, wo es der Scan selbst zeigt. Die neue
+  Einstellung `read.sourceTask` sagt, was folgt: *fragen* (Standard) – die Lesung bleibt bei der Quelle als nicht
+  geprüft, bis der Nutzer wählt: jetzt mit dem Agenten durchgehen, in die Warteschlange, oder nur speichern (im Terminal
+  gleich nach der Lesung, später mit `strom source reading S…` oder in der Strom-App); *immer* – sofort eine Aufgabe;
+  *nie* – keine Aufgabe. Eine Quelle hat zugleich eine Aufgabe ihrer Lesungen.
 
 - **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
   Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein
@@ -130,6 +147,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   geschriebener Ort („in Lhotau Nr. 3“) behält seine Präpositionen nicht mehr: Die Prüfung bietet die Gemeinde so an,
   wie die Forschung sie sonst schreibt, und ein Ortseintrag erhält keinen Namen wie „in Lhotau“ mehr – solche bereits
   geschriebenen Namen werden einmal richtiggestellt (rückgängig: strom place undo).
+  **Überlappende Ausschnitte eines Bildes sind einer.** Zwei Ausschnitte desselben Bildes, die die Forschung markiert
+  hat und die sich um mindestens 30 % des kleineren überlappen, werden zu einem, der beide abdeckt
+  (einer fast ganz in einem größeren – ein Detail, ein Eintrag neben der ganzen Seite – bleibt); vom Nutzer markierte
+  Ausschnitte bleiben. In einer früheren Forschung werden überlappende Ausschnitte einmal vereint, jede Vereinigung im
+  Verlauf vermerkt; die Abschrift und die Bestätigung des Nutzers bleiben.
+  **Eine Aufgabe der Warteschlange aus der Strom-App.** Ein Link der App zu einer Aufgabe in der Warteschlange zeigt sie
+  (was, warum, wann erledigt) und bietet an, sie jetzt mit dem Agenten durchzugehen (mit der Dauer ähnlicher Aufgaben
+  hier), sie in der Warteschlange vorzuziehen oder sie zu lassen. `strom doctor` sagt, warum eine teurere Änderung der
+  Abstimmung zugunsten der Genauigkeit bleibt, und eine nur fehlende oder veraltete Hook-Datei von Codex ist keine
+  Warnung mehr – sie wird neu geschrieben, wenn strom den Agenten das nächste Mal startet.
 
 ## 1.28.0
 

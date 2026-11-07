@@ -983,6 +983,13 @@ register(
         check = c as CheckAnswer;
       }
       const seen = requireRecord<Task>(tree, id, "task");
+      // a new wording proposed for a transcript the person read: their decision takes it up (core/proposal.ts), never a wake
+      if (seen.proposal && seen.state !== "done" && seen.state !== "dropped")
+        throw new UsageError(`${id} is the person's decision on a new wording proposed for the transcript of ${seen.proposal.source} — nothing wakes it: the person takes the wording or keeps the transcript (strom's menu, What waits; the Strom app)`, {
+          hint: "go on with other work; the person decides it",
+          code: "task.proposal.person",
+          params: { task: id, source: seen.proposal.source },
+        });
       if (check && !seen.awaitsCheck) throw new UsageError(`${id} waits for no check of a site — --check answers strom task wait --check`, { hint: answer ? `strom task wake ${id} --answer "…"` : `strom task show ${id}` });
       // a check of a site comes back with the person's answer only — never woken round it by an agent
       if (seen.state === "waiting" && seen.awaitsCheck && !check && (isAgent(ctx.env) || !ctx.interactive))

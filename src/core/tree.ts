@@ -13,6 +13,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { refusedWrite } from "./transcriptguard.ts";
 import { readJson, readJsonIfExists, writeJson, appendJsonLine, writeFileAtomic, renameRetrying, readFileRetrying, removeRetrying, type HeldError } from "./json.ts";
 import { acquireLock, withLock } from "./lock.ts";
 
@@ -207,6 +208,12 @@ export class Tree {
   readonly config: TreeConfig;
   /** Who writes: a session ID, "agent" (an agent outside a session) or "user". */
   actor = "user";
+  /**
+   * Whether this strom writes as the person (core/transcriptguard.ts writesAsPerson): only then may a transcript the
+   * person read or confirmed change, or their decision on a proposed one be made. Set by the CLI's context for the
+   * command it runs; anything else that opens a tree (a library, a fix of strom's, a migration) is not the person.
+   */
+  personWrites = false;
   dryRun = false;
   private cache = new Map<RecordType, Map<string, AnyRecord>>();
   /** Records read one by one before their whole type was loaded. */
@@ -763,6 +770,25 @@ export class Tree {
     return entry;
   }
 
+  /**
+   * What is the person's stays theirs, whatever writes it (core/transcriptguard.ts): a transcript they read or
+   * confirmed, and their decision on a proposed one, change only when this strom writes as the person.
+   */
+  private guard(record: AnyRecord, input: AnyRecord): void {
+    if (this.personWrites || (record.type !== "source" && record.type !== "task")) return;
+    let before = this.get(record.id);
+    // the record read changed in place before its write: what it was is in its file
+    if (before === input || before === record) {
+      try {
+        before = settledRecord(readJson<AnyRecord>(this.recordPath(record.type, record.id)));
+      } catch {
+        before = undefined;
+      }
+    }
+    const refused = refusedWrite(before, record, false);
+    if (refused) throw refused;
+  }
+
   /** Validate and write a record, then log the sealed operation. Call inside withTreeLock. */
   put(input: AnyRecord, op: { op: string; targets: string[]; summary: string; reason?: string }): void {
     // a family's husb that names none of its two partners is dropped, never written (B5-a)
@@ -773,6 +799,7 @@ export class Tree {
         details: problems,
       });
     }
+    this.guard(record, input);
     const file = this.recordPath(record.type, record.id);
     const content = stringifyCanonical(record);
     this.appendOp({ ...op, summary: op.summary.normalize("NFC"), ...(op.reason ? { reason: op.reason.normalize("NFC") } : {}), files: [{ path: this.relative(file), sha: sha256(content) }] });
@@ -817,6 +844,7 @@ export class Tree {
       const problems = validateRecord(record);
       if (problems.length > 0)
         throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, { details: problems });
+      this.guard(record, input);
       return { record, file: this.recordPath(record.type, record.id), content: stringifyCanonical(record) };
     });
     if (config) config(this.config);

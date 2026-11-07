@@ -173,9 +173,10 @@ test("K6.2–K6.10: a source read again — its entry among its neighbours, held
     for (const secret of ["Ludmila", "Vojtěch", "Lhoták", "Křest", "Häusler"]) assert.ok(!p.includes(secret), secret);
     // the entry its reader marked is the source's; only it held against the transcript
     assert.deepEqual(d.source.entries, ["e2"]);
-    assert.deepEqual(d.source.variants, [{ at: "Ludmila", other: "Lidmila" }]);
+    assert.deepEqual(d.source.variants, [{ at: "Ludmila", other: "Lidmila", sure: false }]);
     assert.equal(d.source.agree, "differ");
-    assert.ok(d.source.task);
+    // the blind reader read as the transcript: the readers disagree there, uncertainty — no task of it
+    assert.equal(d.source.task, undefined);
     assert.equal(d.source.failed, undefined);
     // the blind reader's text: its document, its entry, the first one's it was held against
     assert.deepEqual(d.blind.doc.kind, "register.marriage");

@@ -103,6 +103,62 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   return true;
 }
 
+/** Sessions measured before an estimate of a task's price is said (fewer: not known, never guessed). */
+const TASK_MEASURED_MIN = 3;
+
+/**
+ * What a session on a task like this one took here: the middle half of the sessions ended on tasks of its origin (else
+ * of its level), their agent's and readers' cost; undefined below TASK_MEASURED_MIN measured — never guessed.
+ */
+export function taskEstimate(tree: Tree, task: Task): [number, number] | undefined {
+  const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
+  const costs = (pick: (t: Task) => boolean) =>
+    tree
+      .list<Session>("session")
+      .filter((s) => s.state !== "open" && !s.metrics?.costPartial && (s.metrics?.costUsd ?? 0) > 0 && !!s.task && tasks.has(s.task) && pick(tasks.get(s.task)!))
+      .map((s) => s.metrics!.costUsd! + (s.metrics!.readersUsd ?? 0))
+      .sort((a, b) => a - b);
+  const own = costs((t) => t.origin === task.origin);
+  const all = own.length >= TASK_MEASURED_MIN ? own : costs((t) => t.level === task.level);
+  if (all.length < TASK_MEASURED_MIN) return undefined;
+  const q = (f: number) => all[Math.min(all.length - 1, Math.max(0, Math.round((all.length - 1) * f)))]!;
+  const round = (x: number) => Math.max(0.1, Math.round(x * 10) / 10);
+  return [round(q(0.25)), round(Math.max(q(0.75), q(0.25)))];
+}
+
+/**
+ * A link of the Strom app to a task in the queue (open, not waiting for the person — e.g. the task a reading of a source
+ * again left): the task said (what, why with its differences, when it is done), then the person's choice — go through
+ * it with the agent now (a conversation; said and asked first with what it takes: it draws on the subscription), put it
+ * ahead in the queue (the highest priority), or leave it as it is (0 too: nothing done). No agent where nobody
+ * researches (an archive, a research waiting for its agent): put ahead or left. True: something was done.
+ */
+export async function openTask(ctx: Context, run: Run, lang: string, root: string, id: string, agent: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const task = tree.get<Task>(id);
+  if (!task || task.type !== "task" || task.retracted) return stop(ctx, t("ui.link.task.none", { task: id }));
+  if (task.state !== "open") return stop(ctx, t("ui.link.task.cannot"));
+  if (tree.list<Session>("session").some((s) => s.state === "open" && s.task === task.id)) return stop(ctx, t("ui.link.open.busy", { task: task.id }));
+  const shown = humanTask(tree, task.what, lang);
+  out(ctx, lines(` ${shown}`, "", t("ui.link.open.title", { task: task.id }), task.why ? t("ui.link.open.why", { why: task.why }) : undefined, task.doneWhen ? t("ui.link.open.done", { done: task.doneWhen }) : undefined));
+  const withAgent = !actsAsArchive(tree);
+  const choices = [...(withAgent ? [{ key: "chat", label: t("ui.link.open.chat", { agent }) }] : []), { key: "ahead", label: t("ui.link.open.ahead") }, { key: "keep", label: t("ui.link.open.keep") }];
+  const i = await ctx.choose(t("ui.link.open.pick"), choices.map(({ label }) => ({ label })), choices.length - 1, { back: t("ui.browse.back") });
+  const chosen = i === undefined ? "keep" : choices[i]!.key;
+  if (chosen === "keep") return stop(ctx, t("ui.link.open.kept"));
+  if (chosen === "ahead") {
+    if (task.priority >= 5) return stop(ctx, t("ui.link.open.already"));
+    if ((await run(["task", "edit", task.id, "--priority", "5"], true)) !== 0) return false;
+    out(ctx, t("ui.link.open.ahead.done"));
+    return true;
+  }
+  const usd = taskEstimate(tree, task);
+  const note = lines(usd ? t("ui.link.open.estimate", { from: humanCost(usd[0], lang), to: humanCost(usd[1], lang) }) : t("ui.link.open.estimate.none"), t("ui.link.cost"));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false))) return false;
+  return (await run(["chat", "--task", task.id])) === 0;
+}
+
 /**
  * What a link of the Strom app does with a task that waits: a conversation about it and what waits with it at the same
  * place (said and asked first: the agent costs), its request's text or its folder of images opened (nothing written),

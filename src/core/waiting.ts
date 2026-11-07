@@ -37,11 +37,12 @@ import { phrase } from "./phrases.ts";
 import { actsAsArchive } from "./state.ts";
 import { placeQuestions, type PlaceAsked } from "./placesview.ts";
 import { provenReviewSince, provenToReview, type ProvenLeft } from "./provenfix.ts";
+import { proposalJson } from "./proposal.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "images" | "sent" | "chat";
@@ -62,6 +63,8 @@ const SECTION: Record<string, WaitSection> = {
   place: "decide",
   branch: "decide",
   proven: "decide",
+  // a new wording proposed for a transcript the person read (core/proposal.ts): theirs to take or keep
+  transcript: "decide",
   images: "images",
   letter: "letter",
   family: "family",
@@ -76,7 +79,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, tune: 6 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, tune: 6, transcript: 0 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: boolean): WaitAction[] {
@@ -98,7 +101,8 @@ function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: bo
  * never a check of a site (its answers are the terminal's: works, view, no) nor an archive's decision.
  */
 export function answersInApp(t: Task): boolean {
-  if (t.state !== "waiting" || t.awaitsCheck || (t.awaitsPermission && !t.awaits)) return false;
+  // a new wording proposed for a transcript is taken or kept (POST /sources/proposal), never answered
+  if (t.state !== "waiting" || t.proposal || t.awaitsCheck || (t.awaitsPermission && !t.awaits)) return false;
   const kind = waitKindOf(t);
   return kind !== "check" && actionsOf(kind, "todo", false, false).includes("answer");
 }
@@ -363,6 +367,29 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   let all = o.scopes;
   let line: ((t: Task) => string | undefined) | undefined;
   for (const t of tasks) {
+    // a new wording proposed for a transcript the person read: the proposal and the transcript now, taken or kept in
+    // the app (POST <token>/sources/proposal) or at the terminal its link opens
+    if (t.proposal) {
+      const proposal = proposalJson(tree, t);
+      out.push({
+        task: t,
+        item: {
+          id: t.id,
+          what: t.what,
+          on: t.waitingOn ?? "",
+          at: t.updated,
+          kind: "transcript",
+          section: "decide",
+          group: { key: "transcripts", name: phrase(lang, "wait.group.transcripts"), kind: "other" },
+          phase: "todo",
+          priority: t.priority,
+          choices: ["proposal", "keep"],
+          ...(proposal ? { proposal } : {}),
+          actions: [],
+        },
+      });
+      continue;
+    }
     const kind = waitKindOf(t);
     const group = waitGroupOf(tree, t, lang);
     const phase = SENDABLE.includes(kind) ? waitPhaseOf(t) : "todo";

@@ -158,20 +158,39 @@ test("K3.1, K3.2: a source read again from its original — never from its trans
     const clip = clipMark(src(w, "S0002").clips![0]!);
     const differRun = await w.ok(["document", "read", "--source", "S0002", "--clip", clip, "--agent", "script", "--model", "model-c", "--effort", "medium"]);
     const differ = (await w.ok(["document", "show", /^(D\S+) ·/mu.exec(differRun.out)![1]!, "--json"])).json;
-    // the text of the reading itself: who read, the source, what differs and its task; next: the task, never a new source
+    // the text of the reading itself: who read, the source, what differs; read.sourceTask ask (the default): no task —
+    // the person decides, the agent told to say so; next: never a new source
     const text = differRun.out;
     assert.match(text, /^who: script · model-c · medium$/mu, text);
-    assert.ok(text.includes(`source: S0002 (excerpt ${clip}) read again from its original — differs from its transcript (transcript / reading: "Лхотак," / "Лготак,") → task ${differ.source.task}`), text);
-    assert.match(text, new RegExp(`^next: strom task show ${differ.source.task} — .*no new source of it$`, "mu"));
+    assert.ok(text.includes(`source: S0002 (excerpt ${clip}) read again from its original — differs from its transcript (transcript / reading: "Лхотак," / "Лготак,") → 1 matter of fact for the person to decide on (strom source reading S0002)`), text);
+    assert.match(text, /^next: tell the person the reading again of S0002 differs .* theirs to decide: .*strom source reading S0002.* no new source of it$/mu);
     assert.doesNotMatch(text, /record a source as usual/u);
     assert.equal(differ.source.agree, "differ");
     assert.deepEqual(differ.source.variants, [{ at: "Лхотак,", other: "Лготак," }]);
+    assert.deepEqual([differ.source.task, differ.source.offer], [undefined, 1]);
     assert.equal(differ.pages.length, 1, "one excerpt alone");
-    const task = Tree.open(w.cwd, w.env).get<Task>(differ.source.task)!;
+    assert.deepEqual(Tree.open(w.cwd, w.env).list<Task>("task").filter((t) => t.origin === "read:source"), []);
+    // the source says it: read again, differs, not verified — until the person decides
+    const shownSrc = await w.ok(["source", "show", "S0002", "--json"]);
+    assert.deepEqual(shownSrc.json.readAgain, { read: differ.id, state: "unchecked" });
+    assert.match((await w.ok(["source", "show", "S0002"])).out, new RegExp(`read again ${differ.id} — differs from the transcript in 1 matter of fact both readers are sure of, NOT verified: the person decides \\(strom source reading S0002\\)`, "u"));
+    // an agent (or nobody at a terminal) never decides it
+    const agent = await w.run(["source", "reading", "S0002", "--take", "keep", "--json"]);
+    assert.equal(agent.json.code, "read.decide.person");
+    // the person, through the Strom app: into the queue — a task of it (priority 3), the source says so
+    const app = await w.ok(["source", "reading", "S0002", "--take", "queue", "--json"], { env: { STROM_FOR_APP: "1" } });
+    assert.deepEqual([app.json.source, app.json.reading, app.json.take, app.json.places], ["S0002", differ.id, "queue", 1]);
+    const task = Tree.open(w.cwd, w.env).get<Task>(app.json.task)!;
     assert.equal(task.level, "verify");
+    assert.equal(task.priority, 3);
     assert.deepEqual(task.subject, ["S0002"]);
     assert.match(task.what, new RegExp(differ.id, "u"));
     assert.match(task.why, /Лхотак/u);
+    assert.match(task.why, /script · model-c · medium/u);
+    assert.deepEqual((await w.ok(["source", "show", "S0002", "--json"])).json.readAgain, { read: differ.id, state: "task", task: app.json.task, taskFor: "agent", taskOpen: true, taskQueued: true });
+    // decided: asked no more — the same word again is refused, said where it is
+    const again = await w.run(["source", "reading", "S0002", "--take", "keep", "--json"], { env: { STROM_FOR_APP: "1" } });
+    assert.deepEqual([again.json.code, again.json.params?.task], ["read.decide.task", app.json.task], JSON.stringify(again.json));
     assert.equal(src(w, "S0002").transcript, cyr);
     // who read the sources: as before (a reading again is no edit of a source)
     const readAfter = readersOf(Tree.open(w.cwd, w.env));
@@ -193,6 +212,50 @@ test("K3.1, K3.2: a source read again from its original — never from its trans
     const busy = await w.run(["document", "read", "--source", "S0001", "--agent", "script", "--json"]);
     assert.deepEqual([busy.json.code, busy.json.params.read], ["read.source.running", queued.id]);
     assert.notEqual((await w.run(["document", "read", path.join(w.dir, "kniha", "s0001.jpg"), "--source", "S0001", "--json"])).code, 0);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("read.sourceTask: ask — the person at their terminal asked at once (keep: asked no more); never — no question, no task, the reading waits for the person; always — a task at once", opts, async () => {
+  const { w, dir } = await setUp();
+  try {
+    await w.ok(["source", "add", "Křest Jiřího Lhotáka 1822", "--kind", "baptism", "--recordset", "B1", "--clip", "B1:3@0.1,0.3,0.6,0.1", "--transcript", "Войтех Лхотак, сын Иржи"]); // S0001
+    const clip = clipMark(src(w, "S0001").clips![0]!);
+    const read = async (text: string, o: { tty?: boolean; answers?: string[] } = {}) => {
+      fs.writeFileSync(path.join(dir, "first.md"), entry(text));
+      fs.writeFileSync(path.join(dir, "blind.md"), entry(text));
+      return w.ok(["document", "read", "--source", "S0001", "--clip", clip, "--agent", "script"], o);
+    };
+    const readAgain = async () => (await w.ok(["source", "show", "S0001", "--json"])).json.readAgain;
+    const tasks = () => Tree.open(w.cwd, w.env).list<Task>("task").filter((t) => t.origin === "read:source");
+
+    // ask (the default), at the person's terminal: asked at once — just keep: kept, asked no more
+    const kept = await read("Войтех Лготак, сын Иржи", { tty: true, answers: ["3", ""] });
+    assert.match(kept.out, /S0001 přečtený znovu \(D\S+\) se od přepisu liší ve věcných údajích, na kterých se čtenáři shodnou \(1\)/u, kept.out);
+    assert.match(kept.out, / 1  Projít to s agentem teď/u);
+    assert.match(kept.out, /✓ Čtení uložené u pramene; už se na něj nebude ptát\./u);
+    assert.equal((await readAgain()).state, "saved");
+    assert.deepEqual(tasks(), []);
+    assert.match((await w.ok(["source", "reading", "S0001"], { tty: true })).out, /žádné novější čtení nečeká na rozhodnutí/u);
+
+    // never: no question even at a terminal, no task — the reading waits for the person's word
+    await w.ok(["config", "set", "read.sourceTask", "never", "--for-tree"]);
+    const never = await read("Войтех Лготак, сын Ирже", { tty: true, answers: [] });
+    assert.doesNotMatch(never.out, /Co dál\?/u);
+    // the place the person just kept is asked no more (said kept with that reading); the new one waits
+    const keptId = src(w, "S0001").readings![0]!;
+    assert.ok(never.out.includes(`"Лхотак," / "Лготак," (kept by the person with ${keptId}), "Иржи" / "Ирже") → 1 matter of fact for the person`), never.out);
+    assert.deepEqual(await readAgain(), { read: src(w, "S0001").readings!.at(-1), state: "unchecked" });
+    assert.deepEqual(tasks(), []);
+
+    // always: a task at once, nobody asked
+    await w.ok(["config", "set", "read.sourceTask", "always", "--for-tree"]);
+    const always = await read("Войтех Лготак, сын Ирже, Лхота", { tty: true, answers: [] });
+    assert.doesNotMatch(always.out, /Co dál\?/u);
+    assert.equal(tasks().length, 1);
+    assert.deepEqual(await readAgain(), { read: src(w, "S0001").readings!.at(-1), state: "task", task: tasks()[0]!.id, taskFor: "agent", taskOpen: true, taskQueued: true });
+    assert.equal(src(w, "S0001").transcript, "Войтех Лхотак, сын Иржи", "the transcript stays");
   } finally {
     w.cleanup();
   }

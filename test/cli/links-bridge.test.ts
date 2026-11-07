@@ -172,7 +172,10 @@ test("the app's menus through links, in the research's terminal: a task answered
   assert.equal(t1.answers.at(-1).by, "person");
   assert.equal(t1.answers.at(-1).answer, "https://archive.example.org/book/77");
   assert.equal(t1.answers.at(-1).asked, "Poslat odkaz na knihu narozených.");
-  assert.match((await open("task", "&task=T0001", [""])).out, /Tento úkol už nečeká/);
+  // answered, the task is open again: the link shows it in the queue (Enter: left as it is)
+  const inQueue = (await open("task", "&task=T0001", [""])).out;
+  assert.match(inQueue, /Úkol T0001 je ve frontě/);
+  assert.match(inQueue, /Úkol zůstává ve frontě, jak byl\. Nic se nestalo\./);
   // a person reviewed: said what it does, a no writes nothing, a yes the tasks
   const no = await open("review", "&person=P0001&scope=family", ["n", ""]);
   assert.match(no.out, /Aplikace Strom žádá: prověřit znovu osobu Jan Novák .*\[P0001\] i s partnery a dětmi\.\nVýzkum: Novákovi\nVýzkum zapíše úkoly pro agenta – teď se nic nehledá a nic se neplatí\./);
