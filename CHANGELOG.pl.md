@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.29.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -104,6 +104,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   zapisanym modelu, a aplikacja Strom dostaje to z wyborem czytelników. Nieznany – jak dotąd. Zapisany zostaje Opus
   albo Sonnet, więc nowszy model jego linii zostanie użyty sam; stała wersja wpisana ręcznie (`strom config set model.lead
   <model>`) jest proponowana jako wybrana teraz i pozostaje stała.
+  Odczyt, którego czytelnik na ślepo nic nie przeczytał (zawiódł albo skończył bez wpisu), jest odczytem samego
+  pierwszego czytelnika, jak odczyt jednego czytelnika – nigdy nie mówi się, że każdy wpis się różni. Aplikacja Strom
+  dostaje przy każdym miejscu, gdzie dwa odczyty się różnią, jaki to rodzaj różnicy – rzeczowa (imię lub nazwisko,
+  liczba, data, osoba, miejsce nieczytelne) albo drobiazg (pisownia, skrót, interpunkcja, etykieta, wielkość liter) –, i
+  gdzie jest każdy czytelnik: czeka, czyta, skończył w tylu sekundach albo zawiódł, także któremu czytelnikowi odrzucono
+  model.
 
 - **Ponadto:** pomoc podaje wartości każdego ustawienia z wyborem i wyjaśnia obie możliwości tego, kto rozstrzyga
   hipotezy; `strom help --human` wymienia każde polecenie uruchamiane tylko przez człowieka. Zgoda na archiwum dana w

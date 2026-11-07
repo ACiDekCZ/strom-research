@@ -53,6 +53,13 @@ test("a reader of Codex whose model its CLI does not have: the reading fails wit
     // the reader that failed, said why where the readers' failures are said
     const state = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "reads", `${r.json.id}.json`), "utf8"));
     assert.equal(state.reports[0].rejected, "model");
+    // which reader it was (read.readerState): the one; two readers both refused — none named
+    assert.equal(r.json.failure.reader, 1);
+    const two = await w.run(["document", "read", scan, "--agent", "codex", "--model", "gpt-lhota-2", "--readers", "2", "--json"]);
+    assert.equal(two.json.state, "failed", two.out);
+    assert.equal(two.json.failure.code, "model");
+    assert.equal(two.json.failure.reader, undefined);
+    assert.deepEqual(two.json.readers.who.map((x: { state?: string }) => x.state), ["failed", "failed"]);
     // read again by another reader that ends with nothing: failed for its own reason, nothing of the model kept
     const quiet = path.join(w.dir, "quiet.mjs");
     fs.writeFileSync(quiet, "process.exit(1);\n");

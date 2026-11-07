@@ -448,7 +448,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     if (stop.signal.aborted) return;
     const n = next++;
     const by = (job.blind ? blind : first)!;
-    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version, agent: by.agent, ...(by.model ? { model: by.model } : {}), ...(by.effort ? { effort: by.effort } : {}) }] };
+    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version, agent: by.agent, ...(by.model ? { model: by.model } : {}), ...(by.effort ? { effort: by.effort } : {}), began: now() }] };
     saveState(tree.root, s);
     const mine = viewsBy.get(by)!.filter((v) => s.groups[job.group]!.includes(v.n));
     const files = mine.flatMap((v) => [v.view, ...(v.parts ?? []).map((x) => x.view)]);
@@ -461,7 +461,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     }
     s = {
       ...s,
-      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true } : {}), ...(r.resumeAt ? { resets: r.resumeAt } : {}), ...(r.modelRejected ? { rejected: "model" as const } : {}) } : x)),
+      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ended: now(), ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true } : {}), ...(r.resumeAt ? { resets: r.resumeAt } : {}), ...(r.modelRejected ? { rejected: "model" as const } : {}) } : x)),
     };
     saveState(tree.root, s);
   };
@@ -511,7 +511,10 @@ function modelRefused(ctx: Context, tree: Tree, s: ReadState, r: ReadReport): { 
     ? `the reader ended: the model ${model} is not available in the Codex CLI installed here — update Codex (npm install -g @openai/codex@latest) or choose another model`
     : `the reader ended: ${agent} does not take the model ${model} — choose another model`;
   const params = { agent, model };
-  return { error, failure: { code: "model", text: ui(failureLang(tree, s), codex ? "ui.read.model.codex" : "ui.read.model", params), params } };
+  // which reader (feature read.readerState): the one refused, unless the other reader failed as well
+  const others = s.readers > 1 ? s.reports.filter((x) => x.version === s.version && x.blind !== r.blind) : [];
+  const alone = s.readers === 1 || others.some((x) => x.outcome === "ok");
+  return { error, failure: { code: "model", text: ui(failureLang(tree, s), codex ? "ui.read.model.codex" : "ui.read.model", params), params, ...(alone ? { reader: r.blind ? (2 as const) : (1 as const) } : {}) } };
 }
 
 function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"], spent?: { usd: number; runs: number; partial: boolean }, back = false): ReadState {

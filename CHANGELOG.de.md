@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.29.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -110,6 +110,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Unbekannt bleibt es wie bisher. Gespeichert bleibt Opus oder Sonnet, so wird ein neueres Modell seiner Reihe von
   selbst genommen; eine von Hand gesetzte feste Version (`strom config set model.lead <model>`) wird als jetzt
   gewählt angeboten und bleibt fest.
+  Eine Lesung, deren blinder Leser nichts gelesen hat (er ist gescheitert oder ohne Eintrag zu Ende gekommen), ist
+  die des ersten Lesers allein, wie eine Lesung eines Lesers – nie heißt es von jedem Eintrag, er weiche ab. Die App
+  Strom erhält bei jeder Stelle, an der zwei Lesungen abweichen, welcher Art die Abweichung ist – sachlich (ein Name,
+  eine Zahl, ein Datum, eine Person, eine unleserliche Stelle) oder eine Kleinigkeit (Schreibweise, Abkürzung,
+  Zeichensetzung, Beschriftung, Groß- und Kleinschreibung) –, und wo jeder Leser steht: wartet, liest, fertig in so
+  vielen Sekunden oder gescheitert, auch welchem Leser das Modell abgelehnt wurde.
 
 - **Außerdem:** die Hilfe nennt die Werte jeder Einstellung mit Auswahl und erklärt beide Möglichkeiten, wer die
   Hypothesen entscheidet; `strom help --human` nennt jeden Befehl, den nur ein Mensch ausführt. Die Erlaubnis für ein

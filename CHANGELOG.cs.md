@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.29.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -93,6 +93,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   modelu a aplikace Strom to dostane s nabídkou čtenářů. Neznámý se říká jako dřív. Uložený zůstává Opus nebo Sonnet,
   takže novější model své řady se použije sám; pevná verze zadaná ručně (`strom config set model.lead <model>`)
   se nabídne jako zvolená teď a zůstane pevná.
+  Čtení, jehož slepý čtenář nepřečetl nic (selhal, nebo skončil bez zápisu), je čtením jen prvního čtenáře, jako čtení
+  jedním čtenářem – nikdy se o všech zápisech neřekne, že se liší. Aplikace Strom dostane u každého místa, kde se dvě
+  čtení liší, o jaký rozdíl jde – věcný (jméno, číslo, datum, osoba, místo, které nejde přečíst), nebo drobnost
+  (pravopis, zkratka, interpunkce, popisek, velikost písmen) –, a kde je každý čtenář: čeká, čte, dočetl za tolik
+  sekund, nebo selhal, i to, kterému čtenáři byl odmítnut model.
 
 - **Dále:** nápověda uvádí hodnoty každého nastavení s volbami a vysvětluje obě volby toho, kdo rozhoduje hypotézy;
   `strom help --human` uvádí všechny příkazy, které spouští jen člověk. Povolení archivu dané ve výzkumu mimo složku

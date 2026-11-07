@@ -385,7 +385,7 @@ test("the Strom app is given the role the blind reader gave at the person, never
   assert.deepEqual(r.entries[0]!.variants, [{ field: "p1.role", at: "mother", other: "other" }]);
   // the other variants stay as they are
   const d = compareReadings([e("mother")], [{ ...e("other"), transcript: "Mutter Löfler Erika Maria" }]);
-  assert.deepEqual(resultForApp({ ...r, entries: d.entries }).entries[0]!.variants, [{ field: "transcript", at: "Löffler", other: "Löfler" }]);
+  assert.deepEqual(resultForApp({ ...r, entries: d.entries }).entries[0]!.variants, [{ field: "transcript", at: "Löffler", other: "Löfler", kind: "spelling" }]);
 });
 
 test("a blind reader's entry: no translation, no terms", () => {

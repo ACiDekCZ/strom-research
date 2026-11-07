@@ -188,5 +188,7 @@ export function whoForApp(who: ReaderWho[] | undefined, full: boolean): (ReaderW
     ...(r.model ? { model: r.model, ...(full ? { modelName: modelName(r.agent, r.model, BUILTIN_MODELS[r.agent] ?? []) } : {}) } : {}),
     ...(r.effort ? { effort: r.effort } : {}),
     ...(r.ran === false ? { ran: false as const } : {}),
+    ...(r.state ? { state: r.state } : {}),
+    ...(r.secs !== undefined ? { secs: r.secs } : {}),
   }));
 }

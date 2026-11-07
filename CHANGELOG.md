@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.29.0-beta.6. The section is complete with the release.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
@@ -98,6 +98,11 @@ The changes of each version in short. The full notes and the install lines are o
   with the readers to choose from. Unknown, it is said as before. What is kept stays Opus or Sonnet, so a newer model of
   its line is taken by itself; a fixed version set by hand (`strom config set model.lead <model>`) is offered as chosen
   now and stays that version.
+  A reading whose blind reader read nothing (it failed, or ended with no entry) is its first reader's alone, as a
+  reading of one reader – never every entry said to differ. The Strom app gets with each place two readings differ
+  what kind of difference it is – a matter of fact (a name, number, date, person, a place one cannot read) or a trifle
+  (spelling, an abbreviation, punctuation, a label, letter case) –, and where each reader is: waiting, reading, done in
+  so many seconds, or failed, and which reader it was whose model was refused.
 
 - **Also:** the help lists the values of every setting of choices and says what each choice of who decides the
   hypotheses means; `strom help --human` lists every command only a person runs. An archive's permission given in a

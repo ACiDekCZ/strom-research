@@ -69,6 +69,8 @@ function readByResearch(w: World, id: string, transcript: string): void {
 }
 
 const src = (w: World, id: string) => Tree.open(w.cwd, w.env).get<Source>(id)!;
+/** Who read, each reader done (read.readerState), its seconds a whole number left out to compare. */
+const whoOf = (who: { state?: string; secs?: number }[]) => who.map(({ state, secs, ...r }) => (assert.ok(state === "done" && Number.isInteger(secs), JSON.stringify(who)), r));
 
 test("K2.1, K2.2: each reader reads with its own model and effort, the result and the reading say who read; a reader not offered is refused before anything", opts, async () => {
   const { w, who } = await setUp();
@@ -77,7 +79,7 @@ test("K2.1, K2.2: each reader reads with its own model and effort, the result an
     const d = (await w.ok(["document", "read", "M0001", "--readers", "2", "--agent", "script", "--model", "model-á", "--effort", "high", "--blind-model", "model-б", "--blind-effort", "low", "--region", "0.1,0.1,0.8,0.5", "--json"])).json;
     assert.equal(d.state, "done", JSON.stringify(d.checks));
     assert.deepEqual(who(), ["blind model-б low no-transcript", "first model-á high no-transcript"], "each reader started as asked");
-    assert.deepEqual(d.readers.who, [
+    assert.deepEqual(whoOf(d.readers.who), [
       { agent: "script", model: "model-á", effort: "high" },
       { agent: "script", model: "model-б", effort: "low" },
     ]);
@@ -100,7 +102,7 @@ test("K2.1, K2.2: each reader reads with its own model and effort, the result an
     assert.deepEqual(kept.readers.who, d.readers.who);
     // none chosen: as the research's settings say (the agent's own model and effort here)
     const plain = (await w.ok(["document", "read", page, "--region", "0.1,0.1,0.8,0.5", "--agent", "script", "--json"])).json;
-    assert.deepEqual(plain.readers.who, [{ agent: "script" }]);
+    assert.deepEqual(whoOf(plain.readers.who), [{ agent: "script" }]);
     assert.match((await w.ok(["document", "show", plain.id])).out, /^who: script$/mu);
     // a reader of no agent strom has: refused, nothing read
     const before = fs.readdirSync(path.join(w.cwd, ".strom", "reads")).length;
@@ -110,7 +112,7 @@ test("K2.1, K2.2: each reader reads with its own model and effort, the result an
     assert.equal(fs.readdirSync(path.join(w.cwd, ".strom", "reads")).length, before);
     // again with another blind reader: the first as it read, the blind one as asked now
     const again = (await w.ok(["document", "again", plain.id, "--readers", "2", "--agent", "script", "--blind-model", "model-c", "--json"])).json;
-    assert.deepEqual(again.readers.who, [{ agent: "script" }, { agent: "script", model: "model-c" }]);
+    assert.deepEqual(whoOf(again.readers.who), [{ agent: "script" }, { agent: "script", model: "model-c" }]);
   } finally {
     w.cleanup();
   }

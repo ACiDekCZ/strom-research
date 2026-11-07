@@ -18,7 +18,7 @@ import type { Env } from "./paths.ts";
 import { newerTree, Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
-import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, newReadId, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
+import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, newReadId, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReaderState, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
 import { knownOriginal } from "./originals.ts";
 import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
@@ -169,7 +169,7 @@ export interface AppRead {
   /** /status reads, a reading at work or queued: the seconds it is expected to take from its start. */
   expectSecs?: number;
   /** Who reads (read): each reader's agent, its name, model and effort — none of a reading before strom kept them. */
-  who?: { agent: string; name: string; model?: string; effort?: string; ran?: false }[];
+  who?: { agent: string; name: string; model?: string; effort?: string; ran?: false; state?: ReaderState; secs?: number }[];
   /** A reading of a source again from its original: the source (S…). */
   source?: string;
 }
@@ -254,6 +254,9 @@ export class ReadingsSeen {
 
   private summary(s: { id: string; state: ReadStateName; version: number; at: string; since: string; pages: ReadState["pages"]; readers: number; persons?: string[]; who?: ReadResult["readers"]["who"]; source?: string }, entries: number, done: number, app: boolean): AppRead {
     const who = whoForApp(s.who, false);
+    // read to an end: as each reader says where every one does (feature read.readerState) — a reader of a long document
+    // read in parts is done once its last part is, so done and the readers' states agree
+    if (who?.length && who.length === s.readers && who.every((w) => w.state)) done = who.filter((w) => w.state === "done").length;
     return {
       id: s.id,
       state: s.state,

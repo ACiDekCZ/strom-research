@@ -19,6 +19,7 @@ import { MONTHS, dateYears, normalizeDate } from "./gdate.ts";
 import { langName } from "./lang.ts";
 import { birthEvent, sameFamilyName, surnameForms } from "./people.ts";
 import { sameFamily } from "./surnames.ts";
+import { variantKind, type VariantKind } from "./variantkind.ts";
 import type { Person, Place, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
@@ -611,8 +612,8 @@ export interface DocEntry {
   persons: DocPerson[];
   events: DocEvent[];
   relations: ({ type: "parent"; parent: string; child: string } | { type: "spouse"; a: string; b: string })[];
-  /** Two readers: where the blind one read otherwise. */
-  variants?: { field: string; at: string; other: string }[];
+  /** Two readers: where the blind one read otherwise (kind: for the Strom app alone, resultForApp — never kept). */
+  variants?: { field: string; at: string; other: string; kind?: VariantKind }[];
   agree?: "same" | "differ";
 }
 
@@ -1249,6 +1250,9 @@ export interface ReadReport {
   effort?: string;
   /** Its agent refused the model (Codex: "model_not_found", a model its CLI installed here does not have). */
   rejected?: "model";
+  /** When its reader began and ended (none of a report before strom kept them). */
+  began?: string;
+  ended?: string;
 }
 
 /** Who reads, as asked for one reader (each field left out: as the research reads — its settings). */
@@ -1267,7 +1271,17 @@ export interface ReaderWho {
   effort?: string;
   /** The reading ended and this reader did not read to an end. */
   ran?: false;
+  /**
+   * Where this reader is (feature read.readerState): waiting its turn, reading, read to an end, could not read — none
+   * where strom cannot tell (a reading cancelled before it ended, one of a page too small that no reader read).
+   */
+  state?: ReaderState;
+  /** done: the seconds it took to read, from its first page begun to its last ended (none of a reading before strom kept when). */
+  secs?: number;
 }
+
+export const READER_STATES = ["queued", "reading", "done", "failed"] as const;
+export type ReaderState = (typeof READER_STATES)[number];
 
 /** A reading of a source again from its original (strom document read --source): the source, and how it compares. */
 export interface SourceRead {
@@ -1276,7 +1290,8 @@ export interface SourceRead {
   clip?: string;
   /** The new reading against the source's transcript (at: the transcript, other: the new reading) — once it ended. */
   agree?: "same" | "differ";
-  variants?: { at: string; other: string }[];
+  /** kind: for the Strom app alone (resultForApp), never kept. */
+  variants?: { at: string; other: string; kind?: VariantKind }[];
   /** The task to hold the two against each other, where they differ. */
   task?: string;
   /**
@@ -1294,6 +1309,8 @@ export interface ReadFailure {
   code: "model";
   text: string;
   params: { agent: string; model: string };
+  /** Which reader failed (1 the first, 2 the blind one; feature read.readerState): none where both did, or strom cannot tell. */
+  reader?: 1 | 2;
 }
 
 export interface ReadState {
@@ -1460,16 +1477,21 @@ const ROLE_VARIANT = /^[\p{L}\p{N}_-]+\.role$/u;
  * The result as the Strom app is given it (GET /read/<id>): a variant of a person's role is no words of the
  * transcript, and the app (3.14) marks each variant where its words stand in the transcript and counts it as a
  * difference — a role code ("other") stood inside "Mother". So the role the blind reader gave goes to the person
- * (`blindRole`) and out of `variants`; the result kept and `strom document show` keep it as a variant.
+ * (`blindRole`) and out of `variants`; the result kept and `strom document show` keep it as a variant. Each place
+ * that differs (the readers', the new reading's against a source's transcript) says its kind (core/variantkind.ts).
  */
 export function resultForApp(r: ReadResult): ReadResult {
+  // each place the readings differ: what kind of difference it is (feature read.variantKind), worked out now — a
+  // reading kept before has it too
+  const kinded = <T extends { at: string; other: string; field?: string }>(vs: T[]): T[] => vs.map((v) => ({ ...v, kind: variantKind(v.at, v.other, v.field ?? undefined) }));
   return {
     ...r,
+    ...(r.source?.variants ? { source: { ...r.source, variants: kinded(r.source.variants) } } : {}),
     entries: r.entries.map((e) => {
       const roles = new Map<string, string>();
       for (const v of e.variants ?? []) if (ROLE_VARIANT.test(v.field)) roles.set(v.field.slice(0, -".role".length), v.other);
-      if (!roles.size) return e;
-      const variants = (e.variants ?? []).filter((v) => !ROLE_VARIANT.test(v.field));
+      if (!roles.size) return e.variants ? { ...e, variants: kinded(e.variants) } : e;
+      const variants = kinded((e.variants ?? []).filter((v) => !ROLE_VARIANT.test(v.field)));
       const { variants: _, ...rest } = e;
       return {
         ...rest,
@@ -1540,7 +1562,13 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   };
   let entries = entriesOf(firsts, false);
   const firstRead = entries.length > 0;
-  const blindRan = blinds.some((r) => r);
+  // a blind reader that wrote nothing (failed before its first entry, not begun yet): nothing to hold the first one
+  // against — never every entry said to differ; one that says its pages cannot be read is held against it
+  const blindRan = blinds.some((r) => {
+    if (!r) return false;
+    const rep = read(r);
+    return !!rep && (rep.entries.length > 0 || rep.doc.legible === "no");
+  });
   // the first reader failed, the blind one read: its entries, untranslated — never held against themselves
   if (!entries.length && blindRan) entries = entriesOf(blinds, false);
   let agree: ReadResult["readers"]["agree"] = null;
@@ -1572,7 +1600,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     return !!rep && (rep.entries.length > 0 || rep.done || rep.doc.legible !== undefined);
   };
   const ran = (firsts.some(said) ? 1 : 0) + (blinds.some(said) ? 1 : 0);
-  const who = whoRead(s, [firsts, blinds], (rs) => rs.some(said));
+  const who = whoRead(s, [firsts, blinds], (rs) => rs.some(said), s.state === "reading" || s.state === "queued");
   const usd = s.reports.reduce((n, r) => n + (r.usd ?? 0), 0);
   const partial = s.reports.some((r) => r.outcome !== undefined && (r.usd === undefined || r.partial));
   return {
@@ -1643,7 +1671,7 @@ function sourceEntriesOf(tree: Tree, s: ReadState, entries: DocEntry[], marked: 
  * else as it was asked; a reading ended whose reader did not read to an end says so (ran: false). None when strom kept
  * nobody (a reading before it did).
  */
-function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs: (ReadReport | undefined)[]) => boolean): ReaderWho[] | undefined {
+function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs: (ReadReport | undefined)[]) => boolean, atWork: boolean): ReaderWho[] | undefined {
   if (!s.with?.length && !s.reports.some((r) => r.agent)) return undefined;
   const ended = FINAL_STATES.includes(s.state);
   const out: ReaderWho[] = [];
@@ -1654,9 +1682,36 @@ function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs:
     if (!agent) return out.length ? out : undefined;
     const model = r ? r.model : asked?.model;
     const effort = r ? r.effort : asked?.effort;
-    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}) });
+    const state = readerState(s, reports[i]!, read, atWork);
+    const secs = state === "done" ? readerSecs(reports[i]!) : undefined;
+    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}), ...(state ? { state } : {}), ...(secs !== undefined ? { secs } : {}) });
   }
   return out;
+}
+
+/**
+ * Where one reader of a reading is (its reports: one for each part of the document, none of a part not begun): queued
+ * with its reading, or while no part of it began; reading while a part is being read or waits; at its end read to an
+ * end (done — as its result counts it, ran), or not (failed); none where strom cannot tell — a reading cancelled before
+ * this reader ended, a reading no reader of began (a page too small).
+ */
+function readerState(s: ReadState, reps: (ReadReport | undefined)[], read: (rs: (ReadReport | undefined)[]) => boolean, atWork: boolean): ReaderState | undefined {
+  const begun = reps.filter((r): r is ReadReport => !!r);
+  const open = begun.length < reps.length || begun.some((r) => r.outcome === undefined);
+  if (s.state === "queued") return "queued";
+  if (atWork) return !begun.length ? "queued" : open ? "reading" : read(reps) ? "done" : "failed";
+  if (!begun.length) return s.state === "failed" ? "failed" : undefined;
+  if (open && s.state === "cancelled") return undefined;
+  return read(reps) ? "done" : "failed";
+}
+
+/** The seconds a reader took, from its first part begun to its last ended — none where a report does not say when. */
+function readerSecs(reps: (ReadReport | undefined)[]): number | undefined {
+  const begun = reps.filter((r): r is ReadReport => !!r);
+  if (!begun.length || begun.some((r) => !r.began || !r.ended)) return undefined;
+  const from = Math.min(...begun.map((r) => Date.parse(r.began!)));
+  const to = Math.max(...begun.map((r) => Date.parse(r.ended!)));
+  return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / 1000) : undefined;
 }
 
 /** The readers of a reading that read to an end, as its result counts them: the first (of this version or before), the blind one. */

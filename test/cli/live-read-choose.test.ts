@@ -66,6 +66,8 @@ function request(method: string, url: string, body?: Uint8Array | string, header
 const json = (r: { body: Buffer }) => JSON.parse(r.body.toString("utf8"));
 const post = (url: string, body: unknown) => request("POST", url, JSON.stringify(body), { ...app, "Content-Type": "application/json" });
 const src = (w: World, id: string) => Tree.open(w.cwd, w.env).get<Source>(id)!;
+/** Who read, its seconds said as a whole number (read.readerState) and left out to compare. */
+const whoOf = (who: { secs?: number }[] | undefined) => who?.map(({ secs, ...r }) => (assert.ok(Number.isInteger(secs), JSON.stringify(who)), r));
 
 /** The transcript of a source as the research read it (a session's edit: a reader of a model nobody recorded). */
 function readByResearch(w: World, id: string, transcript: string): void {
@@ -237,11 +239,11 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     const id = json(asked).read;
     await until("read", async () => json(await request("GET", `${url}/read/${id}`, undefined, app)).state === "done", { ms: 60_000 });
     const result = json(await request("GET", `${url}/read/${id}`, undefined, app));
-    assert.deepEqual(result.readers.who, [{ agent: "script", name: "script" }]);
+    assert.deepEqual(whoOf(result.readers.who), [{ agent: "script", name: "script", state: "done" }]);
     const listed = json(await request("GET", `${url}/reads`, undefined, app)).reads.find((r: { id: string }) => r.id === id);
-    assert.deepEqual(listed.who, [{ agent: "script", name: "script" }]);
+    assert.deepEqual(whoOf(listed.who), [{ agent: "script", name: "script", state: "done" }]);
     const inStatus = json(await request("GET", `${url}/status`, undefined, app)).reads.find((r: { id: string }) => r.id === id);
-    assert.deepEqual(inStatus?.who, [{ agent: "script", name: "script" }]);
+    assert.deepEqual(whoOf(inStatus?.who), [{ agent: "script", name: "script", state: "done" }]);
     // again: the same refusals
     assert.deepEqual(await refused(`read/${id}/again`, { with: [{ agent: "codex" }] }), [409, "read.agent", "0", "limit"]);
     assert.deepEqual(await refused(`read/${id}/again`, { with: [{ model: "model-á" }] }), [400, "read.with", "0", "model"]);
@@ -276,7 +278,7 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
     await until("read again", async () => json(await request("GET", `${url}/read/${a.read}`, undefined, app)).state === "done", { ms: 60_000 });
     const done = json(await request("GET", `${url}/read/${a.read}`, undefined, app));
     assert.deepEqual(done.source, { id: "S0001", entries: ["e1"], agree: "same", variants: [] });
-    assert.deepEqual(done.readers.who, [{ agent: "script", name: "script" }]);
+    assert.deepEqual(whoOf(done.readers.who), [{ agent: "script", name: "script", state: "done" }]);
     assert.ok(fs.readFileSync(path.join(dir, "saw.log"), "utf8").trim().split("\n").every((l) => l === "no-transcript"), "never shown the transcript");
     const after = src(w, "S0001");
     assert.deepEqual(after.readings, [a.read], "kept beside the source");
