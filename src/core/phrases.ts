@@ -17,6 +17,7 @@ export const PHRASES = {
   "born.about": " (born ~{year}, estimated from {from})",
   "the.birthplace": "the birthplace",
   "whole.book": "the whole book",
+  "import.source": "Family tree {what}",
 
   "link.what": "Baptism of {name}{place}{about}",
   "link.place": ", {place}",
@@ -309,6 +310,7 @@ export const PHRASES = {
   "log.conflict.decided.removed": "Disagreement decided: {name} – {reasoning} → removed from the tree",
   "log.conflict.decided.restored": "Disagreement decided: {name} – {reasoning} → back in the tree",
   "log.conflict.edit": "The edit in the disagreement now: {name}",
+  "log.conflict.settle": "An agent's proposal holds now, closed: {name}",
   "log.place.add": "New place: {name}",
   "log.place.edit": "Place refined: {name}",
   "log.repository.add": "New archive: {name}",

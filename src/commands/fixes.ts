@@ -59,6 +59,7 @@ import { applyEditDecisions, editDecisionsDone, undoEditDecisions, type EditDeci
 import { applyWokenWaits, undoWokenWaits, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
 import { applyReaders, readersDone, undoReaders, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
 import { answerProven, applyProven, provenDone, provenToReview, undoProven, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
+import { applyOrigins, originsDone, undoOrigins, type OriginMark } from "../core/originfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -349,6 +350,23 @@ const REWRITERS: Record<string, Rewriter> = {
     askUndo: "Make the facts the fix made probable proven again?",
     fixed: (key, n, records) => `Fix ${key}: ${n} facts proven without the original record made probable, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} facts proven again${left ? `, ${left} changed since left` : ""}`,
+  },
+  origins: {
+    // one value marked: what it is, whose it is now said to be (an import's key, a source of an import its key)
+    example: (t, item) => {
+      const r = item as OriginMark;
+      if (r.kind === "source") return t("ui.fixes.origins.example.source", { source: r.source, title: short(r.title), key: r.key });
+      if (r.kind === "ids") return t("ui.fixes.origins.example.ids", { owner: r.owner, source: r.entry.source, xref: r.entry.xref ?? "" });
+      const what = r.kind === "fact" ? `${r.event} · ${r.owner}` : r.kind === "name" ? `${r.person} · ${r.name.replace(/\//g, "").replace(/\s+/g, " ").trim()}` : `${r.person} · ${t("ui.conflict.sex")}`;
+      return t(r.by === "user" ? "ui.fixes.origins.example.user" : "ui.fixes.origins.example.import", { what, source: r.source ?? "" });
+    },
+    apply: (tree, items, config) => applyOrigins(tree, items as OriginMark[], VERSION, config),
+    done: (tree) => originsDone(tree).length,
+    undo: (tree, config) => undoOrigins(tree, config),
+    ask: "Mark where the values came from (an imported family tree, the user's own)? Only marks: no value changes.",
+    askUndo: "Take the marks of where the values came from off again?",
+    fixed: (key, n, records) => `Fix ${key}: where the values came from marked, ${n} marks in ${records} records (only marks, no value changed)`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} marks of where the values came from taken off${left ? `, ${left} changed since left` : ""}`,
   },
 };
 
@@ -897,8 +915,14 @@ register(
       "information. Set right by itself once, as readers: each becomes probable (possible where no record backs it), the\n" +
       "reason in the history; one the user made proven stays and waits in What waits (strom fixes review proven-originals\n" +
       "keep|lower). Also in an archive. One operation, one commit; strom fixes undo proven-originals makes them proven again.\n" +
+      "origins — before strom 1.30.0 nothing said where a value came from: an imported family tree of another program (a\n" +
+      "lead an agent changes only on a record), the user (an agent only proposes) or the research. Marked by itself once,\n" +
+      "as readers — only marks, no value, citation or status changes: a fact or name citing the family tree's source (its\n" +
+      "file still readable, not the Strom app's) the import's, its source a key (R1…); one citing a send or a file of the\n" +
+      "Strom app, or a file no more readable, the user's; the user's wins. One operation, one commit (the one before it is\n" +
+      "the way back too); strom fixes undo origins takes the marks off.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -954,7 +978,7 @@ register(
       "again by the real time they took.\n" +
       "participant-names, app-shapes and street-places read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
-      "woken-waits and readers, never in an archive (an agent's work); readers and proven-originals are set right by themselves once,\n" +
+      "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals and origins are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
@@ -1058,7 +1082,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1067,11 +1091,11 @@ register(
       "withdrawn back and each date and age as the sync left it (app-shapes); each fact's place and house as they were\n" +
       "(street-places); each disagreement closed again as the agent decided it (edit-decisions); each task back in the\n" +
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
-      "(proven-originals) — where it is still as the fix left it; one\n" +
+      "(proven-originals); each mark of where a value came from taken off (origins) — where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits and readers not).",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers and origins not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

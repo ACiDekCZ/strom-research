@@ -366,6 +366,28 @@ Jede Aktion der Forschung hat eine von drei Marken, je nachdem, was sie öffnet.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
 
+<a id="S4.5.3"></a>
+### S4.5.3 Eine Aufgabe in der Warteschlange öffnen
+
+**Aufgabe T… öffnen** öffnet eine Aufgabe in der Warteschlange im Terminal der Forschung. Das Terminal zeigt die
+Aufgabe und fragt, was jetzt mit ihr geschehen soll.
+
+- **Grenzen:**
+  - das Terminal zeigt **Die Aufgabe T… steht in der Warteschlange: der Agent nimmt sie, wenn sie an der Reihe ist.**,
+    **Warum: …** und **Erledigt, wenn: …** und fragt **Was nun?**:
+    - **Jetzt mit dem Agenten (…) durchgehen, im Gespräch**: fragt zuerst und sagt, was ähnliche Sitzungen hier
+      gekostet haben, oder dass es noch nicht bekannt ist;
+    - **In der Warteschlange nach vorn (höchste Priorität)**: Priorität 5; hat die Aufgabe sie schon, geschieht nichts;
+    - **In der Warteschlange lassen, wie sie ist**;
+  - Enter oder 0 schreibt nichts. Mit einer Aufgabe, an der der Agent gerade arbeitet, geschieht nichts;
+  - eine Aufgabe, die auf den Menschen wartet, öffnet ihre bisherige Frage.
+- **Bedienung:** App: **Aufgabe T… öffnen** (Marke Terminal) nach dem Anlegen einer Aufgabe aus einer neuen Lesung und
+  in der Zeile bei der Quelle ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` nimmt die
+  Aufgabe aus der Warteschlange direkt ins Gespräch.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
 <a id="S4.6"></a>
 ## S4.6 Was nur im Terminal geht
 

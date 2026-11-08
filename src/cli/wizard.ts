@@ -157,7 +157,9 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   }
   if (agent) {
     cfg.agent = agent;
-    out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, { agent, where: whereToTalk(agent, cfg.agentWhere, ctx.env) }) }));
+    const where = whereToTalk(agent, cfg.agentWhere, ctx.env);
+    out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, { agent, where }) }));
+    if (agent === "codex" && where === "app") out(chatgptAppSaid(lang));
     // its app here, its CLI not (Claude without Claude Code): said, Claude Code offered — "not now" changes nothing
     const way = here.find((a) => a.id === agent);
     if (way?.app && !way.cli) await offerAgentCli(ctx, out, agent);
@@ -370,6 +372,7 @@ export async function settleInstall(ctx: Context, lang: string): Promise<void> {
     s.config.agentWhere = way.where;
     s.save();
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, way) }));
+    if (way.agent === "codex" && way.where === "app") out(chatgptAppSaid(lang));
   }
   await offerShortcut(ctx, lang, out);
   if (noLinks(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
@@ -524,4 +527,12 @@ async function moveResearch(ctx: Context, lang: string, from: string, to: string
     out(ui(lang, "ui.home.failed", { ...where, reason: (err as Error).message }));
     return from;
   }
+}
+
+/**
+ * The ChatGPT app chosen in the setup: its browser strom does not watch (ChatGPT's cloud, no hook of the tree), and what
+ * the person can do in ChatGPT's own dialog — said once here and in strom doctor, never at each conversation (spec 062 K6.2).
+ */
+export function chatgptAppSaid(lang: string): string {
+  return ui(lang, "ui.setup.chatgpt", { browser: ui(lang, "ui.doc.chatgptapp.browser"), advice: ui(lang, "ui.doc.chatgptapp.advice") });
 }

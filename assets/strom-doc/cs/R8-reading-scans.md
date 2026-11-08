@@ -32,6 +32,8 @@ Postup v kostce:
 > vedle přepisu ([A3.3](A3-evidence-in-the-app.md#A3.3)). Přepis zkontrolovaný člověkem jde označit **Přepis ověřen**
 > ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), jak s ním výzkum počítá: [R3.5.1](R3-verification-and-citation.md#R3.5.1)).
 > Chybný údaj jde opravit v aplikaci; úprava údaje doloženého záznamem se stane rozporem ([S2](S2-edits-from-the-app.md)).
+> Čtení modelem je jen návrh: přepis, který člověk napsal nebo potvrdil, nezmění nikdo jiný než člověk, ani nové čtení
+> ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
 <!-- zdroj: research:assets/method/reading.md:3-8 · src/agents/profiles.ts:5 vision, :147 · src/commands/read.ts:214 --model · src/core/reader.ts:226 certainty · assets/method/verify.md · Milan 4. 11. 2026 (zásada ověření člověkem) -->
 
@@ -297,11 +299,16 @@ strom měří, jak čtení skenů probíhá, a podle toho sám mění, jak se č
 - **Ovládání:** terminál: `strom media calibrate --report` (jak čtení probíhalo, zdarma), `--questions` (co rozhoduje
   člověk), `--reset` (zpět na výchozí); `strom config set tune.auto off` vypne samoladění. Kalibrace velikosti
   pohledů (`strom media calibrate`) je placené čtení vlastních doložených záznamů výzkumu a potvrzuje ji jen člověk.
+  `strom doctor`, řádek **po samoladění**: změna, od které se čte hůř (doporučí ji vrátit), nebo změna, od které je
+  čtení dražší a o nic jistější (doporučí ji ponechat).
 - **Proč:** podle kódu jen tak, aby se tím nic nezhoršilo: změna smí přidat přesnost nebo ušetřit žádosti do archivu;
-  co by mohlo ubrat přesnost nebo zatížit archiv, je otázka pro člověka.
+  co by mohlo ubrat přesnost nebo zatížit archiv, je otázka pro člověka. Dražší změnu `strom doctor` doporučí
+  ponechat, protože šla k přesnosti a jistota se měří jen podle nejistých míst: bližší pohled může číst přesněji,
+  i když nejistých míst neubude.
 - **Platí od:** výzkum 1.14.0
+- **Od výzkumu 1.29.0:** `strom doctor` u dražší změny říká, proč ji doporučí ponechat.
 
-<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 -->
+<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 · assets/lang/cs.json ui.doc.tuneworse, ui.doc.tuneworse.a, ui.doc.tuneworse.b (důvod od commitu 9bd14e84, 1.29.0) -->
 
 <a id="R8.5"></a>
 ## R8.5 Vlastní čtení hlavního agenta
@@ -428,8 +435,8 @@ nic nezapíše bez potvrzení.
     příliš tmavé, příliš malé, na obrázku není psaný text) a radu, jak ho vyfotit lépe;
   - výsledek zůstane v historii čtení (**Přečtené dokumenty**). Do stromu jde přes **Navrhnout do stromu…**.
 - **Hranice:**
-  - čtou agent a model výzkumu pro skeny ([R8.3](#R8.3)); čtení se počítá do ceny výzkumu, i zrušené: co už agent
-    přečetl, se započítá;
+  - bez volby čtou agent a model výzkumu pro skeny ([R8.3](#R8.3)); u každého čtenáře jde zvolit agenta, model
+    a důkladnost ([R8.8.1](#R8.8.1)). Čtení se počítá do ceny výzkumu, i zrušené: co už agent přečetl, se započítá;
   - okno jde zavřít, čtení poběží dál a výsledek se ohlásí. Odhad v okně počítá asi minutu na čtenáře, s Grokem 4 minuty;
   - čtení jde jen s výzkumem, který běží na tomto počítači a má nastaveného agenta; jinak dialog řekne proč (**Teď
     nejde: …**).
@@ -437,7 +444,144 @@ nic nezapíše bez potvrzení.
   přetáhnout do okna nebo **Vybrat soubory…**; nepovinně **Dokument se týká** (osoba) a **Poznámka**; **Čtenáři**;
   **Přečíst**. Soubor přetažený do aplikace nabídne **Přečíst hned**, nebo **Přidat do materiálů**
   ([R11](R11-material-from-the-user.md)). Historie: **Výzkum u tohoto stromu… → Přečtené dokumenty (N) ›**.
+  Pramen, který už přepis má, jde přečíst znovu z originálu ([R8.8.2](#R8.8.2)).
 - **Platí od:** aplikace 3.14.0, výzkum 1.18.0
+- **Od aplikace 3.25.0 a výzkumu 1.29.0:** volba čtenářů (**Upřesnit čtení**, [R8.8.1](#R8.8.1)), kdo četl,
+  **Přečíst znovu…** u pramene ([R8.8.2](#R8.8.2)) a nastavení **Úkol z nového čtení** ([R8.8.3](#R8.8.3)).
 
-<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 · 3.25.0/1.29.0: spec 059 K2.1, K3.1, K6, K7; app:6bd8609e strings.ts read.refine, read.sourceAgain · research:c2a690ea CHANGELOG.cs.md 1.29.0 -->
 
+<a id="R8.8.1"></a>
+### R8.8.1 Čtenáři: program, model a důkladnost
+
+Každý čtenář dokumentu může číst jiným agentem, modelem a důkladností. Bez volby se čte podle nastavení výzkumu.
+Výsledek u každého čtení říká, kdo četl.
+
+- **Hlídá kód:**
+  - **1 čtenář** (rychlejší), nebo **2 čtenáři** (spolehlivější, pro zápis do stromu). Dva čtenáři čtou každý zvlášť;
+    kde se jejich texty neshodnou, může být chyba a takové místo se ukáže k ověření;
+  - v **Upřesnit čtení** má **Čtenář 1** i **Čtenář 2** svůj **Program** (agent), **Model** a **Důkladnost**
+    (**rychlá**, **běžná**, **vyšší**, **nejvyšší**), jen z toho, co výzkum na tomto počítači nabízí. Výchozí je
+    **podle nastavení agenta**; změna se zapamatuje pro další čtení (**Výchozí** vrátí nastavení výzkumu);
+  - bez volby čte model výzkumu pro skeny (`model.vision`), nikdy levnějším modelem;
+  - druhý čtenář čte naslepo, prvního čtení nevidí ([R3.5](R3-verification-and-citation.md#R3.5));
+  - agent, který teď číst nemůže (přihlášení vypršelo, vyčerpaný limit), se nabídne s důvodem a čtenáře s ním nejde
+    spustit. Model, který nainstalovaný Codex nezná, ukončí čtení jako selhání čtenáře s tímto důvodem.
+- **Výsledek:** **Četl** u každého čtení: agent · model · důkladnost každého čtenáře, v terminálu, v souboru čtení
+  i v aplikaci. Text je podle čtenáře 1; čtenář 2 četl nezávisle, pro kontrolu, a jeho celý text jde zobrazit
+  (**Přepis čtenáře**: **Čtenář 1** / **Čtenář 2**). Když oba četli stejným programem, výsledek to řekne.
+- **Proč:** dva čtenáři téhož modelu jsou slabší doklad než dva různé modely: kde se shodnou, mohou se mýlit stejně.
+  Tak to říká i úkol z nového čtení ([R8.8.3](#R8.8.3)).
+- **Ovládání:** aplikace: **Přečíst dokument…** a **Přečíst znovu…** → **Čtenáři** → **Upřesnit čtení**. Terminál:
+  `strom document read … --agent --model --effort` (první čtenář) a `--blind-agent --blind-model --blind-effort`
+  (slepý čtenář), `--readers 2`.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: app:6bd8609e src/strings.ts read.c1/c1Sub/c2/c2Sub/readersWhy, refine, readerN, colProgram, colModel, colThorough, thorough.*, bySettings, changed, reset, agentWhyAuth/agentWhyLimit, downRow, readBy, readerView, whoLine, whoSame · research:c2a690ea strom help document read (--agent/--model/--effort, --blind-agent/--blind-model/--blind-effort: „default model.vision — never weaker for handwriting“) · assets/lang/cs.json read.source.same · CHANGELOG.cs.md 1.29.0 · spec 059 K1.2, K2.1, K2.2, K6.6 -->
+
+<a id="R8.8.2"></a>
+### R8.8.2 Přečíst znovu pramen z originálu
+
+Pramen, který má přepis, jde dát přečíst znovu z originálu (skenu nebo výřezu ve výzkumu), ne z přepisu. Nové čtení
+se porovná s přepisem místo po místu. Přepis se tím nezmění: nové čtení zůstane uložené u pramene vedle něj.
+
+- **Hlídá kód:**
+  - jen u pramene, jehož originál má výzkum na tomto počítači a který má přepis; jinak aplikace řekne proč
+    (**Originál pramene výzkum na tomto počítači nemá.**, **Pramen nemá přepis, se kterým by se nové čtení
+    porovnalo.**). Na telefonu jen věta, že znovu přečíst jde v aplikaci na počítači s výzkumem;
+  - čtenáři přepis ani jména nevidí. Dostanou, co výzkum o záznamu ví: druh, jazyk, datum a kde zápis stojí;
+  - s přepisem se porovná jen zápis pramene, ne sousední zápisy z okraje výřezu. Za rozdíl se nepočítají popisky
+    sloupců bez protějšku, záhlaví a poznámky výzkumu i čtenáře v závorkách, dlouhé ſ proti s, nečitelné místo proti
+    ničemu a slova mimo to, co přečetli oba;
+  - každé místo, kde se nové čtení liší od přepisu, má druh:
+    - **věcná změna**: jméno, číslo, datum, osoba, nebo slovo tam, kde přepis má `[...]`;
+    - **drobnost**: pravopis, zkratka, interpunkce, popisek, velká písmena;
+  - věcná změna je **jistá** jen tehdy, když ji oba čtenáři přečetli proti přepisu stejně a nové čtení tam nemá
+    `[...]` ani `[?]`. Místo, na kterém se čtenáři neshodnou, je nejistota, ne změna přepisu. U jednoho čtenáře jsou
+    nejistá místa ta, kde si čtenář nebyl jistý (nové čtení tam má `[...]` nebo `[?]`), ne neshoda dvou čtenářů;
+  - místo, které už posoudil úkol, nebo které člověk ponechal či zamítl, se znovu neposuzuje.
+- **Výsledek** (okno **Pramen přečten znovu**): „Proti dosavadnímu přepisu N věcné změny a K drobností.“, nebo
+  **Shoduje se s dosavadním přepisem.**; **Čtenáři se shodli.**, nebo „Čtenáři se neshodli na N místech.“; v **Co
+  ověřit** skupiny **Věcné změny k ověření**
+  (u přepisu potvrzeného člověkem **Věcné změny k posouzení**), **Nejisté – čtenáři se neshodli** (u jednoho čtenáře
+  **Nejisté – čtenář si nebyl jistý**), **Už posouzeno v úkolu T…**, **Už rozhodnuto: ponecháno** a **Drobnosti**.
+  Do úkolu jdou samy jen jisté věcné změny; nejistá místa jen na žádost člověka ([R8.8.3](#R8.8.3)).
+- **Hranice:** potvrzení přepisu člověkem zůstává. Nové čtení přepis nikdy samo nepřepíše
+  ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+- **Ovládání:** aplikace: prohlížeč pramene → **Přečíst znovu…** (značka AI), s volbou čtenářů
+  ([R8.8.1](#R8.8.1)); u pramene pak řádek nového čtení s **Výsledek ›**. Terminál:
+  `strom document read --source S… [--clip …]`, `strom source show S…`.
+- **Proč:** po čase jde přepis ověřit jiným čtenářem, z originálu. Shoda podpírá dosavadní přepis, rozdíl je vodítko
+  k ověření, ne nový přepis.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/sourceread.ts (porovnání, druhy míst, sure, judged) · strom help document read --source · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 1, Tabulka scénářů) · app:6bd8609e src/ui/read-source-ui.ts (nabídka jen s originálem, AI) · strings.ts read.sourceAgain, sourceAgainTitle, againPhone, srcWhy.*, resultSource, vSrc, vSrcSame, vDis, check, gMajor, gMajorPerson, gUnsure, gJudged, gKept, gMinor, vk.*, againResultLink, keepConfirm · spec 059 K3.1–K3.3, K6.2, K6.3 · dirigent:test ověření aplikace 6bd8609e · jeden čtenář: research:4895d0f0 src/core/sourceread.ts surely (jeden čtenář: nejisté jen `[...]`, `[?]`) · app:7327b758 strings.ts read.gUnsure1, vk.number („číslo“) · dirigent:test/vysledek-1107-nejista-mista.md -->
+
+<a id="R8.8.3"></a>
+### R8.8.3 Úkol z nového čtení
+
+Úkol z pramene přečteného znovu vzniká sám jen z jisté věcné změny, kterou ještě nikdo neposoudil. Drobnosti úkol
+nikdy nezaloží a nejistá místa ho samy nezaloží: agentovi je jde dát jen na žádost člověka. Jestli úkol z jisté věcné
+změny vznikne hned, nebo rozhodne člověk, určuje nastavení **Úkol z nového čtení**.
+
+- **Nastavení** (`read.sourceTask`, pro každý strom):
+  - **Zeptat se** (`ask`, výchozí): úkol nevznikne sám. Čtení zůstane u pramene jako neověřené, dokud člověk
+    nerozhodne;
+  - **Zakládat vždy** (`always`): úkol vznikne hned; u přepisu potvrzeného člověkem návrh znění pro člověka;
+  - **Nezakládat** (`never`): úkol nevznikne sám, čtení čeká u pramene a člověk může rozhodnout stejně jako u
+    **Zeptat se**.
+- **Volby** (patička okna **Pramen přečten znovu**, u pramene **Rozhodnout ▸**):
+  - přepis, který člověk nepotvrdil: **Úkol pro agenta** → **Ověřit s agentem teď** (úkol a hned rozhovor s agentem
+    v terminálu) nebo **Dát agentovi do fronty** (úkol ve frontě přednostně, priorita 3); **Bez úkolu** → **Jen
+    uložit** (úkol nevznikne, pramen se už neptá a tatáž místa se znovu nenabídnou; u pramene jde pak ještě zvolit
+    **Dát agentovi…**);
+  - přepis potvrzený člověkem: **Úkol pro člověka** → **Dát k posouzení** (návrh znění člověku, agent na něm
+    nepracuje, [R3.4.1](R3-verification-and-citation.md#R3.4.1)), nebo **Jen uložit**. Úkol pro agenta tu nikdy
+    nevznikne;
+  - pramen s neukončeným úkolem: **Připsat k T… a ověřit teď**, **Připsat k úkolu T…**. Jeden pramen má najednou
+    jeden úkol svých čtení: nová místa se připíšou k němu, žádné dvakrát.
+- **Nejistá místa na žádost:**
+  - nabízí se jen u čtení, které nemá žádnou jistou věcnou změnu k rozhodnutí, ale má nejistá místa, která nejsou
+    drobnost a která ještě neposoudil žádný úkol. V patičce okna **Pramen přečten znovu** stojí volba vedle
+    **Zavřít** (to zůstává hlavní tlačítko), u pramene v řádku nového čtení (**Dát agentovi… ▸**, u potvrzeného
+    přepisu **Dát k posouzení… ▸**). Nabízí se při každém nastavení, i při **Nezakládat**; na telefonu ne. Jen
+    drobnosti nebo už posouzená místa → volba se nenabízí;
+  - přepis, který člověk nepotvrdil: **Dát agentovi k posouzení** (značka AI) → úkol pro agenta ve frontě (priorita
+    3), nebo se místa připíšou k neukončenému úkolu pramene. Čtenáři četli naslepo, bez přepisu a jmen
+    ([R8.8.2](#R8.8.2)); místa posoudí až agent, na snímku se vším, co výzkum ví o lidech, místech a datech záznamu.
+    Kde to snímek ukazuje jistě, přepis opraví a napíše důvod; jinde přepis nechá a k prameni napíše poznámku, co
+    prohlédl a proč místo zůstává nejisté. Na nic se člověka neptá;
+  - přepis potvrzený člověkem: **Dát k posouzení** → úkol pro člověka s návrhem znění jen z nejistých míst, která nové
+    čtení přečetlo (ne `[...]`, `[?]`); agent přepis nemění ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+    Když nové čtení přečetlo jen nečitelná místa, volba se nenabízí;
+  - úkol z nejistých míst vznikne jen na kliknutí, nikdy sám, ani při **Zakládat vždy**. Místa, která pak úkol drží,
+    se u dalších čtení znovu nenabízejí.
+- **Hlídá kód:**
+  - rozhoduje jen člověk: v aplikaci, nebo u svého terminálu. `strom document read --source` u terminálu člověka se
+    zeptá hned (**Projít to s agentem teď**, **Dát to do fronty jako úkol**, **Jen uložit čtení**, u potvrzeného
+    přepisu **Dát k posouzení**); bez volby nic nerozhodne a později jde rozhodnout `strom source reading S…`.
+    Agent rozhodnout nesmí: řekne člověku, co čeká;
+  - nejistá místa předá jen člověk: `strom source reading S… --take queue --unsure` (u potvrzeného přepisu
+    `--take review --unsure`), jindy `--unsure` nejde. Čtení, které má jistou věcnou změnu k rozhodnutí, se s
+    `--unsure` odmítne: rozhoduje se bez něj a nejistá místa jdou s ní. `strom source show S…` u nabídky řekne, že
+    místa jde předat;
+  - úkol uvádí, kdo četl (agent · model · důkladnost každého čtenáře), že dva čtenáři téhož modelu jsou slabší doklad
+    a že nové čtení je jen vodítko ([R3.4.1](R3-verification-and-citation.md#R3.4.1)). Věcné změny jsou v důvodu
+    úkolu první;
+  - aplikace starší než 3.25.0 volbu nemá: u nepotvrzeného přepisu vznikne úkol pro agenta hned, u potvrzeného návrh
+    znění pro člověka.
+- **Stav u pramene** (prohlížeč pramene): **Novější čtení … se liší (N věcné změny), neověřeno.**, **… uloženo, úkol
+  nevznikl.**, **… úkol T… pro agenta (ve frontě).**, **… úkol T… k posouzení.**, **… liší se jen drobnosti.**,
+  **… čtenáři se neshodli …, přepis se nemění.** (u jednoho čtenáře **… čtenář si nebyl jistý …, přepis se nemění.**)
+  Po založení úkolu **Otevřít úkol T…**
+  ([S4.5.3](S4-research-from-the-app.md#S4.5.3)).
+- **Ovládání:** aplikace: **Výzkum → Další → Výzkum u tohoto stromu… → Čtení dokumentů → Úkol z nového čtení**
+  (zapíše se do výzkumu a platí i pro čtení spuštěná v terminálu). Terminál:
+  `strom config set read.sourceTask ask|always|never --for-tree`, jednou `strom document read --source S…
+  --source-task …`, `strom source reading S… [--take now|queue|keep|review] [--unsure]`, `strom source show S…`.
+- **Proč:** úkol stojí práci agenta, která čerpá předplatné; drobnost ani nejistota přepis nemění, a co už bylo
+  posouzené, se nemá posuzovat znovu. Nejistá místa jde přesto posoudit: čtenáři je nerozhodnou, protože čtou
+  naslepo, ale agent je může posoudit se souvislostmi výzkumu, když o to člověk požádá.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->

@@ -17,6 +17,7 @@ import type { SyncInput } from "../../src/core/sync.ts";
 
 const commits = (w: World) => Number(execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).trim());
 const eventOf = (w: World, id: string): Event => Tree.open(w.cwd, w.env).list<Person>("person").flatMap((p) => p.events).find((e) => e.id === id)!;
+const PERSON = { tty: true };
 const conflictOf = (w: World, id: string): Conflict => Tree.open(w.cwd, w.env).get<Conflict>(id)!;
 const decision = (w: World) => JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).fixes?.["app-shapes"]?.decision;
 
@@ -52,11 +53,12 @@ async function lhotaci(app?: string): Promise<World> {
   fs.writeFileSync(file, app ? sent.replace(/^1 SOUR STROM_RESEARCH\n2 VERS .*\n2 NAME .*\n/m, `1 SOUR STROM\n2 VERS ${app}\n2 NAME Strom\n`) : sent);
   // what the app sends now is the research's own (strom sync since 1.22.0): written here as an older strom took it
   await w.ok(["sync", file, "--apply"]);
-  await w.ok(["event", "edit", "E1", "--date", "FROM 22 MAR 1871 TO 22 MAR 1882", "--reason", "the census"]);
-  await w.ok(["event", "edit", "E2", "--date", "FROM 22 MAR 1871 TO 22 MAR 1882", "--reason", "the census"]);
-  await w.ok(["event", "edit", "E3", "--date", "BEF 8 AUG 1893", "--reason", "the record"]);
-  await w.ok(["event", "edit", "E4", "--age", "54y 3d", "--reason", "the record"]);
-  await w.ok(["event", "edit", "E5", "--date", "FROM 1 JAN 1880 TO 1 JAN 1891", "--reason", "the census"]);
+  // the research reads the records (at the person's terminal: a value a sync wrote is the user's, an agent only proposes)
+  await w.ok(["event", "edit", "E1", "--date", "FROM 22 MAR 1871 TO 22 MAR 1882", "--reason", "the census"], PERSON);
+  await w.ok(["event", "edit", "E2", "--date", "FROM 22 MAR 1871 TO 22 MAR 1882", "--reason", "the census"], PERSON);
+  await w.ok(["event", "edit", "E3", "--date", "BEF 8 AUG 1893", "--reason", "the record"], PERSON);
+  await w.ok(["event", "edit", "E4", "--age", "54y 3d", "--reason", "the record"], PERSON);
+  await w.ok(["event", "edit", "E5", "--date", "FROM 1 JAN 1880 TO 1 JAN 1891", "--reason", "the census"], PERSON);
   return w;
 }
 
@@ -122,7 +124,7 @@ test("strom fixes run app-shapes: the person's — one operation and one commit;
     // what the history says, in the research's language
     assert.deepEqual(changeLines(tree, ops, "", tree.lang).map((l) => l.text), ["Období a věky vrácené aplikací Strom vzaty tak, jak je má výzkum: 4"]);
     // a later change of one of them: kept by the undo
-    await w.ok(["event", "edit", "E3", "--date", "TO 9 AUG 1893", "--reason", "read again"]);
+    await w.ok(["event", "edit", "E3", "--date", "TO 9 AUG 1893", "--reason", "read again"], PERSON);
     for (const env of [{ CLAUDECODE: "1" }, { STROM_NONINTERACTIVE: "1" }] as Record<string, string>[])
       assert.equal((await w.run(["fixes", "undo", "app-shapes"], { env })).code, 4, JSON.stringify(env));
     const n1 = commits(w);

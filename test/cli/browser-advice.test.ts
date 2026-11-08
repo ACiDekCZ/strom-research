@@ -15,7 +15,7 @@ import path from "node:path";
 import { World, fakeConnector, hasGit, pluginDir, readJsonFile } from "../helpers.ts";
 import { testHooks } from "../../src/core/net.ts";
 import { grantWay } from "../../src/core/terms.ts";
-import { browserKept, browserState } from "../../src/core/browserhelp.ts";
+import { browserKept, browserState, codexInChatgptApp } from "../../src/core/browserhelp.ts";
 import { CODEX_HOOKS, codexHookHash, codexHooks } from "../../src/core/codexhook.ts";
 import { CLAUDE_IN_CHROME_URL } from "../../src/core/browser.ts";
 import { BRIDGE_FEATURES, status } from "../../src/core/live.ts";
@@ -136,10 +136,10 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
 
     // the desktop apps' browser and computer use: what strom watches of each, never recommended, nothing said off (4 languages)
     for (const [lang, said] of [
-      ["en", /built-in browser of the Claude app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude app strom does not watch; the browser of the ChatGPT \(Codex\) app strom watches by the addresses its code names, once strom's hooks are confirmed in Codex; computer use of the app strom does not watch; the OpenCode app: a browser or computer use, if it has them, strom does not watch {2}\(strom doc R12\.1, R12\.10\)/],
-      ["cs", /vestavěný prohlížeč aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use aplikace Claude strom nehlídá; prohlížeč aplikace ChatGPT \(Codex\) strom hlídá podle adres v jeho kódu/],
-      ["de", /eingebauten Browser der App Claude überwacht strom wie Claude in Chrome, empfiehlt ihn aber nicht; Computer Use der App Claude überwacht strom nicht; den Browser der App ChatGPT \(Codex\)/],
-      ["pl", /wbudowanej przeglądarki aplikacji Claude strom pilnuje jak Claude in Chrome, ale jej nie poleca; computer use aplikacji Claude strom nie pilnuje; przeglądarki aplikacji ChatGPT \(Codex\)/],
+      ["en", /built-in browser of the Claude app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude app strom does not watch; the browser of the ChatGPT \(Codex\) app strom does not watch \(it runs through ChatGPT's cloud; ChatGPT decides on the sites itself\); Codex in the terminal: its browser strom watches by the addresses its code names, once strom's hooks are confirmed in Codex; computer use strom does not watch; the OpenCode app: a browser or computer use, if it has them, strom does not watch {2}\(strom doc R12\.1, R12\.10\)/],
+      ["cs", /vestavěný prohlížeč aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use aplikace Claude strom nehlídá; prohlížeč aplikace ChatGPT \(Codex\) strom nehlídá \(běží přes cloud ChatGPT, o webech rozhoduje ChatGPT sám\); Codex v terminálu: jeho prohlížeč strom hlídá podle adres v jeho kódu/],
+      ["de", /eingebauten Browser der App Claude überwacht strom wie Claude in Chrome, empfiehlt ihn aber nicht; Computer Use der App Claude überwacht strom nicht; den Browser der App ChatGPT \(Codex\) überwacht strom nicht \(er läuft über die Cloud von ChatGPT/],
+      ["pl", /wbudowanej przeglądarki aplikacji Claude strom pilnuje jak Claude in Chrome, ale jej nie poleca; computer use aplikacji Claude strom nie pilnuje; przeglądarki aplikacji ChatGPT \(Codex\) strom nie pilnuje \(działa przez chmurę ChatGPT/],
     ] as const) {
       const all = (await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } })).json.checks as { name: string; status: string; detail: string }[];
       const desk = all.filter((c) => c.name === "desktop");
@@ -189,6 +189,82 @@ test("Codex's browser once the person confirmed strom's hooks of the tree in Cod
     config(`${project}\n[hooks.state.${JSON.stringify(key)}]\nenabled = false\n`);
     assert.equal(browserKept("codex", tree, w.env), false);
     assert.equal((status(tree, w.env) as { browser: { state: string } }).browser.state, "agent-without-browser");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the ChatGPT app chosen: its browser runs through ChatGPT's cloud and calls no hook of the tree — never kept, though strom's hooks are confirmed; told to the agent (brief) and the person (strom doctor, setup) in four languages; Codex in the terminal and a Codex strom starts kept as before", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  const tree = await mzaTree(w);
+  try {
+    // Codex's CLI and the ChatGPT app here, strom's hooks of the tree confirmed in Codex
+    const home = path.join(w.dir, "codex-home");
+    fs.mkdirSync(home, { recursive: true });
+    w.env.CODEX_HOME = home;
+    fs.writeFileSync(path.join(w.dir, "agents", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    const apps = path.join(w.dir, "Applications");
+    fs.mkdirSync(path.join(apps, "ChatGPT.app"), { recursive: true });
+    fs.mkdirSync(path.join(tree, ".codex"), { recursive: true });
+    fs.writeFileSync(path.join(tree, CODEX_HOOKS), JSON.stringify(codexHooks(tree), null, 2) + "\n");
+    const key = `${path.join(tree, CODEX_HOOKS)}:pre_tool_use:0:0`;
+    fs.writeFileSync(path.join(home, "config.toml"), `[projects.${JSON.stringify(tree)}]\ntrust_level = "trusted"\n\n[hooks.state.${JSON.stringify(key)}]\ntrusted_hash = "${codexHookHash(tree)}"\n`);
+    grantWay(w.env, ["www.mza.cz"], "browser", { by: "terminal" });
+    await w.ok(["config", "set", "agent", "codex"]);
+    // no app here: Codex in the terminal, kept
+    assert.equal(codexInChatgptApp(w.env), false);
+    assert.equal(browserKept("codex", tree, w.env), true);
+    w.env.STROM_APP_DIRS = apps;
+    await w.ok(["config", "set", "agent.where", "app"]);
+    assert.equal(codexInChatgptApp(w.env), true);
+    assert.equal(browserKept("codex", tree, w.env), false, "the ChatGPT app: never kept");
+    assert.equal(browserState(w.env, "codex", tree).state, "agent-without-browser");
+    assert.equal((status(tree, w.env) as { browser: { state: string } }).browser.state, "agent-without-browser");
+    // a Codex strom started (strom chat, strom run in the terminal) is Codex's CLI: kept
+    assert.equal(browserKept("codex", tree, { ...w.env, STROM_WORKER: "w1" }), true);
+    assert.equal(browserKept("codex", tree, { ...w.env, STROM_SESSION: "S1" }), true);
+    // the agent: its browser is not watched, archives only through the person; its fetch at such an archive refused
+    assert.match((await check(w, BOOK, codex)).reason, /strom does not keep your browser or computer use/);
+    const b = (await w.ok(["brief", "T1"])).out;
+    assert.match(b, /your browser: strom does not keep your browser or computer use \(no hook of strom's before a page\) and does not recommend them: not of your own accord for /);
+    assert.doesNotMatch(b, /your browser: through your browser/);
+    // the person: a warning (never an error) with the advice for ChatGPT's dialog; the hooks' row is Codex in the terminal's
+    for (const [lang, browser, advice, hooks] of [
+      ["en", /strom does not watch its browser \(it runs through ChatGPT's cloud\)/, /“cloud browser” dialog for an archive with restrictions: “Deny”; allowing access to all relevant sites never \(strom doc R12\)/, "Codex's hooks (Codex in the terminal)"],
+      ["cs", /prohlížeč strom nehlídá \(běží přes cloud ChatGPT\), o webech rozhoduje dialog ChatGPT/, /„cloudový prohlížeč“ k archivu s omezením zvolit „Zamítnout“; „Povolit přístup ke všem relevantním webům“ nevolit \(strom doc R12\)/, "hooky Codexu (Codex v terminálu)"],
+      ["de", /ihren Browser überwacht strom nicht/, /Zugriff auf alle relevanten Websites nie erlauben \(strom doc R12\)/, "Hooks von Codex (Codex im Terminal)"],
+      ["pl", /przeglądarki strom nie pilnuje/, /nigdy nie zezwalać na dostęp do wszystkich odpowiednich stron \(strom doc R12\)/, "hooki Codexa (Codex w terminalu)"],
+    ] as const) {
+      const r = await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } });
+      const all = r.json.checks as { name: string; label: string; status: string; detail: string; fix?: string; code?: string }[];
+      const app = all.filter((c) => c.name === "chatgptapp");
+      assert.ok(app.length === 1 && app[0]!.status === "warn" && app[0]!.code === "chatgpt.app.browser" && browser.test(app[0]!.detail) && advice.test(app[0]!.fix ?? ""), `${lang}: ${JSON.stringify(app)}`);
+      const hk = all.filter((c) => c.name === "codexhooks");
+      assert.ok(hk.length === 1 && hk[0]!.label === hooks && hk[0]!.status === "ok", `${lang}: ${JSON.stringify(hk)}`);
+      assert.ok(!all.some((c) => c.name === "browser" && /the agent saves the images itself through the browser|snímky uloží agent sám/.test(c.detail)), `${lang}: the confirmed hooks not said as watching`);
+      assert.ok(!all.some((c) => c.name === "chatgptapp" && c.status === "fail"));
+    }
+    // the setup's summary (spec 062 K6.3): with the ChatGPT app only the app's line, never the hooks' line — in four languages
+    const hooksLine = /Codex: (strom's rules|pravidla stromu|die Regeln von strom|reguły stroma)/;
+    for (const [lang, app] of [["en", /The ChatGPT app: strom does not watch its browser/], ["cs", /Aplikace ChatGPT: prohlížeč strom nehlídá/], ["de", /App ChatGPT: ihren Browser überwacht strom nicht/], ["pl", /Aplikacja ChatGPT: przeglądarki strom nie pilnuje/]] as const) {
+      const out = (await w.ok(["setup", "--yes", "--agent", "codex", "--lang", lang])).out;
+      assert.match(out, app, `${lang}: ${out}`);
+      assert.doesNotMatch(out, hooksLine, `${lang}: ${out}`);
+      assert.doesNotMatch(out, /Settings › Hooks|Nastavení › Hooks|Einstellungen › Hooks|Ustawienia › Hooks/, `${lang}: ${out}`);
+    }
+    // Codex in the terminal chosen: no such line, the hooks' row as before
+    await w.ok(["config", "set", "agent.where", "terminal"]);
+    // …and the setup's summary: the hooks' line, of the terminal alone, and no line of the ChatGPT app
+    for (const lang of ["en", "cs", "de", "pl"]) {
+      const out = (await w.ok(["setup", "--yes", "--agent", "codex", "--lang", lang])).out;
+      assert.match(out, hooksLine, `${lang}: ${out}`);
+      assert.match(out, /Review hooks \(\/hooks\)/, `${lang}: ${out}`);
+      assert.doesNotMatch(out, /ChatGPT/, `${lang}: ${out}`);
+    }
+    assert.equal(browserKept("codex", tree, w.env), true);
+    const term = (await w.run(["doctor", "--json"], { env: { STROM_LANG: "en" } })).json.checks as { name: string; label: string }[];
+    assert.ok(!term.some((c) => c.name === "chatgptapp"));
+    assert.equal(term.find((c) => c.name === "codexhooks")?.label, "Codex's hooks (browser)");
   } finally {
     w.cleanup();
   }

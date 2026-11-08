@@ -317,6 +317,26 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
 
+<a id="S4.5.3"></a>
+### S4.5.3 Otevřít úkol ve frontě
+
+**Otevřít úkol T…** otevře úkol ve frontě v terminálu výzkumu. Terminál úkol ukáže a zeptá se, co s ním teď.
+
+- **Hranice:**
+  - terminál ukáže **Úkol T… je ve frontě: agent ho vezme, až na něj přijde řada.**, **Proč: …** a **Hotovo, když:
+    …** a zeptá se **Co teď?**:
+    - **Projít ho s agentem (…) teď, v rozhovoru**: nejdřív se zeptá a řekne, co podobná sezení tady stála, nebo že
+      to zatím není známo;
+    - **Dát ho ve frontě dopředu (nejvyšší priorita)**: priorita 5; má-li ji úkol už, nic se nestane;
+    - **Nechat ho ve frontě, jak je**;
+  - Enter nebo 0 nic nezapíše. Na úkolu, na kterém právě pracuje agent, se nic nestane;
+  - úkol, který čeká na člověka, otevře svou dosavadní otázku.
+- **Ovládání:** aplikace: **Otevřít úkol T…** (značka terminál) po založení úkolu z nového čtení a v řádku u pramene
+  ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminál: `strom chat --task T…` vezme úkol z fronty rovnou do rozhovoru.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
 <a id="S4.6"></a>
 ## S4.6 Co je jen v terminálu
 

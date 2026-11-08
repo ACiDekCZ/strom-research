@@ -344,6 +344,28 @@ Each research action has one of three marks according to what it opens.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
 
+<a id="S4.5.3"></a>
+### S4.5.3 Opening a task in the queue
+
+**Open task T…** opens a task in the queue in the research's terminal. The terminal shows the task and asks what to do
+with it now.
+
+- **Limits:**
+  - the terminal shows **Task T… is in the queue: the agent takes it up in its turn.**, **Why: …** and **Done when:
+    …** and asks **What now?**:
+    - **Go through it with the agent (…) now, in a conversation**: it asks first and says what similar sessions cost
+      here, or that this is not known yet;
+    - **Put it ahead in the queue (the highest priority)**: priority 5; if the task already has it, nothing happens;
+    - **Leave it in the queue as it is**;
+  - Enter or 0 writes nothing. Nothing happens to a task the agent is working on right now;
+  - a task that waits for a person opens its existing question.
+- **Controls:** app: **Open task T…** (terminal mark) after a task from a new reading is created, and in the line at
+  the source ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` takes the task from the queue
+  straight into a conversation.
+- **Since:** research 1.29.0, app 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
 <a id="S4.6"></a>
 ## S4.6 What is only in the terminal
 

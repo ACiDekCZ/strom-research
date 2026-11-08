@@ -41,8 +41,8 @@ register({
     "person's permission, the robots.txt line, a refusal of strom's client, the host left alone — read only, nothing sent;\n" +
     "a digital library strom knows: its own search addresses too, to fetch as given (the words URL-encoded).\n" +
     "--check <url> --browser: the same for your browser (Claude in Chrome, another agent's browser): an archive only a\n" +
-    "person's browser goes to opens to Claude in Chrome — and to Codex's browser once the person confirmed the tree's\n" +
-    "hooks in Codex — within its level and the person's permission \"through the browser\", at a person's pace (about\n" +
+    "person's browser goes to opens to Claude in Chrome — and to Codex's browser in the terminal once the person\n" +
+    "confirmed the tree's hooks in Codex — within its level and the person's permission \"through the browser\", at a person's pace (about\n" +
     "10 s between pages unless the person set another, or its own slower one) — never of its own accord to another\n" +
     "agent's browser or to computer use (strom keeps no hook before them, recommends none; only the person's explicit\n" +
     "request makes it the person's choice): the person saves its images.\n" +
@@ -54,10 +54,12 @@ register({
     "page to page of an archive by navigate to the address, one page at a time — never click through a series of pages.\n" +
     "The built-in browser of Claude's desktop app (navigate, preview_start, tabs_create, the tools on a page): kept by the\n" +
     "same hook with the same answers, its tabs apart from Chrome's — still not recommended, never of your own accord.\n" +
-    "Codex's browser (its node_repl js, once the person confirmed the tree's hooks in Codex): the same hook reads the\n" +
-    "addresses written out in the code — tab.goto(\"https://…\") — and answers them as navigate (two archives' pages in one\n" +
-    "call refused: one at a time); code with no address it can see is never refused, only recorded as unwatched (counted\n" +
-    "here). Codex's computer use strom neither watches nor records (strom doc R12.5).",
+    "Codex's browser in the terminal (the js of its node_repl or cua_repl, once the person confirmed the tree's hooks in\n" +
+    "Codex): the same hook reads the addresses written out in the code — tab.goto(\"https://…\"),\n" +
+    "cua.createBrowserTab(\"iab\", \"https://…\") — and answers them as navigate (two archives' pages in one call refused:\n" +
+    "one at a time); code with no address it can see is never refused, only recorded as unwatched (counted here).\n" +
+    "The ChatGPT app's browser runs through ChatGPT's cloud and calls no hook of the tree: strom does not keep it.\n" +
+    "Codex's computer use strom neither watches nor records (strom doc R12.5).",
   options: [
     { name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" },
     { name: "session", type: "string", value: "<N…>", description: "this session's requests (a strom session, or the agent's own id of one); default: the open one, else the last with web requests" },
@@ -75,7 +77,7 @@ register({
       try {
         const stdin = ctx.io.stdinText?.() ?? "";
         ev = webEvent(stdin);
-        // Codex's browser (its node_repl's code): core/codexhook.ts
+        // Codex's browser (its REPLs' code: node_repl, cua_repl): core/codexhook.ts
         const codex = ev ? undefined : codexEvent(stdin);
         if (codex) return { text: hookOutput(await answerCodexEvent(codex, { env: ctx.env, cwd: ctx.cwd })) };
         // the browser's navigate and its page tools (Claude in Chrome, the desktop app's built-in browser): core/chromehook.ts

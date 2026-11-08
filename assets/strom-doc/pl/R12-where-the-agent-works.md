@@ -154,7 +154,9 @@ terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzęd
     człowiek;
   - `strom doctor`, `strom setup` i `strom chat` mówią, gdy hook stroma czeka na potwierdzenie, zmienił się od
     potwierdzenia, jest w Codexie wyłączony, hooki Codexu są wyłączone, Codex nie ufa folderowi badania albo brakuje
-    pliku hooka. Stan odczytują tylko z konfiguracji Codexu.
+    pliku hooka. Stan odczytują tylko z konfiguracji Codexu. Plik hooka, którego tylko brakuje lub który jest
+    nieaktualny, nie jest ostrzeżeniem: zapisze się ponownie sam, gdy strom następnym razem uruchomi agenta
+    (`strom chat`, `strom run`), a do tego czasu nic się nie traci.
 - **Granice:**
   - dopóki hook nie jest potwierdzony, i znowu po każdej jego zmianie, Codex go pomija: przeglądarki Codexu strom
     wtedy nie pilnuje;
@@ -180,7 +182,7 @@ terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzęd
 - **Obowiązuje od:** badanie 1.27.0 (przeglądarka i sterowanie komputerem wyłączone w samodzielnym biegu);
   `agent.addons` od 1.14.0; hook przed przeglądarką Codexu i brak Codexu w terminalu od 1.29.0
 
-<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
+<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
 
 <a id="R12.6"></a>
 ## R12.6 Czego nie sprawdzono

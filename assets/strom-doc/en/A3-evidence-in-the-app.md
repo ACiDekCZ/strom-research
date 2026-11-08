@@ -90,11 +90,14 @@ of evidence of a person ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
 - **Another page** at a source in the picker: a new source with the same title, repository, link, reliability and
   note; the page drops out of the reference, and lines with the page and the record date drop out of the note. When
   the title of the register names a person from the tree, a title according to the cited fact is suggested.
-- **Another entry from the same register** (source viewer and editor): a new source with the same repository,
-  reference and link; opened from a citation chip, it is cited right there.
-- **Since:** app 3.1.0 (**Recently used**, **Another entry from the same register**); **Another page** 3.9.0
+- **Another entry from the same register** (source viewer and editor): a new source with the same repository and
+  link; the reference without the entry's number and date, that is the register, image and page ("vol. 12, image 5,
+  p. 3, entry 2 (3 Apr 1801)" → "vol. 12, image 5, p. 3"). A reference in which the app does not recognise the
+  entry's part stays whole and selected for checking. Opened from a citation chip, it is cited right there.
+- **Since:** app 3.1.0 (**Recently used**, **Another entry from the same register**); **Another page** 3.9.0;
+  3.25.0: **Another entry from the same register** without the entry's number and date
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
 
 <a id="A3.3"></a>
 ## A3.3 Excerpt of the entry

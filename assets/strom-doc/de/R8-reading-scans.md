@@ -40,6 +40,8 @@ Der Ablauf in Kürze:
 > ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), wie die Forschung damit rechnet: [R3.5.1](R3-verification-and-citation.md#R3.5.1)).
 > Eine falsche Angabe lässt sich in der App korrigieren; die Änderung einer Angabe, die ein Eintrag belegt, wird zu
 > einem Widerspruch ([S2](S2-edits-from-the-app.md)).
+> Das Lesen durch ein Modell ist nur ein Vorschlag: Eine Abschrift, die ein Mensch geschrieben oder bestätigt hat,
+> ändert niemand außer einem Menschen, auch keine neue Lesung ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
 <!-- zdroj: research:assets/method/reading.md:3-8 · src/agents/profiles.ts:5 vision, :147 · src/commands/read.ts:214 --model · src/core/reader.ts:226 certainty · assets/method/verify.md · Milan 4. 11. 2026 (zásada ověření člověkem) -->
 
@@ -336,12 +338,17 @@ oder zu weniger Anfragen an das Archiv.
   der Mensch entscheidet), `--reset` (zurück zum Standard); `strom config set tune.auto off` schaltet die
   Selbstabstimmung aus. Die Kalibrierung der Größe der Ansichten (`strom media calibrate`) ist ein bezahltes Lesen
   eigener belegter Einträge der Forschung, und nur der Mensch bestätigt sie.
+  `strom doctor`, die Zeile **nach der Selbstabstimmung**: eine Änderung, nach der schlechter gelesen wird (empfiehlt,
+  sie rückgängig zu machen), oder eine Änderung, nach der das Lesen teurer und um nichts sicherer ist (empfiehlt, sie
+  zu behalten).
 - **Warum:** nach dem Code nur so, dass sich dadurch nichts verschlechtert: eine Änderung darf Genauigkeit hinzufügen
-  oder Anfragen an das Archiv sparen; was Genauigkeit nehmen oder das Archiv belasten könnte, ist eine Frage für den
-  Menschen.
+  oder Anfragen an das Archiv sparen; was Genauigkeit nehmen oder das Archiv belasten könnte, ist eine Frage für den Menschen. Eine teurere Änderung empfiehlt `strom doctor` zu behalten, weil sie zur Genauigkeit
+  ging und die Sicherheit nur an den unsicheren Stellen gemessen wird: eine nähere Ansicht kann genauer lesen, auch wenn
+  die unsicheren Stellen nicht weniger werden.
 - **Gilt seit:** Forschung 1.14.0
+- **Ab Forschung 1.29.0:** `strom doctor` sagt bei einer teureren Änderung, warum es empfiehlt, sie zu behalten.
 
-<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 -->
+<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 · assets/lang/cs.json ui.doc.tuneworse, ui.doc.tuneworse.a, ui.doc.tuneworse.b (důvod od commitu 9bd14e84, 1.29.0) -->
 
 <a id="R8.5"></a>
 ## R8.5 Eigenes Lesen des Hauptagenten
@@ -486,7 +493,8 @@ das Ergebnis zeigt die Stellen, an denen sie abweichen. In den Stammbaum kommt v
   - das Ergebnis bleibt im Verlauf des Lesens (**Gelesene Dokumente**). In den Stammbaum geht es über **In den
     Stammbaum vorschlagen…**.
 - **Grenzen:**
-  - es lesen Agent und Modell der Forschung für Scans ([R8.3](#R8.3)); das Lesen zählt zu den Kosten der Forschung,
+  - ohne Wahl lesen Agent und Modell der Forschung für Scans ([R8.3](#R8.3)); bei jedem Leser lassen sich Agent,
+    Modell und Gründlichkeit wählen ([R8.8.1](#R8.8.1)). Das Lesen zählt zu den Kosten der Forschung,
     auch ein abgebrochenes: Bereits Gelesenes zählt;
   - das Fenster lässt sich schließen; das Lesen läuft weiter, und das Ergebnis wird gemeldet. Die Schätzung im Fenster
     rechnet mit etwa einer Minute pro Leser, mit Grok 4 Minuten;
@@ -496,6 +504,168 @@ das Ergebnis zeigt die Stellen, an denen sie abweichen. In den Stammbaum kommt v
   ins Fenster ziehen oder **Dateien wählen…**; wahlweise **Dokument betrifft** (eine Person) und **Notiz**;
   **Leser**; **Lesen**. Eine in die App gezogene Datei bietet **Jetzt lesen** oder **Zu den Materialien**
   ([R11](R11-material-from-the-user.md)). Verlauf: **Forschung für diesen Stammbaum… → Gelesene Dokumente (N) ›**.
+  Eine Quelle, die schon eine Abschrift hat, lässt sich erneut aus dem Original lesen ([R8.8.2](#R8.8.2)).
 - **Gilt seit:** App 3.14.0, Forschung 1.18.0
 
-<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->
+
+- **Ab App 3.25.0 und Forschung 1.29.0:** die Wahl der Leser (**Lesen anpassen**, [R8.8.1](#R8.8.1)), wer gelesen hat,
+  **Erneut lesen…** bei einer Quelle ([R8.8.2](#R8.8.2)) und die Einstellung **Aufgabe aus einer neuen Lesung**
+  ([R8.8.3](#R8.8.3)).
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 · 3.25.0/1.29.0: spec 059 K2.1, K3.1, K6, K7; app:6bd8609e strings.ts read.refine, read.sourceAgain · research:c2a690ea CHANGELOG.cs.md 1.29.0 -->
+
+<a id="R8.8.1"></a>
+### R8.8.1 Leser: Programm, Modell und Gründlichkeit
+
+Jeder Leser eines Dokuments kann mit einem anderen Agenten, Modell und einer anderen Gründlichkeit lesen. Ohne Wahl
+wird nach den Einstellungen der Forschung gelesen. Das Ergebnis sagt bei jeder Lesung, wer gelesen hat.
+
+- **Prüft der Code:**
+  - **1 Leser** (schneller) oder **2 Leser** (zuverlässiger, für den Stammbaum). Zwei Leser lesen jeder für sich; wo
+    ihre Texte voneinander abweichen, kann ein Fehler stecken, und diese Stelle wird zum Prüfen gezeigt;
+  - in **Lesen anpassen** haben **Leser 1** und **Leser 2** jeweils ein **Programm** (den Agenten), ein **Modell** und
+    eine **Gründlichkeit** (**schnell**, **normal**, **höher**, **am höchsten**), nur aus dem, was die Forschung auf
+    diesem Computer anbietet. Standard ist **laut Einstellungen des Agenten**; eine Änderung wird fürs nächste Lesen
+    gemerkt (**Standard** stellt die Einstellungen der Forschung wieder her);
+  - ohne Wahl liest das Modell der Forschung für Scans (`model.vision`), nie ein günstigeres Modell;
+  - der zweite Leser liest blind und sieht die erste Lesung nicht ([R3.5](R3-verification-and-citation.md#R3.5));
+  - ein Agent, der gerade nicht lesen kann (Anmeldung abgelaufen, Limit erreicht), wird mit dem Grund angeboten, und
+    ein Leser mit ihm startet nicht. Ein Modell, das das installierte Codex nicht kennt, beendet das Lesen als Fehler
+    des Lesers mit diesem Grund.
+- **Ergebnis:** **Gelesen von** bei jeder Lesung: Agent · Modell · Gründlichkeit jedes Lesers, im Terminal, in der
+  Datei der Lesung und in der App. Der Text ist nach Leser 1; Leser 2 las unabhängig, zur Kontrolle, und sein ganzer
+  Text lässt sich zeigen (**Abschrift des Lesers**: **Leser 1** / **Leser 2**). Lasen beide mit demselben Programm,
+  sagt es das Ergebnis.
+- **Warum:** zwei Leser desselben Modells sind ein schwächerer Beleg als zwei verschiedene Modelle: wo sie
+  übereinstimmen, können sie sich gleich irren. So sagt es auch die Aufgabe aus einer neuen Lesung ([R8.8.3](#R8.8.3)).
+- **Bedienung:** App: **Dokument lesen…** und **Erneut lesen…** → **Leser** → **Lesen anpassen**. Terminal:
+  `strom document read … --agent --model --effort` (der erste Leser) und `--blind-agent --blind-model --blind-effort`
+  (der blinde Leser), `--readers 2`.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: app:6bd8609e src/strings.ts read.c1/c1Sub/c2/c2Sub/readersWhy, refine, readerN, colProgram, colModel, colThorough, thorough.*, bySettings, changed, reset, agentWhyAuth/agentWhyLimit, downRow, readBy, readerView, whoLine, whoSame · research:c2a690ea strom help document read (--agent/--model/--effort, --blind-agent/--blind-model/--blind-effort: „default model.vision — never weaker for handwriting“) · assets/lang/cs.json read.source.same · CHANGELOG.cs.md 1.29.0 · spec 059 K1.2, K2.1, K2.2, K6.6 -->
+
+<a id="R8.8.2"></a>
+### R8.8.2 Eine Quelle erneut aus dem Original lesen
+
+Eine Quelle mit Abschrift lässt sich erneut aus dem Original lesen (dem Scan oder dem Ausschnitt in der Forschung),
+nicht aus der Abschrift. Die neue Lesung wird Stelle für Stelle mit der Abschrift verglichen. Die Abschrift ändert sich
+dadurch nicht: Die neue Lesung bleibt neben ihr bei der Quelle gespeichert.
+
+- **Prüft der Code:**
+  - nur bei einer Quelle, deren Original die Forschung auf diesem Computer hat und die eine Abschrift hat; sonst sagt
+    die App, warum (**Die Forschung hat das Original der Quelle auf diesem Computer nicht.**, **Die Quelle hat keine
+    Abschrift, mit der ein neues Lesen verglichen werden könnte.**). Am Telefon nur ein Satz, dass erneut lesen in der
+    App am Computer mit der Forschung geht;
+  - die Leser sehen weder die Abschrift noch die Namen. Sie bekommen, was die Forschung über den Eintrag weiß: Art,
+    Sprache, Datum und wo der Eintrag steht;
+  - mit der Abschrift wird nur der Eintrag der Quelle verglichen, nicht benachbarte Einträge vom Rand des Ausschnitts.
+    Nicht als Unterschied zählen Spaltenbeschriftungen ohne Gegenstück, Überschriften und Anmerkungen der Forschung und
+    des Lesers in Klammern, langes ſ gegen s, eine unleserliche Stelle gegen nichts und Wörter außerhalb dessen, was
+    beide gelesen haben;
+  - jede Stelle, an der die neue Lesung von der Abschrift abweicht, hat eine Art:
+    - **inhaltliche Änderung**: ein Name, eine Zahl, ein Datum, eine Person oder ein Wort dort, wo die Abschrift
+      `[...]` hat;
+    - **Kleinigkeit**: Rechtschreibung, Abkürzung, Zeichensetzung, Beschriftung, Großbuchstaben;
+  - eine inhaltliche Änderung ist nur dann **sicher**, wenn beide Leser sie gegenüber der Abschrift gleich gelesen
+    haben und die neue Lesung dort weder `[...]` noch `[?]` hat. Eine Stelle, an der die Leser voneinander abweichen,
+    ist eine Unsicherheit, keine Änderung der Abschrift. Bei einem Leser sind die unsicheren Stellen die, an denen
+    sich der Leser nicht sicher war (die neue Lesung hat dort `[...]` oder `[?]`), keine Abweichung zweier Leser;
+  - eine Stelle, die eine Aufgabe schon geprüft hat oder die der Mensch behalten oder abgelehnt hat, wird nicht erneut
+    geprüft.
+- **Ergebnis** (Fenster **Quelle erneut gelesen**): „Gegenüber der bisherigen Abschrift N inhaltliche Änderungen und K
+  Kleinigkeiten.“ oder **Stimmt mit der bisherigen Abschrift überein.**; **Die Leser stimmen überein.** oder „Die Leser
+  weichen an N Stellen voneinander ab.“; in **Zu prüfen** die Gruppen **Inhaltliche Änderungen zu prüfen** (bei einer
+  vom Menschen bestätigten Abschrift **Inhaltliche Änderungen zur Prüfung**), **Unsicher – Leser weichen ab** (bei
+  einem Leser **Unsicher – Leser war nicht sicher**), **Bereits geprüft in Aufgabe T…**, **Bereits entschieden:
+  behalten** und **Kleinigkeiten**. Von selbst gehen nur sichere inhaltliche Änderungen in eine Aufgabe, unsichere
+  Stellen nur auf Wunsch des Menschen ([R8.8.3](#R8.8.3)).
+- **Grenzen:** die Bestätigung der Abschrift durch den Menschen bleibt. Eine neue Lesung überschreibt die Abschrift nie
+  von selbst ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+- **Bedienung:** App: Quellenbetrachter → **Erneut lesen…** (Marke KI), mit der Wahl der Leser ([R8.8.1](#R8.8.1));
+  bei der Quelle dann die Zeile der neuen Lesung mit **Ergebnis ›**. Terminal:
+  `strom document read --source S… [--clip …]`, `strom source show S…`.
+- **Warum:** nach einer Zeit lässt sich eine Abschrift von einem anderen Leser prüfen, aus dem Original.
+  Übereinstimmung stützt die bisherige Abschrift; ein Unterschied ist ein Anhaltspunkt zum Prüfen, keine neue
+  Abschrift.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/sourceread.ts (porovnání, druhy míst, sure, judged) · strom help document read --source · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 1, Tabulka scénářů) · app:6bd8609e src/ui/read-source-ui.ts (nabídka jen s originálem, AI) · strings.ts read.sourceAgain, sourceAgainTitle, againPhone, srcWhy.*, resultSource, vSrc, vSrcSame, vDis, check, gMajor, gMajorPerson, gUnsure, gJudged, gKept, gMinor, vk.*, againResultLink, keepConfirm · spec 059 K3.1–K3.3, K6.2, K6.3 · dirigent:test ověření aplikace 6bd8609e · jeden čtenář: research:4895d0f0 src/core/sourceread.ts surely (jeden čtenář: nejisté jen `[...]`, `[?]`) · app:7327b758 strings.ts read.gUnsure1, vk.number („číslo“) · dirigent:test/vysledek-1107-nejista-mista.md -->
+
+<a id="R8.8.3"></a>
+### R8.8.3 Aufgabe aus einer neuen Lesung
+
+Eine Aufgabe aus einer erneut gelesenen Quelle entsteht von selbst nur aus einer sicheren inhaltlichen Änderung, die
+noch niemand geprüft hat. Kleinigkeiten legen nie eine Aufgabe an, unsichere Stellen nicht von selbst: Sie lassen sich
+dem Agenten nur auf Wunsch des Menschen geben. Ob die Aufgabe aus einer sicheren inhaltlichen Änderung sofort entsteht
+oder der Mensch entscheidet, bestimmt die Einstellung **Aufgabe aus einer neuen Lesung**.
+
+- **Einstellung** (`read.sourceTask`, für jeden Stammbaum):
+  - **Nachfragen** (`ask`, Standard): keine Aufgabe entsteht von selbst. Die Lesung bleibt bei der Quelle als nicht
+    geprüft, bis der Mensch entscheidet;
+  - **Immer anlegen** (`always`): die Aufgabe entsteht sofort; bei einer vom Menschen bestätigten Abschrift ein
+    vorgeschlagener Wortlaut für den Menschen;
+  - **Nie anlegen** (`never`): keine Aufgabe entsteht von selbst; die Lesung wartet bei der Quelle, und der Mensch kann
+    genauso entscheiden wie bei **Nachfragen**.
+- **Wahl** (Fußzeile des Fensters **Quelle erneut gelesen**, bei der Quelle **Entscheiden ▸**):
+  - eine Abschrift, die der Mensch nicht bestätigt hat: **Aufgabe für den Agenten** → **Jetzt mit dem Agenten prüfen**
+    (eine Aufgabe und sofort ein Gespräch mit dem Agenten im Terminal) oder **In die Warteschlange des Agenten** (eine
+    Aufgabe vorn in der Warteschlange, Priorität 3); **Ohne Aufgabe** → **Nur speichern** (keine Aufgabe, die Quelle
+    fragt nicht mehr, und dieselben Stellen werden nicht erneut angeboten; bei der Quelle lässt sich dann noch **Dem
+    Agenten geben…** wählen);
+  - eine vom Menschen bestätigte Abschrift: **Aufgabe für einen Menschen** → **Zur Prüfung vormerken** (ein
+    vorgeschlagener Wortlaut für den Menschen; der Agent arbeitet nicht daran,
+    [R3.4.1](R3-verification-and-citation.md#R3.4.1)) oder **Nur speichern**. Eine Aufgabe für den Agenten entsteht hier
+    nie;
+  - eine Quelle mit einer nicht abgeschlossenen Aufgabe: **An T… anfügen und jetzt prüfen**, **An Aufgabe T…
+    anfügen**. Eine Quelle hat zugleich eine Aufgabe ihrer Lesungen: neue Stellen werden ihr angefügt, keine doppelt.
+- **Unsichere Stellen auf Wunsch:**
+  - angeboten nur bei einer Lesung, die keine sichere inhaltliche Änderung zu entscheiden hat, aber unsichere Stellen,
+    die keine Kleinigkeit sind und die noch keine Aufgabe geprüft hat. In der Fußzeile des Fensters **Quelle erneut
+    gelesen** steht die Wahl neben **Schließen** (das bleibt die Hauptschaltfläche), bei der Quelle in der Zeile der
+    neuen Lesung (**Dem Agenten geben… ▸**, bei einer bestätigten Abschrift **Zur Prüfung vormerken… ▸**). Sie wird
+    bei jeder Einstellung angeboten, auch bei **Nie anlegen**; am Telefon nicht. Nur Kleinigkeiten oder bereits
+    geprüfte Stellen → die Wahl wird nicht angeboten;
+  - eine Abschrift, die der Mensch nicht bestätigt hat: **Dem Agenten zur Prüfung geben** (Marke KI) → eine Aufgabe
+    für den Agenten in der Warteschlange (Priorität 3), oder die Stellen werden der nicht abgeschlossenen Aufgabe der
+    Quelle angefügt. Die Leser haben blind gelesen, ohne Abschrift und Namen ([R8.8.2](#R8.8.2)); die Stellen prüft
+    erst der Agent, am Scan mit allem, was die Forschung über die Personen, Orte und Daten des Eintrags weiß. Wo der
+    Scan es sicher zeigt, berichtigt er die Abschrift und schreibt den Grund; sonst lässt er die Abschrift und schreibt
+    zur Quelle eine Notiz, was er angesehen hat und warum die Stelle unsicher bleibt. Er fragt den Menschen nichts;
+  - eine vom Menschen bestätigte Abschrift: **Zur Prüfung vormerken** → eine Aufgabe für den Menschen mit einem
+    vorgeschlagenen Wortlaut nur aus den unsicheren Stellen, die die neue Lesung gelesen hat (nicht `[...]`, `[?]`);
+    der Agent ändert die Abschrift nicht ([R3.4.1](R3-verification-and-citation.md#R3.4.1)). Hat die neue Lesung nur
+    unleserliche Stellen gelesen, wird die Wahl nicht angeboten;
+  - eine Aufgabe aus unsicheren Stellen entsteht nur auf einen Klick, nie von selbst, auch nicht bei **Immer
+    anlegen**. Stellen, die dann eine Aufgabe hält, werden bei späteren Lesungen nicht erneut angeboten.
+- **Prüft der Code:**
+  - nur der Mensch entscheidet: in der App oder an seinem Terminal. `strom document read --source` am Terminal des
+    Menschen fragt sofort (**Jetzt mit dem Agenten durchgehen**, **Als Aufgabe in die Warteschlange stellen**, **Die
+    Lesung nur aufbewahren**, bei einer bestätigten Abschrift **Zur Prüfung vormerken**); ohne Wahl entscheidet es
+    nichts, und später entscheidet `strom source reading S…`. Der Agent darf nicht entscheiden: er sagt dem Menschen,
+    was wartet;
+  - unsichere Stellen übergibt nur der Mensch: `strom source reading S… --take queue --unsure` (bei einer bestätigten
+    Abschrift `--take review --unsure`); sonst geht `--unsure` nicht. Eine Lesung mit einer sicheren inhaltlichen
+    Änderung zu entscheiden wird mit `--unsure` abgelehnt: Sie wird ohne es entschieden, und die unsicheren Stellen
+    gehen mit. `strom source show S…` sagt, wenn sich die Stellen übergeben lassen;
+  - die Aufgabe nennt, wer gelesen hat (Agent · Modell · Gründlichkeit jedes Lesers), dass zwei Leser desselben Modells
+    ein schwächerer Beleg sind und dass die neue Lesung nur ein Anhaltspunkt ist
+    ([R3.4.1](R3-verification-and-citation.md#R3.4.1)). Inhaltliche Änderungen stehen im Grund der Aufgabe zuerst;
+  - eine App älter als 3.25.0 hat keine Wahl: bei einer nicht bestätigten Abschrift entsteht sofort eine Aufgabe für
+    den Agenten, bei einer bestätigten ein vorgeschlagener Wortlaut für den Menschen.
+- **Zustand bei der Quelle** (Quellenbetrachter): **Neuere Lesung vom … weicht ab (N inhaltliche Änderungen), nicht
+  geprüft.**, **… gespeichert, keine Aufgabe angelegt.**, **…: Aufgabe T… für den Agenten (in der Warteschlange).**,
+  **…: Aufgabe T… zur Prüfung.**, **…: nur Kleinigkeiten weichen ab.**, **…: Die Leser weichen an … ab, die Abschrift
+  bleibt.** (bei einem Leser **…: Der Leser war sich an … nicht sicher, die Abschrift bleibt.**) Nach dem Anlegen der
+  Aufgabe **Aufgabe T… öffnen** ([S4.5.3](S4-research-from-the-app.md#S4.5.3)).
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Dokumente lesen → Aufgabe aus
+  einer neuen Lesung** (wird in die Forschung geschrieben und gilt auch für Lesungen aus dem Terminal). Terminal:
+  `strom config set read.sourceTask ask|always|never --for-tree`, einmalig `strom document read --source S…
+  --source-task …`, `strom source reading S… [--take now|queue|keep|review] [--unsure]`, `strom source show S…`.
+- **Warum:** eine Aufgabe kostet Arbeit des Agenten, die das Abonnement verbraucht; eine Kleinigkeit oder eine
+  Unsicherheit ändert die Abschrift nicht, und was schon geprüft wurde, soll nicht erneut geprüft werden. Unsichere
+  Stellen lassen sich trotzdem prüfen: Die Leser können sie nicht klären, weil sie blind lesen, der Agent aber mit dem
+  Zusammenhang der Forschung, wenn der Mensch darum bittet.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->

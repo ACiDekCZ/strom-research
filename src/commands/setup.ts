@@ -26,6 +26,7 @@ import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { codexHookState } from "../core/codexhook.ts";
+import { codexInChatgptApp } from "../core/browserhelp.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { holdsPath, insideProgram, installation, lastingLauncher, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
 import { busyIn, isBusy, type Busy } from "../core/busy.ts";
@@ -225,8 +226,11 @@ register({
       ]),
       // its app here without its CLI: said in one line, nothing installed (--yes; the wizard and strom doctor --fix offer it)
       ...(cliGone ? ["", t("ui.setup.cli.apponly", { app: DESKTOP_APPS[agent]!.name, cli: PROFILES[agent]!.name })] : []),
-      // Codex: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3)
-      ...(agent === "codex" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how") })] : []),
+      // Codex in the terminal: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3);
+      // the ChatGPT app's browser calls no hook (the line below), so there only that is said (spec 062 K6.3)
+      ...(agent === "codex" && where !== "app" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how.terminal") })] : []),
+      // the ChatGPT app chosen: its browser strom does not watch, and what to do in ChatGPT's dialog (spec 062 K6.2)
+      ...(agent === "codex" && where === "app" ? ["", t("ui.setup.chatgpt", { browser: t("ui.doc.chatgptapp.browser"), advice: t("ui.doc.chatgptapp.advice") })] : []),
       "",
       ...(found.lines.length ? [...found.lines, ""] : []),
       t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
@@ -257,7 +261,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -532,6 +536,15 @@ function diagnoseInto(
   if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1, R12.10)");
   // Codex's hooks: strom's rules before its browser run once the person confirms them in Codex (/hooks) — strom never
   // confirms them for the person (spec 062 K3.3); said with what to do (strom doc R12.5)
+  // The ChatGPT app chosen for the conversation: its browser runs through ChatGPT's cloud, no hook of the tree runs there —
+  // said as a warning (nothing of strom's mends it, nothing fails), with what the person can do in ChatGPT's own dialog;
+  // Codex's hooks then are Codex's in the terminal (strom run, codex in the folder) — named so, never as the app's
+  // watching (spec 062 K6.2, K6.3)
+  const chatgptApp = chosen === "codex" && found.includes("codex") && !ctx.archiveHere() && codexInChatgptApp(ctx.env);
+  if (chatgptApp) {
+    add("chatgptapp", "warn", t("ui.doc.chatgptapp.browser"), t("ui.doc.chatgptapp.advice"));
+    checks.at(-1)!.code = "chatgpt.app.browser";
+  }
   const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;
   if (codexRoot) {
     const state = codexHookState(codexRoot, ctx.env);
@@ -542,6 +555,7 @@ function diagnoseInto(
     const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t("ui.doc.codexhooks.how")}  (strom doc R12.5)` : "strom doc R12.5";
     add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine && state !== "missing" ? undefined : fix);
     checks.at(-1)!.code = `codex.hooks.${state}`;
+    if (chatgptApp) checks.at(-1)!.label = t("ui.doc.codexhooks.terminal");
   }
 
   // For a person: the shortcut on the desktop, the Strom app.

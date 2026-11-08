@@ -35,6 +35,8 @@ Przebieg w skrócie:
 > oznaczyć jako **Transkrypcja zweryfikowana** ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), jak uwzględnia ją badanie:
 > [R3.5.1](R3-verification-and-citation.md#R3.5.1)). Błędną daną można poprawić w aplikacji; zmiana danej potwierdzonej
 > aktem staje się sprzecznością ([S2](S2-edits-from-the-app.md)).
+> Odczyt przez model jest tylko propozycją: transkrypcji, którą człowiek napisał lub potwierdził, nie zmieni nikt
+> poza człowiekiem, także nowy odczyt ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
 <!-- zdroj: research:assets/method/reading.md:3-8 · src/agents/profiles.ts:5 vision, :147 · src/commands/read.ts:214 --model · src/core/reader.ts:226 certainty · assets/method/verify.md · Milan 4. 11. 2026 (zásada ověření člověkem) -->
 
@@ -328,11 +330,15 @@ mniejszej liczby zapytań do archiwum.
   decyduje człowiek), `--reset` (powrót do wartości domyślnych); `strom config set tune.auto off` wyłącza
   samodostrajanie. Kalibracja rozmiaru widoków (`strom media calibrate`) to płatny odczyt własnych udokumentowanych
   aktów badania i potwierdza ją tylko człowiek.
+  `strom doctor`, wiersz **po samodostrojeniu**: zmiana, po której czyta się gorzej (zaleca ją cofnąć), albo zmiana,
+  po której odczyt jest droższy i ani trochę pewniejszy (zaleca ją zostawić).
 - **Dlaczego:** według kodu tylko tak, żeby niczego to nie pogorszyło: zmiana może dodać dokładności albo zaoszczędzić
-  zapytań do archiwum; to, co mogłoby ująć dokładności lub obciążyć archiwum, jest pytaniem dla człowieka.
+  zapytań do archiwum; to, co mogłoby ująć dokładności lub obciążyć archiwum, jest pytaniem dla człowieka. Droższą zmianę `strom doctor` zaleca zostawić, bo szła ku dokładności, a pewność mierzy
+  się tylko niepewnymi miejscami: bliższy widok może czytać dokładniej, nawet gdy niepewnych miejsc nie ubywa.
 - **Obowiązuje od:** badanie 1.14.0
+- **Od badania 1.29.0:** `strom doctor` przy droższej zmianie mówi, dlaczego zaleca ją zostawić.
 
-<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 -->
+<!-- zdroj: research:src/core/tune.ts:1-21 (A1–A7) · src/core/readstats.ts:88-99 TUNING smallest, backAfterDays · src/core/config.ts:337 tune.auto · src/commands/calibrate.ts:394-420 · assets/lang/cs.json ui.doc.tuneworse, ui.doc.tuneworse.a, ui.doc.tuneworse.b (důvod od commitu 9bd14e84, 1.29.0) -->
 
 <a id="R8.5"></a>
 ## R8.5 Własny odczyt głównego agenta
@@ -469,7 +475,8 @@ w których się różnią. Do drzewa z odczytanego nic się nie zapisuje bez pot
     części strony, za ciemny, za mały, na obrazie nie ma pisanego tekstu) i radę, jak zrobić lepsze zdjęcie;
   - wynik zostaje w historii odczytów (**Odczytane dokumenty**). Do drzewa trafia przez **Zaproponuj do drzewa…**.
 - **Granice:**
-  - czytają agent i model badania do skanów ([R8.3](#R8.3)); odczyt wlicza się do kosztu badania, także przerwany: to,
+  - bez wyboru czytają agent i model badania do skanów ([R8.3](#R8.3)); przy każdym czytelniku można wybrać agenta,
+    model i dokładność ([R8.8.1](#R8.8.1)). Odczyt wlicza się do kosztu badania, także przerwany: to,
     co agent już odczytał, się wlicza;
   - okno można zamknąć, odczyt będzie trwał dalej, a wynik zostanie ogłoszony. Szacunek w oknie liczy około minuty na
     czytelnika, z Grokiem 4 minuty;
@@ -479,7 +486,162 @@ w których się różnią. Do drzewa z odczytanego nic się nie zapisuje bez pot
   pliki przeciągnąć do okna albo **Wybierz pliki…**; opcjonalnie **Dokument dotyczy** (osoba) i **Notatka**;
   **Czytelnicy**; **Odczytaj**. Plik przeciągnięty do aplikacji oferuje **Odczytaj teraz** albo **Dodaj do
   materiałów** ([R11](R11-material-from-the-user.md)). Historia: **Badanie dla tego drzewa… → Odczytane dokumenty
-  (N) ›**.
+  (N) ›**. Źródło, które ma już transkrypcję, można przeczytać ponownie z oryginału ([R8.8.2](#R8.8.2)).
 - **Obowiązuje od:** aplikacja 3.14.0, badanie 1.18.0
 
-<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 -->
+
+- **Od aplikacji 3.25.0 i badania 1.29.0:** wybór czytelników (**Dostosuj odczyt**, [R8.8.1](#R8.8.1)), kto czytał,
+  **Przeczytaj ponownie…** przy źródle ([R8.8.2](#R8.8.2)) i ustawienie **Zadanie z nowego odczytu**
+  ([R8.8.3](#R8.8.3)).
+
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 · 3.25.0/1.29.0: spec 059 K2.1, K3.1, K6, K7; app:6bd8609e strings.ts read.refine, read.sourceAgain · research:c2a690ea CHANGELOG.cs.md 1.29.0 -->
+
+<a id="R8.8.1"></a>
+### R8.8.1 Czytelnicy: program, model i dokładność
+
+Każdy czytelnik dokumentu może czytać innym agentem, modelem i z inną dokładnością. Bez wyboru czyta się według
+ustawień badania. Wynik przy każdym odczycie mówi, kto czytał.
+
+- **Pilnuje kod:**
+  - **1 czytelnik** (szybciej) albo **2 czytelników** (pewniej, do drzewa). Dwóch czytelników czyta osobno; tam, gdzie
+    ich teksty się różnią, może być błąd, i to miejsce jest pokazane do sprawdzenia;
+  - w **Dostosuj odczyt** **Czytelnik 1** i **Czytelnik 2** mają każdy swój **Program** (agenta), **Model**
+    i **Dokładność** (**szybka**, **zwykła**, **wyższa**, **najwyższa**), tylko z tego, co badanie oferuje na tym
+    komputerze. Domyślnie jest **według ustawień agenta**; zmiana zostaje zapamiętana dla kolejnych odczytów
+    (**Domyślne** przywraca ustawienia badania);
+  - bez wyboru czyta model badania do skanów (`model.vision`), nigdy tańszy model;
+  - drugi czytelnik czyta na ślepo i nie widzi pierwszego odczytu ([R3.5](R3-verification-and-citation.md#R3.5));
+  - agent, który teraz nie może czytać (logowanie wygasło, limit wyczerpany), jest oferowany z powodem, a czytelnika
+    z nim nie można uruchomić. Model, którego zainstalowany Codex nie zna, kończy odczyt jako niepowodzenie czytelnika
+    z tym powodem.
+- **Wynik:** **Czytał** przy każdym odczycie: agent · model · dokładność każdego czytelnika, w terminalu, w pliku
+  odczytu i w aplikacji. Tekst jest według czytelnika 1; czytelnik 2 czytał niezależnie, dla kontroli, a jego cały
+  tekst można pokazać (**Transkrypcja czytelnika**: **Czytelnik 1** / **Czytelnik 2**). Gdy obaj czytali tym samym
+  programem, wynik to mówi.
+- **Dlaczego:** dwóch czytelników tego samego modelu to słabszy dowód niż dwa różne modele: tam, gdzie się zgadzają,
+  mogą się mylić tak samo. Tak mówi też zadanie z nowego odczytu ([R8.8.3](#R8.8.3)).
+- **Obsługa:** aplikacja: **Odczytaj dokument…** i **Przeczytaj ponownie…** → **Czytelnicy** → **Dostosuj odczyt**.
+  Terminal: `strom document read … --agent --model --effort` (pierwszy czytelnik) i `--blind-agent --blind-model
+  --blind-effort` (czytelnik na ślepo), `--readers 2`.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: app:6bd8609e src/strings.ts read.c1/c1Sub/c2/c2Sub/readersWhy, refine, readerN, colProgram, colModel, colThorough, thorough.*, bySettings, changed, reset, agentWhyAuth/agentWhyLimit, downRow, readBy, readerView, whoLine, whoSame · research:c2a690ea strom help document read (--agent/--model/--effort, --blind-agent/--blind-model/--blind-effort: „default model.vision — never weaker for handwriting“) · assets/lang/cs.json read.source.same · CHANGELOG.cs.md 1.29.0 · spec 059 K1.2, K2.1, K2.2, K6.6 -->
+
+<a id="R8.8.2"></a>
+### R8.8.2 Ponowny odczyt źródła z oryginału
+
+Źródło, które ma transkrypcję, można dać do ponownego odczytu z oryginału (skanu lub wycinka w badaniu), nie
+z transkrypcji. Nowy odczyt porównuje się z transkrypcją miejsce po miejscu. Transkrypcja się przez to nie zmienia:
+nowy odczyt zostaje zapisany przy źródle obok niej.
+
+- **Pilnuje kod:**
+  - tylko przy źródle, którego oryginał badanie ma na tym komputerze i które ma transkrypcję; inaczej aplikacja mówi
+    dlaczego (**Badanie nie ma oryginału źródła na tym komputerze.**, **Źródło nie ma transkrypcji, z którą można
+    porównać nowe czytanie.**). Na telefonie tylko zdanie, że ponowne czytanie działa w aplikacji na komputerze
+    z badaniem;
+  - czytelnicy nie widzą transkrypcji ani nazwisk. Dostają to, co badanie wie o akcie: rodzaj, język, datę i gdzie
+    wpis stoi;
+  - z transkrypcją porównuje się tylko wpis źródła, nie sąsiednie wpisy z brzegu wycinka. Za różnicę nie liczą się
+    podpisy kolumn bez odpowiednika, nagłówki i uwagi badania oraz czytelnika w nawiasach, długie ſ wobec s, nieczytelne
+    miejsce wobec niczego i słowa poza tym, co przeczytali obaj;
+  - każde miejsce, w którym nowy odczyt różni się od transkrypcji, ma rodzaj:
+    - **zmiana merytoryczna**: imię lub nazwisko, liczba, data, osoba albo słowo tam, gdzie transkrypcja ma
+      `[...]`;
+    - **drobiazg**: pisownia, skrót, interpunkcja, podpis, wielkie litery;
+  - zmiana merytoryczna jest **pewna** tylko wtedy, gdy obaj czytelnicy przeczytali ją wobec transkrypcji tak samo,
+    a nowy odczyt nie ma tam `[...]` ani `[?]`. Miejsce, w którym czytelnicy się różnią, jest niepewnością, nie zmianą
+    transkrypcji. Przy jednym czytelniku niepewne miejsca to te, w których czytelnik nie był pewien (nowy odczyt ma tam
+    `[...]` albo `[?]`), nie różnica dwóch czytelników;
+  - miejsca, które już oceniło zadanie albo które człowiek zostawił lub odrzucił, nie ocenia się ponownie.
+- **Wynik** (okno **Źródło przeczytane ponownie**): „Względem dotychczasowej transkrypcji N zmiany merytoryczne i K
+  drobiazgów.” albo **Zgadza się z dotychczasową transkrypcją.**; **Czytelnicy są zgodni.** albo „Czytelnicy różnią się
+  w N miejscach.”; w **Do sprawdzenia** grupy **Zmiany merytoryczne do sprawdzenia** (przy transkrypcji potwierdzonej
+  przez człowieka **Zmiany merytoryczne do oceny**), **Niepewne – czytelnicy się różnią** (przy jednym czytelniku
+  **Niepewne – czytelnik nie był pewien**), **Już ocenione w zadaniu T…**, **Już rozstrzygnięte: zostawione**
+  i **Drobiazgi**. Do zadania trafiają same tylko pewne zmiany merytoryczne; niepewne miejsca tylko na prośbę
+  człowieka ([R8.8.3](#R8.8.3)).
+- **Granice:** potwierdzenie transkrypcji przez człowieka pozostaje. Nowy odczyt nigdy sam nie nadpisze transkrypcji
+  ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+- **Obsługa:** aplikacja: podgląd źródła → **Przeczytaj ponownie…** (oznaczenie AI), z wyborem czytelników
+  ([R8.8.1](#R8.8.1)); przy źródle potem wiersz nowego odczytu z **Wynik ›**. Terminal:
+  `strom document read --source S… [--clip …]`, `strom source show S…`.
+- **Dlaczego:** po czasie transkrypcję można sprawdzić innym czytelnikiem, z oryginału. Zgodność wspiera dotychczasową
+  transkrypcję; różnica jest podpowiedzią do sprawdzenia, nie nową transkrypcją.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/sourceread.ts (porovnání, druhy míst, sure, judged) · strom help document read --source · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 1, Tabulka scénářů) · app:6bd8609e src/ui/read-source-ui.ts (nabídka jen s originálem, AI) · strings.ts read.sourceAgain, sourceAgainTitle, againPhone, srcWhy.*, resultSource, vSrc, vSrcSame, vDis, check, gMajor, gMajorPerson, gUnsure, gJudged, gKept, gMinor, vk.*, againResultLink, keepConfirm · spec 059 K3.1–K3.3, K6.2, K6.3 · dirigent:test ověření aplikace 6bd8609e · jeden čtenář: research:4895d0f0 src/core/sourceread.ts surely (jeden čtenář: nejisté jen `[...]`, `[?]`) · app:7327b758 strings.ts read.gUnsure1, vk.number („číslo“) · dirigent:test/vysledek-1107-nejista-mista.md -->
+
+<a id="R8.8.3"></a>
+### R8.8.3 Zadanie z nowego odczytu
+
+Zadanie ze źródła przeczytanego ponownie powstaje samo tylko z pewnej zmiany merytorycznej, której nikt jeszcze nie
+ocenił. Drobiazgi nigdy nie tworzą zadania, a niepewne miejsca nie tworzą go same: agentowi można je przekazać tylko na
+prośbę człowieka. Czy zadanie z pewnej zmiany merytorycznej powstanie od razu, czy zdecyduje człowiek, wyznacza
+ustawienie **Zadanie z nowego odczytu**.
+
+- **Ustawienie** (`read.sourceTask`, dla każdego drzewa):
+  - **Pytaj** (`ask`, domyślnie): zadanie nie powstaje samo. Odczyt zostaje przy źródle jako niesprawdzony, dopóki
+    człowiek nie zdecyduje;
+  - **Zawsze twórz** (`always`): zadanie powstaje od razu; przy transkrypcji potwierdzonej przez człowieka propozycja
+    brzmienia dla człowieka;
+  - **Nie twórz** (`never`): zadanie nie powstaje samo; odczyt czeka przy źródle, a człowiek może zdecydować tak samo
+    jak przy **Pytaj**.
+- **Wybory** (stopka okna **Źródło przeczytane ponownie**, przy źródle **Zdecyduj ▸**):
+  - transkrypcja, której człowiek nie potwierdził: **Zadanie dla agenta** → **Sprawdź teraz z agentem** (zadanie
+    i od razu rozmowa z agentem w terminalu) albo **Dodaj do kolejki agenta** (zadanie na początku kolejki,
+    priorytet 3); **Bez zadania** → **Tylko zapisz** (zadanie nie powstaje, źródło już nie pyta, a te same miejsca nie
+    są oferowane ponownie; przy źródle można potem jeszcze wybrać **Przekaż agentowi…**);
+  - transkrypcja potwierdzona przez człowieka: **Zadanie dla człowieka** → **Odłóż do oceny** (propozycja brzmienia dla
+    człowieka; agent nad nią nie pracuje, [R3.4.1](R3-verification-and-citation.md#R3.4.1)) albo **Tylko zapisz**.
+    Zadanie dla agenta nigdy tu nie powstaje;
+  - źródło z niezakończonym zadaniem: **Dopisz do T… i sprawdź teraz**, **Dopisz do zadania T…**. Jedno źródło ma
+    naraz jedno zadanie swoich odczytów: nowe miejsca dopisują się do niego, żadne dwa razy.
+- **Niepewne miejsca na prośbę:**
+  - oferowane tylko przy odczycie, który nie ma żadnej pewnej zmiany merytorycznej do rozstrzygnięcia, ale ma niepewne
+    miejsca, które nie są drobiazgiem i których nie oceniło jeszcze żadne zadanie. W stopce okna **Źródło przeczytane
+    ponownie** wybór stoi obok **Zamknij** (to zostaje głównym przyciskiem), przy źródle w wierszu nowego odczytu
+    (**Przekaż agentowi… ▸**, przy potwierdzonej transkrypcji **Odłóż do oceny… ▸**). Jest oferowany przy każdym
+    ustawieniu, także przy **Nie twórz**; na telefonie nie. Tylko drobiazgi albo miejsca już ocenione → wybór nie jest
+    oferowany;
+  - transkrypcja, której człowiek nie potwierdził: **Przekaż agentowi do oceny** (oznaczenie AI) → zadanie dla agenta
+    w kolejce (priorytet 3) albo miejsca dopisują się do niezakończonego zadania źródła. Czytelnicy czytali na ślepo,
+    bez transkrypcji i nazwisk ([R8.8.2](#R8.8.2)); miejsca ocenia dopiero agent, na skanie ze wszystkim, co badanie
+    wie o osobach, miejscach i datach aktu. Gdzie skan pokazuje to pewnie, poprawia transkrypcję i podaje powód;
+    gdzie indziej transkrypcję zostawia i przy źródle zapisuje notatkę, co obejrzał i dlaczego miejsce pozostaje
+    niepewne. Człowieka o nic nie pyta;
+  - transkrypcja potwierdzona przez człowieka: **Odłóż do oceny** → zadanie dla człowieka z propozycją brzmienia tylko
+    z niepewnych miejsc, które nowy odczyt odczytał (nie `[...]`, `[?]`); agent nie zmienia transkrypcji
+    ([R3.4.1](R3-verification-and-citation.md#R3.4.1)). Gdy nowy odczyt odczytał tylko nieczytelne miejsca, wybór nie
+    jest oferowany;
+  - zadanie z niepewnych miejsc powstaje tylko po kliknięciu, nigdy samo, nawet przy **Zawsze twórz**. Miejsc, które
+    potem trzyma zadanie, nie oferuje się ponownie przy kolejnych odczytach.
+- **Pilnuje kod:**
+  - decyduje tylko człowiek: w aplikacji albo przy swoim terminalu. `strom document read --source` przy terminalu
+    człowieka pyta od razu (**Przejrzeć to teraz z agentem**, **Dodać to do kolejki jako zadanie**, **Tylko zachować
+    odczyt**, przy potwierdzonej transkrypcji **Odłożyć do oceny**); bez wyboru niczego nie rozstrzyga, a później
+    rozstrzyga `strom source reading S…`. Agent nie może decydować: mówi człowiekowi, co czeka;
+  - niepewne miejsca przekazuje tylko człowiek: `strom source reading S… --take queue --unsure` (przy potwierdzonej
+    transkrypcji `--take review --unsure`); inaczej `--unsure` nie działa. Odczyt, który ma pewną zmianę merytoryczną
+    do rozstrzygnięcia, zostaje z `--unsure` odrzucony: rozstrzyga się go bez tej opcji, a niepewne miejsca idą razem
+    z nią. `strom source show S…` mówi, kiedy miejsca można przekazać;
+  - zadanie podaje, kto czytał (agent · model · dokładność każdego czytelnika), że dwóch czytelników tego samego modelu
+    to słabszy dowód i że nowy odczyt jest tylko podpowiedzią ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+    Zmiany merytoryczne są w powodzie zadania pierwsze;
+  - aplikacja starsza niż 3.25.0 nie ma wyboru: przy niepotwierdzonej transkrypcji od razu powstaje zadanie dla agenta,
+    przy potwierdzonej propozycja brzmienia dla człowieka.
+- **Stan przy źródle** (podgląd źródła): **Nowszy odczyt z … się różni (N zmiany merytoryczne), niesprawdzony.**,
+  **… zapisany, zadanie nie powstało.**, **…: zadanie T… dla agenta (w kolejce).**, **…: zadanie do oceny T….**,
+  **…: różnią się tylko drobiazgi.**, **…: czytelnicy różnią się w …, transkrypcja się nie zmienia.** (przy jednym
+  czytelniku **…: czytelnik nie był pewien w …, transkrypcja się nie zmienia.**) Po utworzeniu zadania **Otwórz
+  zadanie T…** ([S4.5.3](S4-research-from-the-app.md#S4.5.3)).
+- **Obsługa:** aplikacja: **Badanie → Więcej → Badanie dla tego drzewa… → Czytanie dokumentów → Zadanie z nowego
+  odczytu** (zapisuje się do badania i dotyczy też odczytów uruchomionych w terminalu). Terminal:
+  `strom config set read.sourceTask ask|always|never --for-tree`, jednorazowo `strom document read --source S…
+  --source-task …`, `strom source reading S… [--take now|queue|keep|review] [--unsure]`, `strom source show S…`.
+- **Dlaczego:** zadanie kosztuje pracę agenta, która zużywa subskrypcję; drobiazg ani niepewność nie zmieniają
+  transkrypcji, a tego, co już ocenione, nie należy oceniać ponownie. Niepewne miejsca można mimo to ocenić:
+  czytelnicy ich nie rozstrzygną, bo czytają na ślepo, ale agent może je ocenić z kontekstem badania, gdy człowiek
+  o to poprosi.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->

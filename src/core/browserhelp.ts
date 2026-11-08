@@ -14,12 +14,14 @@ import { allows, archiveLevel, type ArchiveLevel } from "./terms.ts";
 import { knownDisallow } from "./knownterms.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "./browser.ts";
 import { codexHookState } from "./codexhook.ts";
+import { whereToTalk } from "./apps.ts";
+import { Settings } from "./config.ts";
 
 /**
  * The agents whose browser strom keeps — its hook runs before each page and each tool on a page (count, pace, an
- * archive only a person's browser goes to, the bridge): Claude Code's Claude in Chrome; Codex's browser (its node_repl
- * js) only in a tree whose hooks the person confirmed in Codex (codexHookState "trusted", strom doc R12.5) — else
- * Codex does not run them. Any other agent's browser, and every agent's computer use, goes unseen: strom does not
+ * archive only a person's browser goes to, the bridge): Claude Code's Claude in Chrome; Codex's browser in the terminal
+ * (its REPLs' js) only in a tree whose hooks the person confirmed in Codex (codexHookState "trusted", strom doc R12.5)
+ * — else Codex does not run them —, never the ChatGPT app's (codexInChatgptApp). Any other agent's browser, and every agent's computer use, goes unseen: strom does not
  * recommend it — never of the agent's own accord to such an archive; only the person's explicit request makes it the
  * person's choice (ON_REQUEST). Nothing of it is switched off.
  */
@@ -28,11 +30,28 @@ export const GUARDED_BROWSER_AGENTS: readonly string[] = ["claude", "codex"];
 /** The agents whose browser strom keeps only once the person confirmed strom's hooks of the tree in the agent. */
 const KEPT_WHEN_CONFIRMED: readonly string[] = ["codex"];
 
-/** Whether strom keeps this agent's browser (its hooks before each page) — in the tree at root (Codex: its hooks confirmed there). */
+/**
+ * The person talks with Codex in the ChatGPT app (agent.where app, or only its app here), and this is no agent strom
+ * started itself (strom chat in a terminal, strom run: STROM_WORKER, STROM_SESSION — Codex's CLI, its hooks run). The
+ * ChatGPT app runs its turns through ChatGPT's cloud since 26.1103 and calls no hook of the tree (found live 8 November
+ * 2026; before, 26.1021, its browser was cua_repl's): strom does not keep its browser, whatever Codex says of the hooks
+ * — ChatGPT decides on the sites itself (its "cloud browser" dialog). Spec 062 P6.
+ */
+export function codexInChatgptApp(env: Env): boolean {
+  if (env.STROM_WORKER || env.STROM_SESSION) return false;
+  try {
+    return whereToTalk("codex", new Settings(env, {}).agentWhere(), env) === "app";
+  } catch {
+    return false;
+  }
+}
+
+/** Whether strom keeps this agent's browser (its hooks before each page) — in the tree at root (Codex: its hooks confirmed there, never the ChatGPT app's). */
 export function browserKept(agent: string | undefined, root?: string, env?: Env): boolean {
   if (!agent || !GUARDED_BROWSER_AGENTS.includes(agent)) return false;
   if (!KEPT_WHEN_CONFIRMED.includes(agent)) return true;
   if (!root || !env) return false;
+  if (agent === "codex" && codexInChatgptApp(env)) return false;
   try {
     return codexHookState(root, env) === "trusted";
   } catch {

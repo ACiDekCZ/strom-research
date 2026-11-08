@@ -17,7 +17,7 @@ import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
 import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisDecider, appShowsHypothesisLinks, appShowsReadings, appShowsOmittedImages, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords, appConfirmsTranscripts, appReadsSourcesAgain } from "../core/stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisDecider, appShowsHypothesisLinks, appShowsReadings, appShowsOmittedImages, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords, appShowsOrigin, appConfirmsTranscripts, appReadsSourcesAgain } from "../core/stromapp.ts";
 import { surnamesForExport } from "../core/surnames.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { readsAgain } from "../core/sourceread.ts";
@@ -125,10 +125,12 @@ export function writeTreeGed(
   const lines = opts.for === "strom" && appReadsLines(new Settings(tree.env, {}), opts.stromVersion) ? lineMarks(tree) : undefined;
   // …and the research's place records with each fact's place pointing to its record, for an app that reads them
   const placeRecords = opts.for === "strom" && appReadsPlaceRecords(new Settings(tree.env, {}), opts.stromVersion);
+  // …and where each value came from (an import, the user, the research), for an app that shows it (spec 066)
+  const origins = opts.for === "strom" && appShowsOrigin(new Settings(tree.env, {}), opts.stromVersion);
   // …and which sources can be read again from their original here, for an app that offers it (never in an archive)
   const shared = new Settings(tree.env, {}).shared()?.value;
   const original = opts.for === "strom" && appReadsSourcesAgain(new Settings(tree.env, {}), opts.stromVersion) && !actsAsArchive(tree) ? (s: Source) => readsAgain(tree, shared, s) : undefined;
-  const result = exportGedcom(tree, { for: opts.for, ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
+  const result = exportGedcom(tree, { for: opts.for, ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {

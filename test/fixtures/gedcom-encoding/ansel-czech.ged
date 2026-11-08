@@ -1,0 +1,21 @@
+0 HEAD
+1 SOUR FICTIONAL
+1 GEDC
+2 VERS 5.5.1
+1 CHAR ANSEL
+0 @I1@ INDI
+1 NAME Vojtéech /Lhotâak/
+1 SEX M
+1 BIRT
+2 PLAC Hornâi Lhota
+0 @I2@ INDI
+1 NAME Zdeénka /Lhotâakovâa/
+1 SEX F
+1 BIRT
+2 PLAC Lhota pod éRâipem
+0 @I3@ INDI
+1 NAME éRehoér /Lhotâak/
+1 SEX M
+1 BIRT
+2 PLAC Lhota u éZédâaru
+0 TRLR

@@ -1,0 +1,26 @@
+0 HEAD
+1 SOUR FICTIONAL
+1 GEDC
+2 VERS 5.5.1
+1 CHAR ANSI
+0 @I1@ INDI
+1 NAME Thérèse /Lhotière/
+1 SEX M
+1 BIRT
+2 PLAC Besançon
+0 @I2@ INDI
+1 NAME Niccolò /Lhotini/
+1 SEX M
+1 BIRT
+2 PLAC Forlì
+0 @I3@ INDI
+1 NAME Jürgen /Lhoteiß/
+1 SEX M
+1 BIRT
+2 PLAC Köln
+0 @I4@ INDI
+1 NAME François /Lhotier/
+1 SEX M
+1 BIRT
+2 PLAC Genève
+0 TRLR

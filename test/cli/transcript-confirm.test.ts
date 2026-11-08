@@ -14,7 +14,7 @@ import http from "node:http";
 import { World, hasGit } from "../helpers.ts";
 import { now, Tree } from "../../src/core/tree.ts";
 import { changeLines } from "../../src/core/changelog.ts";
-import { confirmedOn, transcriptMark, userReading } from "../../src/core/readers.ts";
+import { confirmedOn, localDayOf, transcriptMark, userReading } from "../../src/core/readers.ts";
 import { readByOthers, readersOf } from "../../src/core/review.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
 import { Settings } from "../../src/core/config.ts";
@@ -92,10 +92,11 @@ const S2_TEXT = "Войтех Лхотак, сын Иржи.";
 test("the gate: the marks only for an app that confirms — not released yet; its beta and development copies at once; an unknown version once released", () => {
   const prod = new Settings({}, {});
   const beta = new Settings(BETA_APP, {});
-  assert.equal(APP_CONFIRMS_TRANSCRIPTS, undefined, "set from the app's release that confirms, never a beta's");
+  assert.equal(APP_CONFIRMS_TRANSCRIPTS, "3.25.0", "set from the app's release that confirms, never a beta's");
   assert.equal(APP_CONFIRMS_TRANSCRIPTS_BETA, undefined);
-  assert.equal(appConfirmsTranscripts(prod, "3.25.0"), false);
-  assert.equal(appConfirmsTranscripts(prod), false, "unknown version: off until released");
+  assert.equal(appConfirmsTranscripts(prod, "3.25.0"), true);
+  assert.equal(appConfirmsTranscripts(prod, "3.24.0"), false);
+  assert.equal(appConfirmsTranscripts(prod), true, "unknown version once released: today's");
   assert.equal(appConfirmsTranscripts(beta, "3.25.0"), true, "another copy of the app at once");
   assert.equal(appConfirmsTranscripts(beta), true);
   assert.equal(appConfirmsTranscripts(prod, "3.26.0", "3.26.0"), true);
@@ -154,13 +155,14 @@ test("K2.2, K2.3, K2.6: POST /sources/confirm — confirmed as the user's readin
     // confirmed: the user's reading of this wording, with its day
     const ok = await post({ source: s1, txt: m1, confirm: true });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
-    const day = new Date().toISOString().slice(0, 10);
-    assert.deepEqual([ok.body.ok, ok.body.source, ok.body.read, ok.body.conf, ok.body.txt], [true, s1, "both", day, m1]);
-    assert.notEqual(ok.body.head, ok.body.parent, "written");
     const u = sourceOf(w, s1).read?.user;
     assert.equal(u?.how, "confirm");
     assert.equal(u?.txt, m1);
-    assert.equal(u?.at.slice(0, 10), day);
+    // its day: the day of the moment kept, on this computer's calendar (never the clock read again)
+    const day = localDayOf(u!.at);
+    assert.ok(Math.abs(Date.parse(u!.at) - Date.now()) < 120_000, "the moment of the confirmation");
+    assert.deepEqual([ok.body.ok, ok.body.source, ok.body.read, ok.body.conf, ok.body.txt], [true, s1, "both", day, m1]);
+    assert.notEqual(ok.body.head, ok.body.parent, "written");
     // K2.6: the user read it now — no second reading by another model
     assert.ok(readers(w, s1)?.has("user"));
     assert.equal(readByOthers(readers(w, s1), "opus"), false);
@@ -196,12 +198,12 @@ test("K2.2, K2.3, K2.6: POST /sources/confirm — confirmed as the user's readin
     assert.match(ged, /1 REFN S0003\r?\n(?:1 (?!_STROM_READ).*\r?\n)*1 _STROM_READ user\r?\n2 _TXT /u, "the user's own: the wording, no day");
     assert.match(ged, new RegExp(`1 REFN ${s4}\\r?\\n(?:1 (?!_STROM_READ).*\\r?\\n)*1 _STROM_READ research\\r?\\n(?!2 _TXT)`, "u"), "no transcript: no wording");
     const old = path.join(w.dir, "old.ged");
-    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", old], { env: { STROM_APP_VERSION: "3.25.0" } });
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", old], { env: { STROM_APP_VERSION: "3.24.0" } });
     const older = fs.readFileSync(old, "utf8");
     assert.match(older, /1 _STROM_READ both/u);
     assert.doesNotMatch(older, /_CONF|_TXT/u, "an app released before the gate: neither");
     // the bridge's own file for the app
-    const live = (await request(`${info.url}/tree.ged?app=3.25.0`)).body as string;
+    const live = (await request(`${info.url}/tree.ged?app=3.24.0`)).body as string;
     assert.doesNotMatch(live, /_TXT/u);
 
     // the research reads S1 anew: the confirmed transcript is never changed by it — the new wording proposed (K2.3)
@@ -316,5 +318,31 @@ test("K2.2 by the file: the app's file back through strom sync keeps the researc
     assert.match((await w.ok(["check"])).out, /^ok/);
   } finally {
     w.cleanup();
+  }
+});
+
+test("the day of a confirmation is this computer's: shortly after midnight the new day, never the day before by UTC (8 November 2026) — nothing written changes", () => {
+  const txt = "Kateřina, dcera Jiřího Lhotáka z Lhoty č. 7.";
+  const kept = process.env.TZ;
+  try {
+    const on = (tz: string, at: string) => {
+      process.env.TZ = tz;
+      return confirmedOn({ transcript: txt, read: { user: { how: "confirm", at, txt: transcriptMark(txt) } } } as Parameters<typeof confirmedOn>[0]);
+    };
+    // 00:30 in Prague is 23:30 UTC the day before
+    assert.equal(on("Europe/Prague", "2026-11-07T23:30:00.000Z"), "2026-11-08");
+    // 22:30 in New York is 03:30 UTC the next day
+    assert.equal(on("America/New_York", "2026-11-08T03:30:00.000Z"), "2026-11-07");
+    // the same moment where UTC is the calendar
+    assert.equal(on("UTC", "2026-11-07T23:30:00.000Z"), "2026-11-07");
+    // summer time
+    assert.equal(on("Europe/Prague", "2026-06-30T22:15:00.000Z"), "2026-07-01");
+    assert.equal(localDayOf("2026-11-08"), "2026-11-08", "a day alone stays itself");
+    assert.equal(localDayOf("not a moment"), "not a mome");
+    // taken back or another wording: no day
+    assert.equal(confirmedOn({ transcript: txt + " x", read: { user: { how: "confirm", at: "2026-11-07T23:30:00.000Z", txt: transcriptMark(txt) } } } as Parameters<typeof confirmedOn>[0]), undefined);
+  } finally {
+    if (kept === undefined) delete process.env.TZ;
+    else process.env.TZ = kept;
   }
 });

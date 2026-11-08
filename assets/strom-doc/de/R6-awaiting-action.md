@@ -90,13 +90,14 @@ freiwilligen Notiz.
 
 Der Abschnitt **Entscheidungen** sammelt Fragen, die den Agenten aufhalten: Erlaubnis eines Archivs, zu bestätigende
 Downloader, mildere Bedingungen, Seite prüfen, Erzählung, Ort (siehe [R4](R4-places.md)), Widerspruch (siehe [R5](R5-conflicts.md)), Hypothese (siehe
-[R6.3.4](#R6.3.4)), Stammbäume aus der App und das Lesen der Scans. Entscheidungen stehen in der Liste zuerst.
+[R6.3.4](#R6.3.4)), Stammbäume aus der App, das Lesen der Scans und ein vorgeschlagener Wortlaut einer Abschrift (Gruppe **Abschriften
+zu entscheiden**, siehe [R3.4.1](R3-verification-and-citation.md#R3.4.1)). Entscheidungen stehen in der Liste zuerst.
 
 - **Bedienung:** Terminal: **Was wartet** → Eintrag; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Gilt seit:** Forschung 1.14.0. Widersprüche seit 1.20.0, Orte seit 1.25.0, Hypothesen seit 1.28.0.
+- **Gilt seit:** Forschung 1.14.0. Widersprüche seit 1.20.0, Orte seit 1.25.0, Hypothesen seit 1.28.0, Abschriften seit 1.29.0.
 
-<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
+<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 · 1.29.0: src/core/waiting.ts:375-390 (kind transcript, section decide, wait.group.transcripts) -->
 
 <a id="R6.3.1"></a>
 ### R6.3.1 Erlaubnis eines Archivs
@@ -235,9 +236,12 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
   von `strom batch`); der Agent schlägt sie nur vor ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Ab Forschung 1.29.0:** das gilt bei **Der Mensch entscheidet**; ohne gespeicherte Wahl entscheidet die KI
   ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). **Die KI entscheidet** dort speichern, wo **Der Mensch
-  entscheidet** gespeichert ist, oder diese Wahl entfernen, darf nur der Mensch.
+  entscheidet** gespeichert ist, oder diese Wahl entfernen, darf nur der Mensch. Nur der Mensch entscheidet auch, was mit einer erneut gelesenen
+  Quelle weiter geschieht (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), und über einen
+  vorgeschlagenen Wortlaut einer Abschrift, die er geschrieben oder bestätigt hat (`strom source proposal`, auch die
+  Rücknahme, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
 
 <a id="R6.7"></a>
 ## R6.7 Gesendet, Antwort und Rückkehr in die Warteschlange

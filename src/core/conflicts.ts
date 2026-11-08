@@ -7,6 +7,7 @@ import type { Tree } from "./tree.ts";
 import { claimText } from "./people.ts";
 import { settledClaim } from "./labels.ts";
 import { actsAsArchive } from "./state.ts";
+import { PROPOSAL_NOW } from "./origin.ts";
 
 type Claim = Conflict["claims"][number];
 
@@ -18,7 +19,8 @@ export const USER_EDIT = "the user's edit";
  * person removed by one send whom another copy edited (PERSON: whether they come back).
  */
 export function isEditConflict(c: Conflict): boolean {
-  return Boolean(c.edit || c.parents || (["NAME", "SEX", "NPFX", "NSFX", "PERSON"].includes(c.fact ?? "") && c.claims.some((x) => x.note === USER_EDIT)));
+  // an agent's proposal to change a value of the user's or an import's (core/origin.ts) is the user's to decide alike
+  return Boolean(c.proposal || c.edit || c.parents || (["NAME", "SEX", "NPFX", "NSFX", "PERSON"].includes(c.fact ?? "") && c.claims.some((x) => x.note === USER_EDIT)));
 }
 
 /**
@@ -37,6 +39,8 @@ export function conflictsToDecide(tree: Tree): Conflict[] {
 export function sideOf(c: Conflict, claim: Claim): "user" | "research" | undefined {
   if (!isEditConflict(c)) return undefined;
   if (claim.note === USER_EDIT) return "user";
+  // a proposal (core/origin.ts): the value now is the user's side, the one proposed the research's
+  if (c.proposal && claim.note?.startsWith(PROPOSAL_NOW)) return "user";
   if (claim.note?.startsWith("the research")) return "research";
   return undefined;
 }
@@ -56,7 +60,8 @@ const BY_SIDE = new Set(["NAME", "SEX", "NPFX", "NSFX", "PERSON"]);
  */
 export function sidesOf(c: Conflict): { user: Claim; research: Claim } | undefined {
   if (!isEditConflict(c) || c.parents || c.fact === "FAMC") return undefined;
-  if (!c.edit && !BY_SIDE.has(c.fact ?? "")) return undefined;
+  // an agent's proposal (core/origin.ts), its retraction too: the value now against the one proposed
+  if (!c.edit && !c.proposal && !BY_SIDE.has(c.fact ?? "")) return undefined;
   const user = claimOf(c, "user");
   const research = claimOf(c, "research");
   return user && research ? { user, research } : undefined;

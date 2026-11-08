@@ -294,7 +294,7 @@ test("sync: a position from the app is the person's hand (by person, its time; t
       .replace("2 PLAC Лгота\n", "2 PLAC Лгота\n3 MAP\n4 LATI N55.7\n4 LONG E37.6\n");
     const file = path.join(w.dir, "mapa.ged");
     fs.writeFileSync(file, moved);
-    await w.ok(["sync", file, "--apply"]);
+    await w.ok(["sync", file, "--apply"], { env: { STROM_FOR_APP: "1" } }); // the app's send: the person's (the bridge)
     const l1 = place(w, "L0001");
     assert.deepEqual(l1.coords && [l1.coords.lat, l1.coords.lon], [49.61, 15.23]);
     assert.equal(l1.locating?.by, "person");

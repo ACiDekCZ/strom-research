@@ -99,11 +99,15 @@ berechnet die App die Belegstufe der Person ([R3.8.1](R3-verification-and-citati
   Verlässlichkeit und derselben Notiz; aus der Signatur verschwindet die Seite, aus der Notiz die Zeilen mit der
   Seite und mit dem Eintragsdatum. Nennt der Titel des Buches eine Person aus dem Stammbaum, wird ein Titel nach der
   zitierten Angabe vorgeschlagen.
-- **Weiterer Eintrag aus demselben Buch** (Betrachter und Editor der Quelle): eine neue Quelle mit demselben Archiv,
-  derselben Signatur und demselben Link; aus dem Etikett einer Zitation geöffnet, wird sie sofort dort zitiert.
-- **Gilt seit:** App 3.1.0 (**Zuletzt verwendet**, **Weiterer Eintrag aus demselben Buch**); **Andere Seite** 3.9.0
+- **Weiterer Eintrag aus demselben Buch** (Betrachter und Editor der Quelle): eine neue Quelle mit demselben Archiv
+  und demselben Link; die Signatur ohne Nummer und Datum des Eintrags, also Buch, Bild und Seite („Buch 12, Bild 5,
+  S. 3, 2. Eintrag (3. 4. 1801)“ → „Buch 12, Bild 5, S. 3“). Eine Signatur, in der die App den Teil des Eintrags
+  nicht erkennt, bleibt ganz und zur Prüfung markiert. Aus dem Etikett einer Zitation geöffnet, wird sie sofort dort
+  zitiert.
+- **Gilt seit:** App 3.1.0 (**Zuletzt verwendet**, **Weiterer Eintrag aus demselben Buch**); **Andere Seite** 3.9.0;
+  3.25.0: **Weiterer Eintrag aus demselben Buch** ohne Nummer und Datum des Eintrags
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
 
 <a id="A3.3"></a>
 ## A3.3 Ausschnitt des Eintrags

@@ -203,7 +203,8 @@ register({
     const level = ctx.settings.agentPermissions();
     // Codex runs strom's rules before its browser only once the person confirms them in Codex (/hooks): said until then,
     // never confirmed by strom (spec 062 K3.3)
-    const hooksSay = agent === "codex" && ["untrusted", "modified"].includes(codexHookState(tree.root, ctx.env)) ? ui(lang, "ui.setup.codex.hooks", { how: ui(lang, "ui.doc.codexhooks.how") }) : undefined;
+    // — Codex in the terminal only: the ChatGPT app's browser calls no hook of the tree (spec 062 K6.3)
+    const hooksSay = agent === "codex" && where === "terminal" && ["untrusted", "modified"].includes(codexHookState(tree.root, ctx.env)) ? ui(lang, "ui.setup.codex.hooks", { how: ui(lang, "ui.doc.codexhooks.how.terminal") }) : undefined;
 
     // In the agent's desktop app: a link opens a conversation in the tree folder with the first
     // message filled in. The app reads the tree's instructions and permissions itself; the level of
@@ -219,7 +220,8 @@ register({
       // person picks there — the one chosen in strom named
       const chosen = ctx.settings.models(agent, tree.config).lead;
       if (agent !== "claude" && !(agent === "opencode" && chosen)) say.push(chosen ? ui(lang, "ui.chat.app.model.chosen", { app: app.name, model: chosen }) : ui(lang, "ui.chat.app.model", { app: app.name }));
-      if (hooksSay) say.push(hooksSay);
+      // (no word of Codex's hooks here: the ChatGPT app calls no hook of the tree, nothing to confirm for its browser —
+      // spec 062 P6; its browser said in the setup and strom doctor, never at each conversation)
       if (agentHere && opened) say.push(ui(lang, "ui.chat.handover.end"));
       return { text: say.join("\n"), data: { agent, app: app.name, link, opened, ...(agentHere ? { handover: "app" } : {}) } };
     }

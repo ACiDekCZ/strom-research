@@ -143,7 +143,8 @@ test("undone, a name the sync added goes even when it is the one shown; a person
   const file = send("Karel /Dvořák/", "Marie");
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("1 NAME Marie\n", "1 NAME Marie\n1 NAME Marie /Nováková/\n"));
   const input = (await w.ok(["sync", file, "--apply", "--json"])).json.input as string;
-  await w.ok(["name", "primary", "P0002", "Marie /Nováková/"]);
+  // the person (the app's name is the user's value: an agent would only propose it)
+  await w.ok(["name", "primary", "P0002", "Marie /Nováková/"], { tty: true });
   assert.match((await w.ok(["person", "show", "P0002"])).out, /^P0002 Marie Nováková/, "shown by the app's name now");
   const undone = await w.ok(["sync", "undo", input]);
   // the line says which name goes, and whose (found on Windows: the person only, not the name)
@@ -272,9 +273,10 @@ test("the sex and the name changed in the app and by the research since the copy
   const { w, send } = await adopted();
   // the copy the app was given: Karel, a man
   const file = send("Jaroslav /Dvořák/");
-  // the research since: his sex unknown, his name read otherwise
-  await w.ok(["person", "edit", "P0001", "--sex", "U", "--reason", "the entry does not say"]);
-  await w.ok(["person", "edit", "P0001", "--name", "Karel /Dvořáček/", "--reason", "the register has Dvořáček"]);
+  // the research since: his sex unknown, his name read otherwise (by the person: the adopted values are the user's, an
+  // agent would only propose a change of them)
+  await w.ok(["person", "edit", "P0001", "--sex", "U", "--reason", "the entry does not say"], { tty: true });
+  await w.ok(["person", "edit", "P0001", "--name", "Karel /Dvořáček/", "--reason", "the register has Dvořáček"], { tty: true });
   // the user in the app: a woman, Jaroslav
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/(1 REFN P0001\n2 TYPE strom-research\n1 NAME [^\n]+\n)1 SEX M/, "$11 SEX F"));
   const r = (await w.ok(["sync", file, "--apply", "--json"])).json;

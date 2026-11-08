@@ -135,6 +135,67 @@ Cytat mówi, gdzie dokładnie w źródle stoi dana. Źródło to jeden wpis; kil
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
+<a id="R3.4.1"></a>
+### R3.4.1 Transkrypcję człowieka zmienia tylko człowiek
+
+Transkrypcji, którą człowiek napisał lub potwierdził, nie zmieni nikt poza człowiekiem. Inne brzmienie od agenta
+człowiek dostaje tylko jako propozycję. Odczyt przez model AI jest propozycją; pewność daje sprawdzenie przez
+człowieka.
+
+- **Pilnuje kod:**
+  - transkrypcja człowieka to transkrypcja napisana ręcznie w jego terminalu albo z aplikacji z zaznaczonym
+    **Transkrypcja zweryfikowana** lub z ustawieniem **Moje transkrypcje źródeł → Udokumentowane**
+    ([R3.5.1](#R3.5.1)). To, co pod kontem człowieka zapisały importy, konwersje i partie, transkrypcją człowieka nie
+    jest;
+  - takiej transkrypcji nie zmieni żadne polecenie agenta: edycja, partia, synchronizacja, poprawka, cofnięcie, import
+    ani konwersja. Jako człowiek może zapisywać tylko jego terminal i most aplikacji Strom;
+  - inne brzmienie od agenta (`strom source edit S… --transcript …`) zostaje zamiast tego zaproponowane: notatka przy
+    źródle i jedno zadanie dla człowieka na źródło. Czeka w **Co czeka**, grupa **Do rozstrzygnięcia – transkrypcje**.
+    Żadna kolejka go nie oferuje; agent go nie weźmie, nie zamknie, nie odłoży ani nie uruchomi;
+  - decyduje tylko człowiek:
+    - **Przyjmij propozycję**: transkrypcją staje się proponowane brzmienie, a potwierdzenie człowieka przechodzi na
+      nie;
+    - **Zostaw dotychczasową**: transkrypcja zostaje; proponowane brzmienie jest odrzucone i nie zostanie
+      zaproponowane ponownie, ani jego miejsca;
+    - **Cofnij** (po jednym i drugim): transkrypcja i potwierdzenie jak wcześniej, a propozycja znów czeka. Cofnięcie
+      zostanie odrzucone, gdy transkrypcja w międzyczasie się zmieniła albo czeka inna propozycja.
+- **Transkrypcja, której człowiek nie potwierdził:** agent zmienia ją tylko w zadaniu i tylko tam, gdzie pokazuje to
+  sam akt na skanie, z powodem. Nowy odczyt ([R8.8.2](R8-reading-scans.md#R8.8.2)) jest tylko podpowiedzią: gdzie nie
+  da się tego rozstrzygnąć na skanie, agent zapisuje notatkę przy źródle, a transkrypcja zostaje.
+- **Tylko metodyka:** zadanie z nowego odczytu agent zamyka, oglądając sam akt na skanie obok obu odczytów.
+- **Obsługa:** aplikacja: podgląd źródła, blok **Propozycja agenta do transkrypcji** (**Cały tekst obok siebie**,
+  **Przyjmij propozycję**, **Zostaw dotychczasową**, **Cofnij**); przy transkrypcji potwierdzonej przez człowieka po
+  nowym odczycie **Odłóż do oceny** ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: **Co czeka** → **Proponowane
+  brzmienie** / **Transkrypcja bez zmian**; `strom source proposal S… --take proposal|keep|undo`.
+- **Dlaczego:** transkrypcja człowieka to jego własny odczyt aktu. Zasada projektu: nic potwierdzonego przez człowieka
+  nie zostaje nadpisane; nowy wynik, który się różni, jest zadaniem albo propozycją do rozstrzygnięcia.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:c2a690ea strom help source proposal (--take proposal|keep|undo, --task, --proposed) · src/core/waiting.ts:375-390 (kind transcript, group transcripts, choices proposal/keep, ne TERMINAL_ONLY) · src/core/sync.ts:3862 (app read = evidence || verified) · assets/lang/cs.json proposal.*, ui.proposal.*, wait.group.transcripts, read.source.why, read.source.done · CHANGELOG.cs.md 1.29.0 („Přepis, který uživatel přečetl nebo potvrdil, je uživatelův“) · commity 284605bf, 8803cd70 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 4, 5) · app:6bd8609e strings.ts read.pTitle, pWhole, pAccept, pKeep, pUndo, pAccepted2, pKept2, pNote, tReview · src/ui/read-source-state-view.ts proposalHtml · spec 065 K2.3, spec 059 K3.2 -->
+
+<a id="R3.4.2"></a>
+### R3.4.2 Nakładające się wycinki są jednym
+
+Dwa wycinki tego samego obrazu, które mocno się nakładają, to jeden wpis wycięty dwa razy. Badanie łączy je w jeden.
+
+- **Pilnuje kod:**
+  - dwa wycinki tego samego obrazu, które nakładają się co najmniej w 30 % mniejszego z nich, łączą się
+    w prostokąt obejmujący oba, w miejscu pierwszego. Wielokrotnie: trzy wycinki w rzędzie to jeden;
+  - wycinek, który leży co najmniej w 90 % wewnątrz większego (szczegół imienia lub daty, wpis obok całej strony),
+    zostaje. Dwa prawie jednakowe prostokąty (każdy co najmniej w 90 % w drugim) się łączą;
+  - wycinki oddzielne, tylko się stykające lub na innych obrazach zostają;
+  - łączy się tylko to, co zapisało badanie (agent, sesja, partia agenta, `strom clips`); agent dostaje informację, co
+    się połączyło. Wycinek od człowieka (terminal, aplikacja) nigdy się nie zmienia;
+  - starsze badanie łączy się raz, przy pierwszym starcie nowej wersji albo starcie mostu: tylko wycinki, które według
+    historii zapisał agent lub sesja, jedna zapisana operacja na źródło. Transkrypcja i potwierdzenie człowieka
+    zostają.
+- **Dlaczego:** czytelnik jednym wycinkiem utnie dolne wiersze, drugim prawą część, a aplikacja pokazuje potem dwa
+  prawie jednakowe wycinki tego samego wpisu.
+- **Obsługa:** nic: łączy się samo przy zapisie wycinka (`strom source add|edit --clip` przez agenta, `strom clips`).
+- **Obowiązuje od:** badanie 1.29.0
+
+<!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
 <a id="R3.5"></a>
 ## R3.5 Ślepy drugi odczyt
 

@@ -5,9 +5,52 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.30.0
+
+*In preparation: the betas up to 1.30.0-beta.1. The section is complete with the release.*
+
+- **Values from an imported family tree are guarded.** A tree from another program (GEDCOM) gives leads: the agent
+  changes such a value only by a record it cites, and the value from the family tree stays kept beside it ("originally
+  from the family tree: …") and can be put back (`strom event revert`, `strom person revert`). Without a cited record –
+  and always when the user decides the hypotheses – the agent only proposes, as a conflict for the user to decide. What
+  the user entered or changed, in the Strom app or in strom, the agent never changes: it only proposes – nor through a
+  file it brings in with `strom sync`. The agent's proposals are told apart in `strom conflict list` and `show`, and
+  close by themselves once the value proposed holds. A research made before is marked once after the update (which
+  values came from an imported tree, which are the user's): no value changes, and `strom fixes undo origins` takes the
+  marks back. A proposal whose value has changed since it was made (the user edited it) is out of date: it cannot be
+  taken – nothing is written over the newer value – only closed keeping the value. What a proposal cannot carry (a cause
+  changed together with a date) is said in the sync's result, never lost.
+
+- **A family tree imported again finds its people.** The IDs a program gave its people and families (MyHeritage's,
+  Gramps', FamilySearch's and others' `_UID`, `EXID`, `_FSFTID`…) are kept: a tree of the same program taken in again
+  (or into the research from another program) finds the people by them – never twice, the new facts added as leads; a
+  person only maybe the same (another name, another ID of FamilySearch) is said, never joined. The IDs go back to the
+  Strom app with the research. What the file has that is not taken (media, the program's own tags) is counted in the
+  result. In a research made before, the IDs of its earlier imports are read from their files, so the
+  same tree taken in again before the marks are set adds nobody twice either.
+
+- **A fact shown or edited at the terminal** (`strom event show`, `strom event edit`) is said in the research's
+  language. In the Strom app, a family tree taken into the research no longer gives the first line of it as the
+  reference of the whole tree: each fact says its own.
+
+- **Family trees from Windows programs in code page 1250 or 1252 ("ANSI")** are read with their letters right – Czech,
+  Polish, German, as the Strom app reads them. A character that cannot be read is said, never replaced silently.
+
+- **The setup with Codex in the ChatGPT app** no longer speaks of Codex's hooks there: that line is for Codex in the
+  terminal.
+
+- **The ChatGPT app's browser, said as it is.** The ChatGPT app's browser runs through ChatGPT's cloud and calls no rule
+  of strom's: strom no longer says it watches it, and the agent working there goes to an archive with restrictions only
+  through the person (`strom task wait --images`). `strom doctor` and the setup say so as a warning, with the advice for
+  ChatGPT's "cloud browser" dialog at such an archive: *Deny*, never access to all relevant sites. Codex in the terminal
+  stays watched – now also its browser opened through `createBrowserTab`.
+
+- **A transcript confirmed in the Strom app shortly after midnight** carries the new day, by this computer's calendar
+  (it said the day before).
+
 ## 1.29.0
 
-*In preparation: the betas up to 1.29.0-beta.9. The section is complete with the release.*
+*2026-11-08 · goes with the Strom app 3.25.0.*
 
 - **Who decides the hypotheses: the user, or the AI.** A new setting of the research (`strom config set hypotheses.decide`,
   the setup's question beside the other choices, Settings in strom's menu, the Strom app's research settings): *the AI decides*
@@ -20,10 +63,12 @@ The changes of each version in short. The full notes and the install lines are o
   first, *the user decides* chosen there is kept; once the user decides, only a person turns the AI's deciding on again,
   with a second yes.
 
-- **Every hypothesis can be decided from the menu.** What waits offers also the open hypotheses without the agent's
-  proposal – decided with a variant and a reason, or left open –, and a decided or set-aside hypothesis can be decided
-  again with a reason, the earlier decision kept readable; the same from one person's review and from a link of the
-  Strom app. With the user deciding, the agent proposes a decision wherever the records point to one variant.
+- **Every hypothesis can be decided from the menu.** With the user deciding, what waits offers also the open
+  hypotheses without the agent's proposal – decided with a variant and a reason, or left open; with the AI deciding
+  (the default) it offers only the agent's proposals. From one person's review and from a link of the Strom app any
+  hypothesis can be decided, whoever decides, and a decided or set-aside hypothesis can be decided again with a reason,
+  the earlier decision kept readable. With the user deciding, the agent proposes a decision wherever the records point
+  to one variant.
 
 - **The research in the Strom app stays on.** The bridge to the Strom app no longer ends by itself after two hours with
   nobody asking: it runs until it is turned off or the computer goes off (`live.idleMinutes` 0 by default; a value set

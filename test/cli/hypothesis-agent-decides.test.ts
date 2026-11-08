@@ -281,9 +281,10 @@ test("the Strom file says who decided (_BY agent, DECI, _AT) only for an app tha
     // the gate: no version released yet — another copy of the app at once, the production app only from its version
     const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
     const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-    assert.equal(APP_SHOWS_HYPOTHESIS_DECIDER, undefined, "set from the app's version that shows it, never a beta's");
+    assert.equal(APP_SHOWS_HYPOTHESIS_DECIDER, "3.25.0", "set from the app's version that shows it, never a beta's");
     assert.equal(appShowsHypothesisDecider(prod, "3.24.0"), false);
-    assert.equal(appShowsHypothesisDecider(prod), false);
+    assert.equal(appShowsHypothesisDecider(prod), true, "an unknown version: today's");
+    assert.equal(appShowsHypothesisDecider(prod, "3.25.0"), true);
     assert.equal(appShowsHypothesisDecider(beta, "3.24.0"), true);
     assert.equal(appShowsHypothesisDecider(prod, "3.25.0", "3.25.0"), true);
     assert.equal(appShowsHypothesisDecider(prod, "3.24.9", "3.25.0"), false);

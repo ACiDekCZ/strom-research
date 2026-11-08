@@ -341,6 +341,28 @@ Każde działanie badania ma jedno z trzech oznaczeń według tego, co otwiera.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
 
+<a id="S4.5.3"></a>
+### S4.5.3 Otwarcie zadania w kolejce
+
+**Otwórz zadanie T…** otwiera zadanie w kolejce w terminalu badania. Terminal pokazuje zadanie i pyta, co z nim teraz.
+
+- **Granice:**
+  - terminal pokazuje **Zadanie T… jest w kolejce: agent weźmie je, gdy przyjdzie jego kolej.**, **Dlaczego: …**
+    i **Gotowe, gdy: …** i pyta **Co teraz?**:
+    - **Przejść je z agentem (…) teraz, w rozmowie**: najpierw pyta i mówi, ile kosztowały tu podobne sesje, albo że
+      tego jeszcze nie wiadomo;
+    - **Przesunąć je w kolejce do przodu (najwyższy priorytet)**: priorytet 5; jeśli zadanie już go ma, nic się nie
+      dzieje;
+    - **Zostawić je w kolejce bez zmian**;
+  - Enter lub 0 niczego nie zapisuje. Z zadaniem, nad którym agent właśnie pracuje, nic się nie dzieje;
+  - zadanie, które czeka na człowieka, otwiera swoje dotychczasowe pytanie.
+- **Obsługa:** aplikacja: **Otwórz zadanie T…** (oznaczenie terminal) po utworzeniu zadania z nowego odczytu i w wierszu
+  przy źródle ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` bierze zadanie z kolejki od razu
+  do rozmowy.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
 <a id="S4.6"></a>
 ## S4.6 Co jest tylko w terminalu
 

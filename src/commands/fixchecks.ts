@@ -45,6 +45,7 @@ import { EDIT_DECISIONS_SINCE, editDecisionFixes, editDecisionsDone, type EditDe
 import { wokenWaitFixes, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
 import { READERS_SINCE, readerFixes, readersDone, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
 import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
+import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../core/originfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -97,7 +98,7 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
@@ -975,8 +976,30 @@ export const PROVEN_ORIGINALS: FixCheck = {
   applied: (tree) => provenDone(tree).length,
 };
 
+/**
+ * Until 1.30.0 nothing said where a value came from: an imported family tree of another program, the user, the research
+ * (core/origin.ts). Since then an agent changes a family tree's value only on a record and the user's never (it
+ * proposes); the values of an older research are marked once by rules (core/originfix.ts) — only marks, no value
+ * changed. Applied by itself once, at the first start of this strom after its backup.
+ */
+export const ORIGINS: FixCheck = {
+  id: "origins",
+  since: ORIGINS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  // what an agent may change: an archive says nothing of it (marked by itself there too)
+  agentWork: true,
+  detect: (tree) => {
+    const f = originFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => originsDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS];
+
 
 /**
  * A check offered where nobody researches (an archive, a research waiting for its agent): one that rewrites by rules and

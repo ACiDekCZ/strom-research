@@ -88,13 +88,14 @@ and its images can be seen**, **Only to be viewed there** or **It does not work*
 
 The section **decisions** gathers the questions that hold the agent up: an archive's permission, downloaders to
 confirm, milder terms, a site to check, a story, a place (see [R4](R4-places.md)), a conflict (see
-[R5](R5-conflicts.md)), a hypothesis (see [R6.3.4](#R6.3.4)), trees from the app and the reading of scans. Decisions come first in the list.
+[R5](R5-conflicts.md)), a hypothesis (see [R6.3.4](#R6.3.4)), trees from the app, the reading of scans and a proposed wording of a transcription (group **Transcripts to
+decide**, see [R3.4.1](R3-verification-and-citation.md#R3.4.1)). Decisions come first in the list.
 
 - **Controls:** terminal: **What waits** → the item; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0, hypotheses from 1.28.0.
+- **Since:** research 1.14.0. Conflicts from 1.20.0, places from 1.25.0, hypotheses from 1.28.0, transcriptions from 1.29.0.
 
-<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
+<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 · 1.29.0: src/core/waiting.ts:375-390 (kind transcript, section decide, wait.group.transcripts) -->
 
 <a id="R6.3.1"></a>
 ### R6.3.1 An archive's permission
@@ -230,9 +231,11 @@ asks the person in a system window, or refuses the command.
   `strom batch`); the agent only proposes it ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **From research 1.29.0:** this holds with **The user decides**; without a saved choice the AI decides
   ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Saving **The AI decides** where **The user decides** is saved, or
-  removing that choice, only a person may do.
+  removing that choice, only a person may do. Only a person also decides what to do next with a source read again
+  (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), and a proposed wording of a transcription they wrote
+  or confirmed (`strom source proposal`, also undoing it, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
 
 <a id="R6.7"></a>
 ## R6.7 Sent, the answer and the return to the queue

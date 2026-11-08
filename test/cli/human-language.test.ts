@@ -142,8 +142,10 @@ for (const lang of ["cs", "de"] as const) {
     assert.match(help, lang === "cs" ? /\nNápověda výše je pro agenta\. Nápověda pro člověka v češtině: strom help --human\n$/ : /\nDie Hilfe oben liest ein Agent\. Hilfe für Menschen auf Deutsch: strom help --human\n$/);
     assert.doesNotMatch((await w.run(["help"], { tty: true, env: { CLAUDECODE: "1" } })).out, /--human/, "an agent: none");
     // what a person may mistype
-    for (const args of [["person", "show", "P0099"], ["person", "show", "Nikdo"], ["conflict", "show", "X0099"], ["family", "show", "F0099"], ["task", "show", "T0099"], ["source", "show", "S0099"], ["person", "card", "P0099"], ["person", "show"], ["live", "status"], ["sync", "undo"], ["sync", "undo", "I0099"], ["event", "edit", e, "--date", "1871"], ["event", "edit", e, "--status", "possible", "--place", "Lhota"], ["event", "retract", e], ["person", "edit", "P0001", "--sex", "M"], ["person", "retract", "P0002"], ["person", "merge", "P0001", "P0002"], ["person", "add", "--name", "Jan"], ["person", "list", "--bogus"], ["person", "list", "--full=1"], ["person", "list", "--research"], ["conflict", "list", "--al"]])
+    for (const args of [["person", "show", "P0099"], ["person", "show", "Nikdo"], ["conflict", "show", "X0099"], ["family", "show", "F0099"], ["task", "show", "T0099"], ["source", "show", "S0099"], ["person", "card", "P0099"], ["person", "show"], ["live", "status"], ["sync", "undo"], ["sync", "undo", "I0099"], ["event", "edit", e, "--date", "1871"], ["event", "edit", e, "--status", "possible", "--place", "Lhota"], ["event", "retract", e], ["person", "retract", "P0002"], ["person", "merge", "P0001", "P0002"], ["person", "add", "--name", "Jan"], ["person", "list", "--bogus"], ["person", "list", "--full=1"], ["person", "list", "--research"], ["conflict", "list", "--al"]])
       assert.notEqual((await run(args)).code, 0, args.join(" "));
+    // the sex a record proves changed without a reason, at the person's terminal (the user's value: from an agent only a proposal)
+    assert.notEqual((await run(["person", "edit", "P0001", "--sex", "M"], undefined, true)).code, 0);
     assert.deepEqual(englishLines(said, lang), []);
     w.cleanup();
   });

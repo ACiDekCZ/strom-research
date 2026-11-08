@@ -11,7 +11,8 @@ import type { Lesson } from "../core/model.ts";
 import { findEventOwner } from "../core/actions.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { typeOfId } from "../core/tree.ts";
-import { eventLine } from "./people.ts";
+import { eventLine, wordsFor } from "./people.ts";
+import { displayName } from "../core/people.ts";
 
 function showLesson(ctx: Context, id: string): Result {
   const l = requireRecord<Lesson>(ctx.tree(), id, "lesson");
@@ -25,9 +26,17 @@ function showLesson(ctx: Context, id: string): Result {
 }
 
 function showEvent(ctx: Context, id: string): Result {
-  const { owner, event } = findEventOwner(ctx.tree(), id);
+  const tree = ctx.tree();
+  const { owner, event } = findEventOwner(tree, id);
+  // a person at a terminal reads it in the research's language; an agent the English it knows
+  const w = wordsFor(ctx, tree);
+  const who = owner.type === "person" ? `${owner.id} ${displayName(owner)}` : owner.id;
   return {
-    text: lines(`${event.id} of ${owner.id} (strom ${owner.type} show ${owner.id}: the whole record)`, eventLine(event), event.note ? `note: ${event.note}` : undefined),
+    text: lines(
+      w.say("ui.show.eventOf", `${event.id} of ${owner.id} (strom ${owner.type} show ${owner.id}: the whole record)`, { id: event.id, who, type: owner.type, owner: owner.id }),
+      eventLine(event, w),
+      event.note ? `${w.say("ui.show.note", "note")}: ${event.note}` : undefined,
+    ),
     data: { owner: owner.id, event },
   };
 }

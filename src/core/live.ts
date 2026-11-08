@@ -227,6 +227,13 @@
 //                          confirm.retracted (taking back passes) | confirm.reader (not the research's reading, or the
 //                          user's own of another kind) | confirm.changed (+txt: the wording now), 503 research.busy
 //                          (feature sources.confirm). The Strom file: 2 _TXT, 2 _CONF under 1 _STROM_READ (APP_CONFIRMS_TRANSCRIPTS)
+//   POST <token>/facts/revert {"person": "P…", "ref": "<its 3 _REF>", "part"?: "DATE"|"PLAC"|"VAL"|"GIVN"|"SURN"|"SEX"}:
+//                          the user puts back what an imported family tree said of a value the research or they changed
+//                          (the Strom file's 2 _STROM_WAS: E… a fact, N:P…:<n> a name, SEX:P… a sex; without part every
+//                          part changed) — strom event revert | person revert as the person's, the value theirs from then
+//                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
+//                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
+//                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
 //                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
 //                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
@@ -391,7 +398,7 @@ import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
-import { sameDirection } from "./actions.ts";
+import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
@@ -405,6 +412,7 @@ import { transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
+import { settleHeldProposals, settleOrigins } from "./originfix.ts";
 import { settleClips } from "./clipmerge.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -432,7 +440,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appOpensLinks, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -460,6 +468,7 @@ import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventK
 import { placeEstimate, placeRecord } from "./placehistory.ts";
 import { PLACE_FLAGS, PLACE_TAKES, REQUEST_MAX } from "./placeid.ts";
 import { placesView, placeView, queueView } from "./placesview.ts";
+import { decodeGedcom, looksLikeGedcom } from "../gedcom/encoding.ts";
 
 export interface LiveInfo {
   port: number;
@@ -1235,8 +1244,17 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
   return Object.keys(ids.persons).length || Object.keys(ids.sources).length ? { ids } : {};
 }
 
-/** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
+/** What the bridge does that an app may ask about (each added once, never taken away; origin.ids said only with the IDs sent: bridgeFeatures). */
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids"] as const;
+
+/**
+ * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
+ * carries the original IDs (the gate of the origins, the same version of the app as the file goes by) — an app that is
+ * told so takes the research's file as the IDs' keeper and drops its own (found by the joint check of spec 066).
+ */
+export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
+  return appShowsOrigin(settings, version, gate, beta) ? BRIDGE_FEATURES : BRIDGE_FEATURES.filter((f) => f !== "origin.ids");
+}
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -2050,7 +2068,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
     return {
       strom: VERSION,
-      features: BRIDGE_FEATURES,
+      features: bridgeFeatures(new Settings(env, {}), version),
       ...channelOf(env),
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
@@ -2084,7 +2102,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     strom: VERSION,
     // what this bridge does, for an app to go by rather than the version (a bridge run from the sources says the
     // candidate it is, found on Mac: an app took 1.11.0 for an old research)
-    features: BRIDGE_FEATURES,
+    features: bridgeFeatures(settings, version),
     ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
     // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
@@ -2269,6 +2287,20 @@ export function serveLive(root: string, env: Env): Promise<void> {
     if (done) noteLive(root, `facts proven without the original record: ${counted(done.changed, "fact")} made probable, ${counted(done.left, "fact")} a person made proven waiting for a look`);
   } catch (e) {
     noteLive(root, `the facts proven without the original record not set right now: ${errorText(e)}`);
+  }
+  // where the values came from (an imported family tree, the user): marked once, only marks (spec 066)
+  try {
+    const done = settleOrigins(Tree.open(root, env));
+    if (done) noteLive(root, `where the values came from: ${counted(done.changed, "mark")} in ${counted(done.records, "record")}`);
+  } catch (e) {
+    noteLive(root, `where the values came from not marked now: ${errorText(e)}`);
+  }
+  // an agent's proposals whose value proposed holds now: closed by themselves (no value written)
+  try {
+    const done = settleHeldProposals(Tree.open(root, env));
+    if (done?.length) noteLive(root, `proposals settled by themselves (the value proposed holds now): ${done.map((c) => c.id).join(", ")}`);
+  } catch (e) {
+    noteLive(root, `the proposals that hold not closed now: ${errorText(e)}`);
   }
   // the overlapping clips of one image the research wrote: joined into one (once)
   try {
@@ -2792,6 +2824,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "sources" && sub === "confirm" && !act) {
       writeFor(req, res, origin, confirmWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "facts" && sub === "revert" && !act) {
+      writeFor(req, res, origin, revertWrite());
       return;
     }
     if (req.method === "POST" && t === token && what === "sourceTask" && !sub) {
@@ -3375,7 +3411,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
       }
       try {
         // the version the app says with it (its file writes none of its own): the tree is read as that app means it
-        const text = stampAppVersion(Buffer.concat(chunks).toString("utf8"), saidAppVersion(req));
+        // a GEDCOM's bytes by the same rule as a file's (the app sends UTF-8: the same text), the app's JSON as UTF-8
+        const body = Buffer.concat(chunks);
+        const text = stampAppVersion(looksLikeGedcom(body) ? decodeGedcom(body).text : body.toString("utf8"), saidAppVersion(req));
         if (as === "adopt") {
           if (adopting) {
             reply(409, said(lang(), "ui.sync.bridge.adopting"));
@@ -4893,6 +4931,68 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (!code.startsWith("confirm.") || code === "confirm.app") return undefined;
         const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
         return refused({ status: code === "confirm.none" ? 404 : 409, code: code as ConfirmRefusal["code"], why, params });
+      },
+    };
+  };
+
+  /**
+   * The user putting back what an imported family tree said of a value (POST /facts/revert {person, ref, part?}): strom
+   * event revert (a fact: E…) or person revert --name <n> | --sex (N:P…:<n>, SEX:P…), as the person's in the app — the
+   * ref the Strom file's `3 _REF` under `2 _STROM_WAS`, of the person named (a family's fact: one of its partners).
+   * {ok, reverted, head, parent}; 400 revert.invalid, 404 revert.unknown, 409 revert.nothing, 503 research.busy.
+   */
+  const revertWrite = (): AppWrite => {
+    let before = "";
+    const PARTS: Record<string, string> = { DATE: "date", PLAC: "place", VAL: "value", GIVN: "given", SURN: "surname", SEX: "sex" };
+    const unknown = (why: string) => ({ code: 404, body: refusal(why, "revert.unknown") });
+    const nothing = (why: string) => ({ code: 409, body: refusal(why, "revert.nothing") });
+    return {
+      what: "a family tree's value put back",
+      codes: { badBody: "revert.invalid", busy: "research.busy", failed: "revert.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { person, ref, part } = body;
+        const extra = Object.keys(body).filter((k) => !["person", "ref", "part"].includes(k));
+        if (extra.length || typeof person !== "string" || !/^P\d{1,9}$/iu.test(person.trim()) || typeof ref !== "string" || !ref.trim() || ref.length > 64 || (part !== undefined && (typeof part !== "string" || !PARTS[part.toUpperCase()])))
+          return { code: 400, body: refusal(`the body: {"person": "P…", "ref": "<the value's _REF>", "part"?: "DATE" | "PLAC" | "VAL" | "GIVN" | "SURN" | "SEX"}`, "revert.invalid") };
+        const who = normId(person);
+        const key = ref.trim().toUpperCase();
+        const said = part === undefined ? undefined : PARTS[(part as string).toUpperCase()]!;
+        const m = /^(?:SEX:(P\d{1,9})|N:(P\d{1,9}):(\d{1,4})|(E\d{1,9}))$/u.exec(key);
+        if (!m) return unknown(`no value ${ref}`);
+        before = head(root);
+        if (m[4]) {
+          let owner: Person | Family;
+          try {
+            owner = findEventOwner(tree, normId(m[4])).owner;
+          } catch {
+            return unknown(`no fact ${m[4]}`);
+          }
+          if (owner.id !== who && !(owner.type === "family" && owner.partners.includes(who))) return unknown(`${m[4]} is no fact of ${who}`);
+          if (said === "sex" || said === "given" || said === "surname") return nothing(`a fact has no part ${part}`);
+          return { args: ["event", "revert", normId(m[4]), ...(said ? ["--part", said] : [])] };
+        }
+        const id = normId((m[1] ?? m[2])!);
+        if (id !== who) return unknown(`${key} is no value of ${who}`);
+        const p = tree.get<Person>(id);
+        if (!p || p.type !== "person" || p.retracted) return unknown(`no person ${id}`);
+        if (m[1]) {
+          if (said && said !== "sex") return nothing(`a sex has no part ${part}`);
+          return { args: ["person", "revert", id, "--sex"] };
+        }
+        const n = Number(m[3]);
+        if (!p.names[n - 1]) return unknown(`${id} has no name ${n}`);
+        if (said && said !== "given" && said !== "surname") return nothing(`a name has no part ${part}`);
+        return { args: ["person", "revert", id, "--name", String(n), ...(said ? ["--part", said] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, ...(data.reverted ? { reverted: data.reverted } : {}), head: h, parent: before };
+      },
+      refused(_tree, code, why) {
+        if (code === "revert.unknown") return unknown(why);
+        if (code === "revert.nothing") return nothing(why);
+        if (code === "revert.part") return { code: 400, body: refusal(why, "revert.invalid") };
+        return undefined;
       },
     };
   };

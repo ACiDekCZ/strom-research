@@ -453,10 +453,10 @@ export function appShowsHypothesisLinks(settings: Settings, version?: string): b
  * The Strom app shows who decided a hypothesis (spec 060, the app's ZADANI_VYZKUM_kdo-rozhoduje-hypotezy.md §3): under a
  * decided or abandoned 1 _STROM_HYPO, 2 _BY agent (only an agent's decision; none: the person's), 2 DECI (the decision
  * as the research wrote it) and 2 _AT (its day) — and an agent's decision is sent even with no _LINK of its variants.
- * Not released yet (undefined): another copy of the app (its beta, its development: strom.app.url) gets it at once;
- * once released an app of unknown version is today's (an older one only skips the tags).
+ * From 3.25.0 (2026-11-07); another copy of the app (its beta, its development: strom.app.url) gets it at once; an app
+ * of unknown version is today's (an older one only skips the tags).
  */
-export const APP_SHOWS_HYPOTHESIS_DECIDER: string | undefined = undefined;
+export const APP_SHOWS_HYPOTHESIS_DECIDER: string | undefined = "3.25.0";
 
 export function appShowsHypothesisDecider(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_HYPOTHESIS_DECIDER): boolean {
   if (anotherCopy(settings)) return true;
@@ -611,11 +611,11 @@ export function appReadsPlaceRecords(settings: Settings, version?: string, gate:
  * The first Strom app that lets the user confirm the research's transcript of a source (spec 022 P2; the app's
  * ZADANI_VYZKUM_potvrzeni-prepisu.md): under 1 _STROM_READ of each source with a transcript, 2 _TXT <mark> (the
  * wording the research has, core/readers.ts transcriptMark — the app gives it back through POST /sources/confirm) and
- * 2 _CONF <day> while the user's confirmation of that wording holds. Not released yet (undefined): another copy of the
- * app (its beta, its development) gets them at once, from APP_CONFIRMS_TRANSCRIPTS_BETA once that is set; once released
- * an app of unknown version is today's (an older one skips the tags and keeps _STROM_READ).
+ * 2 _CONF <day> while the user's confirmation of that wording holds. From 3.25.0 (2026-11-07); another copy of the app
+ * (its beta, its development) gets them at once, from APP_CONFIRMS_TRANSCRIPTS_BETA once that is set; an app of unknown
+ * version is today's (an older one skips the tags and keeps _STROM_READ).
  */
-export const APP_CONFIRMS_TRANSCRIPTS: string | undefined = undefined;
+export const APP_CONFIRMS_TRANSCRIPTS: string | undefined = "3.25.0";
 
 /** The first beta of the app that confirms a transcript (another copy of the app gets the marks from it; none: at once). */
 export const APP_CONFIRMS_TRANSCRIPTS_BETA: string | undefined = undefined;
@@ -632,12 +632,12 @@ export function appConfirmsTranscripts(settings: Settings, version?: string, gat
 /**
  * The first Strom app that reads a source again from its original through the bridge (spec 059 P3; the app's
  * ZADANI_VYZKUM_cteni-modely.md point 6, O3): 1 _STROM_ORIG Y under SOUR where the research has the source's original on
- * this computer and a transcript to hold a new reading against (core/sourceread.ts readsAgain), never in an archive. Not
- * released yet (undefined): another copy of the app (its beta, its development) gets it at once, from
- * APP_READS_SOURCES_AGAIN_BETA once that is set; once released an app of unknown version is today's (an older one lists
- * the tag as one it skips and loses nothing).
+ * this computer and a transcript to hold a new reading against (core/sourceread.ts readsAgain), never in an archive.
+ * From 3.25.0 (2026-11-07); another copy of the app (its beta, its development) gets it at once, from
+ * APP_READS_SOURCES_AGAIN_BETA once that is set; an app of unknown version is today's (an older one lists the tag as one
+ * it skips and loses nothing).
  */
-export const APP_READS_SOURCES_AGAIN: string | undefined = undefined;
+export const APP_READS_SOURCES_AGAIN: string | undefined = "3.25.0";
 
 /** The first beta of the app that reads a source again (another copy of the app gets the mark from it; none: at once). */
 export const APP_READS_SOURCES_AGAIN_BETA: string | undefined = undefined;
@@ -649,6 +649,27 @@ export function appReadsSourcesAgain(settings: Settings, version?: string, gate:
   if (!gate) return false;
   if (!v) return true;
   return isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The first Strom app that shows where a value came from (spec 066 U3; the app's ZADANI_VYZKUM_puvod-importu.md, point
+ * 3): `2 _STROM_ORIGIN import Ix [parts] | user | research` under each fact and NAME, `1 _STROM_SEX_ORIGIN` on a person,
+ * `2 _STROM_WAS` (the family tree's value an agent changed on a record, with `3 _STROM_IMPORT`, `3 _PART`, `3 _REF`),
+ * `1 _STROM_IMPORT` in the header, `2 _STROM_KIND import|user` under a proposal's conflict — in the Strom file and the
+ * bridge's /tree.ged. Not released yet; an app of unknown version stays off (today's file, without the marks); another
+ * copy of the app (its beta, its development) from APP_SHOWS_ORIGIN_BETA.
+ */
+export const APP_SHOWS_ORIGIN: string | undefined = undefined;
+
+/** The first beta of the app that shows where a value came from (another copy of the app gets the marks from it). */
+export const APP_SHOWS_ORIGIN_BETA: string | undefined = "3.26.0-beta.1";
+
+/** Does the Strom app of this version show where a value came from (_STROM_ORIGIN, _STROM_WAS, _STROM_KIND)? */
+export function appShowsOrigin(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
 }
 
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */

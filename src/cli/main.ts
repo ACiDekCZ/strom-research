@@ -25,6 +25,7 @@ import { timingSaid } from "./timing.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { settleReaders } from "../core/readerfix.ts";
 import { settleProven } from "../core/provenfix.ts";
+import { settleHeldProposals, settleOrigins } from "../core/originfix.ts";
 import { settleClips } from "../core/clipmerge.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { revivePhone } from "../core/phone.ts";
@@ -442,6 +443,18 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
           settleProven(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its bridge's start settles it
+        }
+        // …and where the values came from (an imported family tree, the user): marked once, only marks (spec 066)
+        try {
+          settleOrigins(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start marks them
+        }
+        // …and an agent's proposals whose value proposed holds now: closed by themselves (no value written)
+        try {
+          settleHeldProposals(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start closes them
         }
         // …and the overlapping clips of one image the research wrote are one entry's: joined into one (once, one commit)
         try {

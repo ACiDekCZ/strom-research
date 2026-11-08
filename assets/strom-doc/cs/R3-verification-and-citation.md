@@ -127,6 +127,62 @@ Citace říká, kde přesně v prameni údaj stojí. Pramen je jeden zápis; ví
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
+<a id="R3.4.1"></a>
+### R3.4.1 Přepis člověka mění jen člověk
+
+Přepis, který člověk napsal nebo potvrdil, nezmění nikdo jiný než člověk. Jiné znění od agenta se člověku jen
+navrhne. Čtení modelem AI je návrh; jistotu dává ověření člověkem.
+
+- **Hlídá kód:**
+  - přepis člověka je přepis napsaný ručně v jeho terminálu, nebo z aplikace se zaškrtnutým **Přepis ověřen** či
+    s nastavením **Moje přepisy pramenů → Doloženo** ([R3.5.1](#R3.5.1)). Co pod účtem člověka zapsaly importy,
+    převody a dávky, přepis člověka není;
+  - takový přepis nezmění žádný příkaz agenta: úprava, dávka, synchronizace, oprava, vrácení, import ani převod.
+    Jako člověk smí zapisovat jen jeho terminál a most aplikace Strom;
+  - jiné znění od agenta (`strom source edit S… --transcript …`) se místo toho navrhne: poznámka u pramene a jeden
+    úkol pro člověka na pramen. Čeká v **Co čeká**, skupina **K rozhodnutí – přepisy**. Žádná fronta ho nenabídne,
+    agent ho nevezme, neuzavře, neodloží ani nespustí;
+  - rozhoduje jen člověk:
+    - **Přijmout návrh**: přepisem je navržené znění a potvrzení člověka přejde na ně;
+    - **Ponechat dosavadní**: přepis zůstane, navržené znění je zamítnuté a znovu se nenavrhne, ani jeho místa;
+    - **Vrátit** (po obojím): přepis i potvrzení jako předtím a návrh čeká znovu. Vrácení se odmítne, když se přepis
+      mezitím změnil nebo čeká jiný návrh.
+- **Přepis, který člověk nepotvrdil:** agent ho mění jen v úkolu a jen tam, kde to ukazuje sám záznam na skenu,
+  s důvodem. Nové čtení ([R8.8.2](R8-reading-scans.md#R8.8.2)) je jen vodítko: kde se se skenem nedá rozhodnout,
+  zapíše agent poznámku u pramene a přepis zůstane.
+- **Jen metodika:** úkol z nového čtení agent uzavře tak, že záznam na skenu prohlédne sám vedle obou čtení.
+- **Ovládání:** aplikace: prohlížeč pramene, blok **Návrh agenta k přepisu** (**Celé znění vedle sebe**,
+  **Přijmout návrh**, **Ponechat dosavadní**, **Vrátit**); u přepisu potvrzeného člověkem po novém čtení **Dát
+  k posouzení** ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminál: **Co čeká** → **Navržené znění** / **Přepis, jak
+  je**; `strom source proposal S… --take proposal|keep|undo`.
+- **Proč:** přepis člověka je jeho vlastní čtení záznamu. Zásada projektu: nic potvrzeného člověkem se nepřepíše;
+  nový výsledek, který se liší, je úkol nebo návrh k rozhodnutí.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:c2a690ea strom help source proposal (--take proposal|keep|undo, --task, --proposed) · src/core/waiting.ts:375-390 (kind transcript, group transcripts, choices proposal/keep, ne TERMINAL_ONLY) · src/core/sync.ts:3862 (app read = evidence || verified) · assets/lang/cs.json proposal.*, ui.proposal.*, wait.group.transcripts, read.source.why, read.source.done · CHANGELOG.cs.md 1.29.0 („Přepis, který uživatel přečetl nebo potvrdil, je uživatelův“) · commity 284605bf, 8803cd70 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 4, 5) · app:6bd8609e strings.ts read.pTitle, pWhole, pAccept, pKeep, pUndo, pAccepted2, pKept2, pNote, tReview · src/ui/read-source-state-view.ts proposalHtml · spec 065 K2.3, spec 059 K3.2 -->
+
+<a id="R3.4.2"></a>
+### R3.4.2 Překrývající se výřezy jsou jeden
+
+Dva výřezy téhož obrázku, které se hodně překrývají, jsou jeden zápis vystřižený dvakrát. Výzkum je spojí v jeden.
+
+- **Hlídá kód:**
+  - dva výřezy téhož obrázku, které se překrývají aspoň o 30 % menšího z nich, se spojí do obdélníku přes oba,
+    na místě prvního. Opakovaně: tři výřezy v řadě jsou jeden;
+  - výřez, který leží aspoň z 90 % uvnitř většího (detail jména nebo data, zápis vedle celé strany), zůstane. Dva
+    skoro stejné obdélníky (každý aspoň z 90 % v druhém) se spojí;
+  - výřezy oddělené, jen se dotýkající nebo na jiných obrázcích zůstanou;
+  - spojuje se jen to, co zapsal výzkum (agent, sezení, dávka agenta, `strom clips`); agentovi se řekne, co se spojilo.
+    Výřez od člověka (terminál, aplikace) se nikdy nemění;
+  - starší výzkum se spojí jednou, při prvním startu nové verze nebo startu mostu: jen výřezy, které podle historie
+    zapsal agent nebo sezení, jedna zapsaná operace na pramen. Přepis a potvrzení člověka zůstanou.
+- **Proč:** čtenář výřezem jednou utne spodní řádky, podruhé pravou část, a aplikace pak ukazuje dva skoro stejné
+  výřezy téhož zápisu.
+- **Ovládání:** nic: spojuje se samo při zápisu výřezu (`strom source add|edit --clip` agentem, `strom clips`).
+- **Platí od:** výzkum 1.29.0
+
+<!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
 <a id="R3.5"></a>
 ## R3.5 Slepé druhé čtení
 

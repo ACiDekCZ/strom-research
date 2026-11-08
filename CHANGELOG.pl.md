@@ -5,9 +5,53 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.30.0
+
+*W przygotowaniu: bety do 1.30.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Dane z przejętego drzewa są chronione.** Drzewo z innego programu (GEDCOM) daje wskazówki: agent zmienia taką daną
+  tylko według zapisu, który cytuje, a wartość z drzewa zostaje zachowana obok („pierwotnie z drzewa: …”) i można ją
+  przywrócić (`strom event revert`, `strom person revert`). Bez cytowanego zapisu – i zawsze, gdy o hipotezach decyduje
+  użytkownik – agent tylko proponuje, jako sprzeczność do decyzji użytkownika. Tego, co użytkownik wpisał lub zmienił, w
+  aplikacji Strom lub w stromie, agent nigdy nie zmienia: tylko proponuje – również nie przez plik wczytany przez `strom
+  sync`. Propozycje agenta są rozpoznawalne w `strom conflict list` i `show` i zamykają się same, gdy proponowana
+  wartość już obowiązuje. Badanie założone wcześniej zostanie po aktualizacji raz oznaczone (które dane przyszły z
+  przejętego drzewa, które są użytkownika): żadna wartość się nie zmienia, a `strom fixes undo origins` cofa oznaczenia.
+  Propozycja, której wartość zmieniła się od jej powstania (zmienił ją użytkownik), jest nieaktualna: nie można jej
+  przyjąć – nic nie zostanie zapisane na nowszej wartości – można ją tylko zamknąć, zachowując wartość. Czego propozycja
+  nie uniesie (przyczyna zmieniona razem z datą), mówi wynik synchronizacji, nigdy nie ginie.
+
+- **Ponownie przejęte drzewo odnajduje swoje osoby.** ID, które program nadał osobom i rodzinom (`_UID`, `EXID`,
+  `_FSFTID`… z MyHeritage, Gramps, FamilySearch i innych), są zachowywane: drzewo tego samego programu przejęte ponownie
+  (lub z innego programu do badania) odnajduje według nich osoby – nigdy dwa razy, nowe dane dochodzą jako wskazówki;
+  osoba tylko być może ta sama (inne imię, inne ID FamilySearch) jest zgłaszana, nigdy łączona. ID wracają z badaniem do
+  aplikacji Strom. To, czego z pliku się nie przejmuje (media, własne znaczniki programu), jest liczone w wyniku. W badaniu założonym wcześniej ID wcześniejszych importów są odczytywane z ich plików, więc
+  także drzewo przejęte ponownie przed oznaczeniem nie dodaje nikogo dwa razy.
+
+- **Dana pokazana lub zmieniona w terminalu** (`strom event show`, `strom event edit`) jest wypisywana w języku
+  badania. W aplikacji Strom drzewo przejęte do badania nie ma już jako odnośnika całego drzewa pierwszego wiersza z
+  niego: każda dana podaje swój.
+
+- **Drzewa z programów dla Windows w stronie kodowej 1250 lub 1252 („ANSI”)** są czytane z właściwymi literami – po
+  czesku, po polsku, po niemiecku, tak jak w aplikacji Strom. Znak, którego nie da się odczytać, jest zgłaszany, nigdy
+  cicho zastępowany.
+
+- **Konfiguracja z Codexem w aplikacji ChatGPT** nie mówi już tam o hookach Codexa: to zdanie dotyczy Codexa w
+  terminalu.
+
+- **Przeglądarka aplikacji ChatGPT, jaka jest naprawdę.** Przeglądarka aplikacji ChatGPT działa przez chmurę ChatGPT i
+  nie wywołuje żadnej reguły stroma: strom nie twierdzi już, że jej pilnuje, a agent w niej idzie do archiwum z
+  ograniczeniami tylko przez człowieka (`strom task wait --images`). `strom doctor` i konfiguracja mówią to jako
+  ostrzeżenie, z radą do okna ChatGPT „przeglądarka w chmurze” przy takim archiwum: *odmówić*, nigdy dostępu do
+  wszystkich odpowiednich stron. Codex w terminalu pozostaje pilnowany – teraz także jego przeglądarka otwarta przez
+  `createBrowserTab`.
+
+- **Transkrypcja potwierdzona w aplikacji Strom tuż po północy** ma nowy dzień według kalendarza tego komputera
+  (dotąd dzień poprzedni).
+
 ## 1.29.0
 
-*W przygotowaniu: bety do 1.29.0-beta.9. Sekcja będzie kompletna z wydaniem.*
+*8.11.2026 · współpracuje z aplikacją Strom 3.25.0.*
 
 - **Kto rozstrzyga hipotezy: użytkownik czy AI.** Nowe ustawienie badania (`strom config set hypotheses.decide`,
   pytanie konfiguracji początkowej obok innych wyborów, Ustawienia w menu strom, ustawienia badania w aplikacji Strom):
@@ -21,10 +65,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   je jako pierwsze, wybrane tam *rozstrzyga człowiek* zostaje zapisane; gdy rozstrzyga człowiek, rozstrzyganie przez AI
   włącza ponownie tylko człowiek, po drugim „tak”.
 
-- **Każdą hipotezę można rozstrzygnąć z menu.** „Co czeka“ oferuje także otwarte hipotezy bez propozycji agenta –
-  rozstrzygnąć z wariantem i uzasadnieniem albo zostawić otwarte –, a hipotezę rozstrzygniętą lub odłożoną można
-  rozstrzygnąć ponownie z uzasadnieniem, wcześniejsza decyzja pozostaje czytelna; tak samo z przeglądu osoby i z linku
-  aplikacji Strom. Gdy rozstrzyga użytkownik, agent proponuje decyzję wszędzie, gdzie zapisy wskazują na jeden wariant.
+- **Każdą hipotezę można rozstrzygnąć z menu.** Gdy rozstrzyga użytkownik, „Co czeka“ oferuje także otwarte hipotezy
+  bez propozycji agenta – rozstrzygnąć z wariantem i uzasadnieniem albo zostawić otwarte; gdy rozstrzyga AI
+  (domyślnie), tylko propozycje agenta. Z przeglądu osoby i z linku aplikacji Strom można rozstrzygnąć każdą hipotezę,
+  niezależnie od tego, kto rozstrzyga, a hipotezę rozstrzygniętą lub odłożoną można rozstrzygnąć ponownie
+  z uzasadnieniem, wcześniejsza decyzja pozostaje czytelna. Gdy rozstrzyga użytkownik, agent proponuje decyzję
+  wszędzie, gdzie zapisy wskazują na jeden wariant.
 
 - **Badanie w aplikacji Strom pozostaje włączone.** Połączenie z aplikacją Strom (most) nie kończy się już samo po
   dwóch godzinach bez zapytań: działa, dopóki nie zostanie wyłączone albo komputer się nie wyłączy (`live.idleMinutes`

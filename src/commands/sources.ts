@@ -1,5 +1,6 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
+import { opLine } from "../core/proposals.ts";
 import { browserOnlyAccess, browserOnlyArchive } from "../core/byhand.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { addPlaceName, nameWithSyntax, otherNames, parseAltName, personsHand } from "../core/placeid.ts";
@@ -47,7 +48,7 @@ import { decideProposal, proposeTranscript, type ProposalResult } from "../core/
 import { confirmAnswer, confirmCheck, confirmSummary } from "../core/confirm.ts";
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary));
+  return lines(...tree.written.map((o) => opLine(tree, o)));
 }
 
 function str(v: unknown): string | undefined {

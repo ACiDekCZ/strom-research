@@ -82,13 +82,14 @@ vidět**, **Jen prohlížet** nebo **Nejde to**, s nepovinnou poznámkou.
 
 Oddíl **rozhodnutí** sbírá otázky, které zdržují agenta: svolení archivu, stahovače k potvrzení, mírnější
 podmínky, ověřit web, vyprávění, místo (viz [R4](R4-places.md)), rozpor (viz [R5](R5-conflicts.md)), hypotézu (viz [R6.3.4](#R6.3.4)), stromy
-z aplikace a čtení snímků. Rozhodnutí jdou v seznamu první.
+z aplikace, čtení snímků a návrh znění přepisu (skupina **K rozhodnutí – přepisy**, viz
+[R3.4.1](R3-verification-and-citation.md#R3.4.1)). Rozhodnutí jdou v seznamu první.
 
 - **Ovládání:** terminál: **Co čeká** → položka; `strom allow archive --way`, `strom place answer`,
   `strom conflict resolve`, `strom media calibrate --answer`.
-- **Platí od:** výzkum 1.14.0. Rozpory od 1.20.0, místa od 1.25.0, hypotézy od 1.28.0.
+- **Platí od:** výzkum 1.14.0. Rozpory od 1.20.0, místa od 1.25.0, hypotézy od 1.28.0, přepisy od 1.29.0.
 
-<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 -->
+<!-- zdroj: research:src/core/waiting.ts:51-65 SECTION, :75 DECIDE_RANK · src/cli/menu-waiting.ts:486 decideConflictHere, :518 decidePlace, :712 decideTune · CHANGELOG.cs.md 1.20.0, 1.25.0 · 1.29.0: src/core/waiting.ts:375-390 (kind transcript, section decide, wait.group.transcripts) -->
 
 <a id="R6.3.1"></a>
 ### R6.3.1 Svolení archivu
@@ -211,9 +212,11 @@ v systémovém okně, nebo příkaz odmítne.
   agent ji jen navrhne ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)).
 - **Od výzkumu 1.29.0:** to platí při **Rozhoduje člověk**; bez uložené volby rozhoduje AI
   ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)). Uložit **Rozhoduje AI** tam, kde je uložené **Rozhoduje člověk**,
-  nebo tu volbu smazat, smí jen člověk.
+  nebo tu volbu smazat, smí jen člověk. Jen člověk také rozhodne, co dál s pramenem přečteným znovu
+  (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), a návrh znění přepisu, který napsal nebo
+  potvrdil (`strom source proposal`, i jeho vrácení, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
 
 <a id="R6.7"></a>
 ## R6.7 Odesláno, odpověď a návrat do fronty

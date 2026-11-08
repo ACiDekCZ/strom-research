@@ -546,7 +546,8 @@ test("a copy kept from before, the same as an earlier send, sent again without _
     // the research changed the place itself since (no send of the app), a copy made before cites another source of the
     // user's at the place it had: the same — the user decides, the source kept in the conflict
     const before = rev();
-    await w.ok(["event", "edit", now.id, "--place", "Lipany", "--reason", "the record read again"]);
+    // (by the person: the place is the user's value, an agent would only propose a change of it)
+    await w.ok(["event", "edit", now.id, "--place", "Lipany", "--reason", "the record read again"], { tty: true });
     const other = (l: string) => l.replace("@S7@", "@S8@").replace("fol. 113", "fol. 9").replace("narozených", "oddaných");
     const late = await post(copy(before, lines("Kamenice", "tesař", true).map(other)));
     assert.deepEqual(late.conflicts.map((c: { fact: string }) => c.fact), ["BIRT"], JSON.stringify(late));

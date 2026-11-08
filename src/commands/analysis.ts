@@ -40,6 +40,8 @@ import { foldText, unfoldIndex } from "../core/text.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { takeSide } from "../core/sync.ts";
 import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/conflicts.ts";
+import { proposalKind, proposalNow, reasonWords, staleProposal, opLine } from "../core/proposals.ts";
+import { SETTLED } from "../core/proposalsettle.ts";
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
@@ -51,7 +53,7 @@ import { hypothesisPeople } from "../core/directions.ts";
 import { BIG_BRANCH, branchJoined } from "../core/kin.ts";
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary));
+  return lines(...tree.written.map((o) => opLine(tree, o)));
 }
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string): T {
@@ -498,6 +500,24 @@ const VARIANT_LABEL = /^(\p{L}|\p{N}{1,2})\s*:\s*(.+)$/su;
  * the person reads it in the research's language (found: "earlier decided by the user (the research's value): …" in a
  * Czech research); any other note as it is.
  */
+/** An open proposal of an agent: whose its value now is, in words ("an agent's proposal · now the user's value"). */
+function proposalState(tree: Tree, lang: string, c: Conflict): string | undefined {
+  if (!c.proposal || c.state !== "open") return undefined;
+  // whose the value is now, as it is now (found by the verification of 066 U3: "now from the imported family tree"
+  // after the person had written their own) — or that it changed since the proposal
+  const now = proposalNow(tree, c, lang);
+  return `${ui(lang, "ui.conflict.proposal")} · ${ui(lang, now?.stale ? "ui.conflict.proposal.stale" : nowKey(now?.kind ?? c.proposal.kind))}`;
+}
+
+/** Whose a proposal's value is now, in words ("now the user's value"). */
+const nowKey = (kind: "user" | "import" | "research"): UIKey => (kind === "user" ? "ui.conflict.proposal.user" : kind === "import" ? "ui.conflict.proposal.import" : "ui.conflict.proposal.research");
+
+/** The reasoning of a decision as the person reads it: a proposal settled by itself in the research's language. */
+function reasoningWords(lang: string, text: string | undefined): string {
+  const m = text?.startsWith(SETTLED) ? /^[^(]*\(([^,)]+)/u.exec(text) : null;
+  return m ? ui(lang, "ui.conflict.proposal.settled", { ref: m[1]! }) : (text ?? "");
+}
+
 function decisionNote(lang: string, text: string): string {
   const earlier = /^earlier decided(?: by the (user|agent))?(?: \(the (user's|research's) value\))?: (.*?) — (.*)$/su.exec(text);
   if (earlier) {
@@ -623,6 +643,12 @@ register(
         const now = tree.get<Conflict>(id)!;
         // the user's own edit against the research: the user's to decide, never an agent's — unless the user left it to
         // the agent (found: nothing kept an agent from closing it)
+        if (now.state === "open" && by === "agent" && isEditConflict(now) && !now.leftToAgent && now.proposal)
+          throw new UsageError(`${id} is a proposal to change ${proposalKind(tree, now) === "user" ? "the user's value" : "a value of an imported family tree"}: the user decides it (the app, or strom → What waits) — an agent only when the user leaves it to the agent`, {
+            hint: `tell the user: ${id} waits for their decision`,
+            code: "conflict.users",
+            params: { id },
+          });
         if (now.state === "open" && by === "agent" && isEditConflict(now) && !now.leftToAgent)
           throw new UsageError(`${id} is a conflict of the user's own edit in the Strom app: the user decides it (the app, or strom → What waits) — an agent only when the user leaves it to the agent`, {
             hint: `tell the user: ${id} waits for their decision`,
@@ -700,8 +726,16 @@ register(
       const about = typeof opts.about === "string" ? anyRefs(tree, [opts.about])[0]! : undefined;
       const concerns = about ? conflictConcerns(tree, about) : undefined;
       const all = tree.list<Conflict>("conflict").filter((c) => (opts.all || c.state === "open") && (!concerns || concerns(c)));
+      // an agent's proposals told apart: whose the value now is, and how the person takes or declines one
+      const proposals = all.filter((c) => c.proposal && c.state === "open" && !staleProposal(tree, c));
+      const stale = all.filter((c) => c.proposal && c.state === "open" && !!staleProposal(tree, c));
+      const rows = all.map((c) => [c.id, proposalState(tree, tree.lang, c) ?? ui(tree.lang, c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open"), truncate(conflictTitle(tree, c), 60), c.subject.join(" ")]);
       return {
-        text: all.length ? table(all.map((c) => [c.id, ui(tree.lang, c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open"), truncate(conflictTitle(tree, c), 60), c.subject.join(" ")])) : ui(tree.lang, opts.all ? "ui.conflict.none.all" : "ui.conflict.none"),
+        text: all.length ? lines(
+              table(rows),
+              proposals.length ? ui(tree.lang, "ui.conflict.proposal.how", { id: proposals.length === 1 ? proposals[0]!.id : "X…" }) : undefined,
+              stale.length ? ui(tree.lang, "ui.conflict.proposal.stale.how", { id: stale.length === 1 ? stale[0]!.id : "X…" }) : undefined,
+            ) : ui(tree.lang, opts.all ? "ui.conflict.none.all" : "ui.conflict.none"),
         data: { ...(about ? { about } : {}), conflicts: all },
       };
     },
@@ -719,19 +753,36 @@ register(
       const t = (k: UIKey) => ui(tree.lang, k);
       // a sex in words, as its title says it (found on Mac: "U", "F" under "Pohlaví — neznámé × žena")
       const value = (v: string) => (c.fact === "SEX" && /^[MFU]$/.test(v) ? t(v === "U" ? "ui.conflict.sex.U" : (`ui.show.sex.${v}` as UIKey)) : v);
+      const state = t(c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open");
+      // an agent's proposal: the value now and whose it is first, the value proposed after it, how to take or decline it
+      const pr = c.proposal;
+      const claimLine = (label: string, cl: Conflict["claims"][number], bare = false) => {
+        const source = bare ? undefined : settledClaim(tree, c, cl).source;
+        return `${label}  ${source ? `${source}: ` : ""}${value(claimText(tree, c, cl))}`;
+      };
+      // an open proposal: the value as it is now and whose it is now (found by the verification of 066 U3: the value and
+      // its origin as they were when it was proposed, the person's newer value nowhere) — changed since: said so
+      const now = pr && c.state === "open" ? proposalNow(tree, c, tree.lang) : undefined;
+      const kind = now?.kind ?? pr?.kind ?? "import";
+      const claims = pr
+        ? [
+            c.claims[0] ? claimLine(t(nowKey(kind)), c.claims[0], kind !== "import" || !!now?.stale) : undefined,
+            now?.stale ? `${t("ui.conflict.proposal.was")}  ${value(now.was)}` : undefined,
+            c.claims[1] ? claimLine(t("ui.conflict.proposal.new"), c.claims[1]) : undefined,
+            ...c.claims.slice(2).map((cl) => claimLine(t("ui.conflict.claim"), cl)),
+          ]
+        : c.claims.map((cl) => claimLine(t("ui.conflict.claim"), cl));
       return {
         text: lines(
-          `${c.id} ${conflictTitle(tree, c)}  [${t(c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open")}]`,
+          `${c.id} ${conflictTitle(tree, c)}  [${pr ? `${state} · ${t("ui.conflict.proposal")}` : state}]`,
           `${t("ui.conflict.about")}  ${c.subject.join(" ")}`,
           taskLines(tree, c.id),
-          ...c.claims.map((cl) => {
-            const source = settledClaim(tree, c, cl).source;
-            return `${t("ui.conflict.claim")}  ${source ? `${source}: ` : ""}${value(claimText(tree, c, cl))}`;
-          }),
-          c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${c.reasoning ?? ""}` : undefined,
-          ...c.notes.map((n) => `${t("ui.conflict.note")}  ${decisionNote(tree.lang, n.text)}`),
+          ...claims,
+          c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${reasoningWords(tree.lang, c.reasoning)}` : undefined,
+          ...c.notes.map((n) => `${t("ui.conflict.note")}  ${decisionNote(tree.lang, pr ? reasonWords(tree, tree.lang, n.text) : n.text)}`),
+          pr && c.state === "open" ? `\n${ui(tree.lang, now?.stale ? "ui.conflict.proposal.stale.how" : "ui.conflict.proposal.how", { id: c.id })}` : undefined,
         ),
-        data: { conflict: c },
+        data: { conflict: c, ...(now ? { now: { value: now.value, kind: now.kind, stale: now.stale } } : {}) },
       };
     },
   },

@@ -5,9 +5,49 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.30.0
+
+*Připravuje se: bety do 1.30.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Údaje z převzatého rodokmenu jsou chráněné.** Rodokmen z jiného programu (GEDCOM) dává vodítka: agent takový údaj
+  změní jen podle záznamu, který cituje, a hodnota z rodokmenu zůstává uložená vedle („původně z rodokmenu: …“) a jde
+  vrátit (`strom event revert`, `strom person revert`). Bez citovaného záznamu – a vždy, když o hypotézách rozhoduje
+  uživatel – agent jen navrhuje, jako rozpor k rozhodnutí uživatele. Co uživatel zadal nebo změnil, v aplikaci Strom nebo
+  ve stromu, agent nikdy nezmění: jen navrhne – ani souborem, který načte přes `strom sync`. Návrhy agenta jsou v `strom
+  conflict list` a `show` poznat a uzavřou se samy, jakmile navržená hodnota platí. Výzkum založený dřív se po
+  aktualizaci jednou označí (které údaje přišly z převzatého rodokmenu, které jsou uživatele): žádná hodnota se nemění a
+  `strom fixes undo origins` značky vezme zpět. Návrh, jehož hodnota se od jeho vzniku změnila (upravil ji uživatel), je
+  zastaralý: přijmout ho nelze – přes novější hodnotu se nic nezapíše –, jen uzavřít s ponechanou hodnotou. Co návrh
+  neunese (příčina změněná spolu s datem), řekne výsledek synchronizace, nikdy se neztratí.
+
+- **Znovu převzatý rodokmen najde své lidi.** ID, která program dal lidem a rodinám (`_UID`, `EXID`, `_FSFTID`…
+  z MyHeritage, Gramps, FamilySearch a dalších), se uchovají: rodokmen téhož programu převzatý znovu (nebo z jiného
+  programu do výzkumu) podle nich najde lidi – nikdy dvakrát, nové údaje přibudou jako vodítka; osoba jen možná táž (jiné
+  jméno, jiné ID FamilySearch) se oznámí, nikdy nespojí. ID se s výzkumem vracejí do aplikace Strom. Co soubor má a
+  nepřevezme se (média, vlastní značky programu), se ve výsledku spočítá. Ve výzkumu založeném dřív se ID dřívějších importů čtou z jejich souborů, takže ani znovu
+  převzatý rodokmen ještě před označením nepřidá nikoho dvakrát.
+
+- **Údaj zobrazený nebo upravený v terminálu** (`strom event show`, `strom event edit`) se vypisuje v jazyce
+  výzkumu. V aplikaci Strom už rodokmen převzatý do výzkumu nemá jako odkaz celého rodokmenu první řádek z něj:
+  každý údaj uvádí svůj.
+
+- **Rodokmeny z programů pro Windows v kódové stránce 1250 nebo 1252 („ANSI“)** se čtou se správnými písmeny – česky,
+  polsky, německy, stejně jako v aplikaci Strom. Znak, který nejde přečíst, se ohlásí, nikdy se tiše nenahradí.
+
+- **Nastavení s Codexem v aplikaci ChatGPT** už nemluví o hookách Codexu: ta věta patří Codexu v terminálu.
+
+- **Prohlížeč aplikace ChatGPT, jak skutečně je.** Prohlížeč aplikace ChatGPT běží přes cloud ChatGPT a žádné pravidlo
+  stromu nevolá: strom už netvrdí, že ho hlídá, a agent v ní chodí k archivu s omezením jen přes člověka
+  (`strom task wait --images`). `strom doctor` a nastavení to říkají jako varování, s radou k dialogu ChatGPT
+  „cloudový prohlížeč“ u takového archivu: *Zamítnout*, přístup ke všem relevantním webům nikdy. Codex v terminálu
+  zůstává hlídaný – nově i jeho prohlížeč otevřený přes `createBrowserTab`.
+
+- **Přepis potvrzený v aplikaci Strom krátce po půlnoci** nese nový den podle kalendáře tohoto počítače (dosud den
+  předchozí).
+
 ## 1.29.0
 
-*Připravuje se: bety do 1.29.0-beta.9. Oddíl bude úplný s vydáním.*
+*8. 11. 2026 · patří k aplikaci Strom 3.25.0.*
 
 - **Kdo rozhoduje hypotézy: uživatel, nebo AI.** Nová volba výzkumu (`strom config set hypotheses.decide`, otázka
   v úvodním nastavení spolu s ostatními volbami, Nastavení v menu stromu, nastavení výzkumu v aplikaci Strom):
@@ -19,10 +59,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom config set hypotheses.decide person`. Úvodní nastavení stromu doporučí rozhodování AI a nabídne ho jako první,
   zvolené *rozhoduje člověk* se uloží; kde rozhoduje člověk, zapne rozhodování AI znovu jen člověk, po druhém ano.
 
-- **Každou hypotézu jde rozhodnout z menu.** Co čeká nabízí i otevřené hypotézy bez návrhu agenta – rozhodnout s verzí
-  a důvodem, nebo nechat otevřenou –, a rozhodnutou či odloženou hypotézu jde rozhodnout znovu s důvodem, staré
-  rozhodnutí zůstane čitelné; totéž z revize osoby a z odkazu aplikace Strom. Když rozhoduje uživatel, agent navrhne
-  rozhodnutí všude, kde záznamy ukazují na jednu verzi.
+- **Každou hypotézu jde rozhodnout z menu.** Když rozhoduje uživatel, Co čeká nabízí i otevřené hypotézy bez návrhu
+  agenta – rozhodnout s verzí a důvodem, nebo nechat otevřenou; když rozhoduje AI (výchozí), nabízí jen návrhy agenta.
+  Z revize osoby a z odkazu aplikace Strom jde rozhodnout každou hypotézu, ať rozhoduje kdokoli, a rozhodnutou či
+  odloženou hypotézu jde rozhodnout znovu s důvodem, staré rozhodnutí zůstane čitelné. Když rozhoduje uživatel, agent
+  navrhne rozhodnutí všude, kde záznamy ukazují na jednu verzi.
 
 - **Výzkum v aplikaci Strom zůstává zapnutý.** Propojení s aplikací Strom (most) se už samo nevypíná po dvou
   hodinách, kdy se ho nikdo neptá: běží, dokud se nevypne nebo dokud se nevypne počítač (`live.idleMinutes` je nově

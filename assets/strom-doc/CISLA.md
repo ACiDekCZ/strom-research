@@ -42,6 +42,8 @@ nenapsáno) · `neplatí od <verze>`.
 | R3.2.1 | R3-verification-and-citation.md | výzkum 1.0.0 | platí | Pramen: forma a informace | A source: form and information | Quelle: Form und Information | Źródło: forma i informacja |
 | R3.3 | R3-verification-and-citation.md | výzkum 1.0.0 | platí | Pramen, nebo vodítko | A source, or a lead | Quelle oder Hinweis | Źródło czy wskazówka |
 | R3.4 | R3-verification-and-citation.md | výzkum 1.1.0 | platí | Citace: výřez a přepis | A citation: clip and transcription | Zitation: Ausschnitt und Abschrift | Cytat: wycinek i transkrypcja |
+| R3.4.1 | R3-verification-and-citation.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Přepis člověka mění jen člověk | Only a person changes a person's transcription | Die Abschrift eines Menschen ändert nur der Mensch | Transkrypcję człowieka zmienia tylko człowiek |
+| R3.4.2 | R3-verification-and-citation.md | výzkum 1.29.0 | platí | Překrývající se výřezy jsou jeden | Overlapping clips are one | Überlappende Ausschnitte sind einer | Nakładające się wycinki są jednym |
 | R3.5 | R3-verification-and-citation.md | výzkum 1.0.0 | platí | Slepé druhé čtení | A blind second reading | Blinde zweite Lesung | Ślepy drugi odczyt |
 | R3.5.1 | R3-verification-and-citation.md | výzkum 1.12.0, aplikace 3.9.0 | platí | Přepisy a čtení z aplikace | Transcriptions and readings from the app | Abschriften und Lesungen aus der App | Transkrypcje i odczyty z aplikacji |
 | R3.6 | R3-verification-and-citation.md | výzkum 1.0.0 | platí | Negativní hledání | A negative search | Negative Suche | Negatywne wyszukiwanie |
@@ -129,6 +131,9 @@ nenapsáno) · `neplatí od <verze>`.
 | R8.6 | R8-reading-scans.md | výzkum 1.0.0 | platí | Zápis nálezu | Recording a find | Erfassen eines Fundes | Zapis znaleziska |
 | R8.7 | R8-reading-scans.md | výzkum 1.0.0 | platí | Jistota a ověření přečteného | Certainty and verification of what was read | Sicherheit und Prüfung des Gelesenen | Pewność i weryfikacja odczytu |
 | R8.8 | R8-reading-scans.md | aplikace 3.14.0, výzkum 1.18.0 | platí | Přečíst dokument z aplikace | Reading a document from the app | Ein Dokument aus der App lesen | Odczytanie dokumentu z aplikacji |
+| R8.8.1 | R8-reading-scans.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Čtenáři: program, model a důkladnost | Readers: program, model and thoroughness | Leser: Programm, Modell und Gründlichkeit | Czytelnicy: program, model i dokładność |
+| R8.8.2 | R8-reading-scans.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Přečíst znovu pramen z originálu | Reading a source again from its original | Eine Quelle erneut aus dem Original lesen | Ponowny odczyt źródła z oryginału |
+| R8.8.3 | R8-reading-scans.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Úkol z nového čtení | Task from a new reading | Aufgabe aus einer neuen Lesung | Zadanie z nowego odczytu |
 | R9 | R9-archives.md | výzkum 1.14.0 | koncept | Archivy: co smí agent a co udělá člověk | Archives: what the agent may do and what a person does | Archive: was der Agent darf und was der Mensch tut | Archiwa: co wolno agentowi, a co robi człowiek |
 | R9.1 | R9-archives.md | výzkum 1.14.0 | koncept | Druhy archivů | Kinds of archives | Arten von Archiven | Rodzaje archiwów |
 | R9.1.1 | R9-archives.md | výzkum 1.14.0 | koncept | Web, který výzkum nezná | A site the research does not know | Eine Website, die die Forschung nicht kennt | Strona, której badanie nie zna |
@@ -306,6 +311,7 @@ nenapsáno) · `neplatí od <verze>`.
 | S4.5 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Akce, které otevřou výzkum | Actions that open the research | Aktionen, die die Forschung öffnen | Działania, które otwierają badanie |
 | S4.5.1 | S4-research-from-the-app.md | aplikace 3.21.0 | platí | Značky akcí | Action marks | Marken der Aktionen | Oznaczenia działań |
 | S4.5.2 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Kde akce jsou | Where the actions are | Wo die Aktionen sind | Gdzie są działania |
+| S4.5.3 | S4-research-from-the-app.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Otevřít úkol ve frontě | Opening a task in the queue | Eine Aufgabe in der Warteschlange öffnen | Otwarcie zadania w kolejce |
 | S4.6 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Co je jen v terminálu | What is only in the terminal | Was nur im Terminal geht | Co jest tylko w terminalu |
 | S5 | S5-phone.md | výzkum 1.18.0, aplikace 3.14.0 | platí | Telefon | Phone | Telefon | Telefon |
 | S5.1 | S5-phone.md | výzkum 1.18.0, aplikace 3.14.0 | platí | Propojení s telefonem patří počítači a zapíná ho jen člověk | The phone connection belongs to the computer and only a person turns it on | Die Verbindung mit dem Telefon gehört dem Computer und nur ein Mensch schaltet sie ein | Połączenie z telefonem należy do komputera i włącza je tylko człowiek |

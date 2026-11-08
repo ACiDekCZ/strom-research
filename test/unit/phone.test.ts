@@ -567,7 +567,7 @@ test("the phone's page gives a change of another day its day before the time, th
     const code = [pick("  const HOUR =", "  const fold ="), pick("  const sameDay =", "  // a time of today"), pick("  const logTime =", "  const whenOf ="), pick("  const logItems =", "  const drawLog ="), pick("  let logDay =", "  const renderPill =")].join("\n");
     const { logTime, drawChange, restampLog, logItems } = new Function("LANG", "t", "el", `${code}; return { logTime, drawChange, restampLog, logItems };`)(lang, () => "", el) as {
       logTime: (ms: number, now?: Date) => string;
-      drawChange: (c: Record<string, unknown>) => FakeEl;
+      drawChange: (c: Record<string, unknown>, now?: Date) => FakeEl;
       restampLog: (now?: Date) => void;
       logItems: Map<string, FakeEl>;
     };
@@ -580,9 +580,10 @@ test("the phone's page gives a change of another day its day before the time, th
     assert.equal(logTime(new Date(2025, 11, 31, 23, 50).getTime(), now).split(" ").length, 2);
     // a 24-hour clock keeps its leading zero, a 12-hour one has none
     assert.equal(plain(logTime(new Date(2026, 9, 20, 9, 7).getTime(), now)).replace(/\s/gu, " "), lang === "en" ? "9:07 AM" : "09:07");
-    // today's change drawn with its time alone, its moment kept for the machine
-    const at = new Date(Date.now() - 60_000);
-    const li = drawChange({ id: "a", at: at.toISOString(), lines: ["Křest — Жукова"] });
+    // today's change drawn with its time alone, its moment kept for the machine (a fixed midday: the clock of the
+    // computer the tests run on decides nothing — a minute before now was yesterday in the first minute after midnight)
+    const at = new Date(2026, 9, 20, 12, 0);
+    const li = drawChange({ id: "a", at: at.toISOString(), lines: ["Křest — Жукова"] }, new Date(at.getTime() + 60_000));
     assert.equal(li.children[0]!.tagName, "time");
     assert.equal(li.children[0]!.dateTime, at.toISOString());
     assert.doesNotMatch(li.children[0]!.textContent, /\d{4}|\/|\. \d/u);

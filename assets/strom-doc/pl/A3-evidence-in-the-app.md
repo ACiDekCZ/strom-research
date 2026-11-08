@@ -91,12 +91,14 @@ osoby, do ślubu i do wspólnego zdarzenia pary. Z cytatów aplikacja liczy pozi
 - **Inna strona** przy źródle w wyborze: nowe źródło z tym samym tytułem, archiwum, odnośnikiem, wiarygodnością
   i notatką; z sygnatury znika strona, z notatki wiersze ze stroną i z datą zapisu. Gdy tytuł księgi wymienia osobę
   z drzewa, proponuje się tytuł według cytowanej danej.
-- **Kolejny zapis z tej samej księgi** (podgląd i edytor źródła): nowe źródło z tym samym archiwum, sygnaturą
-  i odnośnikiem; otwarte z etykiety cytatu zostaje od razu tam zacytowane.
+- **Kolejny zapis z tej samej księgi** (podgląd i edytor źródła): nowe źródło z tym samym archiwum i odnośnikiem;
+  sygnatura bez numeru i daty zapisu, czyli księga, skan i strona („ks. 12, skan 5, s. 3, wpis 2 (3.04.1801)” →
+  „ks. 12, skan 5, s. 3”). Sygnatura, w której aplikacja nie rozpozna części z zapisem, zostaje cała i zaznaczona do
+  sprawdzenia. Otwarte z etykiety cytatu zostaje od razu tam zacytowane.
 - **Obowiązuje od:** aplikacja 3.1.0 (**Ostatnio używane**, **Kolejny zapis z tej samej księgi**); **Inna strona**
-  3.9.0
+  3.9.0; 3.25.0: **Kolejny zapis z tej samej księgi** bez numeru i daty zapisu
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
 
 <a id="A3.3"></a>
 ## A3.3 Wycinek zapisu

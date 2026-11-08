@@ -31,6 +31,7 @@ import { runs, runsArg, shellArg } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
+import { decodeGedcom } from "../gedcom/encoding.ts";
 import { subjectPeople } from "../core/records.ts";
 import { familyFormsFor, groupedForms, readSurnames, sameFamily } from "../core/surnames.ts";
 import { twoPeople } from "../core/quality.ts";
@@ -398,7 +399,8 @@ function storiesTold(tree: Tree, task: Task): Section | undefined {
 /** A small text file of an input, as strom input show gives it; unreadable: nothing. */
 function readSmall(file: string): string | undefined {
   try {
-    return fs.readFileSync(file, "utf8").trim();
+    // a family tree of a Windows program in its code page (1 CHAR ANSI): its letters, not a code page's look-alikes
+    return (/\.ged$/i.test(file) ? decodeGedcom(fs.readFileSync(file)).text : fs.readFileSync(file, "utf8")).trim();
   } catch {
     return undefined;
   }
@@ -1005,7 +1007,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
-    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
+    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (in the terminal strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex; the ChatGPT app's runs through ChatGPT's cloud and strom does not watch it) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,

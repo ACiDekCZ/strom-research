@@ -4,7 +4,7 @@
 // for certain tells two people apart, and only then what makes them alike. A pair whose names do not fit in the
 // research is left unsure: the app may have changed a name by hand, the research does not judge for it.
 
-import { certainlyBefore, dateYears } from "./gdate.ts";
+import { certainlyBefore, dateYears, YEARS_CLOSE } from "./gdate.ts";
 import { birthEvent, familiesAsChild, parentsOf, sameSurname } from "./people.ts";
 import { dismissedLookup, personId, personNow, POSSIBLE_DUPLICATE } from "./quality.ts";
 import { sameFamily } from "./surnames.ts";
@@ -12,8 +12,8 @@ import { foldText } from "./text.ts";
 import type { Event, Name, Person } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
-/** Birth years further apart than this are two people. */
-export const YEARS_CLOSE = 3;
+/** Birth years further apart than this are two people (core/gdate.ts: one value for every comparison). */
+export { YEARS_CLOSE };
 export const PAIRS_MAX = 1000;
 
 export type VerdictKind = "same" | "different" | "unsure";

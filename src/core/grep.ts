@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { foldText, unfoldIndex } from "./text.ts";
+import { decodeGedcom } from "../gedcom/encoding.ts";
 
 /** The folders searched: the research's own text, as the agent may read it. */
 export const GREP_FOLDERS = ["inputs", "notes", "output"] as const;
@@ -186,7 +187,8 @@ export function grepFiles(root: string, targets: string[], match: (line: string)
     if (capped) break;
     let text: string;
     try {
-      text = fs.readFileSync(file, "utf8");
+      // a family tree of a Windows program in its code page (1 CHAR ANSI) is searched by its letters
+      text = /\.ged$/i.test(file) ? decodeGedcom(fs.readFileSync(file)).text : fs.readFileSync(file, "utf8");
     } catch {
       continue;
     }

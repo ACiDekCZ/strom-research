@@ -12,7 +12,7 @@ import path from "node:path";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { testHooks } from "../../src/core/net.ts";
 import { grantWay } from "../../src/core/terms.ts";
-import { CODEX_BROWSER_TOOL, CODEX_HOOK_MATCHER, CODEX_HOOKS, UNWATCHED, codeUrls, codexEvent, codexHookHash, codexHookState, codexHooks, computerUseOnly } from "../../src/core/codexhook.ts";
+import { CODEX_BROWSER_TOOL, CODEX_CUA_TOOL, CODEX_HOOK_MATCHER, CODEX_HOOKS, UNWATCHED, browserWork, codeUrls, codexEvent, codexHookHash, codexHookState, codexHooks, computerUseOnly } from "../../src/core/codexhook.ts";
 
 const opts = { skip: !hasGit };
 let ahead = 0;
@@ -70,6 +70,15 @@ test("Codex's hook input read: its node_repl js before it runs, with its code; a
   assert.equal(codexEvent(JSON.stringify({ tool_name: CODEX_BROWSER_TOOL, hook_event_name: "PostToolUse", tool_input: { code: "x" } })), undefined);
   assert.equal(codexEvent(JSON.stringify({ tool_name: CODEX_BROWSER_TOOL, tool_input: {} })), undefined);
   assert.equal(codexEvent("not json"), undefined);
+  // cua_repl's js: the tool as Codex named it
+  assert.equal(codexEvent(JSON.stringify({ tool_name: CODEX_CUA_TOOL, hook_event_name: "PreToolUse", tool_input: { code: "await exampleTab.getAXState();" } }))?.tool, CODEX_CUA_TOOL);
+  assert.equal(codexEvent(JSON.stringify({ tool_name: "mcp__cua_repl__js_reset", tool_input: { code: "x" } })), undefined);
+  // cua_repl's browser work: a tab opened by createBrowserTab, a tab kept in a variable of its own name
+  assert.ok(browserWork('let t = await cua.createBrowserTab("iab", u)'));
+  assert.ok(browserWork("await exampleTab.getAXState();"));
+  assert.ok(browserWork("await myPage.click('Další')"));
+  assert.ok(!browserWork("const x = 1 + 1;"));
+  assert.ok(!browserWork("const Tablet = 2; Stable.x"), "Tab or Page only as the end of a name before a dot");
   // the addresses of a script: each once, any script, punctuation after it left out
   assert.deepEqual(codeUrls('goto("https://lhota.example.org/kniha/1"); x="https://lhota.example.org/kniha/1", y=`http://hřbitov.example.cz/a`.'), ["https://lhota.example.org/kniha/1", "http://hřbitov.example.cz/a"]);
   assert.deepEqual(codeUrls("xhttps://glued.example.org/"), [], "glued to a word: not an address of its own");
@@ -84,7 +93,11 @@ test("the tree's .codex/hooks.json: strom's hook before Codex's node_repl js, th
   const file = readJsonFile(path.join(w.cwd, CODEX_HOOKS)) as { hooks: { PreToolUse: { matcher: string; hooks: { type: string; command: string; timeout: number }[] }[] } };
   const [group] = file.hooks.PreToolUse;
   assert.equal(group!.matcher, CODEX_HOOK_MATCHER);
-  assert.ok(new RegExp(CODEX_HOOK_MATCHER).test(CODEX_BROWSER_TOOL) && !new RegExp(CODEX_HOOK_MATCHER).test("mcp__cua_repl__js"), "the browser's tool, never computer use's");
+  // node_repl's js and cua_repl's (the ChatGPT app 26.1021's browser, found live 8 November 2026), a REPL renamed again
+  // too; never another tool
+  const matcher = new RegExp(CODEX_HOOK_MATCHER);
+  assert.ok([CODEX_BROWSER_TOOL, CODEX_CUA_TOOL, "mcp__browser_repl__js"].every((n) => matcher.test(n)), "every REPL's js");
+  assert.ok(!["Bash", "mcp__cua_repl__reset", "mcp__node_repl__js_reset", "mcp__computer-use__click", "exec_command"].some((n) => matcher.test(n)), "nothing else");
   assert.match(group!.hooks[0]!.command, /\.strom\/bin\/strom' net web --hook \|\| true$/);
   assert.equal(Object.keys(file).join(), "description,hooks", "nothing Codex does not know (it refuses unknown fields)");
   // Windows: cmd.exe runs the shim whose exit is always 0
@@ -93,7 +106,7 @@ test("the tree's .codex/hooks.json: strom's hook before Codex's node_repl js, th
   // Codex's hash: SHA-256 of the sorted JSON of the declaration (codex-rs discovery.rs hook_hash)
   const command = `'/r/.strom/bin/strom' net web --hook || true`;
   const crypto = await import("node:crypto");
-  const expected = crypto.createHash("sha256").update(`{"event_name":"pre_tool_use","hooks":[{"async":false,"command":${JSON.stringify(command)},"timeout":60,"type":"command"}],"matcher":"^mcp__node_repl__js$"}`).digest("hex");
+  const expected = crypto.createHash("sha256").update(`{"event_name":"pre_tool_use","hooks":[{"async":false,"command":${JSON.stringify(command)},"timeout":60,"type":"command"}],"matcher":"^mcp__[a-z0-9_]+_repl__js$"}`).digest("hex");
   assert.equal(codexHookHash("/r", "darwin"), `sha256:${expected}`);
   // nothing of the person's Codex settings written
   assert.ok(!fs.existsSync(path.join(w.home, ".codex", "config.toml")));
@@ -206,5 +219,37 @@ test("Codex's browser code with no address strom can see: never refused — writ
   assert.equal(said.code, 0, said.err);
   assert.equal(said.json.unwatched, 2);
   assert.match((await w.run(["net", "web", "--session", "codex-1"])).out, /2 browser calls with no address strom could see \(unwatched\)/);
+  w.cleanup();
+});
+
+test("the ChatGPT app 26.1021's real calls of cua_repl's js (8 November 2026, steps 1–4): an archive refused, example.com let through, an archive in the same tab refused, a page read without an address written down as unwatched", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  // the calls as the rollout of the live test kept them (paths made neutral; the tree's archives from strom's own list)
+  const calls = (JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "codex-hooks", "chatgpt-26.1021-cua-repl.json"), "utf8")) as Record<string, unknown>[]).map((c) => JSON.stringify({ ...c, cwd: w.cwd }));
+  assert.equal(calls.length, 5);
+  for (const c of calls) assert.equal(codexEvent(c)?.tool, CODEX_CUA_TOOL);
+  // step 1: eBadatelna (a person's browser only, no permission of the person's): refused with the advice
+  const one = await hook(w, calls[0]!);
+  assert.equal(one.decision, "deny");
+  assert.match(one.reason, /ebadatelna\.soapraha\.cz/);
+  assert.match(one.reason, /strom task wait/);
+  // step 2: example.com through createBrowserTab — let through; its page read in the tab (no address in the code): never
+  // refused, written down as unwatched, the agent told once a session
+  assert.equal((await hook(w, calls[1]!)).decision, "allow");
+  const read = await hook(w, calls[2]!);
+  assert.equal(read.decision, "allow");
+  assert.match(read.context, /unwatched/);
+  // step 3: the same tab to the catalogue of an archive only a person's browser goes to — refused (live it went through)
+  const three = await hook(w, calls[3]!);
+  assert.equal(three.decision, "deny");
+  assert.match(three.reason, /katalog\.ahmp\.cz/);
+  const journal = fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+  assert.deepEqual(journal.map((r) => [r.tool, r.agent, r.decision]), [[CODEX_CUA_TOOL, "codex", "deny"], [CODEX_CUA_TOOL, "codex", "allow"], [CODEX_CUA_TOOL, "codex", "deny"]]);
+  // step 4: the title read with no address: let through, unwatched again, the agent not told twice
+  const four = await hook(w, calls[4]!);
+  assert.equal(four.decision, "allow");
+  assert.doesNotMatch(four.context, /unwatched/);
+  assert.deepEqual(unwatched(w).map((r) => [r.agent, r.tool, r.agentSession]), [["codex", CODEX_CUA_TOOL, "chatgpt-1"], ["codex", CODEX_CUA_TOOL, "chatgpt-1"]]);
   w.cleanup();
 });

@@ -137,6 +137,67 @@ several sources.
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b -->
 
+<a id="R3.4.1"></a>
+### R3.4.1 Only a person changes a person's transcription
+
+A transcription a person wrote or confirmed is changed by nobody but a person. A different wording from the agent is
+only proposed to the person. Reading by an AI model is a proposal; certainty comes from a person's verification.
+
+- **Enforced by the code:**
+  - a person's transcription is one written by hand in their terminal, or from the app with **Transcription verified**
+    ticked or with the setting **My source transcriptions → Evidence** ([R3.5.1](#R3.5.1)). What imports, conversions
+    and batches wrote under the person's account is not a person's transcription;
+  - no agent command changes such a transcription: an edit, a batch, a sync, a fix, an undo, an import or a
+    conversion. Only their terminal and the bridge of the Strom app may write as the person;
+  - a different wording from the agent (`strom source edit S… --transcript …`) is proposed instead: a note at the
+    source and one task for the person per source. It waits in **What waits**, group **Transcripts to decide**. No
+    queue offers it; the agent does not take it, close it, park it or start it;
+  - only the person decides:
+    - **Accept the proposal**: the proposed wording becomes the transcription and the person's confirmation moves to
+      it;
+    - **Keep the current one**: the transcription stays; the proposed wording is rejected and is not proposed again,
+      nor its places;
+    - **Undo** (after either): the transcription and the confirmation as before, and the proposal waits again. Undo is
+      refused when the transcription has changed meanwhile or another proposal waits.
+- **A transcription a person did not confirm:** the agent changes it only in a task and only where the record on the
+  scan itself shows it, with a reason. A new reading ([R8.8.2](R8-reading-scans.md#R8.8.2)) is only a guide: where the
+  scan cannot settle it, the agent writes a note at the source and the transcription stays.
+- **Method only:** the agent closes a task from a new reading by looking at the record on the scan itself, next to
+  both readings.
+- **Controls:** app: source viewer, the block **The agent’s proposal for the transcript** (**Whole text side by
+  side**, **Accept the proposal**, **Keep the current one**, **Undo**); for a transcription a person confirmed, after
+  a new reading **Set aside for review** ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: **What waits** → **The
+  proposed wording** / **The transcript as it is**; `strom source proposal S… --take proposal|keep|undo`.
+- **Why:** a person's transcription is their own reading of the record. The project's principle: nothing a person
+  confirmed is overwritten; a new result that differs is a task or a proposal to decide.
+- **Since:** research 1.29.0, app 3.25.0
+
+<!-- zdroj: research:c2a690ea strom help source proposal (--take proposal|keep|undo, --task, --proposed) · src/core/waiting.ts:375-390 (kind transcript, group transcripts, choices proposal/keep, ne TERMINAL_ONLY) · src/core/sync.ts:3862 (app read = evidence || verified) · assets/lang/cs.json proposal.*, ui.proposal.*, wait.group.transcripts, read.source.why, read.source.done · CHANGELOG.cs.md 1.29.0 („Přepis, který uživatel přečetl nebo potvrdil, je uživatelův“) · commity 284605bf, 8803cd70 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 4, 5) · app:6bd8609e strings.ts read.pTitle, pWhole, pAccept, pKeep, pUndo, pAccepted2, pKept2, pNote, tReview · src/ui/read-source-state-view.ts proposalHtml · spec 065 K2.3, spec 059 K3.2 -->
+
+<a id="R3.4.2"></a>
+### R3.4.2 Overlapping clips are one
+
+Two clips of the same image that overlap a lot are one entry clipped twice. The research joins them into one.
+
+- **Enforced by the code:**
+  - two clips of the same image that overlap by at least 30 % of the smaller one are joined into a rectangle over
+    both, in the place of the first. Repeatedly: three clips in a row are one;
+  - a clip that lies at least 90 % inside a bigger one (a detail of a name or a date, an entry next to the whole page)
+    stays. Two nearly identical rectangles (each at least 90 % inside the other) are joined;
+  - clips that are apart, only touch or are on other images stay;
+  - only what the research wrote is joined (the agent, a session, an agent's batch, `strom clips`); the agent is told
+    what was joined. A clip from a person (the terminal, the app) never changes;
+  - an older research is joined once, at the first start of the new version or the start of the bridge: only clips
+    that the history says the agent or a session wrote, one recorded operation per source. A person's transcription
+    and confirmation stay.
+- **Why:** a reader cuts off the bottom lines with one clip and the right part with another, and the app then shows
+  two nearly identical clips of the same entry.
+- **Controls:** none: joining happens by itself when a clip is written (`strom source add|edit --clip` by the agent,
+  `strom clips`).
+- **Since:** research 1.29.0
+
+<!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
 <a id="R3.5"></a>
 ## R3.5 A blind second reading
 

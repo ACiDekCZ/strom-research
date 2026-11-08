@@ -143,6 +143,75 @@ Seite sind mehrere Quellen.
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
+<a id="R3.4.1"></a>
+### R3.4.1 Die Abschrift eines Menschen ändert nur der Mensch
+
+Eine Abschrift, die ein Mensch geschrieben oder bestätigt hat, ändert niemand außer einem Menschen. Einen anderen
+Wortlaut vom Agenten bekommt der Mensch nur vorgeschlagen. Das Lesen durch ein KI-Modell ist ein Vorschlag; Sicherheit
+gibt die Prüfung durch den Menschen.
+
+- **Prüft der Code:**
+  - Abschrift eines Menschen ist eine von Hand in seinem Terminal geschriebene Abschrift oder eine aus der App mit
+    angehaktem **Abschrift geprüft** oder mit der Einstellung **Meine Quellenabschriften → Beleg** ([R3.5.1](#R3.5.1)).
+    Was Importe, Umwandlungen und Stapel unter dem Konto des Menschen geschrieben haben, ist keine Abschrift eines
+    Menschen;
+  - eine solche Abschrift ändert kein Befehl des Agenten: weder Bearbeitung, Stapel, Synchronisierung, Korrektur,
+    Rücknahme, Import noch Umwandlung. Als Mensch schreiben dürfen nur sein Terminal und die Brücke der App Strom;
+  - ein anderer Wortlaut vom Agenten (`strom source edit S… --transcript …`) wird stattdessen vorgeschlagen: eine Notiz
+    bei der Quelle und eine Aufgabe für den Menschen je Quelle. Sie wartet in **Was wartet**, Gruppe **Abschriften zu
+    entscheiden**. Keine Warteschlange bietet sie an; der Agent nimmt sie nicht, schließt sie nicht ab, stellt sie nicht
+    zurück und startet sie nicht;
+  - nur der Mensch entscheidet:
+    - **Vorschlag übernehmen**: Abschrift wird der vorgeschlagene Wortlaut, und die Bestätigung des Menschen geht auf
+      ihn über;
+    - **Bisherige behalten**: die Abschrift bleibt; der vorgeschlagene Wortlaut ist abgelehnt und wird nicht erneut
+      vorgeschlagen, auch seine Stellen nicht;
+    - **Rückgängig** (nach beidem): Abschrift und Bestätigung wie vorher, und der Vorschlag wartet wieder. Die Rücknahme
+      wird abgelehnt, wenn sich die Abschrift inzwischen geändert hat oder ein anderer Vorschlag wartet.
+- **Eine Abschrift, die der Mensch nicht bestätigt hat:** der Agent ändert sie nur in einer Aufgabe und nur dort, wo
+  es der Eintrag auf dem Scan selbst zeigt, mit einem Grund. Eine neue Lesung ([R8.8.2](R8-reading-scans.md#R8.8.2))
+  ist nur ein Anhaltspunkt: wo es sich am Scan nicht entscheiden lässt, schreibt der Agent eine Notiz zur Quelle, und
+  die Abschrift bleibt.
+- **Nur Methodik:** eine Aufgabe aus einer neuen Lesung schließt der Agent ab, indem er den Eintrag auf dem Scan selbst
+  neben beiden Lesungen ansieht.
+- **Bedienung:** App: Quellenbetrachter, Block **Vorschlag des Agenten zur Abschrift** (**Ganzer Wortlaut
+  nebeneinander**, **Vorschlag übernehmen**, **Bisherige behalten**, **Rückgängig**); bei einer vom Menschen
+  bestätigten Abschrift nach einer neuen Lesung **Zur Prüfung vormerken** ([R8.8.3](R8-reading-scans.md#R8.8.3)).
+  Terminal: **Was wartet** → **Die vorgeschlagene Fassung** / **Die Abschrift, wie sie ist**;
+  `strom source proposal S… --take proposal|keep|undo`.
+- **Warum:** die Abschrift eines Menschen ist seine eigene Lesung des Eintrags. Grundsatz des Projekts: nichts vom
+  Menschen Bestätigte wird überschrieben; ein neues Ergebnis, das abweicht, ist eine Aufgabe oder ein Vorschlag zur
+  Entscheidung.
+- **Gilt seit:** Forschung 1.29.0, App 3.25.0
+
+<!-- zdroj: research:c2a690ea strom help source proposal (--take proposal|keep|undo, --task, --proposed) · src/core/waiting.ts:375-390 (kind transcript, group transcripts, choices proposal/keep, ne TERMINAL_ONLY) · src/core/sync.ts:3862 (app read = evidence || verified) · assets/lang/cs.json proposal.*, ui.proposal.*, wait.group.transcripts, read.source.why, read.source.done · CHANGELOG.cs.md 1.29.0 („Přepis, který uživatel přečetl nebo potvrdil, je uživatelův“) · commity 284605bf, 8803cd70 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 4, 5) · app:6bd8609e strings.ts read.pTitle, pWhole, pAccept, pKeep, pUndo, pAccepted2, pKept2, pNote, tReview · src/ui/read-source-state-view.ts proposalHtml · spec 065 K2.3, spec 059 K3.2 -->
+
+<a id="R3.4.2"></a>
+### R3.4.2 Überlappende Ausschnitte sind einer
+
+Zwei Ausschnitte desselben Bildes, die sich stark überlappen, sind ein zweimal ausgeschnittener Eintrag. Die Forschung
+fügt sie zu einem zusammen.
+
+- **Prüft der Code:**
+  - zwei Ausschnitte desselben Bildes, die sich um mindestens 30 % des kleineren überlappen, werden zu einem Rechteck
+    über beide zusammengefügt, an der Stelle des ersten. Wiederholt: drei Ausschnitte in einer Reihe sind einer;
+  - ein Ausschnitt, der zu mindestens 90 % in einem größeren liegt (Detail eines Namens oder Datums, ein Eintrag neben
+    der ganzen Seite), bleibt. Zwei fast gleiche Rechtecke (jedes zu mindestens 90 % im anderen) werden zusammengefügt;
+  - getrennte, sich nur berührende oder auf anderen Bildern liegende Ausschnitte bleiben;
+  - zusammengefügt wird nur, was die Forschung geschrieben hat (der Agent, eine Sitzung, ein Stapel des Agenten,
+    `strom clips`); dem Agenten wird gesagt, was zusammengefügt wurde. Ein Ausschnitt vom Menschen (Terminal, App)
+    ändert sich nie;
+  - eine ältere Forschung wird einmal zusammengefügt, beim ersten Start der neuen Version oder beim Start der Brücke:
+    nur Ausschnitte, die laut Verlauf der Agent oder eine Sitzung geschrieben hat, ein aufgezeichneter Vorgang je
+    Quelle. Abschrift und Bestätigung des Menschen bleiben.
+- **Warum:** ein Leser schneidet mit einem Ausschnitt die unteren Zeilen ab, mit einem anderen den rechten Teil, und
+  die App zeigt dann zwei fast gleiche Ausschnitte desselben Eintrags.
+- **Bedienung:** keine: zusammengefügt wird von selbst beim Schreiben eines Ausschnitts (`strom source add|edit --clip`
+  durch den Agenten, `strom clips`).
+- **Gilt seit:** Forschung 1.29.0
+
+<!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
 <a id="R3.5"></a>
 ## R3.5 Blinde zweite Lesung
 

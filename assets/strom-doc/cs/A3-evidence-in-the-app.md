@@ -86,11 +86,14 @@ ke sňatku a ke společné události páru. Z citací aplikace počítá úrove�
 - **Jiná stránka** u pramene ve výběru: nový pramen se stejným názvem, archivem, odkazem, spolehlivostí a
   poznámkou; ze signatury zmizí strana, z poznámky řádky se stranou a s datem zápisu. Když název knihy jmenuje
   osobu ze stromu, navrhne se název podle citovaného údaje.
-- **Další zápis ze stejné knihy** (prohlížeč a editor pramene): nový pramen se stejným archivem, signaturou a
-  odkazem; otevřený ze štítku citace se rovnou ocituje tam.
-- **Platí od:** aplikace 3.1.0 (**Naposledy použité**, **Další zápis ze stejné knihy**); **Jiná stránka** 3.9.0
+- **Další zápis ze stejné knihy** (prohlížeč a editor pramene): nový pramen se stejným archivem a odkazem; signatura
+  bez čísla a data zápisu, tedy kniha, snímek a strana („kn. 12, sn. 5, str. 3, 2. zápis (3. 4. 1801)“ →
+  „kn. 12, sn. 5, str. 3“). Signatura, ve které aplikace část se zápisem nepozná, zůstane celá a označená ke
+  kontrole. Otevřený ze štítku citace se rovnou ocituje tam.
+- **Platí od:** aplikace 3.1.0 (**Naposledy použité**, **Další zápis ze stejné knihy**); **Jiná stránka** 3.9.0;
+  3.25.0: **Další zápis ze stejné knihy** bez čísla a data zápisu
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
 
 <a id="A3.3"></a>
 ## A3.3 Výřez zápisu

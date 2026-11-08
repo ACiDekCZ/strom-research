@@ -45,10 +45,23 @@ export function userReading(s: Pick<Source, "read" | "transcript">): UserReading
   return u;
 }
 
-/** The day the user confirmed the transcript as it is now in the Strom app, none when not (or no more). */
+/**
+ * The day the user confirmed the transcript as it is now in the Strom app, none when not (or no more): the day of this
+ * computer's calendar — the moment is kept in UTC, so a confirmation shortly after midnight is the new day's, never the
+ * day before (8 November 2026). Nothing written changes: the day is read from the moment each time.
+ */
 export function confirmedOn(s: Pick<Source, "read" | "transcript">): string | undefined {
   const u = userReading(s);
-  return u?.how === "confirm" ? u.at.slice(0, 10) : undefined;
+  return u?.how === "confirm" ? localDayOf(u.at) : undefined;
+}
+
+/** A moment's day on this computer's calendar (YYYY-MM-DD); a day alone, or not a moment: its first ten characters. */
+export function localDayOf(at: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(at)) return at;
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return at.slice(0, 10);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${String(d.getFullYear()).padStart(4, "0")}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 }
 
 /**

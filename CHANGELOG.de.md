@@ -5,9 +5,55 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.30.0
+
+*In Vorbereitung: die Betas bis 1.30.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Angaben aus einem übernommenen Stammbaum sind geschützt.** Ein Stammbaum aus einem anderen Programm (GEDCOM) gibt
+  Hinweise: der Agent ändert eine solche Angabe nur nach einem Eintrag, den er zitiert, und der Wert aus dem Stammbaum
+  bleibt daneben erhalten („ursprünglich aus dem Stammbaum: …“) und lässt sich zurücksetzen (`strom event revert`, `strom
+  person revert`). Ohne zitierten Eintrag – und immer, wenn der Benutzer über die Hypothesen entscheidet – schlägt der
+  Agent nur vor, als Widerspruch zur Entscheidung des Benutzers. Was der Benutzer eingegeben oder geändert hat, in der
+  App Strom oder in strom, ändert der Agent nie: er schlägt nur vor – auch nicht über eine Datei, die er mit `strom sync`
+  einliest. Die Vorschläge des Agenten sind in `strom conflict list` und `show` erkennbar und schließen sich selbst,
+  sobald der vorgeschlagene Wert gilt. Eine früher angelegte Forschung wird nach dem Update einmal markiert (welche
+  Angaben aus einem übernommenen Stammbaum kamen, welche vom Benutzer sind): kein Wert ändert sich, und `strom fixes undo
+  origins` nimmt die Markierungen zurück. Ein Vorschlag, dessen Wert sich seit seiner Entstehung geändert hat (vom
+  Benutzer bearbeitet), ist veraltet: Er lässt sich nicht annehmen – über den neueren Wert wird nichts geschrieben –, nur
+  mit dem behaltenen Wert schließen. Was ein Vorschlag nicht tragen kann (eine zusammen mit dem Datum geänderte Ursache),
+  nennt das Ergebnis der Synchronisation, es geht nie verloren.
+
+- **Ein erneut übernommener Stammbaum findet seine Personen.** Die IDs, die ein Programm Personen und Familien gab
+  (`_UID`, `EXID`, `_FSFTID`… von MyHeritage, Gramps, FamilySearch und anderen), bleiben erhalten: ein Stammbaum desselben
+  Programms, erneut übernommen (oder aus einem anderen Programm in die Forschung), findet die Personen über sie – nie
+  doppelt, neue Angaben kommen als Hinweise dazu; eine nur vielleicht gleiche Person (anderer Name, andere
+  FamilySearch-ID) wird genannt, nie verbunden. Die IDs gehen mit der Forschung zurück in die Strom-App. Was die Datei
+  enthält und nicht übernommen wird (Medien, eigene Tags des Programms), wird im Ergebnis gezählt. In einer früher angelegten Forschung werden die IDs früherer Übernahmen aus deren Dateien gelesen,
+  sodass auch ein vor der Markierung erneut übernommener Stammbaum niemanden doppelt anlegt.
+
+- **Eine im Terminal gezeigte oder bearbeitete Angabe** (`strom event show`, `strom event edit`) erscheint in der
+  Sprache der Forschung. In der App Strom hat ein in die Forschung übernommener Stammbaum nicht mehr die erste Zeile
+  daraus als Fundstelle des ganzen Stammbaums: jede Angabe nennt ihre eigene.
+
+- **Stammbäume aus Windows-Programmen in der Codepage 1250 oder 1252 („ANSI“)** werden mit den richtigen Buchstaben
+  gelesen – tschechisch, polnisch, deutsch, wie in der App Strom. Ein Zeichen, das sich nicht lesen lässt, wird gemeldet,
+  nie still ersetzt.
+
+- **Die Einrichtung mit Codex in der App ChatGPT** spricht dort nicht mehr von den Hooks von Codex: dieser Satz gilt Codex
+  im Terminal.
+
+- **Der Browser der App ChatGPT, wie er wirklich ist.** Der Browser der App ChatGPT läuft über die Cloud von ChatGPT und
+  ruft keine Regel von strom auf: strom sagt nicht mehr, dass es ihn überwacht, und der Agent dort geht zu einem Archiv
+  mit Einschränkungen nur über einen Menschen (`strom task wait --images`). `strom doctor` und die Einrichtung sagen es
+  als Warnung, mit dem Rat zum Dialog „Cloud-Browser“ von ChatGPT bei einem solchen Archiv: *ablehnen*, Zugriff auf alle
+  relevanten Websites nie. Codex im Terminal bleibt überwacht – neu auch sein Browser, geöffnet über `createBrowserTab`.
+
+- **Eine kurz nach Mitternacht in der App Strom bestätigte Abschrift** trägt den neuen Tag nach dem Kalender dieses
+  Computers (bisher den Tag davor).
+
 ## 1.29.0
 
-*In Vorbereitung: die Betas bis 1.29.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
+*8.11.2026 · gehört zur Strom-App 3.25.0.*
 
 - **Wer Hypothesen entscheidet: der Mensch oder die KI.** Eine neue Einstellung der Forschung
   (`strom config set hypotheses.decide`, die Frage der Ersteinrichtung neben den anderen Wahlen, Einstellungen im Menü
@@ -22,11 +68,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   es zuerst an, *der Mensch entscheidet* wird dort gespeichert; entscheidet der Mensch, schaltet nur ein Mensch das
   Entscheiden der KI wieder ein, mit einem zweiten Ja.
 
-- **Jede Hypothese lässt sich im Menü entscheiden.** „Was wartet“ bietet auch offene Hypothesen ohne Vorschlag des
-  Agenten an – mit Variante und Begründung entscheiden oder offen lassen –, und eine entschiedene oder zurückgestellte
-  Hypothese lässt sich mit Begründung neu entscheiden, die frühere Entscheidung bleibt lesbar; ebenso aus der Prüfung
-  einer Person und über einen Link der Strom-App. Entscheidet der Mensch, schlägt der Agent überall dort eine
-  Entscheidung vor, wo die Einträge auf eine Variante zeigen.
+- **Jede Hypothese lässt sich im Menü entscheiden.** Entscheidet der Mensch, bietet „Was wartet“ auch offene
+  Hypothesen ohne Vorschlag des Agenten an – mit Variante und Begründung entscheiden oder offen lassen; entscheidet die
+  KI (die Voreinstellung), nur die Vorschläge des Agenten. Aus der Prüfung einer Person und über einen Link der
+  Strom-App lässt sich jede Hypothese entscheiden, gleich wer entscheidet, und eine entschiedene oder zurückgestellte
+  Hypothese lässt sich mit Begründung neu entscheiden, die frühere Entscheidung bleibt lesbar. Entscheidet der Mensch,
+  schlägt der Agent überall dort eine Entscheidung vor, wo die Einträge auf eine Variante zeigen.
 
 - **Die Forschung in der Strom-App bleibt eingeschaltet.** Die Verbindung zur Strom-App (die Brücke) endet nicht mehr
   von selbst nach zwei Stunden ohne Anfrage: Sie läuft, bis sie ausgeschaltet wird oder der Computer ausgeht

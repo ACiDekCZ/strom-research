@@ -166,3 +166,19 @@ test("merge never makes a person their own parent; a partner's age and a child's
   assert.match(checked.out + checked.err, /P0002 is their own parent/);
   w.cleanup();
 });
+
+test("a merge never rewrites the IDs a record had in another file (refs): a REFN P0002 of a foreign file stays its word", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Hynek /Lhoták/", "--sex", "M", "--born", "1811"]); // P1
+  await w.ok(["person", "add", "Hynek /Lhotak/", "--sex", "M", "--born", "1811"]); // P2
+  const file = path.join(w.dir, "cizi.ged");
+  fs.writeFileSync(file, ["0 HEAD", "1 SOUR GRAMPS", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Zdislava /Lhotková/", "1 SEX F", "1 REFN P0002", "0 TRLR", ""].join("\n"));
+  await w.ok(["intake", file]);
+  const before = readJsonFile(path.join(w.cwd, "data", "persons", "P0003.json"));
+  assert.ok(before.refs.some((r: any) => r.system === "refn" && r.id === "P0002"), "the foreign REFN kept");
+  await w.ok(["person", "merge", "P1", "P2", "--reason", "týž Hynek"]);
+  const after = readJsonFile(path.join(w.cwd, "data", "persons", "P0003.json"));
+  assert.deepEqual(after.refs, before.refs, "the file's REFN P0002 is no reference to the research's P0002");
+  w.cleanup();
+});

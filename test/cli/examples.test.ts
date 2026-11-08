@@ -180,11 +180,12 @@ test("every example in the help runs", opts, async () => {
       // run|decline|reopen), a reading again decided (source reading): in their terminal —
       // this test's own settings (R8)
       const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" ||
-        ["fixes run", "fixes decline", "fixes reopen", "source reading"].includes(def.path.join(" "));
+        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event revert", "person revert"].includes(def.path.join(" "));
+      // putting back a family tree's value (the person's): this world imported none — its answer that nothing is to put back
       // a reading again asked about at the person's terminal (no --take): left undecided (0)
       const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : {};
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
-      if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
+      if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }
   assert.deepEqual(failures, []);

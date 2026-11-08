@@ -621,7 +621,9 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         const s = (await res.json()) as Record<string, any>;
         assert.equal(s.strom, isBeta ? BETA : STABLE);
         // only what this strom does, never more: the features of its code
-        assert.deepEqual(s.features, [...BRIDGE_FEATURES]);
+        // (origin.ids only where /tree.ged sends the IDs, by the gate of the origins: test/cli/origin-app.test.ts)
+        const noIds = (l: readonly string[]) => l.filter((f) => f !== "origin.ids");
+        assert.deepEqual(noIds(s.features), noIds(BRIDGE_FEATURES));
         if (isBeta) assert.equal(s.channel, "beta");
         else assert.ok(!("channel" in s), "the releases: no channel said");
         assert.equal(s.linkScheme, isBeta ? "strom-research-beta" : undefined, "the second installation's own links");

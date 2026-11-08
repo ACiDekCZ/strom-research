@@ -19,8 +19,10 @@ import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared }
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
 import { addMarriedNames, importedTree, importGedcom, importStromJson, isStromJson, marriedNamesPlan, undoMarriedNames, type ImportResult } from "../core/import.ts";
+import { pendingIds } from "../core/originfix.ts";
 import { displayName, gedcomName, likelyDuplicates } from "../core/people.ts";
 import { decodeText, safeFolderName } from "../core/text.ts";
+import { decodeGedcom, decodingNote, type DecodingNote } from "../gedcom/encoding.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
@@ -30,8 +32,14 @@ import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { appHasTree } from "../core/live.ts";
 import { isArchive } from "../core/mode.ts";
-import { ui } from "../cli/ui.ts";
+import { decodingSaid, ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
+
+/** A family tree file as text: a GEDCOM by its own encoding rule (CHAR, a Windows code page), anything else as saved. */
+function treeText(file: string): string {
+  const bytes = fs.readFileSync(file);
+  return path.extname(file).toLowerCase() === ".ged" ? decodeGedcom(bytes).text : decodeText(bytes);
+}
 
 function kindOf(file: string, text?: string): Input["kind"] {
   const ext = path.extname(file).toLowerCase();
@@ -225,6 +233,8 @@ register(
       const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
+      /** How each GEDCOM was read, where there is something to say (--json: on its input). */
+      const notes = new Map<string, DecodingNote & { candidates?: ImportResult["candidates"]; notTaken?: ImportResult["notTaken"] }>();
       /** What came for the task: the new inputs, and those the research had of the same content. */
       const handed: string[] = [];
       let skipped = 0;
@@ -240,15 +250,18 @@ register(
             // a family tree imported before strom read its married names (_MARNM): said how they come in
             const had = tree.get<Input>(known.get(sha)!);
             if (!quiet && had && !importedTree(had)) {
-              const missing = marriedNamesPlan(tree, had, decodeText(fs.readFileSync(file))).add.length;
+              const missing = marriedNamesPlan(tree, had, treeText(file)).add.length;
               if (missing) report.push(`  ${ui(tree.lang, "ui.intake.married", { id: had.id, n: missing })}`);
             }
             continue;
           }
           const size = fs.statSync(file).size;
           const isText = size < 50 * 1024 * 1024 && [".ged", ".json", ".txt", ".md", ".csv"].includes(path.extname(file).toLowerCase());
-          // as whatever saved it: a BOM (Notepad, PowerShell 5) or UTF-16 is still the same family tree
-          const text = isText ? decodeText(fs.readFileSync(file)) : undefined;
+          // as whatever saved it: a BOM (Notepad, PowerShell 5) or UTF-16 is still the same family tree; a GEDCOM of a
+          // Windows program in its code page (1 CHAR ANSI, CP1250) read as the Strom app reads it
+          const isGed = isText && path.extname(file).toLowerCase() === ".ged";
+          const decoded = isGed ? decodeGedcom(fs.readFileSync(file)) : undefined;
+          const text = decoded ? decoded.text : isText ? decodeText(fs.readFileSync(file)) : undefined;
           const kind = kindOf(file, text);
           const id = tree.peekId("I");
           let stored: string;
@@ -270,19 +283,34 @@ register(
           let imported: ImportResult | undefined;
           if (kind === "tree" && !opts["no-import"] && text !== undefined) {
             imported = path.extname(file).toLowerCase() === ".ged"
-              ? importGedcom(tree, text, { input: input.id, name: input.name, sha })
+              ? importGedcom(tree, text, { input: input.id, name: input.name, sha, pendingIds: pendingIds(tree) })
               : importStromJson(tree, JSON.parse(text), { input: input.id, name: input.name });
             update<Input>(tree, input.id, "input", (i) => ({ ...i, source: imported!.source, imported: { persons: imported!.persons, families: imported!.families, sources: 1 } }), {
               op: "input.imported",
               summary: `${input.id} imported: ${imported.persons} persons, ${imported.families} families${imported.matched ? `, ${imported.matched} matched` : ""}`,
             });
-            const back = imported.matched && imported.matched >= imported.persons;
+            const back = imported.matched - (imported.matchedByIds ?? 0) > 0 && imported.matched - (imported.matchedByIds ?? 0) >= imported.persons;
             // what the person reads while the research happens — whoever ran it, the agent too: the research's
             // language (where nobody researches, without the review talk)
             report.push(
               `  ${ui(tree.lang, "ui.intake.tree", { id: input.id, persons: imported.persons, families: imported.families, events: imported.events, source: imported.source })}${imported.matched ? ui(tree.lang, "ui.intake.tree.matched", { n: imported.matched }) : ""}${!quiet && imported.problems.length ? ui(tree.lang, "ui.intake.tree.unreadable", { n: imported.problems.length }) : ""}`,
             );
             if (!quiet && imported.extended.length) report.push(`  ${ui(tree.lang, "ui.intake.extended", { list: `${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}` })}`);
+            // people the IDs of the program point at, not joined: for a person to decide (spec 066 K3.2)
+            if (imported.candidates.length)
+              report.push(`  ${ui(tree.lang, "ui.intake.candidates", { list: `${imported.candidates.slice(0, 6).map((c) => `${c.person}≈${c.like}`).join(", ")}${imported.candidates.length > 6 ? " …" : ""}` })}`);
+            // what the file holds that the research does not take, said once
+            const nt = imported.notTaken;
+            const ntList = nt
+              ? [
+                  ...(nt.objects ? [ui(tree.lang, "ui.intake.notTaken.objects", { n: nt.objects })] : []),
+                  ...(nt.links ? [ui(tree.lang, "ui.intake.notTaken.links", { n: nt.links })] : []),
+                  ...Object.entries(nt.tags).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([t, n]) => `${t} ×${n}`),
+                ]
+              : [];
+            if (ntList.length) report.push(`  ${ui(tree.lang, "ui.intake.notTaken", { list: `${ntList.join(", ")}${nt && Object.keys(nt.tags).length > 8 ? " …" : ""}` })}`);
+            if (imported.candidates.length || ntList.length)
+              notes.set(input.id, { ...notes.get(input.id), ...(imported.candidates.length ? { candidates: imported.candidates } : {}), ...(ntList.length ? { notTaken: imported.notTaken } : {}) });
             // the research's own tree coming back: sync sees what was changed in it too, not only what was added
             if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
             if (!quiet) {
@@ -290,6 +318,12 @@ register(
               const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id), sameFamily(tree), twoPeople(tree));
               if (dupes.length) report.push(`  ${ui(tree.lang, "ui.intake.dupes", { list: dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ") })}`);
             }
+          }
+          // the code page it was read in, the characters it could not read: said, never replaced in silence
+          const read = decoded ? decodingNote(decoded) : {};
+          if (read.encoding || read.unreadable) {
+            notes.set(input.id, { ...notes.get(input.id), ...read });
+            report.push(...decodingSaid(tree.lang, input.id, read).map((l) => `  ${l}`));
           }
           // A family tree gets its own review task; the other files of a folder share one — files for a task: none
           if (forTask) handed.push(input.id);
@@ -324,7 +358,7 @@ register(
         !quiet && tasks ? `\n${ui(tree.lang, "ui.intake.tasks", { n: tasks })}` : undefined,
         task ? ui(tree.lang, "ui.intake.handed", { task: task.id, inputs: [...new Set(handed)].join(", ") }) : undefined,
       );
-      return { text, data: { inputs: added, skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
+      return { text, data: { inputs: added.map((i) => ({ ...i, ...notes.get(i.id) })), skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
     },
   },
   {
@@ -578,7 +612,7 @@ register(
       }
       const file = inputPath(tree, input);
       if (!file || !fs.existsSync(file)) throw new UsageError(`the file of ${input.id} is not here (${input.file ?? "none"})`, { hint: `strom input show ${input.id}`, code: "input.names.no-file", params: { input: input.id } });
-      const plan = marriedNamesPlan(tree, input, decodeText(fs.readFileSync(file)));
+      const plan = marriedNamesPlan(tree, input, treeText(file));
       if (opts.apply && plan.add.length) addMarriedNames(tree, plan);
       const done = !!opts.apply && !tree.dryRun;
       const text = lines(

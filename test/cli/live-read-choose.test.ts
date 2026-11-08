@@ -108,10 +108,11 @@ function block(ged: string, id: string): string {
 test("the gate: 1 _STROM_ORIG Y only for an app that reads a source again — not released yet; its beta and development copies at once; an unknown version once released", () => {
   const prod = new Settings({}, {});
   const beta = new Settings(BETA_APP, {});
-  assert.equal(APP_READS_SOURCES_AGAIN, undefined, "set from the app's release that reads a source again, never a beta's");
+  assert.equal(APP_READS_SOURCES_AGAIN, "3.25.0", "set from the app's release that reads a source again, never a beta's");
   assert.equal(APP_READS_SOURCES_AGAIN_BETA, undefined);
-  assert.equal(appReadsSourcesAgain(prod, "3.25.0"), false);
-  assert.equal(appReadsSourcesAgain(prod), false, "unknown version: off until released");
+  assert.equal(appReadsSourcesAgain(prod, "3.25.0"), true);
+  assert.equal(appReadsSourcesAgain(prod, "3.24.0"), false);
+  assert.equal(appReadsSourcesAgain(prod), true, "unknown version once released: today's");
   assert.equal(appReadsSourcesAgain(beta, "3.25.0"), true, "another copy of the app at once");
   assert.equal(appReadsSourcesAgain(beta), true);
   assert.equal(appReadsSourcesAgain(prod, "3.26.0", "3.26.0"), true);
@@ -136,8 +137,9 @@ test("K3.3: 1 _STROM_ORIG Y on a source with its original here and a transcript 
     assert.match(block(beta, "S0002"), /^1 _STROM_ORIG Y\r?$/mu, "a Cyrillic transcript");
     assert.doesNotMatch(block(beta, "S0003"), /_STROM_ORIG/u, "no transcript to hold a reading against");
     assert.doesNotMatch(block(beta, "S0004"), /_STROM_ORIG/u, "no original here");
-    assert.doesNotMatch(await ged({ STROM_APP_VERSION: "3.25.0" }), /_STROM_ORIG/u, "an app that does not read a source again");
-    assert.doesNotMatch(await ged({ STROM_APP_VERSION: "" }), /_STROM_ORIG/u, "an unknown version: not released yet");
+    assert.doesNotMatch(await ged({ STROM_APP_VERSION: "3.24.0" }), /_STROM_ORIG/u, "an app that does not read a source again");
+    assert.match(block(await ged({ STROM_APP_VERSION: "3.25.0" }), "S0001"), /^1 _STROM_ORIG Y\r?$/mu, "the app that reads a source again");
+    assert.match(block(await ged({ STROM_APP_VERSION: "" }), "S0001"), /^1 _STROM_ORIG Y\r?$/mu, "an unknown version: today's");
     // the standard file never
     await w.ok(["export", "gedcom", "--for", "standard", "--out", file]);
     assert.doesNotMatch(fs.readFileSync(file, "utf8"), /_STROM_ORIG/u);

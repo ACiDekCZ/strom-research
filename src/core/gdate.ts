@@ -129,3 +129,6 @@ export function certainlyBefore(a: string | undefined, b: string | undefined): b
   const [x, y] = [dateMonths(a), dateMonths(b)];
   return !!x && !!y && x.max < y.min;
 }
+
+/** Birth years further apart than this are two people (duplicates, matching by the IDs of a family tree). */
+export const YEARS_CLOSE = 3;

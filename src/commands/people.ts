@@ -1,11 +1,12 @@
 // person add · list · show · edit · name add · retract · restore · family add · show · child · event add · note add · list · edit · retract · restore · cite
 
+import { opLine } from "../core/proposals.ts";
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
 import { checkStreetPlace } from "../core/streets.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
@@ -38,6 +39,7 @@ import { isAgent } from "../core/which.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { eventName, humanDate, humanDay, humanPlace, statusName } from "../cli/human.ts";
 import { removedBySync } from "../core/sync.ts";
+import { changedPerson, checkCited, FACT_PARTS, factChanges, nameRef, ownerOf, personChangedFact, primaryVerdict, proposeFact, proposedLine, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, revertImported, sexRef, verdictOf } from "../core/origin.ts";
 
 function list(v: unknown): string[] {
   if (v === undefined) return [];
@@ -103,16 +105,34 @@ function informationOpt(v: unknown): Citation["information"] {
   return v as Citation["information"];
 }
 
-function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary));
+/** Why putting an imported value back is the person's (the commands' `person`). */
+const REVERT_PERSON = "Putting back what an imported family tree said is the user's own: in the Strom app or at their own terminal, never an agent";
+
+/** An agent (or anything not the person) puts nothing back: said with what the user does instead. */
+function refuseRevert(tree: Tree, command: string): void {
+  if (tree.personWrites) return;
+  throw new UsageError("putting back what an imported family tree said is the user's own — never an agent's", {
+    hint: `tell the user: in the Strom app, or at their own terminal: ${command}`,
+    code: "revert.person",
+  });
 }
 
+function written(tree: Tree): string {
+  return lines(...tree.written.map((o) => opLine(tree, o)));
+}
+
+
+/** What an edit of a fact wrote: for a person at a terminal the fact as it is now in the research's language. */
+function editedLines(tree: Tree, e: Event, w: Words): string {
+  if (!w.lang) return written(tree);
+  return lines(...tree.written.map((o) => (o.op === "event.edit" && o.summary.startsWith(`${e.id} `) ? w.say("ui.event.edited", o.summary, { line: eventLine(e, w) }) : opLine(tree, o))));
+}
 
 /**
  * The words of a listing in the research's language where a person reads it at a terminal (found on Mac: "names",
  * "facts", "family" in a Czech research); an agent reads the English it knows, the same lines as ever.
  */
-function wordsFor(ctx: Context, tree: Tree) {
+export function wordsFor(ctx: Context, tree: Tree) {
   const lang = ctx.io.tty && !isAgent(ctx.env) ? tree.lang : undefined;
   const say = (key: UIKey, english: string, params?: Record<string, string | number>) => (lang ? ui(lang, key, params) : english);
   const word = (kind: string, value: string) => (lang && `ui.show.${kind}.${value}` in UI ? ui(lang, `ui.show.${kind}.${value}` as UIKey) : value);
@@ -396,27 +416,63 @@ register(
     group: "people",
     tree: true,
     writes: true,
-    description: "Another name (a birth surname, a married name, another spelling) is added with strom name add, not edited here.",
+    description:
+      "Another name (a birth surname, a married name, another spelling) is added with strom name add, not edited here.\n" +
+      "A name or sex the user gave is never changed by an agent: it becomes a proposal the user decides. One from an\n" +
+      "imported family tree changes only on a record: --cite S… (or one the name cites already); otherwise a proposal\n" +
+      "too. The family tree's value is kept: the user can put it back (strom person revert).",
     args: [{ name: "person", description: "ID (P0001) or name", required: true }],
     options: [
       { name: "sex", type: "string", value: "M|F|U", description: "sex" },
       { name: "name", type: "string", value: "<name>", description: 'the corrected name, surname in slashes: "Jan /Novák/"' },
       ...TITLE_OPTIONS.map((o) => ({ ...o, description: `${o.description}; "" takes it off` })),
+      { name: "cite", type: "string", value: "<S…>", description: "the record the change rests on (needed to change a name or sex of an imported family tree)" },
+      { name: "locator", type: "string", value: "<where>", description: "where in the source: folio, entry, line" },
+      { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
     ],
     examples: [
       "strom person edit P0004 --sex M",
       'strom person edit P0001 --name "Antonín /Víšek/" --reason "misread: the register has Víšek"',
       'strom person edit P0003 --prefix "MUDr."',
+      'strom person edit P0005 --name "Jan /Lhoták/" --cite S0004 --locator "fol. 7" --reason "the baptism register spells it Lhoták"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const p = editPerson(
-        tree,
-        resolvePerson(tree, args[0]!).id,
-        { sex: opts.sex as string | undefined, name: opts.name as string | undefined, prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined },
-        opts.reason as string | undefined,
-      );
-      return { text: written(tree), data: { person: p } };
+      const id = resolvePerson(tree, args[0]!).id;
+      const cite = citationOf(opts);
+      const reason = opts.reason as string | undefined;
+      const edit = { sex: opts.sex as string | undefined, name: opts.name as string | undefined, prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined };
+      const proposed: { id: string; line: string }[] = [];
+      const p = tree.withTreeLock(() => {
+        if (cite) checkCited(tree, cite);
+        // the person (their terminal, the Strom app): theirs from now on
+        if (tree.personWrites) return editPerson(tree, id, { ...edit, mark: (b, n) => changedPerson(tree, b, n, "person", cite) }, reason);
+        const cur = tree.get<Person>(id)!;
+        const g = { cite, decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" };
+        if (edit.name !== undefined) {
+          const wanted = parseName(edit.name);
+          const name = primaryName(cur);
+          const parts = (["given", "surname"] as const).filter((k) => name[k] !== wanted[k]);
+          const v = parts.length ? verdictOf(tree, name.origin, parts, name.citations, g) : undefined;
+          if (v?.kind === "propose") {
+            const x = proposeName(tree, cur, { given: wanted.given, surname: wanted.surname }, v.as, { cite, reason });
+            proposed.push({ id: x.conflict.id, line: proposedLine(`the name of ${id}`, x.conflict, v.why, x.again) });
+            edit.name = undefined;
+          }
+        }
+        if (edit.sex !== undefined) {
+          const sex = parseSex(edit.sex);
+          const v = cur.sex !== "U" && sex !== cur.sex ? verdictOf(tree, cur.sexOrigin, [undefined], undefined, g) : undefined;
+          if (v?.kind === "propose") {
+            const x = proposeSex(tree, cur, sex, v.as, { cite, reason });
+            proposed.push({ id: x.conflict.id, line: proposedLine(`the sex of ${id}`, x.conflict, v.why, x.again) });
+            edit.sex = undefined;
+          }
+        }
+        if (proposed.length && Object.values(edit).every((x) => x === undefined)) return cur;
+        return editPerson(tree, id, { ...edit, mark: (b, n) => changedPerson(tree, b, n, "research", cite) }, reason);
+      });
+      return { text: lines(...proposed.map((x) => x.line), written(tree)), data: { person: p, ...(proposed.length ? { proposed: proposed.length === 1 ? proposed[0]!.id : proposed.map((x) => x.id) } : {}) } };
     },
   },
   {
@@ -493,7 +549,16 @@ register(
           code: "name.retracted",
           params: { name: gedcomName(gone), id: p.id, reason: gone.retracted.reason },
         });
-      const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary), prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined });
+      // the person's name is theirs (spec 066); an agent never completes a name of the user's in its place
+      const r = addName(tree, p.id, {
+        name: args[1]!,
+        kind: opts.kind as string | undefined,
+        citation: citationOf(opts),
+        primary: Boolean(opts.primary),
+        prefix: opts.prefix as string | undefined,
+        suffix: opts.suffix as string | undefined,
+        ...(tree.personWrites ? { origin: { by: "user" as const } } : { keepUsers: true }),
+      });
       return { text: written(tree), data: { person: r.person, name: r.name } };
     },
   },
@@ -521,7 +586,17 @@ register(
       const p = resolvePerson(tree, args[0]!);
       if (opts.clear && args[1] !== undefined) throw new UsageError("a name or --clear, not both", { hint: `strom name primary ${p.id} "<Given /Surname/>" · strom name primary ${p.id} --clear` });
       if (!opts.clear && args[1] === undefined) throw new UsageError("which name?", { hint: `its names: ${p.names.map((n) => `"${gedcomName(n)}"`).join(", ")} · strom name primary ${p.id} "<Given /Surname/>" · --clear` });
-      const r = markPrimaryName(tree, p.id, opts.clear ? undefined : args[1], opts.reason as string | undefined);
+      // the person's choice is theirs (spec 066); an agent's on a name of the user's or an import's only a proposal
+      if (!tree.personWrites) {
+        const index = opts.clear ? undefined : p.names.findIndex((n) => sameName(n, parseName(args[1]!)));
+        const as = index === -1 ? undefined : primaryVerdict(p, index);
+        if (as) {
+          const x = proposePrimary(tree, p, index, as, opts.reason as string | undefined);
+          const line = `the name ${p.id} is shown by is the user's choice (${as === "user" ? "the user's name" : "a name of an imported family tree"}): proposed (${x.conflict.id}${x.again ? ", proposed already" : ""}), not changed — the user decides`;
+          return { text: lines(line, written(tree)), data: { person: p, proposed: x.conflict.id } };
+        }
+      }
+      const r = markPrimaryName(tree, p.id, opts.clear ? undefined : args[1], opts.reason as string | undefined, tree.personWrites ? (n) => ({ ...n, origin: { by: "user" } }) : undefined);
       return { text: written(tree), data: { person: r.person, name: r.name, ...(r.was ? { was: r.was } : {}) } };
     },
   },
@@ -779,6 +854,8 @@ register(
         citations,
         status: opts.status as string | undefined,
         note: opts.note as string | undefined,
+        // the person's fact is theirs (spec 066): an agent changes it only by a proposal
+        ...(tree.personWrites ? { origin: { by: "user" as const } } : {}),
       });
       const warn = r.same
         ? `note: ${r.owner.id} already has ${r.same.kind} ${r.same.id} (${[r.same.date, r.same.place].filter(Boolean).join(", ") || "no date"}, ${r.same.status}). ` +
@@ -955,13 +1032,21 @@ register(
       { name: "without", type: "string", multiple: true, value: "<role:who>", description: "take off a participant recorded wrongly — with --reason; a wrong role: --without witness:X --with godparent:X" },
       { name: "status", type: "string", value: "<status>", description: "new status — proven needs a record of the time read yourself: strom cite E… S… --information primary --status proven" },
       { name: "note", type: "string", value: "<text>", description: "replace the note on this fact" },
+      { name: "cite", type: "string", value: "<S…>", description: "the record the change rests on (cited by the fact; needed to change a value of an imported family tree)" },
+      { name: "locator", type: "string", value: "<where>", description: "where in the source: folio, entry, line" },
+      { name: "quote", type: "string", value: "<text>", description: "the words of the record" },      { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
     ],
-    description: "Filling in what was unknown (an age, the house, the witnesses a record names) needs no reason; changing\nwhat was known, or the status, does.",
+    description:
+      "Filling in what was unknown (an age, the house, the witnesses a record names) needs no reason; changing\nwhat was known, or the status, does.\n" +
+      "A date, place or value the user gave is never changed by an agent: it becomes a proposal the user decides. One\n" +
+      "from an imported family tree changes only on a record: --cite S… (or one the fact cites already); otherwise a\n" +
+      "proposal too. The family tree's value is kept: the user can put it back (strom event revert).",
     examples: [
       'strom event edit E0002 --date "BET 1811 AND 1812" --reason "age 27 at marriage 1839 (S0002)"',
       'strom event edit E0004 --age husband:27 --age wife:22 --house 21 --with "witness:Jan Dvořák" --with "officiant:P. Josef Kříž"',
       'strom event edit E0001 --place "Týnec nad Labem" --house 13 --reason "the house number out of the place"',
       'strom event edit E0001 --without "witness:Marie Dvořáková" --with "godparent:Marie Dvořáková" --reason "the record names her the godmother"',
+      'strom event edit E0003 --date "12 MAR 1841" --cite S0004 --locator "fol. 12, č. 3" --reason "the baptism register of Lhota gives 12 March"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -977,31 +1062,44 @@ register(
       const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
       // a place is the municipality: the street and the house number its house (the one given, else the fact's)
       if (typeof opts.place === "string") checkStreetPlace(tree, opts.place, typeof opts.house === "string" ? opts.house : owner.events.find((x) => x.id === id)?.house);
-      const e = editEvent(
-        tree,
-        id,
-        {
-          age,
-          ages: partnerAge,
-          participants: withs,
-          drop: listOpt(opts.without).map((w) => parseParticipant(tree, w, { check: false })),
-          date: opts.date as string | undefined,
-          place: opts.place as string | undefined,
-          house: opts.house as string | undefined,
-          cause: opts.cause as string | undefined,
-          value: opts.value as string | undefined,
-          label: opts.label as string | undefined,
-          status: opts.status as string | undefined,
-          note: opts.note as string | undefined,
-        },
-        opts.reason as string | undefined,
-      );
+      const cite = citationOf(opts);
+      const reason = opts.reason as string | undefined;
+      const drop = listOpt(opts.without).map((w) => parseParticipant(tree, w, { check: false }));
+      // a date as the fact would keep it ("" takes it off), to tell what changes
+      const parts = { date: typeof opts.date === "string" ? (opts.date.trim() ? parseDate(opts.date) : "") : undefined, place: opts.place as string | undefined, value: opts.value as string | undefined };
+      const rest = {
+        age,
+        ages: partnerAge,
+        participants: withs,
+        drop,
+        house: opts.house as string | undefined,
+        cause: opts.cause as string | undefined,
+        label: opts.label as string | undefined,
+        status: opts.status as string | undefined,
+        note: opts.note as string | undefined,
+      };
+      let proposed: { line: string; id: string } | undefined;
+      const e = tree.withTreeLock(() => {
+        const before = findEventOwner(tree, id).event;
+        const changed = factChanges(before, parts);
+        if (cite) checkCited(tree, cite);
+        // the person (their terminal, the Strom app): theirs from now on
+        if (tree.personWrites) return editEvent(tree, id, { ...parts, ...rest, mark: (b, n) => personChangedFact(tree, b, n, cite ? [cite] : []) }, reason);
+        const v = changed.length ? verdictOf(tree, before.origin, changed, before.citations, { cite, decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" }) : ({ kind: "free" } as const);
+        if (v.kind !== "propose") return editEvent(tree, id, { ...parts, ...rest, mark: (b, n) => researchChangedFact(tree, b, n, cite) }, reason);
+        // not the agent's to change: proposed, the rest of the edit (an age, a witness, a note) written as ever
+        const x = proposeFact(tree, id, parts, v.as, { cite, reason });
+        proposed = { id: x.conflict.id, line: proposedLine(id, x.conflict, v.why, x.again) };
+        const more = Object.entries(rest).some(([k, val]) => val !== undefined && !(Array.isArray(val) && !val.length) && !(k === "ages" && !Object.keys(val as object).length));
+        return more ? editEvent(tree, id, rest, reason) : before;
+      });
       // a participant named only who may be a person of the tree: said, never linked by itself
       const added = withs.filter((w) => (e.participants ?? []).some((p) => p.role === w.role && p.name === w.name));
       const suggest = added.length ? suggestPeople(tree, findEventOwner(tree, id).owner, added) : [];
+      const said = proposed as { line: string; id: string } | undefined;
       return {
-        text: lines(written(tree), ...suggestionLines(e.id, suggest, (x) => withs.find((w) => w.role === x.role && w.name === x.name)?.note)),
-        data: { event: e, ...(suggest.length ? { suggest } : {}) },
+        text: lines(said?.line, editedLines(tree, e, wordsFor(ctx, tree)), ...suggestionLines(e.id, suggest, (x) => withs.find((w) => w.role === x.role && w.name === x.name)?.note)),
+        data: { event: e, ...(said ? { proposed: said.id } : {}), ...(suggest.length ? { suggest } : {}) },
       };
     },
   },
@@ -1012,11 +1110,77 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "event", description: "event ID (E0001)", required: true }],
+    description:
+      "A fact the user gave is never taken back by an agent: it becomes a proposal the user decides. One from an\n" +
+      "imported family tree only once the fact cites a record (strom cite E… S…); otherwise a proposal too.",
     examples: ['strom event retract E0003 --reason "namesake: this Jan was born in No. 37, ours in No. 12"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const e = retractEvent(tree, normId(args[0]!), opts.reason as string);
-      return { text: written(tree), data: { event: e } };
+      const id = normId(args[0]!);
+      const reason = opts.reason as string;
+      if (!reason?.trim()) throw new UsageError("retracting needs --reason", { code: "retract.needs-reason" });
+      const r = tree.withTreeLock(() => {
+        const before = findEventOwner(tree, id).event;
+        const v = tree.personWrites || before.retracted ? ({ kind: "free" } as const) : verdictOf(tree, before.origin, FACT_PARTS, before.citations, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
+        if (v.kind !== "propose") return { event: retractEvent(tree, id, reason) };
+        const x = proposeRetract(tree, id, v.as, reason.trim());
+        return { event: before, proposed: { id: x.conflict.id, line: proposedLine(id, x.conflict, v.why, x.again) } };
+      });
+      return { text: lines(r.proposed?.line, written(tree)), data: { event: r.event, ...(r.proposed ? { proposed: r.proposed.id } : {}) } };
+    },
+  },
+  {
+    path: ["event", "revert"],
+    summary: "Put back what an imported family tree said of a fact the research or the user changed (the user's own)",
+    group: "people",
+    tree: true,
+    writes: true,
+    person: REVERT_PERSON,
+    description:
+      "The fact's date, place or value as the family tree gave it again (all parts changed, or --part), with the\n" +
+      "family tree's citation; the value is the user's from then on. Only the user: in the Strom app or at their own terminal.",
+    args: [{ name: "event", description: "event ID (E0001)", required: true }],
+    options: [{ name: "part", type: "string", value: "date|place|value", description: "only this part" }],
+    examples: ["strom event revert E0002", "strom event revert E0002 --part date"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseRevert(tree, `strom event revert ${args[0]}`);
+      const r = revertImported(tree, { ref: normId(args[0]!), part: opts.part as string | undefined, reason: opts.reason as string | undefined });
+      return { text: written(tree), data: { reverted: r } };
+    },
+  },
+  {
+    path: ["person", "revert"],
+    summary: "Put back a name or sex an imported family tree gave a person that the research or the user changed (the user's own)",
+    group: "people",
+    tree: true,
+    writes: true,
+    person: REVERT_PERSON,
+    description:
+      "The name (--name: its number in strom person show, from 1, or the name itself) or the sex (--sex) as the family\n" +
+      "tree gave it again, with its citation; the value is the user's from then on. Only the user: in the Strom app or\n" +
+      "at their own terminal.",
+    args: [{ name: "person", description: "ID (P0001) or name", required: true }],
+    options: [
+      { name: "name", type: "string", value: "<n|name>", description: "the name: its number (1 = the first) or its words" },
+      { name: "sex", type: "boolean", description: "the sex" },
+      { name: "part", type: "string", value: "given|surname", description: "of a name, only this part" },
+    ],
+    examples: ["strom person revert P0004 --name 1", "strom person revert P0004 --name 1 --part surname", "strom person revert P0004 --sex"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const p = resolvePerson(tree, args[0]!);
+      refuseRevert(tree, `strom person revert ${p.id}`);
+      if ((opts.name === undefined) === !opts.sex) throw new UsageError("--name <n> or --sex: what to put back", { hint: `strom person revert ${p.id} --name 1 · strom person revert ${p.id} --sex` });
+      let ref = sexRef(p);
+      if (opts.name !== undefined) {
+        const said = String(opts.name).trim();
+        const i = /^\d+$/u.test(said) ? Number(said) - 1 : p.names.findIndex((n) => sameName(n, parseName(said)));
+        if (i < 0 || !p.names[i]) throw new UsageError(`${p.id} has no name ${said}`, { hint: `its names: ${p.names.map((n, j) => `${j + 1} "${gedcomName(n)}"`).join(", ")}`, code: "revert.unknown" });
+        ref = nameRef(p, i);
+      }
+      const r = revertImported(tree, { ref, person: p.id, part: opts.part as string | undefined, reason: opts.reason as string | undefined });
+      return { text: written(tree), data: { reverted: r } };
     },
   },
 );
