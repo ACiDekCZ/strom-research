@@ -16,6 +16,8 @@ import { Tree, prefixOf } from "./tree.ts";
 import { isBirthFamily, ownAncestors } from "./people.ts";
 import { afterDeath, afterDeathMessage } from "./afterdeath.ts";
 import { longNames, NAME_WORDS_MAX } from "./participants.ts";
+import { sameStrongIds } from "./originalids.ts";
+import { twoPeople } from "./quality.ts";
 
 export interface Finding {
   level: "error" | "warn";
@@ -181,6 +183,20 @@ export function check(tree: Tree): Finding[] {
         hint: "strom fixes show woken-waits",
       });
   }
+
+  // 5g. two people with the same strong ID of a family tree (a _UID, FamilySearch's ID): most likely one made twice (a
+  // newer file of the same tree taken in before strom knew it as the same, found 2026-11-08) — compared, merged on the
+  // person's word only; a pair the person said are two is not said again
+  const apart = twoPeople(tree);
+  for (const d of sameStrongIds(tree).filter((x) => !apart(x.a, x.b)))
+    out.push({
+      level: "warn",
+      code: "same-original-id",
+      id: d.b,
+      message: `${d.a} and ${d.b} have the same ID of a family tree (${d.kind}) — likely one person twice`,
+      hint: `strom person compare ${d.a} ${d.b} — one person: strom person merge ${d.a} ${d.b} --reason "…"; two: strom quality dismiss possibleDuplicate ${d.a} ${d.b}`,
+      params: { a: d.a, b: d.b },
+    });
 
   // 6. counters are ahead of every ID on disk
   const counters = readJsonIfExists<Record<string, number>>(path.join(tree.dataDir, "_counters.json")) ?? {};

@@ -285,7 +285,7 @@ test("K2.2 by the file: the app's file back through strom sync keeps the researc
     const APP_RUN = { STROM_FOR_APP: "1" };
     // as the bridge runs it for the app
     assert.equal((await w.ok(["source", "confirm", s1, "--txt", m1, "--json"], { env: APP_RUN })).json.read, "both");
-    assert.equal((await w.ok(["source", "confirm", s2, "--txt", m2, "--json"], { env: APP_RUN })).json.conf, new Date().toISOString().slice(0, 10));
+    assert.equal((await w.ok(["source", "confirm", s2, "--txt", m2, "--json"], { env: APP_RUN })).json.conf, localDayOf(new Date().toISOString()));
     const file = path.join(w.dir, "app.ged");
     await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", file], { env: BETA_APP });
     const text = fs.readFileSync(file, "utf8");

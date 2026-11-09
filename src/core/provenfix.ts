@@ -15,6 +15,7 @@ import { isWeak, provesIt } from "./evidence.ts";
 import { bulkWrites, fixedDecision } from "./readers.ts";
 import { freshConfig, quiet } from "./hypolinks.ts";
 import { writableUnasked } from "./integrity.ts";
+import { skipFile } from "./verify.ts";
 
 /** The strom version from which proven needs the original record. */
 export const PROVEN_SINCE = "1.29.0";
@@ -237,7 +238,8 @@ export function answerProven(tree: Tree, ids: string[], answer: "keep" | "lower"
   };
   const records = withStatus(tree, asked, to, at);
   file.review = file.review.filter((id) => !asked.some((a) => a.event === id));
-  tree.putMany(records, [{ rel: PROVEN_FIX_FILE, content: fileContent(file) }], {
+  // lowered by the person: the verification against the originals leaves them (core/verify.ts)
+  tree.putMany(records, [{ rel: PROVEN_FIX_FILE, content: fileContent(file) }, skipFile(tree, asked.map((a) => a.event))], {
     op: "proven.lower",
     targets: [...records.map((r) => r.id), ...asked.map((a) => a.event)],
     summary: `facts proven without the original record made probable by the person: ${asked.length} in ${records.length} records`,

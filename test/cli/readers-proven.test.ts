@@ -5,6 +5,7 @@
 // waits in What waits; a file of another program never makes the user a reader or a fact proven, and an old file of
 // the research brings no proven back.
 
+import { VERIFY_SETTLED } from "../../src/core/verify.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -85,11 +86,11 @@ async function lhotaci(): Promise<World> {
 }
 
 test("a new research is settled from the start: the markers are the fixes' own", opts, async () => {
-  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED]);
+  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED]);
   const w = await lhotaci();
   try {
     const c = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8"));
-    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED]);
+    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED]);
     const n = commits(w);
     assert.equal(settleReaders(Tree.open(w.cwd, w.env)), undefined, "nothing to settle in a new research");
     assert.equal(settleProven(Tree.open(w.cwd, w.env)), undefined);

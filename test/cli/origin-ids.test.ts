@@ -1,8 +1,9 @@
 // The original IDs of an imported family tree (spec 066 K3.2): what another program gave its people and families (the
 // xref, _UID, RIN, EXID, _FSFTID, AFN) is kept by the import's source, goes back to the Strom app beside the marks of
 // origin (`1 _STROM_IMPORT <key>` / `_STROM_XID` with `2 _XREF` and the lines), and finds a person again when a tree of
-// the same system comes in — only when the name, sex and birth year agree and no global ID differs; else a candidate for
-// a person to decide, never joined. The app's blocks are taken in a sync (an x: person of a strong ID rekeyed, the IDs
+// the same system comes in — when the name, sex and birth year agree and no global ID differs, or a newer file of the
+// same program's tree says them otherwise (said, leads beside); else a candidate for a person to decide, never joined
+// and never put into a family where the one it may be is already. The app's blocks are taken in a sync (an x: person of a strong ID rekeyed, the IDs
 // added as a change of their own, undone with the sync); a merge keeps both; origins-1 adds them to an older research.
 
 import { test } from "node:test";
@@ -153,15 +154,110 @@ test("the same tree again (another file, the UUIDs written otherwise): nobody tw
     assert.equal(fam.length, 1);
     assert.equal(fam[0]!.originalIds?.length, 2, "the family: the entry of the new import added");
 
-    // the same _UID, another name: a new person and a candidate, never joined
+    // the same _UID, another name, in a newer file of the same program's tree: the same person — the name a variant
+    // beside, what differs said (a spoofed _UID of another program: the next test, a candidate)
     const anna = one(w, "Anna", "Lhotáková");
     const renamed = ged([...MH_HEAD, "0 @I2@ INDI", "1 NAME Marie /Lhotová/", "1 SEX F", "1 BIRT", "2 DATE 1845", `1 _UID ${ANNA_UID}`]);
     const c = await w.ok(["intake", write(w, "jina.ged", renamed), "--json"], AGENT);
-    const marie = one(w, "Marie", "Lhotová");
+    assert.equal(people(w).length, before, "nobody twice");
+    assert.ok(!JSON.stringify(c.json).includes('"candidates"'), JSON.stringify(c.json));
+    assert.match(JSON.stringify(c.json), new RegExp(`"differs":\\[\\{"person":"${anna.id}","xref":"I2","why":"name differs"\\}\\]`, "u"));
+    const a = open(w).get<Person>(anna.id)!;
+    assert.ok(a.names.some((n) => n.given === "Marie" && n.surname === "Lhotová"), "the file's name a variant");
+    assert.equal(a.names[0]!.given, "Anna", "the research's name stays first");
+    const t = await w.ok(["intake", write(w, "jina2.ged", renamed.replace("Marie /Lhotová/", "Zdeňka /Lhotská/")), "--lang", "en"], AGENT);
+    assert.match(t.out, new RegExp(`The same person by an ID of the program, the file says otherwise \\(taken as leads, nothing replaced\\): ${anna.id} \\(name\\)`, "u"));
+  } finally {
+    w.cleanup();
+  }
+});
+
+// Found on real data 2026-11-08: the same tree again with one birth date changed — the person was made again and put
+// into the family as a second child. A newer file of the same program: the same person by the _UID, the other date a
+// lead beside the research's (never replaced), said; a person of another program only maybe them: made, never put
+// into the family where the one they may be is a child already.
+test("a newer file of the same program with a birth date changed: nobody twice, nobody twice in a family, the date a lead, said; a candidate of another program not put into the family", opts, async () => {
+  const w = await intaken();
+  try {
+    const ivan = one(w, "Иван");
+    const before = people(w).length;
+    const fam = () => open(w).list<Family>("family").find((f) => f.children.some((c) => c.person === ivan.id))!;
+    const kids = fam().children.length;
+    const changed = MH.replace("1 NAME Иван /Лхотак/\n1 SEX M\n1 BIRT\n2 DATE 1868", "1 NAME Иван /Лхотак/\n1 SEX M\n1 BIRT\n2 DATE 3 MAY 1880\n1 NOTE Ověřeno v jiném programu");
+    assert.notEqual(changed, MH);
+    const r = await w.ok(["intake", write(w, "novejsi.ged", changed), "--json"], AGENT);
+    assert.equal(people(w).length, before, "nobody twice");
+    assert.equal(fam().children.length, kids, "nobody twice in the family");
+    assert.ok(!JSON.stringify(r.json).includes('"candidates"'), JSON.stringify(r.json));
+    assert.match(JSON.stringify(r.json), new RegExp(`"differs":\\[\\{"person":"${ivan.id}","xref":"I3","why":"birth years differ"\\}\\]`, "u"));
+    const i = open(w).get<Person>(ivan.id)!;
+    const births = i.events.filter((e) => e.kind === "BIRT" && !e.retracted);
+    assert.deepEqual(births.map((e) => e.date).sort(), ["1868", "3 MAY 1880"].sort(), "the research's date kept, the file's beside it");
+    assert.equal(births.find((e) => e.date !== "1868")!.status, "lead");
+    // said in the research's language
+    const cs = await w.ok(["intake", write(w, "novejsi2.ged", changed.replace("3 MAY 1880", "1885")), "--lang", "cs"], AGENT);
+    assert.match(cs.out, new RegExp(`Tatáž osoba podle ID programu, soubor ji uvádí jinak \\(přidáno jako vodítka, nic nepřepsáno\\): ${ivan.id} \\(rok narození\\)`, "u"));
+    assert.equal(people(w).length, before);
+    assert.equal(fam().children.length, kids);
+
+    // another program's file: the parents the same (everything agrees), the child's _UID on a name not alike — a
+    // candidate, made, never put into the family where Ivan is a child already
+    const gramps = ged([
+      "0 HEAD", "1 SOUR Gramps", "2 NAME Gramps", "2 VERS 5.2", "1 CHAR UTF-8",
+      "0 @I1@ INDI", "1 NAME Jan /Lhoták/", "1 SEX M", "1 BIRT", "2 DATE 1841", `1 _UID ${JAN_UID}`, "1 FAMS @F1@",
+      "0 @I2@ INDI", "1 NAME Anna /Lhotáková/", "1 SEX F", "1 BIRT", "2 DATE 1845", `1 _UID ${ANNA_UID}`, "1 FAMS @F1@",
+      "0 @I3@ INDI", "1 NAME Petr /Lhotka/", "1 SEX M", `1 _UID ${IVAN_UID}`, "1 FAMC @F1@",
+      "0 @F1@ FAM", "1 HUSB @I1@", "1 WIFE @I2@", "1 CHIL @I3@",
+    ]);
+    const g = await w.ok(["intake", write(w, "gramps.ged", gramps), "--json"], AGENT);
+    const petr = one(w, "Petr", "Lhotka");
     assert.equal(people(w).length, before + 1);
-    assert.match(JSON.stringify(c.json), new RegExp(`"candidates":\\[\\{"person":"${marie.id}","like":"${anna.id}","why":"same _UID; name differs"\\}\\]`, "u"));
-    const t = await w.ok(["intake", write(w, "jina2.ged", renamed.replace("Marie", "Markéta")), "--lang", "en"], AGENT);
-    assert.match(t.out, new RegExp(`Maybe the same person as one of the research by an ID of the program \\(not joined, to be decided\\): P\\d+≈${anna.id}`, "u"));
+    assert.match(JSON.stringify(g.json), new RegExp(`"candidates":\\[\\{"person":"${petr.id}","like":"${ivan.id}","why":"same _UID; name differs"\\}\\]`, "u"));
+    assert.match(JSON.stringify(g.json), new RegExp(`"notJoined":\\[\\{"person":"${petr.id}","family":"${fam().id}","like":"${ivan.id}"\\}\\]`, "u"));
+    assert.ok(!fam().children.some((c) => c.person === petr.id), "not put into the family");
+    const en = await w.ok(["intake", write(w, "gramps2.ged", gramps.replace("Petr", "Pavel")), "--lang", "en"], AGENT);
+    assert.match(en.out, new RegExp(`Not put into a family where the person it may be is already: P\\d+ → ${fam().id} \\(≈${ivan.id}\\)`, "u"));
+    // strom check says the pair (a research where it happened before): compare, merge on the person's word — nothing merged
+    const chk = await w.run(["check", "--json"]);
+    const said = JSON.stringify(chk.json);
+    assert.match(said, new RegExp(`"code":"same-original-id","id":"${petr.id}","message":"${ivan.id} and ${petr.id} have the same ID of a family tree`, "u"));
+    assert.match(said, new RegExp(`strom person compare ${ivan.id} ${petr.id}`, "u"));
+    assert.equal(people(w).length, before + 2, "nothing merged");
+    await w.ok(["quality", "dismiss", "possibleDuplicate", ivan.id, petr.id], PERSON);
+    assert.doesNotMatch(JSON.stringify((await w.run(["check", "--json"])).json), new RegExp(`${ivan.id} and ${petr.id}`, "u"), "two people: not said again");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a newer file of the same program: a person of no name there (an empty NAME, //, none) is the research's \"?\" — never said to differ; only the one whose birth date changed is", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    const tree = (year: string) => ged([
+      ...MH_HEAD,
+      "0 @I1@ INDI", "1 NAME", "1 SEX F", `1 _UID ${ANNA_UID}`, "1 RIN MH:I1",
+      "0 @I2@ INDI", "1 NAME Jan /Lhoták/", "1 SEX M", "1 BIRT", `2 DATE ${year}`, `1 _UID ${JAN_UID}`, "1 RIN MH:I2",
+      "0 @I3@ INDI", "1 NAME //", `1 _UID ${IVAN_UID}`, "1 RIN MH:I3",
+      "0 @I4@ INDI", "1 SEX M", `1 _UID ${FAM_UID}`, "1 RIN MH:I4",
+    ]);
+    await w.ok(["intake", write(w, "lhotakovi.ged", tree("12 MAR 1841"))], AGENT);
+    const jan = one(w, "Jan", "Lhoták");
+    assert.equal(named(w, "?").length, 3, "the nameless kept as \"?\"");
+    const before = people(w).length;
+    // a birth year far off: Jan alone said to differ, nobody twice, no candidate
+    const r = await w.ok(["intake", write(w, "novejsi.ged", tree("1850")), "--json"], AGENT);
+    const said = JSON.stringify(r.json);
+    assert.equal(people(w).length, before, "nobody twice");
+    assert.ok(!said.includes('"candidates"'), said);
+    assert.match(said, new RegExp(`"differs":\\[\\{"person":"${jan.id}","xref":"I2","why":"birth years differ"\\}\\]`, "u"));
+    // a year close: nobody said to differ; the date a lead on Jan — the one fact the file added
+    const cs = await w.ok(["intake", write(w, "novejsi2.ged", tree("1842")), "--lang", "cs"], AGENT);
+    assert.doesNotMatch(cs.out, /Tatáž osoba podle ID programu/u, cs.out);
+    assert.equal(people(w).length, before, "nobody twice");
+    const births = open(w).get<Person>(jan.id)!.events.filter((e) => e.kind === "BIRT" && !e.retracted);
+    assert.ok(births.some((e) => e.date === "1842" && e.status === "lead"), JSON.stringify(births));
+    for (const p of named(w, "?")) assert.ok(!p.events.some((e) => !e.retracted && e.status === "lead"), `${p.id}: nothing added`);
   } finally {
     w.cleanup();
   }

@@ -284,6 +284,14 @@ ONE PERSON, LOOKED AT AGAIN (the user asks you to check or complete someone; a n
   Several at once: strom review P… P… (one review). The people no record of their own proves (strom check
   counts them): strom person list --unproven (how each stands; the living apart — no tasks for them);
   strom review --unproven proposes their work a batch at a time — again for the next batch, nothing twice.
+FACTS AGAINST THEIR ORIGINALS (a task of verification: its brief lists each fact, the originals it cites and how)
+  A fact that cites its original record yet is not proven gets a task of verification now and then, after the
+  lines' work. The user asks for one first — strom verify facts P…|F…|--fact E… (tell them the estimate it says) —
+  or for a line, a lineage or the tree in bulk: strom verify bulk … is theirs (--dry-run: what it would cost), so is strom verify stop.
+  Read the entry on the image yourself first, then compare: strom verify done E… --proven --image M… (the image you
+  read it on), or --kept --reason "…" (why it stays, in the research language: the user sees it). Nothing is raised
+  without a look at the original; a different value goes through strom event edit (the user's or a family tree's is
+  only proposed). A fact the user confirmed against the scan is theirs: never changed. What waits: strom verify status.
 THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Strom app, or brings a .ged/.json)
   strom sync <file> shows what it would take: what the file adds, what the user changed since the research
   gave it (_STROM_HEAD), what is no longer in it. Show the user the list; write it on their yes (--apply, some:
@@ -359,6 +367,15 @@ THE STROM APP — where the user sees the result
   strom (no arguments) says whether it is installed here (results): not yet — offer to install it; installed —
   just open it. A program they already use is fine too: output/tree.ged. They do not want it:
   never again.
+
+A PROBLEM WITH STROM (the user reports one, or wants to "send the error")
+  Ask the user where it happened — in this conversation, in a terminal without
+  you, or in the Strom app; never guess — then run strom error --where
+  chat|terminal|app (--about fetch|sync|agent|install|windows as it fits,
+  --note "their words"). Tell them the path of the ZIP and the address strom
+  names. Never send or open the ZIP, never copy its content into the chat.
+  Data of people only on the user's explicit yes in the chat: --with-data
+  --person P… (--family F…, --book B…) --yes-data.
 
 OUTPUT AND ERRORS
 - One line per record, IDs first. Read the text; add --json only to parse.

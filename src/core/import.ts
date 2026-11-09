@@ -32,12 +32,23 @@ export interface ImportResult {
   problems: string[];
   /**
    * People of the file who may be the same as a person of the research by an ID of the program it came from (spec 066
-   * K3.2) — never taken as them (a name, sex or birth year differs, another ID differs, an ID only of a program): a
+   * K3.2) — never taken as them (a name, sex or birth year differs in another program's file, another ID differs, an ID only of a program): a
    * person of the file (`person`, made new), the research's (`like`), why only maybe.
    */
   candidates: { person: string; like: string; why: string }[];
   /** Of `matched`: found by an ID of the program (another program's file), not as the research's own tree coming back. */
   matchedByIds?: number;
+  /**
+   * Of `matchedByIds`: people a newer file of the same program's tree says otherwise of (a name, sex, birth year) — the
+   * research's person (`person`), the file's xref, what differs. Nothing of the research replaced: the file's values
+   * came in as leads beside it (a sex the research has stays).
+   */
+  differs?: { person: string; xref: string; why: string }[];
+  /**
+   * A person of the file made new though maybe one of the research (a candidate), not put into a family where that one
+   * is already (as a child, or as the partner of the same partner): the new person, the family, who they may be.
+   */
+  notJoined?: { person: string; family: string; like: string }[];
   /** What another program's file holds that the research does not take: media records, links to them, its own tags by tag. */
   notTaken?: { objects: number; links: number; tags: Record<string, number> };
 }
@@ -340,8 +351,9 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       const blocks = appIdBlocks(r, (key) => !!appImports?.has(key), result.problems, label);
       return { blocks, entries: blocks.map((b) => entryOf(b, importSource(b.key!))) };
     };
-    // A person the research has by an ID of the program (strong: the same person when everything else agrees; weak or
-    // in doubt: a candidate for a person to decide) — each of the research's people one person of the file at most.
+    // A person the research has by an ID of the program (strong: the same person when everything else agrees, or when a
+    // newer file of the same program's tree says a name, sex or birth year otherwise — said, the rest leads; weak or in
+    // doubt: a candidate for a person to decide) — each of the research's people one person of the file at most.
     // (a research of 1.29: the IDs its earlier imports' files give, not written on the people yet, count as well)
     const index = personIndex(tree, opts.pendingIds);
     const taken = new Set(ourPeople.filter((p): p is Person => !!p).map((p) => p.id));
@@ -365,6 +377,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           ours = tree.get<Person>(hit.same);
           taken.add(hit.same);
           result.matchedByIds = (result.matchedByIds ?? 0) + 1;
+          if (hit.differs?.length) (result.differs ??= []).push({ person: hit.same, xref: bare(r.xref!), why: hit.differs.join(", ") });
         } else if (hit.candidates.length) maybe.set(r.xref!, hit.candidates);
       }
       if (ours) {
@@ -581,7 +594,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       }
     }
 
-    // Families
+    // Families. A person made new though maybe one of the research (a candidate) is never put where that one is: a
+    // child of the family it is a child of, the partner of its partner — the family would hold one person twice.
+    const mayBe = new Map<string, Set<string>>();
+    for (const c of result.candidates) mayBe.set(c.person, (mayBe.get(c.person) ?? new Set()).add(c.like));
+    const notJoined = (person: string, family: string, like: string) => (result.notJoined ??= []).push({ person, family, like });
     for (const r of records.filter((x) => x.tag === "FAM" && x.xref)) {
       const couple: { HUSB?: string; WIFE?: string } = {};
       for (const role of ["HUSB", "WIFE"] as const) {
@@ -606,6 +623,16 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         if (Object.keys(relations).length) link.relations = relations;
         kids.push(link);
       }
+      // a partner who may be the partner of the other one already: no second family of the two
+      const twice = partners.flatMap((p) =>
+        [...(mayBe.get(p) ?? [])].flatMap((like) =>
+          tree.list<Family>("family").filter((f) => !f.retracted && !f.mergedInto && f.partners.includes(like) && partners.filter((x) => x !== p).every((x) => f.partners.includes(x)) && partners.length > 1).map((f) => ({ p, f, like })),
+        ),
+      )[0];
+      if (twice) {
+        notJoined(twice.p, twice.f.id, twice.like);
+        continue;
+      }
       if (partners.length + kids.length === 0) continue;
       // Strom keeps the partners' ages at the wedding in the family's note: "Věk ženicha: 27 let".
       const famEvents = events(r, r.xref!, true, couple);
@@ -621,7 +648,12 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         .list<Family>("family")
         .find((f) => !f.retracted && !f.mergedInto && partners.length > 0 && partners.every((p) => f.partners.includes(p)) && f.partners.length === partners.length);
       if (exists) {
-        const kidsNew = kids.filter((k) => !exists.children.some((c) => c.person === k.person));
+        const kidsNew = kids.filter((k) => {
+          if (exists.children.some((c) => c.person === k.person)) return false;
+          const like = [...(mayBe.get(k.person) ?? [])].find((l) => exists.children.some((c) => c.person === l));
+          if (like) notJoined(k.person, exists.id, like);
+          return !like;
+        });
         const facts = famEvents.filter((e) => !knownFact(exists.events, e));
         result.events -= famEvents.length - facts.length;
         const ids = joinIds(exists.originalIds, idEntries(r).entries);

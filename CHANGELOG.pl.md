@@ -7,7 +7,18 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.30.0
 
-*W przygotowaniu: bety do 1.30.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.30.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+
+- **Dane sprawdzane z oryginałem.** Urodzenie, chrzest, ślub, zgon lub pochówek, który cytuje pierwotny zapis, ale
+  pozostaje prawdopodobny lub możliwy, agent sprawdzi z tym oryginałem: obejrzy skan i albo podniesie daną do
+  udokumentowanej, albo zapisze, dlaczego zostaje bez zmian. Badanie założone wcześniej zostanie po aktualizacji raz
+  przejrzane (tylko osoby połączone z drzewem, nikt żyjący; `strom fixes undo verify-originals` to cofa), nowe dane na
+  bieżąco. Ręcznie dla osoby, rodziny lub jednej danej, jako pierwsze w kolejce (`strom verify facts <kogo>` lub
+  z aplikacji Strom); zbiorczo dla linii, rodu lub całego drzewa z szacunkiem kosztu – uruchomić to może tylko
+  użytkownik (`strom verify bulk`); zatrzymać przez `strom verify stop`. Danej, którą użytkownik potwierdzi w aplikacji
+  Strom według skanu, agent nigdy nie zmienia – tylko proponuje. Wartość wpisana przez użytkownika lub pochodząca
+  z drzewa nigdy nie jest nadpisywana: to, co się różni, jest propozycją do decyzji użytkownika. Ile danych czeka, mówią
+  `strom check`, `strom doctor`, `strom stats` i `strom verify status`.
 
 - **Dane z przejętego drzewa są chronione.** Drzewo z innego programu (GEDCOM) daje wskazówki: agent zmienia taką daną
   tylko według zapisu, który cytuje, a wartość z drzewa zostaje zachowana obok („pierwotnie z drzewa: …”) i można ją
@@ -24,30 +35,52 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Ponownie przejęte drzewo odnajduje swoje osoby.** ID, które program nadał osobom i rodzinom (`_UID`, `EXID`,
   `_FSFTID`… z MyHeritage, Gramps, FamilySearch i innych), są zachowywane: drzewo tego samego programu przejęte ponownie
   (lub z innego programu do badania) odnajduje według nich osoby – nigdy dwa razy, nowe dane dochodzą jako wskazówki;
-  osoba tylko być może ta sama (inne imię, inne ID FamilySearch) jest zgłaszana, nigdy łączona. ID wracają z badaniem do
+  nowszy plik drzewa tego samego programu, w którym zmieniło się imię, płeć lub data urodzenia, odnajduje tę samą osobę,
+  a to, co się różni, dodaje jako wskazówkę obok danej badania i zgłasza; osoba tylko być może ta sama (plik innego
+  programu, inne ID FamilySearch) jest zgłaszana, nigdy łączona ani dołączana do rodziny, w której już jest ta, którą
+  może być, a `strom check` wypisuje dwie osoby z tym samym ID z drzewa do porównania i scalenia. ID wracają z badaniem do
   aplikacji Strom. To, czego z pliku się nie przejmuje (media, własne znaczniki programu), jest liczone w wyniku. W badaniu założonym wcześniej ID wcześniejszych importów są odczytywane z ich plików, więc
   także drzewo przejęte ponownie przed oznaczeniem nie dodaje nikogo dwa razy.
+
+- **Problem zgłoszony w jednym pliku.** `strom error` pakuje to, co potrzebne, by poznać, co się stało, do jednego
+  pliku ZIP w folderze Pobrane (inaczej w bieżącym folderze): wersję, system, `strom doctor`, agentów, konektory, most
+  do aplikacji Strom, badanie tylko w liczbach, logi techniczne z ostatnich 7 dni (`--since`) i polecenia zakończone
+  błędem. Nic z drzewa do niego nie trafia – imiona, miejsca, notatki, transkrypcje, skany, ścieżki z nazwą
+  użytkownika, logowania i tokeny są pominięte lub zastąpione stałymi kodami – i nic nie jest wysyłane: plik wysyła sam
+  użytkownik, na adres podany przez polecenie. `--about fetch|sync|agent|install|windows` dodaje szczegóły jednego
+  obszaru (tabela jest w `strom error --help`), `--where` mówi, gdzie problem wystąpił, `--note` opisuje go słowami
+  użytkownika; dane wskazanych osób, rodzin lub księgi tylko z `--with-data` i za zgodą użytkownika. Poproszony
+  o zgłoszenie problemu agent pyta, gdzie wystąpił, uruchamia polecenie i podaje ścieżkę – pliku nigdy nie wysyła, nie
+  otwiera ani nie przepisuje do czatu. W menu: Konserwacja → Zgłosić problem. Badanie jest tylko czytane, także
+  uszkodzone.
+
+- **Plik dla aplikacji Strom znów się zapisuje także w badaniu z hipotezą rozstrzygniętą z uzasadnieniem:** dla
+  aplikacji od 3.25.0 (lub nieznanej wersji) `strom export gedcom` go odrzucał, a `output/tree-strom.ged` po sesji
+  zostawał stary (badania otwartego w aplikacji przez `strom app` to nie dotyczyło).
 
 - **Dana pokazana lub zmieniona w terminalu** (`strom event show`, `strom event edit`) jest wypisywana w języku
   badania. W aplikacji Strom drzewo przejęte do badania nie ma już jako odnośnika całego drzewa pierwszego wiersza z
   niego: każda dana podaje swój.
-
-- **Drzewa z programów dla Windows w stronie kodowej 1250 lub 1252 („ANSI”)** są czytane z właściwymi literami – po
+  **Drzewa z programów dla Windows w stronie kodowej 1250 lub 1252 („ANSI”)** są czytane z właściwymi literami – po
   czesku, po polsku, po niemiecku, tak jak w aplikacji Strom. Znak, którego nie da się odczytać, jest zgłaszany, nigdy
   cicho zastępowany.
 
-- **Konfiguracja z Codexem w aplikacji ChatGPT** nie mówi już tam o hookach Codexa: to zdanie dotyczy Codexa w
-  terminalu.
-
-- **Przeglądarka aplikacji ChatGPT, jaka jest naprawdę.** Przeglądarka aplikacji ChatGPT działa przez chmurę ChatGPT i
-  nie wywołuje żadnej reguły stroma: strom nie twierdzi już, że jej pilnuje, a agent w niej idzie do archiwum z
-  ograniczeniami tylko przez człowieka (`strom task wait --images`). `strom doctor` i konfiguracja mówią to jako
-  ostrzeżenie, z radą do okna ChatGPT „przeglądarka w chmurze” przy takim archiwum: *odmówić*, nigdy dostępu do
+- **Codex w aplikacji ChatGPT, jaki jest naprawdę.** Konfiguracja nie mówi tam już o hookach Codexa (to zdanie dotyczy
+  Codexa w terminalu), a `strom doctor` radzi potwierdzić je tylko w terminalu. Przeglądarka aplikacji ChatGPT działa
+  przez chmurę ChatGPT i nie wywołuje żadnej reguły stroma: strom nie twierdzi już, że jej pilnuje, a agent w niej idzie
+  do archiwum z ograniczeniami tylko przez człowieka (`strom task wait --images`). `strom doctor` i konfiguracja mówią
+  to jako ostrzeżenie, z radą do okna ChatGPT „przeglądarka w chmurze” przy takim archiwum: *odmówić*, nigdy dostępu do
   wszystkich odpowiednich stron. Codex w terminalu pozostaje pilnowany – teraz także jego przeglądarka otwarta przez
   `createBrowserTab`.
 
-- **Transkrypcja potwierdzona w aplikacji Strom tuż po północy** ma nowy dzień według kalendarza tego komputera
-  (dotąd dzień poprzedni).
+- **Pobieranie skanów księgi, które konektor przerwie błędem,** mówi, których skanów nie pobrało, i podaje polecenie,
+  które je pobierze (tylko je – o to, co już przyszło, nie pyta ponownie), kończy się błędem (dotąd zgłaszało sukces),
+  a to, co zostało, mówią też `strom fetch --status` i brief; pobieranie, które archiwum po drodze odmówi, kończy się
+  jak dotąd, z jego własną radą. **Transkrypcja potwierdzona w aplikacji Strom tuż po północy** ma nowy dzień według
+  kalendarza tego komputera (dotąd dzień poprzedni).
+  **Budowa konektora:** `strom connector test` ostrzega, gdy jeden skan kosztuje wiele żądań (kafelki), i mówi, czego
+  szukać najpierw – linku portalu do całego skanu lub pobrania całej księgi – z czasem, jaki zajęłaby księga w tempie
+  archiwum; `strom connector new` cytuje, co strom wie o warunkach archiwum.
 
 ## 1.29.0
 

@@ -110,6 +110,34 @@ export function desktopDir(env: Env, platform: NodeJS.Platform = process.platfor
 }
 
 /**
+ * The downloads folder, when there is one (strom error leaves its report there): Downloads of the profile — on Windows
+ * USERPROFILE\Downloads, else OneDrive's when only that one exists (never asked of PowerShell), on Linux
+ * XDG_DOWNLOAD_DIR (user-dirs.dirs) or ~/Downloads. None that exists: undefined (the caller takes the current folder).
+ */
+export function downloadsDir(env: Env, platform: NodeJS.Platform = process.platform, exists: (dir: string) => boolean = isDir): string | undefined {
+  const home = userHome(env);
+  const tried: string[] = [];
+  if (platform === "linux" && !isolated(env)) {
+    const xdg = xdgUserDir(env, "XDG_DOWNLOAD_DIR");
+    if (xdg) tried.push(xdg);
+  }
+  if (platform === "win32") {
+    tried.push(path.join(env.USERPROFILE || home, "Downloads"));
+    if (env.OneDrive && !isolated(env)) tried.push(path.join(env.OneDrive, "Downloads"));
+  }
+  tried.push(path.join(home, "Downloads"));
+  return tried.find((d) => exists(d));
+}
+
+function isDir(dir: string): boolean {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Suggested Strom home: <Documents>/Strom. A second installation never the person's own: with a command of its own
  * <Documents>/Strom <suffix> ("Strom beta"), else a folder inside its own settings folder (STROM_CONFIG_DIR) —
  * never inside the program's folder, which strom uninstall takes away (found 2026-10-07: the research and its

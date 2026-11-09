@@ -124,6 +124,36 @@ export interface Event {
   origin?: ValueOrigin<"date" | "place" | "value">;
   /** The import's value before the research changed it with a record cited (spec 066): `strom event revert` puts it back. */
   was?: ValueWas<"date" | "place" | "value"> & { date?: string; place?: string; value?: string };
+  /**
+   * The person confirmed the fact against the scan (spec 065, `strom verify confirm`, the app's "verified by the scan").
+   * The status stays as it is; no verification queues it again and no agent changes it. Optional: no SCHEMA_VERSION raised.
+   */
+  confirmed?: FactConfirmed;
+  /** The last verification of the fact against its originals by an agent (spec 065, `strom verify done`). */
+  verified?: FactVerified;
+}
+
+/** A fact confirmed by the person (spec 065). */
+export interface FactConfirmed {
+  at: string;
+  by: "user";
+}
+
+/** An agent's verification of a fact against the originals it cites (spec 065). */
+export interface FactVerified {
+  at: string;
+  /** The session that verified it, or "agent". */
+  by: string;
+  /** The model that looked at the original. */
+  model?: string;
+  /** proven: the original says so (status raised); kept: it stays as it was, `reason` says why. */
+  result: "proven" | "kept";
+  reason?: string;
+  task?: string;
+  /** The sources whose originals were looked at (the citations that prove it then). */
+  cites: string[];
+  /** 2: another model than every one that read those sources agreed. */
+  readers?: 2;
 }
 
 /** Where a fact's, a name's or a sex's value came from (spec 066). */

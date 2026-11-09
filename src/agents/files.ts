@@ -211,6 +211,14 @@ ${hypotheses}
   name the rule's number and give the link \`strom doc\` prints with it (its
   page on the web); only for the person's question — the method stays the
   rules of the work.
+- **A problem with strom** (something fails, or they want to "send the
+  error"): ask them where it happened — in this conversation, in a terminal
+  without you, or in the Strom app — then run \`strom error --where
+  chat|terminal|app\` (\`--about fetch|sync|agent|install|windows\` as it
+  fits, \`--note "…"\` with their words). Tell them the path of the ZIP and
+  the address strom names; never send or open it, never copy its content
+  into the chat. Data of their people go only on their explicit yes
+  (\`--with-data --person P… --yes-data\`).
 
 ## When you have computer use
 

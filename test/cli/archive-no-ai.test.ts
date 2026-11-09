@@ -141,3 +141,30 @@ test("an archive with an agent's web requests from before (fetch.jsonl): doctor 
   assert.deepEqual(text.split("\n").filter((l) => AI.test(l) || /obec\.example|webu/.test(l)), [], text);
   w.cleanup();
 });
+
+test("an archive with facts waiting to be verified against their originals: check, doctor, stats and verify status say nothing of them (spec 065 K6.9)", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["lang", "cs"]);
+  await w.ok(["research", "new", "Předci Jana", "--new-person", "Jan /Lhoták/", "--sex", "M", "--born", "1880"]); // P1
+  await w.ok(["person", "add", "Josef /Lhoták/", "--sex", "M"]); // P2
+  await w.ok(["family", "add", "--partner", "P2", "--child", "P1"]);
+  await w.ok(["recordset", "add", "Lhota 1, N Z 1840-1920", "--kinds", "baptism", "--places", "Lhota", "--years", "1840-1920"]);
+  await w.ok(["source", "add", "Křest Josefa Lhotáka 1850", "--kind", "baptism", "--recordset", "B0001", "--locator", "fol. 12", "--information", "primary"]);
+  await w.ok(["event", "add", "P2", "BIRT", "--date", "1850", "--place", "Lhota", "--cite", "S0001", "--locator", "fol. 12"]);
+  await w.ok(["frontier", "--research", "G0001", "--apply"]);
+  // research: said
+  assert.equal((await w.run(["check", "--json"])).json.verify?.waiting, 1);
+  await w.ok(["mode", "archive"], { tty: true });
+  for (const args of [["check"], ["doctor"], ["stats"], ["verify", "status"]]) {
+    const r = await w.run(args);
+    const text = r.out + r.err;
+    // what waits for an agent's look: never said (verify status: only that nothing waits)
+    assert.deepEqual(text.split("\n").filter((l) => AI.test(l) || /\p{N}+ údaj\p{L}* .*ček|na skeny|výběr:/u.test(l)), [], `${args.join(" ")}:\n${text}`);
+  }
+  assert.equal((await w.run(["check", "--json"])).json.verify, undefined);
+  assert.equal((await w.run(["stats", "--json"])).json.verify, undefined);
+  assert.equal(((await w.run(["doctor", "--json"])).json.checks as { name: string }[]).some((c) => c.name === "verify"), false);
+  assert.deepEqual(Object.keys((await w.ok(["verify", "status", "--json"])).json).sort(), ["confirmed", "kept"]);
+  w.cleanup();
+});

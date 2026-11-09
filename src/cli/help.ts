@@ -7,6 +7,7 @@ import type { ShownAppUrl } from "../core/stromapp.ts";
 import { suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { docLangOf } from "../core/doc.ts";
+import { REPORT_TABLE_ARCHIVE } from "../core/report.ts";
 
 function optionRows(opts: OptionDef[]): string[][] {
   return opts.map((o) => [`--${o.name}${o.value ? ` ${o.value}` : ""}${o.multiple ? " (repeatable)" : ""}`, `${o.description}${o.max ? ` (≤${o.max} characters)` : ""}`]);
@@ -38,7 +39,7 @@ const ARCHIVE_COMMANDS = new Set([
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
   "check", "verify", "repair", "seal adopt", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
-  "setup", "doctor", "update", "config where", "config get", "config set", "config unset", "uninstall", "shortcut",
+  "setup", "doctor", "error", "update", "config where", "config get", "config set", "config unset", "uninstall", "shortcut",
   "hook list", "hook on", "hook off", "hook test", "link on", "link off", "link status",
 ]);
 const ARCHIVE_SUMMARY: Record<string, string> = {
@@ -58,6 +59,14 @@ const ARCHIVE_SUMMARY: Record<string, string> = {
  * a description that does is left out whole.
  */
 const ARCHIVE_DESCRIPTION: Record<string, string> = {
+  error:
+    "The report: this computer and the installation, strom doctor, the connectors, the bridge to the Strom app, the\n" +
+    "research in numbers only (counts, strom check, git, downloads) and strom's technical logs of the last days, with\n" +
+    "the commands that ended with an error. Names, places, notes, paths with the user's name and e-mails are replaced\n" +
+    "by codes; logins, keys and tokens never go. The ZIP goes to the downloads folder (else the current one); strom\n" +
+    "sends nothing — the user sends it. Nothing in the research is written.\n" +
+    "\n" +
+    REPORT_TABLE_ARCHIVE,
   intake:
     "Every file is registered unchanged as an input (duplicates skipped) and kept with the family tree.\n" +
     "Files up to 20 MB are kept in the tree (and its history); bigger ones in shared/media.\n" +
@@ -80,6 +89,13 @@ const ARCHIVE_OPTION: Record<string, string> = {
   "intake --person": "the person it is of, as the user says (repeatable): kept with them",
   "find --type": "only one record type: person, family, source, repository, place, conflict, input, media",
   "person list --unproven": "only people no record of their own proves: how each stands, the records naming them",
+  "error --about": "details of an area too: fetch, sync, install, windows",
+  "error --where": "where the problem happened, as the user says: terminal, app (the Strom app), unknown",
+  "error --yes-data": "the user's own yes to --with-data, given beforehand (a script, no terminal to ask)",
+};
+/** An archive's own values of an option whose usual ones tell of the research's work. */
+const ARCHIVE_VALUE: Record<string, string> = {
+  "error --where": "<terminal|app|unknown>",
 };
 /** Options an archive has no use for, though their words say nothing of the work: a research (G…) is the agent's. */
 const ARCHIVE_HIDDEN = new Set(["intake --research"]);
@@ -99,7 +115,8 @@ function archiveOptions(def: CommandDef, opts: OptionDef[]): OptionDef[] {
     const key = `${name} --${o.name}`;
     if (ARCHIVE_HIDDEN.has(key)) return [];
     const own = ARCHIVE_OPTION[key];
-    if (own) return [{ ...o, description: own }];
+    const value = ARCHIVE_VALUE[key];
+    if (own) return [{ ...o, description: own, ...(value ? { value } : {}) }];
     return notInArchive(o.description) ? [] : [o];
   });
 }
@@ -214,9 +231,9 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
 
 /** The commands a person uses, in the order a person meets them. */
 export const HUMAN_COMMANDS = [
-  "menu", "status", "setup", "doctor", "update", "uninstall", "shortcut",
+  "menu", "status", "setup", "doctor", "error", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
-  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
+  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review", "verify bulk", "verify stop",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",

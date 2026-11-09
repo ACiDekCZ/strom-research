@@ -12,12 +12,14 @@
 // (a UUID — _UID, UID —, FamilySearch's — _FSFTID, an EXID of familysearch.org —, AFN, another EXID of the same TYPE)
 // is only a strong hint; the same person when ALL hold: exactly one person of the research has it, the names are alike,
 // the sexes are not M × F, the birth years (when both known) differ by YEARS_CLOSE at most, no global ID (all but a
-// UUID) differs, and nobody else of the same file took that person. Else a candidate for a person to decide. Weak IDs
-// (xref, RIN) only within one program's files, and then a candidate alone.
+// UUID) differs, and nobody else of the same file took that person. A newer file of the same program's tree (the
+// person's strong ID came of an import of that program): the same person though the name, the sex or the birth year
+// differ — what differs is said and comes in as a lead beside what the research has. Else a candidate for a person to
+// decide. Weak IDs (xref, RIN) only within one program's files, and then a candidate alone.
 
 import { ORIGINAL_IDS_LIMITS, type Family, type OriginalId, type OriginalIds, type Person, type Source } from "./model.ts";
 import { dateYears, YEARS_CLOSE } from "./gdate.ts";
-import { birthEvent } from "./people.ts";
+import { birthEvent, noName } from "./people.ts";
 import { foldText } from "./text.ts";
 import type { Tree } from "./tree.ts";
 import { children, val, type GedNode } from "../gedcom/parse.ts";
@@ -258,6 +260,18 @@ export function namesAlike(ours: Person, names: readonly string[]): boolean {
   });
 }
 
+/**
+ * Does a file give a person a name at all? An empty NAME, "//", "?" or what stands for no name (N.N.) gives none —
+ * the research keeps such a person as "?": nothing to compare, never a name that differs (found on real data
+ * 2026-11-08: a newer file of the same tree said every nameless person "otherwise").
+ */
+export function givesName(names: readonly string[]): boolean {
+  return names.some((t) => {
+    const s = t.replace(/\//g, " ").replace(/\s+/g, " ").trim();
+    return /[\p{L}\p{N}]/u.test(s) && !noName(s);
+  });
+}
+
 /** The first year of a person's birth or baptism. */
 export function birthYearOf(p: Person): number | undefined {
   const ys = dateYears(birthEvent(p)?.date ?? "");
@@ -318,7 +332,7 @@ export interface IdCandidate {
  * Who of the research a person of a file is by their IDs: `same` only when every rule holds (see the top of the file);
  * else the candidates, each with why it is only a candidate. `taken`: the research's people others of the file are.
  */
-export function matchByIds(tree: Tree, index: IdIndex, q: IdQuery, taken: ReadonlySet<string>): { same?: string; candidates: IdCandidate[] } {
+export function matchByIds(tree: Tree, index: IdIndex, q: IdQuery, taken: ReadonlySet<string>): { same?: string; differs?: string[]; candidates: IdCandidate[] } {
   const candidates: IdCandidate[] = [];
   const mine = strongOf(q.ids);
   const hits = new Map<string, string>(); // the research's person → the kind found by
@@ -329,7 +343,7 @@ export function matchByIds(tree: Tree, index: IdIndex, q: IdQuery, taken: Readon
     const [id, kind] = [...hits][0]!;
     const p = tree.get<Person>(id)!;
     const why: string[] = [];
-    if (!namesAlike(p, q.names)) why.push("name differs");
+    if (givesName(q.names) && !namesAlike(p, q.names)) why.push("name differs");
     if ((q.sex === "M" || q.sex === "F") && (p.sex === "M" || p.sex === "F") && q.sex !== p.sex) why.push("sex differs");
     const y = birthYearOf(p);
     if (q.year !== undefined && y !== undefined && Math.abs(q.year - y) > YEARS_CLOSE) why.push("birth years differ");
@@ -342,6 +356,10 @@ export function matchByIds(tree: Tree, index: IdIndex, q: IdQuery, taken: Readon
     }
     if (taken.has(id)) why.push("another person of the file is them already");
     if (!why.length) return { same: id, candidates };
+    // a newer file of the same program's tree (found on real data 2026-11-08: a birth date changed there, the person
+    // made again and put into the family twice): its strong ID that came of an import of that program is the person,
+    // what the file says otherwise only differs — a name, a sex, a birth year (never a global ID, never two of the file)
+    if (why.every((x) => DIFFERS.has(x)) && sameProgram(tree, index, p, q.program, mine.filter((k) => k.kind === kind))) return { same: id, differs: why, candidates };
     candidates.push({ like: id, why: `same ${kindWord(kind, q.ids)}; ${why.join(", ")}` });
   }
   // weak IDs: within one program's files, a person of a name alike — a candidate only
@@ -356,5 +374,32 @@ export function matchByIds(tree: Tree, index: IdIndex, q: IdQuery, taken: Readon
   return { candidates };
 }
 
+/** What a newer file of the same program's tree may say otherwise of a person its strong ID finds. */
+const DIFFERS: ReadonlySet<string> = new Set(["name differs", "sex differs", "birth years differ"]);
+
+/** Did the person's strong ID (one of `keys`) come of an import of this program (a file of the same tree)? */
+function sameProgram(tree: Tree, index: IdIndex, p: Person, program: string | undefined, keys: ReturnType<typeof strongOf>): boolean {
+  if (!program) return false;
+  const folded = foldText(program);
+  const wanted = new Set(keys.map((k) => `${k.kind}|${k.value}`));
+  return idsOf(index, p).some((e) => programOf(tree, e.source) === folded && strongOf(e.ids ?? []).some((k) => wanted.has(`${k.kind}|${k.value}`)));
+}
+
 /** The ID entries of a record (person or family) as the export writes them: for the Strom app (see export.ts). */
 export type WithIds = Pick<Person | Family, "originalIds">;
+
+/**
+ * Pairs of the research's people who have the same strong ID of a family tree (a _UID, FamilySearch's ID …): most
+ * likely one person made twice (an import before a newer file of the same tree was known as it). Each pair once, by
+ * the lower ID first, with the kind of ID; for `strom check` to offer a comparison — nothing merged.
+ */
+export function sameStrongIds(tree: Tree): { a: string; b: string; kind: string }[] {
+  const out = new Map<string, { a: string; b: string; kind: string }>();
+  for (const [key, ids] of personIndex(tree).strong) {
+    if (ids.size < 2) continue;
+    const kind = key.slice(0, key.indexOf("|"));
+    const all = [...ids].sort();
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) if (!out.has(`${all[i]} ${all[j]}`)) out.set(`${all[i]} ${all[j]}`, { a: all[i]!, b: all[j]!, kind });
+  }
+  return [...out.values()];
+}

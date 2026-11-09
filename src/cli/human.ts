@@ -203,3 +203,12 @@ export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten
     return `${open ?? ""}${names(ids, at + (open ? 1 : 0))}${close ?? ""}`;
   });
 }
+
+/**
+ * What of the facts waiting to be verified against their originals waits for the person (spec 065 K6.9), after the
+ * count: " (for the scans: 3, for an archive's permission: 1)" — nothing when nothing does.
+ */
+export function verifyWaitsMore(lang: string, c: { images: number; permission: number }): string {
+  const parts = [c.images ? ui(lang, "ui.verify.waits.images", { n: c.images }) : undefined, c.permission ? ui(lang, "ui.verify.waits.permission", { n: c.permission }) : undefined].filter(Boolean);
+  return parts.length ? ` (${parts.join(", ")})` : "";
+}

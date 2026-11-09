@@ -2,6 +2,7 @@
 // program), compared with the research: what the user changed, taken in on
 // their yes (core/sync.ts).
 
+import { queueVerify } from "../core/verify.ts";
 import { compactSoon } from "../core/history.ts";
 import { changeLines } from "../core/changelog.ts";
 import fs from "node:fs";
@@ -147,7 +148,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
         ? `ui.sync.fact.part${!c.part ? ".gone" : c.wasPart && c.wasPart.role !== c.part.role ? ".role" : c.wasPart ? ".link" : ""}`
         : c.kind === "name.new" && c.married
           ? "ui.sync.name.married"
-          : `ui.sync.${c.kind}`;
+          : c.kind === "fact.confirm" && c.confirm?.on === false
+            ? "ui.sync.fact.confirm.back"
+            : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
   // not the person's sync: a value of the user's or an import's only proposed, or not written at all (spec 066 U3)
   const guard = c.kept || c.asked || c.takenBack ? undefined : guardedChange(tree, c, { decidePerson });
@@ -160,6 +163,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? `ui.sync.do.${c.asked === "setBack" ? "setback" : "cited"}`
       : c.takenBack
       ? "ui.sync.do.taken"
+      // the user's confirmation against the scan (spec 065): the person's alone
+      : c.kind === "fact.confirm"
+      ? c.action === "report" ? "ui.sync.do.confirm.report" : !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.confirm${c.confirm?.on === false ? ".back" : ""}`
       : c.kind === "ids.add"
       ? "ui.sync.do.ids"
       : c.kind === "child.parents"
@@ -455,6 +461,8 @@ register(
           op: "input.sync",
           summary: `${made.id} synced: ${changes} change(s)${fresh.head ? ` against ${fresh.head.slice(0, 8)}` : ""}`,
         });
+        // a fact the sync brought with its original cited: queued to be verified against it (core/verify.ts)
+        if (changes) queueVerify(tree);
       });
       if (!input) {
         settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length });

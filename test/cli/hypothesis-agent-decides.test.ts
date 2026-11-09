@@ -15,6 +15,7 @@ import http from "node:http";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
+import { hasGedErrors, validateGedcom } from "../../src/gedcom/validate.ts";
 import { decidedToRecord } from "../../src/core/hypolinks.ts";
 import { changeLines } from "../../src/core/changelog.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
@@ -289,6 +290,49 @@ test("the Strom file says who decided (_BY agent, DECI, _AT) only for an app tha
     assert.equal(appShowsHypothesisDecider(prod, "3.25.0", "3.25.0"), true);
     assert.equal(appShowsHypothesisDecider(prod, "3.24.9", "3.25.0"), false);
     assert.equal(appShowsHypothesisDecider(prod, undefined, "3.25.0"), true, "an unknown version once released");
+  } finally {
+    w.cleanup();
+  }
+});
+
+// Found on real data 2026-11-08 (1.29.0): the validator did not know 2 _BY / 2 DECI / 2 _AT under _STROM_HYPO, so a
+// research with a hypothesis decided with its reasons wrote no Strom file for an app of 3.25.0 or of unknown version
+// (strom export gedcom failed; after each session output/tree-strom.ged stayed as it was).
+test("the Strom file with a decided hypothesis is written for every version of the app; every gate on, still valid", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["config", "set", "hypotheses.decide", "agent", "--for-tree"], { tty: true });
+    await w.ok(["hypothesis", "argue", "H1", "A", "--for", "S1"], AGENT);
+    await w.ok(["hypothesis", "decide", "H1", "--variant", "A", "--decision", "křest S0001 jmenuje rodiče;\nzápis je čitelný"], AGENT);
+    await w.ok(["hypothesis", "decide", "H2", "--variant", "B", "--decision", "jinde — podle sčítání S0002"]);
+    const file = path.join(w.cwd, "output", "tree-strom.ged");
+    const apps: Record<string, string>[] = [
+      {},
+      { STROM_APP_VERSION: "3.10.0" },
+      { STROM_APP_VERSION: "3.24.0" },
+      { STROM_APP_VERSION: "3.25.0" },
+      { STROM_APP_VERSION: "9.0.0" },
+      { STROM_APP_URL: "https://beta.stromapp.info/run/", STROM_APP_VERSION: "3.26.0-beta.1" },
+    ];
+    for (const env of apps) {
+      fs.rmSync(file, { force: true });
+      const r = await w.run(["export", "gedcom", "--for", "strom"], { env });
+      assert.equal(r.code, 0, `${JSON.stringify(env)}: ${r.out}${r.err}`);
+      const text = fs.readFileSync(file, "utf8");
+      assert.ok(!hasGedErrors(validateGedcom(text)), JSON.stringify(env));
+      if (env.STROM_APP_VERSION !== "3.10.0" && env.STROM_APP_VERSION !== "3.24.0") assert.match(text, /\n2 DECI křest S0001/u, JSON.stringify(env));
+    }
+    // every switch of the Strom profile at once: nothing the exporter writes is unknown to the validator
+    const t = Tree.open(w.cwd, w.env);
+    const all = exportGedcom(t, {
+      for: "strom", ids: true, clips: true, research: true, edges: true, storyDrafts: true, titles: true, coupleResi: true, sourceReads: true,
+      confirms: true, noCouple: true, factStatus: true, archive: true, turnsExcerpts: true, hypothesisLinks: true, hypothesisDecider: true,
+      conflictSides: true, readings: true, placeRecords: true, origins: true, original: () => true, links: ["person"],
+    });
+    assert.match(all.text, /\n2 _BY agent\n2 DECI /u);
+    const errors = validateGedcom(all.text).filter((f) => f.level === "error");
+    assert.deepEqual(errors, []);
+    assert.deepEqual(validateGedcom(all.text).filter((f) => /_BY|DECI|_AT/u.test(f.message)), []);
   } finally {
     w.cleanup();
   }

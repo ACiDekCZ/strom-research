@@ -46,6 +46,7 @@ import { agentDecided, decidedToRecord, HYPOTHESIS_LINKS_ORIGIN, linkText, recor
 import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 import { placesIdentifySections } from "./places.ts";
+import { verifySection } from "./verify.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
@@ -781,7 +782,7 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   ].filter(Boolean);
 }
 
-/** The fetches at work for the research (each book: how far), and those that ended lately with images left (in the background, or interrupted). */
+/** The fetches at work for the research (each book: how far), and those that ended lately with images left (in the background, interrupted, or stopped by their connector). */
 function fetchingLines(tree: Tree): string[] {
   const root = tree.root;
   const active = activeFetches(root);
@@ -797,7 +798,7 @@ function fetchingLines(tree: Tree): string[] {
         e.interrupted
           ? // its process ended without a word (killed, the computer stopped): what it registered stays
             `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} was interrupted (${e.interrupted === "gone" ? "its process ended without a word" : "nothing heard of it for long"}) with images ${runs(e.missed)} not fetched — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset}${e.background ? " --background" : ""} if they are needed (what is registered is not fetched again)`
-          : `- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
+          : `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
       );
   return out;
 }
@@ -1120,6 +1121,9 @@ export function buildBrief(
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)
     sections.push({ name: "review", required: true, pointer: `strom task show ${task.id}`, text: ["## To review", ...reviewItems(tree, task)].join("\n") });
+  // 2. a verification against the originals: each fact, its originals and their images, and how (spec 065)
+  const verifying = verifySection(tree, task);
+  if (verifying) sections.push(verifying);
 
   // 2a. an imported tree: who in it is probably already in the tree
   const treeInputs = [...new Set([...(task?.subject ?? []), ...(task?.where ?? [])])]
@@ -1607,6 +1611,9 @@ export function buildBrief(
       alone && task
         ? `- a decision or a step only the user can take: strom task wait ${task.id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app; a question in the summary gets no answer; its kind: --kind letter|family|web|other`
         : "",
+      // a problem with strom the user reports (spec 070 K3.1): the report, never its content in the chat
+      // in short (the brief's budget): the whole in the guide and AGENTS.md
+      alone ? "" : "- a problem with strom reported: ask where it happened, strom error --where chat|terminal|app, tell the ZIP's path; never send, open or copy it",
       "- a command you need: strom help <command> (short, with examples) — the full guide: strom guide",
     ].filter(Boolean).join("\n"),
   });

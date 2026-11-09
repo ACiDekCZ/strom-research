@@ -267,7 +267,10 @@ export interface EndedFetch {
    * FETCH_SILENT_MS — written by the strom that found its mark stale; `at` is the last sign of life.
    */
   interrupted?: "gone" | "silent";
-  /** A fetch in the background (an interrupted one may have been in the foreground). */
+  /**
+   * A fetch in the background. One in the foreground has an end written only when it was interrupted (found so by a
+   * later strom) or its connector stopped with images left.
+   */
   background?: boolean;
   at: string;
   since?: string;
@@ -291,11 +294,14 @@ export function markEnded(root: string, ended: EndedFetch): void {
 }
 
 /**
- * Of an interrupted fetch, what it registered and what not as the research has it now (`has`: the images of its
- * book registered); a fetch that wrote its own end said it already.
+ * Of an ended fetch, what it registered and what not as the research has it now (`has`: the images of its book
+ * registered): an interrupted one did not say it; of one that said it, what it left and came since (another fetch,
+ * the same command again) is no longer missed.
  */
 export function withRegistered(e: EndedFetch, has: Set<number>): EndedFetch {
-  return e.interrupted ? { ...e, registered: e.images.filter((n) => has.has(n)), missed: e.images.filter((n) => !has.has(n)) } : e;
+  if (e.interrupted) return { ...e, registered: e.images.filter((n) => has.has(n)), missed: e.images.filter((n) => !has.has(n)) };
+  const missed = e.missed.filter((n) => !has.has(n));
+  return missed.length === e.missed.length ? e : { ...e, registered: e.images.filter((n) => !missed.includes(n)), missed };
 }
 
 /** The fetches in the background ended lately (ENDED_SAID_MS), newest first; older ones are taken away. */

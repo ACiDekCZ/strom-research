@@ -234,7 +234,7 @@ register(
       const report: string[] = [];
       const added: Input[] = [];
       /** How each GEDCOM was read, where there is something to say (--json: on its input). */
-      const notes = new Map<string, DecodingNote & { candidates?: ImportResult["candidates"]; notTaken?: ImportResult["notTaken"] }>();
+      const notes = new Map<string, DecodingNote & { candidates?: ImportResult["candidates"]; differs?: ImportResult["differs"]; notJoined?: ImportResult["notJoined"]; notTaken?: ImportResult["notTaken"] }>();
       /** What came for the task: the new inputs, and those the research had of the same content. */
       const handed: string[] = [];
       let skipped = 0;
@@ -299,6 +299,16 @@ register(
             // people the IDs of the program point at, not joined: for a person to decide (spec 066 K3.2)
             if (imported.candidates.length)
               report.push(`  ${ui(tree.lang, "ui.intake.candidates", { list: `${imported.candidates.slice(0, 6).map((c) => `${c.person}≈${c.like}`).join(", ")}${imported.candidates.length > 6 ? " …" : ""}` })}`);
+            // the same people by the IDs of a newer file of the same program's tree, said otherwise there: leads beside
+            const differs = imported.differs ?? [];
+            if (differs.length) {
+              const word = (why: string) => why.split(", ").map((w) => ui(tree.lang, w === "name differs" ? "ui.intake.differs.name" : w === "sex differs" ? "ui.intake.differs.sex" : "ui.intake.differs.year")).join(", ");
+              report.push(`  ${ui(tree.lang, "ui.intake.differs", { list: `${differs.slice(0, 6).map((d) => `${d.person} (${word(d.why)})`).join(", ")}${differs.length > 6 ? " …" : ""}` })}`);
+            }
+            // a person made new though maybe one already in the family: not put in it twice
+            const notJoined = imported.notJoined ?? [];
+            if (notJoined.length)
+              report.push(`  ${ui(tree.lang, "ui.intake.notJoined", { list: `${notJoined.slice(0, 6).map((n) => `${n.person} → ${n.family} (≈${n.like})`).join(", ")}${notJoined.length > 6 ? " …" : ""}` })}`);
             // what the file holds that the research does not take, said once
             const nt = imported.notTaken;
             const ntList = nt
@@ -309,8 +319,8 @@ register(
                 ]
               : [];
             if (ntList.length) report.push(`  ${ui(tree.lang, "ui.intake.notTaken", { list: `${ntList.join(", ")}${nt && Object.keys(nt.tags).length > 8 ? " …" : ""}` })}`);
-            if (imported.candidates.length || ntList.length)
-              notes.set(input.id, { ...notes.get(input.id), ...(imported.candidates.length ? { candidates: imported.candidates } : {}), ...(ntList.length ? { notTaken: imported.notTaken } : {}) });
+            if (imported.candidates.length || ntList.length || differs.length || notJoined.length)
+              notes.set(input.id, { ...notes.get(input.id), ...(imported.candidates.length ? { candidates: imported.candidates } : {}), ...(differs.length ? { differs } : {}), ...(notJoined.length ? { notJoined } : {}), ...(ntList.length ? { notTaken: imported.notTaken } : {}) });
             // the research's own tree coming back: sync sees what was changed in it too, not only what was added
             if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
             if (!quiet) {

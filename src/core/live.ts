@@ -234,6 +234,31 @@
 //                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
 //                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
 //                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
+//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true: the user asks the facts
+//                          verified against their originals (spec 065; strom verify facts … --living), first in the
+//                          queue — {ok, task|null, state?: wait|asked|images|permission, position? (wait, asked: the
+//                          task's place in the queue), tasks?: [{task, state, position?, facts}] (not dry: every task
+//                          it touches, nearest to its turn first, the first on top), facts: [{fact, kind, how:
+//                          read|search, record?: {source, title, page?}}], estimate: {sessions, usd?}, head, parent};
+//                          dry: nothing written, head == parent; 400 verify.invalid, 404 verify.unknown,
+//                          409 verify.archive | verify.nothing | verify.retracted, 503 research.busy (feature verify)
+//   POST <token>/verify/bulk {"scope": "line"|"lineage"|"tree", "of"?: "G…"|"P…", "order"?: "ancestors"|"weakest"|
+//                          "oldest", "try"?: n, "budget"?: usd, "dry"?: true}: the user's bulk verification (strom verify
+//                          bulk), after the lines' work; a family tree's leads too, their record looked for — {ok,
+//                          people, facts, how: {read, search} (of the facts), tasks (not dry), left, estimate, head,
+//                          parent}; 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+//                          research.busy (feature verify.bulk)
+//   POST <token>/verify/stop {"scope"?: "all"|"bulk"}: the user stops the verification (strom verify stop [--bulk]) —
+//                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
+//                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
+//                          400 verify.invalid, 409 verify.archive, 503 research.busy (feature verify.stop)
+//   POST <token>/facts/confirm {"fact": "E…", "confirm": true|false}: the user confirms a fact against the scan, or takes
+//                          it back (strom verify confirm E… [--undo]; an archive's too) — {ok, fact, owner, confirmed?,
+//                          head, parent}; the same state again: 200, nothing written; 400 factconfirm.invalid, 404
+//                          factconfirm.unknown, 409 factconfirm.retracted | factconfirm.merged, 503 research.busy
+//                          (feature facts.confirm). /status verify {waiting, asked, images, permission, kept, confirmed,
+//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent). The Strom
+//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
 //                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
 //                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
@@ -377,6 +402,7 @@
 // written then (a send, an original) is finished; only new requests need the
 // new secret. Nothing is replaced on a timer.
 
+import { settleVerify, verifyCounts } from "./verify.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
@@ -1245,7 +1271,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away; origin.ids said only with the IDs sent: bridgeFeatures). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2152,6 +2178,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
     // waiting for its agent — no key there
     ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
+    // the facts against their originals (spec 065, feature verify): what waits, what was verified or confirmed — none in
+    // an archive or a research waiting for its agent (nobody verifies there)
+    ...(archive ? {} : { verify: verifyCounts(tree) }),
     // what became of each source's newest reading again that differs from its transcript (the app's source viewer,
     // core/sourceread.ts readAgainOf): none in an archive or a research waiting for its agent
     ...(archive ? {} : { readAgain: readAgainAll(tree) }),
@@ -2294,6 +2323,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
     if (done) noteLive(root, `where the values came from: ${counted(done.changed, "mark")} in ${counted(done.records, "record")}`);
   } catch (e) {
     noteLive(root, `where the values came from not marked now: ${errorText(e)}`);
+  }
+  // the facts with their original cited, not yet verified against it: queued once (spec 065)
+  try {
+    const done = settleVerify(Tree.open(root, env));
+    if (done) noteLive(root, `facts to verify against their originals: ${counted(done.facts, "fact")} of ${counted(done.people, "person", "people")} queued`);
+  } catch (e) {
+    noteLive(root, `the facts to verify against their originals not queued now: ${errorText(e)}`);
   }
   // an agent's proposals whose value proposed holds now: closed by themselves (no value written)
   try {
@@ -2829,6 +2865,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
     if (req.method === "POST" && t === token && what === "facts" && sub === "revert" && !act) {
       writeFor(req, res, origin, revertWrite());
       return;
+    }
+    if (req.method === "POST" && t === token && what === "facts" && sub === "confirm" && !act) {
+      writeFor(req, res, origin, factConfirmWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "verify" && !act) {
+      const how = !sub ? verifyWrite() : sub === "bulk" ? verifyBulkWrite() : sub === "stop" ? verifyStopWrite() : undefined;
+      if (how) {
+        writeFor(req, res, origin, how);
+        return;
+      }
     }
     if (req.method === "POST" && t === token && what === "sourceTask" && !sub) {
       writeFor(req, res, origin, sourceTaskWrite());
@@ -4992,6 +5039,177 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (code === "revert.unknown") return unknown(why);
         if (code === "revert.nothing") return nothing(why);
         if (code === "revert.part") return { code: 400, body: refusal(why, "revert.invalid") };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The facts against their originals (spec 065), the person's in the app — nobody verifies in an archive or a research
+   * waiting for its agent (409 verify.archive; its refusals by strom: archive, agent.missing). The codes of the commands
+   * verify.* as they come; 404 for verify.unknown, 400 for verify.invalid, else 409.
+   */
+  const VERIFY_CODES = { badBody: "verify.invalid", busy: "research.busy", failed: "verify.failed" };
+  const verifyRefused = (code: string, why: string): { code: number; body: Record<string, unknown> } | undefined => {
+    if (code === "archive" || code === "agent.missing" || code === "verify.archive") return { code: 409, body: refusal(why, "verify.archive") };
+    if (code === "verify.invalid") return { code: 400, body: refusal(why, code) };
+    if (code === "verify.unknown") return { code: 404, body: refusal(why, code) };
+    if (code === "verify.nothing" || code === "verify.retracted") return { code: 409, body: refusal(why, code) };
+    return undefined;
+  };
+  const noVerify = (tree: Tree) => (actsAsArchive(tree) ? { code: 409, body: refusal("nobody researches here: an archive, or a research waiting for its agent", "verify.archive") } : undefined);
+
+  /**
+   * The person's "verify" (POST /verify {person: P…} | {family: F…} | {fact: E…}, dry?): strom verify facts … --living
+   * (the person asks: someone most likely alive too), first in the queue. {ok, task, state, position?, tasks: [{task,
+   * state, position?, facts}], facts: [{fact, kind, how, record?: {source, title, page?}}], estimate: {sessions, usd?},
+   * head, parent} — every task it touches (a person's and their marriages'), nearest to its turn first, the first one's
+   * on top; position only of one waiting in the queue (wait, asked), never of one waiting for the scans or an archive's
+   * permission (Dotazy 2 of the app). Dry: nothing written, task null, no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing |
+   * verify.retracted, 503 research.busy.
+   */
+  const verifyWrite = (): AppWrite => {
+    let before = "";
+    let dry = false;
+    return {
+      what: "facts asked to be verified",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).filter((k) => k !== "dry");
+        const key = keys[0];
+        const v = key ? body[key] : undefined;
+        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^E\d{1,9}$/iu };
+        if (keys.length !== 1 || !shape[key!] || typeof v !== "string" || !shape[key!]!.test(v.trim()) || (body.dry !== undefined && typeof body.dry !== "boolean"))
+          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        const id = normId(v.trim());
+        if (key !== "fact") {
+          const r = tree.get<Person | Family>(id);
+          if (!r || r.type !== key) return { code: 404, body: refusal(`no ${key} ${id}`, "verify.unknown") };
+          if (r.retracted || r.mergedInto) return { code: 409, body: refusal(`${id} was taken back${r.mergedInto ? ` (merged into ${r.mergedInto})` : ""}`, "verify.retracted") };
+        }
+        dry = body.dry === true;
+        before = head(root);
+        return { args: ["verify", "facts", ...(key === "fact" ? ["--fact", id] : [id]), "--living", ...(dry ? ["--dry-run"] : [])] };
+      },
+      done(_tree, data, h) {
+        const { task, state, facts, estimate, position, tasks } = data;
+        if (dry) return { ok: true, task: null, facts: facts ?? [], estimate, head: before, parent: before };
+        return { ok: true, task: task ?? null, ...(state !== undefined ? { state } : {}), ...(position !== undefined ? { position } : {}), tasks: tasks ?? [], facts: facts ?? [], estimate, head: h, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person's bulk verification (POST /verify/bulk {scope: line|lineage|tree, of?, order?, try?, budget?, dry?}):
+   * strom verify bulk, after the lines' work — a family tree's leads too, their record looked for (Dotazy 2 of the
+   * app, 3). {ok, people, facts, how: {read, search}, tasks, left, estimate: {sessions, usd?}, head, parent};
+   * dry: no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+   * research.busy.
+   */
+  const verifyBulkWrite = (): AppWrite => {
+    let before = "";
+    let dry = false;
+    return {
+      what: "a bulk verification",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const { scope, of, order, budget } = body;
+        const tries = body.try;
+        const extra = Object.keys(body).filter((k) => !["scope", "of", "order", "try", "budget", "dry"].includes(k));
+        if (
+          extra.length ||
+          typeof scope !== "string" ||
+          !["line", "lineage", "tree"].includes(scope) ||
+          (of !== undefined && (typeof of !== "string" || !/^[GP]\d{1,9}$/iu.test(of.trim()))) ||
+          (order !== undefined && (typeof order !== "string" || !["ancestors", "weakest", "oldest"].includes(order))) ||
+          (tries !== undefined && (typeof tries !== "number" || !Number.isInteger(tries) || tries < 1)) ||
+          (budget !== undefined && (typeof budget !== "number" || !(budget > 0) || !Number.isFinite(budget))) ||
+          (body.dry !== undefined && typeof body.dry !== "boolean")
+        )
+          return { code: 400, body: refusal(`the body: {"scope": "line" | "lineage" | "tree", "of"?: "G…" | "P…", "order"?: "ancestors" | "weakest" | "oldest", "try"?: n, "budget"?: usd, "dry"?: true}`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        dry = body.dry === true;
+        before = head(root);
+        return {
+          args: [
+            "verify", "bulk", "--scope", scope,
+            ...(typeof of === "string" ? ["--of", normId(of.trim())] : []),
+            ...(typeof order === "string" ? ["--order", order] : []),
+            ...(tries !== undefined ? ["--try", String(tries)] : []),
+            ...(budget !== undefined ? ["--budget", String(budget)] : []),
+            ...(dry ? ["--dry-run"] : []),
+          ],
+        };
+      },
+      done(_tree, data, h) {
+        const { people, facts, how, tasks, left, estimate } = data;
+        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [] }), left, estimate, head: dry ? before : h, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person stopping the verification (POST /verify/stop {scope?: all | bulk}): strom verify stop [--bulk] — the
+   * tasks nobody started dropped, what was queued stays so (not queued again by itself). {ok, dropped, facts, head,
+   * parent}; nothing to stop: dropped 0, nothing written. 400 verify.invalid, 409 verify.archive, 503 research.busy.
+   */
+  const verifyStopWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the verification stopped",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const extra = Object.keys(body).filter((k) => k !== "scope");
+        if (extra.length || (body.scope !== undefined && body.scope !== "all" && body.scope !== "bulk"))
+          return { code: 400, body: refusal(`the body: {"scope"?: "all" | "bulk"}`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        before = head(root);
+        return { args: ["verify", "stop", ...(body.scope === "bulk" ? ["--bulk"] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, dropped: Number(data.dropped ?? 0), facts: Number(data.facts ?? 0), head: data.dropped ? h : before, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person's confirmation of a fact against the scan, or its taking back (POST /facts/confirm {fact: E…, confirm}):
+   * strom verify confirm E… [--undo] — an archive's and a research's waiting for its agent too (the person's own).
+   * {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written. 400 factconfirm.invalid,
+   * 404 factconfirm.unknown, 409 factconfirm.retracted | factconfirm.merged, 503 research.busy.
+   */
+  const factConfirmWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a fact confirmed against the scan",
+      codes: { badBody: "factconfirm.invalid", busy: "research.busy", failed: "factconfirm.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body).sort().join(",");
+        const { fact, confirm } = body;
+        if (keys !== "confirm,fact" || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean")
+          return { code: 400, body: refusal(`the body: {"fact": "E…", "confirm": true | false}`, "factconfirm.invalid") };
+        before = head(root);
+        return { args: ["verify", "confirm", normId(fact.trim()), ...(confirm ? [] : ["--undo"])] };
+      },
+      done(_tree, data, h) {
+        const r = (Array.isArray(data.results) ? data.results[0] : undefined) as { fact?: string; owner?: string; confirmed?: string; same?: boolean } | undefined;
+        return { ok: true, fact: r?.fact, owner: r?.owner, ...(r?.confirmed ? { confirmed: r.confirmed } : {}), head: r?.same ? before : h, parent: before };
+      },
+      refused(_tree, code, why) {
+        if (code === "factconfirm.invalid") return { code: 400, body: refusal(why, code) };
+        if (code === "factconfirm.unknown") return { code: 404, body: refusal(why, code) };
+        if (code === "factconfirm.retracted" || code === "factconfirm.merged") return { code: 409, body: refusal(why, code) };
         return undefined;
       },
     };

@@ -2,6 +2,7 @@
 // proven. For searching ancestors the next step is derivable, so strom
 // proposes the tasks itself instead of hoping an agent remembers to.
 
+import { readsOriginals, verifyRecordsets } from "./verifyfacts.ts";
 import { dateYears } from "./gdate.ts";
 import type { Person, Place, RecordSet, Research, Task } from "./model.ts";
 import { ancestorGenerations, birthEvent, descendantGenerations, displayName, familiesAsChild, familiesAsPartner, isBirthFamily, lifespan } from "./people.ts";
@@ -87,6 +88,8 @@ export function taskRecordsets(tree: Tree, task: Task): { sets: RecordSet[]; gue
   };
   const named = task.where.map(get).filter((b): b is RecordSet => !!b);
   if (named.length) return { sets: named, guessed: false };
+  // a verification against the originals: the books of the originals its facts cite (never guessed)
+  if (readsOriginals(task)) return { sets: verifyRecordsets(tree, task), guessed: false };
   const text = [task.what, ...task.where, task.why, task.doneWhen, ...task.notes.map((n) => n.text)].join(" ");
   const mentioned = [...new Set(text.match(/\bB\d{4,}\b/g) ?? [])].map(get).filter((b): b is RecordSet => !!b);
   if (mentioned.length) return { sets: mentioned, guessed: true };

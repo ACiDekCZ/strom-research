@@ -20,7 +20,7 @@ import { acquireLock, withLock } from "./lock.ts";
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
 const LOCK_WAIT_MS = 120_000;
 import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type RecordType, type TreeConfig } from "./model.ts";
-import { settledRecord, validateRecord } from "./validate.ts";
+import { factMarksAfter, settledRecord, validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { opsLogs } from "./opslog.ts";
@@ -40,7 +40,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 export const VERSION = "1.29.0";
 
 /** What a new research is settled with from the start: nothing an older strom counted otherwise to set right in it. */
-export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1"];
+export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1"];
 
 export interface Op {
   at: string;
@@ -776,23 +776,31 @@ export class Tree {
    */
   private guard(record: AnyRecord, input: AnyRecord): void {
     if (this.personWrites || (record.type !== "source" && record.type !== "task")) return;
-    let before = this.get(record.id);
-    // the record read changed in place before its write: what it was is in its file
-    if (before === input || before === record) {
-      try {
-        before = settledRecord(readJson<AnyRecord>(this.recordPath(record.type, record.id)));
-      } catch {
-        before = undefined;
-      }
-    }
-    const refused = refusedWrite(before, record, false);
+    const refused = refusedWrite(this.before(record, input), record, false);
     if (refused) throw refused;
+  }
+
+  /** A record as it is before its write: the record read changed in place before it is written — what it was is in its file. */
+  private before(record: AnyRecord, input: AnyRecord): AnyRecord | undefined {
+    const before = this.get(record.id);
+    if (before !== input && before !== record) return before;
+    try {
+      return settledRecord(readJson<AnyRecord>(this.recordPath(record.type, record.id)));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** A record to write as it is settled: a stale husb dropped, a fact whose value changed without its marks of before (spec 065). */
+  private settled(input: AnyRecord): AnyRecord {
+    const record = settledRecord(composed(input) as AnyRecord);
+    return record.type === "person" || record.type === "family" ? factMarksAfter(this.before(record, input), record, this.personWrites) : record;
   }
 
   /** Validate and write a record, then log the sealed operation. Call inside withTreeLock. */
   put(input: AnyRecord, op: { op: string; targets: string[]; summary: string; reason?: string }): void {
     // a family's husb that names none of its two partners is dropped, never written (B5-a)
-    const record = settledRecord(composed(input) as AnyRecord);
+    const record = this.settled(input);
     const problems = validateRecord(record);
     if (problems.length > 0) {
       throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, {
@@ -840,7 +848,7 @@ export class Tree {
     config?: (c: TreeConfig) => void,
   ): void {
     const records = inputs.map((input) => {
-      const record = settledRecord(composed(input) as AnyRecord);
+      const record = this.settled(input);
       const problems = validateRecord(record);
       if (problems.length > 0)
         throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, { details: problems });

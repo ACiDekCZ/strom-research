@@ -672,6 +672,24 @@ export function appShowsOrigin(settings: Settings, version?: string, gate: strin
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The first Strom app that shows the verification of facts against their originals (spec 065, the app's
+ * ZADANI_VYZKUM_spolehlivost.md): under each fact of a person and of a family `2 _STROM_EID E…` (right after its line),
+ * `2 _STROM_CONFIRMED <day>` (the user's confirmation against the scan), `2 _STROM_VERIFY wait|asked|images|permission`
+ * (with `3 _POS n` for wait|asked: its task's place in the queue) and `2 _STROM_CHECKED proven|kept` (`3 DATE`, `3 _WHY`,
+ * `3 _READERS 2`) — in the Strom file and the bridge's /tree.ged. Not released yet; an app of unknown version stays off;
+ * another copy of the app (its beta, its development) from APP_SHOWS_VERIFY_BETA.
+ */
+export const APP_SHOWS_VERIFY: string | undefined = undefined;
+
+/** The first beta of the app that shows the verification of facts (another copy of the app gets the marks from it). */
+export const APP_SHOWS_VERIFY_BETA: string | undefined = "3.26.0-beta.2";
+
+/** Does the Strom app of this version show the verification of facts (_STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY, _STROM_CHECKED)? */
+export function appShowsVerify(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_VERIFY, beta: string | undefined = APP_SHOWS_VERIFY_BETA): boolean {
+  return appShowsOrigin(settings, version, gate, beta);
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

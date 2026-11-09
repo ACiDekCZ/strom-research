@@ -301,6 +301,15 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
           await pause(ctx, lang);
         },
       });
+      // a problem to report: one ZIP to send, nothing of the family tree's people (strom error asks where and what)
+      items.push({
+        key: "6",
+        label: t("ui.maintenance.report"),
+        act: async () => {
+          await run(["error"]);
+          await pause(ctx, lang);
+        },
+      });
       return { title: t("ui.maintenance.title"), items };
     },
     { fixed: true },

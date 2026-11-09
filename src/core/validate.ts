@@ -134,6 +134,23 @@ export function checkEvent(e: unknown, path: string, out: Problem[], family = fa
     if (family) out.push({ path: `${path}.age`, message: "a family event gives the age of each partner: ages" });
     else if (!str(ev.age) || !isGedcomAge(ev.age)) out.push({ path: `${path}.age`, message: `"${String(ev.age)}" is not a GEDCOM age like 27y, 27y 3m, INFANT` });
   }
+  if (ev.confirmed !== undefined) {
+    const c = ev.confirmed as unknown;
+    if (!isObj(c) || !str(c.at) || !ISO.test(c.at) || c.by !== "user") out.push({ path: `${path}.confirmed`, message: 'must be { at: ISO timestamp, by: "user" }' });
+  }
+  if (ev.verified !== undefined) {
+    const v = ev.verified as unknown;
+    if (!isObj(v)) out.push({ path: `${path}.verified`, message: "must be an object" });
+    else {
+      if (!str(v.at) || !ISO.test(v.at)) out.push({ path: `${path}.verified.at`, message: "must be an ISO timestamp" });
+      if (!str(v.by)) out.push({ path: `${path}.verified.by`, message: "must name the session or agent" });
+      if (v.result !== "proven" && v.result !== "kept") out.push({ path: `${path}.verified.result`, message: "must be proven or kept" });
+      if (!Array.isArray(v.cites) || v.cites.some((s) => !str(s))) out.push({ path: `${path}.verified.cites`, message: "must be a list of source IDs" });
+      if (v.readers !== undefined && v.readers !== 2) out.push({ path: `${path}.verified.readers`, message: "must be 2 when given" });
+      for (const k of ["model", "reason", "task"] as const)
+        if (v[k] !== undefined && !str(v[k])) out.push({ path: `${path}.verified.${k}`, message: "must be a non-empty string" });
+    }
+  }
   if (ev.ages !== undefined) {
     if (!family) out.push({ path: `${path}.ages`, message: "ages are for family events; a person's event has age" });
     else if (!isObj(ev.ages)) out.push({ path: `${path}.ages`, message: "must be an object: person ID → age" });
@@ -340,6 +357,28 @@ export function settledRecord<T>(value: T): T {
   if (typeof f.husb === "string" && Array.isArray(f.partners) && f.partners.length === 2 && f.partners.includes(f.husb)) return value;
   const { husb: _stale, ...rest } = f;
   return rest as T;
+}
+
+/**
+ * A fact whose value changed (its date, place or value) loses what was said of the value before (spec 065): the
+ * agent's verification against the original, whoever changed it; the person's confirmation against the scan when the
+ * person changed it (an agent never changes a confirmed value: it proposes — commands/people.ts event edit). Every write
+ * of a person or a family comes here (Tree.put, Tree.putMany): `before` as it was, `person` the write is the person's.
+ */
+export function factMarksAfter<T>(before: unknown, value: T, person: boolean): T {
+  if (!isObj(value) || (value.type !== "person" && value.type !== "family") || !isObj(before) || !Array.isArray(value.events)) return value;
+  const was = new Map(((before.events as Event[] | undefined) ?? []).map((e) => [e.id, e]));
+  let changed = false;
+  const events = (value.events as Event[]).map((e) => {
+    const b = was.get(e.id);
+    if (!b || (!e.verified && !e.confirmed)) return e;
+    if ((b.date ?? "") === (e.date ?? "") && (b.place ?? "") === (e.place ?? "") && (b.value ?? "") === (e.value ?? "")) return e;
+    const { verified: _v, confirmed, ...rest } = e;
+    if (!e.verified && !person) return e;
+    changed = true;
+    return (confirmed && !person ? { ...rest, confirmed } : rest) as Event;
+  });
+  return changed ? ({ ...value, events } as T) : value;
 }
 
 /** Every reference a record makes to another record (for dangling-reference checks). */

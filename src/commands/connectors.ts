@@ -993,7 +993,10 @@ register(
       fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: "module", private: true }, null, 2) + "\n");
       fs.writeFileSync(path.join(dir, "sdk.ts"), readAsset("plugins", "connectors", "sdk.ts")!);
       fs.writeFileSync(path.join(dir, "connector.ts"), fill(readAsset("plugins", "connectors", "template.ts")!));
-      fs.writeFileSync(path.join(dir, "DISCOVERY.md"), fill(readAsset("plugins", "connectors", "DISCOVERY.md")!));
+      // the archive's terms strom's list knows (assets/archives.json): quoted for the agent, in the brief too
+      const known = knownTermsOf(ctx, [url.hostname]);
+      const discovery = fill(readAsset("plugins", "connectors", "DISCOVERY.md")!);
+      fs.writeFileSync(path.join(dir, "DISCOVERY.md"), known ? discovery.replace("\n## 1. ", () => `\n## What strom knows of this archive\n\n${known.text.replaceAll(/^ {2}/gmu, "- ")}\n\n## 1. `) : discovery);
       fs.writeFileSync(path.join(dir, "README.md"), `# ${title} — strom connector\n\nPortal: ${url.origin}\n\nHow the portal is mapped (catalogue search, book IDs, image URLs, requests per image) — written by whoever builds it.\n`);
       // started in a session at work: its agent may take it away again in that session when it serves nothing
       // (strom connector discard) — in the research's own .strom, never in the plugin's folder
@@ -1022,11 +1025,12 @@ register(
           "  2. it writes connector.json (policy) and connector.ts, and tests with a few requests:",
           `     strom connector test ${name} --find "<place>"`,
           consentRequired(ctx.env) ? `  3. the first test needs your consent, in your terminal: strom allow connector ${name}` : undefined,
+          known ? `\n${known.text}` : undefined,
           ofSite
             ? `\nnote: the connector ${ofSite} is here already for ${webDomain(url.hostname)} (its hosts: ${listConnectors(shared(ctx)).find((c) => c.name === ofSite)?.manifest.hosts.join(", ") ?? "?"}) — more pages of that site go through it (strom connector show ${ofSite}); keep this one only for another portal of the site, else take it away: ${discardable ? `strom connector discard ${name}` : `the user, in their terminal: strom connector remove ${name}`}`
             : undefined,
         ),
-        data: { name, dir, ...(ofSite ? { site: { domain: webDomain(url.hostname), connector: ofSite } } : {}) },
+        data: { name, dir, ...(ofSite ? { site: { domain: webDomain(url.hostname), connector: ofSite } } : {}), ...(known ? { knownTerms: known.data } : {}) },
       };
     },
   },
@@ -1433,7 +1437,9 @@ register(
       "for it by itself when it frees within 30 min. A session is told so once: a fetch of it asking that archive\n" +
       "again before then ends at once with exit 8 (nothing estimated, nothing sent).\n" +
       "With --recordset the images are registered as they come, 10 at a time (strom read of the book may begin\n" +
-      "meanwhile); Ctrl-C keeps what came, the same command fetches the rest;\n" +
+      "meanwhile); Ctrl-C keeps what came, the same command fetches the rest; a connector that stops on an error\n" +
+      "keeps what came too: it ends with exit 1, the images not fetched and the command that fetches them\n" +
+      "(strom fetch --status and the brief say them too);\n" +
       "without it they go into the inbox, a folder for the book.\n" +
       "It says first how many requests it asks of the archive and how long they take at the host's pace and hourly\n" +
       "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it. From 80 %\n" +
@@ -1870,6 +1876,10 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   refusalSaid(ctx, c, r.refused);
   if (r.needs) return planPages(ctx, c, r.needs, { cmd: "test", request: { ...request }, max }, `strom connector test ${c.name} (${request.cmd})`, describeRun(r, `test ${request.cmd}`));
   const direct = directNetwork(c);
+  // what one image cost, from this run's own measure (nothing asked for it): tiles, most likely, past HEAVY_IMAGE
+  const heavy = request.cmd === "fetch" ? heavyImage(ctx, c, request.book, r, meter.requests() + (r.pages ?? 0) || r.requests, max, gate.human) : undefined;
+  // the archive's terms strom knows, while connector.json does not say them yet
+  const known = c.manifest.policy.automation === "unknown" || !c.manifest.policy.terms ? knownTermsOf(ctx, c.manifest.hosts) : undefined;
   return {
     text: lines(
       describeRun(r, `test ${request.cmd}`),
@@ -1879,11 +1889,97 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
       r.located.length ? `located (${r.located.length}):\n${r.located.map((l) => `  ${l.n}${l.region ? ` part ${regionText(l.region)}` : ""}  ${l.src}${l.url && l.url !== l.src ? `\n       page ${l.url}` : ""}`).join("\n")}` : undefined,
       c.manifest.login ? (loginOf(ctx.env, c) ? "with the user's login" : `without a login${c.manifest.login.required ? "" : " (the user may save one: strom login " + c.name + ")"}`) : undefined,
       direct.length ? `⚠ the code reaches the network directly — strom cannot pace that:\n${direct.map((d) => `  ${d}`).join("\n")}` : undefined,
+      heavy?.text,
       c.manifest.policy.automation === "unknown" ? "⚠ policy.automation is unknown — find out what the portal's terms say (DISCOVERY.md, step 1)" : undefined,
+      known?.text,
       c.manifest.withheld?.length ? `⚠ can lists ${c.manifest.withheld.join(", ")}, but its terms are "${c.manifest.policy.automation}" — left out: take them out of connector.json` : undefined,
     ),
-    data: { ...r, direct },
+    data: { ...r, direct, ...(heavy ? { heavy: heavy.data } : {}), ...(known ? { knownTerms: known.data } : {}) },
     ...(later(r, "the same command").exitCode ? { exitCode: EXIT.later } : r.stopped && !r.books.length && !r.images.length && !r.located.length ? { exitCode: 1 } : {}),
+  };
+}
+
+/** More requests than this for one whole image: tiles, most likely — hours for a book (DISCOVERY.md, step 2). */
+export const HEAVY_IMAGE = 10;
+/** A book of this many images, for the time a book takes when the book's own number is not known here. */
+const BOOK_GUESS = 200;
+
+/** A time said: seconds, minutes, else hours. */
+function spanSaid(ms: number): string {
+  const secs = Math.round(ms / 1000);
+  if (secs < 90) return `${secs} s`;
+  if (secs < 90 * 60) return `${Math.round(secs / 60)} min`;
+  return `${Math.round(secs / 360) / 10} h`;
+}
+
+/**
+ * A test's fetch whose one image cost more than HEAVY_IMAGE requests (as this run's measure counted them: what went to
+ * the archive's hosts), or that got no image whole within a cap past it: said to the agent with what it means for a
+ * book at the host's pace and what to look for first (DISCOVERY.md, step 2). Nothing is asked of the archive for it.
+ * The book's own number of images where this run or the research knows it (a book the connector gave, a record set
+ * whose images came from it), else a book of BOOK_GUESS.
+ */
+function heavyImage(ctx: Context, c: Connector, book: string, r: RunReport, sent: number, max: number, human: Map<string, Pace>): { text: string; data: { perImage?: number; atLeast?: number; bookImages?: number; bookMs: number } } | undefined {
+  const got = r.images.length;
+  const capped = !got && !!r.stopped && max >= HEAVY_IMAGE && Math.max(r.requests, r.sent) >= max;
+  if (got ? sent / got <= HEAVY_IMAGE : !capped) return undefined;
+  const per = got ? sent / got : undefined;
+  const least = per ?? max;
+  const pace = connectorPace(ctx, c, human);
+  const size = bookImagesOf(ctx, c, book, r);
+  const n = size ?? BOOK_GUESS;
+  const bookMs = requestsSpan(Math.ceil(least * n), pace, [], 0);
+  const imageMs = requestsSpan(Math.ceil(least) + 1, pace, [], 0);
+  const cost = per !== undefined ? `one image cost ${nf(per)} requests` : `not one image whole within ${max} requests: one costs more (--max up to 50 to see how many)`;
+  return {
+    text: lines(
+      `⚠ ${cost} (tiles, most likely) — at its pace (${paceText(pace)}) ${per !== undefined ? "about" : "at least"} ${spanSaid(imageMs)} an image, ${spanSaid(bookMs)} for ${size !== undefined ? `this book's ${size} images` : `a book of ${BOOK_GUESS} images`}`,
+      "  before tiles look again for one request an image (DISCOVERY.md, step 2): the portal's own link to the full image, a download of the whole book (ZIP, PDF), a IIIF image (full/max)",
+      "  tiles only when nothing else exists: then say in README.md what an image costs, and tell the user how long a book takes",
+    ),
+    data: { ...(per !== undefined ? { perImage: Math.round(per * 100) / 100 } : { atLeast: max }), ...(size !== undefined ? { bookImages: size } : {}), bookMs },
+  };
+}
+
+/** How many images a book of a connector has, as this run (a book it gave) or the research (a record set of it) knows. */
+function bookImagesOf(ctx: Context, c: Connector, book: string, r: RunReport): number | undefined {
+  const given = r.books.find((b) => b.id === book && Number.isInteger(b.images) && b.images! > 0)?.images;
+  if (given) return given;
+  if (!ctx.hasTree()) return undefined;
+  const tree = ctx.tree();
+  for (const m of tree.list<Media>("media")) {
+    if (m.fetched?.connector !== c.name || m.fetched.book !== book || !m.recordset) continue;
+    const n = tree.get<RecordSet>(m.recordset)?.images;
+    if (Number.isInteger(n) && n! > 0) return n;
+  }
+  return undefined;
+}
+
+/**
+ * What strom's list of archives (assets/archives.json) says of a connector's hosts — its terms quoted, where from and
+ * what they cover — for the agent who builds it: connector.json's policy starts from them. Never an address of a
+ * portal's own: the connector is built from the portal as it is.
+ */
+function knownTermsOf(ctx: Context, hosts: string[]): { text: string; data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] } | undefined {
+  const seen = new Set<string>();
+  const data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] = [];
+  for (const h of hosts) {
+    const k = termsFor(ctx.env, bareHost(h));
+    if (!k || seen.has(`${k.name ?? k.host} ${k.quote ?? ""}`)) continue;
+    seen.add(`${k.name ?? k.host} ${k.quote ?? ""}`);
+    data.push({ host: k.host, ...(k.name ? { name: k.name } : {}), level: k.level, ...(k.quote ? { quote: k.quote } : {}), from: k.quoteFrom === "robots" ? "robots" : "terms", ...(k.terms ? { terms: k.terms } : {}), ...(k.scope ? { scope: k.scope } : {}), ...(k.checked ? { checked: k.checked } : {}) });
+  }
+  if (!data.length) return undefined;
+  return {
+    text: lines(
+      ...data.flatMap((k) => [
+        `strom knows the terms of ${k.name ?? k.host}: ${k.level}${k.checked ? ` (checked ${k.checked})` : ""}`,
+        k.quote ? `  "${k.quote}" — ${k.from === "robots" ? "its robots.txt" : "its terms"}${k.terms ? `: ${k.terms}` : ""}` : k.terms ? `  its terms: ${k.terms}` : undefined,
+        k.scope ? `  what it covers: ${k.scope}` : undefined,
+      ]),
+      `  start connector.json's policy from them (terms, termsSummary, automation) — robots.txt and official exports still yours to read (DISCOVERY.md, step 1)`,
+    ),
+    data,
   };
 }
 
@@ -2594,7 +2690,9 @@ function fetchStatus(ctx: Context, names: string[]): Result {
   const has = (rs: string) => new Set(tree.list<Media>("media").filter((m) => m.recordset === rs && !m.part && !m.retracted && m.image !== undefined).map((m) => m.image!));
   const ended = pick(endedFetches(tree.root))
     .filter((e) => !active.some((m) => m.pid === e.pid))
-    .map((e) => withRegistered(e, has(e.recordset)));
+    .map((e) => withRegistered(e, has(e.recordset)))
+    // one in the foreground is told only for what it left: once that came, its own output said the rest
+    .filter((e) => e.background || e.interrupted || e.missed.length);
   return {
     text: lines(
       active.length ? ["being fetched:", ...active.map((m) => `  ${activeLine(m)}`)].join("\n") : "nothing is being fetched now",
@@ -2734,6 +2832,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   // the images of a book registered as they come, in batches: a reader of the book begins on the first ones
   const batches = request.cmd === "fetch" && recordset ? fetchBatches(ctx, c, request, recordset, from, child, forTask, workDir) : undefined;
   let endCode: number | undefined;
+  // why the connector stopped before the end (an error of it, a refusal, a host gone silent) — not a Ctrl-C
+  let cut: string | undefined;
   try {
     const r = await runConnector(c, request, {
       env: ctx.env,
@@ -2751,6 +2851,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       ...(child ? { background: true, onYield: (w: boolean) => batches?.yielding(w) } : {}),
     });
     count.clear();
+    if (r.stopped && !batches?.interrupted()) cut = r.stopped;
     refusalSaid(ctx, c, r.refused);
     // what the agent does after a refusal: another way first, the person's check only when the source stays necessary
     const advice = r.refused ? refusalAdvice(ctx, c, r.refused, request.cmd === "find" ? request.place : undefined) : undefined;
@@ -2778,6 +2879,10 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const fetched = { connector: c.name, book: request.book };
     let text: string;
     let data: Record<string, unknown> = { ...r };
+    // the images it got are registered; the rest when the archive takes requests again
+    const again = request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""}` : undefined;
+    // what it asked for and did not get (the person's Ctrl-C, the connector stopped): said exactly, the same command fetches it
+    let missed: number[] = [];
     if (request.cmd === "part") {
       const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), part: i.region, fetched })), recordset);
       fs.rmSync(workDir, { recursive: true, force: true });
@@ -2807,20 +2912,26 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       // an image an earlier batch registered and a later one found to be a placeholder is no image fetched
       const added = res.added.filter((m) => !res.withdrawn.includes(m.id));
       const nums = added.map((m) => m.image).filter((n): n is number => n !== undefined);
-      // what it asked for and did not get (the person's Ctrl-C): said exactly, the same command fetches it
       const got = new Set([...r.images.map((i) => i.n), ...tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && !m.retracted).map((m) => m.image)]);
-      const missed = request.cmd === "fetch" && (batches.interrupted() || child) ? request.images.filter((n) => !got.has(n)) : [];
+      missed = request.cmd === "fetch" && (batches.interrupted() || child || r.stopped) ? request.images.filter((n) => !got.has(n)) : [];
       const stopped = batches.stopped();
+      // the connector stopped on its own (an error): what is left and the command that fetches it — a host left alone
+      // or a refusal says when and how below (the wait, the advice), never "again now"
+      const resume = !stopped && !batches.interrupted() && !child && r.later === undefined && !r.refused ? again : undefined;
       text = lines(
         added.length || !res.restored.length ? `${counted(added.length, "image")} of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
         res.restored.length ? `${counted(res.restored.length, "image")} of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
         res.again.length ? `${res.again.length} already registered` : undefined,
         ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
         res.withdrawn.length ? `withdrawn again (the portal gave the same file for a later image — a placeholder, not a scan): ${res.withdrawn.join(" ")}` : undefined,
-        missed.length ? `${stopped ? `stopped (${stopped})` : batches.interrupted() ? "interrupted" : "not fetched"}: images ${runs(missed)} not fetched — the same command fetches them (what is here is not asked for again)` : undefined,
+        missed.length
+          ? stopped || batches.interrupted()
+            ? `${stopped ? `stopped (${stopped})` : "interrupted"}: images ${runs(missed)} not fetched — the same command fetches them (what is here is not asked for again)`
+            : `not fetched: images ${runs(missed)}${resume || child ? " — the same command fetches them (what is here is not asked for again)" : ""}${resume ? `: ${resume}` : ""}`
+          : undefined,
         res.woken.length ? `back in the queue (they waited for these images): ${res.woken.join(" ")}` : undefined,
       );
-      data = { ...data, added: added.map((m) => ({ id: m.id, image: m.image })), again: res.again, restored: res.restored, woken: res.woken, clashes: res.clashes, ...(res.withdrawn.length ? { withdrawn: res.withdrawn } : {}), ...(missed.length ? { interrupted: batches.interrupted(), missed } : {}), ...(stopped ? { stopped } : {}) };
+      data = { ...data, added: added.map((m) => ({ id: m.id, image: m.image })), again: res.again, restored: res.restored, woken: res.woken, clashes: res.clashes, ...(res.withdrawn.length ? { withdrawn: res.withdrawn } : {}), ...(missed.length ? { interrupted: batches.interrupted(), missed, ...(resume ? { resume } : {}) } : {}), ...(stopped ? { stopped } : {}) };
       fs.rmSync(workDir, { recursive: true, force: true });
     } else if (r.images.length) {
       // into the inbox, one folder for the book: the usual way from there
@@ -2835,38 +2946,41 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       fs.rmSync(workDir, { recursive: true, force: true });
       text = "no images fetched";
     }
-    // the images it got are registered; the rest when the archive takes requests again
-    const again = request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""}` : undefined;
     const inSession = !child && !!currentSession(tree, ctx.env);
     const wait = later(r, again ? `${again} — what is here already is not fetched again` : "the same command", again && recordset && inSession ? again : undefined, { session: inSession, run: deadlineOf(ctx.env) !== undefined });
     // images another strom was fetching: waited for once this one's are here (the foreground)
     const after = joined && !batches?.interrupted() && recordset ? await joinFetch(ctx, recordset, joined, `images ${runs(joined.images)} of ${recordset}: the other fetch`) : undefined;
-    const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && !r.images.length ? 1 : after?.exitCode;
+    // the connector stopped with images left: no success — the output says which and how to go on (a refusal: its own advice, as before)
+    const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && (!r.images.length || (missed.length && !r.refused)) ? EXIT.error : after?.exitCode;
     endCode = code ?? 0;
     return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}) }, ...(code ? { exitCode: code } : {}) };
   } finally {
-    // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes
-    if (child && recordset && request.cmd === "fetch") {
+    // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes; one in
+    // the foreground the connector stopped with images left says so too (its output may be lost to the agent)
+    if (recordset && request.cmd === "fetch" && (child || cut)) {
       const asked = request.images;
       tree.reread();
       const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && !m.retracted).map((m) => m.image));
-      const stopped = batches?.stopped();
-      markEnded(tree.root, {
-        pid: process.pid,
-        recordset,
-        connector: c.name,
-        book: String(request.book),
-        images: asked,
-        registered: asked.filter((n) => have.has(n)),
-        missed: asked.filter((n) => !have.has(n)),
-        ...(stopped ? { stopped } : {}),
-        background: true,
-        at: new Date().toISOString(),
-        since: new Date(t0).toISOString(),
-        session: child.session,
-        ...(child.task ? { task: child.task } : {}),
-        exitCode: endCode ?? 1,
-      });
+      const missed = asked.filter((n) => !have.has(n));
+      const stopped = batches?.stopped() ?? cut;
+      const session = child ? child.session : currentSession(tree, ctx.env)?.id;
+      if (child || missed.length)
+        markEnded(tree.root, {
+          pid: process.pid,
+          recordset,
+          connector: c.name,
+          book: String(request.book),
+          images: asked,
+          registered: asked.filter((n) => have.has(n)),
+          missed,
+          ...(stopped ? { stopped: stopped.slice(0, 300) } : {}),
+          ...(child ? { background: true } : {}),
+          at: new Date().toISOString(),
+          since: new Date(t0).toISOString(),
+          ...(session ? { session } : {}),
+          ...(child?.task ? { task: child.task } : {}),
+          exitCode: endCode ?? 1,
+        });
     }
     batches?.end();
   }

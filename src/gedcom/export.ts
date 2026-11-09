@@ -206,6 +206,16 @@ export interface ExportOptions {
    * `2 SOUR`, `VERS`, `DATE`, `_AT`, `FILE`, `_SHA`); `2 _STROM_KIND import|user` under the conflict of a proposal.
    */
   origins?: boolean;
+  /**
+   * The Strom profile, for an app that shows them (APP_SHOWS_VERIFY, spec 065): under each fact of a person and of a
+   * family its ID (`2 _STROM_EID E…`, right after the fact's line — what the bridge's POST /verify and /facts/confirm
+   * take), the user's confirmation against the scan (`2 _STROM_CONFIRMED <day>`), how it waits for its verification
+   * (`2 _STROM_VERIFY wait|asked|images|permission`, `3 _POS n` for wait|asked: its task's place in the queue) and the
+   * last verification by an agent (`2 _STROM_CHECKED proven|kept` with `3 DATE`, `3 _WHY <the reason>` for kept and
+   * `3 _READERS 2` where another model than the one that read it agreed). The map: how the facts wait
+   * (core/verify.ts verifyMarks; empty in an archive). The app never sends them back as edits: strom sync passes them.
+   */
+  verify?: ReadonlyMap<string, { state: string; pos?: number }>;
 }
 
 /** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
@@ -341,6 +351,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const placesPointed = new Set<string>();
   // Where each value came from (spec 066), for an app that shows it: the imports the values name, by their sources.
   const origins = !!opts.origins && opts.for === "strom";
+  // The verification of facts against their originals (spec 065), for an app that shows it.
+  const verify = opts.for === "strom" ? opts.verify : undefined;
   const importsNamed = new Map<string, Source>();
   const importKey = (id: string | undefined): string | undefined => {
     const s = id ? tree.get<Source>(id) : undefined;
@@ -790,6 +802,23 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     w.line(level + 1, "_REF", ref);
   }
 
+  /** A fact's verification against its originals (spec 065, APP_SHOWS_VERIFY): the user's confirmation, how it waits, the last result. */
+  function verifyLines(e: Event, waits: { state: string; pos?: number } | undefined): void {
+    if (e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
+    if (waits) {
+      w.line(2, "_STROM_VERIFY", waits.state);
+      if (waits.pos !== undefined && (waits.state === "wait" || waits.state === "asked")) w.line(3, "_POS", waits.pos);
+    }
+    // the last result while the status agrees with it (proven while proven, kept while not)
+    const v = e.verified;
+    if (!v || (v.result === "proven") !== (e.status === "proven")) return;
+    w.line(2, "_STROM_CHECKED", v.result);
+    const at = new Date(v.at);
+    if (!Number.isNaN(at.getTime())) w.line(3, "DATE", gedDate(at));
+    if (v.result === "kept" && v.reason?.trim()) w.text(3, "_WHY", v.reason);
+    if (v.readers === 2) w.line(3, "_READERS", 2);
+  }
+
   function event(e: Event, on: "INDI" | "FAM", couple: { husb?: string | undefined; wife?: string | undefined }, assos: { person: string; rela: string }[]): string[] {
     if (!factWritten(e)) {
       stats.skipped++;
@@ -809,6 +838,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const empty = !e.date && !e.place;
     if (VALUE_TAGS.has(tag)) w.line(1, tag, e.value);
     else w.line(1, tag, tag === "EVEN" && !typeLabel ? e.value : empty && Y_TAGS.has(tag) ? "Y" : undefined);
+    if (verify) w.line(2, "_STROM_EID", e.id);
     if (tag === "EVEN" && typeLabel) w.line(2, "TYPE", typeLabel);
     if (opts.ids) w.line(2, "_EID", e.id);
     if (e.date) w.line(2, "DATE", e.date);
@@ -869,6 +899,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // one for each part changed, never joined (a place has commas of its own): its value as the fact's line has it
       for (const k of e.was?.parts ?? []) wasLine(2, e.was![k] ?? "", e.was!.source, FACT_PART_TAGS[k], factRef(e));
     }
+    if (verify) verifyLines(e, verify.get(e.id));
+    // in memory (strom sync's snapshot of the research): the user's confirmation against the scan, what a send compares
+    else if (opts.ids && e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
     if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);

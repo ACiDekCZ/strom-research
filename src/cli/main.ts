@@ -1,6 +1,7 @@
 // CLI entry: find the command, parse options, run it, print the result,
 // and commit what a writing command changed. Returns the exit code.
 
+import { queueVerify, settleVerify } from "../core/verify.ts";
 import fs from "node:fs";
 import { takeOverConnectors } from "../core/terms.ts";
 import { agentInAncestry, ancestryUnread, notePersonFolder } from "../core/trust.ts";
@@ -50,6 +51,10 @@ import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstW
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
+import { noteCommand } from "../core/cmdlog.ts";
+import { Masker, maskKey } from "../core/redact.ts";
+import { userHome } from "../core/paths.ts";
+import { stromVocabulary } from "./vocab.ts";
 
 export { splitCommand } from "./execute.ts";
 
@@ -239,6 +244,9 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
   let ran: Context | undefined;
   let command: string | undefined;
   let called: CommandDef | undefined;
+  // what the journal of commands notes (core/cmdlog.ts): the arguments as typed, a hook's quick answer never
+  let typed: string[] = argv;
+  let quiet = false;
   try {
     // "strom 'person list'" (one quoted word) means the same as strom person list.
     if (argv[0] && !argv[0].startsWith("-") && /\s/.test(argv[0].trim())) argv = [...argv[0].trim().split(/\s+/), ...argv.slice(1)];
@@ -262,9 +270,12 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     }
     const { def } = resolved;
     called = def;
+    typed = resolved.rest;
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
     const parsed = parseOptions(def, rest, own);
     const v = parsed.values;
+    // a hook's quick answer, strom error itself and a --dry-run (it writes nothing anywhere) never noted
+    quiet = v.hook === true || def.path[0] === "error" || v["dry-run"] === true;
     if (v.help) {
       // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
       // line of their language how to get theirs (strom help <command> --human)
@@ -359,7 +370,9 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // 037): a newer one in use is no way back — no backup "from the newer to this one", nothing of a first run that the
     // newer one would only do again (found on Windows: a backup "1.26.0-beta.92 to 1.26.0-beta.91" during a run)
     const superseded = installation().kind === "installed" && isNewer(diskVersion(env)?.version ?? VERSION, VERSION);
-    const pending = fromSources || hook || guest || superseded ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    // …nor in a report of a problem (strom error, spec 070): it only reads, a research and its bridge left as they are
+    const report = def.path[0] === "error";
+    const pending = fromSources || hook || guest || superseded || report ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
         const made = timed("start.backup", () => backupBefore(ctx, pending));
@@ -374,7 +387,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
-    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest && !superseded) {
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest && !superseded && !report) {
       // (measured: strom --timing — a first run that never ends as one, its settings not kept, is here each time)
       stepStart("start.newversion");
       // the connectors here when this strom first runs: taken over as they are — they run as before, the person
@@ -450,6 +463,12 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         } catch {
           // another computer's seal, a tree at work: its bridge's start marks them
         }
+        // …and the facts with their original cited, not yet verified against it: queued once (spec 065)
+        try {
+          settleVerify(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start queues them
+        }
         // …and an agent's proposals whose value proposed holds now: closed by themselves (no value written)
         try {
           settleHeldProposals(Tree.open(k.root, env));
@@ -488,7 +507,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     }
     // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):
     // another installation that runs here later is their guest
-    if (ctx.settings.home() && !ctx.backupFailed && env.STROM_SPAWNED !== "1" && !fromSources && !hook && !guest && ctx.settings.config.lastProgram !== ownFolder()) {
+    if (ctx.settings.home() && !ctx.backupFailed && env.STROM_SPAWNED !== "1" && !fromSources && !hook && !guest && !report && ctx.settings.config.lastProgram !== ownFolder()) {
       try {
         ctx.settings.config.lastProgram = ownFolder();
         ctx.settings.save();
@@ -520,6 +539,16 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       const parent = forApp ? headNow() : undefined;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
+        // a write of the Strom app's that wrote something (a source cited, a value reverted …): a fact it gave an
+        // original is queued for its verification at once, in the same commit (spec 065 K6.2) — strom sync queues its
+        // own, a command of verification decides itself what waits (a confirmation taken back is not queued again by it)
+        if (forApp && def.path[0] !== "sync" && def.path[0] !== "verify" && ctx.current()?.uncommitted().length) {
+          try {
+            queueVerify(ctx.current()!);
+          } catch {
+            // the write stands; the sweep queues it at the next run
+          }
+        }
         // its commit is part of it: one that fails (found on Windows: _counters.json held by another program, its IDs
         // not written) takes back what the command wrote — a person or an agent running it again gets no second record
         if (def.writes) blocked = autoCommit(ctx, def);
@@ -558,6 +587,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // the menu said it when it was first shown
     if (timingOn() && command !== "menu") io.stderr(`${timingSaid(isAgent(env) ? "en" : ctx.uiLang())}\n`);
     if (!hook) remind(io, ctx, command, Date.now() - startedAt);
+    if (!quiet) journal(env, ctx.openedRoot(), command, typed, result.exitCode ?? EXIT.ok, undefined, startedAt);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
     let lang: string | undefined;
@@ -579,7 +609,32 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     if (said instanceof StromError && said.usage && !json && !isAgent(env)) said.usage = undefined;
     const code = printError(io, json, said, debug, lang, env, ran?.openedRoot());
     remind(io, ran, command, Date.now() - startedAt);
+    if (!quiet && !(err instanceof Cancelled)) journal(env, ran?.openedRoot(), command ?? called?.path.join(" ") ?? "?", command || called ? typed : argv, code, err, startedAt);
     return code;
+  }
+}
+
+/**
+ * A command noted in the journal of commands (strom error reads it, spec 070): one that ended with an error, and under
+ * an agent every one — its arguments and its error's message masked, never a name.
+ */
+function journal(env: Env, root: string | undefined, command: string | undefined, args: readonly string[], exit: number, err: unknown, startedAt: number): void {
+  if (exit === EXIT.ok && !isAgent(env)) return;
+  try {
+    const m = new Masker({ key: maskKey(env), home: userHome(env), vocabulary: stromVocabulary });
+    const message = err instanceof Error ? err.message : undefined;
+    const code = err instanceof StromError ? err.code : undefined;
+    noteCommand(env, root, {
+      at: new Date().toISOString(),
+      cmd: command ?? "?",
+      args: m.args(args.slice(0, 40)),
+      exit,
+      ...(code ? { code } : {}),
+      ...(message ? { error: m.text(message.slice(0, 600)) } : {}),
+      ms: Date.now() - startedAt,
+    });
+  } catch {
+    // not noted
   }
 }
 

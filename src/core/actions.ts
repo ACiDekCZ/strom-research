@@ -674,9 +674,11 @@ export function citeEvent(tree: Tree, eventId: string, citation: Citation, statu
   return replaceEvent(tree, eventId, (e) => {
     if (e.citations.some((c) => c.source === citation.source && c.locator === citation.locator)) throw new UsageError(`${e.id} already cites ${citation.source} there`);
     const next = { ...e, citations: [...e.citations, citation] };
-    // A record raises a lead to probable; a family tree or a memory does not.
+    // A record raises a lead to probable; a family tree or a memory does not. A fact the person confirmed against the
+    // scan keeps the status they confirmed: only the person changes it (spec 065 K2.3; commands/people.ts refuses a
+    // --status of an agent's).
     if (newStatus) next.status = newStatus;
-    else if (next.status === "lead") next.status = defaultStatus(tree, next.citations);
+    else if (next.status === "lead" && !(e.confirmed && !tree.personWrites)) next.status = defaultStatus(tree, next.citations);
     checkStatus(tree, next.status, next.citations);
     return next;
   }, { op: "event.cite", summary: (e) => `${e.id} ${e.kind} ← ${citation.source} [${e.status}]` });

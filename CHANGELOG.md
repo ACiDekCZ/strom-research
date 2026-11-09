@@ -7,7 +7,18 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.30.0
 
-*In preparation: the betas up to 1.30.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.30.0-beta.2. The section is complete with the release.*
+
+- **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
+  original record but stays probable or possible is verified by the agent against that original: it looks at the scan
+  and either raises the fact to proven or writes down why it stays as it is. An older research is gone through once
+  after the update (only people linked to the family tree, nobody living; `strom fixes undo verify-originals` takes it
+  back), new facts as they come. By hand for a person, a family or one fact, first in the queue (`strom verify facts
+  <whom>`, or from the Strom app); in bulk for a line, a lineage or the whole tree with an estimate of the cost – started
+  by the user alone (`strom verify bulk`); stopped by `strom verify stop`. A fact the user confirms against the scan in
+  the Strom app the agent never changes – it only proposes. A value the user entered or one from a family tree is never
+  overwritten: what differs is a proposal for the user to decide. How many facts wait is said by `strom check`, `strom
+  doctor`, `strom stats` and `strom verify status`.
 
 - **Values from an imported family tree are guarded.** A tree from another program (GEDCOM) gives leads: the agent
   changes such a value only by a record it cites, and the value from the family tree stays kept beside it ("originally
@@ -24,29 +35,51 @@ The changes of each version in short. The full notes and the install lines are o
 - **A family tree imported again finds its people.** The IDs a program gave its people and families (MyHeritage's,
   Gramps', FamilySearch's and others' `_UID`, `EXID`, `_FSFTID`…) are kept: a tree of the same program taken in again
   (or into the research from another program) finds the people by them – never twice, the new facts added as leads; a
-  person only maybe the same (another name, another ID of FamilySearch) is said, never joined. The IDs go back to the
+  newer file of the same program's tree with a name, sex or birth date changed there finds the same person, what differs
+  added as a lead beside the research's and said; a person only maybe the same (another program's file, another ID of
+  FamilySearch) is said, never joined and never put into a family where the one they may be is already, and `strom
+  check` names two people with the same ID of a family tree to compare and merge. The IDs go back to the
   Strom app with the research. What the file has that is not taken (media, the program's own tags) is counted in the
   result. In a research made before, the IDs of its earlier imports are read from their files, so the
   same tree taken in again before the marks are set adds nobody twice either.
 
+- **A problem reported in one file.** `strom error` packs what is needed to tell what happened into one ZIP in the
+  downloads folder (else the current folder): the version, the system, `strom doctor`, the agents, the connectors, the
+  bridge to the Strom app, the research in numbers only, the technical logs of the last 7 days (`--since`) and the
+  commands that ended with an error. Nothing of the family tree goes in – names, places, notes, transcripts, images,
+  paths with the user's name, logins and tokens are left out or masked to stable codes – and nothing is sent: the user
+  sends the file, to the address the command says. `--about fetch|sync|agent|install|windows` adds the details of one
+  area (the table is in `strom error --help`), `--where` says where the problem happened, `--note` says it in the user's
+  words; the data of named people, families or a book only with `--with-data` and the user's yes. Asked to report a
+  problem, the agent asks where it happened, runs it and tells the path – it never sends, opens or copies the file. In
+  the menu: Maintenance → Report a problem. The research is only read, a broken one too.
+
+- **The file for the Strom app is written for a research with a hypothesis decided with its reasons** again: for the
+  app from 3.25.0 (or of a version unknown) `strom export gedcom` refused it and `output/tree-strom.ged` after a session
+  stayed as it was (the research opened in the app through `strom app` was never affected).
+
 - **A fact shown or edited at the terminal** (`strom event show`, `strom event edit`) is said in the research's
   language. In the Strom app, a family tree taken into the research no longer gives the first line of it as the
   reference of the whole tree: each fact says its own.
-
-- **Family trees from Windows programs in code page 1250 or 1252 ("ANSI")** are read with their letters right – Czech,
+  **Family trees from Windows programs in code page 1250 or 1252 ("ANSI")** are read with their letters right – Czech,
   Polish, German, as the Strom app reads them. A character that cannot be read is said, never replaced silently.
 
-- **The setup with Codex in the ChatGPT app** no longer speaks of Codex's hooks there: that line is for Codex in the
-  terminal.
+- **Codex in the ChatGPT app, said as it is.** The setup there no longer speaks of Codex's hooks (that line is for Codex
+  in the terminal), and `strom doctor` says to confirm them in the terminal alone. The ChatGPT app's browser runs
+  through ChatGPT's cloud and calls no rule of strom's: strom no longer says it watches it, and the agent working there
+  goes to an archive with restrictions only through the person (`strom task wait --images`). `strom doctor` and the
+  setup say so as a warning, with the advice for ChatGPT's "cloud browser" dialog at such an archive: *Deny*, never
+  access to all relevant sites. Codex in the terminal stays watched – now also its browser opened through
+  `createBrowserTab`.
 
-- **The ChatGPT app's browser, said as it is.** The ChatGPT app's browser runs through ChatGPT's cloud and calls no rule
-  of strom's: strom no longer says it watches it, and the agent working there goes to an archive with restrictions only
-  through the person (`strom task wait --images`). `strom doctor` and the setup say so as a warning, with the advice for
-  ChatGPT's "cloud browser" dialog at such an archive: *Deny*, never access to all relevant sites. Codex in the terminal
-  stays watched – now also its browser opened through `createBrowserTab`.
-
-- **A transcript confirmed in the Strom app shortly after midnight** carries the new day, by this computer's calendar
-  (it said the day before).
+- **A download of a book's images that its connector stops on an error** says which images it did not fetch and the
+  command that fetches them (only those – what came is not asked for again), ends with an error (it said success), and
+  `strom fetch --status` and the brief tell what is left; a download an archive refuses part-way ends as before, with
+  its own advice. **A transcript confirmed in the Strom app shortly after midnight** carries the new day, by this
+  computer's calendar (it said the day before).
+  **Building a connector:** `strom connector test` warns when one image costs many requests (tiles) and says what to
+  look for first – the portal's link to the whole image, or the download of a whole book – with the time a book would
+  take at the archive's pace; `strom connector new` quotes what strom knows of the archive's terms.
 
 ## 1.29.0
 

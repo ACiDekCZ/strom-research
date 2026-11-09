@@ -6,7 +6,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
 import { checkStreetPlace } from "../core/streets.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, parseStatus, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
@@ -1009,6 +1009,12 @@ register(
         const rec = citeRecord(tree, id, citation);
         return { text: written(tree), data: { [rec.type]: rec } };
       }
+      // confirmed by the person against the scan (spec 065): its status theirs — the citation added, the status as it is
+      if (opts.status !== undefined && !tree.personWrites) {
+        const { event: before } = findEventOwner(tree, id);
+        if (before.confirmed && parseStatus(opts.status as string, before.status) !== before.status)
+          throw new UsageError(`${id} was confirmed by the user against the scan: its status is theirs, not changed by an agent`, { code: "event.confirmed", hint: `strom cite ${id} ${citation.source} without --status` });
+      }
       const e = citeEvent(tree, id, citation, opts.status as string | undefined);
       return { text: written(tree), data: { event: e } };
     },
@@ -1085,7 +1091,17 @@ register(
         if (cite) checkCited(tree, cite);
         // the person (their terminal, the Strom app): theirs from now on
         if (tree.personWrites) return editEvent(tree, id, { ...parts, ...rest, mark: (b, n) => personChangedFact(tree, b, n, cite ? [cite] : []) }, reason);
-        const v = changed.length ? verdictOf(tree, before.origin, changed, before.citations, { cite, decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" }) : ({ kind: "free" } as const);
+        // confirmed by the person against the scan (spec 065): its status theirs, its value a proposal as the user's
+        if (before.confirmed && rest.status !== undefined && parseStatus(rest.status, before.status) !== before.status)
+          throw new UsageError(`${id} was confirmed by the user against the scan: its status is theirs, not changed by an agent`, {
+            code: "event.confirmed",
+            hint: "a different value the record gives: strom event edit with --date/--place/--value and --cite (a proposal the user decides); else tell the user what you found",
+          });
+        const v = !changed.length
+          ? ({ kind: "free" } as const)
+          : before.confirmed
+            ? ({ kind: "propose", as: "user", why: "user" } as const)
+            : verdictOf(tree, before.origin, changed, before.citations, { cite, decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
         if (v.kind !== "propose") return editEvent(tree, id, { ...parts, ...rest, mark: (b, n) => researchChangedFact(tree, b, n, cite) }, reason);
         // not the agent's to change: proposed, the rest of the edit (an age, a witness, a note) written as ever
         const x = proposeFact(tree, id, parts, v.as, { cite, reason });
@@ -1121,7 +1137,12 @@ register(
       if (!reason?.trim()) throw new UsageError("retracting needs --reason", { code: "retract.needs-reason" });
       const r = tree.withTreeLock(() => {
         const before = findEventOwner(tree, id).event;
-        const v = tree.personWrites || before.retracted ? ({ kind: "free" } as const) : verdictOf(tree, before.origin, FACT_PARTS, before.citations, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
+        const v =
+          tree.personWrites || before.retracted
+            ? ({ kind: "free" } as const)
+            : before.confirmed
+              ? ({ kind: "propose", as: "user", why: "user" } as const)
+              : verdictOf(tree, before.origin, FACT_PARTS, before.citations, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
         if (v.kind !== "propose") return { event: retractEvent(tree, id, reason) };
         const x = proposeRetract(tree, id, v.as, reason.trim());
         return { event: before, proposed: { id: x.conflict.id, line: proposedLine(id, x.conflict, v.why, x.again) } };

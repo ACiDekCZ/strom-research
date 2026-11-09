@@ -14,7 +14,7 @@ export interface GedFinding {
 
 const LINE = /^(\d{1,2}) (?:(@[^@ ]+@) )?([A-Za-z0-9_]+)(?: (.*))?$/;
 
-const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS"];
+const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED"];
 const INDI_EVENTS = [
   "BIRT", "DEAT", "BAPM", "CHR", "CHRA", "CONF", "FCOM", "BARM", "BASM", "ORDN", "EDUC", "GRAD", "OCCU", "RESI", "EMIG", "IMMI",
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",
@@ -40,7 +40,8 @@ const CHILDREN: Record<string, string[]> = {
   "INDI._STROM_XID": ORIGINAL_ID_TAGS,
   "INDI._STROM_SEX_ORIGIN": ["_STROM_WAS"],
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_KIND", "_STROM_TAKE", "VAL", "DECI"],
-  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR"],
+  // who decided a hypothesis, why and when (APP_SHOWS_HYPOTHESIS_DECIDER: 2 _BY agent, 2 DECI, 2 _AT)
+  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR", "_BY", "DECI", "_AT"],
   // what a variant of a hypothesis would connect (the Strom profile)
   _VAR: ["TITL", "_LINK", "_INTREE", "SOUR"],
   _LINK: ["_PERS", "_FAM", "_PAR"],
@@ -55,6 +56,10 @@ const CHILDREN: Record<string, string[]> = {
   "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS"],
   // a family tree's value changed since: its import, the part, the key to put it back
   _STROM_WAS: ["_STROM_IMPORT", "_PART", "_REF"],
+  // a fact waiting for its verification against the original: its task's place in the queue; the last verification
+  // by an agent: when, why it stays (kept), two readers (APP_SHOWS_VERIFY)
+  _STROM_VERIFY: ["_POS"],
+  _STROM_CHECKED: ["DATE", "_WHY", "_READERS"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],
   "FAM.CHIL": ["_FREL", "_MREL"],
@@ -93,10 +98,10 @@ const CHILDREN: Record<string, string[]> = {
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
 const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE", "_STROM_WAS"]);
-const TEXT_TAGS = new Set(["_STROM_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
+const TEXT_TAGS = new Set(["_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
-  "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
+  "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT", "_BY",
   // where the tree ends (_STROM_EDGE) and the families nothing links to it (_STROM_ISLAND), with their parts
   "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS", "_WEAK",
   "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
@@ -125,6 +130,8 @@ const EXTENSIONS = new Set([
   "_STROM_ORIGIN", "_STROM_SEX_ORIGIN", "_STROM_WAS", "_STROM_IMPORT", "_PART", "_REF", "_SHA",
   // the IDs of a family tree a record came from (or not), its xref there and the ID lines other programs write
   "_STROM_XID", "_XREF", "_UID", "_FSFTID",
+  // the verification of a fact against its originals: its ID, the user's confirmation, how it waits, the last result
+  "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_WHY", "_READERS",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -144,6 +151,7 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_JOIN" && anc[1] === "_STROM_EDGE" && anc[2] === "_HYPO") return "_STROM_EDGE._JOIN";
   if (parent === "ADDR") return "ADDR";
   if (parent === "_STROM_WAS") return "_STROM_WAS";
+  if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED") && depth === 3) return parent;
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {
     if (record === "INDI" && INDI_EVENTS.includes(parent)) return "EVENT";

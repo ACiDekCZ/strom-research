@@ -244,6 +244,24 @@ test("the ChatGPT app chosen: its browser runs through ChatGPT's cloud and calls
       assert.ok(!all.some((c) => c.name === "browser" && /the agent saves the images itself through the browser|snímky uloží agent sám/.test(c.detail)), `${lang}: the confirmed hooks not said as watching`);
       assert.ok(!all.some((c) => c.name === "chatgptapp" && c.status === "fail"));
     }
+    // the hooks not confirmed (never, or changed since): the way to confirm them is Codex's in the terminal alone — the
+    // ChatGPT app's browser never calls the hook, so its dialog is never named (spec 062 K6.3)
+    const hookState = (trusted?: string) =>
+      fs.writeFileSync(path.join(home, "config.toml"), `[projects.${JSON.stringify(tree)}]\ntrust_level = "trusted"\n${trusted === undefined ? "" : `\n[hooks.state.${JSON.stringify(key)}]\ntrusted_hash = "${trusted}"\n`}`);
+    const hookRow = async (lang: string) => ((await w.run(["doctor", "--json"], { env: { STROM_LANG: lang } })).json.checks as { name: string; label: string; status: string; fix?: string; code?: string }[]).filter((c) => c.name === "codexhooks");
+    const appHooks = /Settings › Hooks|Nastavení › Hooks|Einstellungen › Hooks|Ustawienia › Hooks|ChatGPT/;
+    for (const [state, trusted] of [["untrusted", undefined], ["modified", "0000000000000000"]] as const) {
+      hookState(trusted);
+      for (const [lang, how] of [["en", "codex in the family tree's folder → Review hooks (/hooks) → the hook “strom” → Trust"], ["cs", "codex ve složce rodokmenu → Review hooks (/hooks) → hook „strom“ → Trust"], ["de", /^codex im Ordner des Stammbaums → Review hooks \(\/hooks\)/], ["pl", "codex w folderze drzewa → Review hooks (/hooks) → hook „strom” → Trust"]] as const) {
+        const hk = await hookRow(lang);
+        assert.ok(hk.length === 1 && hk[0]!.status === "warn" && hk[0]!.code === `codex.hooks.${state}`, `${state} ${lang}: ${JSON.stringify(hk)}`);
+        const fix = hk[0]!.fix ?? "";
+        if (typeof how === "string") assert.equal(fix, `${how}  (strom doc R12.5)`, `${state} ${lang}`);
+        else assert.match(fix, how, `${state} ${lang}: ${fix}`);
+        assert.doesNotMatch(fix, appHooks, `${state} ${lang}: the app's dialog never named`);
+      }
+    }
+    hookState(codexHookHash(tree));
     // the setup's summary (spec 062 K6.3): with the ChatGPT app only the app's line, never the hooks' line — in four languages
     const hooksLine = /Codex: (strom's rules|pravidla stromu|die Regeln von strom|reguły stroma)/;
     for (const [lang, app] of [["en", /The ChatGPT app: strom does not watch its browser/], ["cs", /Aplikace ChatGPT: prohlížeč strom nehlídá/], ["de", /App ChatGPT: ihren Browser überwacht strom nicht/], ["pl", /Aplikacja ChatGPT: przeglądarki strom nie pilnuje/]] as const) {
@@ -265,6 +283,13 @@ test("the ChatGPT app chosen: its browser runs through ChatGPT's cloud and calls
     const term = (await w.run(["doctor", "--json"], { env: { STROM_LANG: "en" } })).json.checks as { name: string; label: string }[];
     assert.ok(!term.some((c) => c.name === "chatgptapp"));
     assert.equal(term.find((c) => c.name === "codexhooks")?.label, "Codex's hooks (browser)");
+    // …and with the hooks not confirmed, both ways to confirm them: the ChatGPT (Codex) app's and the terminal's
+    for (const [state, trusted] of [["untrusted", undefined], ["modified", "0000000000000000"]] as const) {
+      hookState(trusted);
+      const hk = await hookRow("en");
+      assert.ok(hk.length === 1 && hk[0]!.status === "warn" && hk[0]!.code === `codex.hooks.${state}`, `${state}: ${JSON.stringify(hk)}`);
+      assert.match(hk[0]!.fix ?? "", /^the ChatGPT \(Codex\) app: Settings › Hooks .*; the terminal: codex in the family tree's folder → Review hooks \(\/hooks\)  \(strom doc R12\.5\)$/, state);
+    }
   } finally {
     w.cleanup();
   }
