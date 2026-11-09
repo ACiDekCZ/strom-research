@@ -188,6 +188,13 @@ test("task wait: --kind repeating what --images or --check says is taken; a cont
     const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
     assert.equal(t1.state, "waiting");
     assert.equal(t1.wait?.kind, undefined, "nothing of --kind stored: --images says it");
+    // --kind web with --images: the images are saved from a site — taken as said too, the kind still images
+    await w.ok(["task", "wait", "T1", "--kind", "web", "--images", "B1:3", "--on", "snímek 3 knihy narozených"]);
+    const web = (await w.ok(["task", "show", "T1", "--json"])).json.task;
+    assert.deepEqual([web.state, web.awaits?.images, web.wait?.kind], ["waiting", "3", undefined]);
+    // the help says it: --kind is for a wait of neither
+    const kind = (await w.ok(["commands", "--json"])).json.commands.find((c: { command: string }) => c.command === "task wait").options.find((o: { name: string }) => o.name === "--kind");
+    assert.match(kind.description, /not with --images or --check: they say the kind themselves/);
 
     // --kind check with --check: as if left out (after another way, as --check asks)
     await w.ok(["search", "add", "kniha narozených Lhota", "--method", "web", "--result", "inconclusive", "--task", "T2", "--note", "archive.example.org refused automated access; tried instead: the parish's index"]);

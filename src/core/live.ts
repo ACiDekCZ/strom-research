@@ -862,15 +862,119 @@ export function liveRunning(root: string): LiveInfo | undefined {
 }
 
 /**
- * Another bridge of this tree up already (live.json names it, it runs and is a bridge): one that started late — strom
- * gave up waiting for it, and another was started meanwhile — is never a second bridge of the tree nobody knows of
- * (found in tests on a busy computer: bridges no `strom live stop` could reach, live.json naming another). A bridge
- * started to take over (STROM_LIVE_RENEWED) asks the one it replaces to end: never this.
+ * Where the tree's bridge claims the tree (.strom/live-owner.json: its pid, its folder, since when) — one bridge per
+ * research, whatever starts them and when: a newer strom's bridge taking over from the one before and a strom starting
+ * the tree's bridge at that moment once ran both, one at the address the app follows, the other at another port, both
+ * taking in the inbox (found 2026-11-09 at an update). Claimed and given up only under the tree's owner lock
+ * (liveOwnerLock), which also guards live.json being written and removed at a start and an end.
  */
-function otherBridge(root: string, env: Env): LiveInfo | undefined {
-  if (env.STROM_LIVE_RENEWED) return undefined;
-  const now = liveRunning(root);
-  return now && now.pid !== process.pid && isBridge(now.pid) ? now : undefined;
+function liveOwnerFile(root: string): string {
+  return path.join(root, ".strom", "live-owner.json");
+}
+
+/**
+ * How long a claim counts by itself while its bridge is not in live.json yet (it starts: the tree settled, /status made
+ * first, its port waited for): after it only a bridge live.json names holds the tree — a claim left by one ended without
+ * a word is never another's process that got its number (Windows tells no bridge by its command).
+ */
+const CLAIM_FRESH_MS = 120_000;
+
+/** What a tree's claim is done under (a moment: read, compare, write); never waited for long — without it, as before. */
+function withLiveOwner<T>(root: string, fn: () => T): T {
+  let release: (() => void) | undefined;
+  try {
+    // a research gone (its .strom deleted, moved): its folder never made again for a lock
+    if (fs.existsSync(path.join(root, ".strom"))) release = acquireLock(path.join(root, ".strom", "live-owner.lock"), { owner: "the tree's bridge", waitMs: 10_000, staleMs: 60_000 });
+  } catch {
+    // its folder not to be written, or held by one stuck: the claim and the notes as they come
+  }
+  try {
+    return fn();
+  } finally {
+    release?.();
+  }
+}
+
+/**
+ * The bridge this one takes over from: the one that started it with a newer strom (STROM_LIVE_REPLACES; one of an
+ * older strom names none — its parent then, which started it). None: a bridge started by strom, which ended the one before.
+ */
+function replacedBridge(env: Env): number | undefined {
+  const said = Number(env.STROM_LIVE_REPLACES);
+  if (Number.isInteger(said) && said > 0) return said;
+  return env.STROM_LIVE_RENEWED ? process.ppid : undefined;
+}
+
+/**
+ * Another bridge holding this tree (it runs and is a bridge, never the one this one takes over from): the one whose claim
+ * counts (live-owner.json), else the one live.json names (a bridge of an older strom claims nothing) — one that started
+ * late (strom gave up waiting for it, another was started meanwhile) or at the same moment as another is never a second
+ * bridge of the tree.
+ */
+function rivalBridge(root: string, env: Env, ignore?: number): number | undefined {
+  const replaces = replacedBridge(env);
+  const named = liveRunning(root);
+  const other = (pid: unknown): pid is number => typeof pid === "number" && pid !== process.pid && pid !== replaces && pid !== ignore && isBridge(pid);
+  try {
+    const owner = JSON.parse(fs.readFileSync(liveOwnerFile(root), "utf8")) as { pid?: unknown; root?: unknown; at?: unknown };
+    const fresh = named?.pid === owner.pid || Date.now() - Date.parse(String(owner.at)) < CLAIM_FRESH_MS;
+    if (fresh && other(owner.pid) && !foreignNote(root, owner)) return owner.pid;
+  } catch {
+    // no claim: a bridge of an older strom, or none
+  }
+  return named && other(named.pid) ? named.pid : undefined;
+}
+
+/** This bridge holds the tree now (under the owner lock). */
+function writeOwner(root: string): void {
+  // no research there (moved, taken off): nothing made
+  if (!fs.existsSync(path.join(root, TREE_FILE))) return;
+  const file = liveOwnerFile(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify({ pid: process.pid, root: realRoot(root), at: new Date().toISOString() }));
+  fs.renameSync(`${file}.${process.pid}`, file);
+}
+
+/**
+ * Claim the tree for this bridge: the other bridge that holds it (this one then ends), else none — claimed. `ignore`: a
+ * bridge that holds it no more (the new one that did not take over, being ended).
+ */
+function claimTree(root: string, env: Env, ignore?: number): number | undefined {
+  return withLiveOwner(root, () => {
+    const rival = rivalBridge(root, env, ignore);
+    if (rival) return rival;
+    try {
+      writeOwner(root);
+    } catch {
+      // a folder not to be written: live.json says the bridge
+    }
+    return undefined;
+  });
+}
+
+/** The claim given up by the bridge that ends (only its own: the bridge it handed over to holds it already). */
+function dropOwner(root: string): void {
+  withLiveOwner(root, () => {
+    try {
+      const owner = JSON.parse(fs.readFileSync(liveOwnerFile(root), "utf8")) as { pid?: unknown };
+      if (owner.pid === process.pid) fs.rmSync(liveOwnerFile(root), { force: true });
+    } catch {
+      // none
+    }
+  });
+}
+
+/** live.json removed when it still names that bridge (an ended one's): never the note of one that came up meanwhile. */
+function dropLiveNote(root: string, pid: number): void {
+  withLiveOwner(root, () => {
+    try {
+      const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as { pid?: unknown };
+      if (now.pid === pid || typeof now.pid !== "number" || !alive(now.pid)) fs.rmSync(liveFile(root), { force: true });
+    } catch {
+      // none, or not readable: nobody's
+      fs.rmSync(liveFile(root), { force: true });
+    }
+  });
 }
 
 /**
@@ -963,7 +1067,11 @@ export function notStartedWhy(root: string, since: number): { full: true } | { f
 
 function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveInfo | undefined {
   if (running) stopLive(root, `a bridge of strom ${VERSION} is wanted (this one: ${running.version ?? "older"})`, { back: true });
-  fs.rmSync(liveFile(root), { force: true });
+  // the one ended was handing over to the bridge of the strom on disk, which runs now (one started would be of that
+  // strom too): that one is the tree's
+  const meanwhile = liveRunning(root);
+  if (meanwhile && meanwhile.pid !== running?.pid) return meanwhile;
+  dropLiveNote(root, meanwhile?.pid ?? running?.pid ?? 0);
   const before = readLast(root);
   spawnBridge(root, env);
   // (a stuck bridge before it is ended first: up to some seconds)
@@ -992,9 +1100,11 @@ function spawnBridge(root: string, env: Env, extra: Record<string, string> = {})
   } catch {
     // without a log
   }
+  // the bridge a bridge takes over from is said to it alone, never passed on to one a strom of it starts
+  const { STROM_LIVE_REPLACES: _replaced, ...inherited } = env as NodeJS.ProcessEnv;
   const child = spawn(command, [...args, "live", "serve"], {
     cwd: bridgeCwd(root, env),
-    env: { ...(env as NodeJS.ProcessEnv), STROM_TREE: root, STROM_SPAWNED: "1", ...extra },
+    env: { ...inherited, STROM_TREE: root, STROM_SPAWNED: "1", ...extra },
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -1194,7 +1304,8 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
     noteLive(root, `the bridge ${info.pid} could not be ended`);
     return "alive";
   }
-  fs.rmSync(liveFile(root), { force: true });
+  // (the bridge it handed over to may have written its own note meanwhile: kept)
+  dropLiveNote(root, info.pid);
   // no bridge of that number ran (it ended meanwhile, the number another program's): none was stopped
   return how === "gone" ? "none" : how;
 }
@@ -2396,6 +2507,13 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 /** Run the bridge of the tree here, until idle or stopped. */
 export function serveLive(root: string, env: Env): Promise<void> {
   noteTestBridge(root, env);
+  // the tree's bridge runs already, or another one claimed the tree a moment before (a newer strom's bridge taking over
+  // while a strom starts one): this one is not needed — it ends before it writes or takes anything
+  const before = claimTree(root, env);
+  if (before) {
+    noteLive(root, `another bridge of this tree runs already (${before}): this one (${process.pid}) ends`);
+    return Promise.resolve();
+  }
   // the stroms it started that write (a send, an adoption, an original, a batch): never started again under them
   const kids = new Set<ChildProcess>();
   const track = (child: ChildProcess) => {
@@ -6008,12 +6126,6 @@ export function serveLive(root: string, env: Env): Promise<void> {
   process.on("unhandledRejection", (e) => noteLive(root, `unhandled: ${errorText(e)}`));
 
   return new Promise((resolve) => {
-    // the tree's bridge runs already (this one started late, another started meanwhile): this one is not needed
-    const before = otherBridge(root, env);
-    if (before) {
-      noteLive(root, `another bridge of this tree runs already (${before.pid}): this one (${process.pid}) ends`);
-      return resolve();
-    }
     let up = false;
     let wanted = last?.port ?? 0;
     let tries = 0;
@@ -6050,17 +6162,29 @@ export function serveLive(root: string, env: Env): Promise<void> {
     else server.listen(wanted, "127.0.0.1");
     server.once("listening", () => {
       up = true;
-      // another bridge of this tree came up while this one started (two started at once): this one goes, nothing of it written
-      const meanwhile = otherBridge(root, env);
-      if (meanwhile) {
-        noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile.pid}): this one (${process.pid}) ends`);
+      // another bridge of this tree came up while this one started (its claim taken over meanwhile, a bridge of an older
+      // strom that claims nothing): this one goes, nothing of it written — the check and the notes one step under the
+      // tree's owner lock, so no other bridge writes its own between them
+      const port = (server.address() as { port: number }).port;
+      const meanwhile = withLiveOwner(root, () => {
+        const rival = rivalBridge(root, env);
+        if (rival) return rival;
+        try {
+          writeOwner(root);
+        } catch {
+          // a folder not to be written: live.json says the bridge
+        }
+        live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
+        writeLive(root, live);
+        writeLast(root, { port, token, pid: process.pid, started: live.started });
+        return undefined;
+      });
+      if (meanwhile || !live) {
+        noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile}): this one (${process.pid}) ends`);
+        dropOwner(root);
         server.close();
         return resolve();
       }
-      const port = (server.address() as { port: number }).port;
-      live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
-      writeLive(root, live);
-      writeLast(root, { port, token, pid: process.pid, started: live.started });
       // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
       // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
       // — and still gone when looked at again a while later (STROM_LIVE_GONE_MS): a disk away for a moment (a network
@@ -6234,13 +6358,18 @@ export function serveLive(root: string, env: Env): Promise<void> {
         noteLive(root, `strom ${disk.version} on disk: the bridge starts again with it (port ${port}, its token kept)`);
         const back = (why: string) => {
           if (!handing) return;
+          const was = handing.pid;
           handing = undefined;
           renewing = false;
+          // the tree claimed again (the new one claimed it as it started) — unless another bridge holds it meanwhile:
+          // then that one is the tree's, and this one ends (the new one ended at once for it)
+          const rival = claimTree(root, env, was);
+          if (rival) return stop(`another bridge of this tree runs (${rival}): the bridge of strom ${disk.version} ended for it`, "restart", true);
           noteLive(root, `the bridge of strom ${disk.version} did not take over (${why}): this one (${runs}) goes on`);
         };
         let child: ChildProcess;
         try {
-          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "", ...(gedFollow.images === "ref" ? { STROM_LIVE_GED_IMAGES: "ref" } : {}) } : {}) });
+          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_REPLACES: String(process.pid), STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "", ...(gedFollow.images === "ref" ? { STROM_LIVE_GED_IMAGES: "ref" } : {}) } : {}) });
         } catch (e) {
           renewing = false;
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
@@ -6468,11 +6597,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
         send("end", { reason, ...(back === undefined ? {} : { back }), ...(by ? { by } : {}), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();
-        try {
-          const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo;
-          if (now.pid === process.pid && !handed) fs.rmSync(liveFile(root), { force: true });
-        } catch {
-          // gone already
+        // its claim given up (one it handed over to holds it already), its note removed — never another bridge's
+        dropOwner(root);
+        if (!handed) {
+          withLiveOwner(root, () => {
+            try {
+              const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo;
+              if (now.pid === process.pid) fs.rmSync(liveFile(root), { force: true });
+            } catch {
+              // gone already
+            }
+          });
         }
         const was = readLast(root);
         if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.30.0
 
-*In Vorbereitung: die Betas bis 1.30.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.30.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Angaben am Original geprüft.** Angaben zu Geburt, Taufe, Heirat, Tod oder Begräbnis, die ihren ursprünglichen
   Eintrag zitieren, aber wahrscheinlich oder möglich bleiben, prüft der Agent an diesem Original: er sieht sich den Scan
@@ -70,6 +70,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Brücke, und beim Verfolgen wird eine Änderung gemeldet, sobald ihr Baum bereit ist. Die Brücke endet nicht mehr,
   wenn das Laufwerk der Forschung kurz nicht erreichbar ist, und eine zusätzlich gestartete zweite Brücke derselben
   Forschung endet sofort, statt unbemerkt weiterzulaufen.
+  Ein Update, während strom die Brücke startet, lässt keine zwei Brücken mehr laufen: Eine bleibt, unter der Adresse, der die App folgt.
   Einer App, die den neuesten Stammbaum schon hat, wird nichts erneut gesendet.
   Eine App, die darum bittet, bekommt den Stammbaum mit jedem Bild nach seinem Inhalt benannt und lädt nur die Bilder, die sie noch nicht hat.
 
@@ -98,6 +99,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   zuerst zu suchen ist – den Link des Portals auf das ganze Bild oder das Herunterladen eines ganzen Buches – mit der
   Zeit, die ein Buch im Tempo des Archivs bräuchte; `strom connector new` zitiert, was strom von den Bedingungen des
   Archivs weiß.
+  **macOS: Die App Strom, aus der Forschung geöffnet** (live verfolgen, eine Datei für die App), lässt im Dock unter
+  den zuletzt verwendeten Apps kein Symbol von Google Chrome mehr zurück: Die Adresse geht direkt an den bereits
+  laufenden Browser, das Fenster der App öffnet sich wie bisher.
+  **Eine Aufnahme, die der Browser des Agenten speichern sollte und der Browser zurückhielt** (Chrome speichert eine
+  Datei einer Website von selbst, die nächste erst, wenn sie mehrere Dateien herunterladen darf), wird gemeldet: „Was
+  wartet“ nennt die Website, der das einmal in der Adressleiste des Browsers zu erlauben ist.
 
 ## 1.29.0
 

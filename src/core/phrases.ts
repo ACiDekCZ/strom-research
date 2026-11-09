@@ -296,6 +296,7 @@ export const PHRASES = {
   "wait.group.connectors": "Downloaders",
   "browser.wait": "images {images} of {book}, saved by the agent's browser from {url}",
   "browser.save.other": "the browser's tab shows another image than {n} ({url}), nothing was saved",
+  "browser.wait.held": "images {images} of {book}, saved by the agent's browser from {url} — the browser held image {n} back: {host} to be allowed to download several files, once (the icon at the right end of the browser's address bar)",
   "wait.group.app": "The Strom app",
   "wait.group.tune": "The reading of scans",
   "wait.group.conflicts": "Conflicts to decide",

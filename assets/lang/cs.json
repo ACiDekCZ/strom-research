@@ -2595,6 +2595,7 @@
   "wait.group.connectors": "Stahovače",
   "browser.wait": "snímky {images} knihy {book}, ukládá je prohlížeč agenta z {url}",
   "browser.save.other": "karta prohlížeče ukazuje jiný snímek než {n} ({url}), nic se neuložilo",
+  "browser.wait.held": "snímky {images} knihy {book}, ukládá je prohlížeč agenta z {url} — prohlížeč snímek {n} zadržel: povolit webu {host} stahování více souborů, jednou (ikona vpravo v adresním řádku prohlížeče)",
   "wait.group.app": "Aplikace Strom",
   "wait.group.tune": "Čtení snímků",
   "wait.group.conflicts": "K rozhodnutí – rozpory",

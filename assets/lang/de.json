@@ -2595,6 +2595,7 @@
   "wait.group.connectors": "Downloader",
   "browser.wait": "Aufnahmen {images} des Buches {book}, vom Browser des Agenten gespeichert ({url})",
   "browser.save.other": "der Tab des Browsers zeigt eine andere Aufnahme als {n} ({url}), nichts wurde gespeichert",
+  "browser.wait.held": "Aufnahmen {images} des Buches {book}, vom Browser des Agenten gespeichert ({url}) — der Browser hat Aufnahme {n} zurückgehalten: {host} das Herunterladen mehrerer Dateien erlauben, einmal (das Symbol rechts in der Adressleiste des Browsers)",
   "wait.group.app": "Die Strom-App",
   "wait.group.tune": "Das Lesen der Scans",
   "wait.group.conflicts": "Widersprüche zu entscheiden",

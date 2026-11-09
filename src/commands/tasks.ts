@@ -552,8 +552,9 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
   if (opts.kind !== undefined) {
     const k = String(opts.kind).trim().toLowerCase();
     if (has.images || has.check) {
-      // --kind images with --images (--kind check with --check) only repeats what the flag says: taken as said
-      if (k === (has.images ? "images" : "check")) return waitOptions(tree, id, { ...opts, kind: undefined }, has);
+      // --kind images with --images (--kind check with --check) only repeats what the flag says: taken as said; so does
+      // --kind web — the images are saved from a site, the check is of one: the flag says which
+      if (k === (has.images ? "images" : "check") || k === "web") return waitOptions(tree, id, { ...opts, kind: undefined }, has);
       throw new UsageError(`--kind: --${has.images ? "images" : "check"} says the kind itself (${has.images ? "images the user saves by hand" : "a site only the user checks"})`, { hint: `leave out --kind` });
     }
     if (!(WAIT_KINDS as readonly string[]).includes(k)) throw new UsageError(`--kind is one of ${WAIT_KINDS.join(", ")} — not "${opts.kind}"`, { hint: "images saved by hand: --images B…:<numbers>; a site only the user checks: --check <URL>" });
@@ -1060,7 +1061,7 @@ register(
       "start: strom media add --inbox --waiting) — a part of them, it waits on and says which are missing. Files named\n" +
       "otherwise are taken by their order when there are as many as images missing.\n" +
       "--kind web on a task whose --where names one book: images of that book saved into its folder of the inbox bring it\n" +
-      "back too (which ones not known yet) — with the numbers known, --images.\n" +
+      "back too (which ones not known yet) — with the numbers known, --images in its place (it says the kind itself).\n" +
       "--check <URL>: the user looks at a site strom and your web tools may not read (it refused strom, or its terms\n" +
       "forbid or restrict automation) — only after another way to the same records was tried and the blocked way recorded\n" +
       "in this session (strom search add … --note \"<host>: …\"); --on says what to check there. They answer in strom's\n" +
@@ -1076,7 +1077,8 @@ register(
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
       { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
       { name: "check", type: "string", value: "<URL>", description: "a site for the user to check (one strom may not read): only after another way was tried and the blocked way recorded (strom search add)" },
-      ...WAIT_OPTIONS,
+      // --images and --check say the kind themselves: --kind is for a wait of neither
+      ...WAIT_OPTIONS.map((o) => (o.name === "kind" ? { ...o, description: `${o.description} — not with --images or --check: they say the kind themselves` } : o)),
     ],
     examples: [
       'strom task wait T0002 --on "reply of the archive to the request of 21 Sep"',

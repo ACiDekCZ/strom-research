@@ -195,3 +195,67 @@ test("an archive whose viewer shows its images from a server closed to every rob
     w.cleanup();
   }
 });
+
+// Chrome saves one file of a site by itself and holds the next back until the person allows the site to download several
+// files: the script answers saved, nothing comes. strom media add --inbox --waiting says so — to the agent (what to tell
+// the user, never to change the browser's settings itself) and to the person in the task's wait — instead of nothing.
+test("the second image held back by the browser: said to the agent and in the task's wait, the wait as before once saved again", opts, async () => {
+  const w = new World();
+  const root = await w.withTree("Lhotákovi");
+  try {
+    await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+    const downloads = path.join(w.dir, "Stažené soubory");
+    fs.mkdirSync(downloads);
+    await w.ok(["config", "set", "browser.downloads", downloads]);
+    await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", PAGE]); // B1
+    await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+    await w.ok(["task", "wait", "T1", "--images", "B1:9", "--on", "snímek 9 knihy Lhota"]);
+    await w.ok(["allow", "archive", "genbaza.pl", "--way", "browser"], { tty: true });
+    const records = path.join(root, ".strom", "browser-saves.json");
+    const aged = () => {
+      const all = JSON.parse(fs.readFileSync(records, "utf8")) as { at: number }[];
+      fs.writeFileSync(records, JSON.stringify(all.map((r) => ({ ...r, at: r.at - 60_000 }))));
+    };
+
+    // the first image comes: taken, nothing said of it afterwards
+    const r9 = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE, "--json"], { env: CLAUDE });
+    assert.match(await tab(r9.json.script, PAGE, downloads), /^strom-result 9:200:\d+$/);
+    settled(path.join(downloads, "strom-T0001-0009.jpg"));
+    aged();
+    const took = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+    assert.deepEqual(took.json.held, []);
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+    assert.ok(!fs.existsSync(records), "nothing left to look for");
+
+    // the second: the script says saved, the browser holds the file back
+    const page10 = PAGE.replace("n=9", "n=10");
+    await w.ok(["media", "save", "T1", "--image", "10", "--at", page10], { env: CLAUDE });
+    // looked at at once: the browser may still be saving it — nothing said yet
+    const soon = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+    assert.deepEqual(soon.json.held, []);
+    aged();
+    const held = await w.ok(["media", "add", "--inbox", "--waiting"]);
+    assert.doesNotMatch(held.out, /no task waits for images/);
+    assert.match(held.out, /⚠ image 10 of B0001 \(T0001\): nothing came into .*Stažené soubory since strom media save gave its script/);
+    assert.match(held.out, /the next only once the person allows genbaza\.pl to download several files .*never change the browser's settings yourself/);
+    assert.match(held.out, /Once allowed: strom media save T0001 --image 10 --at https:\/\/genbaza\.pl\/skan\/4711\?n=10/);
+    // the person reads it in the task's wait, impersonal, in the research language
+    const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
+    assert.equal(t.state, "waiting");
+    assert.equal(t.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10} — prohlížeč snímek 10 zadržel: povolit webu genbaza.pl stahování více souborů, jednou (ikona vpravo v adresním řádku prohlížeče)`);
+    // said again to the agent on the next look
+    const again = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+    assert.deepEqual(again.json.held.map((h: { image: number; host: string }) => [h.image, h.host]), [[10, "genbaza.pl"]]);
+
+    // the person allowed it: the script given again, the wait as before; the file comes and is taken
+    await w.ok(["media", "save", "T1", "--image", "10", "--at", page10], { env: CLAUDE });
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10}`);
+    settled(path.join(downloads, "strom-T0001-0010.jpg"), "base444.jpg");
+    const last = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+    assert.deepEqual(last.json.held, []);
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+    assert.ok(!fs.existsSync(records));
+  } finally {
+    w.cleanup();
+  }
+});

@@ -2595,6 +2595,7 @@
   "wait.group.connectors": "Programy pobierające",
   "browser.wait": "skany {images} księgi {book}, zapisywane przez przeglądarkę agenta z {url}",
   "browser.save.other": "karta przeglądarki pokazuje inny skan niż {n} ({url}), nic nie zostało zapisane",
+  "browser.wait.held": "skany {images} księgi {book}, zapisywane przez przeglądarkę agenta z {url} — przeglądarka wstrzymała skan {n}: zezwolić witrynie {host} na pobieranie wielu plików, jednorazowo (ikona po prawej stronie paska adresu przeglądarki)",
   "wait.group.app": "Aplikacja Strom",
   "wait.group.tune": "Odczyt skanów",
   "wait.group.conflicts": "Do rozstrzygnięcia – sprzeczności",

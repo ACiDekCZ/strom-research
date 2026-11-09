@@ -6,7 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
+import { bridgeRuns, notedBridges, within } from "../bridges.ts";
 import { acquireLock } from "../../src/core/lock.ts";
 import { diskVersion } from "../../src/core/self.ts";
 
@@ -197,6 +199,62 @@ test("a bridge killed without a word comes back when the person opens the menu �
     });
   } finally {
     await w.ok(["live", "stop"]);
+    w.cleanup();
+  }
+});
+
+test("a newer strom on disk and a strom starting the bridge at once: one bridge of the tree, at its kept address — the other ends (found: two after an update, both watching the inbox)", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    const disk = path.join(w.dir, "package.json");
+    fs.writeFileSync(disk, JSON.stringify({ version: "1.0.0" }));
+    // the new bridge the old one starts is slow to take its port (a large research: /status made first, seconds)
+    const slow = path.join(w.dir, "slow-listen.cjs");
+    fs.writeFileSync(
+      slow,
+      "if (process.argv.includes('serve') && process.env.STROM_LIVE_STATUS_FOR !== undefined) {\n" +
+        "  const http = require('node:http');\n" +
+        "  const listen = http.Server.prototype.listen;\n" +
+        "  let first = true;\n" +
+        "  http.Server.prototype.listen = function (...a) { if (!first) return listen.apply(this, a); first = false; setTimeout(() => listen.apply(this, a), 4000); return this; };\n" +
+        "}\n",
+    );
+    Object.assign(w.env, {
+      STROM_LIVE_DISK_VERSION: disk,
+      STROM_LIVE_RENEW_MS: "200",
+      STROM_LIVE_POLL_MS: "100",
+      STROM_LIVE_RENEWED: "1.0.0",
+      NODE_OPTIONS: `${w.env.NODE_OPTIONS ?? ""} --require=${JSON.stringify(slow)}`.trim(),
+    });
+    const a = (await w.ok(["live", "start", "--json"])).json as { pid: number; port: number; token: string };
+    const liveFile = path.join(w.cwd, ".strom", "live.json");
+    const live = () => JSON.parse(fs.readFileSync(liveFile, "utf8")) as { pid: number; port: number; token: string };
+    const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+    // the bridge of an older strom, as its note says: a newer strom's first run starts it again with its own version
+    fs.writeFileSync(liveFile, JSON.stringify({ ...live(), version: "1.0.0" }));
+    fs.writeFileSync(disk, JSON.stringify({ version: "9.9.9" }));
+    await until("the old bridge starts the new one", () => /strom 9\.9\.9 on disk: the bridge starts again with it/.test(log()));
+    // meanwhile a strom of the new version (its first run, a link from the app) wants a bridge of its own: a process of its own
+    const cli = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
+    const other = spawn(process.execPath, [cli, "live", "start", "--current", "--json"], { cwd: w.cwd, env: { ...w.env, STROM_LIVE_RENEWED: "9.9.9" }, stdio: "ignore" });
+    await new Promise((r) => other.once("exit", r));
+    const ours = () => notedBridges().filter((b) => within(b.root, w.dirs()) && bridgeRuns(b.pid)).map((b) => b.pid);
+    // settled: the old one gone, the bridges started meanwhile up or ended
+    await until("the old bridge ended", () => !bridgeRuns(a.pid));
+    await until("a bridge at work", () => {
+      try {
+        return live().pid !== a.pid && bridgeRuns(live().pid);
+      } catch {
+        return false;
+      }
+    });
+    await new Promise((r) => setTimeout(r, 6000));
+    assert.deepEqual(ours(), [live().pid], `one bridge of the tree:\n${log()}`);
+    assert.equal(live().port, a.port, "at the address the app follows");
+    assert.equal(live().token, a.token);
+    assert.doesNotMatch(log(), /needs the new address/u);
+  } finally {
     w.cleanup();
   }
 });

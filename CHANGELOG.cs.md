@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.30.0
 
-*Připravuje se: bety do 1.30.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.30.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Údaje ověřené proti originálu.** Narození, křest, sňatek, úmrtí nebo pohřeb, který cituje původní záznam, ale
   zůstává pravděpodobný nebo možný, agent ověří proti tomu originálu: podívá se na sken a údaj buď povýší na doložený,
@@ -59,6 +59,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   mnohem rychleji:** strom pro aplikaci se sestaví jednou pro každý stav výzkumu a zůstane uložený i po novém spuštění
   mostu, a během sledování se změna ohlásí, až je její strom připravený. Most už neskončí, když je disk výzkumu na
   chvíli nedostupný, a druhý most téhož výzkumu spuštěný navíc hned skončí a neběží dál bez povšimnutí.
+  Aktualizace ve chvíli, kdy strom most spouští, už nenechá běžet dva mosty: zůstane jeden, na adrese, kterou aplikace sleduje.
   Aplikaci, která nejnovější strom už má, se znovu nic neposílá.
   Aplikace, která o to požádá, dostane strom s obrázky označenými podle obsahu a načte jen ty, které ještě nemá.
 
@@ -82,6 +83,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   **Stavba konektoru:** `strom connector test` varuje, když jeden snímek stojí mnoho požadavků (dlaždice), a řekne, co
   hledat nejdřív – odkaz portálu na celý snímek nebo stažení celé knihy – s dobou, jakou by kniha trvala v tempu archivu;
   `strom connector new` cituje, co strom ví o podmínkách archivu.
+  **macOS: aplikace Strom otevřená z výzkumu** (sledovat živě, soubor pro aplikaci) už nenechá v Docku mezi nedávnými
+  aplikacemi ikonu Google Chrome: adresa jde rovnou do už běžícího prohlížeče, okno aplikace se otevře jako dřív.
+  **Snímek, který měl uložit prohlížeč agenta a prohlížeč ho zadržel** (Chrome uloží jeden soubor webu sám, další až
+  po povolení stahování více souborů), se ohlásí: Co čeká uvede web, kterému to jednou povolit v adresním řádku prohlížeče.
 
 ## 1.29.0
 

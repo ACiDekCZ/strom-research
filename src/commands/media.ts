@@ -37,7 +37,7 @@ import { askedNow, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWait
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
-import { PLAN_TTL_MS, saveScript, waitFileBase } from "../core/browser.ts";
+import { HELD_AFTER_MS, PLAN_TTL_MS, findDownload, loadSaves, noteSave, saveScript, storeSaves, waitFileBase, type SaveRecord } from "../core/browser.ts";
 import { bookOn, browserGate, otherWay } from "../core/webgate.ts";
 import { allows } from "../core/terms.ts";
 import { phrase } from "../core/phrases.ts";
@@ -495,6 +495,58 @@ function stillWaiting(tree: Tree, recordset: string | undefined): string[] {
       const missing = (parseImageList(t.awaits!.images) ?? []).filter((n) => !have.has(n));
       return `${t.id} still waits for images ${runs(missing)} of ${recordset} (it asked for ${t.awaits!.images}) — it comes back once they are there`;
     });
+}
+
+/**
+ * The images strom media save gave the agent's tab a script for whose file never came — not in the downloads folder
+ * (nor still downloading), not in the task's folder, not registered, a while after the script was given: Chrome saves
+ * one file of a site by itself and holds the next back until the person allows the site to download several files.
+ * The first time an image is found so, its task's wait says it to the person (in the research language). Records of
+ * images registered since, or of tasks that wait for them no more, go.
+ */
+export function heldSaves(tree: Tree, shared: string, downloads: string, now = Date.now()): SaveRecord[] {
+  const saves = loadSaves(tree.root);
+  if (!saves.length) return [];
+  const keep: SaveRecord[] = [];
+  const held: SaveRecord[] = [];
+  for (const r of saves) {
+    const t = tree.get<Task>(r.task);
+    const want = t?.state === "waiting" && t.awaits?.recordset === r.recordset ? (parseImageList(t.awaits.images) ?? []) : [];
+    if (!want.includes(r.n) || registeredImages(tree, r.recordset).has(r.n)) continue;
+    keep.push(r);
+    const dl = findDownload(downloads, r.file);
+    const dir = path.join(shared, "inbox", t!.awaits!.folder);
+    const inFolder = fs.existsSync(dir) && folderFiles(dir).length > 0;
+    if (dl.file || dl.unfinished || inFolder || now - r.at < HELD_AFTER_MS) continue;
+    held.push(r);
+  }
+  const fresh = held.filter((r) => !r.held);
+  if (!tree.dryRun) {
+    if (fresh.length)
+      tree.withTreeLock(() => {
+        for (const id of new Set(fresh.map((r) => r.task))) {
+          const mine = held.filter((r) => r.task === id);
+          const t = tree.get<Task>(id)!;
+          const b = tree.get<RecordSet>(mine[0]!.recordset);
+          const said = phrase(tree.lang, "browser.wait.held", { images: t.awaits!.images, book: b ? `${b.id} ${b.title}` : mine[0]!.recordset, url: mine[0]!.url, n: runs(mine.map((r) => r.n)), host: mine[0]!.host });
+          if (t.waitingOn !== said) update<Task>(tree, id, "task", (x) => ({ ...x, waitingOn: said }), { op: "task.wait", summary: `${id} wait: image ${runs(mine.map((r) => r.n))} of ${mine[0]!.recordset} held back by the browser — ${mine[0]!.host} to be allowed to download several files` });
+        }
+      });
+    storeSaves(tree.root, keep.map((r) => (held.includes(r) ? { ...r, held: true } : r)));
+  }
+  return held;
+}
+
+/** What the agent is told of an image its browser held back. */
+function heldLine(ctx: Context, h: SaveRecord, downloads: string): string {
+  const since = new Date(h.at).toTimeString().slice(0, 8);
+  return (
+    `⚠ image ${h.n} of ${h.recordset} (${h.task}): nothing came into ${ctx.display(downloads)} since strom media save gave its script (${since}). ` +
+    `The script answered "strom-result ${h.n}:200:…": the browser held the file back — Chrome saves one file of a site by itself and the next only once the person allows ${h.host} to download several files ` +
+    `(once: the icon at the right end of the address bar, or the site's settings → Automatic downloads). Tell the user exactly that; it is the person's permission — never change the browser's settings yourself, never save the image another way. ` +
+    `${h.task} waits for it meanwhile and what waits says it to the person; go on with other work. Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
+    `The script answered anything else: tell the user what it said. The browser saves elsewhere: strom config set browser.downloads <folder>.`
+  );
 }
 
 /** What was taken of the folders, a line each (strom media add --inbox --waiting, a session's start). */
@@ -1069,11 +1121,14 @@ register(
         if (!opts.inbox) throw new UsageError("--waiting goes with --inbox", { hint: "strom media add --inbox --waiting" });
         if (args.length || opts.recordset || opts.first !== undefined || opts.image !== undefined) throw new UsageError("--waiting takes the folders of the waiting tasks as they are: no folder, --recordset, --first or --image");
         // what the agent's browser saved for them (strom media save) first goes into their folders
-        const taken = takeWaiting(tree, shared, { downloads: ctx.settings.downloads() });
+        const downloads = ctx.settings.downloads();
+        const taken = takeWaiting(tree, shared, { downloads });
         const woken = taken.flatMap((t) => t.woken);
+        // what the agent's browser was to save and never saved: held back by the browser — said, to the person too
+        const held = heldSaves(tree, shared, downloads);
         return {
-          text: lines(taken.length ? undefined : "no task waits for images saved into the inbox, or none of their folders holds a file", ...takenLines(taken)),
-          data: { taken, woken },
+          text: lines(taken.length || held.length ? undefined : "no task waits for images saved into the inbox, or none of their folders holds a file", ...takenLines(taken), ...held.map((h) => heldLine(ctx, h, downloads))),
+          data: { taken, woken, held: held.map((h) => ({ task: h.task, recordset: h.recordset, image: h.n, host: h.host, url: h.url, since: new Date(h.at).toISOString() })) },
         };
       }
       let paths: string[];
@@ -1272,7 +1327,9 @@ register(
       const want = [...new Set([...(w?.by === "images" ? (w.want ?? []) : []), n])].sort((x, y) => x - y);
       const images = runs(want);
       const lang = tree.lang;
-      const was = t.state === "waiting" && t.awaits?.images === images;
+      // said held back before (its wait asks the person to allow the downloads): the wait as it is again, the script given anew
+      const wasHeld = loadSaves(tree.root).some((r) => r.task === t.id && r.held);
+      const was = t.state === "waiting" && t.awaits?.images === images && !wasHeld;
       if (!was && !tree.dryRun)
         update<Task>(tree, t.id, "task", (x) => {
           const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: u.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
@@ -1282,6 +1339,11 @@ register(
       const dir = path.join(shared, "inbox", inboxFolderFor(b));
       if (!tree.dryRun) fs.mkdirSync(dir, { recursive: true });
       const file = waitFileBase(t.id, n);
+      if (!tree.dryRun) {
+        noteSave(tree.root, { task: t.id, n, recordset: b.id, host: u.hostname, url: u.href, file, at: Date.now() });
+        // the task's other images held back before: asked of the person once more by this wait, so said anew
+        if (wasHeld) storeSaves(tree.root, loadSaves(tree.root).map(({ held, ...r }) => (r.task === t.id || !held ? r : { ...r, held })));
+      }
       const script = saveScript({ url: u.href, file, n, until: Date.now() + PLAN_TTL_MS, other: phrase(lang, "browser.save.other", { n: String(n), url: u.href }) });
       const then = "strom media add --inbox --waiting";
       return {

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.30.0
 
-*W przygotowaniu: bety do 1.30.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.30.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Dane sprawdzane z oryginałem.** Urodzenie, chrzest, ślub, zgon lub pochówek, który cytuje pierwotny zapis, ale
   pozostaje prawdopodobny lub możliwy, agent sprawdzi z tym oryginałem: obejrzy skan i albo podniesie daną do
@@ -63,6 +63,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   zostaje zapisane, także po ponownym uruchomieniu mostu, a podczas śledzenia zmiana jest zgłaszana, gdy jej drzewo
   jest gotowe. Most nie kończy się już, gdy dysk badania jest na chwilę niedostępny, a drugi most tego samego badania
   uruchomiony dodatkowo kończy się od razu, zamiast działać dalej niezauważony.
+  Aktualizacja w chwili, gdy strom uruchamia most, nie zostawia już dwóch mostów: zostaje jeden, pod adresem, który śledzi aplikacja.
   Aplikacji, która ma już najnowsze drzewo, nic nie jest wysyłane ponownie.
   Aplikacja, która o to poprosi, dostaje drzewo z obrazami oznaczonymi według ich zawartości i wczytuje tylko te, których jeszcze nie ma.
 
@@ -89,6 +90,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   **Budowa konektora:** `strom connector test` ostrzega, gdy jeden skan kosztuje wiele żądań (kafelki), i mówi, czego
   szukać najpierw – linku portalu do całego skanu lub pobrania całej księgi – z czasem, jaki zajęłaby księga w tempie
   archiwum; `strom connector new` cytuje, co strom wie o warunkach archiwum.
+  **macOS: aplikacja Strom otwarta z badania** (śledzenie na żywo, plik dla aplikacji) nie zostawia już w Docku wśród
+  ostatnio używanych aplikacji ikony Google Chrome: adres trafia prosto do już działającej przeglądarki, okno aplikacji
+  otwiera się jak dotąd.
+  **Skan, który miała zapisać przeglądarka agenta, a przeglądarka go wstrzymała** (Chrome zapisuje sam jeden plik
+  witryny, kolejny dopiero po zezwoleniu na pobieranie wielu plików), jest zgłaszany: „Co czeka“ podaje witrynę, której
+  trzeba na to jednorazowo zezwolić w pasku adresu przeglądarki.
 
 ## 1.29.0
 

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.30.0
 
-*In preparation: the betas up to 1.30.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.30.0-beta.5. The section is complete with the release.*
 
 - **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
   original record but stays probable or possible is verified by the agent against that original: it looks at the scan
@@ -63,6 +63,7 @@ The changes of each version in short. The full notes and the install lines are o
   and kept, also when the bridge starts again, and while the app follows, a change is told once its tree is ready.
   The bridge no longer ends when the research's disk is away for a moment, and a second bridge started for the same
   research ends at once instead of running on unseen.
+  An update while strom starts the bridge no longer leaves two bridges: one stays, at the address the app follows.
   An app that has the newest tree already is sent nothing again.
   An app that asks for it is sent the tree with each image named by its content, and loads only the images it does not have yet.
 
@@ -88,6 +89,11 @@ The changes of each version in short. The full notes and the install lines are o
   **Building a connector:** `strom connector test` warns when one image costs many requests (tiles) and says what to
   look for first – the portal's link to the whole image, or the download of a whole book – with the time a book would
   take at the archive's pace; `strom connector new` quotes what strom knows of the archive's terms.
+  **macOS: the Strom app opened from the research** (follow live, a file for the app) leaves no Google Chrome icon in
+  the Dock's recent apps: the address goes straight to the browser already running, the app's window opens as before.
+  **An image the agent's browser was to save and the browser held back** (Chrome saves one file of a site by itself, the
+  next only once the site may download several files) is said: what waits names the site to allow, once, in the
+  browser's address bar.
 
 ## 1.29.0
 
