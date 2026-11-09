@@ -9,6 +9,8 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { history } from "../../src/core/live.ts";
+import { requestPath } from "../../src/core/waiting.ts";
+import { UsageError } from "../../src/core/errors.ts";
 
 const opts = { skip: !hasGit };
 
@@ -38,8 +40,10 @@ test("task wait says the kind, whom, the request's text and the site; task sent 
   assert.equal(r.json.waitKind, "letter");
   assert.deepEqual(r.json.group, { key: "to:matrika lhota", name: "Matrika Lhota", kind: "office" });
   assert.equal(r.json.phase, "todo");
-  // the path as given, never normalized
-  assert.deepEqual(r.json.task.wait, { kind: "letter", to: "Matrika Lhota", note: "notes/žádost-lhota.md".normalize("NFD") });
+  // the path as given where the disk has it so (APFS: both forms one name), else as the disk has it (NTFS, ext4)
+  const given = "notes/žádost-lhota.md".normalize("NFD");
+  const onDisk = fs.existsSync(path.join(w.cwd, given)) ? given : "notes/žádost-lhota.md".normalize("NFC");
+  assert.deepEqual(r.json.task.wait, { kind: "letter", to: "Matrika Lhota", note: onDisk });
   const said = await w.ok(["task", "wait", letter, "--on", "Odpověď matriky Lhota na žádost z 21. 9.", "--kind", "letter", "--to", "Matrika Lhota"]);
   assert.match(said.out, /waits {2}letter · Matrika Lhota \(to:matrika lhota\) · not sent yet/);
   assert.match(said.out, new RegExp(`once the user says the request went out: strom task sent ${letter}`));
@@ -213,4 +217,19 @@ test("task wait: --kind repeating what --images or --check says is taken; a cont
   } finally {
     w.cleanup();
   }
+});
+
+// A file system that keeps names as given (NTFS, ext4): an "ž" of a path typed on a Mac (NFD) is another name than the
+// file's (NFC) — the file is found by its other form and named as it is on the disk; the path itself never normalized.
+test("--request on a disk that keeps names as given: the file found by the other form of its letters, named as on the disk; one not there refused", () => {
+  const root = path.join(path.sep, "research");
+  const disk = (...names: string[]) => (file: string) => names.some((n) => file === path.join(root, ...n.split("/")));
+  const nfc = "notes/žádost-lhota.md".normalize("NFC");
+  const nfd = nfc.normalize("NFD");
+  assert.equal(requestPath(root, nfd, "T0001", disk(nfc)), nfc, "typed on a Mac, written in NFC");
+  assert.equal(requestPath(root, nfc, "T0001", disk(nfd)), nfd, "typed in NFC, kept by the Mac's copy in NFD");
+  assert.equal(requestPath(root, nfd, "T0001", disk(nfd)), nfd, "as given where it is so");
+  assert.equal(requestPath(root, "notes\\Лхота.md", "T0001", disk("notes/Лхота.md")), "notes/Лхота.md");
+  assert.throws(() => requestPath(root, nfd, "T0001", disk("notes/jiná.md")), (e: unknown) => e instanceof UsageError && e.code === "task.request-missing");
+  assert.throws(() => requestPath(root, "notes/../data/x.md", "T0001", disk("data/x.md")), /--request takes a file of the tree's notes\//u);
 });

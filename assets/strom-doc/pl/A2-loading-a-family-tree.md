@@ -3,7 +3,9 @@
 
 Rozdział mówi, co aplikacja przejmie z pliku GEDCOM z innego programu, co pominie i jak to przyzna w podsumowaniu
 importu. Opisuje aplikację Strom 3.21.2 (i badanie 1.25.2); zmiany z nowszej wersji mają przy sobie jej numer. Otwarcie
-pliku badania i powiązanie drzewa z badaniem należy do rozdziału S1.
+pliku badania i powiązanie drzewa z badaniem należy do rozdziału S1. Całą drogę drzewa z innego programu (znaczniki
+wiarygodności, ochrona danych z drzewa, karta **Co dalej**, eksport z powrotem) opisuje
+[S6](S6-tree-from-another-program.md).
 
 <a id="A2.1"></a>
 ## A2.1 Co się wczytuje, a co nie
@@ -24,6 +26,18 @@ rekordy**. Nic nie ginie po cichu na poziomie rekordu ani bezpośredniej danej o
   Podsumowanie zob. [A2.1.1](#A2.1.1).
 - **Obowiązuje od:** aplikacja 1.9.0 (podsumowanie nieprzeniesionych znaczników); wiersze w notatce od aplikacji
   3.0.0.
+- **Od aplikacji 3.26.0:**
+  - `_UID`, `RIN`, `AFN` i inne identyfikatory programu (`UID`, `EXID`, `_FSFTID`) nie są pomijane: zachowują się przy
+    osobie i rodzinie razem z pierwotnym oznaczeniem rekordu (`@I12@`) jako identyfikator programu
+    ([S6.1](S6-tree-from-another-program.md#S6.1));
+  - własne znaczniki programu (`_XXX`) bezpośrednio przy osobie, rodzinie i źródle zachowują się do eksportu **Z powrotem
+    do {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)); głębsze własne znaczniki się liczy;
+  - wycinki zdjęć MyHeritage (`_POSITION`, `_CUTOUT`) są ewidencyjne i się ich nie liczy;
+  - rozwód zapisany przed ślubem (PAF) nie ginie i nie nadpisuje ślubu; pusty ślub lub rozwód zapisany przed innym
+    z datą (MyHeritage) zachowuje datę i miejsce tego z datą;
+  - imię zapisane jako opis (`Son`, `Unknown`) wraca tak, jak było zapisane, bez zrobionej z niego notatki; tekst
+    w wierszu danej (wykształcenie, pogrzeb, własne zdarzenie), adres w częściach (`ADR1`, `CITY`…) i odnośnik
+    internetowy w tekście źródła zostają i wracają tak, jak miał je plik.
 
 <!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
 
@@ -44,6 +58,13 @@ imporcie** i obowiązuje tylko dla tego importu. Bez obrazów zostają transkryp
 
 - **Od aplikacji 3.22.0:** Nad listą pominiętych znaczników jest zdanie, co liczy kafelek **Nieobsługiwane**:
   części pliku, których Strom nie zna i nie przeniósł, nie osoby i relacje.
+- **Od aplikacji 3.26.0:**
+  - wiersz „Zachowano do eksportu „Z powrotem do {program}”: N znaczników (…)”, gdy plik ma własne znaczniki programu;
+  - wiersz **Kodowanie tekstu** przy pliku z rozpoznanym na podstawie zawartości lub jednobajtowym kodowaniem
+    ([A2.2](#A2.2));
+  - po imporcie pliku innego programu karta **Co dalej** ([S6.4](S6-tree-from-another-program.md#S6.4)); zastępuje
+    dawne pytania po imporcie;
+  - **Wstaw do drzewa** najpierw zapisuje kopię zapasową drzewa ([S6.5](S6-tree-from-another-program.md#S6.5)).
 
 <!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
 
@@ -63,6 +84,18 @@ Aplikacja czyta GEDCOM 5.5.1 i GEDCOM 7, a kodowanie rozpoznaje sama. Eksportuje
 - **Obowiązuje od:** aplikacja 1.16.0 (konwersja ANSEL i kodowanie według nagłówka).
 - **Od aplikacji 3.22.0:** Znaczniki GEDCOM 7 `UID`, `CREA` i `EXID` pomija się po cichu jako dane ewidencyjne;
   w 3.21.2 liczą się do **Nieobsługiwane**.
+- **Od aplikacji 3.26.0:**
+  - `CHAR CP1250` lub `WINDOWS-1250` to Windows-1250. `ANSI` oznacza stronę kodową komputera, który plik zapisał:
+    prawidłowe UTF-8 zostaje UTF-8, w przeciwnym razie słowa pliku rozstrzygają między Windows-1250 (Europa Środkowa:
+    č ř ě ł ż) a Windows-1252 (Europa Zachodnia). Tak samo rozpoznaje się plik bez `CHAR` i plik z `CHAR UTF-8`, który
+    nie jest prawidłowym UTF-8;
+  - gdy kodowanie rozpoznano na podstawie zawartości lub jest jednobajtowe, a plik ma tekst ze znakami diakrytycznymi,
+    podsumowanie importu pokazuje wiersz **Kodowanie tekstu** z **Przykładowe nazwiska:** i wyborem innego kodowania
+    (**UTF-8**, **Windows-1250 (Europa Środkowa)**, **Windows-1252 (Europa Zachodnia)**, **ISO-8859-2 (Latin-2)**,
+    **ANSEL (starszy GEDCOM)**). Zniekształcone znaki w nazwiskach (³ zamiast ł, ¿ zamiast ż) oznaczają, że pasuje inne
+    kodowanie. **Obsługa:** wybór w wierszu **Kodowanie tekstu**;
+  - samodzielne rekordy mediów `0 @O1@ OBJE` czyta się przez odsyłacze do nich; zdjęcie rodziny wskazane w ten sposób
+    tylko się liczy.
 
 <!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
 
@@ -164,6 +197,9 @@ GEDCOM 5.5.1 nie potrafi. Nagłówek `1 SOUR STROM` mówi, że plik napisał Str
   ([A2.3](#A2.3)). Wiersze powiązania z badaniem w nagłówku (`_STROM_TREE` i in.) omawiają S1 i S2.
 - **Obsługa:** **Eksport → Eksport GEDCOM**.
 - **Obowiązuje od:** aplikacja 3.9.0 lub wcześniej (poszczególne znaczniki przybywały do 3.19.0).
+- **Od aplikacji 3.26.0:** identyfikatory programów wracają pod `_STROM_IMPORT` i `_STROM_XID`; przy ponownym
+  wczytaniu plik paruje się według nich ([S6.7](S6-tree-from-another-program.md#S6.7)). Plik z nagłówkiem Stromu nie jest
+  drzewem z innego programu: nie ma znacznika **Z drzewa** ani karty **Co dalej**.
 
 <!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
 
@@ -177,5 +213,8 @@ w pary osoby z pliku z osobami bieżącego drzewa, a wynik zapisuje jako kolejne
 - **Granice:** ponowny import pliku badania do drzewa badania omawia [S1](S1-connecting-app-and-research.md).
 - **Obsługa:** **Import → Import GEDCOM → Importuj jako nowe drzewo** lub **Scal z istniejącym**.
 - **Obowiązuje od:** aplikacja 1.0.0
+- **Od aplikacji 3.26.0:** drzewo tego samego programu wczytane ponownie paruje się także według identyfikatora
+  programu (powód **Ten sam identyfikator w pliku**); dopasowanie 50–79 jest tylko proponowane
+  ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/ui.ts:1447 TreeManager.createTree · strings.ts treeManager.importAsNewTree, importDialog.mergeExisting -->

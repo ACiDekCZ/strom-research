@@ -5,9 +5,44 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.31.0
+
+*Připravuje se: bety do 1.31.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
+  je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
+  verify`, `strom check` i odmítnutý zápis hlásí `history-reverted` s počtem záznamů, které by oprava odstranila, a
+  ukážou cestu, která nic neztratí: zálohu celé složky, `.git` ze zálohy nebo z Time Machine, nebo `strom seal accept`
+  od uživatele. `strom repair`, který by odstranil víc než tři záznamy nebo jakýkoli takový záznam, řekne které a
+  zeptá se uživatele v jeho terminálu; agent ho nikdy nespustí. Co oprava odložila stranou, vrátí `strom repair undo
+  <razítko>` (uživatel ve svém terminálu, jedna zapečetěná operace), i po opravě z verze 1.30.
+
+- **Jeden most na výzkum i po aktualizaci.** Most staršího stromu, který zůstal běžet vedle mostu výzkumu, skončí sám:
+  když jeho nástupce najde výzkum v držení jiného mostu, při nejbližší kontrole, nebo když aktualizace smazala strom,
+  ze kterého běží (dřív každých 16 sekund hlásil chybu). Předání mostu novějšímu stromu je i rychlejší: starý most
+  odpovídá, zatímco se nový strom ověřuje.
+
+- **Drobnosti.** Údaj, jehož ověření uživatel posunul dopředu, je v souboru pro aplikaci Strom označený jako vyžádaný,
+  takže aplikace už znovu nenabízí „Ověřit přednostně“. `strom error --note` skryje i skloňované tvary jmen a míst, která
+  výzkum zná („z Brna“, „v Praze“). `strom task wait --request` najde soubor i tehdy, když je jeho jméno zadané v jiné
+  normalizační formě Unicode (cesta napsaná na Macu, použitá na Windows).
+
+## 1.30.1
+
+*9. 11. 2026 · patří k aplikaci Strom 3.26.0.*
+
+- **Výzkum s historií poškozenou cloudovým diskem jde přijmout tak, jak je.** Když chybí nejstarší logy výzkumu a jeho
+  historie (git) nejde přečíst (třeba u výzkumu, který byl v iCloud Drive), `strom verify` to řekne a u každého
+  záznamu, který už nenajde zapečetěný, ukáže jedinou cestu: uživatel záznamy projde a ve vlastním terminálu spustí
+  `strom seal accept`. Bez potvrzení jen spočítá, co by udělal; po potvrzení zapečetí záznamy tak, jak jsou, jednou
+  operací, poškozenou historii odsune stranou (`.git-damaged-<kdy>`, nikdy nesmaže), založí novou a kopie iCloudu
+  (`… 2.lock`) dá stranou. Žádný záznam se nezmění, nic se nesmaže; agent ho nikdy nespustí a jiné nálezy kontroly
+  nepřijme. Dřív se na poškozené historii zastavil každý zápis i `strom check` a `strom repair` uměl jen vrátit
+  starší stav.
+
 ## 1.30.0
 
-*Připravuje se: bety do 1.30.0-beta.5. Oddíl bude úplný s vydáním.*
+*9. 11. 2026 · patří k aplikaci Strom 3.26.0.*
 
 - **Údaje ověřené proti originálu.** Narození, křest, sňatek, úmrtí nebo pohřeb, který cituje původní záznam, ale
   zůstává pravděpodobný nebo možný, agent ověří proti tomu originálu: podívá se na sken a údaj buď povýší na doložený,

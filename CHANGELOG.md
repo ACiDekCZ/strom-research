@@ -5,9 +5,44 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.31.0
+
+*In preparation: the betas up to 1.31.0-beta.1. The section is complete with the release.*
+
+- **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
+  older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
+  verify`, `strom check` and a refused write say `history-reverted` with the number of records a repair would remove,
+  and point to the way that loses nothing: the whole folder backed up, `.git` put back from a backup or Time Machine,
+  or `strom seal accept` by the user. `strom repair` that would remove more than three records, or any such record,
+  says what and asks the user at their terminal; an agent never runs it. What a repair moved aside comes back with
+  `strom repair undo <stamp>` (the user, in their terminal; one sealed operation), also after a repair of 1.30.
+
+- **One bridge per research, even after an update.** A bridge of an older strom left running beside the research's
+  own ends by itself: when its successor finds the research held by another bridge, at its next check, or when the
+  update removed the strom it runs from (before, it kept failing every 16 seconds). The hand-over to a newer strom's
+  bridge is quicker too: the old bridge keeps answering while the new strom is checked.
+
+- **Smaller things.** A fact whose verification the user moved to the front is marked as asked for in the file for the
+  Strom app, so the app no longer offers to move it forward again. `strom error --note` also hides the inflected forms of
+  the names and places the research knows ("from Brno" said as *z Brna*). `strom task wait --request` finds the file
+  also when its name is given in the other Unicode form (a path typed on a Mac, used on Windows).
+
+## 1.30.1
+
+*2026-11-09 · goes with the Strom app 3.26.0.*
+
+- **A research whose history a cloud drive damaged can be taken on as it is.** When the oldest logs of a research are
+  gone and its git history cannot be read (a research once in iCloud Drive, say), `strom verify` says so and every
+  record it no longer finds sealed points to one way: the user looks the records over and runs `strom seal accept` in
+  their own terminal. Without a yes it only counts what it would do; with it, it seals the records as they are in one
+  operation, moves the damaged history aside (`.git-damaged-<when>`, never deleted), starts a new one and sets iCloud's
+  copies (`… 2.lock`) aside. No record changes, nothing is deleted; an agent never runs it, and what the check finds of
+  another kind is never accepted. Before, every write and `strom check` stopped on the damaged history, and `strom
+  repair` could only return an older state.
+
 ## 1.30.0
 
-*In preparation: the betas up to 1.30.0-beta.5. The section is complete with the release.*
+*2026-11-09 · goes with the Strom app 3.26.0.*
 
 - **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
   original record but stays probable or possible is verified by the agent against that original: it looks at the scan

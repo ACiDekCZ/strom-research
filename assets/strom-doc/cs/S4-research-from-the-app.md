@@ -250,10 +250,23 @@ a co jen ve výzkumu, říká [R6.5](R6-awaiting-action.md#R6.5).
 - **Hranice:** pod seznamem stojí, kde se odpovídá: **Odpovídá se ve výzkumu. Strom se po odpovědi aktualizuje sám.**,
   u otázek k místům **Na otázky k místům se odpovídá tady.**, při obojím **Na otázky k místům se odpovídá tady, na
   ostatní ve výzkumu.** Položky jen pro terminál aplikace nedostane ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
-- **Ovládání:** aplikace: panel, oddíl **Čeká na vyřízení**; menu **Výzkum → Čeká na vyřízení**.
-- **Platí od:** aplikace 3.4.0. Otázky k místům od výzkumu 1.25.0.
+- **Ze stromu:** kartička osoby, na kterou něco čeká, má značku **!** (bublina: **Klik: odpovědět**). Klik na ni
+  a položka **Odpovědět · N čeká** v nabídce osoby udělají totéž:
+  - čeká-li na osobu jedna položka, otevře se její odpověď stejně jako tlačítkem v jejím řádku v panelu;
+  - čeká-li jich víc, otevře se panel na oddílu **Čeká na vyřízení** s položkami osoby nahoře, zvýrazněnými. Na
+    telefonu, se sbaleným nebo skrytým oddílem a při otevřeném přehledu se zvýrazní v **Přehledu výzkumu**;
+  - když na žádnou položku osoby (ani na jedinou) tady odpovědět nejde, otevře se panel stejně a pod každou položkou
+    stojí **Tady odpovědět nejde: odpovídá se ve výzkumu, na počítači, kde je nainstalovaný.** Klik nikdy nezůstane
+    bez odezvy;
+  - nová verze vyprávění otevře porovnání;
+  - na dotykovém zařízení je v nabídce osoby místo **Odpovědět · N čeká** položka **Čeká na vyřízení · N ›**: zvýrazní
+    položky osoby a odpovídá se z jejich řádků.
+- **Ovládání:** aplikace: panel, oddíl **Čeká na vyřízení**; menu **Výzkum → Čeká na vyřízení**; značka **!** na
+  kartičce a **Odpovědět · N čeká** v nabídce osoby.
+- **Platí od:** aplikace 3.4.0. Otázky k místům od výzkumu 1.25.0. Značka **!** a **Odpovědět · N čeká** takto od
+  aplikace 3.26.0.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
 
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum

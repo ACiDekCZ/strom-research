@@ -2,8 +2,8 @@
 # A8 Scalanie drzew
 
 Jak aplikacja Strom scala dwa drzewa genealogiczne: plik GEDCOM z drzewem, dwa drzewa albo widok z drzewem. Opisuje
-aplikację 3.21.2. Scalenie zduplikowanej osoby wewnątrz jednego drzewa to inna sprawa
-([A5.6](A5-tree-check.md#A5.6)).
+aplikację 3.21.2; zmiany z nowszej wersji mają przy sobie jej numer. Scalenie zduplikowanej osoby wewnątrz jednego
+drzewa to inna sprawa ([A5.6](A5-tree-check.md#A5.6)).
 
 <a id="A8.1"></a>
 ## A8.1 Scalenie zawsze zakłada nowe drzewo
@@ -37,6 +37,12 @@ Aplikacja dla każdej osoby ze scalanego źródła szuka osoby w drzewie docelow
 - **Granice:** osób zastępczych (puste miejsce dla nieznanego rodzica) nie łączy się w pary. Osoba bez imienia
   połączona w parę przez krewnego idzie zawsze do sprawdzenia.
 - **Obowiązuje od:** aplikacja 1.0.0
+- **Od aplikacji 3.26.0:** osoby paruje się także według identyfikatora programu (`_UID` = `UID`, `_FSFTID` = `EXID`
+  z adresem familysearch.org), z powodem **Ten sam identyfikator w pliku**. Takie dopasowanie jest pewne tylko przy
+  podobnym imieniu i nazwisku, płci nie mężczyzna wobec kobiety, latach urodzenia najwyżej 3 od siebie i bez różnego
+  globalnego identyfikatora; w przeciwnym razie to propozycja z wynikiem najwyżej 79. Oznaczenie rekordu i `RIN` dodają
+  do zgodności imion i nazwisk 25 punktów tylko przy plikach tego samego programu. Rodzin według identyfikatora się nie
+  paruje ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
 
@@ -63,6 +69,9 @@ Kreator **Scalanie danych** pokazuje dopasowania, konflikty i nowe osoby. Każde
 - Rozpoczęte scalanie można przy zamknięciu **Zapisz na później**; wraca jako **Niedokończone scalania**.
 - **Obowiązuje od:** aplikacja 1.0.0; konflikty pary aplikacja 3.0.0; Pomiń i Tylko uzupełnianie istniejących osób
   aplikacja 1.19.0
+- **Od aplikacji 3.26.0:** nierozstrzygnięte dopasowanie potwierdza się samo dopiero od wyniku 80 (w kreatorze
+  z góry potwierdzone, ✓). Dopasowanie 50–79 jest tylko proponowane (?) i bez decyzji człowieka zostaje dodane jako
+  nowa osoba: zdublowaną osobę można scalić później, błędnego scalenia cofnąć się nie da.
 
 <!-- zdroj: app:src/merge/executor.ts:78 AUTO_CONFIRM_SCORE, :110 detectPartnershipConflicts, :302 toAdd (updateOnly, skip, reject), :792 mergePersonData · src/merge/ui.ts:1408 pendingGate · strings.ts merge.confirm, merge.reject, merge.skip, merge.manualMatch, merge.updateOnlyLabel, merge.keepExisting, merge.useImport, merge.suggestedPrecise, merge.partnershipFields, merge.closeSave, merge.pendingMerges · git v3.0.0 (2218cea), v1.19.0 (cf43bde) -->
 
@@ -81,5 +90,9 @@ Poza osobami i relacjami scala się też listy, które należą do całego drzew
   scalenie przyniosło nowe ([A5](A5-tree-check.md)).
 - **Granice:** ponowny import pliku badania do drzewa badania omawia [S1](S1-connecting-app-and-research.md).
 - **Obowiązuje od:** aplikacja 1.0.0; zgłaszanie problemów kontroli aplikacja 1.19.0
+- **Od aplikacji 3.26.0:** notatki osoby, relacji i źródła przy scaleniu się nie podwajają. Przed scaleniem zapisuje
+  się kopia zapasowa drzewa ([S6.5](S6-tree-from-another-program.md#S6.5)). Po scaleniu pliku innego programu aplikacja
+  pokazuje kartę **Co dalej** ([S6.4](S6-tree-from-another-program.md#S6.4)). Ręczne scalenie dwóch osób
+  ([A5.6](A5-tree-check.md#A5.6)) notatek nie łączy.
 
 <!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->

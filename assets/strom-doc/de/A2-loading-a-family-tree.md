@@ -4,7 +4,9 @@
 Das Kapitel sagt, was die App aus einer GEDCOM-Datei eines anderen Programms übernimmt, was sie überspringt und wie
 sie das in der Zusammenfassung des Imports offenlegt. Beschrieben werden die Strom-App 3.21.2 (und die Forschung
 1.25.2); Änderungen aus einer neueren Version tragen deren Nummer. Das Öffnen einer Datei der Forschung und die
-Bindung eines Stammbaums an die Forschung gehören in Kapitel S1.
+Bindung eines Stammbaums an die Forschung gehören in Kapitel S1. Den ganzen Weg eines Stammbaums aus einem anderen
+Programm (Zuverlässigkeitsmarken, Schutz der Angaben aus dem Stammbaum, die Karte **Wie weiter**, Export zurück)
+beschreibt [S6](S6-tree-from-another-program.md).
 
 <a id="A2.1"></a>
 ## A2.1 Was eingelesen wird und was nicht
@@ -26,6 +28,20 @@ Angabe von Person, Familie und Quelle geht nichts stillschweigend verloren.
 - **Bedienung:** **Import → GEDCOM importieren** (Datei `.ged`). In einem neuen Stammbaum auch die Schaltfläche im
   leeren Stammbaum. Zusammenfassung siehe [A2.1.1](#A2.1.1).
 - **Gilt seit:** App 1.9.0 (Zusammenfassung der nicht übertragenen Tags); Notizzeilen seit App 3.0.0.
+- **Ab App 3.26.0:**
+  - `_UID`, `RIN`, `AFN` und weitere Programm-IDs (`UID`, `EXID`, `_FSFTID`) werden nicht übersprungen: sie bleiben bei
+    Person und Familie zusammen mit der ursprünglichen Datensatzkennung (`@I12@`) als Programm-ID erhalten
+    ([S6.1](S6-tree-from-another-program.md#S6.1));
+  - eigene Tags des Programms (`_XXX`) direkt bei Person, Familie und Quelle bleiben für den Export **Zurück zu
+    {program}** erhalten ([S6.6](S6-tree-from-another-program.md#S6.6)); tiefere eigene Tags werden gezählt;
+  - Fotoausschnitte von MyHeritage (`_POSITION`, `_CUTOUT`) sind Verwaltungsangaben und werden nicht gezählt;
+  - eine vor der Heirat eingetragene Scheidung (PAF) geht nicht verloren und überschreibt die Heirat nicht; eine leere
+    Heirat oder Scheidung, die vor einer anderen mit Datum eingetragen ist (MyHeritage), behält Datum und Ort der
+    datierten;
+  - ein als Beschreibung eingetragener Name (`Son`, `Unknown`) kommt so zurück, wie er eingetragen war, ohne eine
+    daraus gemachte Notiz; Text auf der Zeile einer Angabe (Bildung, Begräbnis, eigenes Ereignis), eine Adresse in
+    Teilen (`ADR1`, `CITY`…) und ein Weblink im Text einer Quelle bleiben erhalten und kommen so zurück, wie die Datei
+    sie hatte.
 
 <!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
 
@@ -49,6 +65,14 @@ angeboten.
 - **Ab App 3.22.0:** Über der Liste der übersprungenen Tags steht ein Satz, was die Kachel **Nicht
   unterstützt** zählt: Teile der Datei, die Strom nicht kennt und nicht übertragen hat, keine Personen und
   Beziehungen.
+- **Ab App 3.26.0:**
+  - die Zeile „Für den Export „Zurück zu {program}“ aufbewahrt: N GEDCOM-Tags (…)“, wenn die Datei eigene Tags des
+    Programms hat;
+  - die Zeile **Textkodierung** bei einer Datei mit erratener oder einbytiger Kodierung ([A2.2](#A2.2));
+  - nach dem Import einer Datei eines anderen Programms die Karte **Wie weiter**
+    ([S6.4](S6-tree-from-another-program.md#S6.4)); sie ersetzt die früheren Fragen nach dem Import;
+  - **In Stammbaum einfügen** speichert zuerst eine Sicherung des Stammbaums
+    ([S6.5](S6-tree-from-another-program.md#S6.5)).
 
 <!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
 
@@ -69,6 +93,18 @@ Die App liest GEDCOM 5.5.1 und GEDCOM 7 und erkennt die Kodierung selbst. Sie ex
 - **Gilt seit:** App 1.16.0 (Umwandlung von ANSEL und Kodierung nach dem Kopf).
 - **Ab App 3.22.0:** Die GEDCOM-7-Tags `UID`, `CREA` und `EXID` werden als Verwaltungsangaben stillschweigend
   übersprungen; in 3.21.2 werden sie in **Nicht unterstützt** gezählt.
+- **Ab App 3.26.0:**
+  - `CHAR CP1250` oder `WINDOWS-1250` ist Windows-1250. `ANSI` bedeutet die Codepage des Computers, der die Datei
+    geschrieben hat: gültiges UTF-8 bleibt UTF-8, sonst entscheiden die Wörter der Datei zwischen Windows-1250
+    (Mitteleuropa: č ř ě ł ż) und Windows-1252 (Westeuropa). Ebenso wird die Kodierung einer Datei ohne `CHAR` erraten
+    und einer Datei mit `CHAR UTF-8`, die kein gültiges UTF-8 ist;
+  - wenn die Kodierung erraten wurde oder einbytig ist und die Datei Text mit diakritischen Zeichen hat, zeigt die
+    Zusammenfassung des Imports die Zeile **Textkodierung** mit **Namensbeispiele:** und der Wahl einer anderen
+    Kodierung (**UTF-8**, **Windows-1250 (Mitteleuropa)**, **Windows-1252 (Westeuropa)**, **ISO-8859-2 (Latin-2)**,
+    **ANSEL (älteres GEDCOM)**). Verstümmelte Zeichen in Namen (è statt č, ø statt ř) bedeuten, dass eine andere
+    Kodierung passt. **Bedienung:** die Wahl in der Zeile **Textkodierung**;
+  - eigenständige Mediendatensätze `0 @O1@ OBJE` werden über die Verweise auf sie gelesen; ein so verwiesenes Foto
+    einer Familie wird nur gezählt.
 
 <!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
 
@@ -178,6 +214,9 @@ GEDCOM 5.5.1 nicht kann. Der Kopf `1 SOUR STROM` sagt, dass Strom die Datei gesc
   Bindung an die Forschung im Kopf (`_STROM_TREE` u. a.) behandeln S1 und S2.
 - **Bedienung:** **Export → GEDCOM exportieren**.
 - **Gilt seit:** App 3.9.0 oder früher (einzelne Tags kamen bis 3.19.0 hinzu).
+- **Ab App 3.26.0:** Programm-IDs kommen unter `_STROM_IMPORT` und `_STROM_XID` zurück; beim erneuten Einlesen wird
+  die Datei danach gepaart ([S6.7](S6-tree-from-another-program.md#S6.7)). Eine Datei mit dem Kopf von Strom ist kein
+  Stammbaum aus einem anderen Programm: sie hat weder die Marke **Aus dem Stammbaum** noch die Karte **Wie weiter**.
 
 <!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
 
@@ -193,5 +232,8 @@ das Ergebnis als weiteren neuen Stammbaum ([A8](A8-merging-trees.md)).
 - **Bedienung:** **Import → GEDCOM importieren → Als neuen Stammbaum importieren** oder **Mit Vorhandenem
   zusammenführen**.
 - **Gilt seit:** App 1.0.0
+- **Ab App 3.26.0:** ein erneut eingelesener Stammbaum desselben Programms wird auch nach der Programm-ID gepaart (Grund
+  **Gleiche ID in der Datei**); eine Übereinstimmung von 50–79 wird nur angeboten
+  ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/ui.ts:1447 TreeManager.createTree · strings.ts treeManager.importAsNewTree, importDialog.mergeExisting -->

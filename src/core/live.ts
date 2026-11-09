@@ -978,6 +978,22 @@ function dropLiveNote(root: string, pid: number): void {
 }
 
 /**
+ * The bridge that started this one to take over from it (a newer strom on disk), when another bridge holds the tree:
+ * not the tree's bridge either — ended too, never left to go on beside it (found 2026-11-09 after an update: a bridge of
+ * an older strom, whose successor ended for the tree's bridge, took that for "did not take over" and ran on for hours
+ * from a version's folder the update had removed). Only that bridge — the one that said so (STROM_LIVE_REPLACES) or, of
+ * an older strom, this one's parent — never one live.json names (that one checks its claim itself), never a process that
+ * is no bridge; on Windows, which cannot tell a bridge by its command, only asked through its stop file, never a signal.
+ */
+function endStarter(root: string, env: Env, holder: number): void {
+  const starter = replacedBridge(env);
+  if (!starter || starter === holder || starter === process.pid) return;
+  if (liveRunning(root)?.pid === starter) return;
+  const how = endBridge(starter, root, { why: `another bridge of this tree runs (${holder}): the bridge of strom ${env.STROM_LIVE_RENEWED ?? VERSION} it started ended for it`, back: false, askOnly: process.platform === "win32" });
+  if (how === "stopped" || how === "killed") noteLive(root, `the bridge ${starter} that started this one (${process.pid}) ended too: another bridge of this tree runs (${holder})`);
+}
+
+/**
  * Tests only: the folder where a run of the tests keeps a note of each bridge (STROM_TEST_BRIDGES; test/setup.ts), so
  * none outlives its test — ended with its world, and the run fails when one is left.
  */
@@ -1217,7 +1233,7 @@ function readStopAsk(root: string): StopAsk | undefined {
  * it says so, at most `writeMs` (STROM_LIVE_STOP_WRITE_MS, 30 s); only then a signal. How it ended: "stopped" as it
  * should, "killed" for good, "alive" when even that did not end it, "gone" when no bridge ran.
  */
-export function endBridge(pid: number, root: string, opts: { waitMs?: number; askMs?: number; writeMs?: number; platform?: NodeJS.Platform; why?: string; back?: boolean } = {}): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
+export function endBridge(pid: number, root: string, opts: { waitMs?: number; askMs?: number; writeMs?: number; platform?: NodeJS.Platform; why?: string; back?: boolean; askOnly?: boolean } = {}): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
   const platform = opts.platform ?? process.platform;
   const waitMs = opts.waitMs ?? 3000;
   if (!isBridge(pid, platform)) return "gone";
@@ -1260,6 +1276,9 @@ export function endBridge(pid: number, root: string, opts: { waitMs?: number; as
     }
     if (heard) {
       if (gone(waitMs + 1000)) return "stopped";
+    } else if (opts.askOnly) {
+      // only asked (a process not to be told for a bridge by its command): one that did not hear is left as it is
+      return "alive";
     } else {
       // not heard (a bridge of an older strom, one stuck): asked by a signal — on Windows that ends it at once, unheard
       const signal = platform === "win32" ? "SIGKILL" : "SIGTERM";
@@ -2505,14 +2524,18 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 }
 
 /** Run the bridge of the tree here, until idle or stopped. */
-export function serveLive(root: string, env: Env): Promise<void> {
+export function serveLive(root: string, env: Env): Promise<number | undefined> {
   noteTestBridge(root, env);
   // the tree's bridge runs already, or another one claimed the tree a moment before (a newer strom's bridge taking over
-  // while a strom starts one): this one is not needed — it ends before it writes or takes anything
+  // while a strom starts one): this one is not needed — it ends before it writes or takes anything, and so does the
+  // bridge that started it to take over (none of the tree's either). What it ended for: the bridge that holds the tree
+  // (strom live serve: exit EXIT.locked, so the bridge that started it knows it ended for another bridge, not that it
+  // could not start).
   const before = claimTree(root, env);
   if (before) {
     noteLive(root, `another bridge of this tree runs already (${before}): this one (${process.pid}) ends`);
-    return Promise.resolve();
+    endStarter(root, env, before);
+    return Promise.resolve(before);
   }
   // the stroms it started that write (a send, an adoption, an original, a batch): never started again under them
   const kids = new Set<ChildProcess>();
@@ -6125,10 +6148,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
   process.on("uncaughtException", (e) => noteLive(root, `uncaught: ${errorText(e)}`));
   process.on("unhandledRejection", (e) => noteLive(root, `unhandled: ${errorText(e)}`));
 
-  return new Promise((resolve) => {
+  return new Promise<number | undefined>((resolve) => {
     let up = false;
     let wanted = last?.port ?? 0;
     let tries = 0;
+    // when the port is asked for again: at once after the bridge before ended (its port free — the address the app
+    // follows answers again sooner), else after a while
+    let again = 250;
     server.on("error", (e: NodeJS.ErrnoException) => {
       if (!up && wanted && e.code === "EADDRINUSE") {
         // the bridge before this one still holds it (stuck, or ending just now): ended, its port taken again — the
@@ -6143,9 +6169,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
         } else if (ended !== "gone") {
           noteLive(root, `the bridge before (${before}) still held port ${wanted}: ended`);
           tries = 1;
+          if (ended === "stopped" || ended === "killed") again = 0;
         }
         if (tries > 0 && tries++ < 20) {
-          setTimeout(() => server.listen(wanted, "127.0.0.1"), 250);
+          setTimeout(() => server.listen(wanted, "127.0.0.1"), again);
+          again = 250;
           return;
         }
         noteLive(root, `port ${wanted} is taken: another one — the Strom app needs the new address (strom app --live)`);
@@ -6154,7 +6182,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return;
       }
       noteLive(root, `the server: ${errorText(e)}`);
-      if (!up) resolve();
+      if (!up) resolve(undefined);
     });
     // taking over from the bridge of an older strom (it answers meanwhile): /status made first, so the app's first ask
     // here waits for no thread's start (a few seconds on a slow computer) — at most a while
@@ -6183,7 +6211,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
         noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile}): this one (${process.pid}) ends`);
         dropOwner(root);
         server.close();
-        return resolve();
+        if (meanwhile) endStarter(root, env, meanwhile);
+        return resolve(meanwhile);
       }
       // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
       // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
@@ -6346,15 +6375,53 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // another strom does — the app waits a moment, not the new one's start (found: ~4.5 s without an answer when this
       // one closed first). One that does not take over (ends at once, never asks): this one goes on, said in the log.
       let handing: { pid: number | undefined; version: string } | undefined;
+      // ended (stop): what a renewal waited for is dropped — never a new bridge started for one that ended meanwhile
+      let over = false;
+      // Whether the strom on disk starts at all (--version), asked without holding the bridge: it answers meanwhile — a
+      // strom's start is seconds on a computer under load, which the app once waited out without an answer.
       const renew = (disk: { version: string; probe?: "fail" }) => {
         renewing = true;
         tried = disk.version;
         const { command, args } = lastingLauncher();
-        const probe = spawnSync(command, disk.probe === "fail" ? ["-e", "process.exit(7)"] : [...args, "--version"], { env: env as NodeJS.ProcessEnv, encoding: "utf8", timeout: 60_000, windowsHide: true });
-        if (probe.status !== 0) {
+        const failed = (status: string, err: string) => {
           renewing = false;
-          return noteLive(root, `strom ${disk.version} is on disk but does not start (exit ${probe.status ?? probe.signal ?? "?"}${probe.stderr ? `: ${String(probe.stderr).trim().split("\n").pop()?.slice(0, 200)}` : ""}): this bridge (${runs}) goes on`);
+          noteLive(root, `strom ${disk.version} is on disk but does not start (exit ${status}${err ? `: ${err.trim().split("\n").pop()?.slice(0, 200)}` : ""}): this bridge (${runs}) goes on`);
+        };
+        let probe: ChildProcess;
+        try {
+          probe = spawn(command, disk.probe === "fail" ? ["-e", "process.exit(7)"] : [...args, "--version"], { env: env as NodeJS.ProcessEnv, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+        } catch (e) {
+          return failed("?", errorText(e));
         }
+        let err = "";
+        probe.stderr?.on("data", (d: Buffer) => {
+          if (err.length < 4096) err += d.toString("utf8");
+        });
+        const slow = setTimeout(() => {
+          try {
+            probe.kill("SIGKILL");
+          } catch {
+            // gone
+          }
+        }, 60_000);
+        slow.unref?.();
+        let heard = false;
+        probe.once("error", (e) => {
+          if (heard) return;
+          heard = true;
+          clearTimeout(slow);
+          if (!over) failed("?", errorText(e));
+        });
+        probe.once("close", (code, signal) => {
+          if (heard) return;
+          heard = true;
+          clearTimeout(slow);
+          if (over) return;
+          if (code !== 0) return failed(String(code ?? signal ?? "?"), err);
+          handOver(disk);
+        });
+      };
+      const handOver = (disk: { version: string }) => {
         noteLive(root, `strom ${disk.version} on disk: the bridge starts again with it (port ${port}, its token kept)`);
         const back = (why: string) => {
           if (!handing) return;
@@ -6375,7 +6442,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
         }
         handing = { pid: child.pid, version: disk.version };
-        child.once("exit", (code, signal) => back(`it ended at once (exit ${code ?? signal ?? "?"})`));
+        child.once("exit", (code, signal) => back(code === EXIT.locked ? "it ended at once: another bridge of this tree runs" : `it ended at once (exit ${code ?? signal ?? "?"})`));
         setTimeout(() => {
           if (!handing) return;
           try {
@@ -6440,11 +6507,46 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const HISTORY_MS = Number(env.STROM_LIVE_HISTORY_MS ?? 60_000);
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + Number(env.STROM_TIDY_FIRST_MS ?? 5 * 60_000);
+      // Another bridge holds the tree (its claim, live.json naming it — not this one): this one is none of the tree's —
+      // one left over beside it (started late, by an older strom, its successor ended) ends itself, looked at every
+      // while (STROM_LIVE_OWNER_MS). One live.json names goes on: a bridge claiming the tree while it starts ends for it.
+      const OWNER_MS = Number(env.STROM_LIVE_OWNER_MS ?? 10_000);
+      let ownerChecked = Date.now();
+      // (only read — live.json and the claim are written whole — never waiting for the owner lock in the bridge's tick)
+      const heldBy = () => {
+        let named: unknown;
+        try {
+          named = (JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as { pid?: unknown }).pid;
+        } catch {
+          // none
+        }
+        return named === process.pid ? undefined : rivalBridge(root, env);
+      };
+      // The strom this bridge runs is gone from the disk (an update removed its version's folder, npm put another in
+      // its place): what it loads only when needed (its threads, the widget) fails from now on — it ends, said in its
+      // log (found 2026-11-09: a bridge whose version's folder an update had removed wrote a failure every 16 s for
+      // hours). Seen gone at two looks STROM_LIVE_GONE_MS apart: files being replaced for a moment end no bridge.
+      const ownCode = fileURLToPath(import.meta.url);
+      let codeGoneSince: number | undefined;
+      const codeGone = () => {
+        if (fs.existsSync(ownCode)) {
+          codeGoneSince = undefined;
+          return false;
+        }
+        codeGoneSince ??= Date.now();
+        return Date.now() - codeGoneSince >= goneMs;
+      };
       const timer = setInterval(() => {
         // its research gone (taken off the computer, a test's folder, moved; its .strom deleted): nothing to follow —
         // even while handing over (found: bridges of a folder removed in the middle of it left running for hours)
         if (researchGone()) return stop("the research is no longer there", "gone", false);
         if (renewing) return;
+        if (codeGone()) return stop(`the strom it runs is no longer on the disk (${path.dirname(path.dirname(path.dirname(ownCode)))}): this one (${process.pid}) ends`, "stopped", false);
+        if (Date.now() - ownerChecked > OWNER_MS) {
+          ownerChecked = Date.now();
+          const holder = safe("the tree's claim", heldBy);
+          if (holder) return stop(`another bridge of this tree holds it (${holder}): this one (${process.pid}) ends`, "stopped", false);
+        }
         if (Date.now() - renewChecked > RENEW_MS) {
           renewChecked = Date.now();
           const disk = diskVersion(env);
@@ -6584,6 +6686,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const handed = !!handing && reason === "restart";
         if (handed) noteLive(root, `handed over to the bridge of strom ${handing!.version} (${handing!.pid ?? "?"})`);
         handing = undefined;
+        over = true;
         clearInterval(timer);
         clearInterval(keepAlive);
         clearInterval(stopAsked);
@@ -6612,7 +6715,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const was = readLast(root);
         if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });
         noteLive(root, `ended: ${why}`);
-        resolve();
+        resolve(undefined);
       };
       process.once("SIGTERM", () => stop("SIGTERM", "signal"));
       process.once("SIGINT", () => stop("SIGINT", "signal"));

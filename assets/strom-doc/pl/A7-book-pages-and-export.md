@@ -59,6 +59,11 @@ Przed wynikiem z drzewa wybiera się, jak pokazać osoby żyjące. W eksporcie o
   cytaty i załączniki **u wszystkich osób, także zmarłych** (aplikacja pisze to przy opcji). Księga rodu, strony
   i strona osoby odbierają źródła tylko osobom żyjącym; źródło cytowane tylko u żyjących wypada.
 - **Obowiązuje od:** aplikacja 1.2.0; źródła zmarłych w księdze i na stronach aplikacja 3.18.0
+- **Od aplikacji 3.26.0:** eksport GEDCOM zachowuje źródła i cytaty zmarłych w każdej opcji; pomija tylko cytaty osób
+  żyjących i mówi to („U N żyjących osób zostanie pominiętych K cytatów. Zmarłym źródła pozostaną.”, opcja **Zachowaj
+  źródła**). Eksport Aplikacja z danymi i JSON się nie zmienia. Eksport GEDCOM najpierw pyta, **Do czego służy plik**:
+  **Z powrotem do {program}** (pełne dane, źródła i identyfikatory programu) albo **Do udostępnienia innym**
+  ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/privacy.ts applyPrivacy (keepDeceasedSources) · strings.ts privacy.label, privacy.modeFull, privacy.modeInitials, privacy.modeAnonymous, privacy.modeMinimal, privacy.livingPerson, privacy.dropsSources · book.dlg.privacy · CHANGELOG.cs.md 3.18.0 -->
 
@@ -78,6 +83,8 @@ Przed wynikiem z drzewa wybiera się, jak pokazać osoby żyjące. W eksporcie o
   jest pod chronionym imieniem. Gdy wybór zawiera osoby żyjące, a ochrona jest wyłączona, okno ostrzega, że plik
   będzie zawierał ich imiona i nazwiska, daty i miejsca.
 - **Obowiązuje od:** aplikacja 1.2.0; strona osoby aplikacja 3.18.0; księga rodu aplikacja 3.19.0
+- **Od aplikacji 3.26.0:** GEDCOM z opcją **Do udostępnienia innym** (domyślnie) ma Inicjały + rok urodzenia, z opcją
+  **Z powrotem do {program}** Pełne dane ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/ui/import-export.ts (výchozí privacy podle formátu) · src/book-options.ts:55 · src/person-page.ts:94, :104 personPageExportPrivacy · src/family-pages.ts:309 · src/ui/share-ui.ts · strings.ts familyPages.privacyWarn -->
 

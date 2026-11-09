@@ -1155,11 +1155,27 @@ export interface VerifyCounts {
 /** How a fact waits for its verification: in the queue (the sweep's or bulk, asked for by the person), for the scans, for an archive's permission. */
 export type VerifyWait = "wait" | "asked" | "images" | "permission";
 
+/**
+ * A task of verification the person asked for: their own (verify:asked, verify:search), or the sweep's or a bulk one
+ * the person put first — their "verify" of a fact it holds, strom task order next — until a session on it ends (the
+ * person's "next" is used once). The Strom app shows it as asked and does not offer to put it first again.
+ */
+function askedFor(tree: Tree): (t: Task) => boolean {
+  let ended: Session[] | undefined;
+  return (t) => {
+    if (t.origin === VERIFY_ASKED || t.origin === VERIFY_SEARCH) return true;
+    if (!verifiesInTurn(t) || t.queueAt?.do !== "next") return false;
+    ended ??= tree.list<Session>("session").filter((s) => s.state !== "open" && s.task);
+    return ownTurn(t, ended) === "next";
+  };
+}
+
 /** How a task of verification waits: for an archive's permission, for the scans, asked for by the person, its turn. */
 function waitOf(tree: Tree): (t: Task) => VerifyWait {
   const withImages = setsWithImages(tree);
   const decision = waitsForDecision(tree, permissionQuestions(tree.env), withImages);
-  return (t) => (decision(t) ? "permission" : lacksImages(tree, t, withImages) ? "images" : t.origin === VERIFY_ASKED || t.origin === VERIFY_SEARCH ? "asked" : "wait");
+  const asked = askedFor(tree);
+  return (t) => (decision(t) ? "permission" : lacksImages(tree, t, withImages) ? "images" : asked(t) ? "asked" : "wait");
 }
 
 /** How each fact of an open task of verification waits, and the task holding it. */
@@ -1242,7 +1258,8 @@ export function verifyCounts(tree: Tree): VerifyCounts {
     else if (s === "permission") permission++;
   }
   // the person's own, whatever it waits for
-  const askedTasks = tree.list<Task>("task").filter((t) => HOLDING.has(t.state) && !t.retracted && (t.origin === VERIFY_ASKED || t.origin === VERIFY_SEARCH));
+  const askedBy = askedFor(tree);
+  const askedTasks = tree.list<Task>("task").filter((t) => HOLDING.has(t.state) && !t.retracted && isVerifyTask(t) && askedBy(t));
   const asked = new Set(askedTasks.flatMap((t) => t.where.filter((w) => w.startsWith("E")))).size;
   let kept = 0;
   let confirmed = 0;

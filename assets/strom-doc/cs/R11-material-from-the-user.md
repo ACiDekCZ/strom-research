@@ -73,8 +73,20 @@ jako vodítka.
 - **Ovládání:** terminál: `strom intake rodokmen.ged`. Načtení rodokmenu do aplikace popisuje
   [A2](A2-loading-a-family-tree.md).
 - **Platí od:** výzkum 1.0.0
+- **Od výzkumu 1.30.0:**
+  - každý údaj má původ (z rodokmenu, od člověka, z výzkumu). Údaj z rodokmenu agent změní jen s citovaným záznamem,
+    jinak navrhne; údaj člověka jen navrhne. Hodnota z rodokmenu zůstane uložená a vrátit ji smí jen člověk
+    (`strom event revert`, `strom person revert`) ([S6.3](S6-tree-from-another-program.md#S6.3)). Hodnota ze souboru
+    aplikace Strom, kterou nikdo od převzetí nezměnil, je z rodokmenu uživatele: chráněná jako údaj člověka, ale
+    za potvrzenou člověkem neplatí;
+  - ID programu (`_UID`, `EXID`, `_FSFTID` …) se uchovají: tentýž rodokmen převzatý znovu nikoho nepřidá dvakrát;
+    osoba jen možná tatáž se nespojí a výsledek ji uvede (`candidates`); co se nepřevzalo, výsledek spočítá
+    (`notTaken`) ([S6.8](S6-tree-from-another-program.md#S6.8));
+  - soubor ve Windows-1250 nebo Windows-1252 („ANSI“) se čte se správnými písmeny;
+  - pramen rodokmenu nemá stranu (`PAGE`): každý údaj uvádí svůj řádek z rodokmenu;
+  - výzkum založený dřív se po aktualizaci jednou označí (`strom fixes undo origins` vezme zpět).
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree -->
 
 <a id="R11.4"></a>
 ## R11.4 Dávka z aplikace

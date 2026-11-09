@@ -32,12 +32,12 @@ const WORK_WORDS = /\btasks?\b|\bqueue[ds]?\b|\bsessions?\b/i;
 const notInArchive = (text: string): boolean => AI_WORDS.test(text) || WORK_WORDS.test(text);
 const ARCHIVE_COMMANDS = new Set([
   "help", "menu", "status", "tidy",
-  "init", "trees", "trees use", "trees remove", "trees forget", "mode", "lang", "pack", "unpack", "seal adopt", "backup", "sync", "sync undo", "sync discard",
+  "init", "trees", "trees use", "trees remove", "trees forget", "mode", "lang", "pack", "unpack", "seal adopt", "seal accept", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
   "find", "stats", "pedigree", "recent", "history", "history back", "doc",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
-  "check", "verify", "repair", "seal adopt", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
+  "check", "verify", "repair", "repair undo", "seal adopt", "seal accept", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
   "setup", "doctor", "error", "update", "config where", "config get", "config set", "config unset", "uninstall", "shortcut",
   "hook list", "hook on", "hook off", "hook test", "link on", "link off", "link status",
@@ -237,7 +237,7 @@ export const HUMAN_COMMANDS = [
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",
-  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "backup", "tidy", "check",
+  "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
   "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "fixes review", "media calibrate",
   "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "quality dismiss", "quality undo", "place answer", "place undo",
   "config get", "config set", "login", "connector add", "connector remove", "connector use", "link on", "link off", "hook on", "hook off",

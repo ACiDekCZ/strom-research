@@ -273,6 +273,18 @@ function identityLines(dir: string): string[] {
   return lines.length ? ["[user]", ...lines] : [];
 }
 
+/**
+ * Is the research's git history unusable as strom uses it: no last commit to read, its tree (or one inside it)
+ * missing, git status failing. Cheap enough for every check (no fsck: a research's history may be long). A research
+ * with no .git is "missing", not damaged.
+ */
+export function damaged(root: string): boolean {
+  if (!fs.existsSync(path.join(root, ".git"))) return false;
+  if (runGit(root, ["rev-parse", "--verify", "-q", "HEAD^{commit}"]).status !== 0) return true;
+  if (runGit(root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"]).status !== 0) return true;
+  return runGit(root, ["status", "--porcelain", "-z", "--", "strom.json"]).status !== 0;
+}
+
 export interface HeadInfo {
   hash: string;
   tree: string;

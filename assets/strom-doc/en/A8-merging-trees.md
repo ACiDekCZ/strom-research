@@ -2,7 +2,7 @@
 # A8 Merging trees
 
 How the Strom app merges two family trees: a GEDCOM file with a tree, two trees, or a view with a tree. Describes the
-app 3.21.2. Merging a duplicate person within one tree is a different matter
+app 3.21.2; changes from a later version carry its number. Merging a duplicate person within one tree is a different matter
 ([A5.6](A5-tree-check.md#A5.6)).
 
 <a id="A8.1"></a>
@@ -36,6 +36,11 @@ score.
 - **Limits:** placeholder persons (an empty place for an unknown parent) are not paired. A person without a given name
   paired through a relative always goes to review.
 - **Since:** app 1.0.0
+- **From app 3.26.0:** people are also paired by program ID (`_UID` = `UID`, `_FSFTID` = `EXID` with the address
+  familysearch.org), with the reason **Same ID in the file**. Such a match is certain only with a similar name, sex
+  not man against woman, years of birth at most 3 apart and no differing global ID; otherwise it is a proposal with a
+  score of at most 79. The record identifier and `RIN` add 25 points to a name match only for files of the same
+  program. Families are not paired by ID ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
 
@@ -59,6 +64,9 @@ The wizard **Merge data** shows the matches, conflicts and new people. Each matc
   and place of marriage and the end date. A fact on one side only is filled in.
 - A merge in progress can be kept on closing with **Save for later**; it comes back as **Pending merges**.
 - **Since:** app 1.0.0; couple conflicts app 3.0.0; Skip and Only update existing people app 1.19.0
+- **From app 3.26.0:** an undecided match is confirmed by itself only from a score of 80 (confirmed in advance in the
+  wizard, ✓). A match of 50–79 is only offered (?) and without a person's decision it is added as a new person: a
+  doubled person can be merged later, a wrong merge cannot be undone.
 
 <!-- zdroj: app:src/merge/executor.ts:78 AUTO_CONFIRM_SCORE, :110 detectPartnershipConflicts, :302 toAdd (updateOnly, skip, reject), :792 mergePersonData · src/merge/ui.ts:1408 pendingGate · strings.ts merge.confirm, merge.reject, merge.skip, merge.manualMatch, merge.updateOnlyLabel, merge.keepExisting, merge.useImport, merge.suggestedPrecise, merge.partnershipFields, merge.closeSave, merge.pendingMerges · git v3.0.0 (2218cea), v1.19.0 (cf43bde) -->
 
@@ -78,5 +86,9 @@ Besides people and relationships, the lists that belong to the whole tree are me
 - **Limits:** a repeated import of the research's file into the research's tree is covered by
   [S1](S1-connecting-app-and-research.md).
 - **Since:** app 1.0.0; reporting problems of the check app 1.19.0
+- **From app 3.26.0:** notes of a person, a relationship and a source are not doubled in a merge. Before the merge a
+  backup of the tree is saved ([S6.5](S6-tree-from-another-program.md#S6.5)). After merging another program's file
+  the app shows the card **What next** ([S6.4](S6-tree-from-another-program.md#S6.4)). A manual merge of two people
+  ([A5.6](A5-tree-check.md#A5.6)) does not join notes.
 
 <!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->

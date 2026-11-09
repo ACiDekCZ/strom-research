@@ -5,9 +5,46 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.31.0
+
+*W przygotowaniu: bety do 1.31.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
+  ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
+  `strom verify`, `strom check` i odrzucony zapis zgłaszają `history-reverted` z liczbą rekordów, które naprawa by
+  usunęła, i wskazują drogę, która nic nie traci: kopię zapasową całego folderu, `.git` z kopii zapasowej lub z Time
+  Machine albo `strom seal accept` wykonane przez użytkownika. `strom repair`, który usunąłby więcej niż trzy rekordy
+  lub którykolwiek taki rekord, mówi które i pyta w terminalu użytkownika; agent nigdy go nie uruchamia. To, co naprawa
+  odłożyła na bok, przywraca `strom repair undo <znacznik>` (użytkownik w swoim terminalu, jedna zapieczętowana
+  operacja), także po naprawie z wersji 1.30.
+
+- **Jeden most na badanie, także po aktualizacji.** Most starszego stroma, który został uruchomiony obok mostu badania,
+  kończy się sam: gdy jego następca zastaje badanie w rękach innego mostu, przy najbliższej kontroli albo gdy
+  aktualizacja usunęła strom, z którego działa (wcześniej co 16 sekund zgłaszał błąd). Przekazanie mostowi nowszego
+  stroma jest też szybsze: stary most odpowiada, podczas gdy nowy strom jest sprawdzany.
+
+- **Drobiazgi.** Fakt, którego weryfikację przesunięto na początek, jest w pliku dla aplikacji Strom oznaczony jako
+  zamówiony, więc aplikacja nie proponuje już ponownego przesunięcia. `strom error --note` ukrywa też odmienione
+  formy imion i miejsc znanych badaniu (czeskie *z Brna*, *v Praze*). `strom task wait --request` znajduje plik także
+  wtedy, gdy jego nazwa jest podana w innej formie Unicode (ścieżka wpisana na Macu, użyta w Windows).
+
+## 1.30.1
+
+*9.11.2026 · współpracuje z aplikacją Strom 3.26.0.*
+
+- **Badanie z historią uszkodzoną przez dysk w chmurze można przyjąć takim, jakie jest.** Gdy brakuje najstarszych
+  dzienników badania, a jego historii (git) nie da się odczytać (np. badanie, które było w iCloud Drive), `strom
+  verify` to mówi i przy każdym zapisie, którego już nie znajduje zapieczętowanego, wskazuje jedną drogę: użytkownik
+  przegląda zapisy i we własnym terminalu uruchamia `strom seal accept`. Bez potwierdzenia tylko liczy, co by zrobił;
+  po potwierdzeniu pieczętuje zapisy takimi, jakie są, jedną operacją, odkłada uszkodzoną historię na bok
+  (`.git-damaged-<kiedy>`, nigdy nie usuwa), zakłada nową i odkłada kopie iCloud (`… 2.lock`). Żaden zapis się nie
+  zmienia, nic nie jest usuwane; agent nigdy tego nie uruchamia, a innych wyników kontroli nie przyjmuje. Wcześniej
+  każdy zapis i `strom check` zatrzymywały się na uszkodzonej historii, a `strom repair` mógł tylko przywrócić
+  starszy stan.
+
 ## 1.30.0
 
-*W przygotowaniu: bety do 1.30.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*9.11.2026 · współpracuje z aplikacją Strom 3.26.0.*
 
 - **Dane sprawdzane z oryginałem.** Urodzenie, chrzest, ślub, zgon lub pochówek, który cytuje pierwotny zapis, ale
   pozostaje prawdopodobny lub możliwy, agent sprawdzi z tym oryginałem: obejrzy skan i albo podniesie daną do

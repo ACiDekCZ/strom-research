@@ -100,13 +100,33 @@ const PROTECT = "\u0000";
 /** A code as Masker writes it (‹3fa9c›), anywhere in a text. */
 export const MASK_CODE = /‹[0-9a-f]{5}›/g;
 
+/**
+ * A word (folded, its letters) is a form of a known one: one stem, each with its own short ending — in any language,
+ * no list of endings. Either their common beginning is nearly all of the shorter one (Lhotáka, Lhotákovi, Lhotas of
+ * Lhoták, Lhota), or the known word's last letter or two changed (Brna of Brno, Praze of Praha) with an ending no
+ * longer than its stem lets: a stem of 3 letters at least, the shorter the stem the shorter the ending, so that a
+ * common word that only begins alike stays (pravda is no form of Praha). A known word of 3 letters (Jan) only with
+ * one letter more (Jana).
+ */
+function formOf(f: string[], t: string[]): boolean {
+  const len = f.length;
+  const tl = t.length;
+  let common = 0;
+  while (common < len && common < tl && f[common] === t[common]) common++;
+  if (len >= 4 && tl >= 4 && common >= Math.max(4, Math.min(len, tl) - 2) && Math.abs(len - tl) <= 4) return true;
+  if (common < 3) return false;
+  const changed = tl - common;
+  const ending = len - common;
+  return changed <= (tl >= 5 ? 2 : tl === 4 ? 1 : 0) && ending <= (tl === 3 ? 1 : common >= 5 ? 4 : common === 4 ? 3 : 2);
+}
+
 export class Masker {
   private readonly key: Buffer;
   private readonly homes: string[];
   private vocabularyGiven: ReadonlySet<string> | (() => ReadonlySet<string>);
   /** Folded words of the research (3 letters and more). */
   private readonly terms = new Set<string>();
-  /** The words of 4 letters and more by their first 4 (a form of one begins as it does). */
+  /** The words by their first 3 letters (a form of one begins as it does). */
   private readonly byPrefix = new Map<string, string[]>();
   /** How many codes were made (each time one was asked). */
   masked = 0;
@@ -138,12 +158,10 @@ export class Masker {
         if (o.weak && this.vocabulary.has(f)) continue;
         if (this.terms.has(f)) continue;
         this.terms.add(f);
-        if ([...f].length >= 4) {
-          const p = [...f].slice(0, 4).join("");
-          const list = this.byPrefix.get(p);
-          if (list) list.push(f);
-          else this.byPrefix.set(p, [f]);
-        }
+        const p = [...f].slice(0, 3).join("");
+        const list = this.byPrefix.get(p);
+        if (list) list.push(f);
+        else this.byPrefix.set(p, [f]);
       }
     }
   }
@@ -190,15 +208,11 @@ export class Masker {
     if (!this.terms.size) return false;
     const f = foldText(word.normalize("NFC"));
     if (this.terms.has(f)) return true;
-    // a form of a known word (Lhotákovi, Lhotáka of Lhoták): their common beginning nearly all of the shorter one —
-    // never a word of strom's own (its "registry" is no form of a "register")
-    const len = [...f].length;
-    if (len < 4 || this.vocabulary.has(f)) return false;
-    for (const t of this.byPrefix.get([...f].slice(0, 4).join("")) ?? []) {
-      const tl = [...t].length;
-      const need = Math.max(4, Math.min(len, tl) - 2);
-      if (f.slice(0, need) === t.slice(0, need) && Math.abs(len - tl) <= 4) return true;
-    }
+    // a form of a known word (Lhotákovi, Lhotáka of Lhoták; z Brna, v Praze): never a word of strom's own (its
+    // "registry" is no form of a "register")
+    const fc = [...f];
+    if (fc.length < 4 || this.vocabulary.has(f)) return false;
+    for (const t of this.byPrefix.get(fc.slice(0, 3).join("")) ?? []) if (formOf(fc, [...t])) return true;
     return false;
   }
 

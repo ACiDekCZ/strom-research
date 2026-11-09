@@ -94,7 +94,7 @@ test("/status features: origin.ids only where /tree.ged carries the IDs — the 
   assert.ok(bridgeFeatures(prod, "3.26.0", "3.26.0").includes("origin.ids"));
   assert.ok(!bridgeFeatures(prod, "3.25.9", "3.26.0").includes("origin.ids"));
   assert.ok(bridgeFeatures(beta, "3.26.0-beta.2", undefined, "3.26.0-beta.2").includes("origin.ids"));
-  // the bridge's /status itself (the production app, its gate not released): without it, for every version asked
+  // the bridge's /status itself (the production app): with it exactly where the gate says
   if (!hasGit) return;
   const w = new World();
   try {
@@ -106,13 +106,14 @@ test("/status features: origin.ids only where /tree.ged carries the IDs — the 
   }
 });
 
-test("the gate: the origins only for an app that shows them — not released yet, an unknown version never; its beta from its own gate", () => {
+test("the gate: the origins only for an app that shows them — from the app's 3.26.0, an unknown version never; its beta from its own gate", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_SHOWS_ORIGIN, undefined, "set from the app's release that shows them (strom:je-venku-brany)");
+  assert.equal(APP_SHOWS_ORIGIN, "3.26.0", "the app's 3.26.0 shows them (out 2026-11-09)");
+  for (const v of [undefined, "3.25.0", "3.25.9", "3.26.0-beta.1", "3.26.0-beta.3"]) assert.equal(appShowsOrigin(prod, v), false, String(v));
+  for (const v of ["3.26.0", "3.26.1", "9.0.0"]) assert.equal(appShowsOrigin(prod, v), true, String(v));
   for (const v of [undefined, "3.25.0", "3.26.0", "9.0.0"]) {
-    assert.equal(appShowsOrigin(prod, v), false, String(v));
-    assert.equal(appShowsOrigin(prod, v, "", ""), false, String(v));
+    assert.equal(appShowsOrigin(prod, v, "", ""), false, `${v}, no gate`);
     assert.equal(appShowsOrigin(beta, v, "", ""), false, `beta ${v}, no beta gate`);
   }
   // the beta app from its own gate (3.26.0-beta.1, the app's 3.26.0-beta.1 out 2026-11-08): never an unknown version
@@ -120,10 +121,10 @@ test("the gate: the origins only for an app that shows them — not released yet
   assert.equal(appShowsOrigin(beta, "3.25.0"), false);
   if (APP_SHOWS_ORIGIN_BETA) for (const v of [APP_SHOWS_ORIGIN_BETA, "3.26.0", "9.0.0"]) assert.equal(appShowsOrigin(beta, v), true, `beta ${v}`);
   assert.equal(appShowsOrigin(prod, "3.26.0-beta.1"), false, "the production app: its own gate");
-  assert.equal(appShowsOrigin(prod, "3.26.0", "3.26.0"), true);
-  assert.equal(appShowsOrigin(prod, "3.25.9", "3.26.0"), false);
-  assert.equal(appShowsOrigin(prod, "3.26.0-beta.3", "3.26.0"), false, "a pre-release before the release");
-  assert.equal(appShowsOrigin(prod, undefined, "3.26.0"), false, "an unknown version stays off");
+  assert.equal(appShowsOrigin(prod, "3.27.0", "3.27.0"), true);
+  assert.equal(appShowsOrigin(prod, "3.26.9", "3.27.0"), false);
+  assert.equal(appShowsOrigin(prod, "3.27.0-beta.3", "3.27.0"), false, "a pre-release before the release");
+  assert.equal(appShowsOrigin(prod, undefined, "3.27.0"), false, "an unknown version stays off");
   assert.equal(appShowsOrigin(beta, "3.26.0-beta.1", undefined, "3.26.0-beta.2"), false);
   assert.equal(appShowsOrigin(beta, "3.26.0-beta.2", undefined, "3.26.0-beta.2"), true);
   assert.equal(appShowsOrigin(prod, "3.26.0-beta.2", undefined, "3.26.0-beta.2"), false, "the production app: its own gate");

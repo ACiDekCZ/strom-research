@@ -277,15 +277,19 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
     (`strom-T…-<číslo>.jpg`), a `strom media add --inbox --waiting` przenosi go do folderu zadania pod numerem skanu
     ([R9.6](#R9.6)).
 - **Granice:** Chrome zapisuje z jednej strony tylko jeden plik. Na kolejne pobrania z tej samej strony musi zezwolić
-  człowiek w pasku adresu Chrome; agent nigdy nie zmienia ustawień Chrome.
+  człowiek w pasku adresu Chrome; agent nigdy nie zmienia ustawień Chrome. Skan, którego pliku nie ma w folderze
+  pobranych plików nawet 5 s po poleceniu zapisu, `strom media add --inbox --waiting` uznaje za wstrzymany: mówi to
+  agentowi, a oczekiwanie zadania mówi człowiekowi, której witrynie zezwolić na pobieranie wielu plików („przeglądarka
+  wstrzymała skan {n}: zezwolić witrynie {witryna} na pobieranie wielu plików, jednorazowo (ikona po prawej stronie
+  paska adresu przeglądarki)”).
 - **Tylko metodyka:** program pobierający archiwum, którego przeglądarka pokazuje skany kafelkami, także zapisuje
   przez przeglądarkę, nawet część skanu; stronę księgi otwiera raz i nigdy jej nie odświeża.
 - **Dlaczego:** zgoda „przez przeglądarkę” pozwala na to, co zrobiłby człowiek w swojej przeglądarce, w jego tempie.
 - **Obsługa:** terminal (agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, potem
   `strom media add --inbox --waiting`.
-- **Obowiązuje od:** badanie 1.27.0
+- **Obowiązuje od:** badanie 1.27.0. Wstrzymany skan jest zgłaszany od badania 1.30.0.
 
-<!-- zdroj: research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Oczekiwanie na skany i powrót zadania

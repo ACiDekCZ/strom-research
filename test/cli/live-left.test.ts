@@ -95,7 +95,7 @@ test("a bridge started while the tree's bridge runs ends at once: nothing taken 
       b.once("exit", (c) => (clearTimeout(late), r(c)));
     });
     if (code === "running") b.kill("SIGKILL");
-    assert.equal(code, 0, "the second bridge ended at once");
+    assert.equal(code, 5, "the second bridge ended at once, for another bridge of the tree (EXIT.locked)");
     assert.ok(bridgeRuns(a.pid), "the tree's bridge runs on");
     const live = readJsonFile(path.join(w.cwd, ".strom", "live.json"));
     assert.deepEqual([live.pid, live.port], [a.pid, a.port]);

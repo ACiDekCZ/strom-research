@@ -5,7 +5,7 @@ Z agentem (Claude Code, Codex, Antigravity, Grok Build, OpenCode) rozmawia się 
 desktopowej agenta, gdy strom ją otwiera; praca samodzielna biegnie bez rozmowy. Od tego
 zależy, gdzie toczy się rozmowa, jakiej przeglądarki agent użyje, czego strom pilnuje, co robi człowiek i co nie
 działa bez agenta w terminalu. Zasady archiwów są wszędzie te same ([R9](R9-archives.md)); różni się tylko to, przed
-czym strom stoi. Opisuje badanie 1.29.0. Przy zasadach rozróżnia się, czego **pilnuje kod** (polecenie `strom` albo
+czym strom stoi. Opisuje badanie 1.30.0. Przy zasadach rozróżnia się, czego **pilnuje kod** (polecenie `strom` albo
 hook agenta to odrzuci), a co jest tylko **zasadą metodyki**. Czego nie sprawdzono na żywo na Macu, mówi
 [R12.6](#R12.6).
 
@@ -20,7 +20,7 @@ hook agenta to odrzuci), a co jest tylko **zasadą metodyki**. Czego nie sprawdz
 | aplikacja Claude (karta Code) i Claude Code w terminalu | aplikacja Claude, karta Code (`strom chat`) | Chrome z Claude in Chrome albo wbudowana przeglądarka aplikacji ([R12.2](#R12.2)) | przeglądarki w Chrome i wbudowanej przeglądarki aplikacji, pobierania stron, poleceń w wierszu poleceń agenta i w terminalu aplikacji ([R12.3](#R12.3)) | potwierdzić folder (Trust workspace) i wysłać przygotowaną wiadomość; zgoda na archiwum | niczego nie brakuje: praca samodzielna i czytanie skanów biegną przez Claude Code w terminalu |
 | aplikacja Claude bez Claude Code w terminalu | aplikacja Claude, karta Code (`strom chat`) | jak w wierszu wyżej | jak w wierszu wyżej | jak w wierszu wyżej; instalacja Claude Code, którą strom proponuje i którą można odrzucić ([R12.4](#R12.4)) | praca samodzielna (`strom run`), czytanie skanów przez czytelników (`strom read`) i praca z aplikacji Strom ([R12.4](#R12.4)) |
 | Codex w terminalu | terminal: Codex w folderze badania (`strom chat --where terminal`) | przeglądarka, Chrome i sterowanie komputerem Codexu, jeśli ma je jego konfiguracja ([R12.5](#R12.5)) | poleceń `strom` według zasad drzewa dla Codexu; przeglądarki Codexu według adresów w jej kodzie, gdy człowiek potwierdzi hook stroma; nie sterowania komputerem ani wyszukiwania w sieci Codexu ([R12.5](#R12.5)) | zaufać folderowi badania (dopiero wtedy obowiązują zasady drzewa) i potwierdzić hook stroma (**Review hooks**, `/hooks`); zgoda na archiwum | – (Codex jest w terminalu) |
-| aplikacja ChatGPT (Codex) | aplikacja ChatGPT (`strom chat`) | jak przy Codexie w terminalu: ta sama konfiguracja ([R12.5](#R12.5)) | jak przy Codexie w terminalu ([R12.5](#R12.5)) | według `strom chat` potwierdzić folder i wysłać przygotowaną wiadomość (nie sprawdzono, [R12.6](#R12.6)); potwierdzić hook stroma (**Ustawienia › Hooks**); zgoda na archiwum | praca samodzielna, czytanie skanów przez czytelników i praca z aplikacji Strom ([R12.5](#R12.5)) |
+| aplikacja ChatGPT (Codex) | aplikacja ChatGPT (`strom chat`) | przeglądarka aplikacji ChatGPT: działa przez chmurę ChatGPT ([R12.5.1](#R12.5.1)) | nie przeglądarki aplikacji ChatGPT: o stronach decyduje okno dialogowe ChatGPT ([R12.5.1](#R12.5.1)) | według `strom chat` potwierdzić folder i wysłać przygotowaną wiadomość (nie sprawdzono, [R12.6](#R12.6)); w oknie ChatGPT „przeglądarka w chmurze” dla archiwum z ograniczeniami odmówić ([R12.5.1](#R12.5.1)); zgoda na archiwum | praca samodzielna, czytanie skanów przez czytelników i praca z aplikacji Strom ([R12.5](#R12.5)) |
 | Antigravity w terminalu | terminal: Antigravity (`agy`) w folderze badania (`strom chat`); aplikacji Antigravity strom nie otwiera ([R12.7](#R12.7)) | przeglądarka Antigravity, jeśli agent ją ma; strom jej nie pilnuje ([R12.7](#R12.7)) | tylko tego, co odrzuci sam `strom`: poleceń, które należą tylko do człowieka; Antigravity nie ma hooka ani zasad w folderze badania ([R12.7](#R12.7)) | zgoda na archiwum | – (Antigravity jest w terminalu) |
 | Grok Build w terminalu | terminal: Grok (`grok`) w folderze badania (`strom chat`); żadnej aplikacji Groka strom nie otwiera ([R12.8](#R12.8)) | żadna, której strom by pilnował ([R12.8](#R12.8)) | pobierania stron ([R9.3](R9-archives.md#R9.3)) i poleceń w wierszu poleceń agenta: hooki i zasady stroma w `.grok/` ([R12.8](#R12.8)) | nic więcej: `strom chat` uruchamia Groka z folderem badania jako zaufanym; zgoda na archiwum | – (Grok jest w terminalu) |
 | OpenCode w terminalu | terminal: OpenCode w folderze badania (`strom chat --where terminal`) | żadna, której strom by pilnował ([R12.9](#R12.9)) | poleceń i plików według zasad drzewa w `opencode.json`; nie pobierania stron ani przeglądarki ([R12.9](#R12.9)) | zatwierdzić polecenia inne niż `strom`, o które OpenCode zapyta (poza poziomem `full`); zgoda na archiwum | – (OpenCode jest w terminalu) |
@@ -29,7 +29,7 @@ hook agenta to odrzuci), a co jest tylko **zasadą metodyki**. Czego nie sprawdz
 
 - **Pilnuje kod:**
   - hooki stroma w `.claude/settings.json` badania uruchamia Claude Code w terminalu i aplikacja Claude (karta Code);
-    Codex czyta zasady drzewa w `.codex/rules/strom.rules` i hook stroma w `.codex/hooks.json`, Grok Build
+    Codex w terminalu czyta zasady drzewa w `.codex/rules/strom.rules` i hook stroma w `.codex/hooks.json`, Grok Build
     w `.grok/config.toml` (i hooki stroma w `.grok/hooks/strom.json`), OpenCode w `opencode.json`; Antigravity czyta
     tylko instrukcje w `AGENTS.md`;
   - polecenia, które należą tylko do człowieka (logowanie, pieczęć, zgoda na archiwum i inne), `strom` sam odrzuca
@@ -43,11 +43,13 @@ hook agenta to odrzuci), a co jest tylko **zasadą metodyki**. Czego nie sprawdz
 - **Obsługa:** terminal: `strom chat` (gdzie, mówi ustawienie `agent.where`: `app` aplikacja agenta, `terminal`
   terminal; bez ustawienia aplikacja, gdy jest zainstalowana), `strom chat --where app|terminal` raz inaczej,
   `strom agents use claude|codex|antigravity|grok|opencode`, `strom doctor` (wiersze **gdzie toczy się rozmowa z agentem**, **agent
-  w terminalu**, **przeglądarka (Claude in Chrome)**, **przeglądarka aplikacji desktopowych**, **hooki Codexa
-  (przeglądarka)**).
+  w terminalu**, **przeglądarka (Claude in Chrome)**, **przeglądarka aplikacji desktopowych**, **aplikacja ChatGPT**,
+  **hooki Codexa (przeglądarka)**; przy wybranej aplikacji ChatGPT wiersz hooków nazywa się
+  **hooki Codexa (Codex w terminalu)**).
 - **Obowiązuje od:** badanie 1.29.0
+- **Od badania 1.30.0:** wiersz aplikacji ChatGPT: jej przeglądarki strom nie pilnuje ([R12.5.1](#R12.5.1)).
 
-<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · assets/lang/pl.json ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
+<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · src/commands/setup.ts:556-558 doctor codexhooks (ui.doc.codexhooks; ui.doc.codexhooks.terminal jen při chatgptApp) · assets/lang/pl.json ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
 
 <a id="R12.2"></a>
 ## R12.2 Przeglądarka w aplikacji Claude
@@ -128,13 +130,15 @@ Do rozmowy wystarczy aplikacja Claude. To, co strom uruchamia sam, wykonuje Clau
 
 Codex działa w terminalu albo w aplikacji ChatGPT (poprzedzała ją starsza osobna aplikacja Codex). Przeglądarka,
 Chrome i sterowanie komputerem to jego wtyczki w jednej konfiguracji Codexu (`~/.codex/config.toml`), którą dzielą
-terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzędzie `js`), nie adresem strony.
+terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzędzie `js`), nie adresem strony. Hook
+stroma przed przeglądarką obowiązuje dla Codexu w terminalu; przeglądarka aplikacji ChatGPT działa przez chmurę ChatGPT
+i nie wywołuje żadnego hooka stroma ([R12.5.1](#R12.5.1)).
 
 - **Pilnuje kod:**
   - polecenia `strom` według zasad drzewa dla Codexu (`.codex/rules/strom.rules`): `strom` jest dozwolony; logowanie,
     pieczęć, instalacja i usunięcie konektora oraz git są zabronione. Codex czyta te zasady, gdy człowiek zaufa
     folderowi badania;
-  - przed każdym wywołaniem przeglądarki Codexu działa hook stroma (`.codex/hooks.json`). Codex uruchamia go, gdy
+  - przed każdym wywołaniem przeglądarki Codexu w terminalu działa hook stroma (`.codex/hooks.json`). Codex uruchamia go, gdy
     człowiek zaufa folderowi badania i potwierdzi hook **strom** w Codexie (Trust). strom niczego nie potwierdza za
     człowieka;
   - adres strony zapisany w kodzie: ta sama decyzja co przy przeglądarce w Chrome ([R9.4](R9-archives.md#R9.4)).
@@ -152,7 +156,7 @@ terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzęd
   - samodzielny bieg (`strom run`) z Codexem bez osobistych dodatków agenta (`agent.addons off`, domyślnie) wyłącza
     jego wtyczki, przeglądarkę i sterowanie komputerem. Z `agent.addons on` i w rozmowie zostają takie, jakie ma je
     człowiek;
-  - `strom doctor`, `strom setup` i `strom chat` mówią, gdy hook stroma czeka na potwierdzenie, zmienił się od
+  - `strom doctor`, `strom setup` i `strom chat` przy Codexie w terminalu mówią, gdy hook stroma czeka na potwierdzenie, zmienił się od
     potwierdzenia, jest w Codexie wyłączony, hooki Codexu są wyłączone, Codex nie ufa folderowi badania albo brakuje
     pliku hooka. Stan odczytują tylko z konfiguracji Codexu. Plik hooka, którego tylko brakuje lub który jest
     nieaktualny, nie jest ostrzeżeniem: zapisze się ponownie sam, gdy strom następnym razem uruchomi agenta
@@ -175,14 +179,39 @@ terminal i aplikacja. Przeglądarką Codex steruje kodem w JavaScripcie (narzęd
   (`tab.goto("https://…")`), po jednej stronie, i nie przeklikuje szeregu stron archiwum.
 - **Dlaczego:** przeglądarką Codexu steruje się kodem, nie adresem strony. strom ocenia tylko adres, który w kodzie
   widzi; kodu bez adresu dlatego nie odrzuca, tylko go zapisuje.
-- **Obsługa:** aplikacja ChatGPT (Codex): **Ustawienia › Hooks** (albo **Review hooks** przy polu wiadomości) → hook
-  **strom** → **Trust**; Codex w terminalu w folderze badania: **Review hooks** (`/hooks`). Terminal: `strom doctor`
-  (wiersze **przeglądarka aplikacji desktopowych** i **hooki Codexa (przeglądarka)**), `strom agents sync` (zapisuje
-  brakujący plik hooka), `strom net web` (liczba niepilnowanych wywołań), `strom config set agent.addons on|off`.
+- **Obsługa:** Codex w terminalu w folderze badania: **Review hooks** (`/hooks`) → hook **strom** → **Trust**.
+  Terminal: `strom doctor` (wiersze **przeglądarka aplikacji desktopowych** i **hooki Codexa (przeglądarka)**; przy
+  wybranej aplikacji ChatGPT wiersz hooków nazywa się **hooki Codexa (Codex w terminalu)**),
+  `strom agents sync` (zapisuje brakujący plik hooka), `strom net web` (liczba niepilnowanych wywołań),
+  `strom config set agent.addons on|off`.
 - **Obowiązuje od:** badanie 1.27.0 (przeglądarka i sterowanie komputerem wyłączone w samodzielnym biegu);
   `agent.addons` od 1.14.0; hook przed przeglądarką Codexu i brak Codexu w terminalu od 1.29.0
+- **Od badania 1.30.0:** hook pilnuje także przeglądarki, którą Codex otwiera przez `createBrowserTab`; adres w tym
+  wywołaniu ocenia się tak samo. Hook się przez to zmienił, więc Codex go pomija, dopóki człowiek nie potwierdzi go
+  ponownie (**Trust**). `strom setup` i `strom chat` przy aplikacji ChatGPT o hookach Codexu nie mówią.
 
-<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
+<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek · research:v1.30.0 src/core/codexhook.ts CODEX_HOOK_MATCHER ^mcp__[a-z0-9_]+_repl__js$, createBrowserTab; src/core/browserhelp.ts KEPT_WHEN_CONFIRMED, codexInChatgptApp -->
+
+<a id="R12.5.1"></a>
+### R12.5.1 Przeglądarka aplikacji ChatGPT
+
+Przeglądarka aplikacji ChatGPT (Codex) działa przez chmurę ChatGPT i nie wywołuje żadnego hooka stroma: strom jej nie
+pilnuje, a o stronach decyduje okno dialogowe ChatGPT. W oknie ChatGPT „przeglądarka w chmurze” dla archiwum
+z ograniczeniami ([R9.2](R9-archives.md#R9.2)) się odmawia; nigdy nie zezwala się na dostęp do wszystkich
+odpowiednich stron.
+
+- **Granice:**
+  - przeglądarki aplikacji ChatGPT strom nie pilnuje ani nie zapisuje, niezależnie od tego, czy hook stroma jest
+    w Codexie potwierdzony;
+  - Codex w terminalu pozostaje pilnowany, gdy tylko hook stroma jest w Codexie potwierdzony ([R12.5](#R12.5)).
+- **Dlaczego:** strom ocenia tylko wywołanie, które agent pokaże mu hookiem; przeglądarka w chmurze ChatGPT nie
+  wywołuje żadnego hooka.
+- **Obsługa:** terminal: `strom doctor` (wiersz **aplikacja ChatGPT** jako ostrzeżenie: „przeglądarki strom nie
+  pilnuje (działa przez chmurę ChatGPT), o stronach decyduje okno dialogowe ChatGPT”, z radą do okna dialogowego),
+  `strom setup` (mówi to raz, gdy zostanie wybrana aplikacja ChatGPT).
+- **Obowiązuje od:** badanie 1.30.0
+
+<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
 
 <a id="R12.6"></a>
 ## R12.6 Czego nie sprawdzono
@@ -195,10 +224,9 @@ sprawdzono jeszcze:
 - wiersza poleceń agenta w aplikacji Claude i pobierania stron w nim (hooki są te same co w terminalu);
 - pilnowania w aplikacji Claude, gdy Claude Code nie ma w terminalu (aplikacja uruchamia hooki własną kopią Claude
   Code);
-- Codexu na żywo: ani w terminalu, ani w aplikacji ChatGPT (zasady drzewa, hook przed przeglądarką i jego
-  potwierdzenie, odrzucanie i zapis niepilnowanych wywołań, otwarcie rozmowy odnośnikiem, kroki człowieka), ani tego,
-  że aplikacja ChatGPT zachowuje się jak starsza aplikacja Codex. Hook przed przeglądarką Codexu jest opisany na
-  podstawie kodu;
+- Codexu w terminalu na żywo (zasady drzewa, hook przed przeglądarką i jego potwierdzenie, odrzucanie i zapis
+  niepilnowanych wywołań, kroki człowieka); hook przed przeglądarką Codexu jest opisany na podstawie kodu;
+- aplikacji ChatGPT: otwarcia rozmowy odnośnikiem i kroków człowieka;
 - sterowania komputerem Codexu: czy daje aplikacjom poziomy jak aplikacja Claude ([R12.10](#R12.10));
 - Antigravity, Grok Build i OpenCode na żywo w żadnym sposobie pracy: zasad i hooków stroma, kroków człowieka,
   odrzucania poleceń człowieka;

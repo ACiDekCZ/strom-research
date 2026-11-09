@@ -23,6 +23,8 @@ The procedure in brief:
 6. **Certainty:** the degree of certainty by who read the entry and how; a hard spot needs a second, blind reading
    ([R8.7](#R8.7)).
 
+Who reads what, in brief and on the example of one entry, is said in [R8.9](#R8.9).
+
 > **Note: reading by a model is not one hundred per cent.** Old handwriting is read by an AI model, and the accuracy
 > of reading depends on the model. The method wants the strongest model for old handwriting, never fast or cheap
 > reading. Readers read with the model for handwriting (`model.vision`, otherwise `strom read --model`), and the size
@@ -132,6 +134,10 @@ The agent never downloads by itself: not by a command, a script or its own brows
 - **Method only:** download only the images the task reads, never a whole book "just in case". The book is downloaded
   by the session that reads it. An archive without a downloader: the agent builds one (`strom connector new`) by the
   portal's terms and robots.txt.
+- **From research 1.30.0:** `strom connector test --fetch` warns when one image costs more than 10 requests (tiles,
+  most likely), says how long an image and a book take at the archive's pace, and sends the agent to look first for
+  the portal's link to the full image, a download of the whole book or the full image through IIIF; tiles only as a
+  last resort.
 - Images that the archive does not allow to download automatically are saved by a person into a prepared folder
   ([R6.2.1](R6-awaiting-action.md#R6.2.1)); an archive's permission: [R6.3.1](R6-awaiting-action.md#R6.3.1).
   Browser-only archives, the agent's browser and the whole course: [R9](R9-archives.md).
@@ -142,7 +148,7 @@ The agent never downloads by itself: not by a command, a script or its own brows
   only). App: Awaiting action.
 - **Since:** research 1.0.0 (downloading only through strom); the levels of terms and a person's pace 1.14.0
 
-<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 -->
+<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 · research:773c475a src/commands/connectors.ts HEAVY_IMAGE = 10 -->
 
 <a id="R8.3"></a>
 ## R8.3 Readers: who reads the images
@@ -642,3 +648,68 @@ setting **Task from a new reading**.
 - **Since:** research 1.29.0, app 3.25.0
 
 <!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->
+
+<a id="R8.9"></a>
+## R8.9 Who reads: an overview and an example of one entry
+
+An entry in a scan is read by several readers, each with a different task and a different view. No reader writes into
+the tree: what it reads is material for the main agent and for a person.
+
+| Who reads | What it sees | What it returns | Rule |
+|---|---|---|---|
+| the book's readers (`strom read`) | a batch of images and the whole question; nothing else from the research | a short report: entries for the question, with a certainty in per cent for names | [R8.3](#R8.3) |
+| the main agent | a crop of the entry at full resolution and everything the research knows | a source with a transcription and facts from what was read with certainty | [R8.5](#R8.5), [R8.6](#R8.6) |
+| the blind second reader (`strom read --blind --crop`) | only the crop of one cell; not the expected value, name, place or why it matters | its own reading of that cell | [R3.5](R3-verification-and-citation.md#R3.5) |
+| the readers of a document from the app (**1 reader** or **2 readers**) | the pages of the document; the second reader does not see the first one's reading | a transcription, translation, explanation and the people mentioned | [R8.8](#R8.8), [R8.8.1](#R8.8.1) |
+| the readers of **Read again…** (1 or 2) | the original of the entry and what the research knows about the record (kind, language, date, where the entry stands); not the transcription or the names | a new reading, compared with the transcription spot by spot | [R8.8.2](#R8.8.2) |
+
+- **Enforced by the code:**
+  - **blind** means: the reader does not get what is expected of it. The blind second reader gets only the crop, the
+    second reader of a document does not see the first reading and the readers of **Read again…** do not see the
+    transcription or the names;
+  - the readers read with the research's model for handwriting (`model.vision`), never a weaker one. In reading a
+    document and in **Read again…** each reader has its own program, model and thoroughness, and the result says by the
+    reading who read ([R8.8.1](#R8.8.1));
+  - where two readers disagree, the spot is uncertain, not a correction of the transcription ([R8.8.2](#R8.8.2)).
+- **Method only:** an entry that will be cited the main agent reads itself, from the crop ([R8.5](#R8.5)); a hard cell
+  gets a blind second reading ([R3.5](R3-verification-and-citation.md#R3.5)).
+- **Why:** whoever knows the expected value tends to “read” it. Two independent readers, best of two different models,
+  show the spots where the handwriting can be read two ways.
+- **Since:** research 1.0.0 (the book's readers, the blind second reading); reading a document research 1.18.0; the
+  choice of readers and **Read again…** research 1.29.0, app 3.25.0
+
+**An example of one entry (made up).** The source is a baptism entry from 1843. The current transcription was written
+by the research and a person has not confirmed it: “On 3 March 1843 baptised Jan, son of Václav Horák, cottager in
+Javorná No. 12, and of Marie b. Vlková.” The date of Jan Horák's baptism was entered into the tree by a person in the
+app.
+
+1. **Read again…** at the source, **2 readers**: Reader 1 Claude Code, Reader 2 Codex, each with its own model and
+   thoroughness. Both get only the original of the entry and what the research knows about the record (kind,
+   language, date, where the entry stands); they see neither the transcription nor the names.
+2. The readers read:
+   - Reader 1: “… 5 March 1843 … in Javorná No. 17, and of Marie born Vlková.”
+   - Reader 2: “… 5 March 1843 … in Javorná No. 12, and of Marie born Vlková.”
+3. The comparison with the transcription:
+   - the day **5** instead of **3**: both readers read the same and with certainty → a certain substantive change;
+   - the house number: Reader 1 reads **17**, Reader 2 **12** → the readers disagree; the spot is uncertain, not a
+     change of the transcription;
+   - “b.” against “born”: an abbreviation → a minor detail.
+4. **To check** shows: **Substantive changes to check** (the day of baptism), **Uncertain – readers disagree** (the
+   house number) and **Minor details** (“b.”). The transcription has not changed; the new reading stays with the
+   source.
+5. With the setting **Ask** a person decides: **Task for the agent** → **Queue for the agent**. The task gets the
+   certain substantive change and with it the uncertain spot too; a minor detail does not create a task by itself
+   ([R8.8.3](#R8.8.3)).
+6. In the task the agent looks at the entry on the scan with everything the research knows about the people and
+   places:
+   - the day on the scan is certainly **5**: it corrects the transcription and writes the reason;
+   - the house number on the scan is not certain: it leaves the transcription and writes a note at the source on what
+     it looked at and why the spot stays uncertain;
+   - the date of baptism in the tree was entered by a person: the agent does not change it, it only proposes 5 March
+     1843. The app shows at the fact **The research proposes changing a fact entered by a person** and **Conflict ›**;
+     a person decides ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+A fact from another program's family tree the agent would be allowed to change by the cited record; the value from the
+family tree would stay with the fact to be reverted ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+<!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->

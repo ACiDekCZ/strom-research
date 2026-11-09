@@ -224,8 +224,11 @@ k narození a úmrtí, k událostem, ke sňatkům a ke společným událostem p�
 - **Narození bez pramene**: předci zvolené osoby („n z N předků“). U stromu s výzkumem místo toho
   **Narození neověřená výzkumem**: narození předků, která nejsou Doložená.
 - **Konce linií**: lidé bez rodičů, kteří jsou předky zvolené osoby, nebo mají děti a nepřiženili se.
-- Když nic nechybí: „Všichni mají pramen i rodiče.“ Řádek **Doložení ve stromu (● ◐ ○ na kartách)** přepne
-  karty na značky úrovně doložení ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
+- Když nic nechybí: „Všichni mají pramen i rodiče.“
+- Pod skupinami je vždy tlačítko **Doložení ve stromu**. Zapne režim **Doložení**: každá kartička dostane rámeček
+  podle úrovně doložení osoby ([R3.8.1](R3-verification-and-citation.md#R3.8.1)), plný u Doloženo, čárkovaný
+  u Částečně doloženo a tečkovaný u Nedoloženo. Lišta nahoře ukazuje počty všech tří úrovní; počet zvýrazní jen
+  tu skupinu a s ní **Další osoba ›**. Jedna značka na kartičce je jiná věc ([S7.2](S7-reliability-and-verification.md#S7.2)).
 - Při zvýraznění: **Další osoba ›**, **Citovat** (u skupin bez pramene) a × **Ukončit zvýraznění**. Pořadí je podle
   generace, pak podle jména. Na konci: „Hotovo, v tomto výběru už nikdo nezbývá.“
 - **Hranice:** u narození, které výzkum hodnotí, je místo **Citovat** tlačítko **Prameny**. Další citace údaj
@@ -235,7 +238,7 @@ k narození a úmrtí, k událostem, ke sňatkům a ke společným událostem p�
   **Otevřít strom a ukázat**).
 - **Platí od:** aplikace 3.4.0; **Narození neověřená výzkumem** a **Prameny** místo **Citovat** 3.13.1
 
-<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd · app:7eb903a3 src/ui/tree-overview.ts:1974 tov-ev-levels, :2293 showEvidenceLevelsFromOverview · src/ui/evidence-ui.ts showEvidenceLevels, renderEvidencePill, toggleEvidenceLevelGroup · index.html .person-card.evl-full/partial/none (solid, dashed, dotted) · strings.ts treeHealth.evidenceMode -->
 
 <a id="A3.8"></a>
 ## A3.8 Obraz jen ve výzkumu

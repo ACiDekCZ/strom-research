@@ -228,6 +228,18 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 - **Čísla:** [R3.5.1](cs/R3-verification-and-citation.md#R3.5.1), R3.8
 
+<a id="report-a-problem"></a>
+### Nahlásit problém
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Nahlásit problém (terminal, `ui.maintenance.report`) · `strom error` | Jeden soubor ZIP se zprávou o problému: počítač, instalace, `strom doctor`, agenti, konektory, most a výzkum jen v číslech, bez lidí z rodokmenu. Strom nic neodesílá, soubor pošle člověk. |
+| en | Report a problem (terminal) · `strom error` | One ZIP file with a report of the problem: the computer, the installation, `strom doctor`, the agents, connectors, the bridge and the research in numbers only, nothing of the family tree's people. Strom sends nothing; a person sends the file. |
+| de | Ein Problem melden (terminal) · `strom error` | Eine ZIP-Datei mit einem Bericht über das Problem: Computer, Installation, `strom doctor`, Agenten, Konnektoren, Brücke und die Forschung nur in Zahlen, nichts über die Menschen des Stammbaums. Strom sendet nichts; die Datei schickt ein Mensch. |
+| pl | Zgłosić problem (terminal) · `strom error` | Jeden plik ZIP z raportem o problemie: komputer, instalacja, `strom doctor`, agenci, konektory, most i badanie tylko w liczbach, nic o ludziach z drzewa. Strom niczego nie wysyła; plik wysyła człowiek. |
+
+- **Čísla:** [R13.1](cs/R13-reporting-a-problem.md#R13.1), R13.2, R13.3, R13.5, R13.7
+
 <a id="in-hand"></a>
 ### Náskok
 
@@ -288,6 +300,18 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | pl | witryna do sprawdzenia | Zadanie czeka, aż człowiek obejrzy stronę, której agent sam nie otworzy, i powie, czy działa, czy można ją tylko przeglądać, czy nie działa. |
 
 - **Čísla:** [R6.2.2](cs/R6-awaiting-action.md#R6.2.2), R6.6
+
+<a id="seal"></a>
+### Pečeť výzkumu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | pečeť · `strom verify`, `strom seal accept` | Podpis klíčem tohoto počítače, kterým strom uzavře každou svou změnu výzkumu (operaci v historii i commit). `strom verify` podle pečetí pozná, co se změnilo mimo strom. Když se historie ztratí, člověk může výzkum tak, jak je, zapečetit jako nový základ (`strom seal accept`). |
+| en | seal · `strom verify`, `strom seal accept` | A signature with this computer's key that strom puts on each of its changes of a research (an operation in the history and a commit). `strom verify` tells by the seals what changed outside strom. When the history is lost, a person can seal the research as it is as a new base (`strom seal accept`). |
+| de | Siegel · `strom verify`, `strom seal accept` | Eine Signatur mit dem Schlüssel dieses Computers, die strom auf jede seiner Änderungen einer Forschung setzt (eine Operation in der Geschichte und einen Commit). `strom verify` erkennt an den Siegeln, was außerhalb von strom geändert wurde. Ist die Geschichte verloren, kann ein Mensch die Forschung, wie sie ist, als neue Grundlage versiegeln (`strom seal accept`). |
+| pl | pieczęć · `strom verify`, `strom seal accept` | Podpis kluczem tego komputera, którym strom zamyka każdą swoją zmianę badania (operację w historii i commit). `strom verify` po pieczęciach poznaje, co zmieniono poza strom. Gdy historia zaginie, człowiek może zapieczętować badanie takie, jakie jest, jako nową podstawę (`strom seal accept`). |
+
+- **Čísla:** [R14.1](cs/R14-seal-and-integrity.md#R14.1), R14.2, R14.2.1, R14.2.2
 
 <a id="input"></a>
 ### Podklad
@@ -575,12 +599,12 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Doloženo · Částečně doloženo · Nedoloženo (`treeHealth.evFull/evPartial/evNone`); zvýraznění Doložení; karta Doložení prameny | Kolik toho o osobě cituje pramen (narození, úmrtí). Počítá aplikace sama jen z citací, bez stupně jistoty. |
-| en | Documented · Partly documented · Undocumented; Evidence; Evidence from sources | How much about a person a source cites (birth, death). The app counts it by itself from citations only, without the degree of certainty. |
-| de | Belegt · Teilweise belegt · Unbelegt; Belege; Belege aus Quellen | Wie viel über eine Person eine Quelle zitiert (Geburt, Tod). Die App berechnet sie selbst nur aus Zitationen, ohne Grad der Sicherheit. |
-| pl | Udokumentowane · Częściowo udokumentowane · Nieudokumentowane; Udokumentowanie; Udokumentowanie w źródłach | Ile o osobie cytuje źródło (urodzenie, zgon). Aplikacja liczy to sama tylko z cytatów, bez stopnia pewności. |
+| cs | Doloženo · Částečně doloženo · Nedoloženo (`treeHealth.evFull/evPartial/evNone`); režim Doložení; Doložení ve stromu | Kolik toho o osobě cituje pramen (narození, úmrtí). Počítá aplikace sama jen z citací, bez stupně jistoty. |
+| en | Documented · Partly documented · Undocumented; Evidence; Evidence in the tree | How much about a person a source cites (birth, death). The app counts it by itself from citations only, without the degree of certainty. |
+| de | Belegt · Teilweise belegt · Unbelegt; Belege; Belege im Baum | Wie viel über eine Person eine Quelle zitiert (Geburt, Tod). Die App berechnet sie selbst nur aus Zitationen, ohne Grad der Sicherheit. |
+| pl | Udokumentowane · Częściowo udokumentowane · Nieudokumentowane; Udokumentowanie; Udokumentowanie w drzewie | Ile o osobie cytuje źródło (urodzenie, zgon). Aplikacja liczy to sama tylko z cytatów, bez stopnia pewności. |
 
-- **Čísla:** [R3.8.1](cs/R3-verification-and-citation.md#R3.8.1), R3.8
+- **Čísla:** [R3.8.1](cs/R3-verification-and-citation.md#R3.8.1), R3.8, [A3.7](cs/A3-evidence-in-the-app.md#A3.7), [S7.2](cs/S7-reliability-and-verification.md#S7.2)
 
 <a id="lead"></a>
 ### Vodítko
@@ -648,6 +672,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S2.2](cs/S2-edits-from-the-app.md#S2.2), S2.2.1
 
+<a id="what-next"></a>
+### Co teď
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Co teď | Karta po importu rodokmenu z jiného programu: odkud strom je, kontrola dat, oddělení nespojených rodin, výzkum s tímto stromem a export zpět. |
+| en | What next | The card after importing a family tree from another program: where the tree comes from, the data check, separating unconnected families, research with this tree and the export back. |
+| de | Wie weiter | Die Karte nach dem Import eines Stammbaums aus einem anderen Programm: Herkunft des Stammbaums, Datenprüfung, Trennen nicht verbundener Familien, Forschung mit diesem Stammbaum und Export zurück. |
+| pl | Co dalej | Karta po imporcie drzewa z innego programu: skąd drzewo pochodzi, kontrola danych, oddzielenie niepołączonych rodzin, badanie z tym drzewem i eksport z powrotem. |
+
+- **Čísla:** [S6.4](cs/S6-tree-from-another-program.md#S6.4), A2.1.1, A8.4
+
 <a id="other-families"></a>
 ### Další rodiny
 
@@ -659,6 +695,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Inne rodziny | Małe rody z najwyżej 4 rzeczywistymi członkami (osób wżenionych się nie liczy), podane zbiorczo zamiast własnego wiersza. |
 
 - **Čísla:** [A4.3](cs/A4-surnames-and-families.md#A4.3)
+
+<a id="card-status-mark"></a>
+### Doložení a spolehlivost
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Doložení a spolehlivost (app, `cardDensity.cardStatus`) | Jedna značka vpravo dole na kartičce ve stromu: nejslabší z údajů jméno, narození a úmrtí (✓, ●●, ●○, ○, ○○, tečkovaný rámeček). Zapíná se v Na kartě ukázat. |
+| en | Sources and reliability (app) | One mark in the bottom right corner of the card in the tree: the weakest of the facts name, birth and death (✓, ●●, ●○, ○, ○○, a dotted frame). Switched on in Show on card. |
+| de | Belege und Verlässlichkeit (app) | Eine Marke unten rechts auf der Karte im Baum: die schwächste der Angaben Name, Geburt und Tod (✓, ●●, ●○, ○, ○○, ein gepunkteter Rahmen). Eingeschaltet in Auf der Karte zeigen. |
+| pl | Udokumentowanie i wiarygodność (app) | Jeden znacznik w prawym dolnym rogu karty w drzewie: najsłabsza z danych imię, urodzenie i zgon (✓, ●●, ●○, ○, ○○, kropkowana ramka). Włącza się w Na karcie pokazuj. |
+
+- **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
 
 <a id="hypothesis"></a>
 ### Hypotéza
@@ -708,6 +756,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A3.7](cs/A3-evidence-in-the-app.md#A3.7), [R3.8](cs/R3-verification-and-citation.md#R3.8)
 
+<a id="to-share-with-others"></a>
+### Ke sdílení s ostatními
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Ke sdílení s ostatními | Účel exportu GEDCOM: chrání žijící osoby (výchozí **Iniciály + rok narození**); zemřelým prameny zůstanou. |
+| en | To share with others | A purpose of the GEDCOM export: protects living people (by default Initials + birth year); the deceased keep their sources. |
+| de | Zum Teilen mit anderen | Ein Zweck des GEDCOM-Exports: schützt lebende Personen (standardmäßig Initialen + Geburtsjahr); Verstorbene behalten ihre Quellen. |
+| pl | Do udostępnienia innym | Cel eksportu GEDCOM: chroni osoby żyjące (domyślnie Inicjały + rok urodzenia); zmarłym źródła zostają. |
+
+- **Čísla:** [S6.6](cs/S6-tree-from-another-program.md#S6.6), A7.2, A7.2.1
+
 <a id="recurring-godparent"></a>
 ### Kmotr, který se opakuje
 
@@ -731,6 +791,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Księga rodu | Wynik aplikacji: księga o wybranych osobach do druku na A4 lub do zapisania jako HTML. |
 
 - **Čísla:** [A7.4](cs/A7-book-pages-and-export.md#A7.4), A7.4.1
+
+<a id="text-encoding"></a>
+### Kódování textu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Kódování textu | Řádek souhrnu importu GEDCOM s ukázkou jmen a volbou jiného kódování, když bylo kódování odhadnuté nebo je jednobajtové. |
+| en | Text encoding | A row of the GEDCOM import summary with a sample of names and a choice of another encoding, when the encoding was guessed or is a single-byte one. |
+| de | Textkodierung | Eine Zeile der GEDCOM-Importübersicht mit Namensbeispielen und der Wahl einer anderen Kodierung, wenn die Kodierung erraten wurde oder einbytig ist. |
+| pl | Kodowanie tekstu | Wiersz podsumowania importu GEDCOM z przykładem imion i wyborem innego kodowania, gdy kodowanie zostało odgadnięte lub jest jednobajtowe. |
+
+- **Čísla:** [A2.2](cs/A2-loading-a-family-tree.md#A2.2), A2.1.1, S6.1
 
 <a id="tree-check"></a>
 ### Kontrola stromu
@@ -876,6 +948,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A7.2](cs/A7-book-pages-and-export.md#A7.2), A7.1, A7.2.1
 
+<a id="checked-against-scan"></a>
+### Potvrdit podle skenu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Potvrdit podle skenu, stav Potvrzeno podle skenu {datum} (app, `verify.scan`, `verify.confirmedAt`) · `strom verify confirm` | Potvrzení údaje člověkem, který ho porovnal se skenem záznamu: značka Potvrzeno (✓). Platí, dokud se hodnota nezmění; Vzít zpět ho zruší. Agent ho nikdy nezmění. |
+| en | Confirm against the scan, the state Confirmed against the scan on {date} (app) · `strom verify confirm` | A fact confirmed by a person who compared it with the scan of the record: the mark Confirmed (✓). It holds while the value does not change; Undo takes it back. The agent never changes it. |
+| de | Anhand des Scans bestätigen, der Stand Am {datum} anhand des Scans bestätigt (app) · `strom verify confirm` | Die Bestätigung einer Angabe durch einen Menschen, der sie mit dem Scan des Eintrags verglichen hat: die Marke Bestätigt (✓). Sie gilt, solange sich der Wert nicht ändert; Zurücknehmen hebt sie auf. Der Agent ändert sie nie. |
+| pl | Potwierdź według skanu, stan Potwierdzone według skanu {data} (app) · `strom verify confirm` | Potwierdzenie danej przez człowieka, który porównał ją ze skanem aktu: znacznik Potwierdzone (✓). Obowiązuje, dopóki wartość się nie zmieni; Cofnij je wycofuje. Agent nigdy go nie zmienia. |
+
+- **Čísla:** [S7.8](cs/S7-reliability-and-verification.md#S7.8), S7.1, S7.9
+
+<a id="verify-facts"></a>
+### Ověřit údaje
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Ověřit (u údaje) · Ověřit údaje (N), Ověřit údaje · N (u osoby) · Ověřit údaje ve stromu… (app, `verify.*`) · `strom verify facts`, `strom verify bulk` | Úkol pro výzkum ověřit údaj podle originálu záznamu: přečíst známý záznam, nebo ho najít a přečíst. Běží na pozadí výzkumu; výsledek je doloženo, nebo ponecháno s důvodem. |
+| en | Verify (at a fact) · Verify facts (N), Verify facts · N (at a person) · Verify facts in the tree… (app) · `strom verify facts`, `strom verify bulk` | A task for the research to verify a fact against the original record: read a known record, or find it and read it. It runs in the research's background; the result is proven, or kept with a reason. |
+| de | Prüfen (an einer Angabe) · Angaben prüfen (N), Angaben prüfen · N (bei einer Person) · Angaben im Baum prüfen… (app) · `strom verify facts`, `strom verify bulk` | Eine Aufgabe für die Forschung, eine Angabe am Originaleintrag zu prüfen: einen bekannten Eintrag lesen oder ihn finden und lesen. Sie läuft im Hintergrund der Forschung; das Ergebnis ist belegt oder mit Begründung belassen. |
+| pl | Zweryfikuj (przy danej) · Zweryfikuj dane (N), Zweryfikuj dane · N (przy osobie) · Zweryfikuj dane w drzewie… (app) · `strom verify facts`, `strom verify bulk` | Zadanie dla badania, by zweryfikować daną według oryginalnego aktu: przeczytać znany akt albo go znaleźć i przeczytać. Działa w tle badania; wynik to udokumentowane albo pozostawione z uzasadnieniem. |
+
+- **Čísla:** [S7.3](cs/S7-reliability-and-verification.md#S7.3), S7.4, S7.5, S7.6, S7.7
+
 <a id="send-mode"></a>
 ### Posílat úpravy
 
@@ -899,6 +995,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Używane nazwisko | Opcja przy osobie z nazwiskiem po ślubie: czy pokazuje się nazwisko rodowe, czy nazwisko po ślubie. |
 
 - **Čísla:** [A4.6](cs/A4-surnames-and-families.md#A4.6)
+
+<a id="originally-from-the-family-tree"></a>
+### Původně z rodokmenu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Původně z rodokmenu | Hodnota údaje z rodokmenu jiného programu, který výzkum nebo člověk změnil; u údaje s tlačítkem Vrátit, které smí použít jen člověk. |
+| en | Originally from the family tree | The value of a fact from another program's family tree that the research or a person changed; shown with the fact and a Revert button only a person may use. |
+| de | Ursprünglich aus dem Stammbaum | Der Wert einer Angabe aus dem Stammbaum eines anderen Programms, den die Forschung oder ein Mensch geändert hat; bei der Angabe mit der Schaltfläche Zurücksetzen, die nur ein Mensch verwenden darf. |
+| pl | Pierwotnie z drzewa | Wartość danej z drzewa innego programu, którą zmieniło badanie lub człowiek; przy danej z przyciskiem Przywróć, którego może użyć tylko człowiek. |
+
+- **Čísla:** [S6.3.1](cs/S6-tree-from-another-program.md#S6.3.1), S6.3, R11.3
 
 <a id="source-entry"></a>
 ### Pramen (zápis)
@@ -1073,12 +1181,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Sloučit s existujícím | Import, který osoby ze souboru spáruje s osobami aktuálního stromu a po potvrzení je sloučí místo založení nového stromu. |
-| en | Merge with existing | An import that matches people from the file with people of the current tree and after confirmation merges them instead of creating a new tree. |
-| de | Mit Vorhandenem zusammenführen | Ein Import, der Personen aus der Datei mit Personen des aktuellen Stammbaums abgleicht und sie nach Bestätigung zusammenführt, statt einen neuen Stammbaum anzulegen. |
-| pl | Scal z istniejącym | Import, który paruje osoby z pliku z osobami bieżącego drzewa i po potwierdzeniu scala je zamiast zakładać nowe drzewo. |
+| cs | Sloučit s existujícím | Import, který osoby ze souboru spáruje s osobami aktuálního stromu a výsledek uloží jako nový strom; aktuální strom i soubor zůstanou beze změny. |
+| en | Merge with existing | An import that matches people from the file with people of the current tree and saves the result as a new tree; the current tree and the file stay unchanged. |
+| de | Mit Vorhandenem zusammenführen | Ein Import, der Personen aus der Datei mit Personen des aktuellen Stammbaums abgleicht und das Ergebnis als neuen Stammbaum speichert; der aktuelle Stammbaum und die Datei bleiben unverändert. |
+| pl | Scal z istniejącym | Import, który paruje osoby z pliku z osobami bieżącego drzewa i zapisuje wynik jako nowe drzewo; bieżące drzewo i plik pozostają bez zmian. |
 
-- **Čísla:** [A8.1](cs/A8-merging-trees.md#A8.1), A2.1.1, A2.8, A8.2, A8.3
+- **Čísla:** [A8.1](cs/A8-merging-trees.md#A8.1), A2.1.1, A2.8, A8.2, A8.3, S6.7
 
 <a id="paired-phones"></a>
 ### Spárované telefony
@@ -1103,6 +1211,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Wiarygodność: Oryginał · Odpis / indeks · Niepewne (app) | Ocena jednego źródła przez użytkownika (GEDCOM QUAY 3/2/1). Nie jest to stopień pewności danej. |
 
 - **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), [R3.2.1](cs/R3-verification-and-citation.md#R3.2.1)
+
+<a id="same-id-in-the-file"></a>
+### Stejné ID v souboru
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Stejné ID v souboru | Důvod shody při sloučení: osoby mají stejné ID programu (například `_UID` nebo ID FamilySearch) a jméno, pohlaví i rok narození tomu neodporují. |
+| en | Same ID in the file | A reason of a match when merging: the people have the same program ID (such as `_UID` or a FamilySearch ID) and their name, sex and birth year do not contradict it. |
+| de | Gleiche ID in der Datei | Ein Grund einer Übereinstimmung beim Zusammenführen: Die Personen haben dieselbe Programm-ID (etwa `_UID` oder eine FamilySearch-ID) und Name, Geschlecht und Geburtsjahr widersprechen dem nicht. |
+| pl | Ten sam identyfikator w pliku | Powód dopasowania przy scalaniu: osoby mają ten sam identyfikator programu (na przykład `_UID` lub identyfikator FamilySearch), a imię, płeć i rok urodzenia temu nie przeczą. |
+
+- **Čísla:** [S6.7](cs/S6-tree-from-another-program.md#S6.7), A8.2
 
 <a id="research-on-this-computer"></a>
 ### Strom Research na tomto počítači
@@ -1236,6 +1356,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A3.6](cs/A3-evidence-in-the-app.md#A3.6), R3.9
 
+<a id="from-family-tree"></a>
+### Z rodokmenu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Z rodokmenu | Značka spolehlivosti údaje převzatého z rodokmenu jiného programu, který nikdo neověřil ani nezměnil; platí, dokud má údaj hodnotu ze souboru. Ve stromu výzkumu ji má i údaj bez stupně jistoty z rodokmenu z aplikace Strom, který výzkum převzal a nikdo ho nezměnil. |
+| en | From family tree | The reliability mark of a fact taken from another program's family tree that nobody verified or changed; it holds while the fact has the file's value. In a research tree, a fact without a degree of certainty from a family tree from the Strom app, taken in by the research and changed by nobody, has it too. |
+| de | Aus dem Stammbaum | Die Zuverlässigkeitsmarke einer Angabe aus dem Stammbaum eines anderen Programms, die niemand geprüft oder geändert hat; sie gilt, solange die Angabe den Wert aus der Datei hat. In einem Forschungsbaum trägt sie auch eine Angabe ohne Sicherheitsgrad aus einem Stammbaum aus der App Strom, den die Forschung übernommen hat und die niemand geändert hat. |
+| pl | Z drzewa | Znacznik wiarygodności danej przejętej z drzewa innego programu, której nikt nie sprawdził ani nie zmienił; obowiązuje, dopóki dana ma wartość z pliku. W drzewie badania ma go też dana bez stopnia pewności z drzewa z aplikacji Strom, które badanie przejęło, jeśli nikt jej nie zmienił. |
+
+- **Čísla:** [S6.2](cs/S6-tree-from-another-program.md#S6.2), S6.3, S7.1, S7.2
+
 <a id="placeholder-person"></a>
 ### Zástupná osoba
 
@@ -1259,6 +1391,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Wyświetlanie nazwiska | Ustawienie, czy karty i imiona pokazują nazwisko rodowe, nazwisko po ślubie z rodowym, czy tylko nazwisko po ślubie. |
 
 - **Čísla:** [A4.6](cs/A4-surnames-and-families.md#A4.6)
+
+<a id="back-to-program"></a>
+### Zpět do {program}
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Zpět do {program} | Účel exportu GEDCOM pro vlastní rodopisný program: plná data, prameny a citace, původní označení záznamů a ID programu. |
+| en | Back to {program} | A purpose of the GEDCOM export for one's own genealogy program: full data, sources and citations, the original record identifiers and the program's IDs. |
+| de | Zurück zu {program} | Ein Zweck des GEDCOM-Exports für das eigene Genealogieprogramm: vollständige Daten, Quellen und Zitate, ursprüngliche Datensatzkennungen und die IDs des Programms. |
+| pl | Z powrotem do {program} | Cel eksportu GEDCOM dla własnego programu genealogicznego: pełne dane, źródła i cytowania, pierwotne oznaczenia rekordów i identyfikatory programu. |
+
+- **Čísla:** [S6.6](cs/S6-tree-from-another-program.md#S6.6), S6.4, A7.2
 
 <a id="living-person"></a>
 ### Žijící osoba

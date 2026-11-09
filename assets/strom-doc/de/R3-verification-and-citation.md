@@ -31,6 +31,8 @@ Schlussfolgerung aus allen Quellen der Angabe ist, nicht, wie gut eine einzelne 
   1.12.0); Etikett in der App 3.9.0
 - **Ab Forschung 1.26.0:** das Terminal nennt die Grade mit den Worten der App: **belegt**, **wahrscheinlich**,
   **möglich**, **Hinweis**, **widerlegt**. Die Zusammenfassung `strom stats` schreibt weiter „nur Hinweise“.
+- **Ab Forschung 1.30.0:** `strom event show` und `strom event edit` geben die Angabe für den Menschen in der Sprache
+  der Forschung aus (zum Beispiel „[Hinweis]“); der Agent bekommt die Ausgabe weiter auf Englisch.
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -313,15 +315,15 @@ Belegstufe einer Person berechnet die App selbst, nur aus Zitationen.
 | Etikett bei der Angabe, z. B. **Belegt** | Grad der Sicherheit der Angabe | Forschung ([R3.1](#R3.1)) |
 | **Stammbaum-Überblick → Datenqualität → Sicherheit der Forschungsangaben** | Geburten, Sterbefälle und Heiraten nach Grad | Forschung |
 | Personenseite, **Für Forschende → Sicherheit der Angaben** | Grad jeder Angabe der Person | Forschung |
-| **Belegt** / **Teilweise belegt** / **Unbelegt** (● ◐ ○) | Belegstufe der Person | Zitationen ([R3.8.1](#R3.8.1)) |
+| **Belegt** / **Teilweise belegt** / **Unbelegt** | Belegstufe der Person | Zitationen ([R3.8.1](#R3.8.1)) |
 | **Für Forschende**, „Durch Quellen belegt: N von M Angaben“ | Angaben der Person mit Quelle | Zitationen |
 | **Stammbaum-Überblick → Vorfahren**, Spalte **belegt** | Vorfahren mit belegter Geburt | mit Forschung nur Belegt, sonst Zitationen |
 | **Wo Belege fehlen → Geburten in der Forschung nicht bewiesen** | Geburten der Vorfahren, die nicht Belegt sind | Forschung |
-| Buch, **Daten für Forschende**: ● belegt · ◐ Widerspruch · ○ nicht belegt | Belegstand der Angabe | Belegt **oder** irgendeine Zitation |
+| Buch, **Daten für Forschende**: belegt · Widerspruch · nicht belegt | Belegstand der Angabe | Belegt **oder** irgendeine Zitation |
 | **Meine Quellenabschriften → Beleg** | wie die Forschung Abschriften des Benutzers nimmt | erste Lesung, Wahrscheinlich ([R3.5.1](#R3.5.1)) |
 
 - **Grenzen:** die Grade der Sicherheit zeigt die App nur, ändern lassen sie sich nicht. Ein Widerspruch bei einer
-  Angabe im Buch sticht ● und ○.
+  Angabe im Buch sticht „belegt“ und „nicht belegt“.
 - **Gilt seit:** App 3.5.0 (Stufe der Person), 3.9.0 (Etikett, Meine Quellenabschriften), 3.13.0 (Sicherheit der
   Forschungsangaben), 3.13.1 (Spalte belegt), 3.18.0 (Für Forschende), 3.19.0 (Buch)
 
@@ -330,18 +332,19 @@ Belegstufe einer Person berechnet die App selbst, nur aus Zitationen.
 <a id="R3.8.1"></a>
 ### R3.8.1 Belegstufe einer Person
 
-- **Unbelegt** (○): weder die Person noch ihre Ereignisse noch ihre Partnerschaften zitieren eine Quelle.
-- **Belegt** (●): zitierte Geburt (oder Taufe) und, wenn die Person einen Tod hat (Datum, Ort, Ereignis des Todes
+- **Unbelegt**: weder die Person noch ihre Ereignisse noch ihre Partnerschaften zitieren eine Quelle.
+- **Belegt**: zitierte Geburt (oder Taufe) und, wenn die Person einen Tod hat (Datum, Ort, Ereignis des Todes
   oder des Begräbnisses), auch ein zitierter Tod (oder Begräbnis, Einäscherung).
-- **Teilweise belegt** (◐): alles dazwischen, auch eine Quelle, die nur an der Person hängt (am Namen, am Wohnort).
+- **Teilweise belegt**: alles dazwischen, auch eine Quelle, die nur an der Person hängt (am Namen, am Wohnort).
 - Der Grad der Sicherheit zählt nicht: eine Geburt, die auch nur einen übernommenen Stammbaum zitiert (Hinweis), gibt
-  ●. Die App sagt das bei **Sicherheit der Forschungsangaben**: „Nicht zu verwechseln mit Quellenbelegen.“
+  **Belegt**. Die App sagt das bei **Sicherheit der Forschungsangaben**: „Nicht zu verwechseln mit Quellenbelegen.“
 - Zitiert im Stammbaum niemand eine Quelle, zeigt die Karte keine Stufe. Eine Platzhalterperson hat keine Stufe.
-- **Bedienung:** App: Option der Karte **Belege aus Quellen**; Hervorhebung **Belege** im Stammbaum;
+- **Bedienung:** App: die Marke auf der Karte in einem Baum, der die Herkunft der Angaben nicht kennt
+  ([S7.2](S7-reliability-and-verification.md#S7.2)); der Modus **Belege** im Baum ([A3.7](A3-evidence-in-the-app.md#A3.7));
   **Stammbaum-Überblick → Datenqualität → Wo Belege fehlen**.
-- **Gilt seit:** App 3.5.0
+- **Gilt seit:** App 3.5.0; 3.26.0: die Stufe zeigt eine Marke auf der Karte ([S7.2](S7-reliability-and-verification.md#S7.2))
 
-<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardEvidence/cardShowHint, treeOverview.certaintyDesc -->
+<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardShowHint, treeOverview.certaintyDesc · app:7eb903a3 src/reliability.ts cardStatus (bez původu: full ●●, partial ●○, none) · src/ui/fact-status.ts card.evTitle · strings.ts cardDensity.cardStatus (3.26.0 nahradila cardEvidence) -->
 
 <a id="R3.9"></a>
 ## R3.9 Eine Erzählung behält ihre Quellen

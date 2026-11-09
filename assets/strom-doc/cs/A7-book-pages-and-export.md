@@ -59,6 +59,11 @@ v knize rodu **Ochrana žijících**.
   citace a přílohy **u všech osob, i zemřelých** (aplikace to u volby napíše). Kniha rodu, stránky a stránka osoby
   berou prameny jen žijícím; pramen citovaný jen u žijících vypadne.
 - **Platí od:** aplikace 1.2.0; prameny zemřelých v knize a na stránkách aplikace 3.18.0
+- **Od aplikace 3.26.0:** export GEDCOM drží prameny a citace zemřelých v každé volbě; vynechá jen citace žijících
+  osob a řekne to („U N žijících osob se vynechá K citací. Zemřelým prameny zůstanou.“, volba **Ponechat prameny**).
+  Export Aplikace i s daty a JSON se nemění. Export GEDCOM se nejdřív ptá, **K čemu soubor je**: **Zpět do
+  {program}** (plná data, prameny a ID programu), nebo **Ke sdílení s ostatními**
+  ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/privacy.ts applyPrivacy (keepDeceasedSources) · strings.ts privacy.label, privacy.modeFull, privacy.modeInitials, privacy.modeAnonymous, privacy.modeMinimal, privacy.livingPerson, privacy.dropsSources · book.dlg.privacy · CHANGELOG.cs.md 3.18.0 -->
 
@@ -78,6 +83,8 @@ v knize rodu **Ochrana žijících**.
   pod chráněným jménem. Když výběr obsahuje žijící osoby a ochrana je vypnutá, dialog upozorní, že soubor ponese
   jejich jména, data a místa.
 - **Platí od:** aplikace 1.2.0; stránka osoby aplikace 3.18.0; kniha rodu aplikace 3.19.0
+- **Od aplikace 3.26.0:** GEDCOM s volbou **Ke sdílení s ostatními** (výchozí) má Iniciály + rok narození, s volbou
+  **Zpět do {program}** Plná data ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/ui/import-export.ts (výchozí privacy podle formátu) · src/book-options.ts:55 · src/person-page.ts:94, :104 personPageExportPrivacy · src/family-pages.ts:309 · src/ui/share-ui.ts · strings.ts familyPages.privacyWarn -->
 

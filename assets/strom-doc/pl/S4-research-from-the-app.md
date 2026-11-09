@@ -271,10 +271,24 @@ w aplikacji, a co tylko w badaniu, mówi [R6.5](R6-awaiting-action.md#R6.5).
   po odpowiedzi.**, przy pytaniach o miejsca **Na pytania o miejsca odpowiada się tutaj.**, przy obu **Na pytania
   o miejsca odpowiada się tutaj, na pozostałe w badaniu.** Pozycji tylko dla terminala aplikacja nie dostaje
   ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
-- **Obsługa:** aplikacja: panel, sekcja **Czeka na decyzję**; menu **Badanie → Czeka na decyzję**.
-- **Obowiązuje od:** aplikacja 3.4.0. Pytania o miejsca od badania 1.25.0.
+- **Z drzewa:** karta osoby, na którą coś czeka, ma znacznik **!** (podpowiedź: **Kliknięcie: odpowiedz**).
+  Kliknięcie w niego i pozycja **Odpowiedz · N czeka** w menu osoby robią to samo:
+  - gdy na osobę czeka jedna pozycja, otworzy się jej odpowiedź tak samo jak przyciskiem w jej wierszu w panelu;
+  - gdy czeka ich więcej, otworzy się panel w sekcji **Czeka na decyzję** z pozycjami osoby na górze, wyróżnionymi.
+    Na telefonie, przy zwiniętej lub ukrytej sekcji i przy otwartym przeglądzie zostaną wyróżnione w **Przeglądzie
+    badania**;
+  - gdy na żadną pozycję osoby (nawet na jedyną) nie można tu odpowiedzieć, panel otworzy się tak samo, a pod każdą
+    pozycją stoi **Tutaj nie można odpowiedzieć: odpowiada się w badaniu, na komputerze, na którym jest
+    zainstalowane.** Kliknięcie nigdy nie zostaje bez reakcji;
+  - nowa wersja opowieści otworzy porównanie;
+  - na urządzeniu dotykowym menu osoby ma zamiast **Odpowiedz · N czeka** pozycję **Czeka na załatwienie · N ›**:
+    wyróżni pozycje osoby, a odpowiada się z ich wierszy.
+- **Obsługa:** aplikacja: panel, sekcja **Czeka na decyzję**; menu **Badanie → Czeka na decyzję**; znacznik **!** na
+  karcie i **Odpowiedz · N czeka** w menu osoby.
+- **Obowiązuje od:** aplikacja 3.4.0. Pytania o miejsca od badania 1.25.0. Znacznik **!** i **Odpowiedz · N czeka**
+  działają tak od aplikacji 3.26.0.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
 
 <a id="S4.5"></a>
 ## S4.5 Działania, które otwierają badanie

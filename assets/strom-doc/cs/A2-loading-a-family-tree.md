@@ -3,7 +3,8 @@
 
 Kapitola říká, co aplikace převezme ze souboru GEDCOM z jiného programu, co přeskočí a jak to přizná v souhrnu
 importu. Popisuje aplikaci Strom 3.21.2 (a výzkum 1.25.2); změny z novější verze mají u sebe její číslo. Otevření
-souboru výzkumu a vazba stromu na výzkum patří do kapitoly S1.
+souboru výzkumu a vazba stromu na výzkum patří do kapitoly S1. Celou cestu rodokmenu z jiného programu (značky
+spolehlivosti, ochrana údajů z rodokmenu, karta **Co teď**, export zpět) popisuje [S6](S6-tree-from-another-program.md).
 
 <a id="A2.1"></a>
 ## A2.1 Co se načte a co ne
@@ -22,6 +23,17 @@ tiše neztratí na úrovni záznamu ani přímého údaje osoby, rodiny a pramen
 - **Ovládání:** **Import → Import GEDCOM** (soubor `.ged`). V novém stromu i tlačítko na prázdném stromu. Souhrn viz
   [A2.1.1](#A2.1.1).
 - **Platí od:** aplikace 1.9.0 (souhrn nepřenesených značek); poznámkové řádky od aplikace 3.0.0.
+- **Od aplikace 3.26.0:**
+  - `_UID`, `RIN`, `AFN` a další ID programu (`UID`, `EXID`, `_FSFTID`) se nepřeskakují: uchovají se u osoby a rodiny
+    spolu s původním označením záznamu (`@I12@`) jako ID programu ([S6.1](S6-tree-from-another-program.md#S6.1));
+  - vlastní značky programu (`_XXX`) přímo u osoby, rodiny a pramene se uchovají pro export **Zpět do {program}**
+    ([S6.6](S6-tree-from-another-program.md#S6.6)); hlubší vlastní značky se spočítají;
+  - výřezy fotek MyHeritage (`_POSITION`, `_CUTOUT`) jsou evidenční a nepočítají se;
+  - rozvod zapsaný před sňatkem (PAF) se neztratí a sňatek nepřepíše; prázdný sňatek nebo rozvod zapsaný před
+    jiným s datem (MyHeritage) si nechá datum a místo toho s datem;
+  - jméno zapsané jako popis (`Son`, `Unknown`) se vrací tak, jak bylo zapsané, bez poznámky z něj udělané; text na
+    řádku údaje (vzdělání, pohřeb, vlastní událost), adresa po částech (`ADR1`, `CITY`…) a webový odkaz v textu
+    pramene zůstanou a vrátí se tak, jak je soubor měl.
 
 <!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
 
@@ -42,6 +54,12 @@ napojení.
 
 - **Od aplikace 3.22.0:** Nad seznamem přeskočených značek je věta, co dlaždice **Nepodporováno** počítá: části
   souboru, které Strom nezná a nepřenesl, ne osoby a vztahy.
+- **Od aplikace 3.26.0:**
+  - řádek „Uchováno pro export „Zpět do {program}“: N značek (…)“, když soubor má vlastní značky programu;
+  - řádek **Kódování textu** u souboru s odhadnutým nebo jednobajtovým kódováním ([A2.2](#A2.2));
+  - po importu souboru jiného programu karta **Co teď** ([S6.4](S6-tree-from-another-program.md#S6.4)); nahrazuje
+    dřívější otázky po importu;
+  - **Vložit do stromu** si nejdřív uloží zálohu stromu ([S6.5](S6-tree-from-another-program.md#S6.5)).
 
 <!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
 
@@ -61,6 +79,16 @@ Aplikace čte GEDCOM 5.5.1 i GEDCOM 7 a kódování pozná sama. Exportuje vždy
 - **Platí od:** aplikace 1.16.0 (převod ANSEL a kódování podle hlavičky).
 - **Od aplikace 3.22.0:** Značky GEDCOM 7 `UID`, `CREA` a `EXID` se přeskočí tiše jako účetní údaje; v 3.21.2 se
   počítají do **Nepodporováno**.
+- **Od aplikace 3.26.0:**
+  - `CHAR CP1250` nebo `WINDOWS-1250` je Windows-1250. `ANSI` znamená kódovou stránku počítače, který soubor psal:
+    platné UTF-8 zůstane UTF-8, jinak rozhodnou slova souboru mezi Windows-1250 (střední Evropa: č ř ě ł ż)
+    a Windows-1252 (západní Evropa). Stejně se odhadne soubor bez `CHAR` a soubor s `CHAR UTF-8`, který platné UTF-8
+    není;
+  - když bylo kódování odhadnuté nebo je jednobajtové a soubor má text s diakritikou, souhrn importu ukáže řádek
+    **Kódování textu** s **Ukázka jmen:** a volbou jiného kódování (**UTF-8**, **Windows-1250 (střední Evropa)**,
+    **Windows-1252 (západní Evropa)**, **ISO-8859-2 (Latin-2)**, **ANSEL (starší GEDCOM)**). Zkomolené znaky ve
+    jménech (è místo č, ø místo ř) znamenají, že sedí jiné kódování. **Ovládání:** volba v řádku **Kódování textu**;
+  - samostatné záznamy médií `0 @O1@ OBJE` se čtou přes odkazy na ně; fotka rodiny odkázaná takto se jen spočítá.
 
 <!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
 
@@ -157,6 +185,9 @@ Hlavička `1 SOUR STROM` říká, že soubor psal Strom.
   jména jdou do poznámky ([A2.3](#A2.3)). Řádky vazby na výzkum v hlavičce (`_STROM_TREE` aj.) řeší S1 a S2.
 - **Ovládání:** **Export → Export GEDCOM**.
 - **Platí od:** aplikace 3.9.0 nebo dřív (jednotlivé značky přibývaly do 3.19.0).
+- **Od aplikace 3.26.0:** ID programů se vracejí pod `_STROM_IMPORT` a `_STROM_XID`; soubor se při novém načtení
+  podle nich páruje ([S6.7](S6-tree-from-another-program.md#S6.7)). Soubor s hlavičkou Stromu není rodokmen z jiného
+  programu: nemá značku **Z rodokmenu** ani kartu **Co teď**.
 
 <!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
 
@@ -169,5 +200,7 @@ souboru s osobami aktuálního stromu a výsledek uloží jako další nový str
 - **Hranice:** opakovaný import souboru výzkumu do stromu výzkumu řeší [S1](S1-connecting-app-and-research.md).
 - **Ovládání:** **Import → Import GEDCOM → Importovat jako nový strom** nebo **Sloučit s existujícím**.
 - **Platí od:** aplikace 1.0.0
+- **Od aplikace 3.26.0:** rodokmen téhož programu načtený znovu se páruje i podle ID programu (důvod **Stejné ID
+  v souboru**); shoda 50–79 se jen nabídne ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/ui.ts:1447 TreeManager.createTree · strings.ts treeManager.importAsNewTree, importDialog.mergeExisting -->

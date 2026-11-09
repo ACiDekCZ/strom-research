@@ -276,10 +276,24 @@ with in the app and what only in the research is said in [R6.5](R6-awaiting-acti
   afterwards.**, for questions about places **Questions about places are answered here.**, for both **Questions about
   places are answered here, the others in the research.** Items only for the terminal do not reach the app
   ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
-- **Controls:** app: the panel, section **Awaiting action**; menu **Research → Awaiting action**.
-- **Since:** app 3.4.0. Questions about places from research 1.25.0.
+- **From the tree:** the card of a person something waits on has the mark **!** (tip: **Click: answer**). A click on
+  it and the item **Answer · N waiting** in the person's menu do the same:
+  - with one item waiting on the person, its answer opens as with the button in its row in the panel;
+  - with more, the panel opens at the section **Awaiting action** with the person's items first, highlighted. On a
+    phone, with the section folded or hidden and with the overview open, they are highlighted in the **Research
+    overview**;
+  - when none of the person's items (not even a single one) can be answered here, the panel opens all the same and
+    under each item stands **Not answerable here: the answer is given in the research, on the computer where it is
+    installed.** A click never goes without a response;
+  - a new version of a story opens the comparison;
+  - on a touch device the person's menu has the item **Waiting · N ›** instead of **Answer · N waiting**: it
+    highlights the person's items, and they are answered from their rows.
+- **Controls:** app: the panel, section **Awaiting action**; menu **Research → Awaiting action**; the mark **!** on
+  the card and **Answer · N waiting** in the person's menu.
+- **Since:** app 3.4.0. Questions about places from research 1.25.0. The mark **!** and **Answer · N waiting** work
+  this way since app 3.26.0.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
 
 <a id="S4.5"></a>
 ## S4.5 Actions that open the research

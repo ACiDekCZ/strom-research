@@ -61,6 +61,11 @@ is called **Privacy of living people**.
   book, the pages and the person page take sources away only from living people; a source cited only for living
   people drops out.
 - **Since:** app 1.2.0; sources of deceased people in the book and on the pages app 3.18.0
+- **From app 3.26.0:** the GEDCOM export keeps the sources and citations of deceased people in every option; it leaves
+  out only the citations of living people and says so (“For N living people, K citations are left out. The deceased
+  keep their sources.”, option **Keep sources**). The App with data and JSON exports do not change. The GEDCOM export
+  first asks **What the file is for**: **Back to {program}** (full data, sources and program IDs), or **To share with
+  others** ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/privacy.ts applyPrivacy (keepDeceasedSources) · strings.ts privacy.label, privacy.modeFull, privacy.modeInitials, privacy.modeAnonymous, privacy.modeMinimal, privacy.livingPerson, privacy.dropsSources · book.dlg.privacy · CHANGELOG.cs.md 3.18.0 -->
 
@@ -80,6 +85,8 @@ is called **Privacy of living people**.
   the person is under the protected name. When the choice contains living people and privacy is off, the dialog
   warns that the file will carry their names, dates and places.
 - **Since:** app 1.2.0; person page app 3.18.0; family book app 3.19.0
+- **From app 3.26.0:** GEDCOM with the option **To share with others** (the default) has Initials + birth year, with
+  the option **Back to {program}** Full data ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/ui/import-export.ts (výchozí privacy podle formátu) · src/book-options.ts:55 · src/person-page.ts:94, :104 personPageExportPrivacy · src/family-pages.ts:309 · src/ui/share-ui.ts · strings.ts familyPages.privacyWarn -->
 

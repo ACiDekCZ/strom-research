@@ -75,8 +75,21 @@ w całości, ale tylko jako wskazówki.
 - **Obsługa:** terminal: `strom intake rodokmen.ged`. Wczytanie drzewa genealogicznego do aplikacji opisuje
   [A2](A2-loading-a-family-tree.md).
 - **Obowiązuje od:** badanie 1.0.0
+- **Od badania 1.30.0:**
+  - każda dana ma pochodzenie (z drzewa, od człowieka, z badania). Daną z drzewa agent zmieni tylko z cytowanym
+    aktem, w przeciwnym razie zaproponuje zmianę; daną człowieka tylko zaproponuje. Wartość z drzewa zostaje
+    zachowana i przywrócić ją może tylko człowiek (`strom event revert`, `strom person revert`)
+    ([S6.3](S6-tree-from-another-program.md#S6.3)). Wartość z pliku aplikacji Strom, której od przejęcia nikt nie
+    zmienił, pochodzi z własnego drzewa człowieka: jest chroniona jak dana człowieka, ale nie uchodzi za potwierdzoną
+    przez człowieka;
+  - identyfikatory programu (`_UID`, `EXID`, `_FSFTID` …) się zachowuje: to samo drzewo przejęte ponownie nikogo nie
+    dodaje dwa razy; osoby tylko być może tej samej się nie łączy, a wynik ją wymienia (`candidates`); co nie zostało
+    przejęte, wynik liczy (`notTaken`) ([S6.8](S6-tree-from-another-program.md#S6.8));
+  - plik w Windows-1250 lub Windows-1252 („ANSI”) czyta się z właściwymi literami;
+  - źródło drzewa nie ma strony (`PAGE`): każda dana podaje swój wiersz z drzewa;
+  - badanie założone wcześniej po aktualizacji raz się oznacza (`strom fixes undo origins` to cofa).
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree -->
 
 <a id="R11.4"></a>
 ## R11.4 Partia z aplikacji

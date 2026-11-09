@@ -47,7 +47,7 @@ import { permissionWait } from "../core/archivewait.ts";
 import type { Repository } from "../core/model.ts";
 import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
-import { requestNote } from "../core/waiting.ts";
+import { requestNote, requestPath } from "../core/waiting.ts";
 import { addressesPerson } from "../core/impersonal.ts";
 
 
@@ -561,21 +561,7 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
     wait.kind = k as NonNullable<Task["wait"]>["kind"];
   }
   if (typeof opts.to === "string" && opts.to.trim()) wait.to = impersonal(tree, "--to", opts.to).slice(0, 300);
-  if (opts.request !== undefined) {
-    const raw = String(opts.request).trim();
-    const parts = raw.split(/[\\/]+/);
-    // a path of the tree's notes/, as given (never normalized): no absolute path, no way out of notes/
-    if (!raw || path.isAbsolute(raw) || /^[A-Za-z]:/.test(raw) || parts[0] !== "notes" || parts.length < 2 || parts.some((p) => p === ".." || p === "."))
-      throw new UsageError(`--request takes a file of the tree's notes/, as notes/<file>.md — not "${raw}"`, { hint: `save the request's text first (notes/request-<what>.md), then strom task wait ${id} … --request notes/request-<what>.md` });
-    let file = false;
-    try {
-      file = fs.statSync(path.join(tree.root, ...parts)).isFile();
-    } catch {
-      file = false;
-    }
-    if (!file) throw new UsageError(`--request: no file ${raw} in this tree`, { hint: `save the request's text there first, then name it again`, code: "task.request-missing" });
-    wait.note = parts.join("/");
-  }
+  if (opts.request !== undefined) wait.note = requestPath(tree.root, String(opts.request), id);
   if (opts.url !== undefined) {
     if (has.check) throw new UsageError("--url with --check: --check carries the site's address itself", { hint: "leave out --url" });
     const raw = String(opts.url).trim();

@@ -5,9 +5,49 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.31.0
+
+*In Vorbereitung: die Betas bis 1.31.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
+  Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
+  iCloud-Kopien wie `index 2`), melden `strom verify`, `strom check` und ein abgelehnter Schreibvorgang
+  `history-reverted` mit der Zahl der Datensätze, die eine Reparatur entfernen würde, und zeigen den Weg, der nichts
+  verliert: den ganzen Ordner sichern, `.git` aus einer Sicherung oder Time Machine zurückholen, oder `strom seal
+  accept` durch die Nutzerin oder den Nutzer. `strom repair`, das mehr als drei Datensätze oder einen solchen entfernen
+  würde, nennt sie und fragt im eigenen Terminal nach; ein Agent startet es nie. Was eine Reparatur beiseitegelegt hat,
+  holt `strom repair undo <Stempel>` zurück (im eigenen Terminal, ein versiegelter Vorgang), auch nach einer Reparatur
+  mit 1.30.
+
+- **Eine Brücke pro Forschung, auch nach einem Update.** Eine Brücke eines älteren strom, die neben der Brücke der
+  Forschung weiterlief, beendet sich selbst: wenn ihre Nachfolgerin die Forschung von einer anderen Brücke gehalten
+  findet, bei der nächsten Prüfung, oder wenn das Update den strom entfernt hat, aus dem sie läuft (vorher alle 16
+  Sekunden ein Fehler). Die Übergabe an die Brücke eines neueren strom ist auch schneller: die alte Brücke antwortet
+  weiter, während der neue strom geprüft wird.
+
+- **Kleinigkeiten.** Eine Angabe, deren Prüfung nach vorne gerückt wurde, ist in der Datei für die Strom-App als
+  angefragt markiert, sodass die App nicht noch einmal anbietet, sie vorzuziehen. `strom error --note` verbirgt auch die
+  gebeugten Formen der Namen und Orte, die die Forschung kennt (tschechisch *z Brna*, *v Praze*). `strom task wait
+  --request` findet die Datei auch, wenn ihr Name in der anderen Unicode-Form angegeben ist (ein Pfad vom Mac, unter
+  Windows verwendet).
+
+## 1.30.1
+
+*9.11.2026 · gehört zur Strom-App 3.26.0.*
+
+- **Eine Forschung, deren Verlauf ein Cloud-Laufwerk beschädigt hat, lässt sich übernehmen, wie sie ist.** Fehlen die
+  ältesten Protokolle einer Forschung und lässt sich ihr Verlauf (git) nicht lesen (etwa bei einer Forschung, die in
+  iCloud Drive lag), sagt `strom verify` das und zeigt bei jedem Eintrag, den es nicht mehr versiegelt findet, einen
+  einzigen Weg: der Benutzer sieht die Einträge durch und startet in seinem eigenen Terminal `strom seal accept`. Ohne
+  Bestätigung zählt es nur, was es täte; mit ihr versiegelt es die Einträge, wie sie sind, in einem Vorgang, legt den
+  beschädigten Verlauf beiseite (`.git-damaged-<wann>`, nie gelöscht), beginnt einen neuen und legt die Kopien von
+  iCloud (`… 2.lock`) beiseite. Kein Eintrag ändert sich, nichts wird gelöscht; ein Agent startet es nie, und andere
+  Befunde der Prüfung übernimmt es nicht. Bisher blieb jeder Schreibvorgang und `strom check` am beschädigten Verlauf
+  stehen, und `strom repair` konnte nur einen älteren Stand zurückholen.
+
 ## 1.30.0
 
-*In Vorbereitung: die Betas bis 1.30.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*9.11.2026 · gehört zur Strom-App 3.26.0.*
 
 - **Angaben am Original geprüft.** Angaben zu Geburt, Taufe, Heirat, Tod oder Begräbnis, die ihren ursprünglichen
   Eintrag zitieren, aber wahrscheinlich oder möglich bleiben, prüft der Agent an diesem Original: er sieht sich den Scan

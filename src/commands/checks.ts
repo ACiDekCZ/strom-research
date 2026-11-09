@@ -1,4 +1,4 @@
-// check · verify · guard · repair · seal adopt · history
+// check · verify · guard · repair · repair undo · seal adopt · seal accept · history
 
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { actsAsArchive } from "../core/state.ts";
@@ -10,13 +10,15 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, REPAIR_IN_TERMINAL_HINT, SEALED_PATHS, lastSealed, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { HISTORY_REVERTED, LOST_HINT, REPAIR_ASKS_ABOVE, applyRepair, applyUndo, historyLost, isRecordFile, planRepair, planUndo, quarantines, repairAsks, repairWay, sameRepair, type RepairPlan, type UndoPlan } from "../core/repair.ts";
 import { otherKeys } from "../core/seal.ts";
 import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { history } from "../core/live.ts";
+import { history, liveRunning } from "../core/live.ts";
+import { ACCEPT_HINT, acceptWay, guardOrDamaged, applyAccept, nothingToAccept, planAccept, type AcceptPlan } from "../core/accept.ts";
 import { humanWhen, verifyWaitsMore } from "../cli/human.ts";
 import { verifyCounts } from "../core/verify.ts";
 import { isAgent } from "../core/which.ts";
@@ -32,6 +34,7 @@ import { receivedPending } from "../core/sync.ts";
  * existing IDs" in a Czech research, after a write a held file stopped); the rest stay strom's own words.
  */
 function said(f: Finding, lang: string | undefined): string {
+  if (lang && f.code === HISTORY_REVERTED) return ui(lang, "ui.check.lost", { n: f.count ?? 0 });
   if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
   if (lang && f.code === "unwritable") return ui(lang, "ui.check.unwritable");
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal");
@@ -47,6 +50,8 @@ function said(f: Finding, lang: string | undefined): string {
 
 /** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
 function hintSaid(f: Finding, lang: string | undefined): string | undefined {
+  if (lang && f.hint === ACCEPT_HINT) return ui(lang, "ui.check.accept.hint");
+  if (lang && f.hint === LOST_HINT) return ui(lang, "ui.check.lost.hint");
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
   if (lang && f.code === OTHER_KEY) return ui(lang, f.hint === AFTER_REPAIR_HINT ? "ui.check.otherkey.afterrepair.hint" : "ui.check.otherkey.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
@@ -76,6 +81,15 @@ export function report(findings: Finding[], okText: string, lang?: string, perso
   return { text, data: { ok: errors.length === 0, findings }, exitCode: errors.length ? 1 : 0 };
 }
 
+
+/**
+ * The full check of the seals with the way each finding goes: a history (git) that cannot be read — the person's strom
+ * seal accept; one older than the research — never strom repair, which would remove that work.
+ */
+function sealWay(tree: Tree): Finding[] {
+  const full = verifyFull(tree);
+  return repairWay(tree, acceptWay(tree, full.findings), full);
+}
 
 /**
  * A research that cannot be written is no "ok" (found on Windows: check said ok where every write failed) — its
@@ -108,7 +122,7 @@ register(
       const lang = agent ? "en" : tree.lang;
       // the shared folder's files of this research (its material, the images nobody fetches again): only here and in
       // strom verify, never before a command (each file asked whether it is there)
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, agent), ...sharedMissing(tree)], ui(lang, "ui.check.ok"), lang, !agent);
+      const checked = report([...sealWay(tree), ...check(tree), ...guardOrDamaged(tree, () => guard(tree)), ...unwritable(tree, agent), ...sharedMissing(tree)], ui(lang, "ui.check.ok"), lang, !agent);
       // much kept beside the research that can go (an older strom never tidied it): a sentence, in that language —
       // none where .strom cannot be listed (found on Windows: a folder denied to strom ended check with "no permission"
       // instead of its finding; unwritable says it)
@@ -144,7 +158,7 @@ register(
     options: [{ name: "fast", type: "boolean", description: "only what changed since the last commit (what runs before every write)" }],
     run(ctx, { opts }) {
       const tree = ctx.tree();
-      return report(opts.fast ? verifyFast(tree).findings : [...verifyFull(tree).findings, ...sharedMissing(tree)], "ok — every record matches its seal");
+      return report(opts.fast ? verifyFast(tree).findings : [...sealWay(tree), ...sharedMissing(tree)], "ok — every record matches its seal", isAgent(ctx.env) ? undefined : tree.lang, !isAgent(ctx.env));
     },
   },
   {
@@ -158,97 +172,6 @@ register(
   },
 );
 
-interface Repaired {
-  restored: string[];
-  quarantined: string[];
-  from: string;
-  /** Commits made outside strom on top: sealed again, whether or not they changed a record. */
-  resealed: boolean;
-  /** Paths git's index held otherwise than the sealed state (what an interrupted write staged), put back to it. */
-  unstaged: number;
-  /** A lock of git's index a git that ended mid-way left (stale), taken away. */
-  lock: boolean;
-}
-
-function quarantine(tree: Tree, rel: string, stamp: string): void {
-  const abs = path.join(tree.root, rel);
-  if (!fs.existsSync(abs)) return;
-  const dest = path.join(tree.root, ".strom", "quarantine", stamp, rel);
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(abs, dest);
-}
-
-/** Return data/ and strom.json to the newest sealed commit. */
-function repair(tree: Tree): Repaired {
-  // files only in iCloud: never written over from the history (the cloud may hold a newer one), their placeholders
-  // never taken away — downloaded first, then whatever else is wrong is repaired
-  const cloud = notDownloaded(tree.root);
-  if (cloud.length) throw notDownloadedError(cloud);
-  const key = tree.requireKey();
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const head = git.headInfo(tree.root);
-  // the newest commit any key of this computer sealed: only what was done outside strom undone, the other key's work
-  // kept — strom seal adopt unites them after
-  const { sealed, inTerminal } = lastSealed(tree, key);
-  if (!sealed) throw new StromError("no sealed commit found — nothing to restore from", { hint: "ask the user; the history may have been rewritten" });
-  if (inTerminal)
-    throw new StromError(`"${tree.config.name}" holds work sealed with the key of the terminal's strom, which this strom (started by an app packaged for Windows) does not see — nothing repaired`, {
-      hint: REPAIR_IN_TERMINAL_HINT,
-      code: "seal.repair-in-terminal",
-      params: { name: tree.config.name },
-    });
-  const headSealed = head !== undefined && head.hash === sealed;
-  // a lock of git's index a git that ended mid-way left (killed with the command that ran it): no git holds it any
-  // more — taken away, else nothing could be written again (a fresh one may be a git at work: left)
-  const stale = git.staleIndexLock(tree.root);
-  if (stale) fs.rmSync(stale, { force: true });
-
-  // Paths to compare: whatever differs between the sealed commit and the working tree.
-  const candidates = new Set<string>();
-  // …and what git's index holds otherwise than the last commit (a write taken back after its git add): back to it
-  const staged: string[] = [];
-  for (const c of git.changes(tree.root, SEALED_PATHS)) {
-    candidates.add(c.path);
-    if (!" ?!".includes(c.code[0] ?? " ")) staged.push(c.path);
-  }
-  if (!headSealed) {
-    const r = git.runGit(tree.root, ["diff", "--name-only", "-z", sealed, "HEAD", "--", ...SEALED_PATHS]);
-    for (const p of r.stdout.split("\0").filter(Boolean)) candidates.add(p);
-  }
-  const sealedContent = git.showFiles(tree.root, sealed, [...candidates]);
-  const restored: string[] = [];
-  const quarantined: string[] = [];
-  for (const rel of [...candidates].sort()) {
-    const abs = path.join(tree.root, rel);
-    const want = sealedContent.get(rel);
-    const have = fs.existsSync(abs) ? fs.readFileSync(abs, "utf8") : undefined;
-    if (want === have) continue;
-    quarantine(tree, rel, stamp);
-    if (want === undefined) {
-      fs.rmSync(abs);
-      quarantined.push(rel);
-    } else {
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      fs.writeFileSync(abs, want);
-      restored.push(rel);
-    }
-  }
-  // sealed again even when the commits outside strom changed nothing of it (an empty one, notes only): else the last
-  // commit stays unsealed and every write refused, with nothing left to repair
-  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS, true);
-  // the folder as the sealed commit, HEAD: git's index as HEAD too (a commit above put it so already)
-  else if (staged.length) {
-    const said = git.unstage(tree.root, staged);
-    if (said !== undefined)
-      throw new StromError(`git could not put its index back to the sealed state: ${said}`, {
-        hint: "programs that may hold the research's folder closed (a sync tool, an antivirus scan, another git), then strom repair again",
-        code: "repair.index",
-        details: staged.slice(0, 50),
-      });
-  }
-  return { restored, quarantined, from: sealed, resealed: !headSealed, unstaged: headSealed ? staged.length : 0, lock: !!stale };
-}
-
 register(
   {
     path: ["repair"],
@@ -257,14 +180,34 @@ register(
     tree: true,
     description:
       "Edited records are restored, records created outside strom are removed; copies of everything\n" +
-      "that was replaced are kept in .strom/quarantine/. Commits made with git directly are undone for data/.\n" +
+      "that was replaced are kept in .strom/quarantine/<stamp>/ (strom repair undo <stamp> puts them back). Commits made\n" +
+      "with git directly are undone for data/.\n" +
+      `Removing more than ${REPAIR_ASKS_ABOVE} records, or records the history says are work rather than changes outside strom\n` +
+      "(written by operations sealed in their logs, referred to by other records, older than what the sealed state keeps —\n" +
+      "a history (git) older than the research, as a cloud drive leaves it), is the user's own decision in their terminal:\n" +
+      "strom repair says what it would remove and asks; an agent, --yes or no terminal gets only the count.\n" +
       "A tree sealed with two keys of this computer (an app packaged for Windows and a terminal): the work of both kept,\n" +
       "the keys united after it with strom seal adopt.",
-    run(ctx) {
+    run: async (ctx: Context) => {
       const tree = ctx.tree();
       // what a person meets here in the research's language, an agent in English
-      const lang = isAgent(ctx.env) ? "en" : tree.lang;
-      const r = tree.withTreeLock(() => repair(tree));
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      const asked = planRepair(tree);
+      const asks = repairAsks(asked);
+      if (asks) {
+        const set = "strom repair";
+        ctx.requireHuman(repairQuestion(asked), set, "repair", lines(repairSaid(asked, lang), "", ui(lang, "ui.repair.person", { command: set })), { window: false });
+        ctx.io.stdout(repairSaid(asked, lang) + "\n");
+        if (!(await ctx.confirm(ui(lang, "ui.repair.ask", { n: asked.records.length }), false))) return { text: ui(lang, "ui.cancelled"), data: { ...repairData(asked), repaired: false } };
+      }
+      const r = tree.withTreeLock(() => {
+        // under the lock: what it would do now — anything changed since the look (or since the person's yes), nothing done
+        const plan = planRepair(tree);
+        if (!sameRepair(plan, asked) || (!asks && repairAsks(plan)))
+          throw new StromError("the research changed since it was looked over — nothing repaired", { hint: "strom repair   (looks it over again)", code: "repair.changed" });
+        return applyRepair(tree, plan);
+      });
       // the work of another key of this computer kept: united next, by the person in their terminal (no problem left of
       // what strom repair undoes)
       const after = verifyFast(tree).findings.filter((f) => f.level === "error" && f.code !== OTHER_KEY);
@@ -284,9 +227,60 @@ register(
               ...r.restored.map((file) => ui(lang, "ui.repair.restored", { file })),
               ...r.quarantined.map((file) => ui(lang, "ui.repair.removed", { file })),
               ui(lang, "ui.repair.from", { commit: r.from.slice(0, 8) }),
+              r.stamp ? ui(lang, "ui.repair.undo.how", { command: `strom repair undo ${r.stamp}` }) : undefined,
               after.length ? ui(lang, "ui.repair.still", { n: after.length }) : next,
             );
       return { text, data: { ...r, ok: after.length === 0, ...(unite ? { unite: "strom seal adopt" } : {}) }, exitCode: after.length ? 1 : 0 };
+    },
+  },
+  {
+    path: ["repair", "undo"],
+    summary: "Put back what strom repair removed or replaced (the user runs this in a terminal)",
+    group: "history",
+    tree: true,
+    args: [{ name: "stamp", description: "the folder of .strom/quarantine/ strom repair named (without it: the list)" }],
+    description:
+      "strom repair keeps a copy of every file it removed or wrote over in .strom/quarantine/<stamp>/. Without a stamp: the\n" +
+      "copies kept, newest first (read only, anyone may). With one: says what it would put back — a file removed and not\n" +
+      "there since, a file written back and not changed since; anything changed since is left as it is now, a file strom\n" +
+      "does not seal stays in the quarantine. On the user's yes, one sealed operation names each record put back as it is;\n" +
+      "nothing in the folder is deleted. Only onto a research as strom sealed it (strom verify clean). Putting back is the\n" +
+      "user's own decision at their terminal — an agent tells the user the command, never runs it.",
+    examples: ["strom repair undo", "strom repair undo 2026-11-09T18-02-11-123Z"],
+    person: "Putting back what strom repair removed is the user's own decision, in their terminal",
+    agentMay: { when: "without a stamp (the list)", check: (_ctx, { args }) => args.length === 0 },
+    run: async (ctx: Context, { args }) => {
+      const tree = ctx.tree();
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      const stamp = args[0];
+      if (!stamp) {
+        const list = quarantines(tree.root);
+        if (!list.length) return { text: ui(lang, "ui.repair.undo.none"), data: { quarantines: [] } };
+        return {
+          text: lines(ui(lang, "ui.repair.undo.list"), ...list.map((q) => ui(lang, "ui.repair.undo.item", { stamp: q.stamp, n: q.files, records: q.records }))),
+          data: { quarantines: list },
+        };
+      }
+      const set = `strom repair undo ${stamp}`;
+      const plan = planUndo(tree, stamp);
+      const data = undoData(plan);
+      const said = undoSaid(plan, lang);
+      if (plan.back.length === 0) return { text: lines(said, ui(lang, "ui.repair.undo.nothing")), data: { ...data, undone: false, nothing: true } };
+      if (!ctx.interactive) return { text: lines(said, "", ui(lang, "ui.repair.undo.person", { command: set })), data: { ...data, undone: false, run: set }, exitCode: 4 };
+      if (liveRunning(tree.root)) throw new UsageError("the bridge to the Strom app runs on this research: nothing put back", { hint: `strom live stop, then ${set}`, code: "repair.undo-bridge" });
+      if (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0)
+        throw new UsageError("somebody is at work on this research: putting back only once they finished", { hint: `strom session finish, then ${set}`, code: "repair.undo-busy" });
+      ctx.requireHuman("Put back what strom repair removed (a sealed change)?", set, "repair", ui(lang, "ui.repair.undo.person", { command: set }), { window: false });
+      ctx.io.stdout(said + "\n");
+      if (!(await ctx.confirm(ui(lang, "ui.repair.undo.ask"), false))) return { text: ui(lang, "ui.cancelled"), data: { ...data, undone: false } };
+      const r = applyUndo(tree, plan);
+      const after = verifyFull(tree).findings.filter((f) => f.level === "error");
+      return {
+        text: lines(ui(lang, "ui.repair.undo.done", { n: r.back, records: r.records }), after.length ? ui(lang, "ui.repair.still", { n: after.length }) : ui(lang, "ui.accept.verified")),
+        data: { ...data, undone: true, commit: r.commit, verify: { ok: after.length === 0, errors: after.length } },
+        exitCode: after.length ? 1 : 0,
+      };
     },
   },
   {
@@ -320,6 +314,65 @@ register(
         return { ...found, text: lines(found.text, ui(lang, "ui.seal.problems")), data: { ...found.data, adopted: false } };
       }
       return { text: ui(lang, r.why === "already" ? "ui.seal.already" : "ui.cancelled", { name }), data: { adopted: false } };
+    },
+  },
+  {
+    path: ["seal", "accept"],
+    summary: "Accept the research as it is now when the history of its records is lost (the user runs this in a terminal)",
+    group: "history",
+    tree: true,
+    description:
+      "For a research whose records are as strom wrote them but whose history is lost: the oldest logs of data/ops taken\n" +
+      "away (a cloud drive), its git history damaged, so strom verify says records were created or edited outside strom and\n" +
+      "strom repair has nothing to put back. Says first what it would do (how many records lack their history, the state of\n" +
+      "git); on the user's yes, one sealed change names every such file as it is now — no record changed, nothing deleted.\n" +
+      "A damaged git history is moved aside whole (.git-damaged-<when>) and a new one begun; iCloud copies (\"P0001 2.json\")\n" +
+      "inside data/ are moved into .strom/accepted-<when>/. Never settles a log rewritten, an operation forged, another key\n" +
+      "or files only in the cloud. --preview says what it would do (read only, anyone may). Accepting itself is the user's\n" +
+      "own decision at their terminal — an agent tells the user the command, never runs it; never while the bridge runs or\n" +
+      "somebody works on the research.",
+    options: [{ name: "preview", type: "boolean", description: "only say what accepting would do; nothing written" }],
+    examples: ["strom seal accept --preview", "strom seal accept"],
+    person: "Accepting the research as it is (a new sealed base) is the user's own decision, in their terminal",
+    agentMay: { when: "--preview", check: (_ctx, { opts }) => opts.preview === true },
+    run: async (ctx: Context, { opts }) => {
+      const tree = ctx.tree();
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      const name = tree.config.name;
+      const set = "strom seal accept";
+      // sealed on another computer: no key of this one to seal with — taken over first
+      tree.requireKey();
+      const plan = planAccept(tree);
+      const data = acceptData(plan);
+      if (plan.refused.length) {
+        const found = report(plan.refused, "", lang, !agent);
+        return { ...found, text: lines(found.text, ui(lang, "ui.accept.refused")), data: { ...found.data, ...data, accepted: false } };
+      }
+      if (nothingToAccept(plan)) return { text: ui(lang, "ui.accept.nothing", { name }), data: { ...data, accepted: false, nothing: true } };
+      const said = acceptSaid(plan, lang, name);
+      if (opts.preview || !ctx.interactive)
+        return { text: lines(said, "", ui(lang, "ui.accept.person", { command: set })), data: { ...data, accepted: false, run: set }, exitCode: opts.preview ? 0 : 4 };
+      // the bridge reads the history this replaces; a writer at work would write on top of what is looked over now
+      if (liveRunning(tree.root)) throw new UsageError("the bridge to the Strom app runs on this research: nothing accepted", { hint: `strom live stop, then ${set}`, code: "accept.bridge" });
+      if (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0)
+        throw new UsageError("somebody is at work on this research: accepting only once they finished", { hint: `strom session finish, then ${set}`, code: "accept.busy" });
+      if (ctx.yes) throw new UsageError("--yes never accepts the research: a person decides at their terminal", { hint: set, code: "accept.yes" });
+      ctx.requireHuman("Accept the research as it is now (a new sealed base)?", set, "seal", ui(lang, "ui.accept.person", { command: set }), { window: false });
+      ctx.io.stdout(said + "\n");
+      if (!(await ctx.confirm(ui(lang, "ui.accept.ask"), false))) return { text: ui(lang, "ui.cancelled"), data: { ...data, accepted: false } };
+      const r = applyAccept(tree, plan);
+      const after = verifyFull(tree).findings.filter((f) => f.level === "error");
+      return {
+        text: lines(
+          ui(lang, "ui.accept.done", { name, n: r.sealed }),
+          r.gitMoved ? ui(lang, "ui.accept.gitmoved", { dir: r.gitMoved }) : undefined,
+          r.copiesMoved ? ui(lang, "ui.accept.copiesmoved", { dir: r.copiesMoved }) : undefined,
+          after.length ? ui(lang, "ui.accept.still", { n: after.length }) : ui(lang, "ui.accept.verified"),
+        ),
+        data: { ...data, accepted: true, commit: r.commit, ...(r.gitMoved ? { gitMoved: r.gitMoved } : {}), ...(r.copiesMoved ? { copiesMoved: r.copiesMoved } : {}), verify: { ok: after.length === 0, errors: after.length } },
+        exitCode: after.length ? 1 : 0,
+      };
     },
   },
   {
@@ -425,4 +478,88 @@ function backPreview(tree: Tree, plan: ReturnPlan, lang: string): string {
     // trees the app sent that wait in the inbox (sync.review on): the return leaves them, decided after it they come on top
     ...(plan.same || !waiting ? [] : [ui(lang, "ui.back.inbox", { n: waiting })]),
   );
+}
+
+/** What accepting would do, as a person reads it: the counts, the state of git, the copies of iCloud. */
+function acceptSaid(plan: AcceptPlan, lang: string, name: string): string {
+  const list = plan.copies.slice(0, 5).join(", ") + (plan.copies.length > 5 ? ", …" : "");
+  return lines(
+    ui(lang, "ui.accept.title", { name }),
+    plan.unsealed.length ? ui(lang, "ui.accept.unsealed", { n: plan.unsealed.length }) : undefined,
+    plan.edited.length ? ui(lang, "ui.accept.edited", { n: plan.edited.length }) : undefined,
+    plan.outside.length ? ui(lang, "ui.accept.outside", { n: plan.outside.length }) : undefined,
+    plan.other.length ? ui(lang, "ui.accept.other", { n: plan.other.length }) : undefined,
+    ui(lang, "ui.accept.logs", { n: plan.logs }),
+    ui(lang, `ui.accept.git.${plan.git}` as UIKey),
+    plan.moveAside.length ? ui(lang, "ui.accept.aside", { n: plan.moveAside.length, first: plan.moveAside[0]! }) : undefined,
+    plan.copies.length ? ui(lang, "ui.accept.copies", { n: plan.copies.length, list }) : undefined,
+    "",
+    ui(lang, "ui.accept.does"),
+  );
+}
+
+/** What accepting would do, for a program: the counts and the files. */
+function acceptData(plan: AcceptPlan) {
+  return {
+    unsealed: plan.unsealed.length,
+    edited: plan.edited.length,
+    outside: plan.outside.length,
+    other: plan.other.length,
+    logs: plan.logs,
+    git: plan.git,
+    files: plan.files.map((f) => f.path),
+    moveAside: plan.moveAside,
+    copies: plan.copies,
+    refused: plan.refused.length,
+  };
+}
+
+/** What strom repair would remove, as a person reads it before saying yes. */
+function repairSaid(plan: RepairPlan, lang: string): string {
+  const first = (l: string[]) => l[0] ?? "";
+  return lines(
+    ui(lang, "ui.repair.ask.title", { n: plan.records.length, files: plan.remove.length, back: plan.restore.length, commit: plan.from.slice(0, 8) }),
+    plan.sealedWork.length ? ui(lang, "ui.repair.ask.sealed", { n: plan.sealedWork.length }) : undefined,
+    plan.referenced.length ? ui(lang, "ui.repair.ask.referenced", { n: plan.referenced.length, first: first(plan.referenced) }) : undefined,
+    plan.older.length ? ui(lang, "ui.repair.ask.older", { n: plan.older.length, first: first(plan.older) }) : undefined,
+    plan.cloudCopies.length ? ui(lang, "ui.repair.ask.copies", { n: plan.cloudCopies.length, list: plan.cloudCopies.slice(0, 3).join(", ") }) : undefined,
+    "",
+    ui(lang, "ui.repair.ask.backup"),
+    historyLost(plan) ? ui(lang, "ui.repair.ask.lost") : undefined,
+  );
+}
+
+/** The question an agent (or a program) reads where strom repair waits for the person: what it would remove, in English. */
+function repairQuestion(plan: RepairPlan): string {
+  const n = plan.records.length;
+  const why = [
+    plan.sealedWork.length ? `${plan.sealedWork.length} written by operations sealed in their logs` : "",
+    plan.referenced.length ? `${plan.referenced.length} referred to by other records` : "",
+    plan.older.length ? `${plan.older.length} older than what the sealed state keeps` : "",
+  ].filter(Boolean);
+  return (
+    `strom repair would remove ${n} ${n === 1 ? "record" : "records"}${why.length ? ` (${why.join(", ")})` : ""} — the whole research folder backed up first` +
+    (historyLost(plan) ? "; the history (git) looks older than the research: rather .git put back from a backup or Time Machine, or, once the records are looked over, strom seal accept" : "") +
+    ". Remove them?"
+  );
+}
+
+function repairData(plan: RepairPlan) {
+  return { from: plan.from, records: plan.records, remove: plan.remove.length, restore: plan.restore.length, sealedWork: plan.sealedWork.length, referenced: plan.referenced, older: plan.older.length, cloudCopies: plan.cloudCopies, historyLost: historyLost(plan) };
+}
+
+/** What strom repair undo would put back, as a person reads it. */
+function undoSaid(plan: UndoPlan, lang: string): string {
+  const records = plan.back.filter((f) => isRecordFile(f.path)).length;
+  return lines(
+    ui(lang, "ui.repair.undo.title", { stamp: plan.stamp }),
+    ui(lang, "ui.repair.undo.back", { n: plan.back.length, records }),
+    plan.kept.length ? ui(lang, "ui.repair.undo.kept", { n: plan.kept.length, first: plan.kept[0]! }) : undefined,
+    plan.left.length ? ui(lang, "ui.repair.undo.left", { n: plan.left.length }) : undefined,
+    plan.back.length ? ui(lang, "ui.repair.undo.does") : undefined,
+  );
+}
+
+function undoData(plan: UndoPlan) {
+  return { stamp: plan.stamp, back: plan.back.map((f) => f.path), kept: plan.kept, same: plan.same.length, left: plan.left };
 }

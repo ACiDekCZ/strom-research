@@ -239,8 +239,12 @@ wypisuje.
   **Urodzenia niesprawdzone w badaniu**: urodzenia przodków, które nie są Udokumentowane.
 - **Końce linii**: osoby bez rodziców, które są przodkami wybranej osoby albo mają dzieci i nie weszły do rodziny
   przez małżeństwo.
-- Gdy niczego nie brakuje: „Wszyscy mają źródło i rodziców.” Wiersz **Udokumentowanie w drzewie (● ◐ ○ na kartach)**
-  przełącza karty na znaczniki poziomu udokumentowania ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
+- Gdy niczego nie brakuje: „Wszyscy mają źródło i rodziców.”
+- Pod grupami jest zawsze przycisk **Udokumentowanie w drzewie**. Włącza tryb **Udokumentowanie**: każda karta dostaje
+  ramkę według poziomu udokumentowania osoby ([R3.8.1](R3-verification-and-citation.md#R3.8.1)), ciągłą przy
+  Udokumentowane, przerywaną przy Częściowo udokumentowane i kropkowaną przy Nieudokumentowane. Pasek u góry pokazuje
+  liczby wszystkich trzech poziomów; liczba wyróżnia tylko tę grupę, z **Następna osoba ›**. Jeden znacznik na karcie
+  to co innego ([S7.2](S7-reliability-and-verification.md#S7.2)).
 - Przy wyróżnieniu: **Następna osoba ›**, **Cytuj** (przy grupach bez źródła) i × **Zakończ wyróżnianie**. Kolejność
   jest według pokolenia, potem według imienia. Na końcu: „Gotowe, w tym wyborze nie został już nikt.”
 - **Granice:** przy urodzeniu, które ocenia badanie, zamiast **Cytuj** jest przycisk **Źródła**. Kolejny cytat danej
@@ -250,7 +254,7 @@ wypisuje.
   **Otwórz drzewo i pokaż**).
 - **Obowiązuje od:** aplikacja 3.4.0; **Urodzenia niesprawdzone w badaniu** i **Źródła** zamiast **Cytuj** 3.13.1
 
-<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd · app:7eb903a3 src/ui/tree-overview.ts:1974 tov-ev-levels, :2293 showEvidenceLevelsFromOverview · src/ui/evidence-ui.ts showEvidenceLevels, renderEvidencePill, toggleEvidenceLevelGroup · index.html .person-card.evl-full/partial/none (solid, dashed, dotted) · strings.ts treeHealth.evidenceMode -->
 
 <a id="A3.8"></a>
 ## A3.8 Obraz tylko w badaniu

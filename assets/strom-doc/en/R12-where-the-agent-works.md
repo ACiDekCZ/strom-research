@@ -5,7 +5,7 @@ The agent (Claude Code, Codex, Antigravity, Grok Build, OpenCode) is talked to i
 desktop app when strom opens it; working alone runs without a conversation.
 Accordingly, what differs is where the conversation is, which browser the agent uses, what strom watches, what a
 person does and what does not work without the agent in the terminal. The archives' rules are the same everywhere
-([R9](R9-archives.md)); only what strom stands before differs. Describes the research 1.29.0. Each rule says what is
+([R9](R9-archives.md)); only what strom stands before differs. Describes the research 1.30.0. Each rule says what is
 **enforced by the code** (the `strom` command or the agent's hook refuses it) and what is only a **rule of the
 method**. What has not been verified live on a Mac is said in [R12.6](#R12.6).
 
@@ -20,7 +20,7 @@ method**. What has not been verified live on a Mac is said in [R12.6](#R12.6).
 | the Claude app (Code tab) and Claude Code in the terminal | the Claude app, Code tab (`strom chat`) | Chrome with Claude in Chrome, or the app's built-in browser ([R12.2](#R12.2)) | the browser in Chrome and the app's built-in browser, the web fetch, commands in the agent's command line and in the app's terminal ([R12.3](#R12.3)) | confirm the folder (Trust workspace) and send the prepared message; an archive's permission | nothing is missing: working alone and reading scans run through Claude Code in the terminal |
 | the Claude app without Claude Code in the terminal | the Claude app, Code tab (`strom chat`) | as in the row above | as in the row above | as in the row above; an installation of Claude Code that strom offers and that can be declined ([R12.4](#R12.4)) | working alone (`strom run`), reading scans by the readers (`strom read`) and work from the Strom app ([R12.4](#R12.4)) |
 | Codex in the terminal | the terminal: Codex in the research folder (`strom chat --where terminal`) | Codex's browser, Chrome and computer use, if its settings have them ([R12.5](#R12.5)) | `strom` commands by the tree's rules for Codex; Codex's browser by the addresses in its code, once a person confirms strom's hook; not Codex's computer use or web search ([R12.5](#R12.5)) | trust the research folder (only then the tree's rules apply) and confirm strom's hook (**Review hooks**, `/hooks`); an archive's permission | – (Codex is in the terminal) |
-| the ChatGPT app (Codex) | the ChatGPT app (`strom chat`) | as with Codex in the terminal: the same settings ([R12.5](#R12.5)) | as with Codex in the terminal ([R12.5](#R12.5)) | as `strom chat` says, confirm the folder and send the prepared message (not verified, [R12.6](#R12.6)); confirm strom's hook (**Settings › Hooks**); an archive's permission | working alone, reading scans by the readers and work from the Strom app ([R12.5](#R12.5)) |
+| the ChatGPT app (Codex) | the ChatGPT app (`strom chat`) | the ChatGPT app's browser: it runs through ChatGPT's cloud ([R12.5.1](#R12.5.1)) | not the ChatGPT app's browser: the sites are decided by ChatGPT's dialog ([R12.5.1](#R12.5.1)) | as `strom chat` says, confirm the folder and send the prepared message (not verified, [R12.6](#R12.6)); in ChatGPT's “cloud browser” dialog for an archive with restrictions, choose **Deny** ([R12.5.1](#R12.5.1)); an archive's permission | working alone, reading scans by the readers and work from the Strom app ([R12.5](#R12.5)) |
 | Antigravity in the terminal | the terminal: Antigravity (`agy`) in the research folder (`strom chat`); strom does not open the Antigravity app ([R12.7](#R12.7)) | Antigravity's browser, if the agent has one; strom does not watch it ([R12.7](#R12.7)) | only what `strom` itself refuses: commands that belong to a person alone; Antigravity has no hook and no rules in the research folder ([R12.7](#R12.7)) | an archive's permission | – (Antigravity is in the terminal) |
 | Grok Build in the terminal | the terminal: Grok (`grok`) in the research folder (`strom chat`); strom opens no Grok app ([R12.8](#R12.8)) | none strom would watch ([R12.8](#R12.8)) | the web fetch ([R9.3](R9-archives.md#R9.3)) and commands in the agent's command line: strom's hooks and rules in `.grok/` ([R12.8](#R12.8)) | nothing more: `strom chat` starts Grok with the research folder as trusted; an archive's permission | – (Grok is in the terminal) |
 | OpenCode in the terminal | the terminal: OpenCode in the research folder (`strom chat --where terminal`) | none strom would watch ([R12.9](#R12.9)) | commands and files by the tree's rules in `opencode.json`; not the web fetch or a browser ([R12.9](#R12.9)) | approve commands other than `strom` that OpenCode asks about (except at the level `full`); an archive's permission | – (OpenCode is in the terminal) |
@@ -29,7 +29,7 @@ method**. What has not been verified live on a Mac is said in [R12.6](#R12.6).
 
 - **Enforced by the code:**
   - strom's hooks in the research's `.claude/settings.json` are run by Claude Code in the terminal and by the Claude
-    app (Code tab); Codex reads the tree's rules in `.codex/rules/strom.rules` and strom's hook in `.codex/hooks.json`, Grok Build in `.grok/config.toml` (and strom's
+    app (Code tab); Codex in the terminal reads the tree's rules in `.codex/rules/strom.rules` and strom's hook in `.codex/hooks.json`, Grok Build in `.grok/config.toml` (and strom's
     hooks in `.grok/hooks/strom.json`), OpenCode in `opencode.json`; Antigravity reads only the instructions in
     `AGENTS.md`;
   - commands that belong to a person alone (signing in, the seal, an archive's permission and others) `strom`
@@ -43,10 +43,12 @@ method**. What has not been verified live on a Mac is said in [R12.6](#R12.6).
 - **Controls:** terminal: `strom chat` (where, says the setting `agent.where`: `app` the agent's app, `terminal` the
   terminal; unset: the app when it is installed), `strom chat --where app|terminal` once otherwise,
   `strom agents use claude|codex|antigravity|grok|opencode`, `strom doctor` (rows **where the conversation is**, **the agent in the
-  terminal**, **browser (Claude in Chrome)**, **desktop apps' browser**, **Codex's hooks (browser)**).
+  terminal**, **browser (Claude in Chrome)**, **desktop apps' browser**, **the ChatGPT app**, **Codex's hooks (browser)**; with the ChatGPT app chosen, the hooks row is named
+  **Codex's hooks (Codex in the terminal)**).
 - **Since:** research 1.29.0
+- **From research 1.30.0:** the row the ChatGPT app: strom does not watch its browser ([R12.5.1](#R12.5.1)).
 
-<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · src/cli/ui.ts ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
+<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · src/commands/setup.ts:556-558 doctor codexhooks (ui.doc.codexhooks; ui.doc.codexhooks.terminal jen při chatgptApp) · src/cli/ui.ts ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
 
 <a id="R12.2"></a>
 ## R12.2 The browser in the Claude app
@@ -127,13 +129,15 @@ The Claude app is enough for a conversation. What strom starts by itself, Claude
 
 Codex runs in the terminal, or in the ChatGPT app (the older separate Codex app came before it). The browser, Chrome
 and computer use are its plugins in one Codex setting (`~/.codex/config.toml`), which the terminal and the app share.
-Codex drives the browser by JavaScript code (the tool `js`), not by a page's address.
+Codex drives the browser by JavaScript code (the tool `js`), not by a page's address. strom's
+hook before the browser applies to Codex in the terminal; the ChatGPT app's browser runs through ChatGPT's cloud and
+calls no strom hook ([R12.5.1](#R12.5.1)).
 
 - **Enforced by the code:**
   - `strom` commands by the tree's rules for Codex (`.codex/rules/strom.rules`): `strom` is allowed; the login, the
     seal, installing and removing a connector, and git are forbidden. Codex reads these rules once a person trusts
     the research folder;
-  - before every call of Codex's browser strom's hook runs (`.codex/hooks.json`). Codex runs it once a person trusts
+  - before every call of Codex's browser in the terminal strom's hook runs (`.codex/hooks.json`). Codex runs it once a person trusts
     the research folder and confirms the hook **strom** in Codex (Trust). strom confirms nothing for the person;
   - a page's address written in the code: the same decision as for the browser in Chrome ([R9.4](R9-archives.md#R9.4)).
     An archive that lets in only a person's browser is refused without the permission **via the browser**, with the
@@ -150,7 +154,7 @@ Codex drives the browser by JavaScript code (the tool `js`), not by a page's add
   - a run alone (`strom run`) with Codex without the agent's personal add-ons (`agent.addons off`, the default)
     switches off its plugins, browser and computer use. With `agent.addons on` and in a conversation they stay as the
     person has them;
-  - `strom doctor`, `strom setup` and `strom chat` say when strom's hook waits for confirmation, has changed since it
+  - `strom doctor`, `strom setup` and `strom chat` say for Codex in the terminal when strom's hook waits for confirmation, has changed since it
     was confirmed, is turned off in Codex, Codex's hooks are off, Codex does not trust the research folder, or the
     hook file is missing. They read the state only from Codex's settings. A hook file that is only missing or out of date
     is not a warning: it is written again by itself the next time strom starts the agent (`strom chat`, `strom run`),
@@ -173,14 +177,35 @@ Codex drives the browser by JavaScript code (the tool `js`), not by a page's add
   (`tab.goto("https://…")`), one page at a time, and does not click through a series of an archive's pages.
 - **Why:** Codex's browser is driven by code, not by a page's address. strom judges only an address it sees in the
   code; so it does not refuse code without an address, it only records it.
-- **Controls:** the ChatGPT app (Codex): **Settings › Hooks** (or **Review hooks** by the message field) → the hook
-  **strom** → **Trust**; Codex in the terminal in the research folder: **Review hooks** (`/hooks`). Terminal:
-  `strom doctor` (rows **desktop apps' browser** and **Codex's hooks (browser)**), `strom agents sync` (writes a
-  missing hook file), `strom net web` (the number of unwatched calls), `strom config set agent.addons on|off`.
+- **Controls:** Codex in the terminal in the research folder: **Review hooks** (`/hooks`) → the hook **strom** →
+  **Trust**. Terminal: `strom doctor` (rows **desktop apps' browser** and **Codex's hooks (browser)**; with the ChatGPT app
+  chosen, the hooks row is named **Codex's hooks (Codex in the terminal)**),
+  `strom agents sync` (writes a missing hook file), `strom net web` (the number of unwatched calls), `strom config set agent.addons on|off`.
 - **Since:** research 1.27.0 (browser and computer use switched off in a run alone); `agent.addons` since 1.14.0;
   the hook before Codex's browser and Codex missing in the terminal since 1.29.0
+- **From research 1.30.0:** the hook also watches the browser Codex opens through `createBrowserTab`; the address in
+  that call is judged the same way. The hook has thereby changed, so Codex skips it until a person confirms it again
+  (**Trust**). `strom setup` and `strom chat` do not talk about Codex's hooks for the ChatGPT app.
 
-<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
+<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek · research:v1.30.0 src/core/codexhook.ts CODEX_HOOK_MATCHER ^mcp__[a-z0-9_]+_repl__js$, createBrowserTab; src/core/browserhelp.ts KEPT_WHEN_CONFIRMED, codexInChatgptApp -->
+
+<a id="R12.5.1"></a>
+### R12.5.1 The ChatGPT app's browser
+
+The browser of the ChatGPT app (Codex) runs through ChatGPT's cloud and calls no strom hook: strom does not watch it
+and the sites are decided by ChatGPT's dialog. In ChatGPT's “cloud browser” dialog for an archive with restrictions
+([R9.2](R9-archives.md#R9.2)), **Deny** is chosen; access to all relevant sites is never allowed.
+
+- **Limits:**
+  - strom neither watches nor records the ChatGPT app's browser, whether strom's hook in Codex is confirmed or not;
+  - Codex in the terminal stays watched once strom's hook in Codex is confirmed ([R12.5](#R12.5)).
+- **Why:** strom judges only a call the agent shows it through a hook; the browser in ChatGPT's cloud calls no hook.
+- **Controls:** terminal: `strom doctor` (the row **the ChatGPT app** as a warning: “strom does not watch its browser
+  (it runs through ChatGPT's cloud); the sites are decided by ChatGPT's dialog”, with advice on the dialog),
+  `strom setup` (says it once when the ChatGPT app is chosen).
+- **Since:** research 1.30.0
+
+<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · src/cli/ui.ts ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
 
 <a id="R12.6"></a>
 ## R12.6 What is not verified
@@ -193,9 +218,9 @@ Not yet verified live:
 - the agent's command line in the Claude app and the web fetch in it (the hooks are the same as in the terminal);
 - the watching in the Claude app when Claude Code is not in the terminal (the app runs the hooks with its own copy of
   Claude Code);
-- Codex live: neither in the terminal nor in the ChatGPT app (the tree's rules, the hook before the browser and its
-  confirmation, refusals and recording of unwatched calls, opening a conversation by a link, a person's steps), nor
-  that the ChatGPT app behaves like the older Codex app. The hook before Codex's browser is described from the code;
+- Codex in the terminal live (the tree's rules, the hook before the browser and its confirmation, refusals and
+  recording of unwatched calls, a person's steps); the hook before Codex's browser is described from the code;
+- the ChatGPT app: opening a conversation by a link and a person's steps;
 - Codex's computer use: whether it gives apps levels as the Claude app does ([R12.10](#R12.10));
 - Antigravity, Grok Build and OpenCode live in any way of working: strom's rules and hooks, a person's steps, the
   refusal of a person's commands;

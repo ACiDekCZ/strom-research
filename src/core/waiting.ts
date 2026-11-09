@@ -40,6 +40,7 @@ import { provenReviewSince, provenToReview, type ProvenLeft } from "./provenfix.
 import { proposalJson } from "./proposal.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
+import { UsageError } from "./errors.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
 export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
@@ -213,19 +214,45 @@ function webUrl(u: string | undefined): string | undefined {
 /** A file of the tree's notes/ a task's words name: "notes/" where no path or word goes on before it, up to a space or ),;. */
 const NOTES_PATH_RE = /(?<![\p{L}\p{M}\p{N}_.\/\\-])notes[\/\\][^\s),;]+/gu;
 
+/** A file there (not a folder), never an error. */
+function isFileAt(file: string): boolean {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The parts of a path of a file in the research's folder as they are on its disk: as written, else in the other form
+ * of its letters (NFC/NFD) — a file system that keeps names as given (NTFS, ext4) has an "ž" typed on a Mac as another
+ * name; the path itself is never normalized. None there: undefined.
+ */
+export function fileAsOnDisk(root: string, parts: string[], isFile: (file: string) => boolean = isFileAt): string[] | undefined {
+  for (const form of [parts, parts.map((p) => p.normalize("NFC")), parts.map((p) => p.normalize("NFD"))]) if (isFile(path.join(root, ...form))) return form;
+  return undefined;
+}
+
+/**
+ * The request's text a task waits with (strom task wait --request): a file of the research's notes/ that is there — no
+ * absolute path, no way out of notes/ — as it is on the disk (fileAsOnDisk: the path given, else its other form of
+ * letters), parts joined with /.
+ */
+export function requestPath(root: string, given: string, id: string, isFile: (file: string) => boolean = isFileAt): string {
+  const raw = given.trim();
+  const parts = raw.split(/[\\/]+/u);
+  if (!raw || path.isAbsolute(raw) || /^[A-Za-z]:/u.test(raw) || parts[0] !== "notes" || parts.length < 2 || parts.some((p) => p === ".." || p === "."))
+    throw new UsageError(`--request takes a file of the tree's notes/, as notes/<file>.md — not "${raw}"`, { hint: `save the request's text first (notes/request-<what>.md), then strom task wait ${id} … --request notes/request-<what>.md` });
+  const file = fileAsOnDisk(root, parts, isFile);
+  if (!file) throw new UsageError(`--request: no file ${raw} in this tree`, { hint: `save the request's text there first, then name it again`, code: "task.request-missing" });
+  return file.join("/");
+}
+
 /** A file of the research's notes/ as written (a/b or a\b), when it is one: no absolute path, no way out of notes/. */
 function notesFile(tree: Tree, written: string): string | undefined {
   const parts = written.split(/[\\/]+/u);
   if (parts[0] !== "notes" || parts.length < 2 || parts.some((p) => !p || p === "." || p === "..")) return undefined;
-  // the name as written; a file system that keeps names as given in another form (NFC/NFD) by that form
-  for (const form of [parts, parts.map((p) => p.normalize("NFC")), parts.map((p) => p.normalize("NFD"))]) {
-    try {
-      if (fs.statSync(path.join(tree.root, ...form)).isFile()) return form.join("/");
-    } catch {
-      // not there in this form
-    }
-  }
-  return undefined;
+  return fileAsOnDisk(tree.root, parts)?.join("/");
 }
 
 /**

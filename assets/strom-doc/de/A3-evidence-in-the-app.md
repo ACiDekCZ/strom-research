@@ -260,8 +260,12 @@ durch sie. Eine leere Gruppe wird nicht aufgeführt.
   stattdessen **Geburten in der Forschung nicht bewiesen**: Geburten der Vorfahren, die nicht Belegt sind.
 - **Linienenden**: Menschen ohne Eltern, die Vorfahren der gewählten Person sind oder Kinder haben und nicht
   eingeheiratet sind.
-- Wenn nichts fehlt: „Alle haben eine Quelle und Eltern.“ Die Zeile **Belege im Baum (● ◐ ○ auf Karten)** stellt
-  die Karten auf die Zeichen der Belegstufe um ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
+- Wenn nichts fehlt: „Alle haben eine Quelle und Eltern.“
+- Unter den Gruppen steht immer die Schaltfläche **Belege im Baum**. Sie schaltet den Modus **Belege** ein: jede Karte
+  bekommt einen Rahmen nach der Belegstufe der Person ([R3.8.1](R3-verification-and-citation.md#R3.8.1)), durchgezogen
+  bei Belegt, gestrichelt bei Teilweise belegt und gepunktet bei Unbelegt. Die Leiste oben zeigt die Zahlen aller drei
+  Stufen; eine Zahl hebt nur diese Gruppe hervor, mit **Nächste Person ›**. Die eine Marke auf der Karte ist etwas
+  anderes ([S7.2](S7-reliability-and-verification.md#S7.2)).
 - Bei der Hervorhebung: **Nächste Person ›**, **Zitieren** (bei den Gruppen ohne Quelle) und × **Hervorhebung
   beenden**. Die Reihenfolge ist nach Generation, dann nach Name. Am Ende: „Fertig, niemand mehr in dieser Auswahl.“
 - **Grenzen:** bei einer Geburt, die die Forschung bewertet, steht statt **Zitieren** die Schaltfläche **Quellen**.
@@ -272,7 +276,7 @@ durch sie. Eine leere Gruppe wird nicht aufgeführt.
   Stammbaum **Stammbaum öffnen und zeigen**).
 - **Gilt seit:** App 3.4.0; **Geburten in der Forschung nicht bewiesen** und **Quellen** statt **Zitieren** 3.13.1
 
-<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd · app:7eb903a3 src/ui/tree-overview.ts:1974 tov-ev-levels, :2293 showEvidenceLevelsFromOverview · src/ui/evidence-ui.ts showEvidenceLevels, renderEvidencePill, toggleEvidenceLevelGroup · index.html .person-card.evl-full/partial/none (solid, dashed, dotted) · strings.ts treeHealth.evidenceMode -->
 
 <a id="A3.8"></a>
 ## A3.8 Bild nur in der Forschung

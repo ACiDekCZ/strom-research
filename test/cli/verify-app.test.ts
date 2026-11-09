@@ -99,12 +99,13 @@ function block(text: string, id: string): string[] {
   return lines.slice(at - 1, end + 1);
 }
 
-test("the gate: the verification's marks only for an app that shows them — not released yet, an unknown version never; its beta from its own gate", () => {
+test("the gate: the verification's marks only for an app that shows them — from the app's 3.26.0, an unknown version never; its beta from its own gate", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_SHOWS_VERIFY, undefined, "set from the app's release that shows them (strom:je-venku-brany)");
+  assert.equal(APP_SHOWS_VERIFY, "3.26.0", "the app's 3.26.0 shows them (out 2026-11-09)");
   assert.equal(APP_SHOWS_VERIFY_BETA, "3.26.0-beta.2");
-  for (const v of [undefined, "3.25.0", "3.26.0", "3.26.0-beta.2", "9.0.0"]) assert.equal(appShowsVerify(prod, v), false, String(v));
+  for (const v of [undefined, "3.25.0", "3.26.0-beta.2", "3.26.0-beta.9"]) assert.equal(appShowsVerify(prod, v), false, String(v));
+  for (const v of ["3.26.0", "3.26.1", "9.0.0"]) assert.equal(appShowsVerify(prod, v), true, String(v));
   assert.equal(appShowsVerify(beta, undefined), false, "an unknown version stays off");
   assert.equal(appShowsVerify(beta, "3.26.0-beta.1"), false);
   for (const v of ["3.26.0-beta.2", "3.26.0", "9.0.0"]) assert.equal(appShowsVerify(beta, v), true, `beta ${v}`);
@@ -150,13 +151,17 @@ test("the Strom file: each fact's ID right after its line, the person's confirma
     assert.deepEqual(findings.filter((x) => x.level === "error"), []);
     assert.deepEqual(findings.filter((x) => /_STROM_EID|_STROM_CONFIRMED|_STROM_VERIFY|_STROM_CHECKED|_POS|_WHY|_READERS/u.test(x.message)), []);
 
-    // an app before the gate, the production app, an unknown version: none of it
-    const before: Record<string, string>[] = [{ STROM_APP_URL: BETA_APP.STROM_APP_URL, STROM_APP_VERSION: "3.26.0-beta.1" }, { STROM_APP_VERSION: "3.26.0" }, {}, { STROM_APP_URL: BETA_APP.STROM_APP_URL }];
+    // an app before the gate, the production app before 3.26.0 (its beta versions too), an unknown version: none of it
+    const before: Record<string, string>[] = [{ STROM_APP_URL: BETA_APP.STROM_APP_URL, STROM_APP_VERSION: "3.26.0-beta.1" }, { STROM_APP_VERSION: "3.25.0" }, { STROM_APP_VERSION: "3.26.0-beta.2" }, {}, { STROM_APP_URL: BETA_APP.STROM_APP_URL }];
     for (const env of before) {
       fs.rmSync(file, { force: true });
       await w.ok(["export", "gedcom", "--for", "strom"], { env });
       assert.doesNotMatch(fs.readFileSync(file, "utf8"), /_STROM_EID|_STROM_CONFIRMED|_STROM_VERIFY|_STROM_CHECKED/u, JSON.stringify(env));
     }
+    // the production app of the release (3.26.0): the marks
+    fs.rmSync(file, { force: true });
+    await w.ok(["export", "gedcom", "--for", "strom"], { env: { STROM_APP_VERSION: "3.26.0" } });
+    assert.match(fs.readFileSync(file, "utf8"), new RegExp(`\\n2 _STROM_EID ${f.marriage}\\n`, "u"));
     // the standard file: never, whatever is asked
     const standard = exportGedcom(open(w), { for: "standard", verify: marks }).text;
     assert.doesNotMatch(standard, /_STROM_EID|_STROM_CONFIRMED|_STROM_VERIFY|_STROM_CHECKED|_WHY/u);
@@ -170,6 +175,34 @@ test("the Strom file: each fact's ID right after its line, the person's confirma
     assert.doesNotMatch(archived, /_STROM_VERIFY|_POS/u);
     assert.match(archived, /\n2 _STROM_CONFIRMED /u);
     assert.match(archived, new RegExp(`\\n2 _STROM_EID ${f.marriage}\\n`, "u"));
+  } finally {
+    w.cleanup();
+  }
+});
+
+// The app offers "verify first" for a fact that waits (_STROM_VERIFY wait) behind another task (3 _POS > 1), never for
+// one asked; put first, the sweep's task holding the fact stays the person's ask until a session on it ends.
+test("the sweep's task the person put first (verify of a fact it holds) is asked in the Strom file, /status counts and verify status — not wait again behind the task before it", opts, async () => {
+  const { w, f } = await lhotaci();
+  try {
+    await w.ok(["frontier", "--research", "G0001", "--apply"]); // the sweep: Josef's facts, the marriage
+    await w.ok(["verify", "facts", "P0001"]); // the person's first: Jan's birth looked for
+    const before = verifyMarks(open(w)).get(f.josefBirth)!;
+    assert.equal(before.state, "wait");
+    const asked = (await w.ok(["verify", "facts", f.josefBirth, "--json"])).json;
+    const held = open(w).get<Task>(asked.task)!;
+    assert.equal(held.origin, "verify:auto", "the sweep's task put first, nothing doubled");
+    const marks = verifyMarks(open(w));
+    assert.equal(marks.get(f.josefBirth)?.state, "asked");
+    assert.equal(marks.get(f.josefDeath)?.state, "asked", "every fact of the task the same");
+    assert.equal(marks.get(f.josefBirth)?.pos, 2, "behind the task asked for before it");
+    assert.equal(marks.get(f.marriage)?.state, "wait", "the sweep's other task waits for its turn");
+    await w.ok(["export", "gedcom", "--for", "strom"], { env: BETA_APP });
+    const text = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+    assert.deepEqual(block(text, f.josefBirth).filter((l) => /_STROM_VERIFY|_POS/u.test(l)), ["2 _STROM_VERIFY asked", "3 _POS 2"]);
+    const s = (await w.ok(["verify", "status", "--json"])).json;
+    assert.equal(s.asked, 3, "Jan's birth and Josef's two facts");
+    assert.equal(s.waiting, 4);
   } finally {
     w.cleanup();
   }

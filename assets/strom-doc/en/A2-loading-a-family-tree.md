@@ -2,7 +2,9 @@
 # A2 Loading a family tree (GEDCOM)
 
 The chapter says what the app takes over from a GEDCOM file from another program, what it skips and how it admits
-this in the import summary. Describes the Strom app 3.21.2 (and the research 1.25.2); changes from a later version carry its number. Opening the research's file and linking a tree to the research belong to chapter S1.
+this in the import summary. Describes the Strom app 3.21.2 (and the research 1.25.2); changes from a later version carry its number. Opening the research's file and linking a tree to the research belong to chapter S1. The whole path of a family tree
+from another program (reliability marks, protection of the family tree's facts, the card **What next**, export back) is
+described in [S6](S6-tree-from-another-program.md).
 
 <a id="A2.1"></a>
 ## A2.1 What is loaded and what is not
@@ -23,6 +25,18 @@ source.
 - **Controls:** **Import → Import GEDCOM** (a `.ged` file). In a new tree also the button on the empty tree. The
   summary see [A2.1.1](#A2.1.1).
 - **Since:** app 1.9.0 (summary of tags not carried over); note lines from app 3.0.0.
+- **From app 3.26.0:**
+  - `_UID`, `RIN`, `AFN` and other program IDs (`UID`, `EXID`, `_FSFTID`) are not skipped: they are kept with the
+    person and the family together with the original record identifier (`@I12@`) as program IDs
+    ([S6.1](S6-tree-from-another-program.md#S6.1));
+  - the program's own tags (`_XXX`) directly on a person, family and source are kept for the export **Back to
+    {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)); deeper own tags are counted;
+  - MyHeritage photo cutouts (`_POSITION`, `_CUTOUT`) are bookkeeping and are not counted;
+  - a divorce written before the marriage (PAF) is not lost and does not overwrite the marriage; an empty marriage or
+    divorce written before another one with a date (MyHeritage) keeps the date and place of the dated one;
+  - a name written as a description (`Son`, `Unknown`) comes back as it was written, with no note made of it; text on
+    the line of a fact (education, burial, a custom event), an address in parts (`ADR1`, `CITY`…) and a web link in
+    the text of a source stay and come back as the file had them.
 
 <!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
 
@@ -44,6 +58,12 @@ offered for linking.
 
 - **From app 3.22.0:** above the list of skipped tags there is a sentence saying what the tile **Unsupported**
   counts: parts of the file that Strom does not know and did not carry over, not people and relationships.
+- **From app 3.26.0:**
+  - the line “Kept for the export “Back to {program}”: N tags (…)” when the file has the program's own tags;
+  - the row **Text encoding** for a file with a guessed or single-byte encoding ([A2.2](#A2.2));
+  - after the import of another program's file, the card **What next** ([S6.4](S6-tree-from-another-program.md#S6.4));
+    it replaces the earlier questions after an import;
+  - **Insert into tree** first saves a backup of the tree ([S6.5](S6-tree-from-another-program.md#S6.5)).
 
 <!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
 
@@ -64,6 +84,18 @@ UTF-8.
 - **Since:** app 1.16.0 (ANSEL conversion and encoding by the header).
 - **From app 3.22.0:** the GEDCOM 7 tags `UID`, `CREA` and `EXID` are skipped silently as bookkeeping data; in
   3.21.2 they are counted in **Unsupported**.
+- **From app 3.26.0:**
+  - `CHAR CP1250` or `WINDOWS-1250` is Windows-1250. `ANSI` means the code page of the computer that wrote the file:
+    valid UTF-8 stays UTF-8, otherwise the words of the file decide between Windows-1250 (Central Europe: č ř ě ł ż)
+    and Windows-1252 (Western Europe). A file without `CHAR` and a file with `CHAR UTF-8` that is not valid UTF-8 are
+    guessed the same way;
+  - when the encoding was guessed or is single-byte and the file has text with diacritics, the import summary shows
+    the row **Text encoding** with **Names:** and a choice of another encoding (**UTF-8**, **Windows-1250 (Central
+    Europe)**, **Windows-1252 (Western Europe)**, **ISO-8859-2 (Latin-2)**, **ANSEL (older GEDCOM)**). Garbled
+    letters in the names (è instead of č, ø instead of ř) mean that another encoding fits. **Controls:** the choice
+    in the row **Text encoding**;
+  - standalone media records `0 @O1@ OBJE` are read through the references to them; a family photo referenced this
+    way is only counted.
 
 <!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
 
@@ -169,6 +201,9 @@ new load. The header `1 SOUR STROM` says that Strom wrote the file.
   covered by S1 and S2.
 - **Controls:** **Export → Export GEDCOM**.
 - **Since:** app 3.9.0 or earlier (single tags were added up to 3.19.0).
+- **From app 3.26.0:** program IDs come back under `_STROM_IMPORT` and `_STROM_XID`; on a new load the file is paired
+  by them ([S6.7](S6-tree-from-another-program.md#S6.7)). A file with Strom's header is not a family tree from another
+  program: it has no mark **From family tree** and no card **What next**.
 
 <!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
 
@@ -183,5 +218,7 @@ from the file with the people of the current tree and saves the result as yet an
   [S1](S1-connecting-app-and-research.md).
 - **Controls:** **Import → Import GEDCOM → Import as a new tree** or **Merge with existing**.
 - **Since:** app 1.0.0
+- **From app 3.26.0:** a family tree of the same program loaded again is also paired by program ID (reason **Same ID
+  in the file**); a match of 50–79 is only offered ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/ui.ts:1447 TreeManager.createTree · strings.ts treeManager.importAsNewTree, importDialog.mergeExisting -->

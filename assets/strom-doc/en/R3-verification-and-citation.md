@@ -30,6 +30,8 @@ the conclusion is from all the fact's sources, not how good one source is ([R3.2
   the label in the app 3.9.0
 - **From research 1.26.0:** the terminal names the degrees in the app's words: **proven**, **probable**, **possible**,
   **lead**, **disproven**. The summary `strom stats` still writes “only leads”.
+- **From research 1.30.0:** `strom event show` and `strom event edit` print the fact for a person in the research's
+  language (for example “[lead]”); the agent still gets the output in English.
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -293,15 +295,15 @@ documentation level of a person is counted by the app itself, from citations onl
 | the label at a fact, e.g. **Proven** | the degree of certainty of the fact | the research ([R3.1](#R3.1)) |
 | **Tree overview → Data quality → Certainty of research facts** | births, deaths and marriages by degree | the research |
 | the person page, **For researchers → Certainty of the facts** | the degree of each of the person's facts | the research |
-| **Documented** / **Partly documented** / **Undocumented** (● ◐ ○) | the documentation level of a person | citations ([R3.8.1](#R3.8.1)) |
+| **Documented** / **Partly documented** / **Undocumented** | the documentation level of a person | citations ([R3.8.1](#R3.8.1)) |
 | **For researchers**, “Backed by sources: N of M facts” | the person's facts with a source | citations |
 | **Tree overview → Ancestors**, column **documented** | ancestors with a documented birth | with a research only Proven, otherwise citations |
 | **Where evidence is missing → Births not proven in the research** | ancestors' births that are not Proven | the research |
-| book, **Researcher data**: ● documented · ◐ conflict · ○ not documented | the evidence state of a fact | Proven, **or** any citation |
+| book, **Researcher data**: documented · conflict · not documented | the evidence state of a fact | Proven, **or** any citation |
 | **My source transcriptions → Evidence** | how the research takes the user's transcriptions | first reading, Probable ([R3.5.1](#R3.5.1)) |
 
 - **Limits:** the app only shows degrees of certainty; they cannot be changed there. A conflict at a fact in the book
-  overrides both ● and ○.
+  overrides both "documented" and "not documented".
 - **Since:** app 3.5.0 (person level), 3.9.0 (label, My source transcriptions), 3.13.0 (Certainty of research facts),
   3.13.1 (column documented), 3.18.0 (For researchers), 3.19.0 (book)
 
@@ -310,19 +312,20 @@ documentation level of a person is counted by the app itself, from citations onl
 <a id="R3.8.1"></a>
 ### R3.8.1 The documentation level of a person
 
-- **Undocumented** (○): neither the person, nor their events, nor their unions cite any source.
-- **Documented** (●): a cited birth (or baptism) and, when the person has a death (a date, a place, a death or burial
+- **Undocumented**: neither the person, nor their events, nor their unions cite any source.
+- **Documented**: a cited birth (or baptism) and, when the person has a death (a date, a place, a death or burial
   event), also a cited death (or burial, cremation).
-- **Partly documented** (◐): everything in between, including a source attached only to the person (to the name, to
+- **Partly documented**: everything in between, including a source attached only to the person (to the name, to
   a residence).
-- The degree of certainty is not counted: a birth citing even a family tree taken over (Lead) gives ●. The app says so
+- The degree of certainty is not counted: a birth citing even a family tree taken over (Lead) gives **Documented**. The app says so
   at **Certainty of research facts**: “Not the same as source evidence.”
 - When nobody in the tree cites a source, the card does not show the level. A placeholder person has no level.
-- **Controls:** app: the card option **Evidence from sources**; the highlight **Evidence** in the tree; **Tree
-  overview → Data quality → Where evidence is missing**.
-- **Since:** app 3.5.0
+- **Controls:** app: the mark on the card in a tree that does not know where its facts come from
+  ([S7.2](S7-reliability-and-verification.md#S7.2)); the **Evidence** mode in the tree ([A3.7](A3-evidence-in-the-app.md#A3.7));
+  **Tree overview → Data quality → Where evidence is missing**.
+- **Since:** app 3.5.0; 3.26.0: the level is shown by one mark on the card ([S7.2](S7-reliability-and-verification.md#S7.2))
 
-<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardEvidence/cardShowHint, treeOverview.certaintyDesc -->
+<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardShowHint, treeOverview.certaintyDesc · app:7eb903a3 src/reliability.ts cardStatus (bez původu: full ●●, partial ●○, none) · src/ui/fact-status.ts card.evTitle · strings.ts cardDensity.cardStatus (3.26.0 nahradila cardEvidence) -->
 
 <a id="R3.9"></a>
 ## R3.9 A story keeps its sources

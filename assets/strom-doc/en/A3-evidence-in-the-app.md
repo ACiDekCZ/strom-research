@@ -240,8 +240,12 @@ not listed.
   instead **Births not proven in the research**: births of ancestors that are not Proven.
 - **Line ends**: people without parents who are ancestors of the chosen person, or have children and did not marry
   in.
-- When nothing is missing: "Everyone has a source and parents." The row **Evidence in the tree (● ◐ ○ on cards)**
-  switches the cards to marks of the level of evidence ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
+- When nothing is missing: "Everyone has a source and parents."
+- Below the groups there is always the button **Evidence in the tree**. It turns on the **Evidence** mode: every card
+  gets a frame by the person's level of evidence ([R3.8.1](R3-verification-and-citation.md#R3.8.1)), solid for
+  Documented, dashed for Partly documented and dotted for Undocumented. The bar at the top shows the counts of all
+  three levels; a count highlights only that group, with **Next person ›**. The one mark on the card is another thing
+  ([S7.2](S7-reliability-and-verification.md#S7.2)).
 - While highlighting: **Next person ›**, **Cite** (for groups without a source) and × **End highlighting**. The order
   is by generation, then by name. At the end: "Done, no one left in this selection."
 - **Limits:** for a birth the research assesses, the button **Sources** is there instead of **Cite**. Another citation
@@ -251,7 +255,7 @@ not listed.
   **Open tree and show**).
 - **Since:** app 3.4.0; **Births not proven in the research** and **Sources** instead of **Cite** 3.13.1
 
-<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd -->
+<!-- zdroj: app:src/stats.ts:185-240 computeEvidenceGaps · src/ui/evidence-ui.ts:81 walkOrder, :325-358 pill · src/tree-overview.ts:215 birthResearchStatus · src/ui/tree-overview.ts:1946-1975 · strings.ts treeOverview.evidenceTitle/evNoSource/evBirthNoSource/evBirthUnproven/evLineEnds/evOfTotal/evOfAncestors/evAllGood/evLevels, treeHealth.citeAction/sourcesAction/next/highlightDone/highlightEnd · app:7eb903a3 src/ui/tree-overview.ts:1974 tov-ev-levels, :2293 showEvidenceLevelsFromOverview · src/ui/evidence-ui.ts showEvidenceLevels, renderEvidencePill, toggleEvidenceLevelGroup · index.html .person-card.evl-full/partial/none (solid, dashed, dotted) · strings.ts treeHealth.evidenceMode -->
 
 <a id="A3.8"></a>
 ## A3.8 Image only in the research

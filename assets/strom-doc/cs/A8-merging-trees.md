@@ -2,7 +2,7 @@
 # A8 Sloučení stromů
 
 Jak aplikace Strom slučuje dva rodokmeny: soubor GEDCOM se stromem, dva stromy, nebo pohled se stromem. Popisuje
-aplikaci 3.21.2. Sloučení duplicitní osoby uvnitř jednoho stromu je jiná věc ([A5.6](A5-tree-check.md#A5.6)).
+aplikaci 3.21.2; změny z novější verze mají u sebe její číslo. Sloučení duplicitní osoby uvnitř jednoho stromu je jiná věc ([A5.6](A5-tree-check.md#A5.6)).
 
 <a id="A8.1"></a>
 ## A8.1 Sloučení vždy založí nový strom
@@ -34,6 +34,11 @@ Aplikace ke každé osobě ze slučovaného zdroje hledá osobu v cílovém stro
 - **Hranice:** zástupné osoby (prázdné místo pro neznámého rodiče) se nepárují. Osoba bez křestního jména spárovaná přes
   příbuzného jde vždy ke kontrole.
 - **Platí od:** aplikace 1.0.0
+- **Od aplikace 3.26.0:** osoby se párují i podle ID programu (`_UID` = `UID`, `_FSFTID` = `EXID` s adresou
+  familysearch.org), s důvodem **Stejné ID v souboru**. Jistá je taková shoda jen s podobným jménem, pohlavím ne muž
+  proti ženě, roky narození nejvýš 3 od sebe a bez rozdílného globálního ID; jinak je to návrh se skóre nejvýš 79.
+  Označení záznamu a `RIN` přidají ke shodě jmen 25 bodů jen u souborů téhož programu. Rodiny se podle ID nepárují
+  ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
 
@@ -58,6 +63,9 @@ Průvodce **Sloučení dat** ukáže shody, konflikty a nové osoby. Každou sho
 - Rozpracované sloučení jde při zavření **Uložit na později**; vrátí se jako **Nedokončená sloučení**.
 - **Platí od:** aplikace 1.0.0; konflikty páru aplikace 3.0.0; Přeskočit a Jen doplnit existující osoby aplikace
   1.19.0
+- **Od aplikace 3.26.0:** nerozhodnutá shoda se potvrdí sama až od skóre 80 (v průvodci předem potvrzená, ✓). Shoda
+  50–79 se jen nabídne (?) a bez rozhodnutí člověka se přidá jako nová osoba: zdvojenou osobu jde sloučit později,
+  chybné sloučení vrátit nejde.
 
 <!-- zdroj: app:src/merge/executor.ts:78 AUTO_CONFIRM_SCORE, :110 detectPartnershipConflicts, :302 toAdd (updateOnly, skip, reject), :792 mergePersonData · src/merge/ui.ts:1408 pendingGate · strings.ts merge.confirm, merge.reject, merge.skip, merge.manualMatch, merge.updateOnlyLabel, merge.keepExisting, merge.useImport, merge.suggestedPrecise, merge.partnershipFields, merge.closeSave, merge.pendingMerges · git v3.0.0 (2218cea), v1.19.0 (cf43bde) -->
 
@@ -76,5 +84,9 @@ Kromě osob a vztahů se sloučí i seznamy, které patří celému stromu.
   sloučení přineslo nové ([A5](A5-tree-check.md)).
 - **Hranice:** opakovaný import souboru výzkumu do stromu výzkumu řeší [S1](S1-connecting-app-and-research.md).
 - **Platí od:** aplikace 1.0.0; hlášení problémů kontroly aplikace 1.19.0
+- **Od aplikace 3.26.0:** poznámky osoby, vztahu i pramene se při sloučení nezdvojí. Před sloučením se uloží záloha
+  stromu ([S6.5](S6-tree-from-another-program.md#S6.5)). Po sloučení souboru jiného programu ukáže aplikace kartu
+  **Co teď** ([S6.4](S6-tree-from-another-program.md#S6.4)). Ruční sloučení dvou osob
+  ([A5.6](A5-tree-check.md#A5.6)) poznámky nespojuje.
 
 <!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->

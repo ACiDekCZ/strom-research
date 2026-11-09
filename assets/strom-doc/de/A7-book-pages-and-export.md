@@ -64,6 +64,11 @@ Vor einer Ausgabe aus dem Stammbaum wird gewählt, wie lebende Personen gezeigt 
   der Auswahl dazu). Familienbuch, Seiten und Personenseite nehmen Quellen nur lebenden Personen; eine Quelle, die
   nur bei lebenden Personen zitiert ist, fällt weg.
 - **Gilt seit:** App 1.2.0; Quellen Verstorbener im Buch und auf den Seiten App 3.18.0
+- **Ab App 3.26.0:** der GEDCOM-Export behält Quellen und Zitate Verstorbener bei jeder Auswahl; er lässt nur die
+  Zitate lebender Personen weg und sagt es („Bei N lebenden Personen entfallen K Zitate. Verstorbene behalten ihre
+  Quellen.“, Auswahl **Quellen behalten**). Der Export App mit den Daten und JSON ändert sich nicht. Der GEDCOM-Export
+  fragt zuerst, **Wofür die Datei ist**: **Zurück zu {program}** (vollständige Daten, Quellen und Programm-IDs) oder
+  **Zum Teilen mit anderen** ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/privacy.ts applyPrivacy (keepDeceasedSources) · strings.ts privacy.label, privacy.modeFull, privacy.modeInitials, privacy.modeAnonymous, privacy.modeMinimal, privacy.livingPerson, privacy.dropsSources · book.dlg.privacy · CHANGELOG.cs.md 3.18.0 -->
 
@@ -83,6 +88,8 @@ Vor einer Ausgabe aus dem Stammbaum wird gewählt, wie lebende Personen gezeigt 
   keinen Link; im Register steht sie unter dem geschützten Namen. Enthält die Auswahl lebende Personen und ist der
   Schutz ausgeschaltet, weist der Dialog darauf hin, dass die Datei ihre Namen, Daten und Orte trägt.
 - **Gilt seit:** App 1.2.0; Personenseite App 3.18.0; Familienbuch App 3.19.0
+- **Ab App 3.26.0:** GEDCOM hat mit der Auswahl **Zum Teilen mit anderen** (Standard) Initialen + Geburtsjahr, mit der
+  Auswahl **Zurück zu {program}** Vollständige Daten ([S6.6](S6-tree-from-another-program.md#S6.6)).
 
 <!-- zdroj: app:src/ui/import-export.ts (výchozí privacy podle formátu) · src/book-options.ts:55 · src/person-page.ts:94, :104 personPageExportPrivacy · src/family-pages.ts:309 · src/ui/share-ui.ts · strings.ts familyPages.privacyWarn -->
 
