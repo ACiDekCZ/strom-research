@@ -26,6 +26,7 @@ import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { codexHookState } from "../core/codexhook.ts";
+import { codexInChatgptApp } from "../core/browserhelp.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { holdsPath, insideProgram, installation, lastingLauncher, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
 import { busyIn, isBusy, type Busy } from "../core/busy.ts";
@@ -37,6 +38,9 @@ import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
 import { timed } from "../core/timing.ts";
+import { actsAsArchive } from "../core/state.ts";
+import { verifyCounts } from "../core/verify.ts";
+import { verifyWaitsMore } from "../cli/human.ts";
 import { appDirsInUse, checked, installUpdate, oldVersions, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, UpdateHeld, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
 import { privateCopies, writesPrivately } from "../core/packaged.ts";
 import { moveToTrash } from "../core/trash.ts";
@@ -225,8 +229,11 @@ register({
       ]),
       // its app here without its CLI: said in one line, nothing installed (--yes; the wizard and strom doctor --fix offer it)
       ...(cliGone ? ["", t("ui.setup.cli.apponly", { app: DESKTOP_APPS[agent]!.name, cli: PROFILES[agent]!.name })] : []),
-      // Codex: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3)
-      ...(agent === "codex" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how") })] : []),
+      // Codex in the terminal: strom's rules before its browser wait for the person's confirmation in Codex (spec 062 K3.3);
+      // the ChatGPT app's browser calls no hook (the line below), so there only that is said (spec 062 K6.3)
+      ...(agent === "codex" && where !== "app" && installed.includes("codex") ? ["", t("ui.setup.codex.hooks", { how: t("ui.doc.codexhooks.how.terminal") })] : []),
+      // the ChatGPT app chosen: its browser strom does not watch, and what to do in ChatGPT's dialog (spec 062 K6.2)
+      ...(agent === "codex" && where === "app" ? ["", t("ui.setup.chatgpt", { browser: t("ui.doc.chatgptapp.browser"), advice: t("ui.doc.chatgptapp.advice") })] : []),
       "",
       ...(found.lines.length ? [...found.lines, ""] : []),
       t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
@@ -257,7 +264,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -295,6 +302,32 @@ function diagnose(ctx: Context): Check[] {
     if (showing) ctx.io.stderr("\r\x1b[K");
   }
   return checks;
+}
+
+/** strom doctor's table: each check with its mark, then the sum. */
+function doctorTable(checks: Check[], lang: string): string {
+  const bad = checks.filter((c) => c.status === "fail").length;
+  const mark = { ok: "✓", warn: "!", fail: "✗" } as const;
+  return lines(
+    // what to do right after its detail: a long detail of another check (every tree's name) pads no column before it
+    table(checks.map((c) => [` ${mark[c.status]}`, c.label, c.fix ? `${c.detail}  → ${c.fix}` : c.detail])),
+    "",
+    bad === 0 ? ui(lang, "ui.doc.allok") : ui(lang, "ui.doc.problems", { n: bad }),
+  );
+}
+
+/**
+ * strom doctor as strom error's report reads it (spec 070 K1.2): its checks and its table, nothing repaired, no new
+ * version looked for (no network), no write tried — ctx a reading one (Context.readOnly), in its language.
+ */
+export function doctorChecks(ctx: Context): { ok: boolean; checks: { name: string; status: string; detail: string; fix?: string; code?: string }[]; text: string } {
+  const all = diagnose(ctx);
+  const checks = ctx.archiveHere() ? all.filter((c) => !AGENT_CHECKS.has(c.name)) : all;
+  return {
+    ok: !checks.some((c) => c.status === "fail"),
+    checks: checks.map((c) => ({ name: c.name, status: c.status, detail: c.detail, ...(c.fix ? { fix: c.fix } : {}), ...(c.code ? { code: c.code } : {}) })),
+    text: doctorTable(checks, ctx.uiLang()),
+  };
 }
 
 /** How long strom doctor counts the shared scans at most (STROM_DOCTOR_MEDIA_MS: the tests). */
@@ -532,6 +565,15 @@ function diagnoseInto(
   if (apps.length && !ctx.archiveHere()) add("desktop", "ok", apps.map((a) => t(`ui.doc.desktop.${a}`)).join("; ") + "  (strom doc R12.1, R12.10)");
   // Codex's hooks: strom's rules before its browser run once the person confirms them in Codex (/hooks) — strom never
   // confirms them for the person (spec 062 K3.3); said with what to do (strom doc R12.5)
+  // The ChatGPT app chosen for the conversation: its browser runs through ChatGPT's cloud, no hook of the tree runs there —
+  // said as a warning (nothing of strom's mends it, nothing fails), with what the person can do in ChatGPT's own dialog;
+  // Codex's hooks then are Codex's in the terminal (strom run, codex in the folder) — named so, never as the app's
+  // watching (spec 062 K6.2, K6.3)
+  const chatgptApp = chosen === "codex" && found.includes("codex") && !ctx.archiveHere() && codexInChatgptApp(ctx.env);
+  if (chatgptApp) {
+    add("chatgptapp", "warn", t("ui.doc.chatgptapp.browser"), t("ui.doc.chatgptapp.advice"));
+    checks.at(-1)!.code = "chatgpt.app.browser";
+  }
   const codexRoot = found.includes("codex") && tree && !ctx.archiveHere() ? rootHere(ctx) : undefined;
   if (codexRoot) {
     const state = codexHookState(codexRoot, ctx.env);
@@ -539,9 +581,12 @@ function diagnoseInto(
     // chat, strom run, strom session start: agents/files.ts syncAgentFiles) — said so, not a warning; the command only
     // an option. Turned off in Codex or an untrusted folder stays a warning (nothing of strom's mends it).
     const fine = state === "trusted" || state === "disabled" || state === "missing";
-    const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t("ui.doc.codexhooks.how")}  (strom doc R12.5)` : "strom doc R12.5";
+    // (the ChatGPT app chosen: its browser never calls the hook — the way to confirm it is Codex's in the terminal alone)
+    const how = chatgptApp ? "ui.doc.codexhooks.how.terminal" : "ui.doc.codexhooks.how";
+    const fix = state === "missing" ? "strom agents sync" : state === "untrusted" || state === "modified" ? `${t(how)}  (strom doc R12.5)` : "strom doc R12.5";
     add("codexhooks", fine ? "ok" : "warn", t(`ui.doc.codexhooks.${state}` as UIKey), fine && state !== "missing" ? undefined : fix);
     checks.at(-1)!.code = `codex.hooks.${state}`;
+    if (chatgptApp) checks.at(-1)!.label = t("ui.doc.codexhooks.terminal");
   }
 
   // For a person: the shortcut on the desktop, the Strom app.
@@ -601,11 +646,20 @@ function diagnoseInto(
     // two seal keys of this computer (strom of an app packaged for Windows and of a terminal): united, never repaired
     else if (sealErrs.length === errs && sealErrs.every((f) => f.code === OTHER_KEY)) add("tree", "fail", t("ui.doc.tree.twokeys", { name: tr.config.name }), "strom seal adopt", "unite");
     else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
+    // facts with the original cited waiting to be verified against it (spec 065 K6.9): a sentence, never a problem;
+    // nothing in an archive
+    if (!actsAsArchive(tr)) {
+      const v = timed("doctor.verifyfacts", () => verifyCounts(tr));
+      if (v.waiting) add("verify", "ok", t("ui.doc.verify.detail", { n: v.waiting, more: verifyWaitsMore(lang, v) }));
+    }
     // can it be written — its locks (.strom) and history (.git) tried: found on Windows, an agent's sandbox refused
     // writing while doctor said all was fine; a disk without hard links works, the lock another way (core/lock.ts)
-    const problems = timed("doctor.write", () => writeProblems(tr.root, isAgent(ctx.env)));
-    const worst = problems.find((p) => p.cause !== "nolink") ?? problems[0];
-    if (!worst) add("write", "ok", t("ui.doc.write.ok"));
+    // (strom error only reads: no write tried)
+    const problems = ctx.readOnly ? undefined : timed("doctor.write", () => writeProblems(tr.root, isAgent(ctx.env)));
+    const worst = problems?.find((p) => p.cause !== "nolink") ?? problems?.[0];
+    if (!problems) {
+      // not tried
+    } else if (!worst) add("write", "ok", t("ui.doc.write.ok"));
     else {
       const where = problems.filter((p) => p.cause === worst.cause).map((p) => ctx.display(p.where)).join(", ");
       const here = worst.cause === "sandbox" ? sandboxHere(ctx.env) : undefined;
@@ -633,7 +687,7 @@ function diagnoseInto(
     // what a fix of strom's left behind here, waiting for the person's decision (strom fixes); nothing in an archive
     if (!isArchive(tr)) {
       progress("fixes");
-      const fixes = timed("doctor.fixes", () => fixesDoctorLine(tr, fixEnv(ctx, tr), lang, !ctx.backupFailed));
+      const fixes = timed("doctor.fixes", () => fixesDoctorLine(tr, fixEnv(ctx, tr), lang, !ctx.backupFailed && !ctx.readOnly));
       add("fixes", fixes.status, fixes.text, fixes.fix);
     }
   }
@@ -760,15 +814,7 @@ register({
       checks = shown(diagnose(ctx));
     }
     const bad = checks.filter((c) => c.status === "fail").length;
-    const mark = { ok: "✓", warn: "!", fail: "✗" } as const;
-    const text = lines(
-      ...said,
-      ...(said.length ? [""] : []),
-      // what to do right after its detail: a long detail of another check (every tree's name) pads no column before it
-      table(checks.map((c) => [` ${mark[c.status]}`, c.label, c.fix ? `${c.detail}  → ${c.fix}` : c.detail])),
-      "",
-      bad === 0 ? t("ui.doc.allok") : t("ui.doc.problems", { n: bad }),
-    );
+    const text = lines(...said, ...(said.length ? [""] : []), doctorTable(checks, lang));
     return { text, data: { ok: bad === 0, checks: checks.map(({ repair: _, ...c }) => c) }, exitCode: bad === 0 ? 0 : 1 };
   },
 });

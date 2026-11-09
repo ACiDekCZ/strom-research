@@ -31,6 +31,7 @@ import { runs, runsArg, shellArg } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
+import { decodeGedcom } from "../gedcom/encoding.ts";
 import { subjectPeople } from "../core/records.ts";
 import { familyFormsFor, groupedForms, readSurnames, sameFamily } from "../core/surnames.ts";
 import { twoPeople } from "../core/quality.ts";
@@ -45,6 +46,7 @@ import { agentDecided, decidedToRecord, HYPOTHESIS_LINKS_ORIGIN, linkText, recor
 import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 import { placesIdentifySections } from "./places.ts";
+import { verifySection } from "./verify.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
@@ -398,7 +400,8 @@ function storiesTold(tree: Tree, task: Task): Section | undefined {
 /** A small text file of an input, as strom input show gives it; unreadable: nothing. */
 function readSmall(file: string): string | undefined {
   try {
-    return fs.readFileSync(file, "utf8").trim();
+    // a family tree of a Windows program in its code page (1 CHAR ANSI): its letters, not a code page's look-alikes
+    return (/\.ged$/i.test(file) ? decodeGedcom(fs.readFileSync(file)).text : fs.readFileSync(file, "utf8")).trim();
   } catch {
     return undefined;
   }
@@ -779,7 +782,7 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   ].filter(Boolean);
 }
 
-/** The fetches at work for the research (each book: how far), and those that ended lately with images left (in the background, or interrupted). */
+/** The fetches at work for the research (each book: how far), and those that ended lately with images left (in the background, interrupted, or stopped by their connector). */
 function fetchingLines(tree: Tree): string[] {
   const root = tree.root;
   const active = activeFetches(root);
@@ -795,7 +798,7 @@ function fetchingLines(tree: Tree): string[] {
         e.interrupted
           ? // its process ended without a word (killed, the computer stopped): what it registered stays
             `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} was interrupted (${e.interrupted === "gone" ? "its process ended without a word" : "nothing heard of it for long"}) with images ${runs(e.missed)} not fetched — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset}${e.background ? " --background" : ""} if they are needed (what is registered is not fetched again)`
-          : `- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
+          : `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
       );
   return out;
 }
@@ -1005,7 +1008,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
-    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
+    "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (in the terminal strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex; the ChatGPT app's runs through ChatGPT's cloud and strom does not watch it) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
@@ -1118,6 +1121,9 @@ export function buildBrief(
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)
     sections.push({ name: "review", required: true, pointer: `strom task show ${task.id}`, text: ["## To review", ...reviewItems(tree, task)].join("\n") });
+  // 2. a verification against the originals: each fact, its originals and their images, and how (spec 065)
+  const verifying = verifySection(tree, task);
+  if (verifying) sections.push(verifying);
 
   // 2a. an imported tree: who in it is probably already in the tree
   const treeInputs = [...new Set([...(task?.subject ?? []), ...(task?.where ?? [])])]
@@ -1605,6 +1611,9 @@ export function buildBrief(
       alone && task
         ? `- a decision or a step only the user can take: strom task wait ${task.id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app; a question in the summary gets no answer; its kind: --kind letter|family|web|other`
         : "",
+      // a problem with strom the user reports (spec 070 K3.1): the report, never its content in the chat
+      // in short (the brief's budget): the whole in the guide and AGENTS.md
+      alone ? "" : "- a problem with strom reported: ask where it happened, strom error --where chat|terminal|app, tell the ZIP's path; never send, open or copy it",
       "- a command you need: strom help <command> (short, with examples) — the full guide: strom guide",
     ].filter(Boolean).join("\n"),
   });

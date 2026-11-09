@@ -437,7 +437,8 @@ register({
     "house); facts resting on one reading; conflicts left open; with --reread, a second reading of what only\n" +
     "another model read — after the agent or the model changed. Birth, parents and the story come as in any\n" +
     "research. Run again later: what a task took up, or a task open elsewhere covers, is not proposed again.\n" +
-    "Nothing is deleted; corrections go through strom with their reasons.",
+    "Nothing is deleted; corrections go through strom with their reasons. The facts against their originals:\n" +
+    "strom verify facts P….",
   args: [{ name: "person", description: "whom (ID or name); several: one review for them all; none with --unproven", variadic: true }],
   options: [
     { name: "scope", type: "string", value: "<scope>", description: "one person: person (default), family (with partners and children), line (with the ancestors)" },
@@ -527,7 +528,7 @@ register({
         const r = addResearch(tree, { name: draft.name, focus, direction: "person" });
         research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${what}${reread ? `, second reading with ${reread}` : ""}` });
       }
-      tasks = applyFrontier(tree, research)
+      tasks = applyFrontier(tree, research, { verify: false })
         .map((id) => tree.get<Task>(id))
         .filter((t): t is Task => !!t);
     }

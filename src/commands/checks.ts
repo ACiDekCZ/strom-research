@@ -17,7 +17,8 @@ import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { history } from "../core/live.ts";
-import { humanWhen } from "../cli/human.ts";
+import { humanWhen, verifyWaitsMore } from "../cli/human.ts";
+import { verifyCounts } from "../core/verify.ts";
 import { isAgent } from "../core/which.ts";
 import { writeProblems } from "../core/writable.ts";
 import type { Tree } from "../core/tree.ts";
@@ -40,6 +41,7 @@ function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "after-death" && f.params) return ui(lang, f.params.kind === "weddingAfterDeath" ? "ui.check.afterdeath.wedding" : "ui.check.afterdeath", f.params);
   if (lang && f.code === "participant-long-name") return ui(lang, "ui.check.participantnames", { n: f.count ?? 1 });
   if (lang && f.code === "street-place") return ui(lang, "ui.check.streetplaces", { n: f.count ?? 1 });
+  if (lang && f.code === "same-original-id" && f.params) return ui(lang, "ui.check.sameid", f.params);
   return f.message;
 }
 
@@ -51,6 +53,8 @@ function hintSaid(f: Finding, lang: string | undefined): string | undefined {
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
   if (lang && f.code === "after-death" && f.params)
     return ui(lang, "ui.check.afterdeath.hint", { show: `strom person show ${f.params.person}`, dismiss: `strom quality dismiss ${f.params.kind} ${f.params.person} --subject ${f.params.year}` });
+  if (lang && f.code === "same-original-id" && f.params)
+    return ui(lang, "ui.check.sameid.hint", { compare: `strom person compare ${f.params.a} ${f.params.b}`, merge: `strom person merge ${f.params.a} ${f.params.b} --reason …` });
   return f.hint;
 }
 
@@ -118,11 +122,17 @@ register(
         disk && disk.frees >= TIDY_SAID
           ? { ...checked, text: lines(checked.text, ui(lang, "ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
           : checked;
-      // not an error — research to do: who rests on no record of their own
-      const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
       // an archive: what to research is no matter of it
-      if (!unproven || actsAsArchive(tree)) return out;
-      return { ...out, text: lines(out.text, ui(lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
+      if (actsAsArchive(tree)) return out;
+      // not an error — research to do: who rests on no record of their own; facts with the original cited waiting to be
+      // verified against it (spec 065 K6.9), those waiting for the person's scans or an archive's permission said apart
+      const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
+      const v = verifyCounts(tree);
+      return {
+        ...out,
+        text: lines(out.text, unproven ? ui(lang, "ui.check.unproven", { n: unproven }) : undefined, v.waiting ? ui(lang, "ui.check.verify", { n: v.waiting, more: verifyWaitsMore(lang, v) }) : undefined),
+        data: { ...out.data, ...(unproven ? { unproven } : {}), ...(v.waiting ? { verify: { waiting: v.waiting, images: v.images, permission: v.permission } } : {}) },
+      };
     },
   },
   {
@@ -130,6 +140,7 @@ register(
     summary: "Was anything changed outside strom? (seal check of every record and commit)",
     group: "history",
     tree: true,
+    description: "The facts against their originals are another matter: strom verify facts <whom>, strom verify bulk, strom verify done, strom verify status.",
     options: [{ name: "fast", type: "boolean", description: "only what changed since the last commit (what runs before every write)" }],
     run(ctx, { opts }) {
       const tree = ctx.tree();

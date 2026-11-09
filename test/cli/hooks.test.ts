@@ -40,6 +40,18 @@ async function got(w: World & { hook: string }, n: number): Promise<Record<strin
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
 }
 
+/** The hook's log once it says what is looked for (or as it is after 10 s). */
+async function logSoon(w: World & { hook: string }, want: RegExp): Promise<string> {
+  const file = path.join(w.hook, "hook.log");
+  let text = "";
+  for (let i = 0; i < 100; i++) {
+    text = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    if (want.test(text)) return text;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return text;
+}
+
 test("a hook the user turned on is told of what was saved — in the background, only what it wants, and may read more through strom", opts, async () => {
   const w = await world(["person.add", "family.*"]);
   // a folder alone does nothing
@@ -57,7 +69,8 @@ test("a hook the user turned on is told of what was saved — in the background,
   assert.equal(first!.events[0].targets[0], "P0003");
   assert.match(first!.card, /Anna/, "it read more of her through strom");
   assert.equal(first!.env, "zapis");
-  assert.match(fs.readFileSync(path.join(w.hook, "hook.log"), "utf8"), /told of person\.add/);
+  // what it printed: written after got.jsonl, so waited for (failed under load in the whole suite, 2026-11-09)
+  assert.match(await logSoon(w, /told of person\.add/), /told of person\.add/);
   // what it does not want starts it not
   await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
   await new Promise((r) => setTimeout(r, 700));

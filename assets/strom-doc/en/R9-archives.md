@@ -274,15 +274,19 @@ images itself, one at a time: it opens the image in Chrome and saves what the ar
     (`strom-T…-<number>.jpg`), and `strom media add --inbox --waiting` moves it into the task's folder under the
     image's number ([R9.6](#R9.6)).
 - **Limits:** Chrome saves only one file from one page. Further downloads from the same page must be allowed by a
-  person in Chrome's address bar; the agent never changes Chrome's settings.
+  person in Chrome's address bar; the agent never changes Chrome's settings. An image whose file is not in the
+  downloads folder even 5 s after the instruction to save it counts as held back for `strom media add --inbox
+  --waiting`: it tells the agent, and the task's wait tells the person which website to allow to download several
+  files (“the browser held image {n} back: {website} to be allowed to download several files, once (the icon at the
+  right end of the browser's address bar)”).
 - **Method only:** a downloader for an archive whose viewer shows images in tiles also saves through the browser,
   even part of an image; it opens the book's page once and never reloads it.
 - **Why:** the permission "through the browser" allows what a person would do in their own browser, at their pace.
 - **Controls:** terminal (agent): `strom media save T… --image <number> --at <address> [--recordset B…]`, then
   `strom media add --inbox --waiting`.
-- **Since:** research 1.27.0
+- **Since:** research 1.27.0. A held-back image is reported since research 1.30.0.
 
-<!-- zdroj: research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Waiting for images and the task's return

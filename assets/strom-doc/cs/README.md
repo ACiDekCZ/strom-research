@@ -23,6 +23,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [R10 Osoby: ztotožnění, jména a hypotézy](R10-people-and-hypotheses.md): jmenovci, sloučení dvou záznamů, hypotézy, rodina mimo strom, jména osoby
 - [R11 Podklady od uživatele](R11-material-from-the-user.md): soubory a texty od uživatele, doklad a vodítko, převzatý rodokmen, dávka z aplikace
 - [R12 Kde agent pracuje a co strom hlídá](R12-where-the-agent-works.md): terminál, aplikace Claude, ChatGPT (Codex) a OpenCode, Antigravity a Grok Build, samostatný běh: co strom kde hlídá a co udělá člověk
+- [R13 Nahlásit problém: `strom error`](R13-reporting-a-problem.md): jeden soubor ZIP k odeslání, co v něm je a co ne, který problém a jaký příkaz, údaje osob jen se souhlasem, agent a nahlášení problému
 
 ## A Aplikace Strom
 
@@ -43,5 +44,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [S3 Co ví výzkum](S3-what-the-research-knows.md): rozpory, hypotézy, prohledáno a Nad osobou v aplikaci
 - [S4 Výzkum řízený z aplikace](S4-research-from-the-app.md): panel a přehled výzkumu, fronta, linie, akce do terminálu
 - [S5 Telefon](S5-phone.md): stránka výzkumu v telefonu, párování, fotky po dávkách
+- [S6 Strom z jiného programu](S6-tree-from-another-program.md): rodokmen z MyHeritage, Gramps, FamilySearch a programů pro Windows: co se načte, značky spolehlivosti, údaje z rodokmenu jako vodítka, karta Co teď, zálohy, export zpět, opakovaný import
+- [S7 Spolehlivost údajů a ověření podle originálů](S7-reliability-and-verification.md): značky u údajů a na kartičce, Ověřit u údaje, u osoby a ve stromu, ověřování ve frontě výzkumu, Potvrdit podle skenu, co jde s mostem a bez něj
 
 Licence: [CC BY 4.0](../LICENSE). Texty je možné sdílet a upravovat s uvedením zdroje.

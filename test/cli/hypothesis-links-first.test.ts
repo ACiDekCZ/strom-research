@@ -70,7 +70,7 @@ test("a new hypothesis-links task: the highest priority, first in task next, the
   const t = ours(w)[0]!;
   assert.equal(t.priority, HYPOTHESIS_LINKS_PRIORITY);
   assert.equal(t.level, "enrich");
-  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
+  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1", "hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
 
   assert.equal((await order(w))[0], id);
   const next = await w.ok(["task", "next", "--json"]);

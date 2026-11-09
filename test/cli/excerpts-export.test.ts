@@ -16,6 +16,8 @@ import { opts, fixtures, world, source, stromRepo, tsx } from "./excerpts.helper
 
 test("the Strom app takes the export with images: an older one everything but the new tags, 3.1.0 the excerpts too", { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
   const { STROM_READS_EXCERPTS, stromReadsTags } = await import("../../src/gedcom/export.ts");
+  const { appReadsSourcesAgain } = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
   const app = JSON.parse(fs.readFileSync(path.join(stromRepo, "package.json"), "utf8")).version as string;
   const w = await world();
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
@@ -41,16 +43,19 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], stats: 
   assert.equal(out.persons, 1);
   assert.equal(out.sources.length, 2);
   assert.equal(out.jan[0].sourceIds.length, 1, "the citation stays");
+  // `strom export gedcom` knows no app version: a mark an older app only skips (losing nothing) is written for today's
+  // app — the original of S0001 is here with its transcript (1 _STROM_ORIG Y), an app before the gate lists it as skipped
+  const later = appReadsSourcesAgain(new Settings({}, {}), app) ? [] : ["_STROM_ORIG"];
   if (stromReadsTags(app, STROM_READS_EXCERPTS)) {
-    // it reads them all: the transcript, the entry's REFN, its excerpt
-    assert.deepEqual(out.dropped, []);
+    // it reads them all: the transcript, the entry's REFN, its excerpt (and what a newer app reads, skipped)
+    assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), later);
     assert.match(out.sources[0].transcript, /Joannes/);
     assert.equal(out.sources[0].refn, "S0001");
     assert.equal(out.sources[0].excerpts, 1);
     assert.equal(out.sources.find((x: { title: string }) => x.title === "Zápis převzatý")?.excerpts, 1, "a source nobody cites: its excerpt in the window of sources");
   } else {
     // it says which it left out (the source's REFN and the excerpt); the rest comes in whole
-    assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), ["OBJE", "REFN"]);
+    assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), ["OBJE", "REFN", ...later].sort());
     assert.match(out.sources[0].note, /Joannes/);
   }
   w.cleanup();

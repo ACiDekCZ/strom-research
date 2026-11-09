@@ -6,16 +6,18 @@
 // IDs in a tree of this research coming back from the Strom app are matched,
 // not duplicated — another research's IDs never (oursByRefn).
 
-import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type Participant, type ParticipantRole, type Person, type Source } from "./model.ts";
+import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
 import { normalizeAge } from "./age.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
-import { normalizeDate } from "./gdate.ts";
+import { dateYears, normalizeDate } from "./gdate.ts";
 import { isRetractedName } from "./retractions.ts";
 import { appNoSurname, cleanTitle, gedcomName, noName, notAName, parseName, sameName, surnameAfterGiven, withoutMark, withoutTitles } from "./people.ts";
 import { update } from "./records.ts";
 import { now, type Tree } from "./tree.ts";
+import { importSourceFor, importsOfHead, markUnder, nextImportKey, originOfMark } from "./origin.ts";
+import { appIdBlocks, entryOf, foreignIds, joinIds, matchByIds, namesAlike, personIndex, type IdBlock } from "./originalids.ts";
 import { appUnknownIsNoSurname, appWritesSexUnknown } from "./stromapp.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 
@@ -28,6 +30,27 @@ export interface ImportResult {
   /** What a returning tree added to people and families we already have ("P0001: DEAT 12 MAR 1950"). */
   extended: string[];
   problems: string[];
+  /**
+   * People of the file who may be the same as a person of the research by an ID of the program it came from (spec 066
+   * K3.2) — never taken as them (a name, sex or birth year differs in another program's file, another ID differs, an ID only of a program): a
+   * person of the file (`person`, made new), the research's (`like`), why only maybe.
+   */
+  candidates: { person: string; like: string; why: string }[];
+  /** Of `matched`: found by an ID of the program (another program's file), not as the research's own tree coming back. */
+  matchedByIds?: number;
+  /**
+   * Of `matchedByIds`: people a newer file of the same program's tree says otherwise of (a name, sex, birth year) — the
+   * research's person (`person`), the file's xref, what differs. Nothing of the research replaced: the file's values
+   * came in as leads beside it (a sex the research has stays).
+   */
+  differs?: { person: string; xref: string; why: string }[];
+  /**
+   * A person of the file made new though maybe one of the research (a candidate), not put into a family where that one
+   * is already (as a child, or as the partner of the same partner): the new person, the family, who they may be.
+   */
+  notJoined?: { person: string; family: string; like: string }[];
+  /** What another program's file holds that the research does not take: media records, links to them, its own tags by tag. */
+  notTaken?: { objects: number; links: number; tags: Record<string, number> };
 }
 
 /** Christenings and baptisms are one fact for a comparison. */
@@ -105,7 +128,7 @@ function localDate(raw: string): string | undefined {
   return q && d ? `${q} ${d}` : undefined;
 }
 
-function makeSource(tree: Tree, title: string, input: string): Source {
+function makeSource(tree: Tree, title: string, input: string, imported?: Source["imported"]): Source {
   const t = now();
   const s: Source = {
     id: tree.allocate("S"),
@@ -115,11 +138,12 @@ function makeSource(tree: Tree, title: string, input: string): Source {
     input,
     information: "secondary",
     form: "authored",
+    ...(imported ? { imported } : {}),
     notes: [],
     created: t,
     updated: t,
   };
-  tree.put(s, { op: "source.add", targets: [s.id, input], summary: `+${s.id} source "${title}"` });
+  tree.put(s, { op: "source.add", targets: [s.id, input], summary: `+${s.id} source "${title}"${imported ? ` (import ${imported.key})` : ""}` });
   return s;
 }
 
@@ -238,12 +262,13 @@ function importedMarnm(r: GedNode, file: GedFile): Name[] {
   return marnmNames(r, given);
 }
 
-export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string }): ImportResult {
+export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string; pendingIds?: ReadonlyMap<string, readonly OriginalIds[]> }): ImportResult {
   const { records, problems } = parseGedcomText(text);
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
   const fromApp = stromAppFile(records.find((r) => r.tag === "HEAD"));
   const system = `gedcom:${opts.sha.slice(0, 12)}`;
-  const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems };
+  const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems, candidates: [] };
+  if (!fromApp.app) result.notTaken = notTakenOf(records);
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
   const noteText = (n: GedNode) => (/^@[^@]+@$/.test(n.value.trim()) ? (notes.get(n.value.trim()) ?? "") : n.value);
   // The sources of that tree: what its author cited is what the leads can be checked against.
@@ -260,8 +285,46 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
   const bare = (xref: string) => xref.replace(/@/g, "");
 
   tree.withTreeLock(() => {
-    const source = makeSource(tree, `${importLabel(tree.config.lang)} ${opts.name}`, opts.input);
+    // a family tree of another program: an import of this research (its key R1, R2…, the program, the file's date) —
+    // its values leads an agent changes only on a record (core/origin.ts); the Strom app's file is the user's own tree
+    const head = records.find((r) => r.tag === "HEAD");
+    const sourNode = head?.children.find((c) => c.tag === "SOUR");
+    const imported: Source["imported"] | undefined = fromApp.app
+      ? undefined
+      : {
+          key: nextImportKey(tree),
+          ...(val(sourNode, "NAME")?.trim() || sourNode?.value.trim() ? { program: (val(sourNode, "NAME")?.trim() || sourNode!.value.trim()).slice(0, 200) } : {}),
+          ...(val(sourNode, "VERS")?.trim() ? { version: val(sourNode, "VERS")!.trim().slice(0, 100) } : {}),
+          ...(val(head, "DATE")?.trim() ? { date: val(head, "DATE")!.trim().slice(0, 100) } : {}),
+          at: now().slice(0, 10),
+          file: opts.name,
+          sha: opts.sha,
+        };
+    const source = makeSource(tree, `${importLabel(tree.config.lang)} ${opts.name}`, opts.input, imported);
     result.source = source.id;
+    const stamp: ValueOrigin<never> = fromApp.app ? { by: "user", tree: true } : { by: "import", source: source.id };
+    /**
+     * Where a value of the file comes from: every value of another program's file is the import's (whatever marks it
+     * carries — never read from a foreign file), every one of the Strom app's the user's family tree's (the user's to
+     * guard, not their own change: origin user with `tree`). The hook for the app's own
+     * marks (`_STROM_IMPORT Ix [DATE PLAC…]` under a fact, a NAME, a person: spec 066, read by the sync) — only where
+     * `fromApp`, never in another program's file.
+     */
+    // the imports the app's file names (HEAD 1 _STROM_IMPORT Ix): each its own source, made once, cited by its values
+    const appImports = fromApp.app ? importsOfHead(head) : undefined;
+    const importSources = new Map<string, string>();
+    const importSource = (key: string): string => {
+      let id = importSources.get(key);
+      if (!id) importSources.set(key, (id = importSourceFor(tree, appImports!.get(key)!, opts.input).source.id));
+      return id;
+    };
+    const originOf = <P extends string>(node: GedNode | undefined, of: "fact" | "name" | "sex" = "fact"): ValueOrigin<P> => {
+      const mark = markUnder(node, appImports);
+      return mark ? originOfMark<P>(mark, importSource(mark.key), of) : { ...stamp };
+    };
+    /** What a fact of the file cites: the import's source the app marks it with (and the file's for parts the user changed), else the file's. */
+    const citesOf = (o: ValueOrigin<string>, locator: string): Event["citations"] =>
+      o.source && o.source !== source.id ? [{ source: o.source, locator }, ...(o.parts?.length ? [{ source: source.id, locator }] : [])] : [{ source: source.id, locator }];
     const xrefToId = new Map<string, string>();
     const pedi = new Map<string, Map<string, string>>(); // person xref → family xref → PEDI
     const individuals = records.filter((x) => x.tag === "INDI" && x.xref);
@@ -270,8 +333,54 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     const fresh = new Set<string>();
     const treeId = val(records.find((x) => x.tag === "HEAD"), "_STROM_TREE")?.trim();
     const ourPeople = oursByRefn(tree, treeId, individuals.map((r) => ({ refn: val(r, "REFN"), names: r.children.filter((c) => c.tag === "NAME").map((c) => c.value) })));
+    // The IDs a record had in the file (spec 066 K3.2): another program's its xref and ID lines, of this import; the
+    // Strom app's its blocks of the imports its HEAD names (never its own level-1 _UID, never its xref).
+    const idsRead = new Map<string, { blocks: IdBlock[]; entries: ReturnType<typeof entryOf>[] }>();
+    const idEntries = (r: GedNode) => {
+      const had = idsRead.get(r.xref!);
+      if (had) return had;
+      const got = readIds(r);
+      idsRead.set(r.xref!, got);
+      return got;
+    };
+    const readIds = (r: GedNode): { blocks: IdBlock[]; entries: ReturnType<typeof entryOf>[] } => {
+      const label = bare(r.xref!);
+      if (!fromApp.app) {
+        const b = foreignIds(r, result.problems, label);
+        return { blocks: b ? [b] : [], entries: b ? [entryOf(b, source.id)] : [] };
+      }
+      const blocks = appIdBlocks(r, (key) => !!appImports?.has(key), result.problems, label);
+      return { blocks, entries: blocks.map((b) => entryOf(b, importSource(b.key!))) };
+    };
+    // A person the research has by an ID of the program (strong: the same person when everything else agrees, or when a
+    // newer file of the same program's tree says a name, sex or birth year otherwise — said, the rest leads; weak or in
+    // doubt: a candidate for a person to decide) — each of the research's people one person of the file at most.
+    // (a research of 1.29: the IDs its earlier imports' files give, not written on the people yet, count as well)
+    const index = personIndex(tree, opts.pendingIds);
+    const taken = new Set(ourPeople.filter((p): p is Person => !!p).map((p) => p.id));
+    const maybe = new Map<string, { like: string; why: string }[]>();
     for (const [i, r] of individuals.entries()) {
-      const ours = ourPeople[i];
+      let ours = ourPeople[i];
+      if (!ours) {
+        const blocks: IdBlock[] = idEntries(r).blocks;
+        const ids = blocks.flatMap((b) => (b.xid ? [] : b.ids));
+        const hit = ids.length || (!fromApp.app && blocks.length)
+          ? matchByIds(tree, index, {
+              names: children(r, "NAME").map((c) => c.value),
+              sex: readGedSex(r, fromApp),
+              year: fileBirthYear(r),
+              ids,
+              xref: fromApp.app ? undefined : bare(r.xref!),
+              program: fromApp.app ? undefined : imported?.program,
+            }, taken)
+          : { candidates: [] };
+        if (hit.same) {
+          ours = tree.get<Person>(hit.same);
+          taken.add(hit.same);
+          result.matchedByIds = (result.matchedByIds ?? 0) + 1;
+          if (hit.differs?.length) (result.differs ??= []).push({ person: hit.same, xref: bare(r.xref!), why: hit.differs.join(", ") });
+        } else if (hit.candidates.length) maybe.set(r.xref!, hit.candidates);
+      }
       if (ours) {
         xrefToId.set(r.xref!, ours.id);
         result.matched++;
@@ -288,11 +397,13 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         const kind = eventKind(c.tag);
         if (!kind || ["NAME", "SEX"].includes(c.tag)) continue;
         if (forFamily !== FAMILY_EVENT_KINDS.has(kind) && kind !== "EVEN" && kind !== "RESI" && kind !== "CENS") continue;
+        const origin = originOf<"date" | "place" | "value">(c);
         const ev: Event = {
           id: tree.allocate("E"),
           kind,
           status: "lead",
-          citations: [{ source: source.id, locator: `${bare(xref)} ${c.tag}` }],
+          citations: citesOf(origin, `${bare(xref)} ${c.tag}`),
+          origin,
         };
         const extra: string[] = [];
         const rawDate = val(c, "DATE");
@@ -391,12 +502,13 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           const name: Name = { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
           // the name the person is shown by now (the Strom file's mark, the user's choice): the first one marked
           if (/^y(es)?$/i.test(val(n, "_STROM_PRIMARY")?.trim() ?? "")) name.primary = true;
+          name.origin = originOf(n, "name");
           return name;
         })
         .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }))
         .map((n, i, all) => (n.primary && all.findIndex((m) => m.primary) !== i ? withoutMark(n) : n));
       // a married name other programs give apart (_MARNM): a name of the married kind, unless the person has it already
-      return [...names, ...importedMarnm(r, fromApp).filter((m) => !names.some((n) => sameName(n, m)))];
+      return [...names, ...importedMarnm(r, fromApp).filter((m) => !names.some((n) => sameName(n, m))).map((m) => ({ ...m, origin: { ...stamp } as ValueOrigin<"given" | "surname"> }))];
     };
 
     /** The Strom app keeps what a birth or death entry adds in the person's note ("Úmrtí: Věk: 61 let"): back to the fact; the other lines are returned. */
@@ -428,17 +540,22 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         // a name the research took back is not taken again from a file that still has it
         // the names another file adds: never the one the person is shown by (theirs stands)
         const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)) && !isRetractedName(cur, n)).map(withoutMark);
-        if (!facts.length && !names.length) continue;
-        const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], refs: [...(cur.refs ?? []), { system, id: r.xref! }], updated: now() };
+        // the IDs it has in this file: added (the same import and xref once), nothing taken off
+        const ids = joinIds(cur.originalIds, idEntries(r).entries);
+        if (!facts.length && !names.length && !ids.changed) continue;
+        const refs = (cur.refs ?? []).some((x) => x.system === system && x.id === r.xref!) ? cur.refs : [...(cur.refs ?? []), { system, id: r.xref! }];
+        const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], ...(refs ? { refs } : {}), ...(ids.changed ? { originalIds: ids.list } : {}), updated: now() };
         const what = [...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" ")), ...names.map((n) => `name ${[n.given, n.surname].filter(Boolean).join(" ")}`)].join(", ");
-        if (save(next, { op: "person.import", targets: [cur.id], summary: `${cur.id} + ${what} (lead)` }, bare(r.xref!))) result.extended.push(`${cur.id}: ${what}`);
+        const saved = save(next, { op: "person.import", targets: [cur.id], summary: `${cur.id} + ${what || "IDs of the file"}${what ? " (lead)" : ""}` }, bare(r.xref!));
+        if (saved && what) result.extended.push(`${cur.id}: ${what}`);
         continue;
       }
       const refn = val(r, "REFN");
       const names = namesOf(r);
       // The birth name leads: a married name is a variant.
       names.sort((a, b) => (a.kind === "married" || a.kind === "alias" ? 1 : 0) - (b.kind === "married" || b.kind === "alias" ? 1 : 0));
-      const sex = readGedSex(r, fromApp) ?? "U";
+      const read = readGedSex(r, fromApp);
+      const sex = read ?? "U";
       const refs: ExternalRef[] = [{ system, id: r.xref! }];
       if (refn) refs.push({ system: "refn", id: refn });
       const t = now();
@@ -451,14 +568,18 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         const g = val(n, "GIVN") ?? parseName(withoutTitles(n.value.replace(/\s+/g, " "), cleanTitle(val(n, "NPFX")), cleanTitle(val(n, "NSFX")))).given;
         if (notAName(g) && !personNotes.includes(g.trim())) personNotes.push(g.trim());
       }
+      const originalIds = joinIds(undefined, idEntries(r).entries).list;
       const p: Person = {
         id: xrefToId.get(r.xref!)!,
         type: "person",
         names: names.length ? names : [{ given: "?", surname: "" }],
         sex,
+        // a sex the file gives (an unknown one is no value to keep)
+        ...(read && read !== "U" ? { sexOrigin: originOf<never>(markUnder(children(r, "SEX")[0], appImports) ? children(r, "SEX")[0] : r, "sex") } : {}),
         events: personEvents,
         notes: personNotes.filter((x) => x.trim()).map((x) => note(tree, x)),
         refs,
+        ...(originalIds.length ? { originalIds } : {}),
         created: t,
         updated: t,
       };
@@ -467,13 +588,18 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         continue;
       }
       result.persons++;
+      for (const c of maybe.get(r.xref!) ?? []) result.candidates.push({ person: p.id, ...c });
       for (const fc of children(r, "FAMC")) {
         const pd = val(fc, "PEDI")?.toLowerCase();
         if (pd && pd !== "birth") pedi.set(r.xref!, (pedi.get(r.xref!) ?? new Map()).set(fc.value.trim(), pd));
       }
     }
 
-    // Families
+    // Families. A person made new though maybe one of the research (a candidate) is never put where that one is: a
+    // child of the family it is a child of, the partner of its partner — the family would hold one person twice.
+    const mayBe = new Map<string, Set<string>>();
+    for (const c of result.candidates) mayBe.set(c.person, (mayBe.get(c.person) ?? new Set()).add(c.like));
+    const notJoined = (person: string, family: string, like: string) => (result.notJoined ??= []).push({ person, family, like });
     for (const r of records.filter((x) => x.tag === "FAM" && x.xref)) {
       const couple: { HUSB?: string; WIFE?: string } = {};
       for (const role of ["HUSB", "WIFE"] as const) {
@@ -498,6 +624,16 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         if (Object.keys(relations).length) link.relations = relations;
         kids.push(link);
       }
+      // a partner who may be the partner of the other one already: no second family of the two
+      const twice = partners.flatMap((p) =>
+        [...(mayBe.get(p) ?? [])].flatMap((like) =>
+          tree.list<Family>("family").filter((f) => !f.retracted && !f.mergedInto && f.partners.includes(like) && partners.filter((x) => x !== p).every((x) => f.partners.includes(x)) && partners.length > 1).map((f) => ({ p, f, like })),
+        ),
+      )[0];
+      if (twice) {
+        notJoined(twice.p, twice.f.id, twice.like);
+        continue;
+      }
       if (partners.length + kids.length === 0) continue;
       // Strom keeps the partners' ages at the wedding in the family's note: "Věk ženicha: 27 let".
       const famEvents = events(r, r.xref!, true, couple);
@@ -513,13 +649,20 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         .list<Family>("family")
         .find((f) => !f.retracted && !f.mergedInto && partners.length > 0 && partners.every((p) => f.partners.includes(p)) && f.partners.length === partners.length);
       if (exists) {
-        const kidsNew = kids.filter((k) => !exists.children.some((c) => c.person === k.person));
+        const kidsNew = kids.filter((k) => {
+          if (exists.children.some((c) => c.person === k.person)) return false;
+          const like = [...(mayBe.get(k.person) ?? [])].find((l) => exists.children.some((c) => c.person === l));
+          if (like) notJoined(k.person, exists.id, like);
+          return !like;
+        });
         const facts = famEvents.filter((e) => !knownFact(exists.events, e));
         result.events -= famEvents.length - facts.length;
-        if (!kidsNew.length && !facts.length) continue;
-        const next: Family = { ...exists, children: [...exists.children, ...kidsNew], events: [...exists.events, ...facts], updated: now() };
+        const ids = joinIds(exists.originalIds, idEntries(r).entries);
+        if (!kidsNew.length && !facts.length && !ids.changed) continue;
+        const next: Family = { ...exists, children: [...exists.children, ...kidsNew], events: [...exists.events, ...facts], ...(ids.changed ? { originalIds: ids.list } : {}), updated: now() };
         const what = [...kidsNew.map((k) => `child ${k.person}`), ...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" "))].join(", ");
-        if (save(next, { op: "family.import", targets: [exists.id, ...kidsNew.map((k) => k.person)], summary: `${exists.id} + ${what} (lead)` }, bare(r.xref!))) result.extended.push(`${exists.id}: ${what}`);
+        const saved = save(next, { op: "family.import", targets: [exists.id, ...kidsNew.map((k) => k.person)], summary: `${exists.id} + ${what || "IDs of the file"}${what ? " (lead)" : ""}` }, bare(r.xref!));
+        if (saved && what) result.extended.push(`${exists.id}: ${what}`);
         continue;
       }
       const t = now();
@@ -531,6 +674,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         events: famEvents,
         notes: famNotes.map((x) => note(tree, x)),
         refs: [{ system, id: r.xref! }],
+        ...((ids) => (ids.length ? { originalIds: ids } : {}))(joinIds(undefined, idEntries(r).entries).list),
         created: t,
         updated: t,
       };
@@ -558,6 +702,8 @@ const MARNM_LOCATOR = " _MARNM";
 
 export interface MarriedNamesPlan {
   input: string;
+  /** The file is the Strom app's: its names the user's (spec 066), else the import's. */
+  app?: boolean;
   /** The import's source: what the names cite. */
   source: string;
   /** Names to add: of the married kind, beside the name the person is shown by. */
@@ -590,7 +736,7 @@ export function marriedNamesPlan(tree: Tree, input: Input, text: string): Marrie
     }
     return undefined;
   };
-  const plan: MarriedNamesPlan = { input: input.id, source: input.source!, add: [], have: [], unpaired: [] };
+  const plan: MarriedNamesPlan = { input: input.id, source: input.source!, ...(file.app ? { app: true } : {}), add: [], have: [], unpaired: [] };
   for (const r of records.filter((x) => x.tag === "INDI" && x.xref)) {
     // NFC as every record (a file may write a name decomposed)
     const married = importedMarnm(r, file).map((n) => ({ ...n, given: n.given.normalize("NFC"), surname: n.surname.normalize("NFC") }));
@@ -612,7 +758,7 @@ export function marriedNamesPlan(tree: Tree, input: Input, text: string): Marrie
 export function addMarriedNames(tree: Tree, plan: MarriedNamesPlan): void {
   tree.withTreeLock(() => {
     for (const a of plan.add) {
-      const name: Name = { ...a.name, citations: [{ source: plan.source, locator: `${a.xref.replace(/@/g, "")}${MARNM_LOCATOR}` }] };
+      const name: Name = { ...a.name, citations: [{ source: plan.source, locator: `${a.xref.replace(/@/g, "")}${MARNM_LOCATOR}` }], origin: plan.app ? { by: "user", tree: true } : { by: "import", source: plan.source } };
       update<Person>(tree, a.person, "person", (p) => (p.names.some((n) => sameName(n, name)) ? p : { ...p, names: [...p.names, name] }), {
         op: "person.name",
         summary: `${a.person} name ${gedcomName(name)} (married) ← ${plan.source}`,
@@ -664,17 +810,40 @@ function oursByRefn(tree: Tree, treeId: string | undefined, people: { refn?: str
   });
   if (treeId) return found;
   // a word of the name in common, or the same name of a single letter or digit ("1", "J.")
-  const norm = (s: string) => foldText(s.replace(/\//g, " "));
-  const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w.length > 1));
-  const alike = (ours: Person, names: string[]) =>
-    ours.names.some((n) => {
-      const mine = `${n.given} ${n.surname}`;
-      const w = words(mine);
-      return names.some((t) => (!!norm(t) && norm(t) === norm(mine)) || [...words(t)].some((x) => w.has(x)));
-    });
-  const named = found.map((ours, i) => (ours && alike(ours, people[i]!.names) ? ours : undefined));
+  const named = found.map((ours, i) => (ours && namesAlike(ours, people[i]!.names) ? ours : undefined));
   const resolved = found.filter(Boolean).length;
   return named.filter(Boolean).length * 2 > resolved ? named : people.map(() => undefined);
+}
+
+/** The first year of a person's birth or baptism in a file. */
+function fileBirthYear(r: GedNode): number | undefined {
+  for (const tag of ["BIRT", "CHR", "BAPM"]) {
+    const c = children(r, tag)[0];
+    if (!c) continue;
+    const ys = dateYears(importDate(val(c, "DATE")) ?? "");
+    if (ys.length) return Math.min(...ys);
+  }
+  return undefined;
+}
+
+/** The level-1 tags of its own another program writes under a person or a family that intake reads. */
+const OWN_TAGS_READ = new Set(["_MARNM", "_UID", "_FSFTID"]);
+
+/**
+ * What another program's file holds that intake does not take: its media records (0 @…@ OBJE), the links to media
+ * under people and families, and its own level-1 tags there (by tag) — said, so that nobody thinks them in the research.
+ */
+function notTakenOf(records: GedNode[]): NonNullable<ImportResult["notTaken"]> {
+  const out = { objects: 0, links: 0, tags: {} as Record<string, number> };
+  for (const r of records) {
+    if (r.tag === "OBJE" && r.xref) out.objects++;
+    if (r.tag !== "INDI" && r.tag !== "FAM") continue;
+    for (const c of r.children) {
+      if (c.tag === "OBJE") out.links++;
+      else if (c.tag.startsWith("_") && !OWN_TAGS_READ.has(c.tag) && !eventKind(c.tag)) out.tags[c.tag] = (out.tags[c.tag] ?? 0) + 1;
+    }
+  }
+  return out;
 }
 
 /** The title of the source an imported tree becomes, in the research language. */
@@ -744,7 +913,7 @@ export function importStromJson(
   data: { persons: Record<string, StromPerson>; partnerships: Record<string, StromPartnership>; research?: { id?: string } },
   opts: { input: string; name: string },
 ): ImportResult {
-  const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems: [] };
+  const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems: [], candidates: [] };
   tree.withTreeLock(() => {
     const source = makeSource(tree, `${importLabel(tree.config.lang)} ${opts.name} (Strom)`, opts.input);
     result.source = source.id;
@@ -763,7 +932,8 @@ export function importStromJson(
       const add = (kind: string, date?: string, place?: string) => {
         const d = fromFlexDate(date);
         if (!d && !place) return;
-        const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: cite(sp, kind) };
+        // the Strom app's values are the user's own family tree's (spec 066): theirs to guard, nothing they confirmed
+        const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: cite(sp, kind), origin: { by: "user", tree: true } };
         if (d) ev.date = d;
         if (place) ev.place = place;
         if (date && !d) ev.note = `date as written: ${date}`;
@@ -782,10 +952,12 @@ export function importStromJson(
             surname: sp.lastName?.trim() ?? "",
             ...(cleanTitle(sp.titleBefore) ? { prefix: cleanTitle(sp.titleBefore)! } : {}),
             ...(cleanTitle(sp.titleAfter) ? { suffix: cleanTitle(sp.titleAfter)! } : {}),
+            origin: { by: "user", tree: true },
           },
-          ...(sp.nameVariants ?? []).map((v) => parseName(v)),
+          ...(sp.nameVariants ?? []).map((v): Name => ({ ...parseName(v), origin: { by: "user", tree: true } })),
         ],
         sex: sp.gender === "male" ? "M" : sp.gender === "female" ? "F" : "U",
+        ...(sp.gender === "male" || sp.gender === "female" ? { sexOrigin: { by: "user" as const, tree: true as const } } : {}),
         events,
         notes: sp.notes?.trim() ? [note(tree, sp.notes)] : [],
         refs: [{ system: "strom-app", id: sp.id }, ...(sp.refn ? [{ system: "refn", id: sp.refn }] : [])],
@@ -805,7 +977,7 @@ export function importStromJson(
       const events: Event[] = [];
       const d = fromFlexDate(sp.startDate);
       if (d || sp.startPlace) {
-        const ev: Event = { id: tree.allocate("E"), kind: "MARR", status: "lead", citations: [{ source: source.id, locator: `${sp.id} MARR` }] };
+        const ev: Event = { id: tree.allocate("E"), kind: "MARR", status: "lead", citations: [{ source: source.id, locator: `${sp.id} MARR` }], origin: { by: "user", tree: true } };
         if (d) ev.date = d;
         if (sp.startPlace) ev.place = sp.startPlace;
         events.push(ev);

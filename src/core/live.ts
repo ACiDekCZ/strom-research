@@ -37,8 +37,31 @@
 //                          sources it rests on as 2 SOUR @S…@ (3 SOUR), each a record of the file — those its facts cite,
 //                          those of its background and those its text names by ID (feature story.sources); made on a
 //                          thread of its own (core/liveged.ts: new images decode whole scans, the file of a big research
-//                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile
-//   GET <token>/images.ged the same (the address an older strom gave)
+//                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile;
+//                          made once for each head and variant (the app's version, links, images' settings) and kept on
+//                          disk (.strom/cache/live-ged: a bridge started again gives it at once); X-Strom-Head its head.
+//                          ?stale=1 (feature ged.stale): the last one made of the variant at once, though the research
+//                          changed since (X-Strom-Stale: 1, X-Strom-Head-Now), the new one told by the event change. While
+//                          the app follows (/events), a change is told once the tree of its head is made (at most 45 s).
+//                          ETag (feature ged.etag) told by the head and the variant (none for a file with images left
+//                          for later); If-None-Match naming it: 304, no body, nothing made or waited for (with ?stale=1
+//                          the older one's ETag, its 304 still X-Strom-Stale); ETag and X-Strom-* shown to the app's page
+//                          (Access-Control-Expose-Headers), If-None-Match let through its preflight.
+//                          ?images=ref (feature ged.imagesByHash, spec 071): each excerpt by reference, not in the file —
+//                          2 FILE strom-image:<sha256 of the JPEG's bytes> with 3 _MIME, _WIDTH, _HEIGHT, _BYTES; a variant
+//                          of its own (its own ETag, with ?stale=1 too), its images kept by their hashes as it is made
+//                          (.strom/cache/live-images: those the kept files name and those of the last hour, the rest
+//                          go); X-Strom-Images: ref | data says which file came (another value asked: data, as always);
+//                          packed (Content-Encoding: gzip, once for each file) for an app that takes it (Accept-Encoding),
+//                          the file with its images in it never (an older app gets it as always)
+//   GET <token>/image/<sha256>   one image the file names by reference: the JPEG, Cache-Control private, a year, immutable,
+//                          ETag its hash (If-None-Match: 304); never made because it is asked for — 404 image.unknown
+//                          (the app takes the file with its images in it), 400 image.sha
+//   POST <token>/images    several: {"images": [sha256…]} (1–IMAGES_AT_ONCE) → {images: [{sha, mime, bytes, data (base64)}],
+//                          missing: [not here], more: [not in this answer, its size reached: asked again]}; read only,
+//                          with its Content-Length (one cut short is no answer), never packed (base64 of JPEGs packs
+//                          little and slowly: the app waits longer for a packed one); 400 images.body
+//   GET <token>/images.ged the same as tree.ged (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
 //                          names — only when one does; head: the change, as strom history back and the link back take
@@ -227,6 +250,41 @@
 //                          confirm.retracted (taking back passes) | confirm.reader (not the research's reading, or the
 //                          user's own of another kind) | confirm.changed (+txt: the wording now), 503 research.busy
 //                          (feature sources.confirm). The Strom file: 2 _TXT, 2 _CONF under 1 _STROM_READ (APP_CONFIRMS_TRANSCRIPTS)
+//   POST <token>/facts/revert {"person": "P…", "ref": "<its 3 _REF>", "part"?: "DATE"|"PLAC"|"VAL"|"GIVN"|"SURN"|"SEX"}:
+//                          the user puts back what an imported family tree said of a value the research or they changed
+//                          (the Strom file's 2 _STROM_WAS: E… a fact, N:P…:<n> a name, SEX:P… a sex; without part every
+//                          part changed) — strom event revert | person revert as the person's, the value theirs from then
+//                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
+//                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
+//                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
+//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true: the user asks the facts
+//                          verified against their originals (spec 065; strom verify facts … --living), first in the
+//                          queue — {ok, task|null, state?: wait|asked|images|permission, position? (wait, asked: the
+//                          task's place in the queue), tasks?: [{task, state, position?, facts}] (not dry: every task
+//                          it touches, nearest to its turn first, the first on top), facts: [{fact, kind, how:
+//                          read|search, record?: {source, title, page?}}], estimate: {sessions, usd?}, head, parent};
+//                          dry: nothing written, head == parent; 400 verify.invalid, 404 verify.unknown,
+//                          409 verify.archive | verify.nothing | verify.retracted, 503 research.busy (feature verify)
+//   POST <token>/verify/bulk {"scope": "line"|"lineage"|"tree", "of"?: "G…"|"P…", "order"?: "ancestors"|"weakest"|
+//                          "oldest", "try"?: n, "budget"?: usd, "dry"?: true}: the user's bulk verification (strom verify
+//                          bulk), after the lines' work; a family tree's leads too, their record looked for — {ok,
+//                          people, facts, how: {read, search} (of the facts), tasks (not dry), left, estimate, head,
+//                          parent}; 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+//                          research.busy (feature verify.bulk)
+//   POST <token>/verify/stop {"scope"?: "all"|"bulk"}: the user stops the verification (strom verify stop [--bulk]) —
+//                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
+//                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
+//                          400 verify.invalid, 409 verify.archive, 503 research.busy (feature verify.stop)
+//   POST <token>/facts/confirm {"fact": "E…", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a fact
+//                          against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
+//                          too) — {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written;
+//                          txt: the mark of the value the app showed (the Strom file's 3 _TXT under 2 _STROM_EID), a fact
+//                          changed since refused 409 confirm.changed (+txt: the mark now, now: {date?, place?, value?}),
+//                          nothing written; without txt as before; 400 factconfirm.invalid, 404 factconfirm.unknown, 409
+//                          factconfirm.retracted | factconfirm.merged, 503 research.busy (features facts.confirm,
+//                          facts.confirm.value). /status verify {waiting, asked, images, permission, kept, confirmed,
+//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent). The Strom
+//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
 //                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
 //                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
@@ -370,11 +428,13 @@
 // written then (a send, an original) is finished; only new requests need the
 // new secret. Nothing is replaced on a timer.
 
+import { factIn, factNow, settleVerify, verifyCounts } from "./verify.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
 import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
+import zlib from "node:zlib";
 import os from "node:os";
 import http from "node:http";
 import path from "node:path";
@@ -391,20 +451,22 @@ import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
-import { sameDirection } from "./actions.ts";
+import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
 import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerpt.ts";
-import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, widgetOnThread, type GedMade } from "./liveged.ts";
+import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedImages, type GedMade } from "./liveged.ts";
+import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
-import { transcriptMark } from "./readers.ts";
+import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
+import { settleHeldProposals, settleOrigins } from "./originfix.ts";
 import { settleClips } from "./clipmerge.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -417,6 +479,19 @@ import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatch
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
+/** The trees for the app kept in memory, one for each variant (two windows of two versions of the app). */
+const GEDS_KEPT = 2;
+/** The images of the tree's file asked at once (POST /images): at most so many hashes. */
+export const IMAGES_AT_ONCE = 500;
+/** …and an answer holds at most so many bytes of them (the rest asked again: `more`). */
+export const IMAGES_ANSWER_BYTES = 8 * 1024 * 1024;
+/** An image by its hash never changes: the browser keeps it a year (it is private: the bridge's address is secret). */
+const IMAGE_CACHE = "private, max-age=31536000, immutable";
+/**
+ * How long a change waits to be told while the tree for the app that follows it is made (the app then loads it at
+ * once, the tree it shows meanwhile the one before): told without it after so long (STROM_LIVE_CHANGE_WAIT_MS).
+ */
+const CHANGE_WAIT_MS = 45_000;
 /** How long the bridge makes the excerpts of one source the app asks for (/excerpt/<S>): the rest the next ask makes. */
 const EXCERPT_MS = 20_000;
 /** A source with more excerpts than this is answered without the pictures: the app asks for each (?clip=). */
@@ -432,7 +507,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appOpensLinks, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -460,6 +535,7 @@ import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventK
 import { placeEstimate, placeRecord } from "./placehistory.ts";
 import { PLACE_FLAGS, PLACE_TAKES, REQUEST_MAX } from "./placeid.ts";
 import { placesView, placeView, queueView } from "./placesview.ts";
+import { decodeGedcom, looksLikeGedcom } from "../gedcom/encoding.ts";
 
 export interface LiveInfo {
   port: number;
@@ -611,6 +687,12 @@ const LIVE_LOG_BYTES = 200 * 1024;
 
 /** How a bridge ended (the end event's reason, live-last.json's ended.kind). */
 type EndKind = "stopped" | "restart" | "idle" | "gone" | "signal";
+
+/**
+ * How long a bridge's research must stay gone (no strom.json, its .strom deleted) before the bridge ends: seen gone at
+ * two looks at least this far apart (STROM_LIVE_GONE_MS of the tests).
+ */
+const GONE_MS = 10_000;
 
 /** How often a running bridge reads live.idleMinutes again (STROM_LIVE_IDLE_READ_MS of the tests). */
 const IDLE_READ_MS = Number(process.env.STROM_LIVE_IDLE_READ_MS ?? 60_000);
@@ -779,6 +861,136 @@ export function liveRunning(root: string): LiveInfo | undefined {
   return undefined;
 }
 
+/**
+ * Where the tree's bridge claims the tree (.strom/live-owner.json: its pid, its folder, since when) — one bridge per
+ * research, whatever starts them and when: a newer strom's bridge taking over from the one before and a strom starting
+ * the tree's bridge at that moment once ran both, one at the address the app follows, the other at another port, both
+ * taking in the inbox (found 2026-11-09 at an update). Claimed and given up only under the tree's owner lock
+ * (liveOwnerLock), which also guards live.json being written and removed at a start and an end.
+ */
+function liveOwnerFile(root: string): string {
+  return path.join(root, ".strom", "live-owner.json");
+}
+
+/**
+ * How long a claim counts by itself while its bridge is not in live.json yet (it starts: the tree settled, /status made
+ * first, its port waited for): after it only a bridge live.json names holds the tree — a claim left by one ended without
+ * a word is never another's process that got its number (Windows tells no bridge by its command).
+ */
+const CLAIM_FRESH_MS = 120_000;
+
+/** What a tree's claim is done under (a moment: read, compare, write); never waited for long — without it, as before. */
+function withLiveOwner<T>(root: string, fn: () => T): T {
+  let release: (() => void) | undefined;
+  try {
+    // a research gone (its .strom deleted, moved): its folder never made again for a lock
+    if (fs.existsSync(path.join(root, ".strom"))) release = acquireLock(path.join(root, ".strom", "live-owner.lock"), { owner: "the tree's bridge", waitMs: 10_000, staleMs: 60_000 });
+  } catch {
+    // its folder not to be written, or held by one stuck: the claim and the notes as they come
+  }
+  try {
+    return fn();
+  } finally {
+    release?.();
+  }
+}
+
+/**
+ * The bridge this one takes over from: the one that started it with a newer strom (STROM_LIVE_REPLACES; one of an
+ * older strom names none — its parent then, which started it). None: a bridge started by strom, which ended the one before.
+ */
+function replacedBridge(env: Env): number | undefined {
+  const said = Number(env.STROM_LIVE_REPLACES);
+  if (Number.isInteger(said) && said > 0) return said;
+  return env.STROM_LIVE_RENEWED ? process.ppid : undefined;
+}
+
+/**
+ * Another bridge holding this tree (it runs and is a bridge, never the one this one takes over from): the one whose claim
+ * counts (live-owner.json), else the one live.json names (a bridge of an older strom claims nothing) — one that started
+ * late (strom gave up waiting for it, another was started meanwhile) or at the same moment as another is never a second
+ * bridge of the tree.
+ */
+function rivalBridge(root: string, env: Env, ignore?: number): number | undefined {
+  const replaces = replacedBridge(env);
+  const named = liveRunning(root);
+  const other = (pid: unknown): pid is number => typeof pid === "number" && pid !== process.pid && pid !== replaces && pid !== ignore && isBridge(pid);
+  try {
+    const owner = JSON.parse(fs.readFileSync(liveOwnerFile(root), "utf8")) as { pid?: unknown; root?: unknown; at?: unknown };
+    const fresh = named?.pid === owner.pid || Date.now() - Date.parse(String(owner.at)) < CLAIM_FRESH_MS;
+    if (fresh && other(owner.pid) && !foreignNote(root, owner)) return owner.pid;
+  } catch {
+    // no claim: a bridge of an older strom, or none
+  }
+  return named && other(named.pid) ? named.pid : undefined;
+}
+
+/** This bridge holds the tree now (under the owner lock). */
+function writeOwner(root: string): void {
+  // no research there (moved, taken off): nothing made
+  if (!fs.existsSync(path.join(root, TREE_FILE))) return;
+  const file = liveOwnerFile(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify({ pid: process.pid, root: realRoot(root), at: new Date().toISOString() }));
+  fs.renameSync(`${file}.${process.pid}`, file);
+}
+
+/**
+ * Claim the tree for this bridge: the other bridge that holds it (this one then ends), else none — claimed. `ignore`: a
+ * bridge that holds it no more (the new one that did not take over, being ended).
+ */
+function claimTree(root: string, env: Env, ignore?: number): number | undefined {
+  return withLiveOwner(root, () => {
+    const rival = rivalBridge(root, env, ignore);
+    if (rival) return rival;
+    try {
+      writeOwner(root);
+    } catch {
+      // a folder not to be written: live.json says the bridge
+    }
+    return undefined;
+  });
+}
+
+/** The claim given up by the bridge that ends (only its own: the bridge it handed over to holds it already). */
+function dropOwner(root: string): void {
+  withLiveOwner(root, () => {
+    try {
+      const owner = JSON.parse(fs.readFileSync(liveOwnerFile(root), "utf8")) as { pid?: unknown };
+      if (owner.pid === process.pid) fs.rmSync(liveOwnerFile(root), { force: true });
+    } catch {
+      // none
+    }
+  });
+}
+
+/** live.json removed when it still names that bridge (an ended one's): never the note of one that came up meanwhile. */
+function dropLiveNote(root: string, pid: number): void {
+  withLiveOwner(root, () => {
+    try {
+      const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as { pid?: unknown };
+      if (now.pid === pid || typeof now.pid !== "number" || !alive(now.pid)) fs.rmSync(liveFile(root), { force: true });
+    } catch {
+      // none, or not readable: nobody's
+      fs.rmSync(liveFile(root), { force: true });
+    }
+  });
+}
+
+/**
+ * Tests only: the folder where a run of the tests keeps a note of each bridge (STROM_TEST_BRIDGES; test/setup.ts), so
+ * none outlives its test — ended with its world, and the run fails when one is left.
+ */
+function noteTestBridge(root: string, env: Env): void {
+  const dir = env.STROM_TEST_BRIDGES;
+  if (!dir) return;
+  try {
+    fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, root, at: new Date().toISOString() }));
+  } catch {
+    // a run whose folder is gone: nothing to keep
+  }
+}
+
 function sleep(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
@@ -855,7 +1067,11 @@ export function notStartedWhy(root: string, since: number): { full: true } | { f
 
 function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveInfo | undefined {
   if (running) stopLive(root, `a bridge of strom ${VERSION} is wanted (this one: ${running.version ?? "older"})`, { back: true });
-  fs.rmSync(liveFile(root), { force: true });
+  // the one ended was handing over to the bridge of the strom on disk, which runs now (one started would be of that
+  // strom too): that one is the tree's
+  const meanwhile = liveRunning(root);
+  if (meanwhile && meanwhile.pid !== running?.pid) return meanwhile;
+  dropLiveNote(root, meanwhile?.pid ?? running?.pid ?? 0);
   const before = readLast(root);
   spawnBridge(root, env);
   // (a stuck bridge before it is ended first: up to some seconds)
@@ -884,9 +1100,11 @@ function spawnBridge(root: string, env: Env, extra: Record<string, string> = {})
   } catch {
     // without a log
   }
+  // the bridge a bridge takes over from is said to it alone, never passed on to one a strom of it starts
+  const { STROM_LIVE_REPLACES: _replaced, ...inherited } = env as NodeJS.ProcessEnv;
   const child = spawn(command, [...args, "live", "serve"], {
     cwd: bridgeCwd(root, env),
-    env: { ...(env as NodeJS.ProcessEnv), STROM_TREE: root, STROM_SPAWNED: "1", ...extra },
+    env: { ...inherited, STROM_TREE: root, STROM_SPAWNED: "1", ...extra },
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -1086,7 +1304,8 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
     noteLive(root, `the bridge ${info.pid} could not be ended`);
     return "alive";
   }
-  fs.rmSync(liveFile(root), { force: true });
+  // (the bridge it handed over to may have written its own note meanwhile: kept)
+  dropLiveNote(root, info.pid);
   // no bridge of that number ran (it ended meanwhile, the number another program's): none was stopped
   return how === "gone" ? "none" : how;
 }
@@ -1235,8 +1454,63 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
   return Object.keys(ids.persons).length || Object.keys(ids.sources).length ? { ids } : {};
 }
 
-/** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo"] as const;
+/** What the bridge does that an app may ask about (each added once, never taken away; origin.ids said only with the IDs sent: bridgeFeatures). */
+/**
+ * What the tree's file answers carry beside it: not kept by the browser (the app keeps its tree), and the headers the
+ * app on its own page reads (CORS shows a page only those named): its ETag, the head it is of, an older one's marks.
+ */
+const GED_HEADERS = { "Cache-Control": "no-store", "Access-Control-Expose-Headers": "ETag, X-Strom-Head, X-Strom-Stale, X-Strom-Head-Now, X-Strom-Images" };
+
+/** The client takes a packed answer (Accept-Encoding: gzip, not refused by q=0). */
+function takesGzip(req: http.IncomingMessage): boolean {
+  return String(req.headers["accept-encoding"] ?? "")
+    .split(",")
+    .some((part) => {
+      const [name, ...params] = part.trim().toLowerCase().split(";");
+      return (name === "gzip" || name === "*") && !params.some((x) => /^\s*q\s*=\s*0(\.0*)?\s*$/u.test(x));
+    });
+}
+
+/** Vary of a packed answer: what it varied by already (the page asking: Origin) and Accept-Encoding. */
+function varyGzip(res: http.ServerResponse): string {
+  return [res.getHeader("Vary"), "Accept-Encoding"].filter((x) => x !== undefined && x !== "").join(", ");
+}
+
+/** Bytes packed by gzip off the bridge's own thread (zlib's pool). */
+function gzipped(bytes: Uint8Array, level: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => zlib.gzip(bytes, { level }, (e, out) => (e ? reject(e) : resolve(out))));
+}
+
+/** How the tree's file is asked to carry its images: ?images=ref by reference (spec 071), anything else in it as always. */
+function imagesAsked(req: Pick<http.IncomingMessage, "url">): GedImages {
+  return new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("images") === "ref" ? "ref" : "data";
+}
+
+/** The ETag of the tree's file for the app (feature ged.etag): told by the research's head and the file's variant alone. */
+export function gedTag(head: string, variant: string): string {
+  return `"${crypto.createHash("sha256").update(`${head}\n${variant}`, "utf8").digest("hex").slice(0, 32)}"`;
+}
+
+/** Does the request's If-None-Match name this ETag (a list, weak or strong, or *)? */
+export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: string): boolean {
+  const asked = req.headers["if-none-match"];
+  if (!asked) return false;
+  return String(asked)
+    .split(",")
+    .map((t) => t.trim().replace(/^W\//u, ""))
+    .some((t) => t === "*" || t === tag);
+}
+
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash"] as const;
+
+/**
+ * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
+ * carries the original IDs (the gate of the origins, the same version of the app as the file goes by) — an app that is
+ * told so takes the research's file as the IDs' keeper and drops its own (found by the joint check of spec 066).
+ */
+export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
+  return appShowsOrigin(settings, version, gate, beta) ? BRIDGE_FEATURES : BRIDGE_FEATURES.filter((f) => f !== "origin.ids");
+}
 
 /** /status busy: how many sessions and runs work now. */
 function busyOf(tree: Tree): { sessions: number; runs: number } {
@@ -2050,7 +2324,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
     return {
       strom: VERSION,
-      features: BRIDGE_FEATURES,
+      features: bridgeFeatures(new Settings(env, {}), version),
       ...channelOf(env),
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
@@ -2084,7 +2358,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     strom: VERSION,
     // what this bridge does, for an app to go by rather than the version (a bridge run from the sources says the
     // candidate it is, found on Mac: an app took 1.11.0 for an old research)
-    features: BRIDGE_FEATURES,
+    features: bridgeFeatures(settings, version),
     ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
     // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
@@ -2134,6 +2408,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
     // waiting for its agent — no key there
     ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
+    // the facts against their originals (spec 065, feature verify): what waits, what was verified or confirmed — none in
+    // an archive or a research waiting for its agent (nobody verifies there)
+    ...(archive ? {} : { verify: verifyCounts(tree) }),
     // what became of each source's newest reading again that differs from its transcript (the app's source viewer,
     // core/sourceread.ts readAgainOf): none in an archive or a research waiting for its agent
     ...(archive ? {} : { readAgain: readAgainAll(tree) }),
@@ -2229,6 +2506,14 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 
 /** Run the bridge of the tree here, until idle or stopped. */
 export function serveLive(root: string, env: Env): Promise<void> {
+  noteTestBridge(root, env);
+  // the tree's bridge runs already, or another one claimed the tree a moment before (a newer strom's bridge taking over
+  // while a strom starts one): this one is not needed — it ends before it writes or takes anything
+  const before = claimTree(root, env);
+  if (before) {
+    noteLive(root, `another bridge of this tree runs already (${before}): this one (${process.pid}) ends`);
+    return Promise.resolve();
+  }
   // the stroms it started that write (a send, an adoption, an original, a batch): never started again under them
   const kids = new Set<ChildProcess>();
   const track = (child: ChildProcess) => {
@@ -2270,6 +2555,27 @@ export function serveLive(root: string, env: Env): Promise<void> {
   } catch (e) {
     noteLive(root, `the facts proven without the original record not set right now: ${errorText(e)}`);
   }
+  // where the values came from (an imported family tree, the user): marked once, only marks (spec 066)
+  try {
+    const done = settleOrigins(Tree.open(root, env));
+    if (done) noteLive(root, `where the values came from: ${counted(done.changed, "mark")} in ${counted(done.records, "record")}`);
+  } catch (e) {
+    noteLive(root, `where the values came from not marked now: ${errorText(e)}`);
+  }
+  // the facts with their original cited, not yet verified against it: queued once (spec 065)
+  try {
+    const done = settleVerify(Tree.open(root, env));
+    if (done) noteLive(root, `facts to verify against their originals: ${counted(done.facts, "fact")} of ${counted(done.people, "person", "people")} queued`);
+  } catch (e) {
+    noteLive(root, `the facts to verify against their originals not queued now: ${errorText(e)}`);
+  }
+  // an agent's proposals whose value proposed holds now: closed by themselves (no value written)
+  try {
+    const done = settleHeldProposals(Tree.open(root, env));
+    if (done?.length) noteLive(root, `proposals settled by themselves (the value proposed holds now): ${done.map((c) => c.id).join(", ")}`);
+  } catch (e) {
+    noteLive(root, `the proposals that hold not closed now: ${errorText(e)}`);
+  }
   // the overlapping clips of one image the research wrote: joined into one (once)
   try {
     const done = settleClips(Tree.open(root, env));
@@ -2302,7 +2608,22 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
   let lastAsked = Date.now();
-  let ged: GedMade | undefined;
+  // the trees for the app made last, one for each variant (core/liveged.ts gedVariant: the app's version, the links, the
+  // images' settings…), the newest GEDS_KEPT; each kept on disk as well (.strom/cache/live-ged), for the next bridge
+  const geds = new Map<string, GedMade>();
+  const keepGed = (variant: string, made: GedMade) => {
+    geds.delete(variant);
+    geds.set(variant, made);
+    while (geds.size > GEDS_KEPT) geds.delete(geds.keys().next().value!);
+  };
+  // the app's version the tree was last asked for by: made for it again when a commit comes, before the change is told
+  // (a bridge taking over from one of an older strom: the version the app asked that one with)
+  let gedFollow: { version: string | undefined; images?: GedImages } | undefined =
+    env.STROM_LIVE_GED_FOR !== undefined ? { version: env.STROM_LIVE_GED_FOR || undefined, ...(env.STROM_LIVE_GED_IMAGES === "ref" ? { images: "ref" as const } : {}) } : undefined;
+  // a change told once the tree that goes with it is made (sayChange: set once the bridge listens)
+  let sayChange: ((from: string, to: string) => void) | undefined;
+  // the files kept on disk written one after another
+  let storing: Promise<void> = Promise.resolve();
   /** The excerpts the tree's file of that head leaves out, though the research has them (the same for every app): /excerpts. */
   let left: GedMade["left"] | undefined;
   let log: { head: string; text: string } | undefined;
@@ -2454,37 +2775,102 @@ export function serveLive(root: string, env: Env): Promise<void> {
     noteLive(root, `${req.method} /…/${String(what ?? "").slice(0, 40)} came with the secret from ${page}, a page that is no Strom app: the address got out — a new secret, the old one no longer works (the Strom app gets the new one when the research is opened in it again: strom app)`);
   };
 
-  /** The tree for the app as it is now (at its head; made again for another head, version of the app or links). */
-  const giveGed = async (res: http.ServerResponse, version: string | undefined) => {
-    const made = await makeGed(version);
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": made.head }).end(made.bytes);
+  /**
+   * The tree for the app as it is now (at its head; made again for another head, version of the app or links), with its
+   * ETag (feature ged.etag): the app that has it already (If-None-Match) gets 304 and no body.
+   */
+  const giveGed = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages) => {
+    const made = await makeGed(version, images);
+    const tag = gedTagOf(made);
+    if (tag && tagMatches(req, tag)) return void res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": made.head, "X-Strom-Images": images }).end();
+    await sendGed(req, res, made, images, { ...(tag ? { ETag: tag } : {}), "X-Strom-Head": made.head });
+  };
+  // the file by reference packed once (gzip): what the app loads after each change is a few per cent of the whole file
+  const packed = new WeakMap<GedMade, Promise<Buffer>>();
+  /**
+   * A tree's file for the app given: the one by reference packed (Content-Encoding: gzip) for an app that takes it
+   * (Accept-Encoding: gzip; a browser always does), the whole file as always (an older app gets nothing new).
+   */
+  const sendGed = async (req: http.IncomingMessage, res: http.ServerResponse, made: GedMade, images: GedImages, extra: Record<string, string>) => {
+    const head = { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...extra, "X-Strom-Images": images };
+    if (images === "ref" && takesGzip(req)) {
+      let gz = packed.get(made);
+      if (!gz) packed.set(made, (gz = gzipped(made.bytes, 6)));
+      const bytes = await gz;
+      if (res.destroyed) return;
+      return void res.writeHead(200, { ...head, "Content-Encoding": "gzip", Vary: varyGzip(res), "Content-Length": String(bytes.length) }).end(bytes);
+    }
+    res.writeHead(200, { ...head, ...(images === "ref" ? { Vary: varyGzip(res) } : {}), "Content-Length": String(made.bytes.length) }).end(made.bytes);
+  };
+  // the variant each file made is of (its ETag is told by its head and variant)
+  const madeFor = new WeakMap<GedMade, string>();
+  /** The ETag of a file made: none for one with images left for later (made again with them next time). */
+  const gedTagOf = (made: GedMade): string | undefined => {
+    const variant = madeFor.get(made);
+    return variant === undefined || made.left.sources.some((x) => x.omitted.why === "later") ? undefined : gedTag(made.head, variant);
+  };
+  /**
+   * The app has the tree of the head now already (If-None-Match its ETag): 304 at once, nothing made, nothing waited for
+   * — but only for a file made whole (one with images left for later has no ETag the app could hold).
+   */
+  const gedUnchanged = (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages): boolean => {
+    if (!req.headers["if-none-match"]) return false;
+    const h = head(root);
+    const { variant } = variantOf(version, images);
+    const tag = gedTag(h, variant);
+    if (!tagMatches(req, tag)) return false;
+    res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": h, "X-Strom-Images": images }).end();
+    return true;
+  };
+  /** What a tree's file for the app of that version is made by beyond the head (core/liveged.ts gedVariant). */
+  const variantOf = (version: string | undefined, images: GedImages = "data") => {
+    const offered = links(env);
+    const opens = appOpensLinks(new Settings(env, {}), version) ? offered.join(" ") : "";
+    return { offered, variant: gedVariant(root, env, version, opens, images) };
   };
   // the file being made now and what for (one at a time: the requests for the same wait for it together)
   let making: { key: string; done: Promise<GedMade> } | undefined;
   /**
-   * The tree for the app made for its head and version, when it is not made yet: on a thread of its own (core/liveged.ts),
-   * the bridge answering everything else meanwhile.
+   * The tree for the app made for its head and variant, when it is not made yet: kept on disk from before (a bridge
+   * started again, a research that did not change), else made on a thread of its own (core/liveged.ts), the bridge
+   * answering everything else meanwhile, and kept on disk — but a file with images left for later (the time to make
+   * them ran out), made again next time.
    */
-  const makeGed = async (version: string | undefined): Promise<GedMade> => {
+  const makeGed = async (version: string | undefined, images: GedImages = "data"): Promise<GedMade> => {
     for (;;) {
       const h = head(root);
-      const offered = links(env);
-      const opens = appOpensLinks(new Settings(env, {}), version) ? offered.join(" ") : "";
+      const { offered, variant } = variantOf(version, images);
       // made again for another version of the app (two windows, two versions: each gets what it reads)
-      if (ged && ged.head === h && ged.version === (version ?? "") && ged.links === opens) return ged;
-      const key = `${h}|${version ?? ""}|${opens}`;
+      const kept = geds.get(variant);
+      if (kept && kept.head === h) {
+        madeFor.set(kept, variant);
+        return kept;
+      }
+      const key = `${h}|${variant}`;
       if (making && making.key !== key) {
         // another being made (another head, another version): made after it
         await making.done.catch(() => undefined);
         continue;
       }
       if (!making) {
-        const now = { key, done: gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS }) };
+        const job = async () => {
+          const stored = await storedGed(root, env, variant, h);
+          if (stored) {
+            madeFor.set(stored, variant);
+            return stored;
+          }
+          const made = await gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS, ...(images === "ref" ? { images } : {}) });
+          madeFor.set(made, variant);
+          if (made.head === h && !made.left.sources.some((x) => x.omitted.why === "later"))
+            storing = storing.then(() => storeGed(root, variant, made)).catch((e) => noteLive(root, `the tree's file not kept on disk: ${errorText(e)}`));
+          return made;
+        };
+        const now = { key, done: job() };
         making = now;
         now.done.then(
           (made) => {
             if (making === now) making = undefined;
-            ged = made;
+            keepGed(variant, made);
             left = made.left;
           },
           () => {
@@ -2495,6 +2881,112 @@ export function serveLive(root: string, env: Env): Promise<void> {
       return making.done;
     }
   };
+  /**
+   * The tree asked with ?stale=1 (feature ged.stale): the last one made of its variant at once, though the research
+   * changed since — X-Strom-Head its head, X-Strom-Stale: 1 and X-Strom-Head-Now the head now; the tree of the head now
+   * made meanwhile and told by the event change (from the head the app has). Nothing made of its variant yet (the first
+   * time, another strom or app): made now, as without it.
+   */
+  const giveStale = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages) => {
+    const h = head(root);
+    const { variant } = variantOf(version, images);
+    const older = geds.get(variant) ?? (await storedGed(root, env, variant));
+    if (older) madeFor.set(older, variant);
+    if (older?.head === h) keepGed(variant, older);
+    if (!older || older.head === h) return afterQuiet(() => giveGed(req, res, version, images).catch((e) => failed(req, res, e)));
+    // the older one with its own ETag: the app holding it already gets 304 (still told it is older), the new one made
+    const tag = gedTagOf(older);
+    const stale = { "X-Strom-Head": older.head, "X-Strom-Stale": "1", "X-Strom-Head-Now": h, "X-Strom-Images": images };
+    if (tag && tagMatches(req, tag)) res.writeHead(304, { ...GED_HEADERS, ETag: tag, ...stale }).end();
+    else await sendGed(req, res, older, images, { ...(tag ? { ETag: tag } : {}), ...stale });
+    afterQuiet(() =>
+      makeGed(version, images).then(
+        (made) => sayChange?.(older.head, made.head),
+        (e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`),
+      ),
+    );
+  };
+
+  /**
+   * One image of the tree's file by its hash (GET /image/<sha256>, spec 071): its JPEG as kept when a file was made
+   * with it (core/liveimages.ts) — never made because it is asked for. Unchanging (its content is its name): kept by
+   * the browser for a year, ETag its hash (If-None-Match: 304). Refused: 400 image.sha, 404 image.unknown (not here:
+   * the app takes the whole file instead).
+   */
+  const giveImage = async (req: http.IncomingMessage, res: http.ServerResponse, sha: string): Promise<void> => {
+    const json = (code: number, body: unknown) => void res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    if (!IMAGE_SHA.test(sha)) return json(400, refusal("/image/<sha256>: the 64 hex of an image the tree's file names (2 FILE strom-image:…)", "image.sha", { sha: sha.slice(0, 64) }));
+    const tag = `"${sha}"`;
+    const headers = { "Cache-Control": IMAGE_CACHE, ETag: tag, "Access-Control-Expose-Headers": "ETag" };
+    // the browser has it (its name is its content): nothing read
+    if (tagMatches(req, tag) && fs.existsSync(imageFile(root, sha))) return void res.writeHead(304, headers).end();
+    const bytes = await readImage(root, sha);
+    if (!bytes) return json(404, refusal(`no image ${sha} here: the tree's file with its images in it (/tree.ged without ?images=ref) has them all`, "image.unknown", { sha }));
+    res.writeHead(200, { "Content-Type": IMAGE_MIME, "Content-Length": String(bytes.length), ...headers }).end(bytes);
+  };
+
+  /**
+   * Several images of the tree's file by their hashes (POST /images {"images": [sha256…]}, spec 071): read only. Each
+   * given whole as base64 with its hash, kind and size, in the order asked, until the answer holds IMAGES_ANSWER_BYTES
+   * of them (one at least); those beyond in `more` (asked again), those not here in `missing` (the app takes the whole
+   * file for them). The answer has its length: one cut short is never taken as whole; it is never packed (gzip). Refused: 400 images.body (not
+   * {"images": [64 hex…]}, none, more than IMAGES_AT_ONCE).
+   */
+  const giveImages = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const json = (code: number, body: unknown) => {
+      if (res.headersSent) return;
+      const text = JSON.stringify(body);
+      res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Length": String(Buffer.byteLength(text)) }).end(text);
+    };
+    const max = 128 * 1024;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of req as AsyncIterable<Buffer>) {
+      size += c.length;
+      if (size <= max) chunks.push(c);
+    }
+    const bad = () => json(400, refusal(`the body: {"images": ["<sha256>", …]}, 1 to ${IMAGES_AT_ONCE} of them`, "images.body", { max: String(IMAGES_AT_ONCE) }));
+    if (size > max) return bad();
+    let asked: unknown;
+    try {
+      asked = (JSON.parse(Buffer.concat(chunks).toString("utf8")) as { images?: unknown } | null)?.images;
+    } catch {
+      return bad();
+    }
+    if (!Array.isArray(asked) || !asked.length || asked.length > IMAGES_AT_ONCE || asked.some((x) => typeof x !== "string" || !IMAGE_SHA.test(x.toLowerCase()))) return bad();
+    const shas = [...new Set((asked as string[]).map((x) => x.toLowerCase()))];
+    const cap = Number(env.STROM_LIVE_IMAGES_BYTES ?? IMAGES_ANSWER_BYTES);
+    const images: { sha: string; mime: string; bytes: number; data: string }[] = [];
+    const missing: string[] = [];
+    const more: string[] = [];
+    let held = 0;
+    for (const sha of shas) {
+      // the app gone meanwhile: nothing more read (its request read whole is no sign: it ends as it is read)
+      if (res.destroyed) return;
+      if (images.length && held >= cap) {
+        // the answer full: only whether it is here (the next answer reads it whole, and says missing one gone since)
+        if (await fs.promises.stat(imageFile(root, sha)).then(() => true, () => false)) more.push(sha);
+        else missing.push(sha);
+        continue;
+      }
+      const bytes = await readImage(root, sha);
+      if (!bytes) {
+        missing.push(sha);
+        continue;
+      }
+      // one that would take the answer over its size waits for the next (but the first always comes)
+      if (images.length && held + bytes.length > cap) {
+        more.push(sha);
+        held = cap;
+        continue;
+      }
+      held += bytes.length;
+      images.push({ sha, mime: IMAGE_MIME, bytes: bytes.length, data: bytes.toString("base64") });
+    }
+    // never packed, though the app takes it: base64 of JPEGs packs about a quarter, slower to pack than to send
+    // (the app waited for its answers; the slim tree.ged is packed still)
+    json(200, { images, missing, more });
+  };
 
   /**
    * What the app would load to have every image of the research (/excerpts?missing=1): the sources whose excerpts the
@@ -2503,7 +2995,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
    */
   const giveLeft = async (res: http.ServerResponse, version: string | undefined) => {
     const h = head(root);
-    const now = left && left.head === h ? left : (await makeGed(version)).left;
+    const now = left && left.head === h ? left : (await makeGed(version, gedFollow?.images)).left;
     const tree = Tree.open(root, env);
     const shared = new Settings(env, {}).shared()?.value;
     const level = excerptLevel(now.level) ?? LEVELS[1]!;
@@ -2607,7 +3099,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       let since = Infinity;
       try {
         const { head: h, at } = tip(root);
-        if (!ged || ged.head !== h) since = at ? Date.now() - Date.parse(at) : Infinity;
+        if (![...geds.values()].some((g) => g.head === h)) since = at ? Date.now() - Date.parse(at) : Infinity;
       } catch {
         // git not answering: the tree is made now (it says why)
       }
@@ -2656,7 +3148,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     const origin = allowedOrigin(req.headers.origin);
     const version = appVersionOf(req, new Settings(env, {}));
     // what the app sends may change what /status says without a commit (a send waiting, a reading, a batch): made again
-    if (req.method !== "GET" && req.method !== "OPTIONS") res.once("finish", () => keeper.forget());
+    if (req.method !== "GET" && req.method !== "OPTIONS" && !(req.method === "POST" && what === "images")) res.once("finish", () => keeper.forget());
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
@@ -2794,6 +3286,21 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, confirmWrite());
       return;
     }
+    if (req.method === "POST" && t === token && what === "facts" && sub === "revert" && !act) {
+      writeFor(req, res, origin, revertWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "facts" && sub === "confirm" && !act) {
+      writeFor(req, res, origin, factConfirmWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "verify" && !act) {
+      const how = !sub ? verifyWrite() : sub === "bulk" ? verifyBulkWrite() : sub === "stop" ? verifyStopWrite() : undefined;
+      if (how) {
+        writeFor(req, res, origin, how);
+        return;
+      }
+    }
     if (req.method === "POST" && t === token && what === "sourceTask" && !sub) {
       writeFor(req, res, origin, sourceTaskWrite());
       return;
@@ -2846,6 +3353,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "experiments" && !sub) {
       writeFor(req, res, origin, experimentsWrite());
+      return;
+    }
+    // the images of the tree's file by their hashes, several at once (read only: nothing written, nothing made)
+    if (req.method === "POST" && t === token && what === "images" && !sub) {
+      giveImages(req, res).catch((e) => failed(req, res, e));
       return;
     }
     if ((req.method === "GET" || req.method === "POST") && t === token && what === "phone") {
@@ -3041,8 +3553,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (log?.head === h) answer(log.text);
         else logs.ask(h).then(answer, (e) => failed(req, res, e));
       } else if (what === "tree.ged" || what === "images.ged") {
+        // the images by reference (?images=ref, feature ged.imagesByHash), else in the file as always
+        const images = imagesAsked(req);
+        gedFollow = { version, images };
+        // the app has the tree of the head now (its ETag, feature ged.etag): 304 at once, nothing made
+        if (gedUnchanged(req, res, version, images)) return;
+        // the last one made at once, the new one told by an event (feature ged.stale)
+        if (new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("stale") === "1") giveStale(req, res, version, images).catch((e) => failed(req, res, e));
         // made when the commits stop coming (an agent's commands one after another): once for them all
-        afterQuiet(() => giveGed(res, version).catch((e) => failed(req, res, e)));
+        else afterQuiet(() => giveGed(req, res, version, images).catch((e) => failed(req, res, e)));
+      } else if (what === "image" && sub && !act) {
+        giveImage(req, res, decoded(sub).toLowerCase()).catch((e) => failed(req, res, e));
       } else if (what === "events") {
         statusVersion = version;
         keeper.get(version).then(
@@ -3375,7 +3896,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
       }
       try {
         // the version the app says with it (its file writes none of its own): the tree is read as that app means it
-        const text = stampAppVersion(Buffer.concat(chunks).toString("utf8"), saidAppVersion(req));
+        // a GEDCOM's bytes by the same rule as a file's (the app sends UTF-8: the same text), the app's JSON as UTF-8
+        const body = Buffer.concat(chunks);
+        const text = stampAppVersion(looksLikeGedcom(body) ? decodeGedcom(body).text : body.toString("utf8"), saidAppVersion(req));
         if (as === "adopt") {
           if (adopting) {
             reply(409, said(lang(), "ui.sync.bridge.adopting"));
@@ -4898,6 +5421,252 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
+   * The user putting back what an imported family tree said of a value (POST /facts/revert {person, ref, part?}): strom
+   * event revert (a fact: E…) or person revert --name <n> | --sex (N:P…:<n>, SEX:P…), as the person's in the app — the
+   * ref the Strom file's `3 _REF` under `2 _STROM_WAS`, of the person named (a family's fact: one of its partners).
+   * {ok, reverted, head, parent}; 400 revert.invalid, 404 revert.unknown, 409 revert.nothing, 503 research.busy.
+   */
+  const revertWrite = (): AppWrite => {
+    let before = "";
+    const PARTS: Record<string, string> = { DATE: "date", PLAC: "place", VAL: "value", GIVN: "given", SURN: "surname", SEX: "sex" };
+    const unknown = (why: string) => ({ code: 404, body: refusal(why, "revert.unknown") });
+    const nothing = (why: string) => ({ code: 409, body: refusal(why, "revert.nothing") });
+    return {
+      what: "a family tree's value put back",
+      codes: { badBody: "revert.invalid", busy: "research.busy", failed: "revert.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { person, ref, part } = body;
+        const extra = Object.keys(body).filter((k) => !["person", "ref", "part"].includes(k));
+        if (extra.length || typeof person !== "string" || !/^P\d{1,9}$/iu.test(person.trim()) || typeof ref !== "string" || !ref.trim() || ref.length > 64 || (part !== undefined && (typeof part !== "string" || !PARTS[part.toUpperCase()])))
+          return { code: 400, body: refusal(`the body: {"person": "P…", "ref": "<the value's _REF>", "part"?: "DATE" | "PLAC" | "VAL" | "GIVN" | "SURN" | "SEX"}`, "revert.invalid") };
+        const who = normId(person);
+        const key = ref.trim().toUpperCase();
+        const said = part === undefined ? undefined : PARTS[(part as string).toUpperCase()]!;
+        const m = /^(?:SEX:(P\d{1,9})|N:(P\d{1,9}):(\d{1,4})|(E\d{1,9}))$/u.exec(key);
+        if (!m) return unknown(`no value ${ref}`);
+        before = head(root);
+        if (m[4]) {
+          let owner: Person | Family;
+          try {
+            owner = findEventOwner(tree, normId(m[4])).owner;
+          } catch {
+            return unknown(`no fact ${m[4]}`);
+          }
+          if (owner.id !== who && !(owner.type === "family" && owner.partners.includes(who))) return unknown(`${m[4]} is no fact of ${who}`);
+          if (said === "sex" || said === "given" || said === "surname") return nothing(`a fact has no part ${part}`);
+          return { args: ["event", "revert", normId(m[4]), ...(said ? ["--part", said] : [])] };
+        }
+        const id = normId((m[1] ?? m[2])!);
+        if (id !== who) return unknown(`${key} is no value of ${who}`);
+        const p = tree.get<Person>(id);
+        if (!p || p.type !== "person" || p.retracted) return unknown(`no person ${id}`);
+        if (m[1]) {
+          if (said && said !== "sex") return nothing(`a sex has no part ${part}`);
+          return { args: ["person", "revert", id, "--sex"] };
+        }
+        const n = Number(m[3]);
+        if (!p.names[n - 1]) return unknown(`${id} has no name ${n}`);
+        if (said && said !== "given" && said !== "surname") return nothing(`a name has no part ${part}`);
+        return { args: ["person", "revert", id, "--name", String(n), ...(said ? ["--part", said] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, ...(data.reverted ? { reverted: data.reverted } : {}), head: h, parent: before };
+      },
+      refused(_tree, code, why) {
+        if (code === "revert.unknown") return unknown(why);
+        if (code === "revert.nothing") return nothing(why);
+        if (code === "revert.part") return { code: 400, body: refusal(why, "revert.invalid") };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The facts against their originals (spec 065), the person's in the app — nobody verifies in an archive or a research
+   * waiting for its agent (409 verify.archive; its refusals by strom: archive, agent.missing). The codes of the commands
+   * verify.* as they come; 404 for verify.unknown, 400 for verify.invalid, else 409.
+   */
+  const VERIFY_CODES = { badBody: "verify.invalid", busy: "research.busy", failed: "verify.failed" };
+  const verifyRefused = (code: string, why: string): { code: number; body: Record<string, unknown> } | undefined => {
+    if (code === "archive" || code === "agent.missing" || code === "verify.archive") return { code: 409, body: refusal(why, "verify.archive") };
+    if (code === "verify.invalid") return { code: 400, body: refusal(why, code) };
+    if (code === "verify.unknown") return { code: 404, body: refusal(why, code) };
+    if (code === "verify.nothing" || code === "verify.retracted") return { code: 409, body: refusal(why, code) };
+    return undefined;
+  };
+  const noVerify = (tree: Tree) => (actsAsArchive(tree) ? { code: 409, body: refusal("nobody researches here: an archive, or a research waiting for its agent", "verify.archive") } : undefined);
+
+  /**
+   * The person's "verify" (POST /verify {person: P…} | {family: F…} | {fact: E…}, dry?): strom verify facts … --living
+   * (the person asks: someone most likely alive too), first in the queue. {ok, task, state, position?, tasks: [{task,
+   * state, position?, facts}], facts: [{fact, kind, how, record?: {source, title, page?}}], estimate: {sessions, usd?},
+   * head, parent} — every task it touches (a person's and their marriages'), nearest to its turn first, the first one's
+   * on top; position only of one waiting in the queue (wait, asked), never of one waiting for the scans or an archive's
+   * permission (Dotazy 2 of the app). Dry: nothing written, task null, no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing |
+   * verify.retracted, 503 research.busy.
+   */
+  const verifyWrite = (): AppWrite => {
+    let before = "";
+    let dry = false;
+    return {
+      what: "facts asked to be verified",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).filter((k) => k !== "dry");
+        const key = keys[0];
+        const v = key ? body[key] : undefined;
+        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^E\d{1,9}$/iu };
+        if (keys.length !== 1 || !shape[key!] || typeof v !== "string" || !shape[key!]!.test(v.trim()) || (body.dry !== undefined && typeof body.dry !== "boolean"))
+          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        const id = normId(v.trim());
+        if (key !== "fact") {
+          const r = tree.get<Person | Family>(id);
+          if (!r || r.type !== key) return { code: 404, body: refusal(`no ${key} ${id}`, "verify.unknown") };
+          if (r.retracted || r.mergedInto) return { code: 409, body: refusal(`${id} was taken back${r.mergedInto ? ` (merged into ${r.mergedInto})` : ""}`, "verify.retracted") };
+        }
+        dry = body.dry === true;
+        before = head(root);
+        return { args: ["verify", "facts", ...(key === "fact" ? ["--fact", id] : [id]), "--living", ...(dry ? ["--dry-run"] : [])] };
+      },
+      done(_tree, data, h) {
+        const { task, state, facts, estimate, position, tasks } = data;
+        if (dry) return { ok: true, task: null, facts: facts ?? [], estimate, head: before, parent: before };
+        return { ok: true, task: task ?? null, ...(state !== undefined ? { state } : {}), ...(position !== undefined ? { position } : {}), tasks: tasks ?? [], facts: facts ?? [], estimate, head: h, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person's bulk verification (POST /verify/bulk {scope: line|lineage|tree, of?, order?, try?, budget?, dry?}):
+   * strom verify bulk, after the lines' work — a family tree's leads too, their record looked for (Dotazy 2 of the
+   * app, 3). {ok, people, facts, how: {read, search}, tasks, left, estimate: {sessions, usd?}, head, parent};
+   * dry: no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+   * research.busy.
+   */
+  const verifyBulkWrite = (): AppWrite => {
+    let before = "";
+    let dry = false;
+    return {
+      what: "a bulk verification",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const { scope, of, order, budget } = body;
+        const tries = body.try;
+        const extra = Object.keys(body).filter((k) => !["scope", "of", "order", "try", "budget", "dry"].includes(k));
+        if (
+          extra.length ||
+          typeof scope !== "string" ||
+          !["line", "lineage", "tree"].includes(scope) ||
+          (of !== undefined && (typeof of !== "string" || !/^[GP]\d{1,9}$/iu.test(of.trim()))) ||
+          (order !== undefined && (typeof order !== "string" || !["ancestors", "weakest", "oldest"].includes(order))) ||
+          (tries !== undefined && (typeof tries !== "number" || !Number.isInteger(tries) || tries < 1)) ||
+          (budget !== undefined && (typeof budget !== "number" || !(budget > 0) || !Number.isFinite(budget))) ||
+          (body.dry !== undefined && typeof body.dry !== "boolean")
+        )
+          return { code: 400, body: refusal(`the body: {"scope": "line" | "lineage" | "tree", "of"?: "G…" | "P…", "order"?: "ancestors" | "weakest" | "oldest", "try"?: n, "budget"?: usd, "dry"?: true}`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        dry = body.dry === true;
+        before = head(root);
+        return {
+          args: [
+            "verify", "bulk", "--scope", scope,
+            ...(typeof of === "string" ? ["--of", normId(of.trim())] : []),
+            ...(typeof order === "string" ? ["--order", order] : []),
+            ...(tries !== undefined ? ["--try", String(tries)] : []),
+            ...(budget !== undefined ? ["--budget", String(budget)] : []),
+            ...(dry ? ["--dry-run"] : []),
+          ],
+        };
+      },
+      done(_tree, data, h) {
+        const { people, facts, how, tasks, left, estimate } = data;
+        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [] }), left, estimate, head: dry ? before : h, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person stopping the verification (POST /verify/stop {scope?: all | bulk}): strom verify stop [--bulk] — the
+   * tasks nobody started dropped, what was queued stays so (not queued again by itself). {ok, dropped, facts, head,
+   * parent}; nothing to stop: dropped 0, nothing written. 400 verify.invalid, 409 verify.archive, 503 research.busy.
+   */
+  const verifyStopWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the verification stopped",
+      codes: VERIFY_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const extra = Object.keys(body).filter((k) => k !== "scope");
+        if (extra.length || (body.scope !== undefined && body.scope !== "all" && body.scope !== "bulk"))
+          return { code: 400, body: refusal(`the body: {"scope"?: "all" | "bulk"}`, "verify.invalid") };
+        const no = noVerify(tree);
+        if (no) return no;
+        before = head(root);
+        return { args: ["verify", "stop", ...(body.scope === "bulk" ? ["--bulk"] : [])] };
+      },
+      done(_tree, data, h) {
+        return { ok: true, dropped: Number(data.dropped ?? 0), facts: Number(data.facts ?? 0), head: data.dropped ? h : before, parent: before };
+      },
+      refused: (_tree, code, why) => verifyRefused(code, why),
+    };
+  };
+
+  /**
+   * The person's confirmation of a fact against the scan, or its taking back (POST /facts/confirm {fact: E…, txt?,
+   * confirm}): strom verify confirm E… [--undo] [--txt] — an archive's and a research's waiting for its agent too (the
+   * person's own). With txt (the mark of the value the app showed) a fact changed since is refused, 409 confirm.changed.
+   * {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written. 400 factconfirm.invalid,
+   * 404 factconfirm.unknown, 409 factconfirm.retracted | factconfirm.merged, 503 research.busy.
+   */
+  const factConfirmWrite = (): AppWrite => {
+    let before = "";
+    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value), for the app to show again
+    const changed = (why: string, params: Record<string, string>) => {
+      const { txt, fact: _f, ...now } = params;
+      return { code: 409, body: { ...refusal(why, "confirm.changed", params), ...(txt ? { txt } : {}), now } };
+    };
+    return {
+      what: "a fact confirmed against the scan",
+      codes: { badBody: "factconfirm.invalid", busy: "research.busy", failed: "factconfirm.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body).sort().join(",");
+        const { fact, confirm, txt } = body;
+        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
+          return { code: 400, body: refusal(`the body: {"fact": "E…", "txt"?: "<the fact's 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
+        const id = normId(fact.trim());
+        // the value the person saw (an older file, ?stale=1) is what is confirmed: changed since, refused before anything
+        if (typeof txt === "string") {
+          const event = factIn(tree, id);
+          if (event && factMark(event) !== txt.toLowerCase()) return changed(`${id} changed since the app showed it: confirm what it says now`, { fact: id, txt: factMark(event), ...factNow(event) });
+        }
+        before = head(root);
+        return { args: ["verify", "confirm", id, ...(confirm ? [] : ["--undo"]), ...(typeof txt === "string" ? ["--txt", txt] : [])] };
+      },
+      done(_tree, data, h) {
+        const r = (Array.isArray(data.results) ? data.results[0] : undefined) as { fact?: string; owner?: string; confirmed?: string; same?: boolean } | undefined;
+        return { ok: true, fact: r?.fact, owner: r?.owner, ...(r?.confirmed ? { confirmed: r.confirmed } : {}), head: r?.same ? before : h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (code === "confirm.changed") return changed(why, data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {});
+        if (code === "factconfirm.invalid") return { code: 400, body: refusal(why, code) };
+        if (code === "factconfirm.unknown") return { code: 404, body: refusal(why, code) };
+        if (code === "factconfirm.retracted" || code === "factconfirm.merged") return { code: 409, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
    * The person's word on a source read again that differs in a matter of fact (POST /sources/<S…>/read/<D…>/task
    * {how: now|queue|save|review}): strom source reading, as theirs in the app (save: just keep). {ok, source, reading,
    * how, task?, taskFor?, appended?, chat?, head, parent} — chat: the link that opens the conversation about the task (now).
@@ -5393,14 +6162,47 @@ export function serveLive(root: string, env: Env): Promise<void> {
     else server.listen(wanted, "127.0.0.1");
     server.once("listening", () => {
       up = true;
+      // another bridge of this tree came up while this one started (its claim taken over meanwhile, a bridge of an older
+      // strom that claims nothing): this one goes, nothing of it written — the check and the notes one step under the
+      // tree's owner lock, so no other bridge writes its own between them
       const port = (server.address() as { port: number }).port;
-      live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
-      writeLive(root, live);
-      writeLast(root, { port, token, pid: process.pid, started: live.started });
+      const meanwhile = withLiveOwner(root, () => {
+        const rival = rivalBridge(root, env);
+        if (rival) return rival;
+        try {
+          writeOwner(root);
+        } catch {
+          // a folder not to be written: live.json says the bridge
+        }
+        live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
+        writeLive(root, live);
+        writeLast(root, { port, token, pid: process.pid, started: live.started });
+        return undefined;
+      });
+      if (meanwhile || !live) {
+        noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile}): this one (${process.pid}) ends`);
+        dropOwner(root);
+        server.close();
+        return resolve();
+      }
       // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
       // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
+      // — and still gone when looked at again a while later (STROM_LIVE_GONE_MS): a disk away for a moment (a network
+      // folder reconnecting, a disk waking) ends no bridge
       const dotStrom = folderId(path.join(root, ".strom"));
-      const researchGone = () => !fs.existsSync(path.join(root, "strom.json")) || folderId(path.join(root, ".strom")) !== dotStrom;
+      const goneMs = Number(env.STROM_LIVE_GONE_MS ?? GONE_MS);
+      let goneSince: number | undefined;
+      let goneSeen = 0;
+      const researchGone = () => {
+        if (fs.existsSync(path.join(root, "strom.json")) && folderId(path.join(root, ".strom")) === dotStrom) {
+          goneSince = undefined;
+          goneSeen = 0;
+          return false;
+        }
+        goneSince ??= Date.now();
+        goneSeen++;
+        return goneSeen >= 2 && Date.now() - goneSince >= goneMs;
+      };
       const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
       noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
 
@@ -5428,6 +6230,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
       // What changed: strom commits every change, so a new commit is news.
       let seen = safe("the start", () => head(root)) ?? "";
+      // since when a change waits for its tree (the app that follows it loads it at once); a tree being made for it
+      let untold: { since: number } | undefined;
+      let prebuilding = false;
+      const changeWaitMs = Number(env.STROM_LIVE_CHANGE_WAIT_MS ?? CHANGE_WAIT_MS);
       // what the last 24 hours added, worked out before the app asks (/status never waits for it)
       if (seen) recentNow(root, env, seen);
       // who is at work changes only with the workers present (.strom/workers: who, since, paused, alive) or a commit:
@@ -5470,6 +6276,25 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const send = (event: string, data: unknown) => {
         for (const s of streams) s.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       };
+      // a tree given older than the research (?stale=1) and the one of its head made since: the change from the older
+      sayChange = (from, to) =>
+        safe("a change", () => {
+          if (!streams.size || from === to) return;
+          const { head: h, at } = tip(root);
+          const entries = histories.since(Tree.open(root, env), [`-n${LOG_MAX}`, `${from}..${to}`]);
+          send("change", { head: to, what: subjects(root, from, to), at: (to === h ? at : undefined) ?? new Date().toISOString(), entries });
+          if (to === h) {
+            seen = to;
+            untold = undefined;
+          }
+        });
+      // the trees kept on disk by another strom: never given again
+      setTimeout(() => void tidyStoredGeds(root).catch((e) => noteLive(root, `the trees kept on disk not tidied: ${errorText(e)}`)), 5000).unref?.();
+      // a bridge taking over from one whose app followed the tree: its tree made before the app asks again
+      if (gedFollow) {
+        const follow = gedFollow;
+        setTimeout(() => void makeGed(follow.version, follow.images).catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`)), 3000).unref?.();
+      }
       // sends left waiting when the bridge before ended (written at once): written now, one after another
       setTimeout(() => {
         try {
@@ -5533,13 +6358,18 @@ export function serveLive(root: string, env: Env): Promise<void> {
         noteLive(root, `strom ${disk.version} on disk: the bridge starts again with it (port ${port}, its token kept)`);
         const back = (why: string) => {
           if (!handing) return;
+          const was = handing.pid;
           handing = undefined;
           renewing = false;
+          // the tree claimed again (the new one claimed it as it started) — unless another bridge holds it meanwhile:
+          // then that one is the tree's, and this one ends (the new one ended at once for it)
+          const rival = claimTree(root, env, was);
+          if (rival) return stop(`another bridge of this tree runs (${rival}): the bridge of strom ${disk.version} ended for it`, "restart", true);
           noteLive(root, `the bridge of strom ${disk.version} did not take over (${why}): this one (${runs}) goes on`);
         };
         let child: ChildProcess;
         try {
-          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "" });
+          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_REPLACES: String(process.pid), STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "", ...(gedFollow.images === "ref" ? { STROM_LIVE_GED_IMAGES: "ref" } : {}) } : {}) });
         } catch (e) {
           renewing = false;
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
@@ -5662,17 +6492,33 @@ export function serveLive(root: string, env: Env): Promise<void> {
           if (was !== idleMs) keeper.forget();
         }
         if (idleMs > 0 && Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
-        // its research gone (taken off the computer, a test's folder): nothing to follow
-        if (researchGone()) return stop("the research is no longer there", "gone", false);
         safe("the widget", () => widget?.tick());
         if (!streams.size) return;
         safe("a tick", () => {
           const { head: h, at } = tip(root);
-          if (h && h !== seen) {
+          // a change told once the tree for the app that follows is made (it loads it at once; meanwhile it shows the
+          // one before): made when the commits stop coming, told without it after changeWaitMs
+          let tell = !!h && h !== seen;
+          const follow = gedFollow;
+          if (tell && follow && changeWaitMs > 0) {
+            untold ??= { since: Date.now() };
+            const ready = geds.get(variantOf(follow.version, follow.images).variant)?.head === h;
+            if (!ready && Date.now() - untold.since < changeWaitMs) {
+              tell = false;
+              if (!prebuilding && !(at && Date.now() - Date.parse(at) < quietMs)) {
+                prebuilding = true;
+                makeGed(follow.version, follow.images)
+                  .catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`))
+                  .finally(() => (prebuilding = false));
+              }
+            }
+          }
+          if (tell) {
             // when the commit was made: the same as in /log, so the app knows it has it; each new commit as /log gives it (its task)
             const entries = histories.since(Tree.open(root, env), seen ? [`-n${LOG_MAX}`, `${seen}..${h}`] : ["-1", h]);
             send("change", { head: h, what: subjects(root, seen, h), at: at ?? new Date().toISOString(), entries });
             seen = h;
+            untold = undefined;
             // the app asks /status after a change: made for the new commit before it asks
             keeper.warm(statusVersion);
           }
@@ -5751,11 +6597,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
         send("end", { reason, ...(back === undefined ? {} : { back }), ...(by ? { by } : {}), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();
-        try {
-          const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo;
-          if (now.pid === process.pid && !handed) fs.rmSync(liveFile(root), { force: true });
-        } catch {
-          // gone already
+        // its claim given up (one it handed over to holds it already), its note removed — never another bridge's
+        dropOwner(root);
+        if (!handed) {
+          withLiveOwner(root, () => {
+            try {
+              const now = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo;
+              if (now.pid === process.pid) fs.rmSync(liveFile(root), { force: true });
+            } catch {
+              // gone already
+            }
+          });
         }
         const was = readLast(root);
         if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });

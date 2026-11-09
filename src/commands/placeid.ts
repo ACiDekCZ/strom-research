@@ -2,14 +2,17 @@
 // write what it found — identified surely, a question for the person, not located with what would decide it, the
 // coordinates checked, the facts' places written as the record says.
 
+import { opLine } from "../core/proposals.ts";
+import type { Tree } from "../core/tree.ts";
 import fs from "node:fs";
 import { register } from "../cli/registry.ts";
 import { counted, lines, table } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { listOpt } from "../core/records.ts";
+import { listOpt, normId } from "../core/records.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { isAgent } from "../core/which.ts";
-import type { Place } from "../core/model.ts";
+import type { Citation, Place } from "../core/model.ts";
+import { checkCited } from "../core/origin.ts";
 import {
   answerPlaces,
   cancelPlaces,
@@ -51,8 +54,8 @@ function str(v: unknown): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
-function written(tree: { written: { summary: string }[] }): string {
-  return lines(...tree.written.map((o) => o.summary));
+function written(tree: Tree): string {
+  return lines(...tree.written.map((o) => opLine(tree, o)));
 }
 
 const name = (p: Place) => p.names[0]?.name ?? p.id;
@@ -221,29 +224,49 @@ register(
     tree: true,
     writes: true,
     description:
-      "One operation: every fact with the form gets the record's name; the street or number into --house; the form stays a name of the record, the transcripts unchanged. A fact whose house says another thing is left. A part of a municipality or another of the same name, a bare number: --propose (the person decides).",
+      "One operation: every fact with the form gets the record's name; the street or number into --house; the form stays a name of the record, the transcripts unchanged. A fact whose house says another thing is left. A part of a municipality or another of the same name, a bare number: --propose (the person decides). " +
+      "A place the user gave is never rewritten by an agent: the person is asked instead, as with --propose. " +
+      "A place of an imported family tree an agent rewrites only as a link to the same place — the facts' text is the record's name already (only case and accents differ; another name or form of the record is not enough); the family tree's place is kept (the user can put it back). " +
+      "To a place the record does not name so, each such fact gets a proposal instead (the user decides; strom conflict list) and keeps its place — unless the change rests on a record: --cite S… --locator … of the record that says it (or one the fact cites already); then it is rewritten, the citation added, the family tree's place kept.",
     args: [{ name: "form", description: "the place as the facts write it", required: true }],
     options: [
       { name: "to", type: "string", value: "<L…>", description: "the place record the facts mean" },
       { name: "house", type: "string", value: "<street and number>", description: "what of the form is the house (K3.1)" },
       { name: "reason", type: "string", value: "<text>", description: "why (required unless --propose)" },
+      { name: "cite", type: "string", value: "<S…>", description: "the record that says the place: an imported family tree's place rewritten on it, cited by each fact" },
+      { name: "locator", type: "string", value: "<text>", description: "with --cite: where in the record (page, folio, entry)" },
       { name: "propose", type: "boolean", description: "a question for the person instead" },
       { name: "why", type: "string", value: "<text>", description: "with --propose: what the question is about" },
     ],
-    examples: ['strom place rewrite "H. Lhota" --to L0002 --reason "an abbreviation of Horní Lhota in the registers"', 'strom place rewrite "Lhota, Dlouhá" --to L0002 --house "Dlouhá" --reason "a street of the town"'],
+    examples: [
+      'strom place rewrite "H. Lhota" --to L0002 --reason "an abbreviation of Horní Lhota in the registers"',
+      'strom place rewrite "Lhota, Dlouhá" --to L0002 --house "Dlouhá" --reason "a street of the town"',
+      'strom place rewrite "Lhota" --to L0002 --cite S0004 --locator "fol. 12" --reason "the register names Horní Lhota"',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       refuseInArchive(tree, "place rewrite", ctx.settings.agent(tree.config).value);
       if (!str(opts.to)) throw new UsageError("--to <L…>: the place record the facts mean");
+      if (str(opts.locator) && !str(opts.cite)) throw new UsageError("--locator belongs to a citation: add --cite <S…>");
+      const cite: Citation | undefined = str(opts.cite) ? { source: normId(String(opts.cite), "source"), ...(str(opts.locator) ? { locator: str(opts.locator)! } : {}) } : undefined;
+      if (cite) checkCited(tree, cite);
       const r = rewriteForm(tree, args[0]!, { place: String(opts.to), ...(str(opts.house) ? { house: str(opts.house) } : {}) }, {
         ...(str(opts.reason) ? { reason: str(opts.reason) } : {}),
         propose: !!opts.propose,
         ...(str(opts.why) ? { why: str(opts.why) } : {}),
+        guard: { person: tree.personWrites, decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" },
+        ...(cite ? { cite } : {}),
       });
       raisePlacesTask(tree, actsAsArchive(tree));
+      const asked = r.whose
+        ? `nothing rewritten: ${r.whose === "user" ? "some of the facts have the place the user gave" : "the user decides changes of imported values here (hypotheses.decide person)"} — asked the user instead (a question of the place ${r.place.id})`
+        : undefined;
+      const proposed = r.proposed?.length
+        ? `${counted(r.proposed.length, "fact")} with a place of an imported family tree (a lead), not named so by ${r.place.id}: proposed (${r.proposed.join(", ")}), not changed — the user decides; or cite the record that says the place (--cite S… --locator …) and rewrite them then`
+        : undefined;
       return {
-        text: lines(written(tree), r.left ? `left: ${counted(r.left, "fact")} (their house says another thing — never written over)` : undefined),
-        data: { place: r.place, changed: r.changed, left: r.left, asked: r.asked },
+        text: lines(asked, proposed, written(tree), r.left ? `left: ${counted(r.left, "fact")} (their house says another thing — never written over)` : undefined),
+        data: { place: r.place, changed: r.changed, left: r.left, asked: r.asked, ...(r.whose ? { whose: r.whose } : {}), ...(r.proposed?.length ? { proposed: r.proposed } : {}) },
       };
     },
   },
@@ -493,7 +516,7 @@ function detailsOf(opts: Record<string, unknown>): PlaceDetails {
   };
 }
 
-function stepResult(tree: { written: { summary: string }[] }, r: PlaceStep) {
+function stepResult(tree: Tree, r: PlaceStep) {
   return {
     text: lines(written(tree), r.today ? `today's name first: ${r.today} (the one other name in use since a year with no end; --name sets another)` : undefined),
     data: { place: r.place, ...(r.today ? { today: r.today } : {}), ...(r.dropped.length ? { dropped: r.dropped } : {}) },

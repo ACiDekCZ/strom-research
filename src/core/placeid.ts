@@ -12,7 +12,7 @@
 // quality/places.json (sealed, written whole). Nothing here raises SCHEMA_VERSION: only optional fields.
 
 import { UsageError } from "./errors.ts";
-import type { Event, Family, Jurisdiction, Person, Place, PlaceBy, PlaceCandidate, PlaceLocating, PlaceName, PlaceNameKind, PlaceQuestion, Session, Source, Task } from "./model.ts";
+import type { Citation, Event, Family, Jurisdiction, Person, Place, PlaceBy, PlaceCandidate, PlaceLocating, PlaceName, PlaceNameKind, PlaceQuestion, Session, Source, Task } from "./model.ts";
 import { JURISDICTIONS } from "./model.ts";
 import { readJsonIfExists, stringifyCanonical } from "./json.ts";
 import { splitStreet, withoutPrepositions } from "./streets.ts";
@@ -24,6 +24,8 @@ import { now, type Tree } from "./tree.ts";
 import path from "node:path";
 import fs from "node:fs";
 import { opsLogsOf } from "./opslog.ts";
+import { ownerOf, proposeFact, researchChangedFact, verdictOf } from "./origin.ts";
+import { settleProposals } from "./proposalsettle.ts";
 
 export const PLACES_IDENTIFY_ORIGIN = "places:identify";
 export const PLACE_QUEUE_FILE = "quality/places.json";
@@ -123,6 +125,8 @@ function fileContent(f: PlacesFile): string {
 /** Records and the file written as one sealed operation (inside the tree's lock). */
 function write(tree: Tree, records: (Place | Person | Family)[], file: PlacesFile | undefined, op: { op: string; targets: string[]; summary: string; reason?: string }): void {
   tree.putMany(records, file ? [{ rel: PLACE_QUEUE_FILE, content: fileContent(file) }] : [], op);
+  // the facts' places written: an agent's proposal whose place holds now closed by itself
+  settleProposals(tree, records.filter((r) => r.type !== "place").map((r) => r.id));
 }
 
 // ── the places of the facts ─────────────────────────────────────────────────────────────────────────────────────
@@ -1112,8 +1116,8 @@ export function rewriteForm(
   tree: Tree,
   form: string,
   to: { place: string; house?: string },
-  opts: { reason?: string; propose?: boolean; why?: string },
-): { place: Place; changed: number; left: number; asked: boolean } {
+  opts: { reason?: string; propose?: boolean; why?: string; guard?: { person: boolean; decidePerson: boolean }; cite?: Citation },
+): { place: Place; changed: number; left: number; asked: boolean; whose?: "user" | "import"; proposed?: string[] } {
   return tree.withTreeLock(() => {
     const id = placeIdOf(to.place);
     const p = id ? tree.get<Place>(id) : recordIndex(tree)(to.place);
@@ -1123,19 +1127,68 @@ export function rewriteForm(
     if (!changes.length) throw new UsageError(`no fact writes "${form}" otherwise than ${name}${left.length ? ` (${left.length} left: their house says another thing)` : ""}`, { code: "place.form" });
     const place = structuredClone(p);
     addName(place, form);
-    if (opts.propose) {
+    // spec 066: a place the user gave is never written over by an agent, nor an import's where the person decides —
+    // the person is asked instead (as --propose)
+    const facts = new Map<string, Event>();
+    for (const o of liveOwners(tree)) for (const e of o.events) facts.set(e.id, e);
+    const whose = opts.guard && !opts.guard.person ? changes.map((c) => ownerOf(facts.get(c.event)?.origin, "place")) : [];
+    const forced = whose.includes("user") ? "user" : opts.guard?.decidePerson && whose.includes("import") ? "import" : undefined;
+    if (opts.propose || forced) {
       const why = text(opts.why ?? opts.reason, 1000, "--why");
       place.locating = {
         ...(place.locating ?? originUnknown(place)),
         question: { kind: "form", at: now(), change: { from: { place: form.normalize("NFC").trim() }, to: { place: name, ...(to.house ? { house: to.house } : {}) }, facts: changes.length }, ...(why ? { why } : {}) },
       };
       place.updated = now();
-      write(tree, [place], undefined, { op: "place.propose", targets: [place.id], summary: `${place.id} ${name}: "${form}" → ${name}? (${changes.length} facts, a question for the person)` });
-      return { place, changed: 0, left: left.length, asked: true };
+      write(tree, [place], undefined, { op: "place.propose", targets: [place.id], summary: `${place.id} ${name}: "${form}" → ${name}? (${changes.length} facts, a question for the person${forced ? `: ${forced === "user" ? "the user's places" : "places of an imported family tree"}` : ""})` });
+      return { place, changed: 0, left: left.length, asked: true, ...(forced ? { whose: forced } : {}) };
     }
     const reason = text(opts.reason, 1000, "--reason");
     if (!reason) throw new UsageError('why the facts write it so: --reason "…"', { code: "place.why" });
-    const { records, done, left: gone } = applyChanges(tree, changes, "before");
+    // spec 066: an agent writes an imported family tree's place otherwise only as a link to the same place (the facts'
+    // text the record's name already: only case and accents change) or on a record (--cite, or one the fact cites
+    // already) — else proposed, the value left as it is. Another of the record's names or forms is no proof: an agent
+    // makes one itself (place identify "<form>" --name "<another name>" keeps the form as a name of the record)
+    const guarded = !!opts.guard && !opts.guard.person;
+    const fold = (s: string): string => foldText(s.normalize("NFC").trim());
+    const same = fold(name) === fold(form);
+    const proposed: string[] = [];
+    let todo = changes;
+    if (guarded && !same) {
+      todo = [];
+      for (const c of changes) {
+        const before = facts.get(c.event);
+        const v = before && ownerOf(before.origin, "place") === "import" ? verdictOf(tree, before.origin, ["place"], before.citations, { cite: opts.cite, decidePerson: false }) : undefined;
+        if (v?.kind === "propose") proposed.push(proposeFact(tree, c.event, { place: c.after.place }, "import", { cite: opts.cite, reason }).conflict.id);
+        else todo.push(c);
+      }
+      // nothing rewritten: the record and the queue as they were
+      if (!todo.length) return { place: p, changed: 0, left: left.length, asked: false, proposed };
+      // facts of the form still proposed: the form never one of the record's names (its link would pass as the same place)
+      if (proposed.length) place.names = structuredClone(p.names);
+    }
+    const { records, done, left: gone } = applyChanges(tree, todo, "before");
+    // on a record: the agent's change as any of its changes on a record (the citation added; an import's value kept,
+    // its family tree's citation off); the person's: the citation added
+    for (const it of done) {
+      const before = facts.get(it.event);
+      const rec = records.find((r) => r.events.some((x) => x.id === it.event));
+      const i = rec ? rec.events.findIndex((x) => x.id === it.event) : -1;
+      if (!before || !rec || i < 0) continue;
+      const e = rec.events[i]!;
+      const onRecord = guarded && !same && ownerOf(before.origin, "place") === "import";
+      if (guarded && (opts.cite || onRecord)) rec.events[i] = researchChangedFact(tree, before, e, opts.cite);
+      else if (opts.cite && !e.citations.some((x) => x.source === opts.cite!.source && x.locator === opts.cite!.locator)) e.citations = [...e.citations, opts.cite];
+    }
+    // an import's place written otherwise (an agent's or the person's): the family tree's kept to be put back
+    for (const it of done) {
+      const before = facts.get(it.event);
+      const e = records.flatMap((r) => r.events).find((x) => x.id === it.event);
+      if (!before || !e || ownerOf(before.origin, "place") !== "import" || e.was?.parts.includes("place")) continue;
+      e.was = { ...(e.was ?? { ...(before.origin?.source ? { source: before.origin.source } : {}), parts: [], because: [], at: now(), by: tree.actor }) };
+      e.was.parts = [...e.was.parts, "place"];
+      if (before.place !== undefined) e.was.place = before.place;
+    }
     place.updated = now();
     // the form's entry of the queue leads to the record now: out where the place was dealt with already
     const file = readPlacesFile(tree);
@@ -1145,7 +1198,7 @@ export function rewriteForm(
     const key = foldText(form.normalize("NFC").trim());
     const e = file.queue[key];
     const recordOf = recordIndexOf([...tree.list<Place>("place").filter((x) => x.id !== place.id), place]);
-    if (e && !left.length && !gone && recordOf(e.form)?.id !== place.id) {
+    if (e && !left.length && !gone && !proposed.length && recordOf(e.form)?.id !== place.id) {
       const to = foldText(name);
       const there = file.queue[to];
       const check = !!place.coords && (!!e.check || !!there?.check);
@@ -1165,10 +1218,10 @@ export function rewriteForm(
     write(tree, [place, ...records], JSON.stringify(file.queue) !== was ? file : undefined, {
       op: "place.rewrite",
       targets: [place.id, ...records.map((r) => r.id)].sort(),
-      summary: `the facts' place "${form}" → ${name}${to.house ? ` (house ${to.house})` : ""}: ${done.length} facts in ${records.length} records${left.length ? `, ${left.length} left (another house)` : ""}`,
+      summary: `the facts' place "${form}" → ${name}${to.house ? ` (house ${to.house})` : ""}: ${done.length} facts in ${records.length} records${left.length ? `, ${left.length} left (another house)` : ""}${proposed.length ? `, ${proposed.length} proposed (an imported family tree's)` : ""}`,
       reason,
     });
-    return { place, changed: done.length, left: left.length + gone, asked: false };
+    return { place, changed: done.length, left: left.length + gone, asked: false, ...(proposed.length ? { proposed } : {}) };
   });
 }
 

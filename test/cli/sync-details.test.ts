@@ -306,7 +306,8 @@ test("places on the map: a position the user corrected or set in the app is take
   const r = await w.ok(["sync", file]);
   assert.match(r.out, /1\. Kamenice: poloha na mapě 49\.1, 15\.2 → 49\.366571, 15\.041234 → výzkum převezme polohu z aplikace \(žádný zápis ji nedokládá\)/);
   assert.match(r.out, /2\. Týnec: poloha na mapě 50\.042, 15\.358 → výzkum převezme polohu z aplikace/);
-  const done = await w.ok(["sync", file, "--apply"]);
+  // written as the app's bridge writes it (the person's: a position they set)
+  const done = await w.ok(["sync", file, "--apply"], { env: { STROM_FOR_APP: "1" } });
   assert.match(done.out, /Zapsány 2 změny z mapa\.ged \(I0001\)/);
   const places = (await w.ok(["place", "list", "--json"])).json;
   const at = (name: string) => places.places.find((p: { names: { name: string }[] }) => p.names[0]!.name === name)?.coords;
@@ -405,7 +406,7 @@ test("the user's transcripts as evidence: a fact on a new entry is probable on t
   const shown = (await w.ok(["sync", file])).out;
   assert.match(shown, /pramen: „Křestní matrika Týnec 1905–1915“ → pramen výzkumu; přepis z aplikace platí jako čtení záznamu/);
   assert.match(shown, /nové — narození 5\. 5\. 1910, Týnec → přidá se na čtení záznamu z aplikace/);
-  await w.ok(["sync", file, "--apply"]);
+  await w.ok(["sync", file, "--apply"], { env: { STROM_FOR_APP: "1" } });
   let tree = Tree.open(w.cwd, w.env);
   const marie = tree.list<Person>("person").find((p) => p.names[0]?.given === "Marie")!;
   assert.equal(marie.events[0]!.status, "probable");
@@ -415,7 +416,7 @@ test("the user's transcripts as evidence: a fact on a new entry is probable on t
   // lead again, an entry of the app's: verified later, its leads become probable (the switch itself is never backwards)
   const { w: w2, ged: ged2 } = await world();
   const lead = withSources(ged2, path.join(w2.dir, "a.ged"));
-  await w2.ok(["sync", lead, "--apply"]);
+  await w2.ok(["sync", lead, "--apply"], { env: { STROM_FOR_APP: "1" } });
   // the app has the tree back (REFN of its sources) and ticks "transcript verified" on one
   const back = path.join(w2.dir, "back.ged");
   await w2.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", back]);
@@ -426,7 +427,7 @@ test("the user's transcripts as evidence: a fact on a new entry is probable on t
   const v = (await w2.ok(["sync", evidenceLater])).out;
   assert.match(v, /pramen z aplikace „Křestní matrika Týnec 1905–1915“: přepis ověřen → čtení z aplikace platí/);
   assert.doesNotMatch(v, /Kamenice 1880–1890“: /, "the switch to evidence is not backwards: the other entry stays as it was");
-  await w2.ok(["sync", evidenceLater, "--apply"]);
+  await w2.ok(["sync", evidenceLater, "--apply"], { env: { STROM_FOR_APP: "1" } });
   tree = Tree.open(w2.cwd, w2.env);
   assert.equal(tree.list<Person>("person").find((p) => p.names[0]?.given === "Marie")!.events[0]!.status, "probable");
   assert.equal(tree.get<Person>("P0002")!.events.find((e) => e.kind === "BIRT")!.status, "lead", "its own entry was never verified");
@@ -458,7 +459,7 @@ test("the Strom app's JSON brings its sources too: an entry with its transcript,
   };
   const file = path.join(w.dir, "strom.json");
   fs.writeFileSync(file, JSON.stringify(json));
-  await w.ok(["sync", file, "--apply"]);
+  await w.ok(["sync", file, "--apply"], { env: { STROM_FOR_APP: "1" } });
   const tree = Tree.open(w.cwd, w.env);
   const s = tree.list<import("../../src/core/model.ts").Source>("source").find((x) => x.title.startsWith("Křestní matrika Týnec"))!;
   assert.deepEqual({ locator: s.locator, transcript: s.transcript, information: s.information, date: s.date, app: s.app }, { locator: "fol. 30", transcript: "Eva, dcera Josefa.", information: "secondary", date: "5 FEB 1912", app: { read: true, verified: true } });
@@ -658,4 +659,26 @@ test("a short note the user adds in the app comes in though it names the person 
   fs.writeFileSync(path.join(w.dir, "puvodni.ged"), given);
   assert.deepEqual((await w.ok(["sync", path.join(w.dir, "puvodni.ged"), "--json"])).json.changes, []);
   w.cleanup();
+});
+
+test("an agent's sync makes no reading of the user's: a new source of the app not read by the user, a transcript verified in the file left to the user (spec 066 N1)", opts, async () => {
+  const agent = { env: { CLAUDECODE: "1" } };
+  const { w, ged } = await world();
+  const file = withSources(ged, path.join(w.dir, "z-aplikace.ged"), "1 _STROM_TRANSCRIPTS evidence\n");
+  await w.ok(["sync", file, "--apply"], agent);
+  let tree = Tree.open(w.cwd, w.env);
+  const tyn = tree.list<import("../../src/core/model.ts").Source>("source").find((s) => s.title === "Křestní matrika Týnec 1905–1915")!;
+  assert.equal(tyn.app?.read, false, "the agent says nothing of what the user read");
+  // the person's sync makes it their reading; then the file ticks it verified, brought in by an agent: left to the user
+  const { w: w2, ged: ged2 } = await world();
+  await w2.ok(["sync", withSources(ged2, path.join(w2.dir, "a.ged")), "--apply"], { env: { STROM_FOR_APP: "1" } });
+  const back = path.join(w2.dir, "back.ged");
+  await w2.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", back]);
+  tree = Tree.open(w2.cwd, w2.env);
+  const s = tree.list<import("../../src/core/model.ts").Source>("source").find((x) => x.title === "Křestní matrika Týnec 1905–1915")!;
+  const later = path.join(w2.dir, "b.ged");
+  fs.writeFileSync(later, fs.readFileSync(back, "utf8").replace(new RegExp(`(1 REFN ${s.id}\\r?\\n)`), "$11 _STROM_VERIFIED Y\n"));
+  const r = await w2.ok(["sync", later, "--apply", "--json"], agent);
+  assert.ok(JSON.stringify(r.json).includes(`${s.id} is the user's reading`), "said why it was left out");
+  assert.equal(Tree.open(w2.cwd, w2.env).get<import("../../src/core/model.ts").Source>(s.id)!.app?.verified, undefined, "not verified by the agent");
 });

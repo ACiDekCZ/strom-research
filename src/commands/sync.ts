@@ -2,6 +2,7 @@
 // program), compared with the research: what the user changed, taken in on
 // their yes (core/sync.ts).
 
+import { queueVerify } from "../core/verify.ts";
 import { compactSoon } from "../core/history.ts";
 import { changeLines } from "../core/changelog.ts";
 import fs from "node:fs";
@@ -9,17 +10,17 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, truncate } from "../cli/format.ts";
-import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { decodingSaid, UI, ui, type UIKey } from "../cli/ui.ts";
 import { eventName, humanDate, humanDay, humanPlace } from "../cli/human.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import type { Family, Person, Source } from "../core/model.ts";
 import { fileSha256, MAX_IN_TREE, mimeOf } from "../core/media.ts";
 import { create, update } from "../core/records.ts";
-import { decodeText, safeFolderName } from "../core/text.ts";
+import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, houseWords, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
+import { applySync, guardedChange, houseWords, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -84,7 +85,7 @@ function newReads(c: Change, incoming: Snapshot): boolean {
 }
 
 /** One change as the user reads it, with what strom does with it. */
-function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, readings?: Plan["readings"]): string {
+function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, readings?: Plan["readings"], decidePerson = false): string {
   // a group of a surname's forms or a rejection the user decided in the app (core/surnames.ts)
   if (c.surname) {
     const sc = c.surname;
@@ -147,15 +148,26 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
         ? `ui.sync.fact.part${!c.part ? ".gone" : c.wasPart && c.wasPart.role !== c.part.role ? ".role" : c.wasPart ? ".link" : ""}`
         : c.kind === "name.new" && c.married
           ? "ui.sync.name.married"
-          : `ui.sync.${c.kind}`;
+          : c.kind === "fact.confirm" && c.confirm?.on === false
+            ? "ui.sync.fact.confirm.back"
+            : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
+  // not the person's sync: a value of the user's or an import's only proposed, or not written at all (spec 066 U3)
+  const guard = c.kept || c.asked || c.takenBack ? undefined : guardedChange(tree, c, { decidePerson });
   const does =
     c.kept
       ? "ui.sync.do.kept"
+      : guard
+      ? `ui.sync.do.${guard}`
       : c.asked
       ? `ui.sync.do.${c.asked === "setBack" ? "setback" : "cited"}`
       : c.takenBack
       ? "ui.sync.do.taken"
+      // the user's confirmation against the scan (spec 065): the person's alone
+      : c.kind === "fact.confirm"
+      ? c.action === "report" ? "ui.sync.do.confirm.report" : !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.confirm${c.confirm?.on === false ? ".back" : ""}`
+      : c.kind === "ids.add"
+      ? "ui.sync.do.ids"
       : c.kind === "child.parents"
       ? "ui.sync.do.parents"
       : c.kind === "person.removed"
@@ -193,7 +205,7 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
   return `${ui(lang, key as UIKey, v)} → ${ui(lang, said as UIKey)}`;
 }
 
-function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang: string, edits: string): string {
+function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang: string, edits: string, decidePerson = false): string {
   const shown = file.includes(" ") ? `"${file}"` : file;
   if (!plan.changes.length) return ui(lang, "ui.sync.nothing", { file: path.basename(file) });
   return lines(
@@ -202,7 +214,7 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
     plan.partial ? ui(lang, "ui.sync.partial") : undefined,
     plan.identity.strangers.length ? ui(lang, "ui.sync.strangers", { ids: plan.identity.strangers.join(", ") }) : undefined,
     "",
-    ...plan.changes.map((c) => `  ${changeLine(tree, c, incoming, lang, plan.readings)}`),
+    ...plan.changes.map((c) => `  ${changeLine(tree, c, incoming, lang, plan.readings, decidePerson)}`),
     "",
     // an archive mirrors the app whatever the setting says (planSync)
     actsAsArchive(tree) ? ui(lang, "ui.sync.edits.archive") : ui(lang, "ui.sync.edits", { mode: ui(lang, edits === "user" ? "ui.sync.mode.user" : "ui.sync.mode.conflict") }),
@@ -365,6 +377,9 @@ register(
         return { text: ui(lang, "ui.sync.again", { input: before.id }), data: { input: before.id, changes: [] } };
       }
       const incoming = readTreeFile(file);
+      // a Windows program's code page it was read in, characters it could not read: said, and in --json
+      const said = decodingSaid(lang, path.basename(file), incoming.decoding ?? {});
+      const decoding = incoming.decoding ?? {};
       // a send of the Strom app (through the bridge): nobody picks from it
       const sent = !!receivedOf(tree.root, file);
       const plan = planSync(tree, incoming, edits, { force: !!opts.force, sent });
@@ -373,14 +388,15 @@ register(
       if (!opts.apply || !plan.changes.length || tree.dryRun) {
         if (opts.only !== undefined && !opts.apply) throw new UsageError("--only goes with --apply");
         return {
-          text: lines(got ? ui(lang, "ui.sync.got") : undefined, planText(tree, plan, incoming, shownAs, lang, edits)),
-          data: { ...(got ? { received: got } : {}), base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}) },
+          text: lines(got ? ui(lang, "ui.sync.got") : undefined, ...said, planText(tree, plan, incoming, shownAs, lang, edits, ctx.settings.hypothesesDecide(tree.config) === "person")),
+          data: { ...(got ? { received: got } : {}), ...decoding, base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}) },
         };
       }
       const only = numbers(opts.only, plan.changes.length);
       let input: SyncInput | undefined;
       let applied = 0;
       let skipped: Skipped[] = [];
+      let proposed: SyncProposal[] = [];
       let written: Plan = plan;
       tree.withTreeLock(() => {
         // what another process wrote meanwhile counts: the changes again, now that the tree is ours — the ones picked by
@@ -403,7 +419,8 @@ register(
           fs.mkdirSync(path.join(tree.root, "inputs"), { recursive: true });
           // kept as the document the source cites — without the images in it (the research's own excerpts, back from
           // the app: megabytes in the history for nothing)
-          fs.writeFileSync(path.join(tree.root, stored), withoutImages(decodeText(fs.readFileSync(file))));
+          // in UTF-8, as strom keeps every text: its header says so (a Windows program's CHAR ANSI would be wrong now)
+          fs.writeFileSync(path.join(tree.root, stored), withoutImages(treeFileKept(file)));
         }
         const made = create<SyncInput>(
           tree,
@@ -435,17 +452,21 @@ register(
             } as never,
             (sid) => `+${sid} source "${path.basename(file)}" (sync)`,
           );
-        const { applied: done, changes, skipped: left, asked } = applySync(tree, fresh, now1, source, only);
+        // not the person's sync: a change of the user's or an imported tree's value only proposed (the user decides)
+        const { applied: done, changes, skipped: left, asked, proposed: open } = applySync(tree, fresh, now1, source, only, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
         applied = changes;
         skipped = left;
+        proposed = open ?? [];
         input = update<SyncInput>(tree, made.id, "input", (i) => ({ ...i, source: source.id, sync: { ...(fresh.head ? { head: fresh.head } : {}), edits: edits as "conflict" | "user", applied: done, ...(asked ? { asked } : {}) } }), {
           op: "input.sync",
           summary: `${made.id} synced: ${changes} change(s)${fresh.head ? ` against ${fresh.head.slice(0, 8)}` : ""}`,
         });
+        // a fact the sync brought with its original cited: queued to be verified against it (core/verify.ts)
+        if (changes) queueVerify(tree);
       });
       if (!input) {
         settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length });
-        return { text: lines(planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, applied: [], changes: written.changes } };
+        return { text: lines(...said, planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, ...decoding, applied: [], changes: written.changes } };
       }
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
       settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length }, input.sync?.applied ?? []);
@@ -455,10 +476,14 @@ register(
         text: lines(
           ...opsFor(ctx, tree),
           "",
+          ...said,
           ui(lang, "ui.sync.done", { n: applied, file: path.basename(file), input: input.id }),
           ...skipped.map((x) => ui(lang, "ui.sync.skipped", { n: x.n, why: skippedWhy(x, lang) })),
+          ...(proposed.length
+            ? [`${proposed.length} change(s) of the user's or an imported family tree's values proposed, not written — the user decides (strom conflict list):`, ...proposed.map((x) => `  change ${x.n}: ${x.line}`)]
+            : []),
         ),
-        data: { input: input.id, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}) },
+        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}) },
       };
     },
   },

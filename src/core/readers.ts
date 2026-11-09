@@ -8,7 +8,7 @@
 // as before — an older strom's research reads as it did until the fix has run on it (with its backup and its undo).
 
 import { createHash } from "node:crypto";
-import type { Source, TreeConfig, UserReading } from "./model.ts";
+import type { Event, Source, TreeConfig, UserReading } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import type { Env } from "./paths.ts";
 import { isAgent } from "./which.ts";
@@ -29,6 +29,16 @@ export function transcriptMark(text: string): string {
   return createHash("sha256").update(text.normalize("NFC"), "utf8").digest("hex").slice(0, 16);
 }
 
+/**
+ * The mark of what a fact says, as the Strom file shows it (`3 _TXT` under `2 _STROM_EID`): its kind, label, date,
+ * place, house, cause, value and ages (NFC; never its sources, notes or status). Opaque to the Strom app — it gives it
+ * back confirming the fact (POST /facts/confirm), so a confirmation of a value seen in an older file is refused.
+ */
+export function factMark(e: Pick<Event, "kind" | "label" | "date" | "place" | "house" | "cause" | "value" | "age" | "ages">): string {
+  const ages = Object.entries(e.ages ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return transcriptMark(JSON.stringify([e.kind, e.label ?? "", e.date ?? "", e.place ?? "", e.house ?? "", e.cause ?? "", e.value ?? "", e.age ?? "", ages]));
+}
+
 /** The mark of a source's transcript, none without one. */
 export function markOf(s: Pick<Source, "transcript">): string | undefined {
   return s.transcript?.trim() ? transcriptMark(s.transcript) : undefined;
@@ -45,10 +55,23 @@ export function userReading(s: Pick<Source, "read" | "transcript">): UserReading
   return u;
 }
 
-/** The day the user confirmed the transcript as it is now in the Strom app, none when not (or no more). */
+/**
+ * The day the user confirmed the transcript as it is now in the Strom app, none when not (or no more): the day of this
+ * computer's calendar — the moment is kept in UTC, so a confirmation shortly after midnight is the new day's, never the
+ * day before (8 November 2026). Nothing written changes: the day is read from the moment each time.
+ */
 export function confirmedOn(s: Pick<Source, "read" | "transcript">): string | undefined {
   const u = userReading(s);
-  return u?.how === "confirm" ? u.at.slice(0, 10) : undefined;
+  return u?.how === "confirm" ? localDayOf(u.at) : undefined;
+}
+
+/** A moment's day on this computer's calendar (YYYY-MM-DD); a day alone, or not a moment: its first ten characters. */
+export function localDayOf(at: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(at)) return at;
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return at.slice(0, 10);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${String(d.getFullYear()).padStart(4, "0")}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 }
 
 /**

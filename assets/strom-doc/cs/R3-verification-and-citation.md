@@ -28,6 +28,8 @@ ze všech pramenů údaje, ne jak dobrý je jeden pramen ([R3.2.1](#R3.2.1)).
 - **Platí od:** výzkum 1.0.0; české názvy v terminálu 1.1.0 (u `strom person show` 1.12.0); štítek v aplikaci 3.9.0
 - **Od výzkumu 1.26.0:** terminál říká stupně slovy aplikace: **doložené**, **pravděpodobné**, **možné**,
   **vodítko**, **vyvrácené**. Souhrn `strom stats` píše dál „jen stopy“.
+- **Od výzkumu 1.30.0:** `strom event show` a `strom event edit` vypisují údaj člověku v jazyce výzkumu
+  (například „[vodítko]“); agent dostává výpis dál anglicky.
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -274,14 +276,14 @@ aplikace sama, jen z citací.
 | štítek u údaje, např. **Doložené** | stupeň jistoty údaje | výzkum ([R3.1](#R3.1)) |
 | **Přehled stromu → Kvalita dat → Jistota údajů z výzkumu** | narození, úmrtí a sňatky podle stupně | výzkum |
 | stránka osoby, **Pro badatele → Jistota údajů** | stupeň každého údaje osoby | výzkum |
-| **Doloženo** / **Částečně doloženo** / **Nedoloženo** (● ◐ ○) | úroveň doložení osoby | citace ([R3.8.1](#R3.8.1)) |
+| **Doloženo** / **Částečně doloženo** / **Nedoloženo** | úroveň doložení osoby | citace ([R3.8.1](#R3.8.1)) |
 | **Pro badatele**, „Doloženo prameny: N z M údajů“ | údaje osoby s pramenem | citace |
 | **Přehled stromu → Předci**, sloupec **doloženo** | předci s doloženým narozením | s výzkumem jen Doložené, jinak citace |
 | **Kde chybí doklady → Narození neověřená výzkumem** | narození předků, která nejsou Doložené | výzkum |
-| kniha, **Údaje pro badatele**: ● doloženo · ◐ rozpor · ○ nedoloženo | stav doložení údaje | Doložené, **nebo** jakákoli citace |
+| kniha, **Údaje pro badatele**: doloženo · rozpor · nedoloženo | stav doložení údaje | Doložené, **nebo** jakákoli citace |
 | **Moje přepisy pramenů → Doloženo** | jak výzkum bere přepisy uživatele | první čtení, Pravděpodobné ([R3.5.1](#R3.5.1)) |
 
-- **Hranice:** stupně jistoty aplikace jen ukazuje, změnit je nejde. Rozpor u údaje v knize přebije ● i ○.
+- **Hranice:** stupně jistoty aplikace jen ukazuje, změnit je nejde. Rozpor u údaje v knize přebije „doloženo“ i „nedoloženo“.
 - **Platí od:** aplikace 3.5.0 (úroveň osoby), 3.9.0 (štítek, Moje přepisy pramenů), 3.13.0 (Jistota údajů
   z výzkumu), 3.13.1 (sloupec doloženo), 3.18.0 (Pro badatele), 3.19.0 (kniha)
 
@@ -290,18 +292,19 @@ aplikace sama, jen z citací.
 <a id="R3.8.1"></a>
 ### R3.8.1 Úroveň doložení osoby
 
-- **Nedoloženo** (○): osoba, její události ani její svazky necitují žádný pramen.
-- **Doloženo** (●): citované narození (nebo křest) a, když má osoba úmrtí (datum, místo, událost úmrtí nebo
+- **Nedoloženo**: osoba, její události ani její svazky necitují žádný pramen.
+- **Doloženo**: citované narození (nebo křest) a, když má osoba úmrtí (datum, místo, událost úmrtí nebo
   pohřbu), i citované úmrtí (nebo pohřeb, kremace).
-- **Částečně doloženo** (◐): všechno mezi tím, i pramen přiložený jen k osobě (ke jménu, k bydlišti).
-- Stupeň jistoty se nepočítá: narození citující i převzatý rodokmen (Vodítko) dává ●. Aplikace to říká u **Jistota
+- **Částečně doloženo**: všechno mezi tím, i pramen přiložený jen k osobě (ke jménu, k bydlišti).
+- Stupeň jistoty se nepočítá: narození citující i převzatý rodokmen (Vodítko) dává **Doloženo**. Aplikace to říká u **Jistota
   údajů z výzkumu**: „Nezaměňovat s doložením pramenem.“
 - Když ve stromu necituje pramen nikdo, karta úroveň neukazuje. Zástupná osoba úroveň nemá.
-- **Ovládání:** aplikace: volba karty **Doložení prameny**; zvýraznění **Doložení** ve stromu; **Přehled stromu →
-  Kvalita dat → Kde chybí doklady**.
-- **Platí od:** aplikace 3.5.0
+- **Ovládání:** aplikace: značka na kartičce ve stromu, který původ údajů nezná ([S7.2](S7-reliability-and-verification.md#S7.2));
+  režim **Doložení** ve stromu ([A3.7](A3-evidence-in-the-app.md#A3.7)); **Přehled stromu → Kvalita dat → Kde chybí
+  doklady**.
+- **Platí od:** aplikace 3.5.0; 3.26.0: úroveň ukazuje jedna značka na kartičce ([S7.2](S7-reliability-and-verification.md#S7.2))
 
-<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardEvidence/cardShowHint, treeOverview.certaintyDesc -->
+<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardShowHint, treeOverview.certaintyDesc · app:7eb903a3 src/reliability.ts cardStatus (bez původu: full ●●, partial ●○, none) · src/ui/fact-status.ts card.evTitle · strings.ts cardDensity.cardStatus (3.26.0 nahradila cardEvidence) -->
 
 <a id="R3.9"></a>
 ## R3.9 Vyprávění drží své prameny

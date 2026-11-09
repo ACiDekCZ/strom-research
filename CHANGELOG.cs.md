@@ -5,6 +5,89 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.30.0
+
+*9. 11. 2026 · patří k aplikaci Strom 3.26.0.*
+
+- **Údaje ověřené proti originálu.** Narození, křest, sňatek, úmrtí nebo pohřeb, který cituje původní záznam, ale
+  zůstává pravděpodobný nebo možný, agent ověří proti tomu originálu: podívá se na sken a údaj buď povýší na doložený,
+  nebo zapíše, proč zůstává, jak je. Starší výzkum se po aktualizaci jednou projde (jen osoby napojené na rodokmen,
+  nikdo žijící; `strom fixes undo verify-originals` to vrátí), nové údaje průběžně. Ručně pro osobu, rodinu nebo jeden
+  údaj, první ve frontě (`strom verify facts <koho>` nebo z aplikace Strom); hromadně pro linii, rod nebo celý strom
+  s odhadem ceny – spustit to může jen uživatel (`strom verify bulk`); zastavit jde přes `strom verify stop`. Údaj, který
+  uživatel v aplikaci Strom potvrdí podle skenu, agent nikdy nezmění – jen navrhne. Hodnota, kterou zadal uživatel nebo
+  která přišla z rodokmenu, se nikdy nepřepíše: co se liší, je návrh k rozhodnutí uživatele. Kolik údajů čeká, řekne
+  `strom check`, `strom doctor`, `strom stats` a `strom verify status`.
+  Potvrzení v aplikaci Strom platí pro hodnotu, kterou uživatel viděl: údaj od té doby změněný se nepotvrdí.
+
+- **Údaje z převzatého rodokmenu jsou chráněné.** Rodokmen z jiného programu (GEDCOM) dává vodítka: agent takový údaj
+  změní jen podle záznamu, který cituje, a hodnota z rodokmenu zůstává uložená vedle („původně z rodokmenu: …“) a jde
+  vrátit (`strom event revert`, `strom person revert`). Bez citovaného záznamu – a vždy, když o hypotézách rozhoduje
+  uživatel – agent jen navrhuje, jako rozpor k rozhodnutí uživatele. Co uživatel zadal nebo změnil, v aplikaci Strom nebo
+  ve stromu, agent nikdy nezmění: jen navrhne – ani souborem, který načte přes `strom sync`. Návrhy agenta jsou v `strom
+  conflict list` a `show` poznat a uzavřou se samy, jakmile navržená hodnota platí. Výzkum založený dřív se po
+  aktualizaci jednou označí (které údaje přišly z převzatého rodokmenu, které jsou uživatele): žádná hodnota se nemění a
+  `strom fixes undo origins` značky vezme zpět; kolik hodnot a v kolika záznamech se označilo, řekne `strom fixes show origins`. Návrh, jehož hodnota se od jeho vzniku změnila (upravil ji uživatel), je
+  zastaralý: přijmout ho nelze – přes novější hodnotu se nic nezapíše –, jen uzavřít s ponechanou hodnotou. Co návrh
+  neunese (příčina změněná spolu s datem), řekne výsledek synchronizace, nikdy se neztratí.
+  Hodnota, která přišla s rodokmenem z aplikace Strom a nikdo ji od té doby nezměnil, je chráněná jako hodnota uživatele.
+
+- **Znovu převzatý rodokmen najde své lidi.** ID, která program dal lidem a rodinám (`_UID`, `EXID`, `_FSFTID`…
+  z MyHeritage, Gramps, FamilySearch a dalších), se uchovají: rodokmen téhož programu převzatý znovu (nebo z jiného
+  programu do výzkumu) podle nich najde lidi – nikdy dvakrát, nové údaje přibudou jako vodítka; novější soubor
+  rodokmenu téhož programu, kde se změnilo jméno, pohlaví nebo datum narození, najde tutéž osobu a co se liší, přidá jako
+  vodítko vedle údaje výzkumu a oznámí; osoba jen možná táž (soubor jiného programu, jiné ID FamilySearch) se oznámí,
+  nikdy nespojí a nezapojí do rodiny, kde už je ta, kterou možná je, a `strom check` vypíše dvě osoby se stejným ID
+  z rodokmenu k porovnání a sloučení. ID se s výzkumem vracejí do aplikace Strom. Co soubor má a
+  nepřevezme se (média, vlastní značky programu), se ve výsledku spočítá. Ve výzkumu založeném dřív se ID dřívějších importů čtou z jejich souborů, takže ani znovu
+  převzatý rodokmen ještě před označením nepřidá nikoho dvakrát.
+
+- **Problém nahlášený v jednom souboru.** `strom error` zabalí, co je potřeba k poznání, co se stalo, do jednoho ZIPu
+  ve složce Stažené soubory (jinak v aktuální složce): verzi, systém, `strom doctor`, agenty, konektory, most do aplikace
+  Strom, výzkum jen v číslech, technické logy posledních 7 dní (`--since`) a příkazy, které skončily chybou. Nic
+  z rodokmenu do něj nejde – jména, místa, poznámky, přepisy, snímky, cesty se jménem uživatele, přihlášení a tokeny jsou
+  vynechané nebo nahrazené stálými kódy – a nic se neodesílá: soubor posílá uživatel sám, na adresu, kterou příkaz
+  vypíše. `--about fetch|sync|agent|install|windows` přidá podrobnosti jedné oblasti (tabulka je v `strom error
+  --help`), `--where` říká, kde se problém stal, `--note` ho popíše slovy uživatele (jde tak, jak je napsaná – nahradí se jen jména, která výzkum zná); údaje jmenovaných osob, rodin nebo
+  knihy jen s `--with-data` a souhlasem uživatele. Agent požádaný o nahlášení problému se zeptá, kde se stal, příkaz
+  spustí a řekne cestu – soubor nikdy neposílá, neotvírá ani nepřepisuje do chatu. V nabídce: Údržba → Nahlásit problém.
+  Výzkum se jen čte, i rozbitý.
+
+- **Soubor pro aplikaci Strom se zase zapíše i u výzkumu s hypotézou rozhodnutou s odůvodněním:** pro aplikaci od
+  3.25.0 (nebo neznámé verze) ho `strom export gedcom` odmítl a `output/tree-strom.ged` po session zůstal starý (výzkum
+  otevřený v aplikaci přes `strom app` se to netýkalo). **Sledování velkého výzkumu živě v aplikaci Strom se otevírá
+  mnohem rychleji:** strom pro aplikaci se sestaví jednou pro každý stav výzkumu a zůstane uložený i po novém spuštění
+  mostu, a během sledování se změna ohlásí, až je její strom připravený. Most už neskončí, když je disk výzkumu na
+  chvíli nedostupný, a druhý most téhož výzkumu spuštěný navíc hned skončí a neběží dál bez povšimnutí.
+  Aktualizace ve chvíli, kdy strom most spouští, už nenechá běžet dva mosty: zůstane jeden, na adrese, kterou aplikace sleduje.
+  Aplikaci, která nejnovější strom už má, se znovu nic neposílá.
+  Aplikace, která o to požádá, dostane strom s obrázky označenými podle obsahu a načte jen ty, které ještě nemá.
+
+- **Údaj zobrazený nebo upravený v terminálu** (`strom event show`, `strom event edit`) se vypisuje v jazyce
+  výzkumu. V aplikaci Strom už rodokmen převzatý do výzkumu nemá jako odkaz celého rodokmenu první řádek z něj:
+  každý údaj uvádí svůj.
+  **Rodokmeny z programů pro Windows v kódové stránce 1250 nebo 1252 („ANSI“)** se čtou se správnými písmeny – česky,
+  polsky, německy, stejně jako v aplikaci Strom. Znak, který nejde přečíst, se ohlásí, nikdy se tiše nenahradí.
+
+- **Codex v aplikaci ChatGPT, jak skutečně je.** Nastavení v ní už nemluví o hookách Codexu (ta věta patří Codexu
+  v terminálu) a `strom doctor` radí potvrdit je jen v terminálu. Prohlížeč aplikace ChatGPT běží přes cloud ChatGPT
+  a žádné pravidlo stromu nevolá: strom už netvrdí, že ho hlídá, a agent v ní chodí k archivu s omezením jen přes
+  člověka (`strom task wait --images`). `strom doctor` a nastavení to říkají jako varování, s radou k dialogu ChatGPT
+  „cloudový prohlížeč“ u takového archivu: *Zamítnout*, přístup ke všem relevantním webům nikdy. Codex v terminálu
+  zůstává hlídaný – nově i jeho prohlížeč otevřený přes `createBrowserTab`.
+
+- **Stahování snímků knihy, které konektor přeruší chybou,** řekne, které snímky nestáhl, a příkaz, který je stáhne
+  (jen je – co přišlo, se znovu nežádá), skončí chybou (dosud hlásilo úspěch) a co zbývá, řekne i `strom fetch --status`
+  a brief; stahování, které archiv cestou odmítne, končí jako dřív, s jeho vlastní radou. **Přepis potvrzený v aplikaci
+  Strom krátce po půlnoci** nese nový den podle kalendáře tohoto počítače (dosud den předchozí).
+  **Stavba konektoru:** `strom connector test` varuje, když jeden snímek stojí mnoho požadavků (dlaždice), a řekne, co
+  hledat nejdřív – odkaz portálu na celý snímek nebo stažení celé knihy – s dobou, jakou by kniha trvala v tempu archivu;
+  `strom connector new` cituje, co strom ví o podmínkách archivu.
+  **macOS: aplikace Strom otevřená z výzkumu** (sledovat živě, soubor pro aplikaci) už nenechá v Docku mezi nedávnými
+  aplikacemi ikonu Google Chrome: adresa jde rovnou do už běžícího prohlížeče, okno aplikace se otevře jako dřív.
+  **Snímek, který měl uložit prohlížeč agenta a prohlížeč ho zadržel** (Chrome uloží jeden soubor webu sám, další až
+  po povolení stahování více souborů), se ohlásí: Co čeká uvede web, kterému to jednou povolit v adresním řádku prohlížeče.
+
 ## 1.29.0
 
 *8. 11. 2026 · patří k aplikaci Strom 3.25.0.*

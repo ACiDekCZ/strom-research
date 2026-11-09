@@ -120,6 +120,10 @@ npm: `npm install -g strom-research@latest`. What is new in each version:
   neither see nor click
 - `strom doctor` checks everything strom needs and fixes it with your yes;
   `strom uninstall` removes strom again (your research stays)
+- `strom error` packs a report of a problem into one ZIP for you to send: the
+  people's names, places and notes replaced by codes, nothing sent by strom; a
+  note given with `--note` goes as written (only names the research knows are
+  replaced)
 
 **Everywhere**
 - Windows, macOS and Linux; strom brings its own official Node, needs no admin

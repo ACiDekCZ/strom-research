@@ -43,3 +43,17 @@ test("a page as it reads: character references and script escapes written out, e
   assert.equal(readable("A &bogus; &odot; &amp B & C"), undefined);
   assert.equal(readable("plain text, nothing to write out"), undefined);
 });
+
+test("folding the same text again (remembered): the same answer, composed or decomposed, any script, a long text too", () => {
+  const words = ["Víšek", "Víšek", "Łódź", "Шевчук", "東京", "Poſt"];
+  const first = words.map(foldText);
+  for (let i = 0; i < 3; i++) assert.deepEqual(words.map(foldText), first);
+  assert.equal(foldText("Víšek"), foldText("Víšek"));
+  const long = "Žďár nad Sázavou ".repeat(20);
+  assert.equal(foldText(long), foldText(long.normalize("NFD")));
+  assert.equal(foldText(long), "zdar nad sazavou ".repeat(20).trim());
+  // many texts: the remembered ones forgotten at once, the answers the same
+  for (let i = 0; i < 60_000; i++) foldText(`Ř${i}`);
+  assert.equal(foldText("Ř59999"), "r59999");
+  assert.deepEqual(words.map(foldText), first);
+});

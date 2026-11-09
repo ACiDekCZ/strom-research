@@ -21,7 +21,7 @@ import {
 import { normalizeDate } from "./gdate.ts";
 import { isGedcomAge } from "./age.ts";
 import { SCHEMAS, checkFields, type RefUse } from "./schema.ts";
-import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, PARTICIPANT_ROLES } from "./model.ts";
+import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, ORIGINAL_IDS_LIMITS, PARTICIPANT_ROLES } from "./model.ts";
 
 export interface Problem {
   path: string;
@@ -134,6 +134,23 @@ export function checkEvent(e: unknown, path: string, out: Problem[], family = fa
     if (family) out.push({ path: `${path}.age`, message: "a family event gives the age of each partner: ages" });
     else if (!str(ev.age) || !isGedcomAge(ev.age)) out.push({ path: `${path}.age`, message: `"${String(ev.age)}" is not a GEDCOM age like 27y, 27y 3m, INFANT` });
   }
+  if (ev.confirmed !== undefined) {
+    const c = ev.confirmed as unknown;
+    if (!isObj(c) || !str(c.at) || !ISO.test(c.at) || c.by !== "user") out.push({ path: `${path}.confirmed`, message: 'must be { at: ISO timestamp, by: "user" }' });
+  }
+  if (ev.verified !== undefined) {
+    const v = ev.verified as unknown;
+    if (!isObj(v)) out.push({ path: `${path}.verified`, message: "must be an object" });
+    else {
+      if (!str(v.at) || !ISO.test(v.at)) out.push({ path: `${path}.verified.at`, message: "must be an ISO timestamp" });
+      if (!str(v.by)) out.push({ path: `${path}.verified.by`, message: "must name the session or agent" });
+      if (v.result !== "proven" && v.result !== "kept") out.push({ path: `${path}.verified.result`, message: "must be proven or kept" });
+      if (!Array.isArray(v.cites) || v.cites.some((s) => !str(s))) out.push({ path: `${path}.verified.cites`, message: "must be a list of source IDs" });
+      if (v.readers !== undefined && v.readers !== 2) out.push({ path: `${path}.verified.readers`, message: "must be 2 when given" });
+      for (const k of ["model", "reason", "task"] as const)
+        if (v[k] !== undefined && !str(v[k])) out.push({ path: `${path}.verified.${k}`, message: "must be a non-empty string" });
+    }
+  }
   if (ev.ages !== undefined) {
     if (!family) out.push({ path: `${path}.ages`, message: "ages are for family events; a person's event has age" });
     else if (!isObj(ev.ages)) out.push({ path: `${path}.ages`, message: "must be an object: person ID → age" });
@@ -167,6 +184,41 @@ function checkStory(st: unknown, out: Problem[]): void {
   if (!Array.isArray(s.draft.facts) || s.draft.facts.some((f) => !EVENT_ID.test(String(f)))) out.push({ path: "story.draft.facts", message: "must be a list of event IDs" });
 }
 
+/** A string kept as read: NFC, no control character, at most `max` characters. */
+function idText(v: unknown, max: number): boolean {
+  return str(v) && v === v.normalize("NFC") && !/[\p{Cc}]/u.test(v) && [...v].length <= max;
+}
+
+/** The IDs a record had in a family tree it came from (spec 066 K3.2). */
+function checkOriginalIds(list: unknown, out: Problem[]): void {
+  if (list === undefined) return;
+  const L = ORIGINAL_IDS_LIMITS;
+  if (!Array.isArray(list)) return void out.push({ path: "originalIds", message: "must be an array" });
+  if (list.length > L.entries) out.push({ path: "originalIds", message: `at most ${L.entries} entries` });
+  const seen = new Set<string>();
+  list.forEach((e: unknown, i) => {
+    const p = `originalIds[${i}]`;
+    if (!isObj(e)) return void out.push({ path: p, message: "must be an object" });
+    if (!str(e.source)) out.push({ path: `${p}.source`, message: "is required (the import's source)" });
+    if (e.xref !== undefined && (!idText(e.xref, L.xref) || (e.xref as string).includes("@")))
+      out.push({ path: `${p}.xref`, message: `must be an xref without @, at most ${L.xref} characters` });
+    if (e.xid !== undefined && e.xid !== true) out.push({ path: `${p}.xid`, message: "must be true, or left out" });
+    const key = `${String(e.source)}\u0000${String(e.xref ?? "")}`;
+    if (seen.has(key)) out.push({ path: p, message: "the same import and xref once" });
+    seen.add(key);
+    if (e.ids === undefined) return void (e.xref === undefined && out.push({ path: p, message: "needs an xref or IDs" }));
+    if (!Array.isArray(e.ids)) return void out.push({ path: `${p}.ids`, message: "must be an array" });
+    if (e.ids.length > L.ids) out.push({ path: `${p}.ids`, message: `at most ${L.ids} lines` });
+    e.ids.forEach((l: unknown, j) => {
+      const q = `${p}.ids[${j}]`;
+      if (!isObj(l)) return void out.push({ path: q, message: "must be an object" });
+      if (!["_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN"].includes(l.tag as string)) out.push({ path: `${q}.tag`, message: "must be _UID, UID, RIN, EXID, _FSFTID or AFN" });
+      if (!idText(l.value, L.value)) out.push({ path: `${q}.value`, message: `must be a value as read, at most ${L.value} characters` });
+      if (l.type !== undefined && (l.tag !== "EXID" || !idText(l.type, L.type))) out.push({ path: `${q}.type`, message: `only an EXID's TYPE, at most ${L.type} characters` });
+    });
+  });
+}
+
 function checkPerson(p: Partial<Person>, out: Problem[]): void {
   if (!Array.isArray(p.names) || p.names.length === 0) out.push({ path: "names", message: "needs at least one name" });
   else
@@ -195,9 +247,11 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
   if (!Array.isArray(p.events)) out.push({ path: "events", message: "must be an array" });
   else p.events.forEach((e, i) => checkEvent(e, `events[${i}]`, out));
   checkNotes(p.notes, "notes", out);
+  checkOriginalIds(p.originalIds, out);
 }
 
 function checkFamily(f: Partial<Family>, out: Problem[]): void {
+  checkOriginalIds(f.originalIds, out);
   if (!Array.isArray(f.partners) || f.partners.length > 2) out.push({ path: "partners", message: "must be an array of at most 2 persons" });
   if (Array.isArray(f.events) && Array.isArray(f.partners))
     f.events.forEach((e, i) => {
@@ -305,6 +359,28 @@ export function settledRecord<T>(value: T): T {
   return rest as T;
 }
 
+/**
+ * A fact whose value changed (its date, place or value) loses what was said of the value before (spec 065): the
+ * agent's verification against the original, whoever changed it; the person's confirmation against the scan when the
+ * person changed it (an agent never changes a confirmed value: it proposes — commands/people.ts event edit). Every write
+ * of a person or a family comes here (Tree.put, Tree.putMany): `before` as it was, `person` the write is the person's.
+ */
+export function factMarksAfter<T>(before: unknown, value: T, person: boolean): T {
+  if (!isObj(value) || (value.type !== "person" && value.type !== "family") || !isObj(before) || !Array.isArray(value.events)) return value;
+  const was = new Map(((before.events as Event[] | undefined) ?? []).map((e) => [e.id, e]));
+  let changed = false;
+  const events = (value.events as Event[]).map((e) => {
+    const b = was.get(e.id);
+    if (!b || (!e.verified && !e.confirmed)) return e;
+    if ((b.date ?? "") === (e.date ?? "") && (b.place ?? "") === (e.place ?? "") && (b.value ?? "") === (e.value ?? "")) return e;
+    const { verified: _v, confirmed, ...rest } = e;
+    if (!e.verified && !person) return e;
+    changed = true;
+    return (confirmed && !person ? { ...rest, confirmed } : rest) as Event;
+  });
+  return changed ? ({ ...value, events } as T) : value;
+}
+
 /** Every reference a record makes to another record (for dangling-reference checks). */
 export function recordRefs(value: AnyRecord): RefUse[] {
   const refs: RefUse[] = [];
@@ -316,10 +392,12 @@ export function recordRefs(value: AnyRecord): RefUse[] {
   if (value.type === "person") {
     value.names.forEach((n, i) => n.citations?.forEach((c, j) => refs.push({ path: `names[${i}].citations[${j}]`, id: c.source, to: ["source"] })));
     value.retractedNames?.forEach((n, i) => n.citations?.forEach((c, j) => refs.push({ path: `retractedNames[${i}].citations[${j}]`, id: c.source, to: ["source"] })));
+    value.originalIds?.forEach((e, i) => refs.push({ path: `originalIds[${i}].source`, id: e.source, to: ["source"] }));
   }
   if (value.type === "family") {
     value.citations?.forEach((c, j) => refs.push({ path: `citations[${j}]`, id: c.source, to: ["source"] }));
     value.partners.forEach((p, i) => refs.push({ path: `partners[${i}]`, id: p, to: ["person"] }));
+    value.originalIds?.forEach((e, i) => refs.push({ path: `originalIds[${i}].source`, id: e.source, to: ["source"] }));
     value.children.forEach((c, i) => refs.push({ path: `children[${i}]`, id: c.person, to: ["person"] }));
   }
   if (value.type === "research") {

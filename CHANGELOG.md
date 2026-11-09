@@ -5,6 +5,96 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.30.0
+
+*2026-11-09 · goes with the Strom app 3.26.0.*
+
+- **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
+  original record but stays probable or possible is verified by the agent against that original: it looks at the scan
+  and either raises the fact to proven or writes down why it stays as it is. An older research is gone through once
+  after the update (only people linked to the family tree, nobody living; `strom fixes undo verify-originals` takes it
+  back), new facts as they come. By hand for a person, a family or one fact, first in the queue (`strom verify facts
+  <whom>`, or from the Strom app); in bulk for a line, a lineage or the whole tree with an estimate of the cost – started
+  by the user alone (`strom verify bulk`); stopped by `strom verify stop`. A fact the user confirms against the scan in
+  the Strom app the agent never changes – it only proposes. A value the user entered or one from a family tree is never
+  overwritten: what differs is a proposal for the user to decide. How many facts wait is said by `strom check`, `strom
+  doctor`, `strom stats` and `strom verify status`.
+  A confirmation in the Strom app holds for the value the user saw: a fact changed since is not confirmed.
+
+- **Values from an imported family tree are guarded.** A tree from another program (GEDCOM) gives leads: the agent
+  changes such a value only by a record it cites, and the value from the family tree stays kept beside it ("originally
+  from the family tree: …") and can be put back (`strom event revert`, `strom person revert`). Without a cited record –
+  and always when the user decides the hypotheses – the agent only proposes, as a conflict for the user to decide. What
+  the user entered or changed, in the Strom app or in strom, the agent never changes: it only proposes – nor through a
+  file it brings in with `strom sync`. The agent's proposals are told apart in `strom conflict list` and `show`, and
+  close by themselves once the value proposed holds. A research made before is marked once after the update (which
+  values came from an imported tree, which are the user's): no value changes, and `strom fixes undo origins` takes the
+  marks back; `strom fixes show origins` says how many values were marked and in how many records. A proposal whose value has changed since it was made (the user edited it) is out of date: it cannot be
+  taken – nothing is written over the newer value – only closed keeping the value. What a proposal cannot carry (a cause
+  changed together with a date) is said in the sync's result, never lost.
+  A value that came with the family tree from the Strom app and nobody has changed since is guarded as the user's own.
+
+- **A family tree imported again finds its people.** The IDs a program gave its people and families (MyHeritage's,
+  Gramps', FamilySearch's and others' `_UID`, `EXID`, `_FSFTID`…) are kept: a tree of the same program taken in again
+  (or into the research from another program) finds the people by them – never twice, the new facts added as leads; a
+  newer file of the same program's tree with a name, sex or birth date changed there finds the same person, what differs
+  added as a lead beside the research's and said; a person only maybe the same (another program's file, another ID of
+  FamilySearch) is said, never joined and never put into a family where the one they may be is already, and `strom
+  check` names two people with the same ID of a family tree to compare and merge. The IDs go back to the
+  Strom app with the research. What the file has that is not taken (media, the program's own tags) is counted in the
+  result. In a research made before, the IDs of its earlier imports are read from their files, so the
+  same tree taken in again before the marks are set adds nobody twice either.
+
+- **A problem reported in one file.** `strom error` packs what is needed to tell what happened into one ZIP in the
+  downloads folder (else the current folder): the version, the system, `strom doctor`, the agents, the connectors, the
+  bridge to the Strom app, the research in numbers only, the technical logs of the last 7 days (`--since`) and the
+  commands that ended with an error. Nothing of the family tree goes in – names, places, notes, transcripts, images,
+  paths with the user's name, logins and tokens are left out or masked to stable codes – and nothing is sent: the user
+  sends the file, to the address the command says. `--about fetch|sync|agent|install|windows` adds the details of one
+  area (the table is in `strom error --help`), `--where` says where the problem happened, `--note` says it in the user's
+  words (it goes as written – only names the research knows are replaced); the data of named people, families or a book only with `--with-data` and the user's yes. Asked to report a
+  problem, the agent asks where it happened, runs it and tells the path – it never sends, opens or copies the file. In
+  the menu: Maintenance → Report a problem. The research is only read, a broken one too.
+
+- **The file for the Strom app is written for a research with a hypothesis decided with its reasons** again: for the
+  app from 3.25.0 (or of a version unknown) `strom export gedcom` refused it and `output/tree-strom.ged` after a session
+  stayed as it was (the research opened in the app through `strom app` was never affected). **Following a large
+  research live in the Strom app opens much faster:** the tree for the app is made once for each state of the research
+  and kept, also when the bridge starts again, and while the app follows, a change is told once its tree is ready.
+  The bridge no longer ends when the research's disk is away for a moment, and a second bridge started for the same
+  research ends at once instead of running on unseen.
+  An update while strom starts the bridge no longer leaves two bridges: one stays, at the address the app follows.
+  An app that has the newest tree already is sent nothing again.
+  An app that asks for it is sent the tree with each image named by its content, and loads only the images it does not have yet.
+
+- **A fact shown or edited at the terminal** (`strom event show`, `strom event edit`) is said in the research's
+  language. In the Strom app, a family tree taken into the research no longer gives the first line of it as the
+  reference of the whole tree: each fact says its own.
+  **Family trees from Windows programs in code page 1250 or 1252 ("ANSI")** are read with their letters right – Czech,
+  Polish, German, as the Strom app reads them. A character that cannot be read is said, never replaced silently.
+
+- **Codex in the ChatGPT app, said as it is.** The setup there no longer speaks of Codex's hooks (that line is for Codex
+  in the terminal), and `strom doctor` says to confirm them in the terminal alone. The ChatGPT app's browser runs
+  through ChatGPT's cloud and calls no rule of strom's: strom no longer says it watches it, and the agent working there
+  goes to an archive with restrictions only through the person (`strom task wait --images`). `strom doctor` and the
+  setup say so as a warning, with the advice for ChatGPT's "cloud browser" dialog at such an archive: *Deny*, never
+  access to all relevant sites. Codex in the terminal stays watched – now also its browser opened through
+  `createBrowserTab`.
+
+- **A download of a book's images that its connector stops on an error** says which images it did not fetch and the
+  command that fetches them (only those – what came is not asked for again), ends with an error (it said success), and
+  `strom fetch --status` and the brief tell what is left; a download an archive refuses part-way ends as before, with
+  its own advice. **A transcript confirmed in the Strom app shortly after midnight** carries the new day, by this
+  computer's calendar (it said the day before).
+  **Building a connector:** `strom connector test` warns when one image costs many requests (tiles) and says what to
+  look for first – the portal's link to the whole image, or the download of a whole book – with the time a book would
+  take at the archive's pace; `strom connector new` quotes what strom knows of the archive's terms.
+  **macOS: the Strom app opened from the research** (follow live, a file for the app) leaves no Google Chrome icon in
+  the Dock's recent apps: the address goes straight to the browser already running, the app's window opens as before.
+  **An image the agent's browser was to save and the browser held back** (Chrome saves one file of a site by itself, the
+  next only once the site may download several files) is said: what waits names the site to allow, once, in the
+  browser's address bar.
+
 ## 1.29.0
 
 *2026-11-08 · goes with the Strom app 3.25.0.*

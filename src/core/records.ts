@@ -6,6 +6,7 @@ import { RECORD_TYPES, type AnyRecord, type Conflict, type Hypothesis, type Reco
 import { now, typeOfId, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
 import { heldInArchive } from "./mode.ts";
+import { settleProposals } from "./proposalsettle.ts";
 
 type Fields<T> = Omit<T, "id" | "type" | "created" | "updated" | "notes"> & { note?: string | undefined };
 
@@ -48,6 +49,8 @@ export function update<T extends AnyRecord>(
       summary: op.summary,
       ...(op.reason ? { reason: op.reason } : {}),
     });
+    // a person's or a family's values changed: an agent's proposal of what they are now holds by itself
+    if (expect === "person" || expect === "family") settleProposals(tree, [id]);
     return next;
   });
 }

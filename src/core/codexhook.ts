@@ -1,19 +1,25 @@
 // Codex's browser kept like Claude in Chrome (core/chromehook.ts), as far as an address can be seen. Codex drives its
-// browser (the in-app browser of the ChatGPT app, its Chrome extension) through one tool, its Node REPL's `js`
-// (mcp__node_repl__js): JavaScript code, not an address. The tree's .codex/hooks.json runs `strom net web --hook` before
-// each call of it (Codex runs a project's hooks once the person trusted the folder and confirmed the hooks in /hooks —
-// the person's step, never strom's: no trusted_hash written or passed, no --dangerously-bypass-hook-trust). It answers:
+// browser (the in-app browser, its Chrome extension) through the `js` tool of a JavaScript REPL — node_repl
+// (mcp__node_repl__js), and since the ChatGPT app 26.1021 cua_repl (mcp__cua_repl__js, `cua.createBrowserTab("iab",
+// "<url>")`, found live 8 November 2026): JavaScript code, not an address. The tree's .codex/hooks.json runs
+// `strom net web --hook` before each call of any such REPL's `js` (CODEX_HOOK_MATCHER: a REPL renamed again is still
+// kept) — Codex runs a project's hooks once the person trusted the folder and confirmed the hooks in /hooks, the
+// person's step, never strom's: no trusted_hash written or passed, no --dangerously-bypass-hook-trust. That holds for
+// Codex in the terminal (codex, codex exec, strom run); the ChatGPT app since 26.1103 runs its turns through ChatGPT's
+// cloud and calls no hook of the project at all — its browser strom does not keep (core/browserhelp.ts
+// codexInChatgptApp, spec 062 P6). The hook answers:
 //
-//   - an address in the code or its title (a literal http(s) address: tab.goto("…"), browser.tabs.content({ urls }),
-//     agent.browsers.getForUrl("…")): the same decision as Claude in Chrome's navigate to it — the bridge refused; an
-//     archive only a person's browser goes to opens within its level and the person's permission "through the browser",
-//     at a person's pace; recorded in .strom/metrics/fetch.jsonl (agent codex, tool mcp__node_repl__js), counted and
-//     paced with the web fetches of the same site. Two addresses of archives in one call: refused (one page at a time).
+//   - an address in the code or its title (a literal http(s) address: tab.goto("…"), cua.createBrowserTab("iab", "…"),
+//     browser.tabs.content({ urls }), agent.browsers.getForUrl("…")): the same decision as Claude in Chrome's navigate
+//     to it — the bridge refused; an archive only a person's browser goes to opens within its level and the person's
+//     permission "through the browser", at a person's pace; recorded in .strom/metrics/fetch.jsonl (agent codex, the
+//     tool as Codex named it), counted and paced with the web fetches of the same site. Two addresses of archives in
+//     one call: refused (one page at a time).
 //   - code that works on a page or goes somewhere without an address strom can read (a click, back, an address made up
-//     from parts or kept from an earlier call): the host of the session's last address let through stands for it, as a
-//     tab's for Claude in Chrome's page tools (a host strom must leave alone refused); none known: nothing refused, the
-//     call written down as unwatched (.strom/metrics/unwatched.jsonl, counted in strom net web), and the agent told once
-//     in its session to name the address in tab.goto("…").
+//     from parts or kept from an earlier call, tab.getAXState()): the host of the session's last address let through
+//     stands for it, as a tab's for Claude in Chrome's page tools (a host strom must leave alone refused); none known:
+//     nothing refused, the call written down as unwatched (.strom/metrics/unwatched.jsonl, counted in strom net web),
+//     and the agent told once in its session to name the address in tab.goto("…").
 //   - computer use (the code drives other apps, `sky.…`, without the browser): nothing — strom neither watches nor
 //     records it (Milan's decision, 6 November 2026).
 //
@@ -37,15 +43,22 @@ import type { Env } from "./paths.ts";
 
 /** Codex's tool that drives its browser (and its computer use): the Node REPL's `js`. */
 export const CODEX_BROWSER_TOOL = "mcp__node_repl__js";
-/** The hook's matcher (Codex's matchers are regular expressions). Computer use's own REPL (cua_repl) is left out. */
-export const CODEX_HOOK_MATCHER = "^mcp__node_repl__js$";
+/** The same tool of the ChatGPT app's computer-use REPL (26.1021: its browser too, cua.createBrowserTab). */
+export const CODEX_CUA_TOOL = "mcp__cua_repl__js";
+/**
+ * The hook's matcher (Codex's matchers are regular expressions — Rust's): the `js` of every REPL of Codex's (node_repl,
+ * cua_repl, one renamed again), the browser's work told apart in the code. Tool names are ASCII.
+ */
+export const CODEX_HOOK_MATCHER = "^mcp__[a-z0-9_]+_repl__js$";
+const CODEX_REPL_JS = new RegExp(CODEX_HOOK_MATCHER);
 /** The tree's hook file for Codex. */
 export const CODEX_HOOKS = path.join(".codex", "hooks.json");
 /** The unwatched calls of an agent's browser: no address strom could read. */
 export const UNWATCHED = "unwatched.jsonl";
 
-/** One call of Codex's node_repl `js` as its hook gives it. */
+/** One call of a Codex REPL's `js` (node_repl, cua_repl) as its hook gives it. */
 export interface CodexEvent {
+  /** The tool as Codex named it. */
   tool: string;
   /** The code and its title, as given. */
   code: string;
@@ -57,7 +70,7 @@ export interface CodexEvent {
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
-/** The agent's hook event on stdin: Codex's node_repl `js` before it runs, else undefined. */
+/** The agent's hook event on stdin: a Codex REPL's `js` (node_repl, cua_repl) before it runs, else undefined. */
 export function codexEvent(text: string): CodexEvent | undefined {
   let j: Record<string, unknown>;
   try {
@@ -67,13 +80,14 @@ export function codexEvent(text: string): CodexEvent | undefined {
   } catch {
     return undefined;
   }
-  if (str(j.tool_name) !== CODEX_BROWSER_TOOL) return undefined;
+  const tool = str(j.tool_name);
+  if (!tool || !CODEX_REPL_JS.test(tool)) return undefined;
   const event = (str(j.hook_event_name) ?? "PreToolUse").toLowerCase();
   if (event !== "pretooluse") return undefined;
   const input = (j.tool_input ?? {}) as Record<string, unknown>;
   const code = typeof input.code === "string" ? input.code : undefined;
   if (!code) return undefined;
-  const ev: CodexEvent = { tool: CODEX_BROWSER_TOOL, code };
+  const ev: CodexEvent = { tool, code };
   const title = str(input.title);
   if (title) ev.title = title;
   const sid = str(j.session_id);
@@ -100,9 +114,12 @@ export function codeUrls(text: string): string[] {
   return [...seen];
 }
 
-/** Code that goes somewhere or works on a page of the browser. */
+/**
+ * Code that goes somewhere or works on a page of the browser — node_repl's (tab.goto, browser.tabs…) and cua_repl's
+ * (cua.createBrowserTab, a tab kept in a variable of its own name: exampleTab.getAXState()).
+ */
 const BROWSER_WORK =
-  /\.\s*(?:goto|getForUrl|expectNavigation|reload|back|forward|playwright|dom_cua|cua|screenshot|domSnapshot|content|click|fill|evaluate|locator)\s*[.(]|(?<![\p{L}\p{N}_$])(?:browser|browsers|tab|tabs|page)\s*\.|location\s*\.\s*(?:href|assign|replace)|window\s*\.\s*open\s*\(/u;
+  /\.\s*(?:goto|getForUrl|expectNavigation|reload|back|forward|playwright|dom_cua|cua|screenshot|domSnapshot|content|click|fill|evaluate|locator|createBrowserTab|getAXState)\s*[.(]|(?<![\p{L}\p{N}_$])(?:browser|browsers|tab|tabs|page)\s*\.|[\p{L}\p{N}_$](?:Tab|Tabs|Page|Browser)\s*\.|location\s*\.\s*(?:href|assign|replace)|window\s*\.\s*open\s*\(/u;
 /** Computer use: the code drives other apps (`sky.click`, `sky.type_text`…). */
 const COMPUTER_USE = /(?<![\p{L}\p{N}_$])sky\s*\./u;
 
@@ -129,7 +146,7 @@ const UNWATCHED_HINT =
   "strom: this browser code names no address strom can see, so strom cannot keep the archives' rules for it (recorded as unwatched). Open each page of an archive by its address written out in the call itself — tab.goto(\"https://…\") — one page at a time; never click through a series of an archive's pages.";
 
 /**
- * The hook's work for one call of Codex's node_repl `js` (see the top). Throws on anything unexpected (the command lets
+ * The hook's work for one call of a Codex REPL's `js` (see the top). Throws on anything unexpected (the command lets
  * the call go then).
  */
 export async function answerCodexEvent(ev: CodexEvent, o: { env: Env; cwd: string; now?: () => number; sleep?: (ms: number) => Promise<void> }): Promise<WebAnswer> {
@@ -211,7 +228,7 @@ export function codexHookCommand(root: string, platform: NodeJS.Platform = proce
 }
 
 /**
- * The tree's .codex/hooks.json: strom's hook before Codex's node_repl `js`. Kept the same byte for byte while nothing of
+ * The tree's .codex/hooks.json: strom's hook before the `js` of Codex's REPLs (node_repl, cua_repl). Kept the same byte for byte while nothing of
  * it changes — each change makes Codex ask the person to confirm the hooks again. No statusMessage (it is part of what
  * the person confirms).
  */

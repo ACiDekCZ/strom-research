@@ -14,7 +14,7 @@ export interface GedFinding {
 
 const LINE = /^(\d{1,2}) (?:(@[^@ ]+@) )?([A-Za-z0-9_]+)(?: (.*))?$/;
 
-const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS"];
+const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED"];
 const INDI_EVENTS = [
   "BIRT", "DEAT", "BAPM", "CHR", "CHRA", "CONF", "FCOM", "BARM", "BASM", "ORDN", "EDUC", "GRAD", "OCCU", "RESI", "EMIG", "IMMI",
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",
@@ -22,16 +22,26 @@ const INDI_EVENTS = [
 ];
 const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF", "ENGA", "CENS", "RESI", "EVEN", "NCHI"];
 
+/** The lines of a record's IDs in a family tree it came from (spec 066 K3.2). */
+const ORIGINAL_ID_TAGS = ["_XREF", "_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN"];
+
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES", "_STROM_IMPORT"],
+  // an import of a family tree the values came from (the Strom profile, APP_SHOWS_ORIGIN)
+  "HEAD._STROM_IMPORT": ["SOUR", "VERS", "DATE", "_AT", "FILE", "_SHA"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", ...INDI_EVENTS],
-  "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_TAKE", "VAL", "DECI"],
-  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR"],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", "_STROM_SEX_ORIGIN", "_STROM_IMPORT", "_STROM_XID", ...INDI_EVENTS],
+  // the IDs a person had in a family tree it came from (or not: _STROM_XID), spec 066 K3.2
+  "INDI._STROM_IMPORT": ORIGINAL_ID_TAGS,
+  "INDI._STROM_XID": ORIGINAL_ID_TAGS,
+  "INDI._STROM_SEX_ORIGIN": ["_STROM_WAS"],
+  "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_KIND", "_STROM_TAKE", "VAL", "DECI"],
+  // who decided a hypothesis, why and when (APP_SHOWS_HYPOTHESIS_DECIDER: 2 _BY agent, 2 DECI, 2 _AT)
+  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR", "_BY", "DECI", "_AT"],
   // what a variant of a hypothesis would connect (the Strom profile)
   _VAR: ["TITL", "_LINK", "_INTREE", "SOUR"],
   _LINK: ["_PERS", "_FAM", "_PAR"],
@@ -43,12 +53,22 @@ const CHILDREN: Record<string, string[]> = {
   "_STROM_EDGE._JOIN": ["_VAR", "_ISLAND", "_HELD"],
   // a value of a conflict the app decides by side: its side, a sex as M, F or U
   _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW"],
-  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY"],
+  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS"],
+  // a family tree's value changed since: its import, the part, the key to put it back
+  _STROM_WAS: ["_STROM_IMPORT", "_PART", "_REF"],
+  // a fact waiting for its verification against the original: its task's place in the queue; the last verification
+  // by an agent: when, why it stays (kept), two readers (APP_SHOWS_VERIFY)
+  _STROM_VERIFY: ["_POS"],
+  // the mark of what the fact says (POST /facts/confirm gives it back)
+  _STROM_EID: ["_TXT"],
+  _STROM_CHECKED: ["DATE", "_WHY", "_READERS"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],
   "FAM.CHIL": ["_FREL", "_MREL"],
   "INDI.ASSO": ["RELA", "SOUR", "NOTE"],
-  FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", "_STAT", "_STROM_NO_COUPLE", ...FAM_EVENTS],
+  FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", "_STAT", "_STROM_NO_COUPLE", "_STROM_IMPORT", "_STROM_XID", ...FAM_EVENTS],
+  "FAM._STROM_IMPORT": ORIGINAL_ID_TAGS,
+  "FAM._STROM_XID": ORIGINAL_ID_TAGS,
   // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
   // and WWW: the page of its scan in the online archive (the app links it)
   SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED", "_STROM_ORIG"],
@@ -79,11 +99,11 @@ const CHILDREN: Record<string, string[]> = {
 };
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
-const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE"]);
-const TEXT_TAGS = new Set(["_STROM_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
+const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE", "_STROM_WAS"]);
+const TEXT_TAGS = new Set(["_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
-  "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
+  "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT", "_BY",
   // where the tree ends (_STROM_EDGE) and the families nothing links to it (_STROM_ISLAND), with their parts
   "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS", "_WEAK",
   "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
@@ -104,10 +124,18 @@ const EXTENSIONS = new Set([
   "_STROM_ORIG",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
+  // an excerpt by reference in the bridge's file (FILE strom-image:<sha256>): its kind, pixels and size
+  "_MIME", "_WIDTH", "_HEIGHT", "_BYTES",
   // the bounds of a lineage the person set (on a person), and the header's mark that the file says them
   "_STROM_LINE", "_STROM_LINES",
   // the research's place records and each fact's place pointing to its record
   "_STROM_PLACE", "_STROM_JUR", "_STROM_IN", "_STROM_BY", "_STROM_AT", "_STROM_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS",
+  // where a value came from, the family tree's value changed since, the imports in the header
+  "_STROM_ORIGIN", "_STROM_SEX_ORIGIN", "_STROM_WAS", "_STROM_IMPORT", "_PART", "_REF", "_SHA",
+  // the IDs of a family tree a record came from (or not), its xref there and the ID lines other programs write
+  "_STROM_XID", "_XREF", "_UID", "_FSFTID",
+  // the verification of a fact against its originals: its ID, the user's confirmation, how it waits, the last result
+  "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_WHY", "_READERS",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -126,6 +154,8 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_INTREE" && anc[2] === "_VAR") return "_INTREE";
   if (parent === "_JOIN" && anc[1] === "_STROM_EDGE" && anc[2] === "_HYPO") return "_STROM_EDGE._JOIN";
   if (parent === "ADDR") return "ADDR";
+  if (parent === "_STROM_WAS") return "_STROM_WAS";
+  if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED") && depth === 3) return parent;
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {
     if (record === "INDI" && INDI_EVENTS.includes(parent)) return "EVENT";
@@ -181,7 +211,10 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
     if (tag.startsWith("_") && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);
     if (value !== undefined && value !== value.trim() && tag !== "CONC") add("warn", n, `value of ${tag} starts or ends with a space`);
     if (tag === "CONC" && value !== undefined && (value.startsWith(" ") || value.endsWith(" "))) add("warn", n, "CONC value starts or ends with a space (readers may trim it)");
-    if (value && /^@[^@ ]+@$/.test(value) && tag !== "CONC" && tag !== "CONT" && tag !== "NOTE") pointers.push({ xref: value, line: n, tag });
+    // _XREF: a record's xref in another file (spec 066 K3.2) — the shape of a pointer, pointing at nothing here
+    if (value && /^@[^@ ]+@$/.test(value) && tag !== "CONC" && tag !== "CONT" && tag !== "NOTE") {
+      if (tag !== "_XREF") pointers.push({ xref: value, line: n, tag });
+    }
     else if (value && value.replace(/@@/g, "").includes("@") && !/^@#D[A-Z ]+@/.test(value))
       add("error", n, `${tag}: a literal "@" must be written "@@" (otherwise readers take it for a pointer)`);
     if (tag === "AGE" && value !== undefined && !isGedcomAge(value)) add("error", n, `AGE "${value}" is not a GEDCOM age (27y, 27y 3m, <1y, INFANT, STILLBORN, CHILD)`);
@@ -192,7 +225,8 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       charDeclared = true;
       if (value !== "UTF-8") add("error", n, `CHAR ${value} — Strom Research writes UTF-8`);
     }
-    if (tag === "DATE" && value && stack[level - 1] !== "HEAD" && normalizeDate(value) !== value) add("error", n, `invalid date "${value}"`);
+    // a header's dates are the files' own (an import's file as its program wrote it)
+    if (tag === "DATE" && value && stack[0] !== "HEAD" && normalizeDate(value) !== value) add("error", n, `invalid date "${value}"`);
     if (tag === "SEX" && value && !["M", "F", "U"].includes(value)) add("error", n, `SEX must be M, F or U, not "${value}"`);
     if (tag === "QUAY" && value && !/^[0-3]$/.test(value)) add("error", n, `QUAY must be 0–3, not "${value}"`);
     if (tag === "PEDI" && value && !["adopted", "birth", "foster", "sealing"].includes(value))

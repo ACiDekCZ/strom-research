@@ -255,15 +255,18 @@ snímek v Chrome a uloží to, co ukazuje prohlížeč snímků archivu.
   - příkaz nastaví úkol na čekání na ten snímek. Soubor se uloží do složky stažených souborů (`strom-T…-<číslo>.jpg`)
     a `strom media add --inbox --waiting` ho přesune do složky úkolu pod číslem snímku ([R9.6](#R9.6)).
 - **Hranice:** Chrome uloží z jedné stránky jen jeden soubor. Další stažení z téže stránky musí dovolit člověk v
-  adresním řádku Chrome; agent nastavení Chrome nikdy nemění.
+  adresním řádku Chrome; agent nastavení Chrome nikdy nemění. Snímek, jehož soubor ani 5 s po pokynu k uložení
+  ve složce stažených souborů není, počítá `strom media add --inbox --waiting` za zadržený: řekne to agentovi a čekání úkolu napíše člověku, kterému webu
+  povolit stahování více souborů („prohlížeč snímek {n} zadržel: povolit webu {web} stahování více souborů, jednou
+  (ikona vpravo v adresním řádku prohlížeče)“).
 - **Jen metodika:** stahovač archivu, jehož prohlížeč ukazuje snímky po dlaždicích, ukládá přes prohlížeč také, i
   část snímku; stránku knihy otevře jednou a nikdy ji neobnovuje.
 - **Proč:** svolení „přes prohlížeč“ dovoluje to, co by udělal člověk ve svém prohlížeči, jeho tempem.
 - **Ovládání:** terminál (agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, potom
   `strom media add --inbox --waiting`.
-- **Platí od:** výzkum 1.27.0
+- **Platí od:** výzkum 1.27.0. Zadržený snímek se ohlásí od výzkumu 1.30.0.
 
-<!-- zdroj: research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Čekání na snímky a návrat úkolu

@@ -119,8 +119,9 @@ test("an app's file without a base, its JSON, another program's NPFX/NSFX: title
   // the Strom app's JSON (3.10): titleBefore / titleAfter of a new person
   const json = path.join(w.dir, "app.json");
   fs.writeFileSync(json, JSON.stringify({ version: 11, persons: { a: { id: "a", firstName: "Jan", lastName: "Novák", titleBefore: "Ing.", titleAfter: "Ph.D.", gender: "male" } }, partnerships: {} }));
-  await w.ok(["sync", json, "--apply", "--force"]);
-  assert.deepEqual(await shown(w), { given: "Jan", surname: "Novák", prefix: "Ing.", suffix: "Ph.D.", citations: (await shown(w)).citations });
+  // written as the app's bridge writes it (the person's: their values)
+  await w.ok(["sync", json, "--apply", "--force"], { env: { STROM_FOR_APP: "1" } });
+  assert.deepEqual(await shown(w), { given: "Jan", surname: "Novák", prefix: "Ing.", suffix: "Ph.D.", citations: (await shown(w)).citations, origin: { by: "user" } });
   // another program's file: a title in Cyrillic, a decomposed (NFD) one — kept in NFC, the line without them
   const nfd = "hrabě";
   const ged = path.join(w.dir, "other.ged");

@@ -162,6 +162,9 @@ async function seeded(): Promise<World> {
   // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
   await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
+  // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
+  const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
+  await w.ok(["cite", "E0001", baptism]);
   return w;
 }
 
@@ -177,14 +180,17 @@ test("every example in the help runs", opts, async () => {
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
       // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr), a fix decided (fixes
-      // run|decline|reopen), a reading again decided (source reading): in their terminal —
-      // this test's own settings (R8)
-      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" ||
-        ["fixes run", "fixes decline", "fixes reopen", "source reading"].includes(def.path.join(" "));
+      // run|decline|reopen), a reading again decided (source reading), a report with the data of people (error
+      // --with-data): in their terminal — this test's own settings (R8)
+      const withData = def.path.join(" ") === "error" && argv.includes("--with-data");
+      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" || withData ||
+        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event revert", "person revert"].includes(def.path.join(" "));
+      // putting back a family tree's value (the person's): this world imported none — its answer that nothing is to put back
       // a reading again asked about at the person's terminal (no --take): left undecided (0)
-      const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : {};
+      // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it
+      const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : withData ? { answers: ["", "y", "y"] } : {};
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
-      if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
+      if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }
   assert.deepEqual(failures, []);

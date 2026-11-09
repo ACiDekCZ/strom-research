@@ -162,6 +162,11 @@ as well: see step 2.
 - strom shows each image's size (width × height). It should be the right page
   and full size, not a thumbnail. Check that the number of images of a book
   matches the portal.
+- strom says when one image cost more than 10 requests (tiles, most likely)
+  and how long a book takes at the archive's pace — often hours. Then go back
+  to step 2 before anything else: the portal's own link to the full image, a
+  download of the whole book, a IIIF image. Tiles stay only when nothing else
+  exists; tell the user then how long a book takes.
 - Keep `run` in connector.json as `["node", "connector.ts"]`: then it runs
   fenced in (Node's permission model) and you may change the code without
   asking. Split it into more files of this folder if you like, imported from

@@ -2,7 +2,7 @@
 # A8 Zusammenführen von Stammbäumen
 
 Wie die Strom-App zwei Stammbäume zusammenführt: eine GEDCOM-Datei mit einem Stammbaum, zwei Stammbäume oder eine
-Ansicht mit einem Stammbaum. Beschrieben wird die App 3.21.2. Das Zusammenführen einer doppelten Person
+Ansicht mit einem Stammbaum. Beschrieben wird die App 3.21.2; Änderungen aus einer neueren Version tragen deren Nummer. Das Zusammenführen einer doppelten Person
 innerhalb eines Stammbaums ist etwas anderes ([A5.6](A5-tree-check.md#A5.6)).
 
 <a id="A8.1"></a>
@@ -41,6 +41,12 @@ Die App sucht zu jeder Person aus der zusammengeführten Quelle eine Person im Z
 - **Grenzen:** Platzhalterpersonen (leerer Platz für einen unbekannten Elternteil) werden nicht abgeglichen. Eine
   Person ohne Vornamen, die über eine verwandte Person abgeglichen wurde, geht immer zur Kontrolle.
 - **Gilt seit:** App 1.0.0
+- **Ab App 3.26.0:** Personen werden auch nach der Programm-ID abgeglichen (`_UID` = `UID`, `_FSFTID` = `EXID` mit der
+  Adresse familysearch.org), mit dem Grund **Gleiche ID in der Datei**. Sicher ist eine solche Übereinstimmung nur bei
+  ähnlichem Namen, einem Geschlecht nicht Mann gegen Frau, Geburtsjahren höchstens 3 auseinander und ohne abweichende
+  globale ID; sonst ist sie ein Vorschlag mit einem Wert von höchstens 79. Datensatzkennung und `RIN` geben einer
+  Übereinstimmung der Namen 25 Punkte dazu, nur bei Dateien desselben Programms. Familien werden nicht nach der ID
+  abgeglichen ([S6.7](S6-tree-from-another-program.md#S6.7)).
 
 <!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
 
@@ -69,6 +75,10 @@ lässt sich entscheiden.
   Zusammenführungen** zurück.
 - **Gilt seit:** App 1.0.0; Konflikte des Paares App 3.0.0; Überspringen und Nur vorhandene Personen aktualisieren
   App 1.19.0
+- **Ab App 3.26.0:** eine unentschiedene Übereinstimmung wird erst ab dem Wert 80 von selbst bestätigt (im Assistenten
+  vorab bestätigt, ✓). Eine Übereinstimmung von 50–79 wird nur angeboten (?) und ohne Entscheidung des Menschen als
+  neue Person hinzugefügt: eine doppelte Person lässt sich später zusammenführen, ein falsches Zusammenführen lässt
+  sich nicht rückgängig machen.
 
 <!-- zdroj: app:src/merge/executor.ts:78 AUTO_CONFIRM_SCORE, :110 detectPartnershipConflicts, :302 toAdd (updateOnly, skip, reject), :792 mergePersonData · src/merge/ui.ts:1408 pendingGate · strings.ts merge.confirm, merge.reject, merge.skip, merge.manualMatch, merge.updateOnlyLabel, merge.keepExisting, merge.useImport, merge.suggestedPrecise, merge.partnershipFields, merge.closeSave, merge.pendingMerges · git v3.0.0 (2218cea), v1.19.0 (cf43bde) -->
 
@@ -89,5 +99,10 @@ Außer Personen und Beziehungen werden auch die Listen zusammengeführt, die dem
 - **Grenzen:** den wiederholten Import der Datei einer Forschung in den Stammbaum der Forschung behandelt
   [S1](S1-connecting-app-and-research.md).
 - **Gilt seit:** App 1.0.0; Meldung der Probleme der Prüfung App 1.19.0
+- **Ab App 3.26.0:** Notizen von Person, Beziehung und Quelle werden beim Zusammenführen nicht verdoppelt. Vor dem
+  Zusammenführen wird eine Sicherung des Stammbaums gespeichert ([S6.5](S6-tree-from-another-program.md#S6.5)). Nach
+  dem Zusammenführen mit der Datei eines anderen Programms zeigt die App die Karte **Wie weiter**
+  ([S6.4](S6-tree-from-another-program.md#S6.4)). Das manuelle Zusammenführen zweier Personen
+  ([A5.6](A5-tree-check.md#A5.6)) verbindet die Notizen nicht.
 
 <!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->

@@ -23,6 +23,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [R10 People: identification, names and hypotheses](R10-people-and-hypotheses.md): namesakes, merging two records, hypotheses, a family outside the tree, a person's names
 - [R11 Material from the user](R11-material-from-the-user.md): files and texts from the user, a document and a lead, an imported family tree, a batch from the app
 - [R12 Where the agent works and what strom watches](R12-where-the-agent-works.md): the terminal, the Claude, ChatGPT (Codex) and OpenCode apps, Antigravity and Grok Build, a run alone: what strom watches where and what a person does
+- [R13 Report a problem: `strom error`](R13-reporting-a-problem.md): one ZIP file to send, what is in it and what not, which problem and which command, people's data only with consent, the agent and reporting a problem
 
 ## A The Strom app
 
@@ -43,5 +44,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [S3 What the research knows](S3-what-the-research-knows.md): conflicts, hypotheses, searched records and Above the person in the app
 - [S4 Research run from the app](S4-research-from-the-app.md): the research panel and overview, the queue, directions, actions in the terminal
 - [S5 Phone](S5-phone.md): the research page on a phone, pairing, photos in batches
+- [S6 A tree from another program](S6-tree-from-another-program.md): a family tree from MyHeritage, Gramps, FamilySearch and Windows programs: what loads, reliability marks, family-tree facts as leads, the What next card, backups, export back, repeated import
+- [S7 Reliability of facts and verification against the originals](S7-reliability-and-verification.md): marks at facts and on the card, Verify at a fact, at a person and in the tree, verifying in the research's queue, Confirm against the scan, what works with the bridge and without it
 
 License: [CC BY 4.0](../LICENSE). The texts may be shared and adapted with attribution.

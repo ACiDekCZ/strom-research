@@ -192,3 +192,26 @@ test("recordset add and edit: --place is --places (NALEZY 14)", opts, async () =
   assert.match((await w.ok(["help", "recordset", "add"])).out, /--place \(= --places\)/);
   w.cleanup();
 });
+
+test("a fact shown and edited by a person at a terminal: in the research's language; an agent: the English it knows", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["person", "add", "Šimon /Lhoták/", "--sex", "M", "--born", "1885", "--died", "1931"]);
+    const cs = { tty: true, env: { STROM_LANG: "cs" } };
+    const shown = (await w.ok(["event", "show", "E0002"], cs)).out;
+    assert.match(shown, /^E0002 – P0001 Šimon Lhoták \(celý záznam: strom person show P0001\)/mu, shown);
+    assert.match(shown, /^E0002  úmrtí  1931  \[vodítko\]$/mu);
+    assert.doesNotMatch(shown, / of P0001|the whole record|\[lead\]|\[proven\]/u, shown);
+    const edited = (await w.ok(["event", "edit", "E0002", "--date", "6 FEB 1931", "--note", "podle oznámení", "--reason", "oznámení o úmrtí"], cs)).out;
+    assert.match(edited, /^upraveno: E0002 +úmrtí +6\. 2\. 1931/mu, edited);
+    assert.doesNotMatch(edited, /edited|\[lead\]/u, edited);
+    assert.match((await w.ok(["event", "show", "E0002"], cs)).out, /^poznámka: podle oznámení/mu);
+    // an agent: the same lines as ever
+    const agent = { env: { CLAUDECODE: "1", STROM_LANG: "cs" } };
+    assert.match((await w.ok(["event", "show", "E0002"], agent)).out, /^E0002 of P0001 \(strom person show P0001: the whole record\)/mu);
+    assert.match((await w.ok(["event", "edit", "E0002", "--house", "12"], agent)).out, /^E0002 DEAT edited/mu);
+  } finally {
+    w.cleanup();
+  }
+});

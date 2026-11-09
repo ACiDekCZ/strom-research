@@ -1027,9 +1027,9 @@
   // the progress: the changes drawn kept by their id, a new one put on top (lit for 6 s); scrolled down, what is under
   // the finger stays where it is and a pill says how many came above
   const logItems = new Map();
-  const drawChange = (c) => {
+  const drawChange = (c, now = new Date()) => {
     const li = el("li");
-    const time = el("time", "", logTime(Date.parse(c.at)));
+    const time = el("time", "", logTime(Date.parse(c.at), now));
     time.dateTime = c.at;
     const box = el("div");
     for (const line of c.lines || []) box.append(el("p", "", line));

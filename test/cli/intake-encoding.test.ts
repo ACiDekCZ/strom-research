@@ -102,3 +102,77 @@ test("sync: the app's file saved again with a BOM, in UTF-16 or with CRLF shows 
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
+
+const FIXTURES = path.join(import.meta.dirname, "..", "fixtures", "gedcom-encoding");
+
+test("intake: a family tree of a Windows program in its code page (CHAR ANSI, CP1250) — its letters whole, the code page said", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["lang", "en"]);
+  const ansi = path.join(w.dir, "rodokmen-ansi.ged");
+  fs.copyFileSync(path.join(FIXTURES, "ansi-czech.ged"), ansi);
+  const r = await w.ok(["intake", ansi]);
+  assert.match(r.out, /I\d+: read in the encoding Windows-1250/);
+  assert.doesNotMatch(r.out, /could not be read/);
+  const people = (await w.ok(["person", "list", "--json", "--full"])).json.persons;
+  const named = people.map((p: any) => `${p.names[0].given} ${p.names[0].surname}`);
+  for (const n of ["Vojtěch Lhoták", "Zdeňka Lhotáková", "Řehoř Lhoták", "Ludmila Lhotáková", "Matěj Lhoták"]) assert.ok(named.includes(n), `${n} in ${named.join(", ")}`);
+  assert.ok(!named.some((n: string) => /[øìèò]/u.test(n)), "no Windows-1252 look-alikes");
+  // in the research's language, and in --json
+  await w.ok(["lang", "cs"]);
+  const cp = path.join(w.dir, "rodokmen-cp1250.ged");
+  fs.copyFileSync(path.join(FIXTURES, "cp1250-czech.ged"), cp);
+  assert.match((await w.ok(["intake", cp])).out, /přečteno v kódování Windows-1250/);
+  const polish = path.join(w.dir, "rodokmen-pl.ged");
+  fs.copyFileSync(path.join(FIXTURES, "ansi-polish.ged"), polish);
+  const j = (await w.ok(["intake", polish, "--json"])).json;
+  assert.equal(j.inputs[0].encoding, "windows-1250");
+  assert.equal(j.inputs[0].unreadable, undefined);
+  assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
+test("intake: characters that could not be read are said with their line, never replaced in silence; UTF-8 says nothing", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["lang", "en"]);
+  const bad = path.join(w.dir, "rodokmen-poskozeny.ged");
+  fs.copyFileSync(path.join(FIXTURES, "utf8-stray-byte.ged"), bad);
+  const r = await w.ok(["intake", bad, "--json"]);
+  assert.equal(r.json.inputs[0].unreadable, 1);
+  assert.equal(r.json.inputs[0].unreadableLines.length, 1);
+  assert.equal(r.json.inputs[0].encoding, undefined, "UTF-8: no code page to say");
+  const again = path.join(w.dir, "rodokmen-ansel.ged");
+  fs.copyFileSync(path.join(FIXTURES, "ansel-unknown-byte.ged"), again);
+  const t = (await w.ok(["intake", again])).out;
+  assert.match(t, /I\d+: read in the encoding ANSEL/);
+  assert.match(t, /I\d+: 1 character could not be read \(line 7\) – the names and places there need checking/);
+  const plain = path.join(w.dir, "rodokmen-utf8.ged");
+  fs.copyFileSync(path.join(FIXTURES, "ansi-utf8-czech.ged"), plain);
+  const u = await w.ok(["intake", plain]);
+  assert.doesNotMatch(u.out, /encoding|could not be read/, "valid UTF-8 labelled ANSI: nothing to say");
+  w.cleanup();
+});
+
+test("sync: a GEDCOM of another program in Windows-1250 — its people with their letters, the code page said; kept as UTF-8", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["lang", "en"]);
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);
+  const file = path.join(w.dir, "lhotakovi-ansi.ged");
+  fs.copyFileSync(path.join(FIXTURES, "ansi-czech.ged"), file);
+  const shown = await w.ok(["sync", file, "--force"]);
+  assert.match(shown.out, /lhotakovi-ansi\.ged: read in the encoding Windows-1250/);
+  assert.match(shown.out, /Řehoř/);
+  assert.equal((await w.ok(["sync", file, "--force", "--json"])).json.encoding, "windows-1250");
+  const done = (await w.ok(["sync", file, "--force", "--apply", "--json"])).json;
+  assert.equal(done.encoding, "windows-1250");
+  const input = readJsonFile(path.join(w.cwd, "data", "inputs", `${done.input}.json`));
+  const kept = fs.readFileSync(path.join(w.cwd, input.file), "utf8");
+  assert.match(kept, /^1 CHAR UTF-8\r?$/m, "its header says what it is now");
+  assert.match(kept, /Řehoř \/Lhoták\//);
+  const people = (await w.ok(["person", "list", "--json", "--full"])).json.persons;
+  assert.ok(people.some((p: any) => p.names[0].given === "Řehoř"));
+  assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});

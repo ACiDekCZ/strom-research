@@ -20,6 +20,9 @@ einen geheimen Schlüssel. Daten des Stammbaums gehen über die Brücke nirgendw
     [S1.9](#S1.9)), oder bis der Computer heruntergefahren wird. Von selbst endet sie nur, wenn der Mensch das gewählt
     hat (`live.idleMinutes`, in der App **Nach 2 Stunden ohne Arbeit**): wenn sie in dieser Zeit niemand etwas fragt
     und dabei niemand im Stammbaum arbeitet. Die regelmäßige Statusabfrage der App hält die Brücke nicht am Leben.
+  - Die Brücke endet von selbst auch dann, wenn ihre Forschung aus dem Ordner verschwindet und auch bei der nächsten
+    Prüfung mindestens 10 s später fehlt. Ein nur kurz nicht erreichbarer Datenträger beendet die Brücke nicht. Eine
+    zweite Brücke derselben Forschung, neben einer laufenden gestartet, endet sofort.
   - Startet die Brücke von selbst neu (Aktualisierung, Untätigkeit, Absturz), behält sie ihre Adresse: denselben Port,
     wenn er frei ist, und denselben Schlüssel. Die App verbindet sich dann ohne neuen Link.
   - `strom live stop` verwirft den Schlüssel: die App verbindet dann erst wieder `strom app`. Ist der Port von einem
@@ -33,8 +36,10 @@ einen geheimen Schlüssel. Daten des Stammbaums gehen über die Brücke nirgendw
 - **Gilt seit:** Forschung 1.0.0. Dieselbe Adresse nach einem Neustart seit 1.8.0, `live.idleMinutes` seit 1.25.0.
 - **Ab Forschung 1.29.0:** die Brücke endet bei Untätigkeit nicht mehr von selbst (Standard `live.idleMinutes` 0);
   vorher endete sie von selbst nach zwei Stunden. Ein Wert, den der Mensch gespeichert hat, bleibt.
+- **Ab Forschung 1.30.0:** eine Brücke, deren Forschung verschwunden ist, endet erst nach einer zweiten Prüfung
+  mindestens 10 s später (vorher sofort); eine zweite Brücke derselben Forschung endet sofort.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.2"></a>
 ## S1.2 Die Forschung öffnet sich in der App über einen Link aus dem Terminal
@@ -59,8 +64,12 @@ wird derselbe aktualisiert.
 - **Bedienung:** Terminal: `strom app`, `strom app --live`. App: **Forschung → Weitere Aktionen → Forschung für
   diesen Stammbaum…**
 - **Gilt seit:** App 3.0.0, Forschung 1.0.0
+- **Seit Forschung 1.30.0:** unter macOS übergibt die Forschung die Adresse für die aus einem Chromium-Browser
+  installierte App (Chrome, Edge…) dem schon laufenden Browser, so wie sie sein eigener zweiter Start übergeben würde.
+  Kein weiteres Programm startet, und im Dock kommt kein Browser-Symbol hinzu. Läuft der Browser nicht oder antwortet
+  er nicht innerhalb von 5 s, startet die Forschung ihn wie bisher.
 
-<!-- zdroj: research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
+<!-- zdroj: research:a4a2f6c0 src/core/chromium.ts openWebApp (darwin: handToRunning SingletonSocket, jinak launch), handToRunning (ACK, timeout 5000), singletonMessage · dirigent:prace/1109-vyzkum-dock-chrome/karta.md Výsledek (živě Chrome, Edge, Canary) · research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
 
 <a id="S1.2.1"></a>
 ### S1.2.1 Links, die die App annimmt
@@ -115,8 +124,17 @@ währenddessen schreibgeschützt, damit sich eine Änderung in der App nicht mit
   - Misslingt das automatische Verfolgen, schweigt die App, und der Stammbaum bleibt, wie er war.
 - **Bedienung:** App: **Live verfolgen** · Terminal: `strom app --live`
 - **Gilt seit:** App 3.0.0; Wechsel zu einem Stammbaum mit Agent seit 3.13.1
+- **Ab App 3.26.0 mit Forschung 1.30.0:**
+  - die Forschung hat den Stammbaum für die App für jeden Stand erstellt und behält ihn auch nach einem Neustart der
+    Brücke;
+  - die App zeigt den Stammbaum sofort in seiner zuletzt erstellten Form. Ist die Forschung inzwischen
+    weitergekommen, zeigt das Panel der Forschung „Neuere Version wird vorbereitet…“, und die neuere Version ersetzt
+    den Stammbaum von selbst, sobald sie fertig ist;
+  - hat sich die Forschung seit dem letzten Laden nicht geändert und ist der Stammbaum in der App noch genau der
+    geladene, lädt die App ihn weder erneut herunter noch erneut ein;
+  - beim Verfolgen meldet die Forschung eine Änderung, sobald ihr Stammbaum fertig ist.
 
-<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.5"></a>
 ## S1.5 Wenn die Forschung nicht läuft oder die Verbindung nicht geht

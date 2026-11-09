@@ -113,7 +113,7 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   assert.match(link, /^ {2}\+cite = --cite <S…> --locator <where> --quote <text> --information primary\|secondary\|unknown — the record the line writes from$/m);
   assert.match(line(link, "event add"), /^ {2}strom event add <who> <kind> --date <date> --place <place> --house <no\.> .*--age <age\|who:age>… \+cite --with <role:who>… --status lead\|possible\|probable\|proven\|disproven --note <text ≤500>$/);
   // an edit after its add: what they share said as the add's, what is its own besides, and its reason
-  assert.equal(line(link, "event edit"), "  strom event edit <event> [event add's options, not +cite] --without <role:who>… --reason <text>");
+  assert.equal(line(link, "event edit"), "  strom event edit <event> [event add's options] --without <role:who>… +cite --reason <text>");
   assert.match(line(link, "cite"), /^ {2}strom cite <what> <source> --locator <where> --quote <text> --information primary\|secondary\|unknown --status <status>$/);
   assert.match(line(link, "name add"), /^ {2}strom name add <person> <name> --kind birth\|married\|religious\|alias --primary --prefix <title> --suffix <title> \+cite$/);
   assert.match(line(link, "person add"), /--sex M\|F\|U .*\+cite --status/);

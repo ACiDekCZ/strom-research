@@ -23,6 +23,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [R10 Osoby: identyfikacja, imiona i hipotezy](R10-people-and-hypotheses.md): imiennicy, scalenie dwóch wpisów, hipotezy, rodzina poza drzewem, imiona i nazwiska osoby
 - [R11 Materiały od użytkownika](R11-material-from-the-user.md): pliki i teksty od użytkownika, dokument i wskazówka, przejęte drzewo genealogiczne, partia z aplikacji
 - [R12 Gdzie agent pracuje i czego strom pilnuje](R12-where-the-agent-works.md): terminal, aplikacje Claude, ChatGPT (Codex) i OpenCode, Antigravity i Grok Build, samodzielny bieg: czego strom gdzie pilnuje i co robi człowiek
+- [R13 Zgłosić problem: `strom error`](R13-reporting-a-problem.md): jeden plik ZIP do wysłania, co w nim jest, a czego nie, jaki problem i jakie polecenie, dane osób tylko za zgodą, agent i zgłaszanie problemu
 
 ## A Aplikacja Strom
 
@@ -43,5 +44,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [S3 Co wie badanie](S3-what-the-research-knows.md): sprzeczności, hipotezy, przeszukano i Nad osobą w aplikacji
 - [S4 Badanie sterowane z aplikacji](S4-research-from-the-app.md): panel i przegląd badania, kolejka, linie, akcje do terminala
 - [S5 Telefon](S5-phone.md): strona badania w telefonie, parowanie, zdjęcia partiami
+- [S6 Drzewo z innego programu](S6-tree-from-another-program.md): drzewo z MyHeritage, Gramps, FamilySearch i programów dla Windows: co się wczytuje, znaczniki wiarygodności, dane z drzewa jako wskazówki, karta Co dalej, kopie zapasowe, eksport z powrotem, ponowny import
+- [S7 Wiarygodność danych i weryfikacja według oryginałów](S7-reliability-and-verification.md): znaczniki przy danych i na karcie, Zweryfikuj przy danej, przy osobie i w drzewie, weryfikacja w kolejce badania, Potwierdź według skanu, co działa z mostem, a co bez niego
 
 Licencja: [CC BY 4.0](../LICENSE). Teksty można udostępniać i przerabiać z podaniem źródła.

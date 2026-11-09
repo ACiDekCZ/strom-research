@@ -138,7 +138,7 @@ test("older hypotheses: what a claim says beyond doubt is linked once, through s
   assert.notEqual(head(w), before);
   assert.match(log[0]!, /^Links of hypothesis variants filled in from their claims \(H0001 B: child P0002 of F0002, H0002 B: child P0002 of P0006 \+ P0007, .*\); the rest for the agent: T\d+ \(H0009, /);
   assert.equal(spawnSync("git", ["-C", w.cwd, "status", "--porcelain"], { encoding: "utf8" }).stdout, "");
-  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "hypothesis-links", "hypothesis-links-first"]);
+  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1", "hypothesis-links", "hypothesis-links-first"]);
   // the person's history says it in the research's language, never the marker
   const history = JSON.stringify((await w.ok(["history", "--json"])).json);
   assert.doesNotMatch(history, /links of the hypotheses' variants filled in once/);

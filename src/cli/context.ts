@@ -69,6 +69,13 @@ export class Context {
   backupFailed: StromError | undefined;
   /** Running the lines of strom batch: what they write is no reading the person typed (core/readers.ts handReading). */
   inBatch = false;
+  /**
+   * Only reading (strom error, spec 070 K1.5): a research of an older schema opened as it is, never migrated, and
+   * every write of the tree a dry run's — nothing of the research changed.
+   */
+  readOnly = false;
+  /** The language texts are said in, whatever the settings say (strom error's report: English). */
+  langShown: string | undefined;
 
   constructor(opts: {
     env: Env;
@@ -186,6 +193,7 @@ export class Context {
 
   /** The language of the person using strom: the tree's (research language), else theirs. */
   uiLang(): string {
+    if (this.langShown) return this.langShown;
     let tree: TreeConfig | undefined;
     try {
       const root = this.locateTree();
@@ -471,7 +479,7 @@ export class Context {
    * another folder is the same one moved: kept where it is now). Written only when it changed, only with strom set up.
    */
   private remember(all: ReturnType<typeof knownTreesIn>): void {
-    if (!this.settings.home()) return;
+    if (this.readOnly || !this.settings.home()) return;
     const before = this.settings.config.seenTrees ?? [];
     const ids = new Set(all.map((k) => k.id).filter(Boolean));
     const gone = before.filter((s) => !isTreeDir(s.root) && !ids.has(s.id));
@@ -550,6 +558,11 @@ export class Context {
       throw new UsageError("which tree? there are several", { hint: `pass --tree <name>: ${names}`, code: "tree.which", params: { names } });
     }
     const opened = Tree.open(root, this.env);
+    if (this.readOnly) {
+      opened.dryRun = true;
+      this.opened = opened;
+      return opened;
+    }
     if (this.backupFailed && (opened.config.schema ?? 1) < SCHEMA_VERSION) throw this.backupFailed;
     // An older strom still works here (a run, a conversation started before strom update): its data never brought to
     // a newer schema under it — the next command once its work ends does it (spec 037 K1.2).

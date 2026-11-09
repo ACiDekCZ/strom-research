@@ -1,0 +1,2 @@
+# Files of Windows programs in their code pages (Windows-1250, ANSEL) with CRLF lines: kept byte for byte.
+*.ged binary

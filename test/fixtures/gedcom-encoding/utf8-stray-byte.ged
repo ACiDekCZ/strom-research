@@ -1,0 +1,31 @@
+0 HEAD
+1 SOUR FICTIONAL
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Vojtěch /Lhoták/
+1 SEX M
+1 BIRT
+2 PLAC Horní Lhota
+0 @I2@ INDI
+1 NAME Zdeňka /Lhotáková/
+1 SEX F
+1 BIRT
+2 PLAC Lhota pod Řípem
+0 @I3@ INDI
+1 NAME �ehoř /Lhoták/
+1 SEX M
+1 BIRT
+2 PLAC Lhota u Žďáru
+0 @I4@ INDI
+1 NAME Ludmila /Lhotáková/
+1 SEX F
+1 BIRT
+2 PLAC Šťastná Lhota
+0 @I5@ INDI
+1 NAME Matěj /Lhoták/
+1 SEX M
+1 BIRT
+2 PLAC Dolní Lhota
+0 TRLR

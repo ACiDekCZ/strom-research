@@ -236,8 +236,9 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
     assert.ok(timeouts.length >= 3 && timeouts.every((x) => x === WEB_HOOK_TIMEOUT_S), `${file}: an explicit time limit on each hook`);
   }
 
-  // a slot a pace ahead: the hook waits for it with the host's lock let go (a pace a busy machine starts a hook well within)
-  const SHARED = 10_000;
+  // a slot a pace ahead: the hook waits for it with the host's lock let go (a pace a busy machine starts a hook well within:
+  // under the whole suite a strom from its sources starts in seconds, the pace leaves it the time with room to spare)
+  const SHARED = 15_000;
   setOwnPace(net, "sdileny-example.org", { minIntervalMs: SHARED });
   quiet(await hook(w, fetchEvent(w, "https://sdileny-example.org/1", "s1"), {}), "first");
   const second = hook(w, fetchEvent(w, "https://sdileny-example.org/2", "s2"), {});
@@ -250,8 +251,13 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
     }
   };
   await until(() => slots().length >= 2, 60_000, "the second hook's slot");
-  assert.ok(Math.max(...slots()) > Date.now(), "its slot still ahead: it waits");
-  assert.ok(!fs.existsSync(path.join(net, "sdileny-example.org.json.lock")), "no lock held while it waits");
+  // the slot is written under the lock, the journal after it, then the lock let go — a moment that under the load of the
+  // whole suite is no instant: the lock seen gone, and at that moment its slot still ahead (a hook that held the lock
+  // through its pause would let it go only at its slot)
+  const lock = path.join(net, "sdileny-example.org.json.lock");
+  let freeAt = 0;
+  await until(() => !fs.existsSync(lock) && (freeAt = Date.now()) > 0, 2 * SHARED, "the host's lock let go");
+  assert.ok(Math.max(...slots()) > freeAt, `no lock held while it waits: let go ${Math.max(...slots()) - freeAt} ms before its slot`);
   // strom's own request (a connector's) to the same host meanwhile: after the reserved slot, one pace later
   const waits: number[] = [];
   const got = await politeGet("https://sdileny-example.org/scan", {

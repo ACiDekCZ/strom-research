@@ -1,0 +1,16 @@
+0 HEAD
+1 SOUR FICTIONAL
+1 GEDC
+2 VERS 5.5.1
+1 CHAR CP1250
+0 @I1@ INDI
+1 NAME Vojtìch /Lhoták/
+1 SEX M
+1 BIRT
+2 PLAC Horní Lhota
+0 @I2@ INDI
+1 NAME Zdeòka /Lhotáková/
+1 SEX F
+1 BIRT
+2 PLAC Lhota pod Øípem
+0 TRLR

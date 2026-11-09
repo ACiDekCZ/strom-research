@@ -19,6 +19,9 @@ data go nowhere else through the bridge.
     [S1.9](#S1.9)), or until the computer shuts down. It stops by itself only when the user chose so
     (`live.idleMinutes`, in the app **After 2 hours without work**): when nobody asks it anything for that time and
     nobody works in the tree meanwhile. The app's regular status request does not keep the bridge alive.
+  - The bridge also stops by itself when its research disappears from the folder and is still missing at the next
+    check at least 10 s later. A disk unavailable only for a moment does not stop the bridge. A second bridge of the
+    same research started next to a running one stops at once.
   - When the bridge restarts by itself (update, inactivity, crash), it keeps its address: the same port if it is free,
     and the same key. The app then connects without a new link.
   - `strom live stop` throws the key away: only `strom app` then connects the app again. When the port is taken by
@@ -31,8 +34,10 @@ data go nowhere else through the bridge.
 - **Since:** research 1.0.0. The same address after a restart from 1.8.0, `live.idleMinutes` from 1.25.0.
 - **From research 1.29.0:** the bridge no longer stops by itself when idle (the default `live.idleMinutes` is 0);
   before, it stopped by itself after two hours. A value the user saved stays.
+- **From research 1.30.0:** a bridge whose research disappeared stops only after a second check at least 10 s later
+  (before, at once); a second bridge of the same research stops at once.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.2"></a>
 ## S1.2 The research opens in the app through a link from the terminal
@@ -57,8 +62,12 @@ updated.
 - **Controls:** terminal: `strom app`, `strom app --live`. App: **Research → Other actions → Research for this
   tree…**
 - **Since:** app 3.0.0, research 1.0.0
+- **Since research 1.30.0:** on macOS the research hands the address for the app installed from a Chromium browser
+  (Chrome, Edge…) to the browser already running, as its own second start would hand it over. No other program starts
+  and no browser icon is added to the Dock. When the browser is not running or does not answer within 5 s, the
+  research starts it as before.
 
-<!-- zdroj: research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
+<!-- zdroj: research:a4a2f6c0 src/core/chromium.ts openWebApp (darwin: handToRunning SingletonSocket, jinak launch), handToRunning (ACK, timeout 5000), singletonMessage · dirigent:prace/1109-vyzkum-dock-chrome/karta.md Výsledek (živě Chrome, Edge, Canary) · research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
 
 <a id="S1.2.1"></a>
 ### S1.2.1 Links the app accepts
@@ -112,8 +121,15 @@ meanwhile, so that an edit in the app does not meet the agent's work.
   - When automatic following fails, the app stays silent and the tree stays as it was.
 - **Controls:** app: **Follow live** · terminal: `strom app --live`
 - **Since:** app 3.0.0; switching to a tree with an agent from 3.13.1
+- **From app 3.26.0 with research 1.30.0:**
+  - the research has the tree for the app built for each state and keeps it even after the bridge starts again;
+  - the app shows the tree at once in its last built form. When the research has moved on meanwhile, the research
+    panel shows “Preparing a newer version…” and the newer version replaces the tree by itself once it is ready;
+  - when the research has not changed since the last load and the tree in the app is still exactly the one loaded,
+    the app neither downloads nor loads it again;
+  - while following, the research announces a change once its tree is ready.
 
-<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.5"></a>
 ## S1.5 When the research is not running or the connection fails

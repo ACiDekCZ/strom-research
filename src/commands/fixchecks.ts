@@ -45,6 +45,8 @@ import { EDIT_DECISIONS_SINCE, editDecisionFixes, editDecisionsDone, type EditDe
 import { wokenWaitFixes, wokenWaitsDone, type WokenWaitFix, type WokenWaitLeft } from "../core/wokenwaitfix.ts";
 import { READERS_SINCE, readerFixes, readersDone, type ReaderFix, type ReaderKept } from "../core/readerfix.ts";
 import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
+import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../core/originfix.ts";
+import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } from "../core/verify.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -97,7 +99,7 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
@@ -110,6 +112,11 @@ export interface FixFindings {
   /** The agent and model reading now and those the earlier readings were read with, how many each (new-model); `newer`: the
    * model now is a newer version of the same line as each of them (agents/models.ts) — never guessed across lines. */
   models?: { now: string; before: { key: string; readings: number }[]; newer: boolean };
+  /**
+   * What a check applied by itself once found and set right, not undone (verify-originals: the facts it queued, in how
+   * many tasks, of how many people): said by strom fixes show once nothing waits. Never counted in what waits.
+   */
+  done?: { count: number; records: number; people: number; at?: string; items: VerifyItem[] | OriginMark[]; unit?: "marks" };
 }
 
 /** What a check looks with: the shared folder (the images' orientation), the agent and model a reader reads with now. */
@@ -975,8 +982,60 @@ export const PROVEN_ORIGINALS: FixCheck = {
   applied: (tree) => provenDone(tree).length,
 };
 
+/**
+ * Until 1.30.0 nothing said where a value came from: an imported family tree of another program, the user, the research
+ * (core/origin.ts). Since then an agent changes a family tree's value only on a record and the user's never (it
+ * proposes); the values of an older research are marked once by rules (core/originfix.ts) — only marks, no value
+ * changed. Applied by itself once, at the first start of this strom after its backup.
+ */
+export const ORIGINS: FixCheck = {
+  id: "origins",
+  since: ORIGINS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  // what an agent may change: an archive says nothing of it (marked by itself there too)
+  agentWork: true,
+  detect: (tree) => {
+    const f = originFixes(tree);
+    // marked by itself (at the start of this strom, or once more for the family tree's values): how many, and examples
+    const marks = f.fixes.length ? [] : originsDone(tree).filter((m) => m.kind !== "source" && m.kind !== "ids");
+    const owners = new Set(marks.map((m) => (m.kind === "fact" ? m.owner : m.kind === "name" || m.kind === "sex" ? m.person : "")));
+    const people = new Set(marks.flatMap((m) => (m.kind === "name" || m.kind === "sex" ? [m.person] : m.kind === "fact" && m.owner.startsWith("P") ? [m.owner] : [])));
+    const done = marks.length ? { count: marks.length, records: owners.size, people: people.size, items: marks, unit: "marks" as const } : undefined;
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: 0, left: [], ...(done ? { done } : {}) };
+  },
+  applied: (tree) => originsDone(tree).length,
+};
+
+/**
+ * Until 1.30.0 a fact that cites its original record (primary information) but stays probable or possible waited for
+ * nobody to look at the original. Since then such facts of a birth, a baptism, a marriage, a death or a burial are
+ * verified against it (core/verify.ts): one task per person (a marriage per family) after the lines' work — only people
+ * linked to the tree, off side branches, not living. Only tasks: no fact changes. Applied by itself once, at the first
+ * start of this strom after its backup; later facts like them are queued as they come.
+ */
+export const VERIFY_ORIGINALS: FixCheck = {
+  id: "verify-originals",
+  since: VERIFY_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  // tasks of the agent's work: an archive says nothing of it (it gets only the marker there)
+  agentWork: true,
+  detect: (tree) => {
+    const rewrites = verifyFixes(tree);
+    // once it ran here: what it queued then, its examples (nothing waits any more)
+    const q = rewrites.length ? undefined : verifyQueued(tree);
+    const done = q ? { count: q.facts, records: q.tasks.length, people: q.people, ...(q.at ? { at: q.at } : {}), items: q.items } : undefined;
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites, unsplit: 0, left: [], ...(done ? { done } : {}) };
+  },
+  applied: (tree) => verifyDone(tree),
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS];
+
 
 /**
  * A check offered where nobody researches (an archive, a research waiting for its agent): one that rewrites by rules and

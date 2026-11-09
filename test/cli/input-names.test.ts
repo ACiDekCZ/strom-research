@@ -40,6 +40,8 @@ const people = (w: World): Record<string, { id: string; names: Name[] }> =>
 
 test("strom input names: shown first, --apply adds only the married names citing the import, again nothing, --undo as it was", opts, async () => {
   const { w, file } = oldResearch();
+  // the first strom of this version marks once where the values came from (origins-1): only marks, before the test
+  await w.ok(["check"]);
   const before = JSON.stringify(people(w));
 
   const shown = (await w.ok(["input", "names", "I0001", "--json"])).json;

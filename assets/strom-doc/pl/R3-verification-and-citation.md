@@ -30,6 +30,8 @@ wniosek ze wszystkich źródeł danej, a nie, na ile dobre jest jedno źródło 
   etykieta w aplikacji 3.9.0
 - **Od badania 1.26.0:** terminal nazywa stopnie słowami aplikacji: **udokumentowane**, **prawdopodobne**,
   **możliwe**, **wskazówka**, **obalone**. Podsumowanie `strom stats` pisze nadal „tylko wskazówki”.
+- **Od badania 1.30.0:** `strom event show` i `strom event edit` wypisują daną człowiekowi w języku badania
+  (na przykład „[wskazówka]”); agent nadal dostaje wypis po angielsku.
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -293,15 +295,15 @@ osoby aplikacja liczy sama, tylko z cytatów.
 | etykieta przy danej, np. **Udokumentowane** | stopień pewności danej | badanie ([R3.1](#R3.1)) |
 | **Przegląd drzewa → Jakość danych → Pewność danych z badania** | urodzenia, zgony i śluby według stopnia | badanie |
 | strona osoby, **Dla badaczy → Pewność danych** | stopień każdej danej osoby | badanie |
-| **Udokumentowane** / **Częściowo udokumentowane** / **Nieudokumentowane** (● ◐ ○) | poziom udokumentowania osoby | cytaty ([R3.8.1](#R3.8.1)) |
+| **Udokumentowane** / **Częściowo udokumentowane** / **Nieudokumentowane** | poziom udokumentowania osoby | cytaty ([R3.8.1](#R3.8.1)) |
 | **Dla badaczy**, „Potwierdzone źródłami: N z M informacji” | dane osoby ze źródłem | cytaty |
 | **Przegląd drzewa → Przodkowie**, kolumna **udokumentowani** | przodkowie z udokumentowanym urodzeniem | z badaniem tylko Udokumentowane, w przeciwnym razie cytaty |
 | **Gdzie brakuje dowodów → Urodzenia niesprawdzone w badaniu** | urodzenia przodków, które nie są Udokumentowane | badanie |
-| książka, **Dane dla badaczy**: ● udokumentowane · ◐ sprzeczność · ○ nieudokumentowane | stan udokumentowania danej | Udokumentowane **albo** jakikolwiek cytat |
+| książka, **Dane dla badaczy**: udokumentowane · sprzeczność · nieudokumentowane | stan udokumentowania danej | Udokumentowane **albo** jakikolwiek cytat |
 | **Moje transkrypcje źródeł → Udokumentowane** | jak badanie traktuje transkrypcje użytkownika | pierwszy odczyt, Prawdopodobne ([R3.5.1](#R3.5.1)) |
 
 - **Granice:** stopnie pewności aplikacja tylko pokazuje, nie można ich zmienić. Sprzeczność przy danej w książce
-  przeważa nad ● i ○.
+  przeważa nad „udokumentowane” i „nieudokumentowane”.
 - **Obowiązuje od:** aplikacja 3.5.0 (poziom osoby), 3.9.0 (etykieta, Moje transkrypcje źródeł), 3.13.0 (Pewność
   danych z badania), 3.13.1 (kolumna udokumentowani), 3.18.0 (Dla badaczy), 3.19.0 (książka)
 
@@ -310,19 +312,20 @@ osoby aplikacja liczy sama, tylko z cytatów.
 <a id="R3.8.1"></a>
 ### R3.8.1 Poziom udokumentowania osoby
 
-- **Nieudokumentowane** (○): osoba, jej wydarzenia ani jej związki nie cytują żadnego źródła.
-- **Udokumentowane** (●): cytowane urodzenie (lub chrzest) i, gdy osoba ma zgon (datę, miejsce, wydarzenie zgonu lub
+- **Nieudokumentowane**: osoba, jej wydarzenia ani jej związki nie cytują żadnego źródła.
+- **Udokumentowane**: cytowane urodzenie (lub chrzest) i, gdy osoba ma zgon (datę, miejsce, wydarzenie zgonu lub
   pochówku), także cytowany zgon (lub pochówek, kremacja).
-- **Częściowo udokumentowane** (◐): wszystko pomiędzy, także źródło dołączone tylko do osoby (do imienia, do miejsca
+- **Częściowo udokumentowane**: wszystko pomiędzy, także źródło dołączone tylko do osoby (do imienia, do miejsca
   zamieszkania).
-- Stopnia pewności się nie liczy: urodzenie cytujące nawet przejęte drzewo genealogiczne (Wskazówka) daje ●. Aplikacja
+- Stopnia pewności się nie liczy: urodzenie cytujące nawet przejęte drzewo genealogiczne (Wskazówka) daje **Udokumentowane**. Aplikacja
   mówi to przy **Pewność danych z badania**: „Nie mylić z udokumentowaniem źródłem.”
 - Gdy w drzewie nikt nie cytuje źródła, karta poziomu nie pokazuje. Osoba zastępcza nie ma poziomu.
-- **Obsługa:** aplikacja: opcja karty **Udokumentowanie w źródłach**; wyróżnienie **Udokumentowanie** w drzewie;
+- **Obsługa:** aplikacja: znacznik na karcie w drzewie, które nie zna pochodzenia danych
+  ([S7.2](S7-reliability-and-verification.md#S7.2)); tryb **Udokumentowanie** w drzewie ([A3.7](A3-evidence-in-the-app.md#A3.7));
   **Przegląd drzewa → Jakość danych → Gdzie brakuje dowodów**.
-- **Obowiązuje od:** aplikacja 3.5.0
+- **Obowiązuje od:** aplikacja 3.5.0; 3.26.0: poziom pokazuje jeden znacznik na karcie ([S7.2](S7-reliability-and-verification.md#S7.2))
 
-<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardEvidence/cardShowHint, treeOverview.certaintyDesc -->
+<!-- zdroj: app:src/evidence-level.ts personEvidence, treeHasAnySource · strings.ts treeHealth.evidenceMode/evFull/evPartial/evNone, cardDensity.cardShowHint, treeOverview.certaintyDesc · app:7eb903a3 src/reliability.ts cardStatus (bez původu: full ●●, partial ●○, none) · src/ui/fact-status.ts card.evTitle · strings.ts cardDensity.cardStatus (3.26.0 nahradila cardEvidence) -->
 
 <a id="R3.9"></a>
 ## R3.9 Opowieść zachowuje swoje źródła

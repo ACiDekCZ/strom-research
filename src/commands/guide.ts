@@ -81,15 +81,18 @@ HARD RULES
    — never clicking through a series of pages; strom's hook counts its
    navigate with your web fetches of the site. The built-in browser of
    Claude's desktop app strom's hook keeps the same way, yet strom does not
-   recommend it. Codex's browser (its js tool) strom's hook keeps by the
-   addresses its code names, once the person confirmed strom's hooks in
-   Codex: each page's address written out in the call, one at a time; code
-   with none is recorded as unwatched. Any other agent's browser or
-   computer use (Antigravity's, the desktop apps' computer use, a browser's
-   MCP) strom does not see and does not recommend (strom doc R12): never of
-   your own accord — those built-in browsers neither — to an archive only a
+   recommend it. Codex's browser in the terminal (its js tool) strom's hook
+   keeps by the addresses its code names, once the person confirmed strom's
+   hooks in Codex: each page's address written out in the call, one at a
+   time; code with none is recorded as unwatched. The ChatGPT app's browser
+   runs through ChatGPT's cloud, where strom's hooks do not run: strom does
+   not watch it. That one and any other agent's browser or computer use
+   (Antigravity's, the desktop apps' computer use, a browser's MCP) strom
+   does not see and does not recommend (strom doc R12): never of your own
+   accord — those built-in browsers neither — to an archive only a
    person's browser goes to — the person saves its images by hand
-   (strom task wait T… --images B…:<numbers> --on "…"). Only when the
+   (strom task wait T… --images B…:<numbers> --on "…") or checks it
+   (--check <url>); other sites as usual. Only when the
    person explicitly asks you to use one there: the person's choice — say
    in one sentence whether strom watches that way and what the
    archive's terms say; never a way round them. Claude in Chrome at such
@@ -235,6 +238,11 @@ the time by someone who knew | secondary). A baptism entry is primary for the
 date of the baptism, secondary for the age of a parent: say so on the citation
 (--information on cite/event add). A family tree, a memory, a compiled work or an
 index never makes a fact more than a lead; proven needs primary information.
+Values from an imported family tree (strom intake of a .ged) are leads: change one only on a record —
+event edit / person edit --cite S… --locator … (or once the fact cites a record); otherwise strom
+proposes it. The user's own values (what they typed or gave in the Strom app) you never change: event edit,
+person edit, name primary, event retract, place rewrite only propose them (a conflict the user decides; --json
+"proposed"). Putting a family tree's value back is the user's (strom event revert, person revert).
 An age gives a birth estimate: aged 25 at a marriage in 1910 →
   strom event add P0001 BIRT --date "CAL 1885" --cite S0001 --quote "25 let" --information secondary
 Ages as the record gives them: --age "25 let", "annorum 25", "3 months" (a
@@ -276,6 +284,14 @@ ONE PERSON, LOOKED AT AGAIN (the user asks you to check or complete someone; a n
   Several at once: strom review P… P… (one review). The people no record of their own proves (strom check
   counts them): strom person list --unproven (how each stands; the living apart — no tasks for them);
   strom review --unproven proposes their work a batch at a time — again for the next batch, nothing twice.
+FACTS AGAINST THEIR ORIGINALS (a task of verification: its brief lists each fact, the originals it cites and how)
+  A fact that cites its original record yet is not proven gets a task of verification now and then, after the
+  lines' work. The user asks for one first — strom verify facts P…|F…|--fact E… (tell them the estimate it says) —
+  or for a line, a lineage or the tree in bulk: strom verify bulk … is theirs (--dry-run: what it would cost), so is strom verify stop.
+  Read the entry on the image yourself first, then compare: strom verify done E… --proven --image M… (the image you
+  read it on), or --kept --reason "…" (why it stays, in the research language: the user sees it). Nothing is raised
+  without a look at the original; a different value goes through strom event edit (the user's or a family tree's is
+  only proposed). A fact the user confirmed against the scan is theirs: never changed. What waits: strom verify status.
 THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Strom app, or brings a .ged/.json)
   strom sync <file> shows what it would take: what the file adds, what the user changed since the research
   gave it (_STROM_HEAD), what is no longer in it. Show the user the list; write it on their yes (--apply, some:
@@ -351,6 +367,15 @@ THE STROM APP — where the user sees the result
   strom (no arguments) says whether it is installed here (results): not yet — offer to install it; installed —
   just open it. A program they already use is fine too: output/tree.ged. They do not want it:
   never again.
+
+A PROBLEM WITH STROM (the user reports one, or wants to "send the error")
+  Ask the user where it happened — in this conversation, in a terminal without
+  you, or in the Strom app; never guess — then run strom error --where
+  chat|terminal|app (--about fetch|sync|agent|install|windows as it fits,
+  --note "their words"). Tell them the path of the ZIP and the address strom
+  names. Never send or open the ZIP, never copy its content into the chat.
+  Data of people only on the user's explicit yes in the chat: --with-data
+  --person P… (--family F…, --book B…) --yes-data.
 
 OUTPUT AND ERRORS
 - One line per record, IDs first. Read the text; add --json only to parse.

@@ -20,6 +20,8 @@ Postup v kostce:
 6. **Jistota:** stupeň jistoty podle toho, kdo a jak zápis četl; těžké místo potřebuje druhé, slepé čtení
    ([R8.7](#R8.7)).
 
+Kdo co čte, v kostce a na příkladu jednoho zápisu, říká [R8.9](#R8.9).
+
 > **Poznámka: čtení modelem není stoprocentní.** Staré písmo čte model AI a přesnost čtení závisí na modelu.
 > Metodika chce na staré písmo nejsilnější model, nikdy rychlé nebo levné čtení. Čtenáři čtou modelem pro písmo
 > (`model.vision`, jinak `strom read --model`) a velikost pohledů se řídí modelem ([R8.3.2](#R8.3.2)).
@@ -117,6 +119,9 @@ nestahuje: ani příkazem, skriptem, ani svým prohlížečem.
     10 s a nejvýš 120 za hodinu (tempo člověka), pokud člověk pro server nenastavil vlastní; strom ho nikdy nezrychlí.
 - **Jen metodika:** stáhnout jen snímky, které úkol čte, nikdy celou knihu „pro jistotu“. Knihu stahuje sezení, které
   ji čte. Archiv bez stahovače: agent stahovač postaví (`strom connector new`) podle podmínek portálu a robots.txt.
+- **Od výzkumu 1.30.0:** `strom connector test --fetch` upozorní, když jeden snímek stojí víc než 10 žádostí (nejspíš
+  dlaždice), řekne, jak dlouho v tempu archivu potrvá snímek a kniha, a agenta pošle nejdřív hledat odkaz portálu na
+  celý snímek, stažení celé knihy nebo celý snímek přes IIIF; dlaždice až nakonec.
 - Snímky, které archiv nedovolí stáhnout automaticky, uloží člověk do připravené složky
   ([R6.2.1](R6-awaiting-action.md#R6.2.1)); svolení archivu: [R6.3.1](R6-awaiting-action.md#R6.3.1).
   Archivy jen přes prohlížeč, prohlížeč agenta a celý průběh: [R9](R9-archives.md).
@@ -127,7 +132,7 @@ nestahuje: ani příkazem, skriptem, ani svým prohlížečem.
   člověk). Aplikace: Čeká na vyřízení.
 - **Platí od:** výzkum 1.0.0 (stahování jen přes strom); úrovně podmínek a tempo člověka 1.14.0
 
-<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 -->
+<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 · research:773c475a src/commands/connectors.ts HEAVY_IMAGE = 10 -->
 
 <a id="R8.3"></a>
 ## R8.3 Čtenáři: kdo snímky čte
@@ -585,3 +590,61 @@ změny vznikne hned, nebo rozhodne člověk, určuje nastavení **Úkol z novéh
 - **Platí od:** výzkum 1.29.0, aplikace 3.25.0
 
 <!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->
+
+<a id="R8.9"></a>
+## R8.9 Kdo čte: přehled a příklad jednoho zápisu
+
+Zápis ve skenu čte víc čtenářů, každý s jiným úkolem a jiným pohledem. Žádný čtenář do stromu nezapisuje: co přečte,
+je podklad pro hlavního agenta a pro člověka.
+
+| Kdo čte | Co vidí | Co vrátí | Pravidlo |
+|---|---|---|---|
+| čtenáři knihy (`strom read`) | dávku pohledů a celou otázku; nic dalšího z výzkumu | krátkou zprávu: zápisy k otázce, u jmen jistota v procentech | [R8.3](#R8.3) |
+| hlavní agent | výřez zápisu v plném rozlišení a vše, co výzkum ví | pramen s přepisem a údaje z jistě přečteného | [R8.5](#R8.5), [R8.6](#R8.6) |
+| slepý druhý čtenář (`strom read --blind --crop`) | jen výřez jedné buňky; ne očekávanou hodnotu, jméno, místo ani proč na tom záleží | své čtení té buňky | [R3.5](R3-verification-and-citation.md#R3.5) |
+| čtenáři dokumentu z aplikace (**1 čtenář** nebo **2 čtenáři**) | strany dokumentu; druhý čtenář nevidí čtení prvního | přepis, překlad, výklad a zmíněné osoby | [R8.8](#R8.8), [R8.8.1](#R8.8.1) |
+| čtenáři **Přečíst znovu…** (1 nebo 2) | originál zápisu a co výzkum o záznamu ví (druh, jazyk, datum, kde zápis stojí); ne přepis ani jména | nové čtení, porovnané s přepisem místo po místu | [R8.8.2](#R8.8.2) |
+
+- **Hlídá kód:**
+  - **slepý** znamená: čtenář nedostane, co se od něj čeká. Slepý druhý čtenář dostane jen výřez, druhý čtenář
+    dokumentu nevidí první čtení a čtenáři **Přečíst znovu…** nevidí přepis ani jména;
+  - čtenáři čtou modelem výzkumu pro písmo (`model.vision`), nikdy slabším. U čtení dokumentu a u **Přečíst znovu…**
+    má každý čtenář svůj program, model a důkladnost a výsledek u čtení říká, kdo četl ([R8.8.1](#R8.8.1));
+  - kde se dva čtenáři neshodnou, je místo nejisté, ne oprava přepisu ([R8.8.2](#R8.8.2)).
+- **Jen metodika:** zápis, který se bude citovat, přečte hlavní agent sám, z výřezu ([R8.5](#R8.5)); těžká buňka
+  dostane slepé druhé čtení ([R3.5](R3-verification-and-citation.md#R3.5)).
+- **Proč:** kdo zná očekávanou hodnotu, má sklon ji „přečíst“. Dva nezávislí čtenáři, nejlépe dvou různých modelů,
+  ukážou místa, kde se písmo dá číst dvojím způsobem.
+- **Platí od:** výzkum 1.0.0 (čtenáři knihy, slepé druhé čtení); čtení dokumentu výzkum 1.18.0; volba čtenářů
+  a **Přečíst znovu…** výzkum 1.29.0, aplikace 3.25.0
+
+**Příklad jednoho zápisu (vymyšlený).** Pramen je zápis křtu z roku 1843. Dosavadní přepis napsal výzkum a člověk ho
+nepotvrdil: „Dne 3. března 1843 pokřtěn Jan; otec Václav Horák, chalupník v Javorné č. 12; matka Marie roz. Vlková.“
+Datum křtu Jana Horáka zapsal do stromu člověk v aplikaci.
+
+1. **Přečíst znovu…** u pramene, **2 čtenáři**: Čtenář 1 Claude Code, Čtenář 2 Codex, každý se svým modelem a
+   důkladností. Oba dostanou jen originál zápisu a to, co výzkum o záznamu ví (druh, jazyk, datum, kde zápis stojí);
+   přepis ani jména nevidí.
+2. Čtenáři přečtou:
+   - Čtenář 1: „… 5. března 1843 … v Javorné č. 17; matka Marie rozená Vlková.“
+   - Čtenář 2: „… 5. března 1843 … v Javorné č. 12; matka Marie rozená Vlková.“
+3. Porovnání s přepisem:
+   - den **5.** místo **3.**: oba čtenáři čtou stejně a jistě → jistá věcná změna;
+   - číslo domu: Čtenář 1 čte **17**, Čtenář 2 **12** → čtenáři se neshodli; místo je nejisté, ne změna přepisu;
+   - „roz.“ proti „rozená“: zkratka → drobnost.
+4. V **Co ověřit** stojí: **Věcné změny k ověření** (den křtu), **Nejisté – čtenáři se neshodli** (číslo domu)
+   a **Drobnosti** („roz.“). Přepis se nezměnil; nové čtení zůstalo u pramene.
+5. Při nastavení **Zeptat se** rozhodne člověk: **Úkol pro agenta** → **Dát agentovi do fronty**. Do úkolu jde jistá
+   věcná změna a s ní i nejisté místo; drobnost úkol sama nezaloží ([R8.8.3](#R8.8.3)).
+6. Agent v úkolu prohlédne zápis na skenu se vším, co výzkum o lidech a místech ví:
+   - den je na skenu jistě **5.**: opraví přepis a napíše důvod;
+   - číslo domu na skenu jisté není: přepis nechá a k prameni napíše poznámku, co prohlédl a proč místo zůstává
+     nejisté;
+   - datum křtu ve stromu zapsal člověk: agent ho nezmění, jen navrhne 5. března 1843. Aplikace u údaje ukáže
+     **Výzkum navrhuje změnit údaj zapsaný člověkem** a **Rozpor ›**; rozhodne člověk
+     ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+Údaj z rodokmenu jiného programu by agent podle citovaného záznamu změnit směl; hodnota z rodokmenu by zůstala
+u údaje k vrácení ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+<!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->

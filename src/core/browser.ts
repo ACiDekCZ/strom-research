@@ -626,6 +626,52 @@ export function viewerScript(plan: BrowserPlan): string {
 })()`;
 }
 
+/**
+ * An image strom media save gave the agent's tab a script for: what takes the downloads over (strom media add --inbox
+ * --waiting) looks for its file, and says when none came — Chrome saves one file of a site by itself and holds the
+ * next back until the person allows the site to download several files. Kept in .strom (never data/), gone once the
+ * image is registered or the task waits for it no more. `held`: said so already (the task's wait says it to the person).
+ */
+export interface SaveRecord {
+  task: string;
+  n: number;
+  recordset: string;
+  host: string;
+  url: string;
+  /** The file's name without its extension (strom-T0007-0040). */
+  file: string;
+  /** When the script was given (ms). */
+  at: number;
+  held?: boolean;
+}
+
+/** A file the browser has had this long to come before it counts as held back (the script runs after strom media save). */
+export const HELD_AFTER_MS = 5_000;
+
+function savesFile(root: string): string {
+  return path.join(root, ".strom", "browser-saves.json");
+}
+
+export function loadSaves(root: string): SaveRecord[] {
+  let all: SaveRecord[] | undefined;
+  try {
+    all = readJsonIfExists<SaveRecord[]>(savesFile(root));
+  } catch {
+    all = undefined; // a broken file: as if none were given
+  }
+  return Array.isArray(all) ? all.filter((r) => r && typeof r.task === "string" && Number.isInteger(r.n) && typeof r.file === "string") : [];
+}
+
+export function storeSaves(root: string, saves: SaveRecord[]): void {
+  if (saves.length) writeJson(savesFile(root), saves);
+  else fs.rmSync(savesFile(root), { force: true });
+}
+
+/** The script for image n of a task was given now: the one record of it (an earlier one of the same image replaced). */
+export function noteSave(root: string, rec: SaveRecord): void {
+  storeSaves(root, [...loadSaves(root).filter((r) => r.task !== rec.task || r.n !== rec.n), rec]);
+}
+
 /** The name an image saved from the tab for a waiting task is saved under: strom-T0007-0040 (taken by strom media add --inbox --waiting). */
 export function waitFileBase(task: string, n: number): string {
   return `strom-${safe(task)}-${String(n).padStart(4, "0")}`;

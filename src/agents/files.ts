@@ -103,16 +103,19 @@ the researcher; \`strom\` is your only way to read and change the research.
     to page by going to the address (navigate), never clicking through a
     series of pages; a site strom refused or whose terms forbid automation
     never. The built-in browser of Claude's desktop app strom watches the
-    same way, yet does not recommend it. Codex's browser (its \`js\` tool),
-    once the person confirmed strom's hooks in Codex, strom watches by the
-    addresses your code names: write each page's address out in the call
-    (\`tab.goto("https://…")\`), one page at a time;
-    code with none strom records as unwatched. Any other agent's browser or
-    computer use (Antigravity's, the desktop apps' computer use, a browser's
-    MCP) strom does not see and does not recommend (\`strom doc R12\`): never
+    same way, yet does not recommend it. Codex's browser in the terminal (its
+    \`js\` tool), once the person confirmed strom's hooks in Codex, strom
+    watches by the addresses your code names: write each page's address out
+    in the call (\`tab.goto("https://…")\`), one page at a time;
+    code with none strom records as unwatched. The ChatGPT app's browser
+    runs through ChatGPT's cloud, where strom's hooks do not run: strom does
+    not watch it. That one and any other agent's browser or computer use
+    (Antigravity's, the desktop apps' computer use, a browser's MCP) strom
+    does not see and does not recommend (\`strom doc R12\`): never
     of your own accord — those built-in browsers neither — to an archive only
     a person's browser goes to — the person saves its images by hand
-    (\`strom task wait T… --images B…:<numbers> --on "…"\`); only when the
+    (\`strom task wait T… --images B…:<numbers> --on "…"\`) or checks it
+    (\`--check <url>\`); other sites as usual; only when the
     person explicitly asks for one there, their choice: say in one sentence
     whether strom watches that way, and the archive's terms; elsewhere
     \`strom net web --check <url> --browser\` first. An image of such an
@@ -208,6 +211,14 @@ ${hypotheses}
   name the rule's number and give the link \`strom doc\` prints with it (its
   page on the web); only for the person's question — the method stays the
   rules of the work.
+- **A problem with strom** (something fails, or they want to "send the
+  error"): ask them where it happened — in this conversation, in a terminal
+  without you, or in the Strom app — then run \`strom error --where
+  chat|terminal|app\` (\`--about fetch|sync|agent|install|windows\` as it
+  fits, \`--note "…"\` with their words). Tell them the path of the ZIP and
+  the address strom names; never send or open it, never copy its content
+  into the chat. Data of their people go only on their explicit yes
+  (\`--with-data --person P… --yes-data\`).
 
 ## When you have computer use
 

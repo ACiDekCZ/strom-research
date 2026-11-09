@@ -22,6 +22,8 @@ Przebieg w skrócie:
 6. **Pewność:** stopień pewności według tego, kto i jak wpis czytał; trudne miejsce wymaga drugiego, ślepego odczytu
    ([R8.7](#R8.7)).
 
+Kto co czyta, w skrócie i na przykładzie jednego wpisu, mówi [R8.9](#R8.9).
+
 > **Uwaga: odczyt modelem nie jest stuprocentowy.** Stare pismo czyta model AI, a dokładność odczytu zależy od modelu.
 > Metodyka chce do starego pisma najsilniejszego modelu, nigdy szybkiego ani taniego odczytu. Czytelnicy czytają
 > modelem do pisma (`model.vision`, w przeciwnym razie `strom read --model`), a rozmiar widoków zależy od modelu
@@ -129,6 +131,9 @@ nigdy nie pobiera sam: ani poleceniem, ani skryptem, ani swoją przeglądarką.
 - **Tylko metodyka:** pobrać tylko skany, które zadanie czyta, nigdy całej księgi „na wszelki wypadek”. Księgę pobiera
   sesja, która ją czyta. Archiwum bez programu pobierającego: agent go buduje (`strom connector new`) według warunków
   portalu i robots.txt.
+- **Od badania 1.30.0:** `strom connector test --fetch` ostrzega, gdy jeden skan kosztuje więcej niż 10 zapytań
+  (najpewniej kafelki), mówi, jak długo w tempie archiwum potrwa skan i księga, i kieruje agenta najpierw do szukania
+  odnośnika portalu do całego skanu, pobrania całej księgi albo całego skanu przez IIIF; kafelki dopiero na końcu.
 - Skany, których archiwum nie pozwala pobrać automatycznie, człowiek zapisuje do przygotowanego folderu
   ([R6.2.1](R6-awaiting-action.md#R6.2.1)); zgoda archiwum: [R6.3.1](R6-awaiting-action.md#R6.3.1).
   Archiwa tylko przez przeglądarkę, przeglądarka agenta i cały przebieg: [R9](R9-archives.md).
@@ -139,7 +144,7 @@ nigdy nie pobiera sam: ani poleceniem, ani skryptem, ani swoją przeglądarką.
   człowiek). Aplikacja: Czeka na decyzję.
 - **Obowiązuje od:** badanie 1.0.0 (pobieranie tylko przez strom); poziomy warunków i tempo człowieka 1.14.0
 
-<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 -->
+<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 · research:773c475a src/commands/connectors.ts HEAVY_IMAGE = 10 -->
 
 <a id="R8.3"></a>
 ## R8.3 Czytelnicy: kto czyta skany
@@ -645,3 +650,65 @@ ustawienie **Zadanie z nowego odczytu**.
 - **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
 
 <!-- zdroj: research:c2a690ea src/core/config.ts:310 read.sourceTask (ask|always|never, tree) · src/core/sourceread.ts:293-302, :438, :600-617 · src/commands/source-reading.ts · strom help source reading (--take now|queue|keep|review, priorita 3) · strom help document read --source-task · assets/lang/cs.json ui.reading.*, read.source.why/same · src/core/live.ts:124-138 taskChoice, POST sourceTask · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 2–4, Tabulka scénářů) · app:6bd8609e strings.ts treeResearch.readGroup/readTask/readTaskAsk/readTaskAlways/readTaskNever/rtOk, read.tAgent, tNow, tQueue, tNone, tSave, tPerson, tReview, tAppendNow, tAppendQueue, sUnchecked, sSaved, sTaskQueued, sTaskPerson, sMinor, sUnsure, sDecide, sGiveAgent, openTaskN · src/ui/read-task-setting-view.ts · dirigent:test ověření aplikace 6bd8609e · spec 059 K3.2, spec 065 K2.3 · nejistá místa na žádost: spec 059 P8 K8.1–K8.5 · research:4895d0f0 src/core/sourceread.ts unsureOffered, wordingOf, decideReading (unsure, read.decide.sure/nothing/noproposal), handOver priorita 3 · src/commands/source-reading.ts --unsure · assets/lang/cs.json read.source.unsure.* · CHANGELOG.cs.md 1.29.0 · app:docs/ZADANI_VYZKUM_cteni-vysledek.md „Odpověď výzkumu: nejistá místa na žádost“ · app:7327b758 src/ui/read-task-view.ts readTaskUnsureShown (B, D, jen počítač), unsureChoiceHtml · src/ui/read-source-state-view.ts · strings.ts read.close, tUnsureQueue, tUnsureQueueSub, tReview, tUnsureReviewSub, sGiveAgent, sReviewGive, sUnsure · dirigent:test/vysledek-1107-nejista-mista.md (i doověření N1) -->
+
+<a id="R8.9"></a>
+## R8.9 Kto czyta: przegląd i przykład jednego wpisu
+
+Wpis w skanie czyta kilku czytelników, każdy z innym zadaniem i innym widokiem. Żaden czytelnik nie zapisuje niczego
+do drzewa: to, co przeczyta, jest materiałem dla głównego agenta i dla człowieka.
+
+| Kto czyta | Co widzi | Co zwraca | Zasada |
+|---|---|---|---|
+| czytelnicy księgi (`strom read`) | partię widoków i całe pytanie; nic więcej z badania | krótki raport: wpisy do pytania, przy imionach i nazwiskach pewność w procentach | [R8.3](#R8.3) |
+| główny agent | wycinek wpisu w pełnej rozdzielczości i wszystko, co wie badanie | źródło z transkrypcją i dane z tego, co odczytano pewnie | [R8.5](#R8.5), [R8.6](#R8.6) |
+| ślepy drugi czytelnik (`strom read --blind --crop`) | tylko wycinek jednej komórki; nie oczekiwaną wartość, imię, miejsce ani dlaczego to ważne | swój odczyt tej komórki | [R3.5](R3-verification-and-citation.md#R3.5) |
+| czytelnicy dokumentu z aplikacji (**1 czytelnik** albo **2 czytelników**) | strony dokumentu; drugi czytelnik nie widzi odczytu pierwszego | transkrypcję, tłumaczenie, objaśnienie i wymienione osoby | [R8.8](#R8.8), [R8.8.1](#R8.8.1) |
+| czytelnicy **Przeczytaj ponownie…** (1 albo 2) | oryginał wpisu i to, co badanie wie o akcie (rodzaj, język, datę, gdzie wpis stoi); nie transkrypcję ani nazwiska | nowy odczyt, porównany z transkrypcją miejsce po miejscu | [R8.8.2](#R8.8.2) |
+
+- **Pilnuje kod:**
+  - **ślepy** oznacza: czytelnik nie dostaje tego, czego się od niego oczekuje. Ślepy drugi czytelnik dostaje tylko
+    wycinek, drugi czytelnik dokumentu nie widzi pierwszego odczytu, a czytelnicy **Przeczytaj ponownie…** nie widzą
+    transkrypcji ani nazwisk;
+  - czytelnicy czytają modelem badania do pisma (`model.vision`), nigdy słabszym. Przy odczycie dokumentu i przy
+    **Przeczytaj ponownie…** każdy czytelnik ma swój program, model i dokładność, a wynik przy odczycie mówi, kto
+    czytał ([R8.8.1](#R8.8.1));
+  - gdzie dwaj czytelnicy się nie zgadzają, miejsce jest niepewne, a nie jest poprawką transkrypcji
+    ([R8.8.2](#R8.8.2)).
+- **Tylko metodyka:** wpis, który będzie cytowany, główny agent czyta sam, z wycinka ([R8.5](#R8.5)); trudna komórka
+  dostaje ślepy drugi odczyt ([R3.5](R3-verification-and-citation.md#R3.5)).
+- **Dlaczego:** kto zna oczekiwaną wartość, ma skłonność ją „przeczytać”. Dwaj niezależni czytelnicy, najlepiej dwóch
+  różnych modeli, pokazują miejsca, w których pismo da się odczytać na dwa sposoby.
+- **Obowiązuje od:** badanie 1.0.0 (czytelnicy księgi, ślepy drugi odczyt); odczyt dokumentu badanie 1.18.0; wybór
+  czytelników i **Przeczytaj ponownie…** badanie 1.29.0, aplikacja 3.25.0
+
+**Przykład jednego wpisu (wymyślony).** Źródło to wpis chrztu z roku 1843. Dotychczasową transkrypcję napisało
+badanie, a człowiek jej nie potwierdził: „Dne 3. března 1843 pokřtěn Jan; otec Václav Horák, chalupník v Javorné
+č. 12; matka Marie roz. Vlková.” Datę chrztu Jana Horáka wpisał do drzewa człowiek w aplikacji.
+
+1. **Przeczytaj ponownie…** przy źródle, **2 czytelników**: Czytelnik 1 Claude Code, Czytelnik 2 Codex, każdy ze
+   swoim modelem i dokładnością. Obaj dostają tylko oryginał wpisu i to, co badanie wie o akcie (rodzaj, język, datę,
+   gdzie wpis stoi); transkrypcji ani nazwisk nie widzą.
+2. Czytelnicy odczytują:
+   - Czytelnik 1: „… 5. března 1843 … v Javorné č. 17; matka Marie rozená Vlková.”
+   - Czytelnik 2: „… 5. března 1843 … v Javorné č. 12; matka Marie rozená Vlková.”
+3. Porównanie z transkrypcją:
+   - dzień **5.** zamiast **3.**: obaj czytelnicy czytają tak samo i pewnie → pewna zmiana merytoryczna;
+   - numer domu: Czytelnik 1 czyta **17**, Czytelnik 2 **12** → czytelnicy się nie zgodzili; miejsce jest niepewne,
+     a nie jest zmianą transkrypcji;
+   - „roz.” wobec „rozená”: skrót → drobiazg.
+4. W **Do sprawdzenia** stoją: **Zmiany merytoryczne do sprawdzenia** (dzień chrztu), **Niepewne – czytelnicy się
+   różnią** (numer domu) i **Drobiazgi** („roz.”). Transkrypcja się nie zmieniła; nowy odczyt został przy źródle.
+5. Przy ustawieniu **Pytaj** decyduje człowiek: **Zadanie dla agenta** → **Dodaj do kolejki agenta**. Do zadania trafia
+   pewna zmiana merytoryczna, a z nią także niepewne miejsce; drobiazg sam zadania nie tworzy ([R8.8.3](#R8.8.3)).
+6. Agent w zadaniu ogląda wpis na skanie ze wszystkim, co badanie wie o ludziach i miejscach:
+   - dzień jest na skanie na pewno **5.**: poprawia transkrypcję i pisze powód;
+   - numer domu na skanie pewny nie jest: transkrypcję zostawia i przy źródle pisze notatkę, co obejrzał i dlaczego
+     miejsce pozostaje niepewne;
+   - datę chrztu w drzewie wpisał człowiek: agent jej nie zmieni, tylko zaproponuje 5 marca 1843. Aplikacja przy
+     danej pokaże **Badania proponują zmienić dane wpisane przez człowieka** i **Sprzeczność ›**; decyduje człowiek
+     ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+Daną z drzewa innego programu agent mógłby zmienić według cytowanego aktu; wartość z drzewa zostałaby przy danej do
+przywrócenia ([S6.3](S6-tree-from-another-program.md#S6.3)).
+
+<!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->

@@ -5,7 +5,7 @@ S agentem (Claude Code, Codex, Antigravity, Grok Build, OpenCode) se mluví v te
 agenta, když ji strom otevírá; samostatná práce běží bez rozhovoru. Podle toho
 se liší, kde se mluví, jaký prohlížeč agent použije, co strom hlídá, co udělá člověk a co bez agenta v terminálu
 nejde. Pravidla archivů jsou všude stejná ([R9](R9-archives.md)); liší se jen to, před čím strom stojí. Popisuje
-výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` nebo hook agenta to odmítne) a co je jen
+výzkum 1.30.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` nebo hook agenta to odmítne) a co je jen
 **pravidlo metodiky**. Co na Macu živě ověřené není, říká [R12.6](#R12.6).
 
 <!-- zdroj: dirigent:spec/062-hlidani-desktop-a-codex/spec.md K5.1, K5.2 · test/vysledek-desktop-chrome.md · test/vysledek-062-u4-desktop.md · test/vysledek-1106-vyzkum-062-desktop.md · research:CHANGELOG.cs.md 1.29.0 · src/core/which.ts AGENTS -->
@@ -19,7 +19,7 @@ výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` 
 | aplikace Claude (záložka Code) a Claude Code v terminálu | aplikace Claude, záložka Code (`strom chat`) | Chrome s Claude in Chrome, nebo vestavěný prohlížeč aplikace ([R12.2](#R12.2)) | prohlížeč v Chromu i vestavěný prohlížeč aplikace, stažení webu, příkazy v příkazové řádce agenta i v terminálu aplikace ([R12.3](#R12.3)) | potvrdit složku (Trust workspace) a odeslat připravenou zprávu; svolení archivu | nic nechybí: samostatná práce a čtení skenů běží přes Claude Code v terminálu |
 | aplikace Claude bez Claude Code v terminálu | aplikace Claude, záložka Code (`strom chat`) | jako v řádku výš | jako v řádku výš | jako v řádku výš; instalace Claude Code, kterou strom nabídne a jde odmítnout ([R12.4](#R12.4)) | samostatná práce (`strom run`), čtení skenů čtenáři (`strom read`) a práce z aplikace Strom ([R12.4](#R12.4)) |
 | Codex v terminálu | terminál: Codex ve složce výzkumu (`strom chat --where terminal`) | prohlížeč, Chrome a ovládání počítače Codexu, pokud je má jeho nastavení ([R12.5](#R12.5)) | příkazy `strom` podle pravidel stromu pro Codex; prohlížeč Codexu podle adres v jeho kódu, až člověk potvrdí hook stromu; ovládání počítače a hledání na webu Codexu ne ([R12.5](#R12.5)) | důvěřovat složce výzkumu (až pak platí pravidla stromu) a potvrdit hook stromu (**Review hooks**, `/hooks`); svolení archivu | – (Codex v terminálu je) |
-| aplikace ChatGPT (Codex) | aplikace ChatGPT (`strom chat`) | jako u Codexu v terminálu: stejné nastavení ([R12.5](#R12.5)) | jako u Codexu v terminálu ([R12.5](#R12.5)) | podle `strom chat` potvrdit složku a odeslat připravenou zprávu (není ověřeno, [R12.6](#R12.6)); potvrdit hook stromu (**Nastavení › Hooks**); svolení archivu | samostatná práce, čtení skenů čtenáři a práce z aplikace Strom ([R12.5](#R12.5)) |
+| aplikace ChatGPT (Codex) | aplikace ChatGPT (`strom chat`) | prohlížeč aplikace ChatGPT: běží přes cloud ChatGPT ([R12.5.1](#R12.5.1)) | prohlížeč aplikace ChatGPT ne: o webech rozhoduje dialog ChatGPT ([R12.5.1](#R12.5.1)) | podle `strom chat` potvrdit složku a odeslat připravenou zprávu (není ověřeno, [R12.6](#R12.6)); u dialogu ChatGPT „cloudový prohlížeč“ k archivu s omezením zvolit **Zamítnout** ([R12.5.1](#R12.5.1)); svolení archivu | samostatná práce, čtení skenů čtenáři a práce z aplikace Strom ([R12.5](#R12.5)) |
 | Antigravity v terminálu | terminál: Antigravity (`agy`) ve složce výzkumu (`strom chat`); aplikaci Antigravity strom neotevírá ([R12.7](#R12.7)) | prohlížeč Antigravity, pokud ho agent má; strom ho nehlídá ([R12.7](#R12.7)) | jen to, co odmítne `strom` sám: příkazy, které patří jen člověku; hook ani pravidla ve složce výzkumu Antigravity nemá ([R12.7](#R12.7)) | svolení archivu | – (Antigravity v terminálu je) |
 | Grok Build v terminálu | terminál: Grok (`grok`) ve složce výzkumu (`strom chat`); aplikaci Groku strom neotevírá ([R12.8](#R12.8)) | žádný, který by strom hlídal ([R12.8](#R12.8)) | stažení webu ([R9.3](R9-archives.md#R9.3)) a příkazy v příkazové řádce agenta: hooky a pravidla stromu v `.grok/` ([R12.8](#R12.8)) | nic navíc: `strom chat` spustí Grok se složkou výzkumu jako důvěryhodnou; svolení archivu | – (Grok v terminálu je) |
 | OpenCode v terminálu | terminál: OpenCode ve složce výzkumu (`strom chat --where terminal`) | žádný, který by strom hlídal ([R12.9](#R12.9)) | příkazy a soubory podle pravidel stromu v `opencode.json`; stažení webu ani prohlížeč ne ([R12.9](#R12.9)) | schválit příkazy mimo `strom`, na které se OpenCode zeptá (mimo úroveň `full`); svolení archivu | – (OpenCode v terminálu je) |
@@ -28,7 +28,7 @@ výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` 
 
 - **Hlídá kód:**
   - hooky stromu v `.claude/settings.json` výzkumu spouští Claude Code v terminálu i aplikace Claude (záložka Code);
-    Codex čte pravidla stromu v `.codex/rules/strom.rules` a hook stromu v `.codex/hooks.json`, Grok Build v `.grok/config.toml` (a hooky stromu
+    Codex v terminálu čte pravidla stromu v `.codex/rules/strom.rules` a hook stromu v `.codex/hooks.json`, Grok Build v `.grok/config.toml` (a hooky stromu
     v `.grok/hooks/strom.json`), OpenCode v `opencode.json`; Antigravity čte jen pokyny `AGENTS.md`;
   - příkazy, které patří jen člověku (přihlášení, pečeť, svolení archivu a další), odmítne `strom` sám každému
     agentovi, kterého pozná, u všech pěti agentů;
@@ -41,10 +41,12 @@ výzkum 1.29.0. U pravidel je rozlišeno, co **hlídá kód** (příkaz `strom` 
 - **Ovládání:** terminál: `strom chat` (kde, říká nastavení `agent.where`: `app` aplikace agenta, `terminal`
   terminál; bez nastavení aplikace, když je nainstalovaná), `strom chat --where app|terminal` jednou jinak,
   `strom agents use claude|codex|antigravity|grok|opencode`, `strom doctor` (řádky **kde se mluví s agentem**, **agent v terminálu**,
-  **prohlížeč (Claude in Chrome)**, **prohlížeč desktopových aplikací**, **hooky Codexu (prohlížeč)**).
+  **prohlížeč (Claude in Chrome)**, **prohlížeč desktopových aplikací**, **aplikace ChatGPT**, **hooky Codexu (prohlížeč)**; při zvolené aplikaci ChatGPT se řádek hooků jmenuje
+  **hooky Codexu (Codex v terminálu)**).
 - **Platí od:** výzkum 1.29.0
+- **Od výzkumu 1.30.0:** řádek aplikace ChatGPT: její prohlížeč strom nehlídá ([R12.5.1](#R12.5.1)).
 
-<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · assets/lang/cs.json ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
+<!-- zdroj: research:src/core/apps.ts DESKTOP_APPS (claude://code/new, codex://new; mac Claude.app, Codex.app, ChatGPT.app) · src/commands/start.ts:156-217 strom chat (where app|terminal, ui.chat.app.open) · src/core/config.ts:311 agent.where, :316 agent.addons · src/agents/files.ts codexRules · src/core/agentcli.ts · src/cli/main.ts:290 (def.person && isAgent) · src/core/which.ts detectAgent · src/commands/setup.ts:556-558 doctor codexhooks (ui.doc.codexhooks; ui.doc.codexhooks.terminal jen při chatgptApp) · assets/lang/cs.json ui.doc.where, ui.doc.cli, ui.doc.browser, ui.doc.desktop · test/vysledek-desktop-chrome.md (Trust workspace, odkaz jen předvyplní zprávu) -->
 
 <a id="R12.2"></a>
 ## R12.2 Prohlížeč v aplikaci Claude
@@ -123,13 +125,15 @@ Aplikace Claude stačí na rozhovor. Co strom spouští sám, spouští Claude C
 
 Codex se spouští v terminálu, nebo v aplikaci ChatGPT (starší samostatná aplikace Codex ji předchází). Prohlížeč,
 Chrome a ovládání počítače jsou jeho zásuvné moduly v jednom nastavení Codexu (`~/.codex/config.toml`), které
-sdílí terminál i aplikace. Prohlížeč Codex ovládá kódem v JavaScriptu (nástroj `js`), ne adresou stránky.
+sdílí terminál i aplikace. Prohlížeč Codex ovládá kódem v JavaScriptu (nástroj `js`), ne adresou stránky. Hook
+stromu před prohlížečem platí pro Codex v terminálu; prohlížeč aplikace ChatGPT běží přes cloud ChatGPT a žádný hook
+stromu nevolá ([R12.5.1](#R12.5.1)).
 
 - **Hlídá kód:**
   - příkazy `strom` podle pravidel stromu pro Codex (`.codex/rules/strom.rules`): `strom` je dovolený, přihlášení,
     pečeť, instalace a odebrání konektoru a git jsou zakázané. Codex tato pravidla čte, až člověk složce výzkumu
     důvěřuje;
-  - před každým voláním prohlížeče Codexu běží hook stromu (`.codex/hooks.json`). Codex ho spustí, až člověk
+  - před každým voláním prohlížeče Codexu v terminálu běží hook stromu (`.codex/hooks.json`). Codex ho spustí, až člověk
     složce výzkumu důvěřuje a hook **strom** v Codexu potvrdí (Trust). strom za člověka nic nepotvrzuje;
   - adresa stránky napsaná v kódu: stejné rozhodnutí jako u prohlížeče v Chromu ([R9.4](R9-archives.md#R9.4)).
     Archiv, který pouští jen prohlížeč člověka, je bez svolení **přes prohlížeč** odmítnut se stejnou radou; povolený
@@ -143,7 +147,7 @@ sdílí terminál i aplikace. Prohlížeč Codex ovládá kódem v JavaScriptu (
     volání odmítnuto;
   - samostatný běh (`strom run`) s Codexem bez osobních doplňků agenta (`agent.addons off`, výchozí) vypne jeho
     zásuvné moduly, prohlížeč a ovládání počítače. S `agent.addons on` a v rozhovoru zůstanou, jak je člověk má;
-  - `strom doctor`, `strom setup` a `strom chat` řeknou, když hook stromu čeká na potvrzení, od potvrzení se
+  - `strom doctor`, `strom setup` a `strom chat` u Codexu v terminálu řeknou, když hook stromu čeká na potvrzení, od potvrzení se
     změnil, je v Codexu vypnutý, hooky Codexu jsou vypnuté, Codex složce výzkumu nedůvěřuje, nebo soubor hooku
     chybí. Stav čtou jen z nastavení Codexu. Soubor hooku, který jen chybí nebo je zastaralý, není varování: zapíše
     se znovu sám, až strom příště spustí agenta (`strom chat`, `strom run`), a do té doby se nic neztrácí.
@@ -164,14 +168,36 @@ sdílí terminál i aplikace. Prohlížeč Codex ovládá kódem v JavaScriptu (
   neproklikává.
 - **Proč:** prohlížeč Codexu se ovládá kódem, ne adresou stránky. strom posoudí jen adresu, kterou v kódu vidí; kód
   bez adresy proto neodmítá, jen ho zapíše.
-- **Ovládání:** aplikace ChatGPT (Codex): **Nastavení › Hooks** (nebo **Review hooks** u pole pro zprávu) → hook
-  **strom** → **Trust**; Codex v terminálu ve složce výzkumu: **Review hooks** (`/hooks`). Terminál: `strom doctor`
-  (řádky **prohlížeč desktopových aplikací** a **hooky Codexu (prohlížeč)**), `strom agents sync` (zapíše chybějící
+- **Ovládání:** Codex v terminálu ve složce výzkumu: **Review hooks** (`/hooks`) → hook **strom** → **Trust**.
+  Terminál: `strom doctor` (řádky **prohlížeč desktopových aplikací** a **hooky Codexu (prohlížeč)**; při zvolené
+  aplikaci ChatGPT se řádek hooků jmenuje **hooky Codexu (Codex v terminálu)**),
+  `strom agents sync` (zapíše chybějící
   soubor hooku), `strom net web` (počet nehlídaných volání), `strom config set agent.addons on|off`.
 - **Platí od:** výzkum 1.27.0 (vypnutí prohlížeče a ovládání počítače v samostatném běhu); `agent.addons` od 1.14.0;
   hook před prohlížečem Codexu a chybějící Codex v terminálu od 1.29.0
+- **Od výzkumu 1.30.0:** hook hlídá i prohlížeč, který Codex otevře přes `createBrowserTab`; adresa v tom volání se
+  posoudí stejně. Hook se tím změnil, takže ho Codex přeskakuje, dokud ho člověk znovu nepotvrdí (**Trust**).
+  `strom setup` a `strom chat` u aplikace ChatGPT o hookách Codexu nemluví.
 
-<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek -->
+<!-- zdroj: research:src/agents/files.ts codexRules (allow strom; forbidden login, seal, connector add/remove, git; „read once the folder is trusted“), CODEX_HOOKS v AGENT_FILES · src/core/codexhook.ts (CODEX_BROWSER_TOOL mcp__node_repl__js, CODEX_HOOK_MATCHER, answerCodexEvent: codeUrls → answerChromeEvent navigate, >1 archiv deny, ask → deny, reachesBridge, loopback, page tool = poslední puštěný host, UNWATCHED + UNWATCHED_HINT jednou za sezení, computerUseOnly sky.* → nic; codexHookState trusted|modified|untrusted|disabled|off|folder|missing jen z config.toml) · src/commands/web.ts (unwatched v strom net web) · src/runners/codex.ts CODEX_CLEAN, codexBrowserOff · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS = claude · src/core/agentcli.ts cliMissing · src/core/apps.ts codex (Codex.app, ChatGPT.app) · assets/lang/cs.json ui.doc.codexhooks.*, ui.doc.codexhooks.missing (bez varování od commitu 9bd14e84), ui.doc.desktop.codex · CHANGELOG.cs.md 1.27.0, 1.29.0 · dirigent:prace/1106-vyzkum-062-codex/karta.md Výsledek · research:v1.30.0 src/core/codexhook.ts CODEX_HOOK_MATCHER ^mcp__[a-z0-9_]+_repl__js$, createBrowserTab; src/core/browserhelp.ts KEPT_WHEN_CONFIRMED, codexInChatgptApp -->
+
+<a id="R12.5.1"></a>
+### R12.5.1 Prohlížeč aplikace ChatGPT
+
+Prohlížeč aplikace ChatGPT (Codex) běží přes cloud ChatGPT a žádný hook stromu nevolá: strom ho nehlídá a o webech
+rozhoduje dialog ChatGPT. U dialogu ChatGPT „cloudový prohlížeč“ k archivu s omezením ([R9.2](R9-archives.md#R9.2))
+se volí **Zamítnout**; **Povolit přístup ke všem relevantním webům** se nevolí.
+
+- **Hranice:**
+  - prohlížeč aplikace ChatGPT strom nehlídá ani nezapisuje, ať je hook stromu v Codexu potvrzený, nebo ne;
+  - Codex v terminálu zůstává hlídaný, jakmile je hook stromu v Codexu potvrzený ([R12.5](#R12.5)).
+- **Proč:** strom posoudí jen volání, které mu agent ukáže hookem; prohlížeč v cloudu ChatGPT žádný hook nevolá.
+- **Ovládání:** terminál: `strom doctor` (řádek **aplikace ChatGPT** jako varování: „prohlížeč strom nehlídá (běží
+  přes cloud ChatGPT), o webech rozhoduje dialog ChatGPT“, s radou k dialogu), `strom setup` (řekne to jednou, když
+  se zvolí aplikace ChatGPT).
+- **Platí od:** výzkum 1.30.0
+
+<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
 
 <a id="R12.6"></a>
 ## R12.6 Co ověřené není
@@ -183,9 +209,9 @@ Tabulka [R12.1](#R12.1) popisuje kód výzkumu a to, co bylo ověřené na Macu 
   agent pak zvolí (plyne jen z pokynů aplikace agentovi);
 - příkazová řádka agenta v aplikaci Claude a stažení webu v ní (hooky jsou tytéž jako v terminálu);
 - hlídání v aplikaci Claude, když Claude Code v terminálu není (aplikace spouští hooky vlastní kopií Claude Code);
-- Codex živě: v terminálu ani v aplikaci ChatGPT (pravidla stromu, hook před prohlížečem a jeho potvrzení,
-  odmítnutí a zápis nehlídaných volání, otevření rozhovoru odkazem, kroky člověka), ani že se aplikace ChatGPT chová
-  stejně jako starší aplikace Codex. Hook před prohlížečem Codexu je popsaný z kódu;
+- Codex v terminálu živě (pravidla stromu, hook před prohlížečem a jeho potvrzení, odmítnutí a zápis nehlídaných
+  volání, kroky člověka); hook před prohlížečem Codexu je popsaný z kódu;
+- aplikace ChatGPT: otevření rozhovoru odkazem a kroky člověka;
 - ovládání počítače Codexu: zda dává aplikacím úrovně jako aplikace Claude ([R12.10](#R12.10));
 - Antigravity, Grok Build a OpenCode živě v žádném způsobu práce: pravidla a hooky stromu, kroky člověka, odmítnutí
   příkazů člověka;

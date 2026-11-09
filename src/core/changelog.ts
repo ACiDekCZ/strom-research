@@ -64,6 +64,7 @@ const SAID: Record<string, PhraseKey> = {
   "conflict.resolve": "log.conflict.resolve",
   "conflict.leave": "log.conflict.leave",
   "conflict.edit": "log.conflict.edit",
+  "conflict.settle": "log.conflict.settle",
   "place.add": "log.place.add",
   "place.edit": "log.place.edit",
   "place.jurisdiction": "log.place.edit",

@@ -19,6 +19,9 @@ nigdzie indziej.
     [S1.9](#S1.9)), albo do wyłączenia komputera. Sam kończy się tylko wtedy, gdy człowiek tak wybrał
     (`live.idleMinutes`, w aplikacji **Po 2 godzinach bez pracy**): gdy przez ten czas nikt o nic go nie pyta i nikt
     przy tym nie pracuje w drzewie. Regularne zapytanie aplikacji o stan nie utrzymuje mostu przy życiu.
+  - Most kończy się sam także wtedy, gdy jego badanie zniknie z folderu i brakuje go też przy następnej kontroli co
+    najmniej 10 s później. Dysk niedostępny tylko przez chwilę mostu nie kończy. Drugi most tego samego badania,
+    uruchomiony obok działającego, od razu się kończy.
   - Gdy most uruchomi się ponownie sam (aktualizacja, bezczynność, awaria), zachowuje adres: ten sam port, jeśli jest
     wolny, i ten sam klucz. Aplikacja łączy się wtedy bez nowego linku.
   - `strom live stop` porzuca klucz: aplikację połączy wtedy ponownie dopiero `strom app`. Jeśli port zajmuje inny
@@ -31,8 +34,10 @@ nigdzie indziej.
 - **Obowiązuje od:** badanie 1.0.0. Ten sam adres po ponownym uruchomieniu od 1.8.0, `live.idleMinutes` od 1.25.0.
 - **Od badania 1.29.0:** most nie kończy się już sam po bezczynności (domyślne `live.idleMinutes` 0); wcześniej
   kończył się sam po dwóch godzinach. Wartość zapisana przez człowieka zostaje.
+- **Od badania 1.30.0:** most, którego badanie zniknęło, kończy się dopiero po drugiej kontroli co najmniej 10 s
+  później (wcześniej od razu); drugi most tego samego badania od razu się kończy.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.2"></a>
 ## S1.2 Badanie otwiera się w aplikacji linkiem z terminala
@@ -57,8 +62,12 @@ samo.
 - **Obsługa:** terminal: `strom app`, `strom app --live`. Aplikacja: **Badanie → Więcej → Badanie dla tego
   drzewa…**
 - **Obowiązuje od:** aplikacja 3.0.0, badanie 1.0.0
+- **Od badania 1.30.0:** na macOS badanie przekazuje adres dla aplikacji zainstalowanej z przeglądarki opartej na
+  Chromium (Chrome, Edge…) przeglądarce, która już działa, tak jak przekazałoby go jej własne drugie uruchomienie. Nie
+  uruchamia się żaden inny program, a w Docku nie przybywa ikona przeglądarki. Gdy przeglądarka nie działa lub nie
+  odpowie w ciągu 5 s, badanie uruchomi ją jak dotąd.
 
-<!-- zdroj: research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
+<!-- zdroj: research:a4a2f6c0 src/core/chromium.ts openWebApp (darwin: handToRunning SingletonSocket, jinak launch), handToRunning (ACK, timeout 5000), singletonMessage · dirigent:prace/1109-vyzkum-dock-chrome/karta.md Výsledek (živě Chrome, Edge, Canary) · research:src/commands/start.ts (v1.25.2) app, liveAppUrl / importAppUrl, Safari · app:src/research-link.ts:584 parseLoopbackUrl, :747 decideResearchOpen · src/ui/research-ui.ts:1088 initExternalOpen, :1350 importResearchFromUrl · src/local-network.ts · strings.ts research.notLocal, research.editedMessage, research.safariBlocked -->
 
 <a id="S1.2.1"></a>
 ### S1.2.1 Linki, które aplikacja przyjmuje
@@ -112,8 +121,15 @@ odczytu, aby zmiana w aplikacji nie spotkała się z pracą agenta.
   - Gdy automatyczne śledzenie się nie uda, aplikacja milczy, a drzewo zostaje takie, jakie było.
 - **Obsługa:** aplikacja: **Śledź na żywo** · terminal: `strom app --live`
 - **Obowiązuje od:** aplikacja 3.0.0; przełączenie na drzewo z agentem od 3.13.1
+- **Od aplikacji 3.26.0 z badaniem 1.30.0:**
+  - badanie ma drzewo dla aplikacji zbudowane dla każdego stanu i zachowuje je także po ponownym uruchomieniu mostu;
+  - aplikacja od razu pokazuje drzewo w ostatnio zbudowanej postaci. Gdy badanie w międzyczasie poszło dalej, panel
+    badania pokazuje „Przygotowywanie nowszej wersji…”, a nowsza wersja sama zastępuje drzewo, gdy tylko jest gotowa;
+  - gdy badanie od ostatniego wczytania się nie zmieniło, a drzewo w aplikacji jest wciąż dokładnie tym wczytanym,
+    aplikacja nie pobiera go ani nie wczytuje ponownie;
+  - podczas śledzenia badanie ogłasza zmianę, gdy jej drzewo jest gotowe.
 
-<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
 <a id="S1.5"></a>
 ## S1.5 Gdy badanie nie działa albo połączenie się nie udaje

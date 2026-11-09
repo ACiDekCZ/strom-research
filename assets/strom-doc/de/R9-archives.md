@@ -291,15 +291,19 @@ Archivs zeigt.
     (`strom-T…-<číslo>.jpg`), und `strom media add --inbox --waiting` verschiebt sie unter der Nummer des Bildes in
     den Ordner der Aufgabe ([R9.6](#R9.6)).
 - **Grenzen:** Chrome speichert von einer Seite nur eine Datei. Weitere Downloads von derselben Seite muss der Mensch
-  in der Adressleiste von Chrome erlauben; der Agent ändert die Einstellungen von Chrome nie.
+  in der Adressleiste von Chrome erlauben; der Agent ändert die Einstellungen von Chrome nie. Eine Aufnahme, deren
+  Datei auch 5 s nach der Anweisung zum Speichern nicht im Download-Ordner ist, gilt für `strom media add --inbox
+  --waiting` als zurückgehalten: es sagt das dem Agenten, und das Warten der Aufgabe sagt dem Menschen, welcher Website
+  er das Herunterladen mehrerer Dateien erlauben soll („der Browser hat Aufnahme {n} zurückgehalten: {website} das
+  Herunterladen mehrerer Dateien erlauben, einmal (das Symbol rechts in der Adressleiste des Browsers)“).
 - **Nur Methodik:** ein Downloader für ein Archiv, dessen Betrachter Bilder in Kacheln zeigt, speichert ebenfalls über
   den Browser, auch einen Teil eines Bildes; die Seite des Buches öffnet er einmal und lädt sie nie neu.
 - **Warum:** die Erlaubnis „über den Browser“ erlaubt, was ein Mensch in seinem Browser tun würde, in seinem Tempo.
 - **Bedienung:** Terminal (Agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, danach
   `strom media add --inbox --waiting`.
-- **Gilt seit:** Forschung 1.27.0
+- **Gilt seit:** Forschung 1.27.0. Eine zurückgehaltene Aufnahme wird seit Forschung 1.30.0 gemeldet.
 
-<!-- zdroj: research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Warten auf Bilder und Rückkehr der Aufgabe

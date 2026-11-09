@@ -50,7 +50,7 @@ test("login, seal adopt, connector add|remove: refused to an agent with a global
     // the catalog says so
     const catalog = (await w.ok(["commands", "--json"])).json;
     const all = (catalog.commands ?? catalog) as { command: string; userOnly?: boolean }[];
-    assert.deepEqual(all.filter((c) => c.userOnly).map((c) => c.command).sort(), ["conflict leave", "connector add", "connector remove", "fixes review", "fixes undo", "hypothesis decide", "login", "offline answer", "place answer", "place undo", "quality dismiss", "quality undo", "seal adopt", "story approve", "story discard", "surname accept", "surname group", "surname reject", "surname ungroup", "surname unreject", "sync discard", "sync undo", "trees forget"]);
+    assert.deepEqual(all.filter((c) => c.userOnly).map((c) => c.command).sort(), ["conflict leave", "connector add", "connector remove", "event revert", "fixes review", "fixes undo", "hypothesis decide", "login", "offline answer", "person revert", "place answer", "place undo", "quality dismiss", "quality undo", "seal adopt", "story approve", "story discard", "surname accept", "surname group", "surname reject", "surname ungroup", "surname unreject", "sync discard", "sync undo", "trees forget", "verify bulk", "verify stop"]);
 
     // the person at their terminal: as before, global options too
     assert.match((await w.ok(["--tree", tree, "login"], { cwd: w.dir })).out, /no connector here uses a login/);

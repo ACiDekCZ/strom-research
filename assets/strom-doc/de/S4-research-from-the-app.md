@@ -294,10 +294,24 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
   aktualisiert sich danach selbst.**, bei Fragen zu Orten **Fragen zu Orten werden hier beantwortet.**, bei beidem
   **Fragen zu Orten werden hier beantwortet, die übrigen in der Forschung.** Einträge nur für das Terminal bekommt die
   App nicht ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
-- **Bedienung:** App: Panel, Abschnitt **Wartet auf Bearbeitung**; Menü **Forschung → Wartet auf Bearbeitung**.
-- **Gilt seit:** App 3.4.0. Fragen zu Orten seit Forschung 1.25.0.
+- **Vom Stammbaum aus:** das Kärtchen einer Person, auf die etwas wartet, hat die Marke **!** (Popup: **Klick:
+  antworten**). Ein Klick darauf und der Eintrag **Antworten · N wartet** im Menü der Person tun dasselbe:
+  - wartet auf die Person ein Eintrag, öffnet sich seine Antwort wie mit der Schaltfläche in seiner Zeile im Panel;
+  - warten mehrere, öffnet sich das Panel im Abschnitt **Wartet auf Bearbeitung** mit den Einträgen der Person oben,
+    hervorgehoben. Auf dem Telefon, bei eingeklapptem oder ausgeblendetem Abschnitt und bei geöffneter Übersicht
+    werden sie in der **Forschungsübersicht** hervorgehoben;
+  - lässt sich hier auf keinen Eintrag der Person antworten (auch nicht auf einen einzigen), öffnet sich das Panel
+    trotzdem, und unter jedem Eintrag steht **Hier ist keine Antwort möglich: Geantwortet wird in der Forschung, auf
+    dem Computer, auf dem sie installiert ist.** Ein Klick bleibt nie ohne Reaktion;
+  - eine neue Version einer Erzählung öffnet den Vergleich;
+  - auf einem Touch-Gerät hat das Menü der Person statt **Antworten · N wartet** den Eintrag **Wartet auf Erledigung
+    · N ›**: er hebt die Einträge der Person hervor, geantwortet wird aus ihren Zeilen.
+- **Bedienung:** App: Panel, Abschnitt **Wartet auf Bearbeitung**; Menü **Forschung → Wartet auf Bearbeitung**; die
+  Marke **!** auf dem Kärtchen und **Antworten · N wartet** im Menü der Person.
+- **Gilt seit:** App 3.4.0. Fragen zu Orten seit Forschung 1.25.0. Die Marke **!** und **Antworten · N wartet** so
+  seit App 3.26.0.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
 
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen

@@ -97,9 +97,9 @@ test("the search beyond the registers before a story: the user may say no to it,
   for (const e of [["CHR", "--date", "25 JUN 1905", "--place", "Týnec nad Labem"], ["OCCU", "--value", "mlynář"], ["RESI", "--place", "Týnec nad Labem", "--house", "12"]]) await w.ok(["event", "add", "P1", ...e, ...cite]);
   // dropped (the user's answer about the search, not about the story): the story is proposed
   const search = (await w.ok(["frontier", "--apply", "--json"])).json.created.at(-1);
-  await w.ok(["task", "add", "Křest Josefa", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+  const added = (await w.ok(["task", "add", "Křest Josefa", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis", "--about", "P1", "--json"])).json.task.id;
   const order = (await w.ok(["task", "list", "--json"])).json.tasks.map((t: any) => t.id);
-  assert.ok(order.indexOf(search) > order.indexOf("T0003"), `with the stories, after the research: ${order}`);
+  assert.ok(order.indexOf(search) > order.indexOf(added), `with the stories, after the research: ${order}`);
   assert.match((await w.ok(["plan"])).out, /Potom vyprávění: 1 \(Jan Novák/);
   await w.ok(["task", "drop", search, "--reason", "nechci"]);
   assert.equal((await w.ok(["frontier", "--json"])).json.stories[0].level, "narrate");

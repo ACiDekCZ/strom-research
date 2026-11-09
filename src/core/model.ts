@@ -116,6 +116,73 @@ export interface Event {
   /** The note taken back (strom note retract), kept for the history. */
   retractedNotes?: RetractedNote[];
   retracted?: { at: string; reason: string };
+  /**
+   * Where the value came from (spec 066): an import of a family tree (a lead: an agent changes it only with a record
+   * cited) or the user (never changed by an agent — only proposed). No origin: the research's own. `parts` names the
+   * parts that are the import's (none named: the whole fact).
+   */
+  origin?: ValueOrigin<"date" | "place" | "value">;
+  /** The import's value before the research changed it with a record cited (spec 066): `strom event revert` puts it back. */
+  was?: ValueWas<"date" | "place" | "value"> & { date?: string; place?: string; value?: string };
+  /**
+   * The person confirmed the fact against the scan (spec 065, `strom verify confirm`, the app's "verified by the scan").
+   * The status stays as it is; no verification queues it again and no agent changes it. Optional: no SCHEMA_VERSION raised.
+   */
+  confirmed?: FactConfirmed;
+  /** The last verification of the fact against its originals by an agent (spec 065, `strom verify done`). */
+  verified?: FactVerified;
+}
+
+/** A fact confirmed by the person (spec 065). */
+export interface FactConfirmed {
+  at: string;
+  by: "user";
+}
+
+/** An agent's verification of a fact against the originals it cites (spec 065). */
+export interface FactVerified {
+  at: string;
+  /** The session that verified it, or "agent". */
+  by: string;
+  /** The model that looked at the original. */
+  model?: string;
+  /** proven: the original says so (status raised); kept: it stays as it was, `reason` says why. */
+  result: "proven" | "kept";
+  reason?: string;
+  task?: string;
+  /** The sources whose originals were looked at (the citations that prove it then). */
+  cites: string[];
+  /** 2: another model than every one that read those sources agreed. */
+  readers?: 2;
+}
+
+/** Where a fact's, a name's or a sex's value came from (spec 066). */
+export interface ValueOrigin<P extends string> {
+  by: "import" | "user";
+  /** The source of the import (S…). */
+  source?: string;
+  parts?: P[];
+  /**
+   * The user's value as their own family tree gave it — the Strom app's file or JSON taken in — and not changed by the
+   * person since (the Strom file's `_STROM_ORIGIN tree`): the user's to guard (an agent only proposes), but nothing the
+   * person confirmed. Without it, `by: "user"` is the person's own change: an edit, a value put back, a proposal taken, an
+   * edit the Strom app sent. Only with `by: "user"`; an older strom ignores it and takes the value for the user's. Optional:
+   * no SCHEMA_VERSION raised.
+   */
+  tree?: true;
+}
+
+/** The import's value kept when the research changed it (spec 066): only the parts changed, the first change's. */
+export interface ValueWas<P extends string> {
+  /** The source of the import the value came from. */
+  source?: string;
+  parts: P[];
+  /** The import's citations the change took off (`revert` gives them back). */
+  cites?: Citation[];
+  /** The sources the research changed it on. */
+  because: string[];
+  at: string;
+  by: string;
 }
 
 export const NAME_KINDS = ["birth", "married", "religious", "alias"] as const;
@@ -140,6 +207,10 @@ export interface Name {
   primary?: true;
   /** The records that give the person this name (in this form). */
   citations?: Citation[];
+  /** Where the name came from (spec 066): an import or the user; none, the research's. */
+  origin?: ValueOrigin<"given" | "surname">;
+  /** The import's name before the research changed it with a record cited (spec 066). */
+  was?: ValueWas<"given" | "surname"> & { given?: string; surname?: string };
 }
 
 /**
@@ -167,6 +238,28 @@ export interface ExternalRef {
   system: string;
   id: string;
 }
+
+/** An ID line a family tree's program gave a record (_UID, UID, RIN, EXID, _FSFTID, AFN): its tag, its value as written, an EXID's TYPE. */
+export interface OriginalId {
+  tag: string;
+  value: string;
+  type?: string;
+}
+
+/**
+ * The IDs a record had in a family tree it came from (spec 066 K3.2): the import's source (Source.imported), the
+ * record's xref in that file (without @) and its ID lines as written. `xid`: the record did not come of that import
+ * (merged with one that did, or the user's own the app joined it to) — the IDs are its, no value of it the import's.
+ */
+export interface OriginalIds {
+  source: string;
+  xref?: string;
+  ids?: OriginalId[];
+  xid?: true;
+}
+
+/** Limits of original IDs: lines in an entry, entries on a record, the longest value, TYPE and xref. */
+export const ORIGINAL_IDS_LIMITS = { ids: 20, entries: 50, value: 200, type: 300, xref: 100 } as const;
 
 /**
  * The story of a person or a couple, written for the family from the facts —
@@ -216,10 +309,16 @@ export interface Person extends BaseRecord {
   /** Names taken back (strom name retract), apart from `names`. */
   retractedNames?: RetractedName[];
   sex: Sex;
+  /** Where the sex came from (spec 066): an import or the user; none, the research's. */
+  sexOrigin?: ValueOrigin<never>;
+  /** The import's sex before the research changed it with a record cited (spec 066). */
+  sexWas?: Omit<ValueWas<never>, "parts"> & { sex: Sex };
   events: Event[];
   story?: Story;
   notes: Note[];
   refs?: ExternalRef[];
+  /** The IDs the person had in the family trees they came from (spec 066 K3.2). */
+  originalIds?: OriginalIds[];
 }
 
 export const CHILD_RELATIONS = ["birth", "adopted", "step", "foster", "unknown"] as const;
@@ -246,6 +345,8 @@ export interface Family extends BaseRecord {
   citations?: Citation[];
   notes: Note[];
   refs?: ExternalRef[];
+  /** The IDs the family had in the family trees it came from (spec 066 K3.2). */
+  originalIds?: OriginalIds[];
   /** Two parents of a child who are no couple, as the Strom app keeps them (its _STROM_NO_COUPLE). */
   noCouple?: true;
   /**
@@ -361,6 +462,11 @@ export interface Source extends BaseRecord {
      */
     declined?: string[];
   };
+  /**
+   * The source is an import of a family tree from another program (spec 066): its key in the research ("R1", "R2"…),
+   * the program and its version, the file's date (HEAD DATE), when it was imported, the file and its hash.
+   */
+  imported?: { key: string; program?: string; version?: string; date?: string; at?: string; file?: string; sha?: string };
   notes: Note[];
 }
 
@@ -744,6 +850,25 @@ export interface Conflict extends BaseRecord {
    * ("Given /Surname/"), "" none — what `strom conflict resolve --take` marks.
    */
   primary?: true;
+  /**
+   * A proposal of an agent (spec 066): a change of a value that came from an import (`kind` import) or the user (`kind`
+   * user) — the agent may not change it, so it proposes. Claims: the value now (the user's side), the value proposed
+   * (the research's side, citing the source). `--take research` writes the proposal as the person's own act.
+   */
+  proposal?: {
+    kind: "import" | "user";
+    by: string;
+    at: string;
+    cites?: Citation[];
+    /** A name proposed: the person, the name's index now and its parts proposed. */
+    name?: { person: string; index: number; given?: string; surname?: string };
+    /** A sex proposed: the person and the sex. */
+    sex?: { person: string; sex: Sex };
+    /** The fact proposed taken back (its reason). */
+    retract?: { event: string; reason: string };
+    /** The name proposed to be shown by: the person and the index of the name. */
+    primary?: { person: string; index: number };
+  };
   state: "open" | "resolved";
   resolution?: string;
   reasoning?: string;

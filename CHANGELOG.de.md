@@ -5,6 +5,107 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.30.0
+
+*9.11.2026 · gehört zur Strom-App 3.26.0.*
+
+- **Angaben am Original geprüft.** Angaben zu Geburt, Taufe, Heirat, Tod oder Begräbnis, die ihren ursprünglichen
+  Eintrag zitieren, aber wahrscheinlich oder möglich bleiben, prüft der Agent an diesem Original: er sieht sich den Scan
+  an und hebt die Angabe entweder auf belegt oder schreibt auf, warum sie bleibt, wie sie ist. Eine ältere Forschung
+  wird nach dem Update einmal durchgegangen (nur mit dem Stammbaum verbundene Personen, niemand Lebendes; `strom fixes
+  undo verify-originals` nimmt es zurück), neue Angaben laufend. Von Hand für eine Person, eine Familie oder eine Angabe,
+  als Erstes in der Warteschlange (`strom verify facts <wen>` oder aus der App Strom); gesammelt für eine Linie, ein
+  Geschlecht oder den ganzen Stammbaum mit einer Schätzung der Kosten – starten kann das nur der Benutzer (`strom verify
+  bulk`); anhalten lässt es sich mit `strom verify stop`. Eine Angabe, die der Benutzer in der App Strom anhand des Scans
+  bestätigt, ändert der Agent nie – er schlägt nur vor. Ein Wert, den der Benutzer eingegeben hat oder der aus einem
+  Stammbaum kam, wird nie überschrieben: was abweicht, ist ein Vorschlag zur Entscheidung des Benutzers. Wie viele
+  Angaben warten, sagen `strom check`, `strom doctor`, `strom stats` und `strom verify status`.
+  Eine Bestätigung in der App Strom gilt für den Wert, den der Benutzer gesehen hat: eine seitdem geänderte Angabe wird nicht bestätigt.
+
+- **Angaben aus einem übernommenen Stammbaum sind geschützt.** Ein Stammbaum aus einem anderen Programm (GEDCOM) gibt
+  Hinweise: der Agent ändert eine solche Angabe nur nach einem Eintrag, den er zitiert, und der Wert aus dem Stammbaum
+  bleibt daneben erhalten („ursprünglich aus dem Stammbaum: …“) und lässt sich zurücksetzen (`strom event revert`, `strom
+  person revert`). Ohne zitierten Eintrag – und immer, wenn der Benutzer über die Hypothesen entscheidet – schlägt der
+  Agent nur vor, als Widerspruch zur Entscheidung des Benutzers. Was der Benutzer eingegeben oder geändert hat, in der
+  App Strom oder in strom, ändert der Agent nie: er schlägt nur vor – auch nicht über eine Datei, die er mit `strom sync`
+  einliest. Die Vorschläge des Agenten sind in `strom conflict list` und `show` erkennbar und schließen sich selbst,
+  sobald der vorgeschlagene Wert gilt. Eine früher angelegte Forschung wird nach dem Update einmal markiert (welche
+  Angaben aus einem übernommenen Stammbaum kamen, welche vom Benutzer sind): kein Wert ändert sich, und `strom fixes undo
+  origins` nimmt die Markierungen zurück; wie viele Werte in wie vielen Datensätzen markiert wurden, sagt `strom fixes show origins`. Ein Vorschlag, dessen Wert sich seit seiner Entstehung geändert hat (vom
+  Benutzer bearbeitet), ist veraltet: Er lässt sich nicht annehmen – über den neueren Wert wird nichts geschrieben –, nur
+  mit dem behaltenen Wert schließen. Was ein Vorschlag nicht tragen kann (eine zusammen mit dem Datum geänderte Ursache),
+  nennt das Ergebnis der Synchronisation, es geht nie verloren.
+  Ein Wert, der mit dem Stammbaum aus der App Strom kam und seitdem von niemandem geändert wurde, ist wie ein eigener des Benutzers geschützt.
+
+- **Ein erneut übernommener Stammbaum findet seine Personen.** Die IDs, die ein Programm Personen und Familien gab
+  (`_UID`, `EXID`, `_FSFTID`… von MyHeritage, Gramps, FamilySearch und anderen), bleiben erhalten: ein Stammbaum desselben
+  Programms, erneut übernommen (oder aus einem anderen Programm in die Forschung), findet die Personen über sie – nie
+  doppelt, neue Angaben kommen als Hinweise dazu; eine neuere Datei des
+  Stammbaums desselben Programms, in der sich Name, Geschlecht oder Geburtsdatum geändert haben, findet dieselbe Person,
+  und was abweicht, kommt als Hinweis neben die Angabe der Forschung und wird genannt; eine nur vielleicht gleiche Person
+  (Datei eines anderen Programms, andere FamilySearch-ID) wird genannt, nie verbunden und nie in eine Familie gesetzt, in
+  der die Person, die sie vielleicht ist, schon ist, und `strom check` nennt zwei Personen mit derselben ID eines
+  Stammbaums zum Vergleichen und Zusammenführen. Die IDs gehen mit der Forschung zurück in die Strom-App. Was die Datei
+  enthält und nicht übernommen wird (Medien, eigene Tags des Programms), wird im Ergebnis gezählt. In einer früher angelegten Forschung werden die IDs früherer Übernahmen aus deren Dateien gelesen,
+  sodass auch ein vor der Markierung erneut übernommener Stammbaum niemanden doppelt anlegt.
+
+- **Ein Problem in einer Datei gemeldet.** `strom error` packt, was nötig ist, um zu erkennen, was geschah, in eine
+  ZIP-Datei im Ordner Downloads (sonst im aktuellen Ordner): die Version, das System, `strom doctor`, die Agenten, die
+  Konnektoren, die Brücke zur App Strom, die Forschung nur in Zahlen, die technischen Protokolle der letzten 7 Tage
+  (`--since`) und die Befehle, die mit einem Fehler endeten. Nichts aus dem Stammbaum kommt hinein – Namen, Orte,
+  Notizen, Transkriptionen, Bilder, Pfade mit dem Namen des Benutzers, Anmeldungen und Tokens werden weggelassen oder
+  durch feste Codes ersetzt – und nichts wird gesendet: die Datei sendet der Benutzer selbst, an die Adresse, die der
+  Befehl nennt. `--about fetch|sync|agent|install|windows` fügt die Einzelheiten eines Bereichs hinzu (die Tabelle steht
+  in `strom error --help`), `--where` sagt, wo das Problem auftrat, `--note` beschreibt es mit den Worten des Benutzers (sie geht so, wie sie geschrieben ist – ersetzt werden nur Namen, die die Forschung kennt);
+  die Daten genannter Personen, Familien oder eines Buches nur mit `--with-data` und der Zustimmung des Benutzers. Um
+  eine Meldung gebeten, fragt der Agent, wo das Problem auftrat, führt den Befehl aus und nennt den Pfad – die Datei
+  sendet, öffnet und kopiert er nie in den Chat. Im Menü: Wartung → Ein Problem melden. Die Forschung wird nur gelesen,
+  auch eine beschädigte.
+
+- **Die Datei für die App Strom wird auch bei einer Forschung mit einer begründet entschiedenen Hypothese wieder
+  geschrieben:** für die App ab 3.25.0 (oder unbekannter Version) lehnte `strom export gedcom` sie ab, und
+  `output/tree-strom.ged` blieb nach einer Sitzung alt (eine über `strom app` in der App geöffnete Forschung war nicht
+  betroffen). **Eine große Forschung live in der App Strom zu verfolgen öffnet sich viel schneller:** der Baum für
+  die App wird für jeden Stand der Forschung einmal erstellt und bleibt gespeichert, auch nach einem Neustart der
+  Brücke, und beim Verfolgen wird eine Änderung gemeldet, sobald ihr Baum bereit ist. Die Brücke endet nicht mehr,
+  wenn das Laufwerk der Forschung kurz nicht erreichbar ist, und eine zusätzlich gestartete zweite Brücke derselben
+  Forschung endet sofort, statt unbemerkt weiterzulaufen.
+  Ein Update, während strom die Brücke startet, lässt keine zwei Brücken mehr laufen: Eine bleibt, unter der Adresse, der die App folgt.
+  Einer App, die den neuesten Stammbaum schon hat, wird nichts erneut gesendet.
+  Eine App, die darum bittet, bekommt den Stammbaum mit jedem Bild nach seinem Inhalt benannt und lädt nur die Bilder, die sie noch nicht hat.
+
+- **Eine im Terminal gezeigte oder bearbeitete Angabe** (`strom event show`, `strom event edit`) erscheint in der
+  Sprache der Forschung. In der App Strom hat ein in die Forschung übernommener Stammbaum nicht mehr die erste Zeile
+  daraus als Fundstelle des ganzen Stammbaums: jede Angabe nennt ihre eigene.
+  **Stammbäume aus Windows-Programmen in der Codepage 1250 oder 1252 („ANSI“)** werden mit den richtigen Buchstaben
+  gelesen – tschechisch, polnisch, deutsch, wie in der App Strom. Ein Zeichen, das sich nicht lesen lässt, wird gemeldet,
+  nie still ersetzt.
+
+- **Codex in der App ChatGPT, wie es wirklich ist.** Die Einrichtung spricht dort nicht mehr von den Hooks von Codex
+  (dieser Satz gilt Codex im Terminal), und `strom doctor` rät, sie nur im Terminal zu bestätigen. Der Browser der App
+  ChatGPT läuft über die Cloud von ChatGPT und ruft keine Regel von strom auf: strom sagt nicht mehr, dass es ihn
+  überwacht, und der Agent dort geht zu einem Archiv mit Einschränkungen nur über einen Menschen (`strom task wait
+  --images`). `strom doctor` und die Einrichtung sagen es als Warnung, mit dem Rat zum Dialog „Cloud-Browser“ von ChatGPT
+  bei einem solchen Archiv: *ablehnen*, Zugriff auf alle relevanten Websites nie. Codex im Terminal bleibt überwacht –
+  neu auch sein Browser, geöffnet über `createBrowserTab`.
+
+- **Ein Herunterladen der Bilder eines Buches, das sein Konnektor mit einem Fehler abbricht,** nennt die nicht
+  geholten Bilder und den Befehl, der sie holt (nur sie – was kam, wird nicht noch einmal angefragt), endet mit einem
+  Fehler (bisher meldete es Erfolg), und was fehlt, sagen auch `strom fetch --status` und das Briefing; ein
+  Herunterladen, das ein Archiv unterwegs ablehnt, endet wie bisher, mit dessen eigenem Rat. **Eine kurz nach
+  Mitternacht in der App Strom bestätigte Abschrift** trägt den neuen Tag nach dem Kalender dieses Computers (bisher den
+  Tag davor).
+  **Einen Konnektor bauen:** `strom connector test` warnt, wenn ein Bild viele Anfragen kostet (Kacheln), und sagt, was
+  zuerst zu suchen ist – den Link des Portals auf das ganze Bild oder das Herunterladen eines ganzen Buches – mit der
+  Zeit, die ein Buch im Tempo des Archivs bräuchte; `strom connector new` zitiert, was strom von den Bedingungen des
+  Archivs weiß.
+  **macOS: Die App Strom, aus der Forschung geöffnet** (live verfolgen, eine Datei für die App), lässt im Dock unter
+  den zuletzt verwendeten Apps kein Symbol von Google Chrome mehr zurück: Die Adresse geht direkt an den bereits
+  laufenden Browser, das Fenster der App öffnet sich wie bisher.
+  **Eine Aufnahme, die der Browser des Agenten speichern sollte und der Browser zurückhielt** (Chrome speichert eine
+  Datei einer Website von selbst, die nächste erst, wenn sie mehrere Dateien herunterladen darf), wird gemeldet: „Was
+  wartet“ nennt die Website, der das einmal in der Adressleiste des Browsers zu erlauben ist.
+
 ## 1.29.0
 
 *8.11.2026 · gehört zur Strom-App 3.25.0.*

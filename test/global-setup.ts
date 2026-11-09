@@ -9,6 +9,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { bridgeRuns, bridgesFolder, endBridges, notedBridges } from "./bridges.ts";
 
 interface Print {
   names: string[];
@@ -95,10 +96,34 @@ let before: Print;
 
 export function globalSetup(): void {
   before = fingerprint();
+  // one folder for the bridges of the whole run, handed to every test file (they inherit the runner's environment)
+  bridgesFolder();
+}
+
+/**
+ * The bridges of this run still running after its last test (test/bridges.ts) — each ended here, and the run fails: a
+ * test left one (its world never cleaned up, a tree of its own never stopped), or one whose research is gone did not end
+ * by itself. One whose research is gone is waited for a while first: it ends by itself (STROM_LIVE_GONE_MS, then up to 3 s).
+ */
+function bridgesLeft(waitMs = Number(process.env.STROM_TEST_BRIDGES_WAIT_MS ?? 20_000)): string[] {
+  const running = () => notedBridges().filter((b) => bridgeRuns(b.pid));
+  let left = running();
+  for (let t = 0; t < waitMs && left.some((b) => !fs.existsSync(b.root)); t += 250) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    left = running();
+  }
+  if (!left.length) return [];
+  const stuck = new Set(endBridges(left.map((b) => b.pid)));
+  return left.map((b) => `a bridge left running: ${b.pid} of ${b.root}${fs.existsSync(b.root) ? "" : " (its research gone)"}${stuck.has(b.pid) ? " — could not be ended" : " — ended now"}`);
 }
 
 export function globalTeardown(): void {
   const after = fingerprint();
+  const left = bridgesLeft();
+  if (left.length) {
+    process.stderr.write(`\nThe tests left bridges running (each test ends its own: World.cleanup, strom live stop):\n  ${left.join("\n  ")}\n`);
+    process.exitCode = 1;
+  }
   const found: string[] = [];
   const had = new Set(before.names);
   for (const n of after.names) if (!had.has(n)) found.push(`new: ${n}`);

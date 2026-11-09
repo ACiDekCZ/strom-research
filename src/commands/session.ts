@@ -5,6 +5,7 @@
 // closes what the agent left open, exports the GEDCOM and commits. Between
 // sessions not a single token is spent.
 
+import { queueVerify } from "../core/verify.ts";
 import { opsLogsOf } from "../core/opslog.ts";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -115,12 +116,15 @@ export function researchProposals(tree: Tree, research: Research): { proposal: P
 }
 
 /** Create the tasks strom proposes for a research; returns their IDs. */
-export function applyFrontier(tree: Tree, research: Research): string[] {
+export function applyFrontier(tree: Tree, research: Research, opts: { verify?: boolean } = {}): string[] {
   // a direction paused or ended proposes nothing (resumed: what it would, at once)
   if (research.state !== "active") return [];
   // what the person marked no error since, or a date corrected: its task waiting is done first
   settleAfterDeath(tree);
-  return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
+  const ids = researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
+  // the facts with their original cited, not yet verified against it: queued after the lines' work (core/verify.ts)
+  if (opts.verify !== false) queueVerify(tree);
+  return ids;
 }
 
 /**

@@ -651,6 +651,47 @@ export function appReadsSourcesAgain(settings: Settings, version?: string, gate:
   return isAppVersion(v) && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The first Strom app that shows where a value came from (spec 066 U3; the app's ZADANI_VYZKUM_puvod-importu.md, point
+ * 3): `2 _STROM_ORIGIN import Ix [parts] | user | tree | research` under each fact and NAME, `1 _STROM_SEX_ORIGIN` on a person,
+ * `2 _STROM_WAS` (the family tree's value an agent changed on a record, with `3 _STROM_IMPORT`, `3 _PART`, `3 _REF`),
+ * `1 _STROM_IMPORT` in the header, `2 _STROM_KIND import|user` under a proposal's conflict — in the Strom file and the
+ * bridge's /tree.ged. From the app's 3.26.0; an app of unknown version stays off (today's file, without the marks); another
+ * copy of the app (its beta, its development) from APP_SHOWS_ORIGIN_BETA. `tree` (the user's family tree taken in,
+ * unchanged by the person since; `user` the person's own change — the app's Dotazy 3, 2026-11-09) goes by the same gate:
+ * an app before the word reads no origin of such a value (its mark by the status), nothing else is lost.
+ */
+export const APP_SHOWS_ORIGIN: string | undefined = "3.26.0";
+
+/** The first beta of the app that shows where a value came from (another copy of the app gets the marks from it). */
+export const APP_SHOWS_ORIGIN_BETA: string | undefined = "3.26.0-beta.1";
+
+/** Does the Strom app of this version show where a value came from (_STROM_ORIGIN, _STROM_WAS, _STROM_KIND)? */
+export function appShowsOrigin(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The first Strom app that shows the verification of facts against their originals (spec 065, the app's
+ * ZADANI_VYZKUM_spolehlivost.md): under each fact of a person and of a family `2 _STROM_EID E…` (right after its line;
+ * `3 _TXT <mark>` under it, the mark of what the fact says, given back by POST /facts/confirm), `2 _STROM_CONFIRMED <day>` (the user's confirmation against the scan), `2 _STROM_VERIFY wait|asked|images|permission`
+ * (with `3 _POS n` for wait|asked: its task's place in the queue) and `2 _STROM_CHECKED proven|kept` (`3 DATE`, `3 _WHY`,
+ * `3 _READERS 2`) — in the Strom file and the bridge's /tree.ged. From the app's 3.26.0; an app of unknown version stays off;
+ * another copy of the app (its beta, its development) from APP_SHOWS_VERIFY_BETA.
+ */
+export const APP_SHOWS_VERIFY: string | undefined = "3.26.0";
+
+/** The first beta of the app that shows the verification of facts (another copy of the app gets the marks from it). */
+export const APP_SHOWS_VERIFY_BETA: string | undefined = "3.26.0-beta.2";
+
+/** Does the Strom app of this version show the verification of facts (_STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY, _STROM_CHECKED)? */
+export function appShowsVerify(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_VERIFY, beta: string | undefined = APP_SHOWS_VERIFY_BETA): boolean {
+  return appShowsOrigin(settings, version, gate, beta);
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

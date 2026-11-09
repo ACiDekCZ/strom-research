@@ -6,6 +6,7 @@ import fs from "node:fs";
 import module from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { bridgesFolder } from "./bridges.ts";
 
 const dir = process.env.NODE_COMPILE_CACHE || path.join(os.tmpdir(), "strom-test-compile-cache");
 process.env.NODE_COMPILE_CACHE = dir;
@@ -25,5 +26,8 @@ process.on("exit", () => {
     // left for the system's own cleaning of its temp folder
   }
 });
+// The bridges noted in one folder (test/bridges.ts): the whole run's, made by the runner (test/global-setup.ts) and handed
+// to every test file it starts — else this test file's own.
+bridgesFolder();
 // A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
 process.env.STROM_TEST_HOSTS = "1";

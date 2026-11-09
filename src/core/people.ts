@@ -9,6 +9,7 @@ import { foldText, tokens } from "./text.ts";
 import type { Tree } from "./tree.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { otherKind, otherKindHint } from "./records.ts";
+import { proposalSides, proposalTitle } from "./proposals.ts";
 
 /**
  * Parse "Jan /Novák/", "Jan Novák" (last word = surname) or "/Novák/". The
@@ -622,6 +623,8 @@ export function likelyDuplicates(tree: Tree, ids: string[], family?: (a: string,
  * him Johannes Bergh). Any other title as it was written.
  */
 export function conflictTitle(tree: Tree, c: Conflict): string {
+  // an agent's proposal: said from what it holds, in the language it is shown in (never the words it was written with)
+  if (c.proposal) return proposalTitle(tree, c, tree.lang);
   const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
   const title = ofApp ? inWords(c.title, tree.lang) : c.title;
   const p = ofApp && c.subject[0]?.startsWith("P") ? tree.get<Person>(c.subject[0]) : undefined;
@@ -638,9 +641,14 @@ export function conflictTitle(tree: Tree, c: Conflict): string {
  */
 export function claimText(tree: Tree, c: Conflict, claim0: Conflict["claims"][number]): string {
   // a batch's label an older strom left in it ("@s: aged 27"): the value after it (core/labels.ts)
+  const i = c.claims.indexOf(claim0);
+  // an agent's proposal: the value now and the one proposed, in the language they are shown in
+  if (c.proposal && (i === 0 || i === 1)) {
+    const sides = proposalSides(tree, c, tree.lang);
+    return i === 0 ? sides.now : sides.proposed;
+  }
   const claim = settledClaim(tree, c, claim0);
   if (claim.text) return claim.text;
-  const i = c.claims.indexOf(claim0);
   const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
   // a title cut at its length says one side no more
   if (ofApp && c.claims.length === 2 && i >= 0 && c.title.length < 200) {

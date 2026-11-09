@@ -267,9 +267,9 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   assert.doesNotMatch(all.out, /Model výzkumu|Kontrola instalace\n/, "the model in the setup, the check in maintenance");
   // maintenance: the check of the installation, disk space, the fixes of strom's — the update only when one is out (a gap at 4)
   const care = await w.ok([], { tty: true, answers: ["8", "8", "4", "0", "0", "0"] });
-  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 3, 5, 0]);
-  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}3 {2}Opravy stromu\n {3}5 {2}Co zálohovat \(celou složku výzkumu, nebo zabalit\)\n {3}0 {2}Zpět\n/);
-  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 3, 5, 0\./, "a number not shown is refused");
+  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 3, 5, 6, 0]);
+  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}3 {2}Opravy stromu\n {3}5 {2}Co zálohovat \(celou složku výzkumu, nebo zabalit\)\n {3}6 {2}Nahlásit problém: jeden soubor ZIP k odeslání \(nic o lidech z rodokmenu\)\n {3}0 {2}Zpět\n/);
+  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 3, 5, 6, 0\./, "a number not shown is refused");
   // the help keeps its 9
   assert.match((await w.ok([], { tty: true, answers: ["8", "9", "", "0", "0"] })).out, /strom/);
   // another agent here does the research: nothing of Claude's — Remote Control's 7 a gap, typed 7 refused, the rest stay

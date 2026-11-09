@@ -1,0 +1,77 @@
+[
+ {
+  "session_id": "chatgpt-1",
+  "transcript_path": null,
+  "cwd": "{TREE}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-test",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "tool_name": "mcp__cua_repl__js",
+  "tool_input": {
+   "code": "let tab = await cua.createBrowserTab(\"iab\", \"https://ebadatelna.soapraha.cz/\", { visible: true });",
+   "title": "Krok 1: otevření eBadatelny"
+  },
+  "tool_use_id": "call_23aae81cdbc34fe3b85794cef720e7c5"
+ },
+ {
+  "session_id": "chatgpt-1",
+  "transcript_path": null,
+  "cwd": "{TREE}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-test",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "tool_name": "mcp__cua_repl__js",
+  "tool_input": {
+   "code": "let exampleTab = await cua.createBrowserTab(\"iab\", \"https://example.com\", { visible: true });",
+   "title": "Krok 2: otevření example.com"
+  },
+  "tool_use_id": "call_18cb9a8760014575ab1c3b7ce72f907e"
+ },
+ {
+  "session_id": "chatgpt-1",
+  "transcript_path": null,
+  "cwd": "{TREE}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-test",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "tool_name": "mcp__cua_repl__js",
+  "tool_input": {
+   "code": "await exampleTab.getAXState();",
+   "title": "Krok 2: přečtení stránky"
+  },
+  "tool_use_id": "call_37eeb74336d24ce1badd6db284603edb"
+ },
+ {
+  "session_id": "chatgpt-1",
+  "transcript_path": null,
+  "cwd": "{TREE}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-test",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "tool_name": "mcp__cua_repl__js",
+  "tool_input": {
+   "code": "await exampleTab.goto(\"https://katalog.ahmp.cz/\"); await exampleTab.getAXState();",
+   "title": "Krok 3: přechod ve stejné záložce na katalog AHMP"
+  },
+  "tool_use_id": "call_a2ce6a704e0546ea902154facaa87d9e"
+ },
+ {
+  "session_id": "chatgpt-1",
+  "transcript_path": null,
+  "cwd": "{TREE}",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-test",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "tool_name": "mcp__cua_repl__js",
+  "tool_input": {
+   "code": "await exampleTab.getAXState();",
+   "title": "Krok 4: přečtení titulku bez zadání adresy"
+  },
+  "tool_use_id": "call_f80d20bd4b3044d6a464ed2859d7e7f7"
+ }
+]

@@ -11,8 +11,9 @@ import path from "node:path";
 import { threadId } from "node:worker_threads";
 import type { Clip, ExcerptQuality, ExcerptScope, Family, Input, Media, Person, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { clipText, inputPath, sharperPart } from "./media.ts";
+import { clipText, inputPath, mediaById, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
+import { mediaRecords } from "./mediaindex.ts";
 import { convertedDir, readableFile } from "./readable.ts";
 import { Settings } from "./config.ts";
 import { excerptPage } from "./scanlink.ts";
@@ -92,7 +93,7 @@ export const LATER = Symbol("later");
 
 /** Where a clip's excerpt is cut from at a level: the sharpest image of that place, its region there, its file and the excerpt's place in the cache. */
 function clipPlace(tree: Tree, shared: string, clip: Clip, all: Media[], level: ExcerptLevel): { m: Media; src: Media; region: Region; file: string; cache: string } | undefined {
-  const m = all.find((x) => x.id === clip.media);
+  const m = mediaById(all, clip.media);
   if (!m) return undefined;
   const wanted = withMargin(clip.region);
   // the sharpest image of that place: a part of it fetched sharper, or a bigger copy
@@ -309,7 +310,7 @@ export function planExcerpts(
     budgetMs?: number | undefined;
   },
 ): { of: (s: Source) => Excerpt[]; left: (s: Source) => ExcerptLeft | undefined; omitted: (s: Source) => ExcerptOmitted | undefined; report: ExcerptReport } {
-  const all = tree.list<Media>("media");
+  const all = mediaRecords(tree);
   const near = sourceNearness(tree, opts.persons);
   const report: ExcerptReport = { sources: 0, excerpts: 0, bytes: 0, asked: opts.quality, level: opts.quality, dropped: [], outOfScope: 0, uncited: 0, uncitedLeft: [], missing: [], unclipped: [], later: [] };
   const why = new Map<string, ExcerptLeft>();

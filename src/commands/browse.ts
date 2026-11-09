@@ -7,7 +7,8 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
-import { eventName, generationName, humanCost, humanDate, humanDay, humanPlace, statusName } from "../cli/human.ts";
+import { eventName, generationName, humanCost, humanDate, humanDay, humanPlace, statusName, verifyWaitsMore } from "../cli/human.ts";
+import { verifyCounts } from "../core/verify.ts";
 import { UsageError } from "../core/errors.ts";
 import { mainPerson } from "../core/kin.ts";
 import { resolvePerson } from "../core/people.ts";
@@ -141,6 +142,9 @@ register(
       }
       // an archive: nobody works on it — no tasks, no sessions said
       if (!actsAsArchive(tree)) out.push("", ui(lang, "ui.stats.tasks", s.tasks));
+      // facts with the original cited waiting to be verified against it (spec 065 K6.9): never in an archive
+      const verify = actsAsArchive(tree) ? undefined : verifyCounts(tree);
+      if (verify?.waiting) out.push(ui(lang, "ui.stats.verify", { n: verify.waiting, more: verifyWaitsMore(lang, verify) }));
       if (s.sessions.count && !actsAsArchive(tree))
         out.push(
           ui(lang, "ui.stats.sessions", { n: s.sessions.count, last: humanDay(s.sessions.last!, lang) }) +
@@ -149,7 +153,7 @@ register(
             (s.sessions.costUsd && s.sessions.costPartial ? ui(lang, "ui.stats.cost.partial", { n: s.sessions.costPartial }) : ""),
         );
       if (s.stories.written) out.push(ui(lang, "ui.stats.stories", { n: s.stories.written }));
-      return { text: lines(...out), data: s };
+      return { text: lines(...out), data: verify?.waiting ? { ...s, verify: { waiting: verify.waiting, images: verify.images, permission: verify.permission } } : s };
     },
   },
   {

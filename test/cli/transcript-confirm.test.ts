@@ -14,7 +14,7 @@ import http from "node:http";
 import { World, hasGit } from "../helpers.ts";
 import { now, Tree } from "../../src/core/tree.ts";
 import { changeLines } from "../../src/core/changelog.ts";
-import { confirmedOn, transcriptMark, userReading } from "../../src/core/readers.ts";
+import { confirmedOn, localDayOf, transcriptMark, userReading } from "../../src/core/readers.ts";
 import { readByOthers, readersOf } from "../../src/core/review.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
 import { Settings } from "../../src/core/config.ts";
@@ -155,13 +155,14 @@ test("K2.2, K2.3, K2.6: POST /sources/confirm — confirmed as the user's readin
     // confirmed: the user's reading of this wording, with its day
     const ok = await post({ source: s1, txt: m1, confirm: true });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
-    const day = new Date().toISOString().slice(0, 10);
-    assert.deepEqual([ok.body.ok, ok.body.source, ok.body.read, ok.body.conf, ok.body.txt], [true, s1, "both", day, m1]);
-    assert.notEqual(ok.body.head, ok.body.parent, "written");
     const u = sourceOf(w, s1).read?.user;
     assert.equal(u?.how, "confirm");
     assert.equal(u?.txt, m1);
-    assert.equal(u?.at.slice(0, 10), day);
+    // its day: the day of the moment kept, on this computer's calendar (never the clock read again)
+    const day = localDayOf(u!.at);
+    assert.ok(Math.abs(Date.parse(u!.at) - Date.now()) < 120_000, "the moment of the confirmation");
+    assert.deepEqual([ok.body.ok, ok.body.source, ok.body.read, ok.body.conf, ok.body.txt], [true, s1, "both", day, m1]);
+    assert.notEqual(ok.body.head, ok.body.parent, "written");
     // K2.6: the user read it now — no second reading by another model
     assert.ok(readers(w, s1)?.has("user"));
     assert.equal(readByOthers(readers(w, s1), "opus"), false);
@@ -284,7 +285,7 @@ test("K2.2 by the file: the app's file back through strom sync keeps the researc
     const APP_RUN = { STROM_FOR_APP: "1" };
     // as the bridge runs it for the app
     assert.equal((await w.ok(["source", "confirm", s1, "--txt", m1, "--json"], { env: APP_RUN })).json.read, "both");
-    assert.equal((await w.ok(["source", "confirm", s2, "--txt", m2, "--json"], { env: APP_RUN })).json.conf, new Date().toISOString().slice(0, 10));
+    assert.equal((await w.ok(["source", "confirm", s2, "--txt", m2, "--json"], { env: APP_RUN })).json.conf, localDayOf(new Date().toISOString()));
     const file = path.join(w.dir, "app.ged");
     await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", file], { env: BETA_APP });
     const text = fs.readFileSync(file, "utf8");
@@ -317,5 +318,31 @@ test("K2.2 by the file: the app's file back through strom sync keeps the researc
     assert.match((await w.ok(["check"])).out, /^ok/);
   } finally {
     w.cleanup();
+  }
+});
+
+test("the day of a confirmation is this computer's: shortly after midnight the new day, never the day before by UTC (8 November 2026) — nothing written changes", () => {
+  const txt = "Kateřina, dcera Jiřího Lhotáka z Lhoty č. 7.";
+  const kept = process.env.TZ;
+  try {
+    const on = (tz: string, at: string) => {
+      process.env.TZ = tz;
+      return confirmedOn({ transcript: txt, read: { user: { how: "confirm", at, txt: transcriptMark(txt) } } } as Parameters<typeof confirmedOn>[0]);
+    };
+    // 00:30 in Prague is 23:30 UTC the day before
+    assert.equal(on("Europe/Prague", "2026-11-07T23:30:00.000Z"), "2026-11-08");
+    // 22:30 in New York is 03:30 UTC the next day
+    assert.equal(on("America/New_York", "2026-11-08T03:30:00.000Z"), "2026-11-07");
+    // the same moment where UTC is the calendar
+    assert.equal(on("UTC", "2026-11-07T23:30:00.000Z"), "2026-11-07");
+    // summer time
+    assert.equal(on("Europe/Prague", "2026-06-30T22:15:00.000Z"), "2026-07-01");
+    assert.equal(localDayOf("2026-11-08"), "2026-11-08", "a day alone stays itself");
+    assert.equal(localDayOf("not a moment"), "not a mome");
+    // taken back or another wording: no day
+    assert.equal(confirmedOn({ transcript: txt + " x", read: { user: { how: "confirm", at: "2026-11-07T23:30:00.000Z", txt: transcriptMark(txt) } } } as Parameters<typeof confirmedOn>[0]), undefined);
+  } finally {
+    if (kept === undefined) delete process.env.TZ;
+    else process.env.TZ = kept;
   }
 });

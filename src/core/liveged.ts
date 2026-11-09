@@ -4,24 +4,31 @@
 // bridge answers /status and everything else meanwhile — never the app told the research does not answer while it
 // works. What a thread made comes back whole; one that fails is an error of that request alone.
 
+import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { Env } from "./paths.ts";
-import { Tree } from "./tree.ts";
+import { Tree, VERSION } from "./tree.ts";
 import { Settings } from "./config.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { dataUrl, excerptLevel, excerptMarks, excerptSettings, INPUT_MARK, LEVELS, planExcerpts, sourceExcerpts, turned, type ExcerptOmitted } from "./excerpt.ts";
 import { excerptPage } from "./scanlink.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisDecider, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords, appConfirmsTranscripts, appReadsSourcesAgain } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisDecider, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appReadsPlaceRecords, appShowsOrigin, appShowsVerify, appConfirmsTranscripts, appReadsSourcesAgain, stromAppUrl } from "./stromapp.ts";
 import { surnamesForExport } from "./surnames.ts";
 import { lineMarks } from "./lineages.ts";
 import { LINK_SCHEME, linkScheme } from "./links.ts";
 import { refusal } from "./receive.ts";
 import { actsAsArchive } from "./state.ts";
+import { verifyMarks } from "./verify.ts";
 import { readsAgain } from "./sourceread.ts";
 import type { WidgetTree } from "./widget.ts";
 import type { Input, Media, Source } from "./model.ts";
+import { putImage, sweepImages } from "./liveimages.ts";
+
+/** How a file for the app carries its images: in it (data URLs, as always) or by reference (spec 071, ?images=ref). */
+export type GedImages = "data" | "ref";
 
 /** A source whose excerpts the file leaves out though the research has them (/excerpts?missing=1). */
 export interface LeftOut {
@@ -36,6 +43,8 @@ export interface GedMade {
   links: string;
   bytes: Buffer;
   left: { head: string; level: string; sources: LeftOut[] };
+  /** A file with its images by reference: the hashes of the images it names (each kept: core/liveimages.ts). */
+  images?: string[];
 }
 
 /** What the file is made for: the tree, its head now, the app's version, the links this computer takes (said to an app that opens them). */
@@ -47,6 +56,8 @@ export interface GedAsk {
   links: string[];
   /** New images made for at most so long (the rest the next time the tree changes). */
   budgetMs: number;
+  /** The images by reference (each kept by its hash) or in the file (none: in it). */
+  images?: GedImages;
 }
 
 /** One source's excerpts asked for (/excerpt/<S>[?clip=…&level=…]). */
@@ -104,17 +115,186 @@ export function buildGed(ask: GedAsk): GedMade {
   const lines = appReadsLines(settings, version) ? lineMarks(tree) : undefined;
   // …and the research's place records with each fact's place pointing to its record, for an app that reads them
   const placeRecords = appReadsPlaceRecords(settings, version);
+  // …and where each value came from (an import, the user, the research), for an app that shows it (spec 066)
+  const origins = appShowsOrigin(settings, version);
+  // …and the verification of facts against their originals, for an app that shows it (spec 065)
+  const verify = appShowsVerify(settings, version) ? verifyMarks(tree) : undefined;
   const left = {
     head: h,
     level: set?.quality ?? LEVELS[1]!.name,
     sources: images ? tree.list<Source>("source").flatMap((s) => (s.retracted ? [] : [{ source: s, omitted: images.omitted(s) }])).filter((x): x is LeftOut => !!x.omitted) : [],
   };
   const offered = opens ? ask.links : [];
-  const text = exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
+  // the images by reference: each kept by its content's hash as the file names it (the same bytes the file would carry)
+  const named = new Set<string>();
+  const imageRef = ask.images === "ref" ? (jpeg: Uint8Array) => {
+    const sha = putImage(root, jpeg);
+    named.add(sha);
+    return sha;
+  } : undefined;
+  const text = exportGedcom(tree, { for: "strom", ...(imageRef ? { imageRef } : {}), ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
   // its bytes in a buffer of their own: handed to the bridge's thread without a copy
   const bytes = Buffer.from(new ArrayBuffer(Buffer.byteLength(text)));
   bytes.write(text);
-  return { head: h, version: version ?? "", links: offered.join(" "), bytes, left };
+  return { head: h, version: version ?? "", links: offered.join(" "), bytes, left, ...(imageRef ? { images: [...named].sort() } : {}) };
+}
+
+/**
+ * What a tree's file for the app is made by beyond the research's head: the app's version, the links offered, this
+ * strom, and what of this computer changes it (the images' settings and folder, the link scheme, the copy of the app,
+ * a research acting as an archive). Two asks of one variant at one head get the same file.
+ */
+export function gedVariant(root: string, env: Env, version: string | undefined, links: string, images: GedImages = "data"): string {
+  const tree = Tree.open(root, env);
+  const settings = new Settings(env, {});
+  // the images by reference: a variant of its own (its own ETag); the file with them in it as before (its ETag kept)
+  return JSON.stringify({ strom: VERSION, app: version ?? "", links, excerpts: settings.excerpts(tree.config), shared: settings.shared()?.value ?? "", scheme: linkScheme(env), copy: stromAppUrl(settings), archive: actsAsArchive(tree), ...(images === "ref" ? { images } : {}) });
+}
+
+/**
+ * Where the bridge keeps the last file it made of each variant (.strom/cache/live-ged): it outlives the bridge (a
+ * restart, a newer strom's bridge taking over), and a research that did not change is never made again for it — a
+ * large one takes long (found 2026-11-09: a minute of a research of 30,000 images, at each opening of the app).
+ */
+export function gedStoreDir(root: string): string {
+  return path.join(root, ".strom", "cache", "live-ged");
+}
+
+/**
+ * The variants kept on disk (each about the size of its file): the newest, the rest go — three, so that an app loading
+ * the images by reference keeps its file and the whole one it falls back to beside the file of another window.
+ */
+const STORED_VARIANTS = 3;
+
+/** What is kept beside a stored file: its variant, head, size, and the excerpts it left out (by their sources' IDs). */
+interface GedStamp {
+  variant: string;
+  head: string;
+  version: string;
+  links: string;
+  bytes: number;
+  left: { head: string; level: string; sources: { id: string; omitted: ExcerptOmitted }[] };
+  /** A file with its images by reference: the hashes of those it names (kept while the file is). */
+  images?: string[];
+}
+
+const storedName = (variant: string) => crypto.createHash("sha256").update(variant).digest("hex").slice(0, 16);
+
+/** A file written whole or not at all (beside it, then put in its place). */
+async function writeWhole(file: string, data: string | Uint8Array): Promise<void> {
+  const part = `${file}.${process.pid}.part`;
+  await fs.promises.writeFile(part, data);
+  await fs.promises.rename(part, file);
+}
+
+/**
+ * The file made kept on disk for its variant (written whole: the file first, then its stamp); the other variants beyond
+ * the newest STORED_VARIANTS, and those of another strom, go.
+ */
+export async function storeGed(root: string, variant: string, made: GedMade): Promise<void> {
+  const dir = gedStoreDir(root);
+  await fs.promises.mkdir(dir, { recursive: true });
+  const name = storedName(variant);
+  const stamp: GedStamp = {
+    variant,
+    head: made.head,
+    version: made.version,
+    links: made.links,
+    bytes: made.bytes.length,
+    left: { head: made.left.head, level: made.left.level, sources: made.left.sources.map((x) => ({ id: x.source.id, omitted: x.omitted })) },
+    ...(made.images ? { images: made.images } : {}),
+  };
+  await writeWhole(path.join(dir, `${name}.ged`), made.bytes);
+  await writeWhole(path.join(dir, `${name}.json`), JSON.stringify(stamp));
+  // the variants kept: this one and the newest others of this strom
+  const others: { name: string; at: number }[] = [];
+  for (const f of await fs.promises.readdir(dir)) {
+    const m = /^([0-9a-f]{16})\.json$/.exec(f);
+    if (!m || m[1] === name) continue;
+    try {
+      const was = JSON.parse(await fs.promises.readFile(path.join(dir, f), "utf8")) as GedStamp;
+      const strom = (JSON.parse(was.variant) as { strom?: string }).strom;
+      others.push({ name: m[1]!, at: strom === VERSION ? (await fs.promises.stat(path.join(dir, f))).mtimeMs : -1 });
+    } catch {
+      others.push({ name: m[1]!, at: -1 });
+    }
+  }
+  others.sort((a, b) => b.at - a.at);
+  for (const o of others.filter((o, i) => o.at < 0 || i >= STORED_VARIANTS - 1)) for (const ext of ["json", "ged"]) await fs.promises.rm(path.join(dir, `${o.name}.${ext}`), { force: true });
+  // a part left by a bridge that ended under it
+  for (const f of await fs.promises.readdir(dir)) if (f.endsWith(".part")) {
+    const at = (await fs.promises.stat(path.join(dir, f)).catch(() => undefined))?.mtimeMs;
+    if (at !== undefined && Date.now() - at > 3600_000) await fs.promises.rm(path.join(dir, f), { force: true });
+  }
+  // the images no kept file names any more (and not named within the hour) go
+  await sweepImages(root, await keptImages(root));
+}
+
+/** The hashes of the images the files kept on disk name (those with the images by reference). */
+export async function keptImages(root: string): Promise<Set<string>> {
+  const dir = gedStoreDir(root);
+  const keep = new Set<string>();
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch {
+    return keep;
+  }
+  for (const f of files) {
+    if (!/^[0-9a-f]{16}\.json$/.test(f)) continue;
+    try {
+      for (const sha of (JSON.parse(await fs.promises.readFile(path.join(dir, f), "utf8")) as GedStamp).images ?? []) keep.add(sha);
+    } catch {
+      // not whole: its images go once nothing else names them
+    }
+  }
+  return keep;
+}
+
+/** The files kept on disk by another strom (its bridge gone, never given again): removed — and the images none names. */
+export async function tidyStoredGeds(root: string): Promise<void> {
+  const dir = gedStoreDir(root);
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch {
+    files = [];
+  }
+  for (const f of files) {
+    const m = /^([0-9a-f]{16})\.json$/.exec(f);
+    if (!m) continue;
+    let strom: string | undefined;
+    try {
+      strom = (JSON.parse((JSON.parse(await fs.promises.readFile(path.join(dir, f), "utf8")) as GedStamp).variant) as { strom?: string }).strom;
+    } catch {
+      // not whole: removed
+    }
+    if (strom !== VERSION) for (const ext of ["json", "ged"]) await fs.promises.rm(path.join(dir, `${m[1]}.${ext}`), { force: true });
+  }
+  await sweepImages(root, await keptImages(root));
+}
+
+/**
+ * The file kept on disk for a variant: of that head (`head`), or the last one made whatever its head (none: nothing
+ * kept, kept by another strom, or not whole). Its excerpts left out told by the research as it is now.
+ */
+export async function storedGed(root: string, env: Env, variant: string, head?: string): Promise<GedMade | undefined> {
+  const dir = gedStoreDir(root);
+  const name = storedName(variant);
+  try {
+    const stamp = JSON.parse(await fs.promises.readFile(path.join(dir, `${name}.json`), "utf8")) as GedStamp;
+    if (stamp.variant !== variant || (head !== undefined && stamp.head !== head)) return undefined;
+    const bytes = await fs.promises.readFile(path.join(dir, `${name}.ged`));
+    if (bytes.length !== stamp.bytes) return undefined;
+    const tree = Tree.open(root, env);
+    const sources = stamp.left.sources.flatMap((x) => {
+      const source = tree.get<Source>(x.id);
+      return source ? [{ source, omitted: x.omitted }] : [];
+    });
+    return { head: stamp.head, version: stamp.version, links: stamp.links, bytes, left: { head: stamp.left.head, level: stamp.left.level, sources }, ...(stamp.images ? { images: stamp.images } : {}) };
+  } catch {
+    return undefined;
+  }
 }
 
 /**

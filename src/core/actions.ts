@@ -40,6 +40,8 @@ import { latestVersion, linkKey, linksIn, sourcesNamed, storyLosses, storySource
 import { roleWord } from "./roles.ts";
 import { checkParticipant, trailingNote } from "./participants.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
+import { settleProposals } from "./proposalsettle.ts";
+import { joinIds, mergedAway } from "./originalids.ts";
 
 /** Kinds that only make sense on a couple (a reader drops them on a person). */
 const FAMILY_ONLY = new Set(["MARR", "MARB", "MARC", "MARL", "MARS", "DIV", "DIVF", "ANUL", "ENGA"]);
@@ -148,6 +150,8 @@ export interface EventInput {
   status?: string | undefined;
   citations?: Citation[];
   note?: string | undefined;
+  /** Where the fact comes from (core/origin.ts): the person's own — origin user. */
+  origin?: Event["origin"] | undefined;
 }
 
 /** An age as the record gives it → GEDCOM form, or a clear error. */
@@ -228,6 +232,7 @@ export function makeEvent(tree: Tree, input: EventInput, forFamily = false): Eve
     ev.ages = Object.fromEntries(Object.entries(input.ages).map(([who, a]) => [who, parseAge(a, who)]));
   if (input.participants?.length) ev.participants = input.participants;
   if (input.note?.trim()) ev.note = makeNote(tree, input.note).text;
+  if (input.origin) ev.origin = input.origin;
   return ev;
 }
 
@@ -644,6 +649,8 @@ function replaceEvent(tree: Tree, eventId: string, change: (e: Event) => Event, 
     const next = change(structuredClone(event));
     const updated = { ...owner, events: owner.events.map((e) => (e.id === event.id ? next : e)), updated: now() } as Person | Family;
     tree.put(updated, { op: op.op, targets: [owner.id, event.id], summary: op.summary(next), ...(op.reason ? { reason: op.reason } : {}) });
+    // an agent's proposal of the value the fact has now (or of its retraction) holds by itself
+    settleProposals(tree, [owner.id]);
     return next;
   });
 }
@@ -667,9 +674,11 @@ export function citeEvent(tree: Tree, eventId: string, citation: Citation, statu
   return replaceEvent(tree, eventId, (e) => {
     if (e.citations.some((c) => c.source === citation.source && c.locator === citation.locator)) throw new UsageError(`${e.id} already cites ${citation.source} there`);
     const next = { ...e, citations: [...e.citations, citation] };
-    // A record raises a lead to probable; a family tree or a memory does not.
+    // A record raises a lead to probable; a family tree or a memory does not. A fact the person confirmed against the
+    // scan keeps the status they confirmed: only the person changes it (spec 065 K2.3; commands/people.ts refuses a
+    // --status of an agent's).
     if (newStatus) next.status = newStatus;
-    else if (next.status === "lead") next.status = defaultStatus(tree, next.citations);
+    else if (next.status === "lead" && !(e.confirmed && !tree.personWrites)) next.status = defaultStatus(tree, next.citations);
     checkStatus(tree, next.status, next.citations);
     return next;
   }, { op: "event.cite", summary: (e) => `${e.id} ${e.kind} ← ${citation.source} [${e.status}]` });
@@ -712,6 +721,10 @@ export interface NameInput {
   /** The titles of the name: before it ("Ing.") and after it ("ml."); "" takes one off. */
   prefix?: string | undefined;
   suffix?: string | undefined;
+  /** Where a new name comes from (core/origin.ts): the person's own — origin user. */
+  origin?: Name["origin"] | undefined;
+  /** Never a name of the user's completed in its place (an agent's: core/origin.ts) — the full one goes beside it. */
+  keepUsers?: boolean | undefined;
 }
 
 /**
@@ -750,10 +763,11 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
     } else {
       const titled = withTitles(name, input.prefix || undefined, input.suffix || undefined);
       added = input.citation ? { ...titled, citations: [input.citation] } : titled;
+      if (input.origin) added = { ...added, origin: input.origin };
       const primary = primaryName(p);
       const plain = !name.kind || name.kind === "birth";
       // "Markéta" of the family memory is "Markéta /Růžičková/" of the register: one name, now complete.
-      completes = Boolean(!input.other && plain && !primary.surname && name.surname && foldText(primary.given) === foldText(name.given) && !primary.citations?.length);
+      completes = Boolean(!input.other && plain && !primary.surname && name.surname && foldText(primary.given) === foldText(name.given) && !primary.citations?.length && !(input.keepUsers && primary.origin?.by === "user"));
       // the name completed was the one the person is shown by: the full one is
       if (input.primary || (completes && primary.primary)) added = { ...added, primary: true };
       const rest = completes ? p.names.filter((n) => n !== primary) : p.names;
@@ -777,7 +791,7 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
  * without adding it again — or, with no name, by the name of their identity again (the mark taken off). The user's
  * choice: never told from a record, never needs one.
  */
-export function markPrimaryName(tree: Tree, id: string, text: string | undefined, reason?: string): { person: Person; name: Name; was?: Name } {
+export function markPrimaryName(tree: Tree, id: string, text: string | undefined, reason?: string, mark?: (name: Name) => Name): { person: Person; name: Name; was?: Name } {
   const wanted = text === undefined ? undefined : parseName(text);
   if (wanted && !wanted.given && !wanted.surname) throw new UsageError("the name is empty");
   return tree.withTreeLock(() => {
@@ -792,16 +806,18 @@ export function markPrimaryName(tree: Tree, id: string, text: string | undefined
         throw new UsageError(`${id} has no name ${gedcomName(wanted)}`, { hint: `its names: ${p.names.map((n) => `"${gedcomName(n)}"`).join(", ")} · a new one: strom name add ${id} "${gedcomName(wanted)}" --primary`, code: "name.none" });
       }
       if (found.primary) throw new UsageError(`${id} is shown by ${gedcomName(found)} already`, { hint: `back to the name of their identity: strom name primary ${id} --clear` });
-      name = { ...found, primary: true };
+      name = mark ? mark({ ...found, primary: true }) : { ...found, primary: true };
       const names = p.names.map((n) => (n === found ? name : n.primary ? withoutMark(n) : n));
       const updated: Person = { ...p, names, updated: now() };
       tree.put(updated, { op: "name.primary", targets: [id], summary: `${id} shown by ${gedcomName(name)}${was ? ` (was ${gedcomName(was)})` : ""}`, ...(reason?.trim() ? { reason: reason.trim() } : {}) });
+      settleProposals(tree, [id]);
       return { person: updated, name, ...(was ? { was } : {}) };
     }
     if (!was) throw new UsageError(`no name of ${id} is marked: shown by ${gedcomName(primaryName(p))}`, { hint: `strom name primary ${id} "<Given /Surname/>"` });
     const updated: Person = { ...p, names: p.names.map((n) => (n === was ? withoutMark(n) : n)), updated: now() };
     name = primaryName(updated);
     tree.put(updated, { op: "name.primary", targets: [id], summary: `${id} shown by ${gedcomName(name)} again (the mark of ${gedcomName(was)} taken off)`, ...(reason?.trim() ? { reason: reason.trim() } : {}) });
+    settleProposals(tree, [id]);
     return { person: updated, name, was };
   });
 }
@@ -813,6 +829,8 @@ export interface PersonEdit {
   /** The titles of the name the person is shown by: before it ("Ing."), after it ("ml."); "" takes one off. */
   prefix?: string | undefined;
   suffix?: string | undefined;
+  /** What the change makes of where the values came from (core/origin.ts): the person before and after, the one written. */
+  mark?: ((before: Person, next: Person) => Person) | undefined;
 }
 
 /** Change a person's sex or correct the spelling of their name — with a reason, unless an unknown sex is filled in. */
@@ -834,7 +852,8 @@ export function editPerson(tree: Tree, id: string, edit: PersonEdit, reason?: st
     const overwrites = (sex !== undefined && p.sex !== "U" && p.sex !== sex) || name || titleChanged;
     if (overwrites && !reason?.trim()) throw new UsageError("changing a name, its title or a known sex needs --reason", { hint: 'e.g. --reason "misread: the register has Novák, not Nowak"', code: "person.needs-reason" });
     const names = p.names.map((n) => (n !== primary ? n : name ? { ...retitled, given: name.given, surname: name.surname } : retitled));
-    const updated: Person = { ...p, ...(sex !== undefined ? { sex } : {}), names, updated: now() };
+    const changed: Person = { ...p, ...(sex !== undefined ? { sex } : {}), names, updated: now() };
+    const updated = edit.mark ? edit.mark(p, changed) : changed;
     const what = [
       sex !== undefined ? `sex ${sex}` : "",
       name ? `name ${gedcomName(name)}` : "",
@@ -846,6 +865,8 @@ export function editPerson(tree: Tree, id: string, edit: PersonEdit, reason?: st
     tree.put(updated, { op: "person.edit", targets: [id], summary: `${id} ${what}`, ...(reason ? { reason } : {}) });
     for (const { next } of sides)
       tree.put({ ...next, updated: now() }, { op: "family.edit", targets: [next.id], summary: next.husb ? `${next.id} ${next.husb} kept as HUSB (the sex of ${id} changed)` : `${next.id} sides by sex again`, ...(reason ? { reason } : {}) });
+    // an agent's proposal of the name or the sex the person has now holds by itself
+    settleProposals(tree, [id]);
     return updated;
   });
 }
@@ -867,6 +888,8 @@ export interface EventEdit {
   participants?: Participant[] | undefined;
   /** Participants recorded wrongly (a godparent entered as a witness, a misread name): taken off. */
   drop?: Participant[] | undefined;
+  /** What the change makes of where the values came from (core/origin.ts): the fact before and after, the fact written. */
+  mark?: ((before: Event, next: Event) => Event) | undefined;
 }
 
 /**
@@ -937,7 +960,7 @@ export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?:
         code: "event.needs-reason",
         params: { id: e.id, fields: [...new Set(changed.map((c) => (c.startsWith("age") ? "--age" : c === "participants" ? "--without" : `--${c}`)))].join(", ") },
       });
-    return next;
+    return edit.mark ? edit.mark(e, next) : next;
   }, { op: "event.edit", summary: (e) => `${e.id} ${e.kind} edited`, reason });
 }
 
@@ -983,7 +1006,10 @@ function replaceId(value: unknown, from: string, to: string): unknown {
     // already has under the other ID stays
     const entries = Object.entries(value);
     const keyed = entries.some(([k]) => k === to);
-    return Object.fromEntries(entries.filter(([k]) => !(k === from && keyed)).map(([k, v]) => [k === from ? to : k, replaceId(v, from, to)]));
+    // the IDs a record had in a family tree (spec 066 K3.2) and its references to other files (refs: a REFN, a file's
+    // xref) are that file's words, never the research's references (an xref P0003 of another file is no person of
+    // ours): kept as they are — only a person or a family is merged
+    return Object.fromEntries(entries.filter(([k]) => !(k === from && keyed)).map(([k, v]) => [k === from ? to : k, k === "originalIds" || k === "refs" ? v : replaceId(v, from, to)]));
   }
   return value;
 }
@@ -998,6 +1024,7 @@ function repoint(tree: Tree, from: string, to: string, skip: Set<string>, op: { 
       const text = JSON.stringify(rec);
       if (!text.includes(`"${from}"`)) continue;
       const next = replaceId(rec, from, to) as AnyRecord;
+      if (JSON.stringify(next) === text) continue;
       if (next.type === "family") {
         // the same child twice: the first link (with its relation) stays
         const seen = new Set<string>();
@@ -1055,6 +1082,8 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
     for (let i = 0; i < names.length; i++) if (names[i]!.primary && names[i] !== marked) names[i] = withoutMark(names[i]!);
     const retractedNotes = [...(keep.retractedNotes ?? []), ...(other.retractedNotes ?? [])];
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
+    // the IDs of family trees: both records', the other's as not come of its import (its values are the kept one's now)
+    const originalIds = joinIds(keep.originalIds, mergedAway(other.originalIds)).list;
     const why = reason.trim();
     const merged: Person = {
       ...keep,
@@ -1065,6 +1094,7 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
       ...(retractedNames.length ? { retractedNames } : {}),
       ...(retractedNotes.length ? { retractedNotes } : {}),
       ...(refs.length ? { refs } : {}),
+      ...(originalIds.length ? { originalIds } : {}),
       updated: now(),
     };
     tree.put(merged, {
@@ -1106,6 +1136,7 @@ export function mergeFamilies(tree: Tree, keepId: string, otherId: string, reaso
     }
     const citations = [...(keep.citations ?? []), ...(other.citations ?? []).filter((c) => !(keep.citations ?? []).some((x) => x.source === c.source && x.locator === c.locator))];
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
+    const originalIds = joinIds(keep.originalIds, mergedAway(other.originalIds)).list;
     const why = reason.trim();
     const merged: Family = {
       ...keep,
@@ -1115,6 +1146,7 @@ export function mergeFamilies(tree: Tree, keepId: string, otherId: string, reaso
       ...(citations.length ? { citations } : {}),
       notes: [...keep.notes, ...other.notes],
       ...(refs.length ? { refs } : {}),
+      ...(originalIds.length ? { originalIds } : {}),
       updated: now(),
     };
     tree.put(merged, {

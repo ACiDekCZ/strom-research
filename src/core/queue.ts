@@ -30,6 +30,13 @@
 // history —; normal — as the lines' work; never — out of the queue (nothing deleted). A task that helps a line goes with
 // that line (a branch added to a line too). A session at work on it goes on. Nothing is kept for the turn: it is counted
 // from the sessions.
+// The tasks of verification against the originals (core/verify.ts, core/verifyfacts.ts): the sweep's (verify:auto) and
+// the person's bulk one (verify:bulk, a family tree's leads' search too) come after the lines' work, whatever the
+// strategy, but after VERIFY_EVERY − 1
+// sessions since the last one on them one comes forward, the nearest ancestor first; never in a loop (each fact once,
+// its task done when every fact of it has its result). The person's "verify" of a person, a family or a fact
+// (verify:asked, verify:search) comes first (queueAt next), like strom task order next. One whose originals have no
+// image here waits for the download as any work that reads records.
 
 import type { OffLine, Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
@@ -48,6 +55,7 @@ import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTu
 import { Settings } from "./config.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
+import { readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -140,7 +148,10 @@ export function waitsForArchive(tree: Tree, asleep: Asleep[] = asleepHosts(tree)
 
 /** A task that needs images none of its record sets has yet. */
 export function lacksImages(tree: Tree, t: Task, withImages: Set<string | undefined> = setsWithImages(tree)): boolean {
-  return NEEDS_IMAGES.has(t.level) && !taskRecordsets(tree, t).sets.some((b) => withImages.has(b.id));
+  if (!NEEDS_IMAGES.has(t.level)) return false;
+  // a verification against the originals: none of the originals its facts cite is here (core/verifyfacts.ts)
+  if (readsOriginals(t)) return verifyLacksImages(tree, t, withImages);
+  return !taskRecordsets(tree, t).sets.some((b) => withImages.has(b.id));
 }
 
 export function effectiveState(t: Task, today: string): Task["state"] {
@@ -284,6 +295,22 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           )[0]?.id
       : undefined;
 
+  // the verification against the originals (the sweep's, a bulk one: core/verify.ts): after the lines' work, but after
+  // VERIFY_EVERY sessions since the last one on it one comes forward — the nearest ancestor, then the oldest
+  const inTurn = (t: Task) => verifiesInTurn(t) && t.state !== "doing" && !own(t);
+  const lastVerify = ended.findIndex((s) => {
+    const t = tasksById.get(s.task!);
+    return !!t && verifiesInTurn(t);
+  });
+  const sinceVerify = lastVerify === -1 ? ended.length : lastVerify;
+  const verifyAhead =
+    sinceVerify >= VERIFY_EVERY
+      ? open
+          .filter(inTurn)
+          .map((t) => ({ t, gen: place(t)?.gen ?? OFF_LINE_GENERATION }))
+          .sort((a, b) => a.gen - b.gen || a.t.created.localeCompare(b.t.created) || a.t.id.localeCompare(b.t.id, undefined, { numeric: true }))[0]?.t.id
+      : undefined;
+
   const rows = open.map((t) => {
     const hist = forHistory(t);
     const p = hist ? {} : placing(t);
@@ -310,7 +337,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const mode = hist ? undefined : modeOf(t);
     const ahead = t.id === forward;
     // off the lines: forward at its turn (occasional), after the lines' work (occasional, last), in its place (normal)
-    const offRank = t.state === "doing" || !mode || mode === "normal" ? 0 : ahead ? -1 : 1;
+    const verifying = !hist && inTurn(t);
+    const verifyNow = verifying && t.id === verifyAhead;
+    const offRank = verifying ? (verifyNow ? -1 : 1) : t.state === "doing" || !mode || mode === "normal" ? 0 : ahead ? -1 : 1;
     const branch = p.branch ? ` (branch ${p.branch})` : "";
     const why = [
       t.state === "doing" ? "in progress" : undefined,
@@ -340,6 +369,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           }`
         : undefined,
       hist ? historyWhy(turn!, t, t.id === turnTask, t.id === firstOfHistory?.id) : undefined,
+      verifying
+        ? verifyNow
+          ? `verification against the originals: its turn, ${sinceVerify} sessions since the last one on it (one in ${VERIFY_EVERY}; the nearest ancestor first)`
+          : `verification against the originals: after the lines' work, one in ${VERIFY_EVERY} sessions comes forward`
+        : undefined,
       first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
       placesAsked ? "places the person asked to be identified: on top of the queue" : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
@@ -371,7 +405,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(p.branch ? { branch: p.branch } : {}),
       ...(p.research ? { research: p.research } : {}),
       ...(mine ? { own: mine } : {}),
-      ...(ahead ? { turn: true as const } : {}),
+      ...(ahead || verifyNow ? { turn: true as const } : {}),
     };
     return { task: t, why, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });

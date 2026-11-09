@@ -180,17 +180,22 @@ const USER_DATA: Record<string, { mac: string; win: string; linux: string }> = {
   Vivaldi: { mac: "Vivaldi", win: "Vivaldi\\User Data", linux: "vivaldi" },
 };
 
-/** The profile of the browser an installed web app belongs to: the one that holds its files (only folder names are looked at). */
-export function webAppProfile(browser: string, appId: string, env: Env, platform: NodeJS.Platform = process.platform): string | undefined {
+/** The folder a browser keeps its profiles in (its user data). */
+function userDataDir(browser: string, env: Env, platform: NodeJS.Platform): string | undefined {
   const d = USER_DATA[browser];
   if (!d) return undefined;
   const home = userHome(env);
-  const root =
-    platform === "darwin"
-      ? path.join(home, "Library", "Application Support", d.mac)
-      : platform === "win32"
-        ? path.join(env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"), d.win)
-        : path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), d.linux);
+  return platform === "darwin"
+    ? path.join(home, "Library", "Application Support", d.mac)
+    : platform === "win32"
+      ? path.join(env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"), d.win)
+      : path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), d.linux);
+}
+
+/** The profile of the browser an installed web app belongs to: the one that holds its files (only folder names are looked at). */
+export function webAppProfile(browser: string, appId: string, env: Env, platform: NodeJS.Platform = process.platform): string | undefined {
+  const root = userDataDir(browser, env, platform);
+  if (!root) return undefined;
   let dirs: string[] = [];
   try {
     dirs = fs.readdirSync(root);
@@ -213,7 +218,53 @@ export function openWebApp(app: { browser: string; appId: string; profile?: stri
   // macOS: the browser's own program — it hands the request to the browser already running.
   const exe = platform === "darwin" ? path.join(b.path, "Contents", "MacOS", path.basename(b.path, ".app")) : b.path;
   if (platform !== "darwin" && platform !== "win32" && !env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
+  // macOS, the browser running: the request goes to it as that program would hand it over, with no program started —
+  // a program started outside the system's launcher stays in the Dock's recent apps as the browser not running (found
+  // 9. 11. 2026 with "follow live"). Not taken (not running, no answer, shutting down): the program as before.
+  if (platform === "darwin") {
+    const dir = userDataDir(app.browser, env, platform);
+    if (dir && handToRunning(path.join(dir, "SingletonSocket"), [exe, ...args])) return true;
+  }
   return launch(exe, args, env);
+}
+
+/**
+ * What a second start of a Chromium browser sends the one running, through the socket in its user data
+ * (ProcessSingleton, POSIX): START, the folder it runs in and its command line, each ended by a NUL but the last.
+ */
+export function singletonMessage(argv: string[], cwd = "/"): string {
+  return ["START", cwd, ...argv].join("\0");
+}
+
+/** Read by the helper below: the socket, then the message in base64; exit 0 only on the browser's ACK. */
+const HAND_OVER = `const net=require("node:net");const c=net.connect(process.argv[1]);let got="";
+c.on("connect",()=>c.end(Buffer.from(process.argv[2],"base64")));c.on("data",(d)=>{got+=d});
+c.on("close",()=>process.exit(got.startsWith("ACK")?0:1));c.on("error",()=>process.exit(1));`;
+
+/**
+ * Hand a command line to the Chromium browser running on that socket, as its own second start would: true when it
+ * answered ACK (it opens what it was asked to). Nothing there, refused, no answer within 5 s, or SHUTDOWN: false.
+ */
+export function handToRunning(socket: string, argv: string[], timeoutMs = 5000): boolean {
+  try {
+    fs.lstatSync(socket);
+  } catch {
+    return false;
+  }
+  // the socket's own path (the link points to a short one in the temporary folder): a long one is refused by the system
+  let at = socket;
+  try {
+    at = fs.realpathSync(socket);
+  } catch {
+    return false;
+  }
+  const r = spawnSync(process.execPath, ["-e", HAND_OVER, at, Buffer.from(singletonMessage(argv), "utf8").toString("base64")], {
+    stdio: "ignore",
+    timeout: timeoutMs,
+    windowsHide: true,
+    env: {},
+  });
+  return r.status === 0;
 }
 
 /** Open an address in that browser; false when this computer cannot (no desktop) or tests ask not to. */
