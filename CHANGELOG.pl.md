@@ -5,6 +5,20 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.30.1
+
+*9.11.2026 · współpracuje z aplikacją Strom 3.26.0.*
+
+- **Badanie z historią uszkodzoną przez dysk w chmurze można przyjąć takim, jakie jest.** Gdy brakuje najstarszych
+  dzienników badania, a jego historii (git) nie da się odczytać (np. badanie, które było w iCloud Drive), `strom
+  verify` to mówi i przy każdym zapisie, którego już nie znajduje zapieczętowanego, wskazuje jedną drogę: użytkownik
+  przegląda zapisy i we własnym terminalu uruchamia `strom seal accept`. Bez potwierdzenia tylko liczy, co by zrobił;
+  po potwierdzeniu pieczętuje zapisy takimi, jakie są, jedną operacją, odkłada uszkodzoną historię na bok
+  (`.git-damaged-<kiedy>`, nigdy nie usuwa), zakłada nową i odkłada kopie iCloud (`… 2.lock`). Żaden zapis się nie
+  zmienia, nic nie jest usuwane; agent nigdy tego nie uruchamia, a innych wyników kontroli nie przyjmuje. Wcześniej
+  każdy zapis i `strom check` zatrzymywały się na uszkodzonej historii, a `strom repair` mógł tylko przywrócić
+  starszy stan.
+
 ## 1.30.0
 
 *9.11.2026 · współpracuje z aplikacją Strom 3.26.0.*

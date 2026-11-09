@@ -1,4 +1,4 @@
-// check · verify · guard · repair · seal adopt · history
+// check · verify · guard · repair · seal adopt · seal accept · history
 
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { actsAsArchive } from "../core/state.ts";
@@ -16,7 +16,8 @@ import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { history } from "../core/live.ts";
+import { history, liveRunning } from "../core/live.ts";
+import { ACCEPT_HINT, acceptWay, guardOrDamaged, applyAccept, nothingToAccept, planAccept, type AcceptPlan } from "../core/accept.ts";
 import { humanWhen, verifyWaitsMore } from "../cli/human.ts";
 import { verifyCounts } from "../core/verify.ts";
 import { isAgent } from "../core/which.ts";
@@ -47,6 +48,7 @@ function said(f: Finding, lang: string | undefined): string {
 
 /** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
 function hintSaid(f: Finding, lang: string | undefined): string | undefined {
+  if (lang && f.hint === ACCEPT_HINT) return ui(lang, "ui.check.accept.hint");
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
   if (lang && f.code === OTHER_KEY) return ui(lang, f.hint === AFTER_REPAIR_HINT ? "ui.check.otherkey.afterrepair.hint" : "ui.check.otherkey.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
@@ -108,7 +110,7 @@ register(
       const lang = agent ? "en" : tree.lang;
       // the shared folder's files of this research (its material, the images nobody fetches again): only here and in
       // strom verify, never before a command (each file asked whether it is there)
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, agent), ...sharedMissing(tree)], ui(lang, "ui.check.ok"), lang, !agent);
+      const checked = report([...acceptWay(tree, verifyFull(tree).findings), ...check(tree), ...guardOrDamaged(tree, () => guard(tree)), ...unwritable(tree, agent), ...sharedMissing(tree)], ui(lang, "ui.check.ok"), lang, !agent);
       // much kept beside the research that can go (an older strom never tidied it): a sentence, in that language —
       // none where .strom cannot be listed (found on Windows: a folder denied to strom ended check with "no permission"
       // instead of its finding; unwritable says it)
@@ -144,7 +146,7 @@ register(
     options: [{ name: "fast", type: "boolean", description: "only what changed since the last commit (what runs before every write)" }],
     run(ctx, { opts }) {
       const tree = ctx.tree();
-      return report(opts.fast ? verifyFast(tree).findings : [...verifyFull(tree).findings, ...sharedMissing(tree)], "ok — every record matches its seal");
+      return report(opts.fast ? verifyFast(tree).findings : [...acceptWay(tree, verifyFull(tree).findings), ...sharedMissing(tree)], "ok — every record matches its seal", isAgent(ctx.env) ? undefined : tree.lang, !isAgent(ctx.env));
     },
   },
   {
@@ -323,6 +325,65 @@ register(
     },
   },
   {
+    path: ["seal", "accept"],
+    summary: "Accept the research as it is now when the history of its records is lost (the user runs this in a terminal)",
+    group: "history",
+    tree: true,
+    description:
+      "For a research whose records are as strom wrote them but whose history is lost: the oldest logs of data/ops taken\n" +
+      "away (a cloud drive), its git history damaged, so strom verify says records were created or edited outside strom and\n" +
+      "strom repair has nothing to put back. Says first what it would do (how many records lack their history, the state of\n" +
+      "git); on the user's yes, one sealed change names every such file as it is now — no record changed, nothing deleted.\n" +
+      "A damaged git history is moved aside whole (.git-damaged-<when>) and a new one begun; iCloud copies (\"P0001 2.json\")\n" +
+      "inside data/ are moved into .strom/accepted-<when>/. Never settles a log rewritten, an operation forged, another key\n" +
+      "or files only in the cloud. --preview says what it would do (read only, anyone may). Accepting itself is the user's\n" +
+      "own decision at their terminal — an agent tells the user the command, never runs it; never while the bridge runs or\n" +
+      "somebody works on the research.",
+    options: [{ name: "preview", type: "boolean", description: "only say what accepting would do; nothing written" }],
+    examples: ["strom seal accept --preview", "strom seal accept"],
+    person: "Accepting the research as it is (a new sealed base) is the user's own decision, in their terminal",
+    agentMay: { when: "--preview", check: (_ctx, { opts }) => opts.preview === true },
+    run: async (ctx: Context, { opts }) => {
+      const tree = ctx.tree();
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      const name = tree.config.name;
+      const set = "strom seal accept";
+      // sealed on another computer: no key of this one to seal with — taken over first
+      tree.requireKey();
+      const plan = planAccept(tree);
+      const data = acceptData(plan);
+      if (plan.refused.length) {
+        const found = report(plan.refused, "", lang, !agent);
+        return { ...found, text: lines(found.text, ui(lang, "ui.accept.refused")), data: { ...found.data, ...data, accepted: false } };
+      }
+      if (nothingToAccept(plan)) return { text: ui(lang, "ui.accept.nothing", { name }), data: { ...data, accepted: false, nothing: true } };
+      const said = acceptSaid(plan, lang, name);
+      if (opts.preview || !ctx.interactive)
+        return { text: lines(said, "", ui(lang, "ui.accept.person", { command: set })), data: { ...data, accepted: false, run: set }, exitCode: opts.preview ? 0 : 4 };
+      // the bridge reads the history this replaces; a writer at work would write on top of what is looked over now
+      if (liveRunning(tree.root)) throw new UsageError("the bridge to the Strom app runs on this research: nothing accepted", { hint: `strom live stop, then ${set}`, code: "accept.bridge" });
+      if (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0)
+        throw new UsageError("somebody is at work on this research: accepting only once they finished", { hint: `strom session finish, then ${set}`, code: "accept.busy" });
+      if (ctx.yes) throw new UsageError("--yes never accepts the research: a person decides at their terminal", { hint: set, code: "accept.yes" });
+      ctx.requireHuman("Accept the research as it is now (a new sealed base)?", set, "seal", ui(lang, "ui.accept.person", { command: set }), { window: false });
+      ctx.io.stdout(said + "\n");
+      if (!(await ctx.confirm(ui(lang, "ui.accept.ask"), false))) return { text: ui(lang, "ui.cancelled"), data: { ...data, accepted: false } };
+      const r = applyAccept(tree, plan);
+      const after = verifyFull(tree).findings.filter((f) => f.level === "error");
+      return {
+        text: lines(
+          ui(lang, "ui.accept.done", { name, n: r.sealed }),
+          r.gitMoved ? ui(lang, "ui.accept.gitmoved", { dir: r.gitMoved }) : undefined,
+          r.copiesMoved ? ui(lang, "ui.accept.copiesmoved", { dir: r.copiesMoved }) : undefined,
+          after.length ? ui(lang, "ui.accept.still", { n: after.length }) : ui(lang, "ui.accept.verified"),
+        ),
+        data: { ...data, accepted: true, commit: r.commit, ...(r.gitMoved ? { gitMoved: r.gitMoved } : {}), ...(r.copiesMoved ? { copiesMoved: r.copiesMoved } : {}), verify: { ok: after.length === 0, errors: after.length } },
+        exitCode: after.length ? 1 : 0,
+      };
+    },
+  },
+  {
     path: ["history"],
     summary: "What changed recently (one line per change)",
     group: "history",
@@ -425,4 +486,38 @@ function backPreview(tree: Tree, plan: ReturnPlan, lang: string): string {
     // trees the app sent that wait in the inbox (sync.review on): the return leaves them, decided after it they come on top
     ...(plan.same || !waiting ? [] : [ui(lang, "ui.back.inbox", { n: waiting })]),
   );
+}
+
+/** What accepting would do, as a person reads it: the counts, the state of git, the copies of iCloud. */
+function acceptSaid(plan: AcceptPlan, lang: string, name: string): string {
+  const list = plan.copies.slice(0, 5).join(", ") + (plan.copies.length > 5 ? ", …" : "");
+  return lines(
+    ui(lang, "ui.accept.title", { name }),
+    plan.unsealed.length ? ui(lang, "ui.accept.unsealed", { n: plan.unsealed.length }) : undefined,
+    plan.edited.length ? ui(lang, "ui.accept.edited", { n: plan.edited.length }) : undefined,
+    plan.outside.length ? ui(lang, "ui.accept.outside", { n: plan.outside.length }) : undefined,
+    plan.other.length ? ui(lang, "ui.accept.other", { n: plan.other.length }) : undefined,
+    ui(lang, "ui.accept.logs", { n: plan.logs }),
+    ui(lang, `ui.accept.git.${plan.git}` as UIKey),
+    plan.moveAside.length ? ui(lang, "ui.accept.aside", { n: plan.moveAside.length, first: plan.moveAside[0]! }) : undefined,
+    plan.copies.length ? ui(lang, "ui.accept.copies", { n: plan.copies.length, list }) : undefined,
+    "",
+    ui(lang, "ui.accept.does"),
+  );
+}
+
+/** What accepting would do, for a program: the counts and the files. */
+function acceptData(plan: AcceptPlan) {
+  return {
+    unsealed: plan.unsealed.length,
+    edited: plan.edited.length,
+    outside: plan.outside.length,
+    other: plan.other.length,
+    logs: plan.logs,
+    git: plan.git,
+    files: plan.files.map((f) => f.path),
+    moveAside: plan.moveAside,
+    copies: plan.copies,
+    refused: plan.refused.length,
+  };
 }

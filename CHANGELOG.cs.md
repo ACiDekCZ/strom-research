@@ -5,6 +5,19 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.30.1
+
+*9. 11. 2026 · patří k aplikaci Strom 3.26.0.*
+
+- **Výzkum s historií poškozenou cloudovým diskem jde přijmout tak, jak je.** Když chybí nejstarší logy výzkumu a jeho
+  historie (git) nejde přečíst (třeba u výzkumu, který byl v iCloud Drive), `strom verify` to řekne a u každého
+  záznamu, který už nenajde zapečetěný, ukáže jedinou cestu: uživatel záznamy projde a ve vlastním terminálu spustí
+  `strom seal accept`. Bez potvrzení jen spočítá, co by udělal; po potvrzení zapečetí záznamy tak, jak jsou, jednou
+  operací, poškozenou historii odsune stranou (`.git-damaged-<kdy>`, nikdy nesmaže), založí novou a kopie iCloudu
+  (`… 2.lock`) dá stranou. Žádný záznam se nezmění, nic se nesmaže; agent ho nikdy nespustí a jiné nálezy kontroly
+  nepřijme. Dřív se na poškozené historii zastavil každý zápis i `strom check` a `strom repair` uměl jen vrátit
+  starší stav.
+
 ## 1.30.0
 
 *9. 11. 2026 · patří k aplikaci Strom 3.26.0.*

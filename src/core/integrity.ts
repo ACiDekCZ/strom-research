@@ -561,7 +561,14 @@ export const REPAIR_IN_TERMINAL_HINT = "the user runs in their terminal: strom r
 
 /** Refuse to write on top of data that was changed outside strom. */
 export function assertIntact(tree: Tree): void {
-  const snap = snapshot(tree);
+  let snap: Snapshot;
+  try {
+    snap = snapshot(tree);
+  } catch (e) {
+    // git cannot read its own history (objects missing — a cloud drive took them): said so, with the person's way
+    if (git.damaged(tree.root)) throw gitDamagedError();
+    throw e;
+  }
   const { findings } = verifyFast(tree, snap);
   const errors = findings.filter((f) => f.level === "error");
   if (errors.length === 0) {
@@ -590,6 +597,17 @@ export function assertIntact(tree: Tree): void {
     code: "tree.changed-outside",
     params: { n: String(errors.length) },
     ...(way ? { hintCode: inTerminal ? "tree.changed-outside.terminal" : "tree.changed-outside.keys" } : {}),
+  });
+}
+
+/**
+ * Writing refused while the research's git history cannot be read (git.damaged): strom repair has nothing to put back;
+ * the person, having looked the records over, accepts the research as it is (strom seal accept), in their terminal.
+ */
+export function gitDamagedError(): StromError {
+  return new StromError("the history (git) of the research is damaged — nothing written", {
+    hint: "strom verify   (details)\nonce the user looked the records over, the user runs in their terminal: strom seal accept   (an agent never runs it)",
+    code: "tree.git-damaged",
   });
 }
 

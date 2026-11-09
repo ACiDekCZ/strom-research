@@ -301,6 +301,18 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 - **Čísla:** [R6.2.2](cs/R6-awaiting-action.md#R6.2.2), R6.6
 
+<a id="seal"></a>
+### Pečeť výzkumu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | pečeť · `strom verify`, `strom seal accept` | Podpis klíčem tohoto počítače, kterým strom uzavře každou svou změnu výzkumu (operaci v historii i commit). `strom verify` podle pečetí pozná, co se změnilo mimo strom. Když se historie ztratí, člověk může výzkum tak, jak je, zapečetit jako nový základ (`strom seal accept`). |
+| en | seal · `strom verify`, `strom seal accept` | A signature with this computer's key that strom puts on each of its changes of a research (an operation in the history and a commit). `strom verify` tells by the seals what changed outside strom. When the history is lost, a person can seal the research as it is as a new base (`strom seal accept`). |
+| de | Siegel · `strom verify`, `strom seal accept` | Eine Signatur mit dem Schlüssel dieses Computers, die strom auf jede seiner Änderungen einer Forschung setzt (eine Operation in der Geschichte und einen Commit). `strom verify` erkennt an den Siegeln, was außerhalb von strom geändert wurde. Ist die Geschichte verloren, kann ein Mensch die Forschung, wie sie ist, als neue Grundlage versiegeln (`strom seal accept`). |
+| pl | pieczęć · `strom verify`, `strom seal accept` | Podpis kluczem tego komputera, którym strom zamyka każdą swoją zmianę badania (operację w historii i commit). `strom verify` po pieczęciach poznaje, co zmieniono poza strom. Gdy historia zaginie, człowiek może zapieczętować badanie takie, jakie jest, jako nową podstawę (`strom seal accept`). |
+
+- **Čísla:** [R14.1](cs/R14-seal-and-integrity.md#R14.1), R14.2, R14.2.1, R14.2.2
+
 <a id="input"></a>
 ### Podklad
 

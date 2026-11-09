@@ -24,6 +24,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [R11 Podklady od uživatele](R11-material-from-the-user.md): soubory a texty od uživatele, doklad a vodítko, převzatý rodokmen, dávka z aplikace
 - [R12 Kde agent pracuje a co strom hlídá](R12-where-the-agent-works.md): terminál, aplikace Claude, ChatGPT (Codex) a OpenCode, Antigravity a Grok Build, samostatný běh: co strom kde hlídá a co udělá člověk
 - [R13 Nahlásit problém: `strom error`](R13-reporting-a-problem.md): jeden soubor ZIP k odeslání, co v něm je a co ne, který problém a jaký příkaz, údaje osob jen se souhlasem, agent a nahlášení problému
+- [R14 Pečeť a celistvost výzkumu](R14-seal-and-integrity.md): co nesedí s pečetí a cesty dál (`strom repair`, `strom seal adopt`, `strom seal accept`), přijetí výzkumu tak, jak je, když se ztratila jeho historie
 
 ## A Aplikace Strom
 

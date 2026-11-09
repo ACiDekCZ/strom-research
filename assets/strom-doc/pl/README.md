@@ -24,6 +24,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [R11 Materiały od użytkownika](R11-material-from-the-user.md): pliki i teksty od użytkownika, dokument i wskazówka, przejęte drzewo genealogiczne, partia z aplikacji
 - [R12 Gdzie agent pracuje i czego strom pilnuje](R12-where-the-agent-works.md): terminal, aplikacje Claude, ChatGPT (Codex) i OpenCode, Antigravity i Grok Build, samodzielny bieg: czego strom gdzie pilnuje i co robi człowiek
 - [R13 Zgłosić problem: `strom error`](R13-reporting-a-problem.md): jeden plik ZIP do wysłania, co w nim jest, a czego nie, jaki problem i jakie polecenie, dane osób tylko za zgodą, agent i zgłaszanie problemu
+- [R14 Pieczęć i integralność badania](R14-seal-and-integrity.md): co nie zgadza się z pieczęcią i drogi dalej (`strom repair`, `strom seal adopt`, `strom seal accept`), przyjęcie badania takiego, jakie jest, gdy zaginęła jego historia
 
 ## A Aplikacja Strom
 

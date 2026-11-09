@@ -5,6 +5,19 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.30.1
+
+*2026-11-09 · goes with the Strom app 3.26.0.*
+
+- **A research whose history a cloud drive damaged can be taken on as it is.** When the oldest logs of a research are
+  gone and its git history cannot be read (a research once in iCloud Drive, say), `strom verify` says so and every
+  record it no longer finds sealed points to one way: the user looks the records over and runs `strom seal accept` in
+  their own terminal. Without a yes it only counts what it would do; with it, it seals the records as they are in one
+  operation, moves the damaged history aside (`.git-damaged-<when>`, never deleted), starts a new one and sets iCloud's
+  copies (`… 2.lock`) aside. No record changes, nothing is deleted; an agent never runs it, and what the check finds of
+  another kind is never accepted. Before, every write and `strom check` stopped on the damaged history, and `strom
+  repair` could only return an older state.
+
 ## 1.30.0
 
 *2026-11-09 · goes with the Strom app 3.26.0.*

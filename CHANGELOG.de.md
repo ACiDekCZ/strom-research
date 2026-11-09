@@ -5,6 +5,20 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.30.1
+
+*9.11.2026 · gehört zur Strom-App 3.26.0.*
+
+- **Eine Forschung, deren Verlauf ein Cloud-Laufwerk beschädigt hat, lässt sich übernehmen, wie sie ist.** Fehlen die
+  ältesten Protokolle einer Forschung und lässt sich ihr Verlauf (git) nicht lesen (etwa bei einer Forschung, die in
+  iCloud Drive lag), sagt `strom verify` das und zeigt bei jedem Eintrag, den es nicht mehr versiegelt findet, einen
+  einzigen Weg: der Benutzer sieht die Einträge durch und startet in seinem eigenen Terminal `strom seal accept`. Ohne
+  Bestätigung zählt es nur, was es täte; mit ihr versiegelt es die Einträge, wie sie sind, in einem Vorgang, legt den
+  beschädigten Verlauf beiseite (`.git-damaged-<wann>`, nie gelöscht), beginnt einen neuen und legt die Kopien von
+  iCloud (`… 2.lock`) beiseite. Kein Eintrag ändert sich, nichts wird gelöscht; ein Agent startet es nie, und andere
+  Befunde der Prüfung übernimmt es nicht. Bisher blieb jeder Schreibvorgang und `strom check` am beschädigten Verlauf
+  stehen, und `strom repair` konnte nur einen älteren Stand zurückholen.
+
 ## 1.30.0
 
 *9.11.2026 · gehört zur Strom-App 3.26.0.*
