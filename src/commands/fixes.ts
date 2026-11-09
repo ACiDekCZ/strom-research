@@ -481,7 +481,7 @@ function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
         unsplit: s.found.unsplit ?? 0,
         ...(s.found.towns ? { bare: townCount(s.found) } : {}),
       },
-      ...(done ? { done: { facts: done.count, people: done.people, tasks: done.records, ...(done.at ? { at: done.at } : {}) } } : {}),
+      ...(done ? { done: done.unit === "marks" ? { marks: done.count, records: done.records, people: done.people } : { facts: done.count, people: done.people, tasks: done.records, ...(done.at ? { at: done.at } : {}) } } : {}),
       items: all ? shown : shown.slice(0, EXAMPLES),
       ...(s.found.left ? { left: all ? s.found.left : s.found.left.slice(0, EXAMPLES) } : {}),
       // municipalities with numbers alone after the name: set right only on a person's answer for each (strom fixes run)

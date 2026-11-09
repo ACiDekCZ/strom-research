@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.30.0
 
-*In Vorbereitung: die Betas bis 1.30.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.30.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Angaben am Original geprüft.** Angaben zu Geburt, Taufe, Heirat, Tod oder Begräbnis, die ihren ursprünglichen
   Eintrag zitieren, aber wahrscheinlich oder möglich bleiben, prüft der Agent an diesem Original: er sieht sich den Scan
@@ -31,7 +31,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   einliest. Die Vorschläge des Agenten sind in `strom conflict list` und `show` erkennbar und schließen sich selbst,
   sobald der vorgeschlagene Wert gilt. Eine früher angelegte Forschung wird nach dem Update einmal markiert (welche
   Angaben aus einem übernommenen Stammbaum kamen, welche vom Benutzer sind): kein Wert ändert sich, und `strom fixes undo
-  origins` nimmt die Markierungen zurück. Ein Vorschlag, dessen Wert sich seit seiner Entstehung geändert hat (vom
+  origins` nimmt die Markierungen zurück; wie viele Werte in wie vielen Datensätzen markiert wurden, sagt `strom fixes show origins`. Ein Vorschlag, dessen Wert sich seit seiner Entstehung geändert hat (vom
   Benutzer bearbeitet), ist veraltet: Er lässt sich nicht annehmen – über den neueren Wert wird nichts geschrieben –, nur
   mit dem behaltenen Wert schließen. Was ein Vorschlag nicht tragen kann (eine zusammen mit dem Datum geänderte Ursache),
   nennt das Ergebnis der Synchronisation, es geht nie verloren.
@@ -56,7 +56,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Notizen, Transkriptionen, Bilder, Pfade mit dem Namen des Benutzers, Anmeldungen und Tokens werden weggelassen oder
   durch feste Codes ersetzt – und nichts wird gesendet: die Datei sendet der Benutzer selbst, an die Adresse, die der
   Befehl nennt. `--about fetch|sync|agent|install|windows` fügt die Einzelheiten eines Bereichs hinzu (die Tabelle steht
-  in `strom error --help`), `--where` sagt, wo das Problem auftrat, `--note` beschreibt es mit den Worten des Benutzers;
+  in `strom error --help`), `--where` sagt, wo das Problem auftrat, `--note` beschreibt es mit den Worten des Benutzers (sie geht so, wie sie geschrieben ist – ersetzt werden nur Namen, die die Forschung kennt);
   die Daten genannter Personen, Familien oder eines Buches nur mit `--with-data` und der Zustimmung des Benutzers. Um
   eine Meldung gebeten, fragt der Agent, wo das Problem auftrat, führt den Befehl aus und nennt den Pfad – die Datei
   sendet, öffnet und kopiert er nie in den Chat. Im Menü: Wartung → Ein Problem melden. Die Forschung wird nur gelesen,
@@ -71,6 +71,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   wenn das Laufwerk der Forschung kurz nicht erreichbar ist, und eine zusätzlich gestartete zweite Brücke derselben
   Forschung endet sofort, statt unbemerkt weiterzulaufen.
   Einer App, die den neuesten Stammbaum schon hat, wird nichts erneut gesendet.
+  Eine App, die darum bittet, bekommt den Stammbaum mit jedem Bild nach seinem Inhalt benannt und lädt nur die Bilder, die sie noch nicht hat.
 
 - **Eine im Terminal gezeigte oder bearbeitete Angabe** (`strom event show`, `strom event edit`) erscheint in der
   Sprache der Forschung. In der App Strom hat ein in die Forschung übernommener Stammbaum nicht mehr die erste Zeile

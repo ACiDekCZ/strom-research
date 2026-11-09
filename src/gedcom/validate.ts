@@ -124,6 +124,8 @@ const EXTENSIONS = new Set([
   "_STROM_ORIG",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
+  // an excerpt by reference in the bridge's file (FILE strom-image:<sha256>): its kind, pixels and size
+  "_MIME", "_WIDTH", "_HEIGHT", "_BYTES",
   // the bounds of a lineage the person set (on a person), and the header's mark that the file says them
   "_STROM_LINE", "_STROM_LINES",
   // the research's place records and each fact's place pointing to its record

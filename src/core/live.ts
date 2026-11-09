@@ -46,8 +46,22 @@
 //                          ETag (feature ged.etag) told by the head and the variant (none for a file with images left
 //                          for later); If-None-Match naming it: 304, no body, nothing made or waited for (with ?stale=1
 //                          the older one's ETag, its 304 still X-Strom-Stale); ETag and X-Strom-* shown to the app's page
-//                          (Access-Control-Expose-Headers), If-None-Match let through its preflight
-//   GET <token>/images.ged the same (the address an older strom gave)
+//                          (Access-Control-Expose-Headers), If-None-Match let through its preflight.
+//                          ?images=ref (feature ged.imagesByHash, spec 071): each excerpt by reference, not in the file —
+//                          2 FILE strom-image:<sha256 of the JPEG's bytes> with 3 _MIME, _WIDTH, _HEIGHT, _BYTES; a variant
+//                          of its own (its own ETag, with ?stale=1 too), its images kept by their hashes as it is made
+//                          (.strom/cache/live-images: those the kept files name and those of the last hour, the rest
+//                          go); X-Strom-Images: ref | data says which file came (another value asked: data, as always);
+//                          packed (Content-Encoding: gzip, once for each file) for an app that takes it (Accept-Encoding),
+//                          the file with its images in it never (an older app gets it as always)
+//   GET <token>/image/<sha256>   one image the file names by reference: the JPEG, Cache-Control private, a year, immutable,
+//                          ETag its hash (If-None-Match: 304); never made because it is asked for — 404 image.unknown
+//                          (the app takes the file with its images in it), 400 image.sha
+//   POST <token>/images    several: {"images": [sha256…]} (1–IMAGES_AT_ONCE) → {images: [{sha, mime, bytes, data (base64)}],
+//                          missing: [not here], more: [not in this answer, its size reached: asked again]}; read only,
+//                          with its Content-Length (one cut short is no answer), never packed (base64 of JPEGs packs
+//                          little and slowly: the app waits longer for a packed one); 400 images.body
+//   GET <token>/images.ged the same as tree.ged (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
 //                          names — only when one does; head: the change, as strom history back and the link back take
@@ -420,6 +434,7 @@ import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
 import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
+import zlib from "node:zlib";
 import os from "node:os";
 import http from "node:http";
 import path from "node:path";
@@ -441,7 +456,8 @@ import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
 import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerpt.ts";
-import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedMade } from "./liveged.ts";
+import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedImages, type GedMade } from "./liveged.ts";
+import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
@@ -465,6 +481,12 @@ import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatch
 const LIVE_IMAGES_MS = 20_000;
 /** The trees for the app kept in memory, one for each variant (two windows of two versions of the app). */
 const GEDS_KEPT = 2;
+/** The images of the tree's file asked at once (POST /images): at most so many hashes. */
+export const IMAGES_AT_ONCE = 500;
+/** …and an answer holds at most so many bytes of them (the rest asked again: `more`). */
+export const IMAGES_ANSWER_BYTES = 8 * 1024 * 1024;
+/** An image by its hash never changes: the browser keeps it a year (it is private: the bridge's address is secret). */
+const IMAGE_CACHE = "private, max-age=31536000, immutable";
 /**
  * How long a change waits to be told while the tree for the app that follows it is made (the app then loads it at
  * once, the tree it shows meanwhile the one before): told without it after so long (STROM_LIVE_CHANGE_WAIT_MS).
@@ -1326,7 +1348,32 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
  * What the tree's file answers carry beside it: not kept by the browser (the app keeps its tree), and the headers the
  * app on its own page reads (CORS shows a page only those named): its ETag, the head it is of, an older one's marks.
  */
-const GED_HEADERS = { "Cache-Control": "no-store", "Access-Control-Expose-Headers": "ETag, X-Strom-Head, X-Strom-Stale, X-Strom-Head-Now" };
+const GED_HEADERS = { "Cache-Control": "no-store", "Access-Control-Expose-Headers": "ETag, X-Strom-Head, X-Strom-Stale, X-Strom-Head-Now, X-Strom-Images" };
+
+/** The client takes a packed answer (Accept-Encoding: gzip, not refused by q=0). */
+function takesGzip(req: http.IncomingMessage): boolean {
+  return String(req.headers["accept-encoding"] ?? "")
+    .split(",")
+    .some((part) => {
+      const [name, ...params] = part.trim().toLowerCase().split(";");
+      return (name === "gzip" || name === "*") && !params.some((x) => /^\s*q\s*=\s*0(\.0*)?\s*$/u.test(x));
+    });
+}
+
+/** Vary of a packed answer: what it varied by already (the page asking: Origin) and Accept-Encoding. */
+function varyGzip(res: http.ServerResponse): string {
+  return [res.getHeader("Vary"), "Accept-Encoding"].filter((x) => x !== undefined && x !== "").join(", ");
+}
+
+/** Bytes packed by gzip off the bridge's own thread (zlib's pool). */
+function gzipped(bytes: Uint8Array, level: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => zlib.gzip(bytes, { level }, (e, out) => (e ? reject(e) : resolve(out))));
+}
+
+/** How the tree's file is asked to carry its images: ?images=ref by reference (spec 071), anything else in it as always. */
+function imagesAsked(req: Pick<http.IncomingMessage, "url">): GedImages {
+  return new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("images") === "ref" ? "ref" : "data";
+}
 
 /** The ETag of the tree's file for the app (feature ged.etag): told by the research's head and the file's variant alone. */
 export function gedTag(head: string, variant: string): string {
@@ -1343,7 +1390,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2453,7 +2500,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
   // the app's version the tree was last asked for by: made for it again when a commit comes, before the change is told
   // (a bridge taking over from one of an older strom: the version the app asked that one with)
-  let gedFollow: { version: string | undefined } | undefined = env.STROM_LIVE_GED_FOR !== undefined ? { version: env.STROM_LIVE_GED_FOR || undefined } : undefined;
+  let gedFollow: { version: string | undefined; images?: GedImages } | undefined =
+    env.STROM_LIVE_GED_FOR !== undefined ? { version: env.STROM_LIVE_GED_FOR || undefined, ...(env.STROM_LIVE_GED_IMAGES === "ref" ? { images: "ref" as const } : {}) } : undefined;
   // a change told once the tree that goes with it is made (sayChange: set once the bridge listens)
   let sayChange: ((from: string, to: string) => void) | undefined;
   // the files kept on disk written one after another
@@ -2613,11 +2661,28 @@ export function serveLive(root: string, env: Env): Promise<void> {
    * The tree for the app as it is now (at its head; made again for another head, version of the app or links), with its
    * ETag (feature ged.etag): the app that has it already (If-None-Match) gets 304 and no body.
    */
-  const giveGed = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined) => {
-    const made = await makeGed(version);
+  const giveGed = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages) => {
+    const made = await makeGed(version, images);
     const tag = gedTagOf(made);
-    if (tag && tagMatches(req, tag)) return void res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": made.head }).end();
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...(tag ? { ETag: tag } : {}), "X-Strom-Head": made.head }).end(made.bytes);
+    if (tag && tagMatches(req, tag)) return void res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": made.head, "X-Strom-Images": images }).end();
+    await sendGed(req, res, made, images, { ...(tag ? { ETag: tag } : {}), "X-Strom-Head": made.head });
+  };
+  // the file by reference packed once (gzip): what the app loads after each change is a few per cent of the whole file
+  const packed = new WeakMap<GedMade, Promise<Buffer>>();
+  /**
+   * A tree's file for the app given: the one by reference packed (Content-Encoding: gzip) for an app that takes it
+   * (Accept-Encoding: gzip; a browser always does), the whole file as always (an older app gets nothing new).
+   */
+  const sendGed = async (req: http.IncomingMessage, res: http.ServerResponse, made: GedMade, images: GedImages, extra: Record<string, string>) => {
+    const head = { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...extra, "X-Strom-Images": images };
+    if (images === "ref" && takesGzip(req)) {
+      let gz = packed.get(made);
+      if (!gz) packed.set(made, (gz = gzipped(made.bytes, 6)));
+      const bytes = await gz;
+      if (res.destroyed) return;
+      return void res.writeHead(200, { ...head, "Content-Encoding": "gzip", Vary: varyGzip(res), "Content-Length": String(bytes.length) }).end(bytes);
+    }
+    res.writeHead(200, { ...head, ...(images === "ref" ? { Vary: varyGzip(res) } : {}), "Content-Length": String(made.bytes.length) }).end(made.bytes);
   };
   // the variant each file made is of (its ETag is told by its head and variant)
   const madeFor = new WeakMap<GedMade, string>();
@@ -2630,20 +2695,20 @@ export function serveLive(root: string, env: Env): Promise<void> {
    * The app has the tree of the head now already (If-None-Match its ETag): 304 at once, nothing made, nothing waited for
    * — but only for a file made whole (one with images left for later has no ETag the app could hold).
    */
-  const gedUnchanged = (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined): boolean => {
+  const gedUnchanged = (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages): boolean => {
     if (!req.headers["if-none-match"]) return false;
     const h = head(root);
-    const { variant } = variantOf(version);
+    const { variant } = variantOf(version, images);
     const tag = gedTag(h, variant);
     if (!tagMatches(req, tag)) return false;
-    res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": h }).end();
+    res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": h, "X-Strom-Images": images }).end();
     return true;
   };
   /** What a tree's file for the app of that version is made by beyond the head (core/liveged.ts gedVariant). */
-  const variantOf = (version: string | undefined) => {
+  const variantOf = (version: string | undefined, images: GedImages = "data") => {
     const offered = links(env);
     const opens = appOpensLinks(new Settings(env, {}), version) ? offered.join(" ") : "";
-    return { offered, variant: gedVariant(root, env, version, opens) };
+    return { offered, variant: gedVariant(root, env, version, opens, images) };
   };
   // the file being made now and what for (one at a time: the requests for the same wait for it together)
   let making: { key: string; done: Promise<GedMade> } | undefined;
@@ -2653,10 +2718,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
    * answering everything else meanwhile, and kept on disk — but a file with images left for later (the time to make
    * them ran out), made again next time.
    */
-  const makeGed = async (version: string | undefined): Promise<GedMade> => {
+  const makeGed = async (version: string | undefined, images: GedImages = "data"): Promise<GedMade> => {
     for (;;) {
       const h = head(root);
-      const { offered, variant } = variantOf(version);
+      const { offered, variant } = variantOf(version, images);
       // made again for another version of the app (two windows, two versions: each gets what it reads)
       const kept = geds.get(variant);
       if (kept && kept.head === h) {
@@ -2676,7 +2741,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
             madeFor.set(stored, variant);
             return stored;
           }
-          const made = await gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS });
+          const made = await gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS, ...(images === "ref" ? { images } : {}) });
           madeFor.set(made, variant);
           if (made.head === h && !made.left.sources.some((x) => x.omitted.why === "later"))
             storing = storing.then(() => storeGed(root, variant, made)).catch((e) => noteLive(root, `the tree's file not kept on disk: ${errorText(e)}`));
@@ -2704,24 +2769,105 @@ export function serveLive(root: string, env: Env): Promise<void> {
    * made meanwhile and told by the event change (from the head the app has). Nothing made of its variant yet (the first
    * time, another strom or app): made now, as without it.
    */
-  const giveStale = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined) => {
+  const giveStale = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, images: GedImages) => {
     const h = head(root);
-    const { variant } = variantOf(version);
+    const { variant } = variantOf(version, images);
     const older = geds.get(variant) ?? (await storedGed(root, env, variant));
     if (older) madeFor.set(older, variant);
     if (older?.head === h) keepGed(variant, older);
-    if (!older || older.head === h) return afterQuiet(() => giveGed(req, res, version).catch((e) => failed(req, res, e)));
+    if (!older || older.head === h) return afterQuiet(() => giveGed(req, res, version, images).catch((e) => failed(req, res, e)));
     // the older one with its own ETag: the app holding it already gets 304 (still told it is older), the new one made
     const tag = gedTagOf(older);
-    const stale = { "X-Strom-Head": older.head, "X-Strom-Stale": "1", "X-Strom-Head-Now": h };
+    const stale = { "X-Strom-Head": older.head, "X-Strom-Stale": "1", "X-Strom-Head-Now": h, "X-Strom-Images": images };
     if (tag && tagMatches(req, tag)) res.writeHead(304, { ...GED_HEADERS, ETag: tag, ...stale }).end();
-    else res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...(tag ? { ETag: tag } : {}), ...stale }).end(older.bytes);
+    else await sendGed(req, res, older, images, { ...(tag ? { ETag: tag } : {}), ...stale });
     afterQuiet(() =>
-      makeGed(version).then(
+      makeGed(version, images).then(
         (made) => sayChange?.(older.head, made.head),
         (e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`),
       ),
     );
+  };
+
+  /**
+   * One image of the tree's file by its hash (GET /image/<sha256>, spec 071): its JPEG as kept when a file was made
+   * with it (core/liveimages.ts) — never made because it is asked for. Unchanging (its content is its name): kept by
+   * the browser for a year, ETag its hash (If-None-Match: 304). Refused: 400 image.sha, 404 image.unknown (not here:
+   * the app takes the whole file instead).
+   */
+  const giveImage = async (req: http.IncomingMessage, res: http.ServerResponse, sha: string): Promise<void> => {
+    const json = (code: number, body: unknown) => void res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    if (!IMAGE_SHA.test(sha)) return json(400, refusal("/image/<sha256>: the 64 hex of an image the tree's file names (2 FILE strom-image:…)", "image.sha", { sha: sha.slice(0, 64) }));
+    const tag = `"${sha}"`;
+    const headers = { "Cache-Control": IMAGE_CACHE, ETag: tag, "Access-Control-Expose-Headers": "ETag" };
+    // the browser has it (its name is its content): nothing read
+    if (tagMatches(req, tag) && fs.existsSync(imageFile(root, sha))) return void res.writeHead(304, headers).end();
+    const bytes = await readImage(root, sha);
+    if (!bytes) return json(404, refusal(`no image ${sha} here: the tree's file with its images in it (/tree.ged without ?images=ref) has them all`, "image.unknown", { sha }));
+    res.writeHead(200, { "Content-Type": IMAGE_MIME, "Content-Length": String(bytes.length), ...headers }).end(bytes);
+  };
+
+  /**
+   * Several images of the tree's file by their hashes (POST /images {"images": [sha256…]}, spec 071): read only. Each
+   * given whole as base64 with its hash, kind and size, in the order asked, until the answer holds IMAGES_ANSWER_BYTES
+   * of them (one at least); those beyond in `more` (asked again), those not here in `missing` (the app takes the whole
+   * file for them). The answer has its length: one cut short is never taken as whole; it is never packed (gzip). Refused: 400 images.body (not
+   * {"images": [64 hex…]}, none, more than IMAGES_AT_ONCE).
+   */
+  const giveImages = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const json = (code: number, body: unknown) => {
+      if (res.headersSent) return;
+      const text = JSON.stringify(body);
+      res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Length": String(Buffer.byteLength(text)) }).end(text);
+    };
+    const max = 128 * 1024;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of req as AsyncIterable<Buffer>) {
+      size += c.length;
+      if (size <= max) chunks.push(c);
+    }
+    const bad = () => json(400, refusal(`the body: {"images": ["<sha256>", …]}, 1 to ${IMAGES_AT_ONCE} of them`, "images.body", { max: String(IMAGES_AT_ONCE) }));
+    if (size > max) return bad();
+    let asked: unknown;
+    try {
+      asked = (JSON.parse(Buffer.concat(chunks).toString("utf8")) as { images?: unknown } | null)?.images;
+    } catch {
+      return bad();
+    }
+    if (!Array.isArray(asked) || !asked.length || asked.length > IMAGES_AT_ONCE || asked.some((x) => typeof x !== "string" || !IMAGE_SHA.test(x.toLowerCase()))) return bad();
+    const shas = [...new Set((asked as string[]).map((x) => x.toLowerCase()))];
+    const cap = Number(env.STROM_LIVE_IMAGES_BYTES ?? IMAGES_ANSWER_BYTES);
+    const images: { sha: string; mime: string; bytes: number; data: string }[] = [];
+    const missing: string[] = [];
+    const more: string[] = [];
+    let held = 0;
+    for (const sha of shas) {
+      // the app gone meanwhile: nothing more read (its request read whole is no sign: it ends as it is read)
+      if (res.destroyed) return;
+      if (images.length && held >= cap) {
+        // the answer full: only whether it is here (the next answer reads it whole, and says missing one gone since)
+        if (await fs.promises.stat(imageFile(root, sha)).then(() => true, () => false)) more.push(sha);
+        else missing.push(sha);
+        continue;
+      }
+      const bytes = await readImage(root, sha);
+      if (!bytes) {
+        missing.push(sha);
+        continue;
+      }
+      // one that would take the answer over its size waits for the next (but the first always comes)
+      if (images.length && held + bytes.length > cap) {
+        more.push(sha);
+        held = cap;
+        continue;
+      }
+      held += bytes.length;
+      images.push({ sha, mime: IMAGE_MIME, bytes: bytes.length, data: bytes.toString("base64") });
+    }
+    // never packed, though the app takes it: base64 of JPEGs packs about a quarter, slower to pack than to send
+    // (the app waited for its answers; the slim tree.ged is packed still)
+    json(200, { images, missing, more });
   };
 
   /**
@@ -2731,7 +2877,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
    */
   const giveLeft = async (res: http.ServerResponse, version: string | undefined) => {
     const h = head(root);
-    const now = left && left.head === h ? left : (await makeGed(version)).left;
+    const now = left && left.head === h ? left : (await makeGed(version, gedFollow?.images)).left;
     const tree = Tree.open(root, env);
     const shared = new Settings(env, {}).shared()?.value;
     const level = excerptLevel(now.level) ?? LEVELS[1]!;
@@ -2884,7 +3030,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     const origin = allowedOrigin(req.headers.origin);
     const version = appVersionOf(req, new Settings(env, {}));
     // what the app sends may change what /status says without a commit (a send waiting, a reading, a batch): made again
-    if (req.method !== "GET" && req.method !== "OPTIONS") res.once("finish", () => keeper.forget());
+    if (req.method !== "GET" && req.method !== "OPTIONS" && !(req.method === "POST" && what === "images")) res.once("finish", () => keeper.forget());
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
@@ -3091,6 +3237,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, experimentsWrite());
       return;
     }
+    // the images of the tree's file by their hashes, several at once (read only: nothing written, nothing made)
+    if (req.method === "POST" && t === token && what === "images" && !sub) {
+      giveImages(req, res).catch((e) => failed(req, res, e));
+      return;
+    }
     if ((req.method === "GET" || req.method === "POST") && t === token && what === "phone") {
       phone(req, res, origin, sub, act);
       return;
@@ -3284,13 +3435,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (log?.head === h) answer(log.text);
         else logs.ask(h).then(answer, (e) => failed(req, res, e));
       } else if (what === "tree.ged" || what === "images.ged") {
-        gedFollow = { version };
+        // the images by reference (?images=ref, feature ged.imagesByHash), else in the file as always
+        const images = imagesAsked(req);
+        gedFollow = { version, images };
         // the app has the tree of the head now (its ETag, feature ged.etag): 304 at once, nothing made
-        if (gedUnchanged(req, res, version)) return;
+        if (gedUnchanged(req, res, version, images)) return;
         // the last one made at once, the new one told by an event (feature ged.stale)
-        if (new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("stale") === "1") giveStale(req, res, version).catch((e) => failed(req, res, e));
+        if (new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("stale") === "1") giveStale(req, res, version, images).catch((e) => failed(req, res, e));
         // made when the commits stop coming (an agent's commands one after another): once for them all
-        else afterQuiet(() => giveGed(req, res, version).catch((e) => failed(req, res, e)));
+        else afterQuiet(() => giveGed(req, res, version, images).catch((e) => failed(req, res, e)));
+      } else if (what === "image" && sub && !act) {
+        giveImage(req, res, decoded(sub).toLowerCase()).catch((e) => failed(req, res, e));
       } else if (what === "events") {
         statusVersion = version;
         keeper.get(version).then(
@@ -6014,7 +6169,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // a bridge taking over from one whose app followed the tree: its tree made before the app asks again
       if (gedFollow) {
         const follow = gedFollow;
-        setTimeout(() => void makeGed(follow.version).catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`)), 3000).unref?.();
+        setTimeout(() => void makeGed(follow.version, follow.images).catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`)), 3000).unref?.();
       }
       // sends left waiting when the bridge before ended (written at once): written now, one after another
       setTimeout(() => {
@@ -6085,7 +6240,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         };
         let child: ChildProcess;
         try {
-          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "" } : {}) });
+          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "", ...(gedFollow.images === "ref" ? { STROM_LIVE_GED_IMAGES: "ref" } : {}) } : {}) });
         } catch (e) {
           renewing = false;
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
@@ -6218,12 +6373,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const follow = gedFollow;
           if (tell && follow && changeWaitMs > 0) {
             untold ??= { since: Date.now() };
-            const ready = geds.get(variantOf(follow.version).variant)?.head === h;
+            const ready = geds.get(variantOf(follow.version, follow.images).variant)?.head === h;
             if (!ready && Date.now() - untold.since < changeWaitMs) {
               tell = false;
               if (!prebuilding && !(at && Date.now() - Date.parse(at) < quietMs)) {
                 prebuilding = true;
-                makeGed(follow.version)
+                makeGed(follow.version, follow.images)
                   .catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`))
                   .finally(() => (prebuilding = false));
               }

@@ -117,14 +117,15 @@ register({
     "bridge to the Strom app, the research in numbers only (counts, strom check, git, downloads, sessions) and strom's\n" +
     "technical logs of the last days, with the commands that ended with an error. Names, places, notes, paths with the\n" +
     "user's name and e-mails are replaced by codes; logins, keys and tokens never go. The ZIP goes to the downloads\n" +
-    "folder (else the current one); strom sends nothing — the user sends it. Nothing in the research is written.\n" +
+    "folder (else the current one); strom sends nothing — the user sends it. Nothing in the research is written. A note\n" +
+    "(--note) goes as written: only names the research knows are replaced in it.\n" +
     "\n" +
     REPORT_TABLE,
   options: [
     { name: "about", type: "string", multiple: true, value: "<area>", description: "details of an area too: fetch, sync, agent, install, windows" },
     { name: "since", type: "string", value: "<2d|1w|YYYY-MM-DD>", description: "how far back the logs go (default 7 days)" },
     { name: "where", type: "string", value: "<chat|terminal|app|unknown>", description: "where the problem happened, as the user says: chat (a conversation with an agent), terminal (strom without an agent), app (the Strom app), unknown" },
-    { name: "note", type: "string", value: "<text>", max: 2000, description: "the problem in the user's own words (names of the research masked)" },
+    { name: "note", type: "string", value: "<text>", max: 2000, description: "the problem in the user's own words: it goes as written — only names the research knows are replaced by codes, so the user writes no name or place to keep private" },
     { name: "with-data", type: "boolean", description: "add the data of the persons, families and books named (names, facts, citations, how sure each is — no images, notes or transcripts) as data.json; the person is asked" },
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "with --with-data: a person the problem is about" },
     { name: "family", type: "string", multiple: true, value: "<F…>", description: "with --with-data: a family the problem is about" },

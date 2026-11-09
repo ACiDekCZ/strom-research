@@ -37,6 +37,7 @@ import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
+import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
 import { proposalKind } from "../core/proposals.ts";
@@ -143,6 +144,13 @@ export interface ExportOptions {
    * with 2 _STROM_ORIENT. Anything else gets it turned already, without the tag (an older app would show it lying).
    */
   turnsExcerpts?: boolean;
+  /**
+   * The bridge's file with the images by reference (GET /tree.ged?images=ref, spec 071): each excerpt kept by the
+   * SHA-256 of its JPEG's bytes (the callback keeps it and says its hash), named in 2 FILE strom-image:<sha256> with
+   * 3 _MIME, _WIDTH, _HEIGHT (its pixels as the bytes have them) and _BYTES, never the data URL. A file that leaves the
+   * computer never has it.
+   */
+  imageRef?: (jpeg: Uint8Array) => string;
   /**
    * The Strom profile, for an app that shows what a hypothesis would connect (APP_SHOWS_HYPOTHESIS_LINKS): under each
    * open hypothesis (_STROM_HYPO) its variants (2 _VAR) with their claim, links and sources, and where the tree ends
@@ -707,7 +715,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (opts.clips && e.clip) w.line(2, "_STROM_CLIP", e.clip);
       const page = excerptPage(e.url, s);
       if (page) w.text(2, "_URL", page);
-      w.wrapped(2, "FILE", dataUrl(e));
+      if (opts.imageRef) {
+        w.line(2, "FILE", `${IMAGE_REF}${opts.imageRef(e.jpeg)}`);
+        w.line(3, "_MIME", IMAGE_MIME);
+        w.line(3, "_WIDTH", String(e.width));
+        w.line(3, "_HEIGHT", String(e.height));
+        w.line(3, "_BYTES", String(e.jpeg.length));
+      } else w.wrapped(2, "FILE", dataUrl(e));
       // the original it is cut from, by its content: the app knows the research has it (and sends it not again)
       const original = tree.get<Media | Input>(e.media);
       if (original?.sha) w.line(2, "_STROM_SHA", original.sha);

@@ -147,26 +147,27 @@ test("?stale=1: the last tree made at once with its own head, the new one told b
   }
 });
 
-test("the trees kept on disk: the newest two variants of this strom, none of another", { skip: !hasGit }, async () => {
+test("the trees kept on disk: the newest three variants of this strom (the app's with its images in it and by reference, one more), none of another", { skip: !hasGit }, async () => {
   const w = new World();
   await w.withTree();
   const made = (n: number): GedMade => ({ head: "a".repeat(40), version: String(n), links: "", bytes: Buffer.from(`0 HEAD\n${n}\n`), left: { head: "a".repeat(40), level: "normal", sources: [] } });
   const { VERSION } = await import("../../src/core/tree.ts");
   const v = (n: number, strom = VERSION) => JSON.stringify({ strom, app: String(n) });
-  for (const n of [1, 2, 3]) {
+  for (const n of [1, 2, 3, 4]) {
     await storeGed(w.cwd, v(n), made(n));
     await new Promise((r) => setTimeout(r, 20));
   }
   const kept = fs.readdirSync(gedStoreDir(w.cwd)).filter((f) => f.endsWith(".ged"));
-  assert.equal(kept.length, 2);
+  assert.equal(kept.length, 3);
   assert.equal(await storedGed(w.cwd, w.env, v(1)), undefined, "the oldest gone");
+  assert.equal((await storedGed(w.cwd, w.env, v(2)))?.bytes.toString(), "0 HEAD\n2\n");
   assert.equal((await storedGed(w.cwd, w.env, v(3)))?.bytes.toString(), "0 HEAD\n3\n");
   assert.equal(await storedGed(w.cwd, w.env, v(3), "b".repeat(40)), undefined, "of another head: none");
   // another strom's (a bridge before an update): gone at the tidying
-  await storeGed(w.cwd, v(4, "0.0.1"), made(4));
-  assert.ok(await storedGed(w.cwd, w.env, v(4, "0.0.1")));
+  await storeGed(w.cwd, v(5, "0.0.1"), made(5));
+  assert.ok(await storedGed(w.cwd, w.env, v(5, "0.0.1")));
   await tidyStoredGeds(w.cwd);
-  assert.equal(await storedGed(w.cwd, w.env, v(4, "0.0.1")), undefined);
+  assert.equal(await storedGed(w.cwd, w.env, v(5, "0.0.1")), undefined);
   // a file cut short: none
   const dir = gedStoreDir(w.cwd);
   for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".ged"))) fs.writeFileSync(path.join(dir, f), "0 HEAD\n");

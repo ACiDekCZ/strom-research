@@ -215,6 +215,13 @@ test("origins-tree-1: an earlier beta's research relabelled once by its history 
     // once: a second run changes nothing
     assert.equal(settleOrigins(open(w)), undefined);
     assert.equal(commits(w), n + 1);
+    // what it marked by itself: how many, in how many records (not "nothing found")
+    const shown = await w.ok(["fixes", "show", "origins", "--lang", "en"], PERSON);
+    assert.doesNotMatch(shown.out, /Found: nothing/u);
+    assert.match(shown.out, new RegExp(`Marked: ${done.changed} values in \\d+ records?\\. Back: strom fixes undo origins`, "u"));
+    const state = (await w.ok(["fixes", "show", "origins", "--json"], PERSON)).json as { done?: { marks: number; records: number; people: number } };
+    assert.equal(state.done?.marks, done.changed);
+    assert.ok((state.done?.records ?? 0) >= 1 && (state.done?.people ?? 0) >= 1);
     // an agent's change of a relabelled value: still only proposed
     const p = await w.ok(["event", "edit", fact(w, "Marie", "BIRT").id, "--date", "1849", "--reason", "jinak", "--json"], AGENT);
     assert.match(p.json.proposed, /^X\d+$/);

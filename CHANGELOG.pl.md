@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.30.0
 
-*W przygotowaniu: bety do 1.30.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.30.0-beta.4. Sekcja będzie kompletna z wydaniem.*
 
 - **Dane sprawdzane z oryginałem.** Urodzenie, chrzest, ślub, zgon lub pochówek, który cytuje pierwotny zapis, ale
   pozostaje prawdopodobny lub możliwy, agent sprawdzi z tym oryginałem: obejrzy skan i albo podniesie daną do
@@ -28,7 +28,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   aplikacji Strom lub w stromie, agent nigdy nie zmienia: tylko proponuje – również nie przez plik wczytany przez `strom
   sync`. Propozycje agenta są rozpoznawalne w `strom conflict list` i `show` i zamykają się same, gdy proponowana
   wartość już obowiązuje. Badanie założone wcześniej zostanie po aktualizacji raz oznaczone (które dane przyszły z
-  przejętego drzewa, które są użytkownika): żadna wartość się nie zmienia, a `strom fixes undo origins` cofa oznaczenia.
+  przejętego drzewa, które są użytkownika): żadna wartość się nie zmienia, a `strom fixes undo origins` cofa oznaczenia; ile wartości i w ilu rekordach oznaczono, mówi `strom fixes show origins`.
   Propozycja, której wartość zmieniła się od jej powstania (zmienił ją użytkownik), jest nieaktualna: nie można jej
   przyjąć – nic nie zostanie zapisane na nowszej wartości – można ją tylko zamknąć, zachowując wartość. Czego propozycja
   nie uniesie (przyczyna zmieniona razem z datą), mówi wynik synchronizacji, nigdy nie ginie.
@@ -51,7 +51,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   użytkownika, logowania i tokeny są pominięte lub zastąpione stałymi kodami – i nic nie jest wysyłane: plik wysyła sam
   użytkownik, na adres podany przez polecenie. `--about fetch|sync|agent|install|windows` dodaje szczegóły jednego
   obszaru (tabela jest w `strom error --help`), `--where` mówi, gdzie problem wystąpił, `--note` opisuje go słowami
-  użytkownika; dane wskazanych osób, rodzin lub księgi tylko z `--with-data` i za zgodą użytkownika. Poproszony
+  użytkownika (trafia tak, jak została napisana – zastępowane są tylko nazwy znane badaniu); dane wskazanych osób, rodzin lub księgi tylko z `--with-data` i za zgodą użytkownika. Poproszony
   o zgłoszenie problemu agent pyta, gdzie wystąpił, uruchamia polecenie i podaje ścieżkę – pliku nigdy nie wysyła, nie
   otwiera ani nie przepisuje do czatu. W menu: Konserwacja → Zgłosić problem. Badanie jest tylko czytane, także
   uszkodzone.
@@ -64,6 +64,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   jest gotowe. Most nie kończy się już, gdy dysk badania jest na chwilę niedostępny, a drugi most tego samego badania
   uruchomiony dodatkowo kończy się od razu, zamiast działać dalej niezauważony.
   Aplikacji, która ma już najnowsze drzewo, nic nie jest wysyłane ponownie.
+  Aplikacja, która o to poprosi, dostaje drzewo z obrazami oznaczonymi według ich zawartości i wczytuje tylko te, których jeszcze nie ma.
 
 - **Dana pokazana lub zmieniona w terminalu** (`strom event show`, `strom event edit`) jest wypisywana w języku
   badania. W aplikacji Strom drzewo przejęte do badania nie ma już jako odnośnika całego drzewa pierwszego wiersza z

@@ -116,7 +116,7 @@ export interface FixFindings {
    * What a check applied by itself once found and set right, not undone (verify-originals: the facts it queued, in how
    * many tasks, of how many people): said by strom fixes show once nothing waits. Never counted in what waits.
    */
-  done?: { count: number; records: number; people: number; at?: string; items: VerifyItem[] };
+  done?: { count: number; records: number; people: number; at?: string; items: VerifyItem[] | OriginMark[]; unit?: "marks" };
 }
 
 /** What a check looks with: the shared folder (the images' orientation), the agent and model a reader reads with now. */
@@ -998,7 +998,12 @@ export const ORIGINS: FixCheck = {
   agentWork: true,
   detect: (tree) => {
     const f = originFixes(tree);
-    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: 0, left: [] };
+    // marked by itself (at the start of this strom, or once more for the family tree's values): how many, and examples
+    const marks = f.fixes.length ? [] : originsDone(tree).filter((m) => m.kind !== "source" && m.kind !== "ids");
+    const owners = new Set(marks.map((m) => (m.kind === "fact" ? m.owner : m.kind === "name" || m.kind === "sex" ? m.person : "")));
+    const people = new Set(marks.flatMap((m) => (m.kind === "name" || m.kind === "sex" ? [m.person] : m.kind === "fact" && m.owner.startsWith("P") ? [m.owner] : [])));
+    const done = marks.length ? { count: marks.length, records: owners.size, people: people.size, items: marks, unit: "marks" as const } : undefined;
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: 0, left: [], ...(done ? { done } : {}) };
   },
   applied: (tree) => originsDone(tree).length,
 };

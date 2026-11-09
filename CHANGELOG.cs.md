@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.30.0
 
-*Připravuje se: bety do 1.30.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.30.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Údaje ověřené proti originálu.** Narození, křest, sňatek, úmrtí nebo pohřeb, který cituje původní záznam, ale
   zůstává pravděpodobný nebo možný, agent ověří proti tomu originálu: podívá se na sken a údaj buď povýší na doložený,
@@ -27,7 +27,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   ve stromu, agent nikdy nezmění: jen navrhne – ani souborem, který načte přes `strom sync`. Návrhy agenta jsou v `strom
   conflict list` a `show` poznat a uzavřou se samy, jakmile navržená hodnota platí. Výzkum založený dřív se po
   aktualizaci jednou označí (které údaje přišly z převzatého rodokmenu, které jsou uživatele): žádná hodnota se nemění a
-  `strom fixes undo origins` značky vezme zpět. Návrh, jehož hodnota se od jeho vzniku změnila (upravil ji uživatel), je
+  `strom fixes undo origins` značky vezme zpět; kolik hodnot a v kolika záznamech se označilo, řekne `strom fixes show origins`. Návrh, jehož hodnota se od jeho vzniku změnila (upravil ji uživatel), je
   zastaralý: přijmout ho nelze – přes novější hodnotu se nic nezapíše –, jen uzavřít s ponechanou hodnotou. Co návrh
   neunese (příčina změněná spolu s datem), řekne výsledek synchronizace, nikdy se neztratí.
   Hodnota, která přišla s rodokmenem z aplikace Strom a nikdo ji od té doby nezměnil, je chráněná jako hodnota uživatele.
@@ -48,7 +48,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   z rodokmenu do něj nejde – jména, místa, poznámky, přepisy, snímky, cesty se jménem uživatele, přihlášení a tokeny jsou
   vynechané nebo nahrazené stálými kódy – a nic se neodesílá: soubor posílá uživatel sám, na adresu, kterou příkaz
   vypíše. `--about fetch|sync|agent|install|windows` přidá podrobnosti jedné oblasti (tabulka je v `strom error
-  --help`), `--where` říká, kde se problém stal, `--note` ho popíše slovy uživatele; údaje jmenovaných osob, rodin nebo
+  --help`), `--where` říká, kde se problém stal, `--note` ho popíše slovy uživatele (jde tak, jak je napsaná – nahradí se jen jména, která výzkum zná); údaje jmenovaných osob, rodin nebo
   knihy jen s `--with-data` a souhlasem uživatele. Agent požádaný o nahlášení problému se zeptá, kde se stal, příkaz
   spustí a řekne cestu – soubor nikdy neposílá, neotvírá ani nepřepisuje do chatu. V nabídce: Údržba → Nahlásit problém.
   Výzkum se jen čte, i rozbitý.
@@ -60,6 +60,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   mostu, a během sledování se změna ohlásí, až je její strom připravený. Most už neskončí, když je disk výzkumu na
   chvíli nedostupný, a druhý most téhož výzkumu spuštěný navíc hned skončí a neběží dál bez povšimnutí.
   Aplikaci, která nejnovější strom už má, se znovu nic neposílá.
+  Aplikace, která o to požádá, dostane strom s obrázky označenými podle obsahu a načte jen ty, které ještě nemá.
 
 - **Údaj zobrazený nebo upravený v terminálu** (`strom event show`, `strom event edit`) se vypisuje v jazyce
   výzkumu. V aplikaci Strom už rodokmen převzatý do výzkumu nemá jako odkaz celého rodokmenu první řádek z něj:

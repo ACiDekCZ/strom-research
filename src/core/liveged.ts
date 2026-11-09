@@ -25,6 +25,10 @@ import { verifyMarks } from "./verify.ts";
 import { readsAgain } from "./sourceread.ts";
 import type { WidgetTree } from "./widget.ts";
 import type { Input, Media, Source } from "./model.ts";
+import { putImage, sweepImages } from "./liveimages.ts";
+
+/** How a file for the app carries its images: in it (data URLs, as always) or by reference (spec 071, ?images=ref). */
+export type GedImages = "data" | "ref";
 
 /** A source whose excerpts the file leaves out though the research has them (/excerpts?missing=1). */
 export interface LeftOut {
@@ -39,6 +43,8 @@ export interface GedMade {
   links: string;
   bytes: Buffer;
   left: { head: string; level: string; sources: LeftOut[] };
+  /** A file with its images by reference: the hashes of the images it names (each kept: core/liveimages.ts). */
+  images?: string[];
 }
 
 /** What the file is made for: the tree, its head now, the app's version, the links this computer takes (said to an app that opens them). */
@@ -50,6 +56,8 @@ export interface GedAsk {
   links: string[];
   /** New images made for at most so long (the rest the next time the tree changes). */
   budgetMs: number;
+  /** The images by reference (each kept by its hash) or in the file (none: in it). */
+  images?: GedImages;
 }
 
 /** One source's excerpts asked for (/excerpt/<S>[?clip=…&level=…]). */
@@ -117,11 +125,18 @@ export function buildGed(ask: GedAsk): GedMade {
     sources: images ? tree.list<Source>("source").flatMap((s) => (s.retracted ? [] : [{ source: s, omitted: images.omitted(s) }])).filter((x): x is LeftOut => !!x.omitted) : [],
   };
   const offered = opens ? ask.links : [];
-  const text = exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
+  // the images by reference: each kept by its content's hash as the file names it (the same bytes the file would carry)
+  const named = new Set<string>();
+  const imageRef = ask.images === "ref" ? (jpeg: Uint8Array) => {
+    const sha = putImage(root, jpeg);
+    named.add(sha);
+    return sha;
+  } : undefined;
+  const text = exportGedcom(tree, { for: "strom", ...(imageRef ? { imageRef } : {}), ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
   // its bytes in a buffer of their own: handed to the bridge's thread without a copy
   const bytes = Buffer.from(new ArrayBuffer(Buffer.byteLength(text)));
   bytes.write(text);
-  return { head: h, version: version ?? "", links: offered.join(" "), bytes, left };
+  return { head: h, version: version ?? "", links: offered.join(" "), bytes, left, ...(imageRef ? { images: [...named].sort() } : {}) };
 }
 
 /**
@@ -129,10 +144,11 @@ export function buildGed(ask: GedAsk): GedMade {
  * strom, and what of this computer changes it (the images' settings and folder, the link scheme, the copy of the app,
  * a research acting as an archive). Two asks of one variant at one head get the same file.
  */
-export function gedVariant(root: string, env: Env, version: string | undefined, links: string): string {
+export function gedVariant(root: string, env: Env, version: string | undefined, links: string, images: GedImages = "data"): string {
   const tree = Tree.open(root, env);
   const settings = new Settings(env, {});
-  return JSON.stringify({ strom: VERSION, app: version ?? "", links, excerpts: settings.excerpts(tree.config), shared: settings.shared()?.value ?? "", scheme: linkScheme(env), copy: stromAppUrl(settings), archive: actsAsArchive(tree) });
+  // the images by reference: a variant of its own (its own ETag); the file with them in it as before (its ETag kept)
+  return JSON.stringify({ strom: VERSION, app: version ?? "", links, excerpts: settings.excerpts(tree.config), shared: settings.shared()?.value ?? "", scheme: linkScheme(env), copy: stromAppUrl(settings), archive: actsAsArchive(tree), ...(images === "ref" ? { images } : {}) });
 }
 
 /**
@@ -144,8 +160,11 @@ export function gedStoreDir(root: string): string {
   return path.join(root, ".strom", "cache", "live-ged");
 }
 
-/** The variants kept on disk (each about the size of its file): the newest, the rest go. */
-const STORED_VARIANTS = 2;
+/**
+ * The variants kept on disk (each about the size of its file): the newest, the rest go — three, so that an app loading
+ * the images by reference keeps its file and the whole one it falls back to beside the file of another window.
+ */
+const STORED_VARIANTS = 3;
 
 /** What is kept beside a stored file: its variant, head, size, and the excerpts it left out (by their sources' IDs). */
 interface GedStamp {
@@ -155,6 +174,8 @@ interface GedStamp {
   links: string;
   bytes: number;
   left: { head: string; level: string; sources: { id: string; omitted: ExcerptOmitted }[] };
+  /** A file with its images by reference: the hashes of those it names (kept while the file is). */
+  images?: string[];
 }
 
 const storedName = (variant: string) => crypto.createHash("sha256").update(variant).digest("hex").slice(0, 16);
@@ -181,6 +202,7 @@ export async function storeGed(root: string, variant: string, made: GedMade): Pr
     links: made.links,
     bytes: made.bytes.length,
     left: { head: made.left.head, level: made.left.level, sources: made.left.sources.map((x) => ({ id: x.source.id, omitted: x.omitted })) },
+    ...(made.images ? { images: made.images } : {}),
   };
   await writeWhole(path.join(dir, `${name}.ged`), made.bytes);
   await writeWhole(path.join(dir, `${name}.json`), JSON.stringify(stamp));
@@ -204,16 +226,39 @@ export async function storeGed(root: string, variant: string, made: GedMade): Pr
     const at = (await fs.promises.stat(path.join(dir, f)).catch(() => undefined))?.mtimeMs;
     if (at !== undefined && Date.now() - at > 3600_000) await fs.promises.rm(path.join(dir, f), { force: true });
   }
+  // the images no kept file names any more (and not named within the hour) go
+  await sweepImages(root, await keptImages(root));
 }
 
-/** The files kept on disk by another strom (its bridge gone, never given again): removed. */
+/** The hashes of the images the files kept on disk name (those with the images by reference). */
+export async function keptImages(root: string): Promise<Set<string>> {
+  const dir = gedStoreDir(root);
+  const keep = new Set<string>();
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch {
+    return keep;
+  }
+  for (const f of files) {
+    if (!/^[0-9a-f]{16}\.json$/.test(f)) continue;
+    try {
+      for (const sha of (JSON.parse(await fs.promises.readFile(path.join(dir, f), "utf8")) as GedStamp).images ?? []) keep.add(sha);
+    } catch {
+      // not whole: its images go once nothing else names them
+    }
+  }
+  return keep;
+}
+
+/** The files kept on disk by another strom (its bridge gone, never given again): removed — and the images none names. */
 export async function tidyStoredGeds(root: string): Promise<void> {
   const dir = gedStoreDir(root);
   let files: string[];
   try {
     files = await fs.promises.readdir(dir);
   } catch {
-    return;
+    files = [];
   }
   for (const f of files) {
     const m = /^([0-9a-f]{16})\.json$/.exec(f);
@@ -226,6 +271,7 @@ export async function tidyStoredGeds(root: string): Promise<void> {
     }
     if (strom !== VERSION) for (const ext of ["json", "ged"]) await fs.promises.rm(path.join(dir, `${m[1]}.${ext}`), { force: true });
   }
+  await sweepImages(root, await keptImages(root));
 }
 
 /**
@@ -245,7 +291,7 @@ export async function storedGed(root: string, env: Env, variant: string, head?: 
       const source = tree.get<Source>(x.id);
       return source ? [{ source, omitted: x.omitted }] : [];
     });
-    return { head: stamp.head, version: stamp.version, links: stamp.links, bytes, left: { head: stamp.left.head, level: stamp.left.level, sources } };
+    return { head: stamp.head, version: stamp.version, links: stamp.links, bytes, left: { head: stamp.left.head, level: stamp.left.level, sources }, ...(stamp.images ? { images: stamp.images } : {}) };
   } catch {
     return undefined;
   }

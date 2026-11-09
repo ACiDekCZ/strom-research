@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.30.0
 
-*In preparation: the betas up to 1.30.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.30.0-beta.4. The section is complete with the release.*
 
 - **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
   original record but stays probable or possible is verified by the agent against that original: it looks at the scan
@@ -29,7 +29,7 @@ The changes of each version in short. The full notes and the install lines are o
   file it brings in with `strom sync`. The agent's proposals are told apart in `strom conflict list` and `show`, and
   close by themselves once the value proposed holds. A research made before is marked once after the update (which
   values came from an imported tree, which are the user's): no value changes, and `strom fixes undo origins` takes the
-  marks back. A proposal whose value has changed since it was made (the user edited it) is out of date: it cannot be
+  marks back; `strom fixes show origins` says how many values were marked and in how many records. A proposal whose value has changed since it was made (the user edited it) is out of date: it cannot be
   taken – nothing is written over the newer value – only closed keeping the value. What a proposal cannot carry (a cause
   changed together with a date) is said in the sync's result, never lost.
   A value that came with the family tree from the Strom app and nobody has changed since is guarded as the user's own.
@@ -52,7 +52,7 @@ The changes of each version in short. The full notes and the install lines are o
   paths with the user's name, logins and tokens are left out or masked to stable codes – and nothing is sent: the user
   sends the file, to the address the command says. `--about fetch|sync|agent|install|windows` adds the details of one
   area (the table is in `strom error --help`), `--where` says where the problem happened, `--note` says it in the user's
-  words; the data of named people, families or a book only with `--with-data` and the user's yes. Asked to report a
+  words (it goes as written – only names the research knows are replaced); the data of named people, families or a book only with `--with-data` and the user's yes. Asked to report a
   problem, the agent asks where it happened, runs it and tells the path – it never sends, opens or copies the file. In
   the menu: Maintenance → Report a problem. The research is only read, a broken one too.
 
@@ -64,6 +64,7 @@ The changes of each version in short. The full notes and the install lines are o
   The bridge no longer ends when the research's disk is away for a moment, and a second bridge started for the same
   research ends at once instead of running on unseen.
   An app that has the newest tree already is sent nothing again.
+  An app that asks for it is sent the tree with each image named by its content, and loads only the images it does not have yet.
 
 - **A fact shown or edited at the terminal** (`strom event show`, `strom event edit`) is said in the research's
   language. In the Strom app, a family tree taken into the research no longer gives the first line of it as the
