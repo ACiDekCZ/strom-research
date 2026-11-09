@@ -104,7 +104,8 @@ test("the bridge: /verify (dry, records, the place in the queue), /verify/bulk, 
     const post = (what: string, body: unknown) => request(`${info.url}/${what}`, "POST", body);
 
     // the features, appended (nothing taken away), and the counts
-    assert.deepEqual(BRIDGE_FEATURES.slice(-4), ["verify", "verify.bulk", "facts.confirm", "verify.stop"]);
+    const at = BRIDGE_FEATURES.indexOf("verify");
+    assert.deepEqual(BRIDGE_FEATURES.slice(at, at + 4), ["verify", "verify.bulk", "facts.confirm", "verify.stop"]);
     const st = (await request(`${info.url}/status`)).body;
     for (const x of ["verify", "verify.bulk", "facts.confirm", "verify.stop"]) assert.ok(st.features.includes(x), x);
     assert.deepEqual(st.verify, { waiting: 0, asked: 0, images: 0, permission: 0, kept: 0, confirmed: 0 });

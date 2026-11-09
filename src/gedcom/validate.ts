@@ -59,6 +59,8 @@ const CHILDREN: Record<string, string[]> = {
   // a fact waiting for its verification against the original: its task's place in the queue; the last verification
   // by an agent: when, why it stays (kept), two readers (APP_SHOWS_VERIFY)
   _STROM_VERIFY: ["_POS"],
+  // the mark of what the fact says (POST /facts/confirm gives it back)
+  _STROM_EID: ["_TXT"],
   _STROM_CHECKED: ["DATE", "_WHY", "_READERS"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],

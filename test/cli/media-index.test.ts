@@ -10,7 +10,7 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
 import { rankTasks } from "../../src/core/queue.ts";
-import { imagesIndex, indexFile, sharperCopies } from "../../src/core/mediaindex.ts";
+import { imagesIndex, indexFile, mediaRecords, recordsFile, sharperCopies } from "../../src/core/mediaindex.ts";
 import { treeStats } from "../../src/core/overview.ts";
 import type { Media, Task } from "../../src/core/model.ts";
 
@@ -182,4 +182,36 @@ test("images index: the sharper copies of a book — a part by the whole scan of
   } finally {
     w.cleanup();
   }
+});
+
+test("image records from one file (the tree for the app): exactly the records, kept only for a settled folder, read again after a change", opts, async () => {
+  const w = await world();
+  const byId = (all: Media[]) => [...all].sort((a, b) => a.id.localeCompare(b.id));
+  const records = () => byId(Tree.open(w.cwd, w.env).list<Media>("media"));
+  const file = recordsFile(Tree.open(w.cwd, w.env));
+  fs.rmSync(file, { force: true });
+  // a folder changed a moment ago: read, nothing kept
+  assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
+  assert.equal(fs.existsSync(file), false);
+  settle(w.cwd);
+  assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
+  assert.equal(fs.existsSync(file), true, "kept once the folder is settled");
+  // read from the file: the records not read
+  const tree = Tree.open(w.cwd, w.env);
+  assert.deepEqual(byId(mediaRecords(tree)), records());
+  assert.equal(tree.loaded("media"), false);
+  // an image taken back: the folder changed, the records read again (the one taken back as it is now)
+  await w.ok(["media", "retract", "M0003", "--reason", "jiná kniha"]);
+  const after = mediaRecords(Tree.open(w.cwd, w.env));
+  assert.ok(after.find((m) => m.id === "M0003")?.retracted);
+  assert.deepEqual(byId(after), records());
+  // a file of another stamp, or damaged: never believed
+  settle(w.cwd);
+  mediaRecords(Tree.open(w.cwd, w.env));
+  const stored = JSON.parse(fs.readFileSync(file, "utf8"));
+  fs.writeFileSync(file, JSON.stringify({ ...stored, stamp: { ...stored.stamp, count: stored.stamp.count + 1 }, records: [] }));
+  assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
+  fs.writeFileSync(file, "{");
+  assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
+  w.cleanup();
 });

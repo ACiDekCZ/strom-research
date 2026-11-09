@@ -12,7 +12,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { now, Tree } from "../../src/core/tree.ts";
-import { ORIGINS_SETTLED, settleOrigins } from "../../src/core/originfix.ts";
+import { ORIGINS_SETTLED, ORIGINS_TREE_SETTLED, settleOrigins } from "../../src/core/originfix.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import type { Conflict, Event, Family, Input, Person, Place, Source } from "../../src/core/model.ts";
 
@@ -98,14 +98,14 @@ test("an import of another program's family tree marks its values as the import'
     await w.ok(["intake", two], AGENT);
     const keys = open(w).list<Source>("source").map((x) => x.imported?.key).filter(Boolean);
     assert.deepEqual(keys, ["R1", "R2"]);
-    // the Strom app's file: the user's values, no import's key
+    // the Strom app's file: the user's family tree (theirs to guard, nothing the person changed: tree), no import's key
     const app = path.join(w.dir, "strom.ged");
     fs.writeFileSync(app, APP_GED);
     await w.ok(["intake", app], AGENT);
     const marie = open(w).list<Person>("person").find((p) => p.names.some((n) => n.given === "Marie" && p.refs?.some((r) => r.system.startsWith("gedcom:") && r.id === "@I1@")) && p.events.some((e) => e.date === "1870"))!;
-    assert.deepEqual(marie.events[0]!.origin, { by: "user" });
-    assert.deepEqual(marie.names[0]!.origin, { by: "user" });
-    assert.deepEqual(marie.sexOrigin, { by: "user" });
+    assert.deepEqual(marie.events[0]!.origin, { by: "user", tree: true });
+    assert.deepEqual(marie.names[0]!.origin, { by: "user", tree: true });
+    assert.deepEqual(marie.sexOrigin, { by: "user", tree: true });
     assert.equal(open(w).get<Source>(marie.events[0]!.citations[0]!.source)!.imported, undefined);
   } finally {
     w.cleanup();
@@ -309,7 +309,7 @@ function older(w: World): void {
     };
     const all = [...tree.list<Person>("person"), ...tree.list<Family>("family"), ...tree.list<Source>("source")];
     tree.putMany(all.map(clean), [], { op: "tree.settle", targets: all.map((r) => r.id), summary: "as an older strom left it" }, (c) => {
-      c.settled = (c.settled ?? []).filter((x) => x !== ORIGINS_SETTLED);
+      c.settled = (c.settled ?? []).filter((x) => x !== ORIGINS_SETTLED && x !== ORIGINS_TREE_SETTLED);
     });
     tree.commit("As an older strom left it");
   });
@@ -364,13 +364,14 @@ test("origins-1: an older research marked once — only marks, every value as it
     assert.deepEqual(person(w, "P0001").sexOrigin, { by: "import", source: "S0001" });
     assert.equal(open(w).get<Source>("S0001")!.imported?.key, "R1");
     assert.equal(open(w).get<Source>("S0001")!.imported?.program, "MyHeritage Family Tree Builder");
-    // the user's: the app's file, a send of the app, the user's wins over the import
+    // the user's: a send of the app, the user's wins over the import (the fact was there before the app's file came)
     assert.deepEqual(eventOf(w, marr).origin, { by: "user" });
     assert.deepEqual(eventOf(w, deat).origin, { by: "user" });
+    // the app's file, unchanged since it was taken in: the user's family tree's
     const marie = open(w).list<Person>("person").find((p) => p.names[0]!.given === "Marie")!;
-    assert.deepEqual(marie.events[0]!.origin, { by: "user" });
-    assert.deepEqual(marie.names[0]!.origin, { by: "user" });
-    assert.deepEqual(marie.sexOrigin, { by: "user" });
+    assert.deepEqual(marie.events[0]!.origin, { by: "user", tree: true });
+    assert.deepEqual(marie.names[0]!.origin, { by: "user", tree: true });
+    assert.deepEqual(marie.sexOrigin, { by: "user", tree: true });
     // the research's own: no mark
     assert.equal(eventOf(w, own).origin, undefined);
     // once
@@ -397,16 +398,16 @@ test("origins-1: an older research marked once — only marks, every value as it
   }
 });
 
-test("origins-1: a file no more readable is never taken for an import's — the user's", opts, async () => {
+test("origins-1: a file no more readable is never taken for an import's — the user's family tree's (unchanged since)", opts, async () => {
   const w = await imported();
   try {
     older(w);
     const input = open(w).get<Input>(open(w).get<Source>("S0001")!.input!)!;
     fs.rmSync(path.join(w.cwd, input.file!));
     settleOrigins(open(w));
-    assert.deepEqual(factOf(w, "P0001", "BIRT").origin, { by: "user" });
-    assert.deepEqual(person(w, "P0001").names[0]!.origin, { by: "user" });
-    assert.deepEqual(person(w, "P0001").sexOrigin, { by: "user" });
+    assert.deepEqual(factOf(w, "P0001", "BIRT").origin, { by: "user", tree: true });
+    assert.deepEqual(person(w, "P0001").names[0]!.origin, { by: "user", tree: true });
+    assert.deepEqual(person(w, "P0001").sexOrigin, { by: "user", tree: true });
     assert.equal(open(w).get<Source>("S0001")!.imported, undefined);
   } finally {
     w.cleanup();

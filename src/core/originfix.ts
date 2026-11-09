@@ -14,6 +14,13 @@
 // - the IDs a person or a family had in such a file (its xref, its _UID, RIN, EXID…: spec 066 K3.2), by the refs the
 //   import left (gedcom:<sha12> + the xref): added beside any the record has — never one of the Strom app's file.
 //
+// Since 1.30.0 (its betas wrote it so before) a value of the Strom app's file or JSON taken in is the user's family
+// tree's (origin user with `tree`: theirs to guard, nothing the person confirmed) and `user` alone the person's own
+// change. A value an earlier strom marked the user's (an import of the app's file, origins-1 above) is told once
+// (ORIGINS_TREE_SETTLED) by the research's history: the same value right after the commit that took such a tree in, not
+// there before it, and the same now — the tree's; any other (changed since by the person, sent by the app as an edit,
+// typed before the import, no history to tell it by) stays the user's. Only the mark `tree` added, no value changed.
+//
 // Free, one operation and one commit, kept for its undo (ORIGINS_FIX_FILE): the commit before it in the research's
 // history and `strom fixes undo origins` are the way back (the marks taken off where they are still as the fix set them).
 
@@ -22,6 +29,8 @@ import path from "node:path";
 import type { Conflict, Event, Family, Input, Name, OriginalIds, Person, Source, TreeConfig, ValueOrigin } from "./model.ts";
 import { entryOf, foreignIds, joinIds } from "./originalids.ts";
 import { canonicalize } from "./json.ts";
+import * as git from "./git.ts";
+import { RECORD_TYPES } from "./model.ts";
 import { proposalHolds, settleProposals } from "./proposalsettle.ts";
 import type { SyncInput } from "./sync.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
@@ -38,16 +47,25 @@ import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts
 export const ORIGINS_SINCE = "1.30.0";
 /** The marker in strom.json: the values of an older research marked once. */
 export const ORIGINS_SETTLED = "origins-1";
+/**
+ * The marker in strom.json: the values of the user's family tree taken in told once from the person's own changes
+ * (origin user with `tree`; a research marked by a 1.30 beta, or by origins-1 now).
+ */
+export const ORIGINS_TREE_SETTLED = "origins-tree-1";
 /** Where the fix keeps what it marked, for its undo (sealed like the rest of quality/; travels with the research). */
 export const ORIGINS_FIX_FILE = "quality/origins.json";
 
-type By = "import" | "user";
+/** Whose a value is marked: an import's, the user's own, the user's family tree's (origin user with `tree`). */
+type By = "import" | "user" | "tree";
 
-/** One mark the fix adds: a fact's, a name's, a sex's origin — or a source of an import's key. */
+/**
+ * One mark the fix adds: a fact's, a name's, a sex's origin — or a source of an import's key. `from: "user"`: the value
+ * was the user's already (an import of the app's file of a 1.30 beta, origins-1), only `tree` added.
+ */
 export type OriginMark =
-  | { kind: "fact"; owner: string; event: string; by: By; source?: string }
-  | { kind: "name"; person: string; index: number; name: string; by: By; source?: string }
-  | { kind: "sex"; person: string; by: By; source?: string }
+  | { kind: "fact"; owner: string; event: string; by: By; source?: string; from?: "user" }
+  | { kind: "name"; person: string; index: number; name: string; by: By; source?: string; from?: "user" }
+  | { kind: "sex"; person: string; by: By; source?: string; from?: "user" }
   | { kind: "source"; source: string; key: string; title: string; imported: NonNullable<Source["imported"]> }
   | { kind: "ids"; owner: string; entry: OriginalIds };
 
@@ -73,6 +91,8 @@ interface TreeSource {
   families?: Map<string, GedNode>;
   app?: boolean;
   head?: GedNode;
+  /** A send of the Strom app (strom sync): the user's edits, never their family tree taken in. */
+  sync?: true;
 }
 
 /** The file of an input as text; undefined when it cannot be read. */
@@ -94,7 +114,7 @@ function treeSources(tree: Tree): Map<string, TreeSource> {
     if (!input || input.type !== "input") continue;
     // a send of the Strom app (strom sync): the user's
     if ((input as SyncInput).sync) {
-      out.set(s.id, { by: "user", source: s });
+      out.set(s.id, { by: "user", source: s, sync: true });
       continue;
     }
     if (input.kind !== "tree") continue;
@@ -162,12 +182,115 @@ function fileNames(t: TreeSource, xref: string): Name[] {
   });
 }
 
-/** What the fix finds: nothing once it ran here (the marker in strom.json). */
-export function originFixes(tree: Tree): OriginFindings {
+/** A value's key for the family tree's values unchanged since (treeValues). */
+const factKey = (event: string) => `E:${event}`;
+const nameKey = (person: string, n: Pick<Name, "given" | "surname">) => `N:${person}:${n.given}\u0000${n.surname}`;
+const sexKey = (person: string) => `S:${person}`;
+const sameFact = (a: Pick<Event, "date" | "place" | "value">, b: Pick<Event, "date" | "place" | "value">) =>
+  (a.date ?? "") === (b.date ?? "") && (a.place ?? "") === (b.place ?? "") && (a.value ?? "") === (b.value ?? "");
+
+/** A record of the history (data/persons|families/<id>.json at a commit), undefined when it was not there. */
+function recordThen(text: string | undefined): (Person | Family) | undefined {
+  if (text === undefined) return undefined;
+  try {
+    const r = JSON.parse(text) as Person | Family;
+    return r && (r.type === "person" || r.type === "family") && Array.isArray(r.events) ? r : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The values of these records that are the user's family tree's as it was taken in (the Strom app's file or JSON, not a
+ * send of the app): in the record right after the commit that took the tree in (the one that added its source), not in
+ * it before that commit, and the same now. Told by the research's history alone; none without it.
+ */
+function treeValues(tree: Tree, sources: Map<string, TreeSource>, owners: ReadonlySet<string>): Set<string> {
+  const out = new Set<string>();
+  if (!owners.size) return out;
+  const rel = (id: string) => `data/${RECORD_TYPES[id.startsWith("F") ? "family" : "person"].dir}/${id}.json`;
+  const files = [...owners].map(rel);
+  for (const t of sources.values()) {
+    if (t.by !== "user" || t.sync) continue;
+    const added = git.runGit(tree.root, ["log", "--diff-filter=A", "--format=%H", "--", `data/${RECORD_TYPES.source.dir}/${t.source.id}.json`]);
+    const commit = added.status === 0 ? added.stdout.split("\n").map((l) => l.trim()).filter(Boolean).pop() : undefined;
+    if (!commit) continue;
+    let then: Map<string, string | undefined>;
+    let before: Map<string, string | undefined>;
+    try {
+      then = git.showFiles(tree.root, commit, files);
+      const parent = git.runGit(tree.root, ["rev-parse", "--verify", "--quiet", `${commit}^`]);
+      before = parent.status === 0 && parent.stdout.trim() ? git.showFiles(tree.root, parent.stdout.trim(), files) : new Map();
+    } catch {
+      continue;
+    }
+    for (const [file, text] of then) {
+      const at = recordThen(text);
+      const now = at ? tree.get<Person | Family>(at.id) : undefined;
+      if (!at || !now || now.type !== at.type) continue;
+      const prior = recordThen(before.get(file));
+      for (const e of at.events) {
+        const cur = now.events.find((x) => x.id === e.id);
+        if (cur && sameFact(e, cur) && !prior?.events.some((x) => x.id === e.id)) out.add(factKey(e.id));
+      }
+      if (at.type !== "person" || now.type !== "person") continue;
+      const priorNames = prior?.type === "person" ? prior.names : [];
+      for (const n of at.names ?? [])
+        if (now.names.some((m) => m.given === n.given && m.surname === n.surname) && !priorNames.some((m) => m.given === n.given && m.surname === n.surname))
+          out.add(nameKey(at.id, n));
+      if (at.sex !== "U" && at.sex === now.sex && !(prior?.type === "person" && prior.sex === at.sex)) out.add(sexKey(at.id));
+    }
+  }
+  return out;
+}
+
+/** A value's origin that is the user's and says nothing more (no family tree's mark, no import's parts or source). */
+const plainUser = (o: ValueOrigin<string> | undefined): boolean => !!o && o.by === "user" && !o.tree && !o.source && !o.parts?.length;
+
+/**
+ * What the fix finds: nothing once it ran here (the markers in strom.json). `withTree` false: not the user's family
+ * tree's values told by the history (an intake's look at the IDs alone).
+ */
+export function originFixes(tree: Tree, withTree = true): OriginFindings {
   const out: OriginFindings = { fixes: [], left: [] };
-  if (tree.config.settled?.includes(ORIGINS_SETTLED)) return out;
+  const first = !tree.config.settled?.includes(ORIGINS_SETTLED);
+  const again = withTree && !tree.config.settled?.includes(ORIGINS_TREE_SETTLED);
+  if (!first && !again) return out;
   const sources = treeSources(tree);
   if (!sources.size) return out;
+  if (first) firstMarks(tree, sources, out);
+  if (!withTree || (!again && !first)) return out;
+  // the user's values that are their family tree's as it was taken in, unchanged since: `tree`
+  const live: (Person | Family)[] = [...tree.list<Person>("person"), ...tree.list<Family>("family")].filter((o) => !o.retracted && !o.mergedInto);
+  const relabel: OriginMark[] = [];
+  if (again)
+    for (const o of live) {
+      for (const e of o.events) if (!e.retracted && plainUser(e.origin)) relabel.push({ kind: "fact", owner: o.id, event: e.id, by: "tree", from: "user" });
+      if (o.type !== "person") continue;
+      o.names.forEach((n, index) => {
+        if (plainUser(n.origin)) relabel.push({ kind: "name", person: o.id, index, name: gedcomName(n), by: "tree", from: "user" });
+      });
+      if (o.sex !== "U" && plainUser(o.sexOrigin)) relabel.push({ kind: "sex", person: o.id, by: "tree", from: "user" });
+    }
+  const userMarks = out.fixes.filter((f) => f.kind !== "source" && f.kind !== "ids" && f.by === "user");
+  const owners = new Set([...relabel, ...userMarks].map((f) => (f.kind === "fact" ? f.owner : f.kind === "name" || f.kind === "sex" ? f.person : "")));
+  owners.delete("");
+  if (!owners.size) return out;
+  const unchanged = treeValues(tree, sources, owners);
+  const keyOf = (f: OriginMark): string | undefined => {
+    if (f.kind === "fact") return factKey(f.event);
+    if (f.kind === "sex") return sexKey(f.person);
+    if (f.kind !== "name") return undefined;
+    const n = tree.get<Person>(f.person)?.names[f.index];
+    return n ? nameKey(f.person, n) : undefined;
+  };
+  for (const f of userMarks) if (f.kind !== "source" && f.kind !== "ids" && unchanged.has(keyOf(f) ?? "")) f.by = "tree";
+  for (const f of relabel) if (unchanged.has(keyOf(f) ?? "")) out.fixes.push(f);
+  return out;
+}
+
+/** The marks of origins-1: a research no strom marked yet. */
+function firstMarks(tree: Tree, sources: Map<string, TreeSource>, out: OriginFindings): void {
   // the import's sources: their keys (R1, R2… after any there are), in the order they came
   let n = 0;
   for (const s of tree.list<Source>("source")) {
@@ -228,7 +351,6 @@ export function originFixes(tree: Tree): OriginFindings {
       }
     }
   }
-  return out;
 }
 
 /**
@@ -237,7 +359,7 @@ export function originFixes(tree: Tree): OriginFindings {
  */
 export function pendingIds(tree: Tree): Map<string, OriginalIds[]> {
   const out = new Map<string, OriginalIds[]>();
-  for (const f of originFixes(tree).fixes) {
+  for (const f of originFixes(tree, false).fixes) {
     if (f.kind !== "ids" || tree.get<Person | Family>(f.owner)?.type !== "person") continue;
     out.set(f.owner, [...(out.get(f.owner) ?? []), f.entry]);
   }
@@ -257,11 +379,12 @@ const fileContent = (f: OriginsFile) => JSON.stringify(f, null, 2) + "\n";
 
 /** The marker in strom.json, with whatever else the caller changes there (the fix's decision). */
 const settledWith = (config?: (c: TreeConfig) => void) => (c: TreeConfig) => {
-  c.settled = [...new Set([...(c.settled ?? []), ORIGINS_SETTLED])];
+  c.settled = [...new Set([...(c.settled ?? []), ORIGINS_SETTLED, ORIGINS_TREE_SETTLED])];
   config?.(c);
 };
 
-const originOf = (m: { by: By; source?: string }): ValueOrigin<never> => (m.by === "import" && m.source ? { by: "import", source: m.source } : { by: m.by });
+const originOf = (m: { by: By; source?: string }): ValueOrigin<never> =>
+  m.by === "import" && m.source ? { by: "import", source: m.source } : m.by === "tree" ? { by: "user", tree: true } : { by: m.by === "import" ? "import" : "user" };
 const byId = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 
 /** The records with the marks set (or taken off), as they are now: only the marks, nothing else of them. */
@@ -276,7 +399,15 @@ function marked(tree: Tree, items: OriginMark[], undo: boolean): { records: (Per
     }
     return records.get(id) as T;
   };
-  const same = (o: ValueOrigin<string> | undefined, m: { by: By; source?: string }) => !!o && o.by === m.by && (o.source ?? "") === (originOf(m).source ?? "") && !o.parts;
+  const same = (o: ValueOrigin<string> | undefined, m: { by: By; source?: string }) => {
+    const want = originOf(m);
+    return !!o && o.by === want.by && !!o.tree === !!want.tree && (o.source ?? "") === (want.source ?? "") && !o.parts;
+  };
+  /** A mark that does not apply: undone — the value's origin not as the fix set it, or changed since; set — it has one (the user's plain one where the mark adds `tree` to it). */
+  const skip = (o: ValueOrigin<string> | undefined, it: { by: By; source?: string; from?: "user" }, was: unknown) =>
+    undo ? !same(o, it) || !!was : it.from === "user" ? !plainUser(o) : !!o;
+  /** The origin a mark leaves: set, or as it was before it (undone: the user's plain one, or none). */
+  const after = (it: { by: By; source?: string; from?: "user" }): ValueOrigin<never> | undefined => (!undo ? originOf(it) : it.from === "user" ? { by: "user" } : undefined);
   for (const it of items) {
     if (it.kind === "ids") {
       const o = of<Person | Family>(it.owner);
@@ -307,24 +438,27 @@ function marked(tree: Tree, items: OriginMark[], undo: boolean): { records: (Per
       const o = of<Person | Family>(it.owner);
       const e = o?.events.find((x) => x.id === it.event);
       if (!e) continue;
-      if (undo ? !same(e.origin, it) || e.was : e.origin) continue;
-      if (undo) delete e.origin;
-      else e.origin = originOf(it) as Event["origin"];
+      if (skip(e.origin, it, e.was)) continue;
+      const next = after(it);
+      if (next) e.origin = next as Event["origin"];
+      else delete e.origin;
       done.push(it);
     } else if (it.kind === "name") {
       const p = of<Person>(it.person);
       const name = p?.names[it.index];
       if (!name || gedcomName(name) !== it.name) continue;
-      if (undo ? !same(name.origin, it) || name.was : name.origin) continue;
-      if (undo) delete name.origin;
-      else name.origin = originOf(it) as Name["origin"];
+      if (skip(name.origin, it, name.was)) continue;
+      const next = after(it);
+      if (next) name.origin = next as Name["origin"];
+      else delete name.origin;
       done.push(it);
     } else {
       const p = of<Person>(it.person);
       if (!p || p.type !== "person") continue;
-      if (undo ? !same(p.sexOrigin, it) || p.sexWas : p.sexOrigin || p.sex === "U") continue;
-      if (undo) delete p.sexOrigin;
-      else p.sexOrigin = originOf(it);
+      if (p.sex === "U" || skip(p.sexOrigin, it, p.sexWas)) continue;
+      const next = after(it);
+      if (next) p.sexOrigin = next;
+      else delete p.sexOrigin;
       done.push(it);
     }
   }
@@ -357,7 +491,9 @@ export function applyOrigins(tree: Tree, items: OriginMark[], version: string, c
       targets: records.map((r) => r.id).sort(byId),
       summary:
         `where the values came from marked: ${count("fact", "import")} facts, ${count("name", "import")} names, ${count("sex", "import")} sexes of an imported family tree (${count("source")} imports given a key), ` +
-        `${count("fact", "user")} facts, ${count("name", "user")} names, ${count("sex", "user")} sexes the user's${count("ids") ? `, the IDs of a family tree on ${count("ids")} records` : ""} — only marks, no value changed (fix origins; the commit before is the way back)`,
+        `${count("fact", "user")} facts, ${count("name", "user")} names, ${count("sex", "user")} sexes the user's` +
+        `${count("fact", "tree") + count("name", "tree") + count("sex", "tree") ? `, ${count("fact", "tree")} facts, ${count("name", "tree")} names, ${count("sex", "tree")} sexes of the user's family tree unchanged since it was taken in` : ""}` +
+        `${count("ids") ? `, the IDs of a family tree on ${count("ids")} records` : ""} — only marks, no value changed (fix origins; the commit before is the way back)`,
     },
     settledWith(config),
   );
@@ -391,14 +527,16 @@ export function undoOrigins(tree: Tree, config?: (c: TreeConfig) => void): { res
 
 /**
  * Once per research, at the first start of this strom (after its backup) and at a bridge's start: the fix applied by
- * itself, its decision kept as the person's fixes are (`decision`: strom fixes undo origins puts it back) — in one
- * commit. Skipped as settleReaders is (somebody at work, another computer's seal, data changed outside strom, a dry run).
+ * itself (and once more for the user's family tree's values a 1.30 beta marked the user's: ORIGINS_TREE_SETTLED), its
+ * decision kept as the person's fixes are (`decision`: strom fixes undo origins puts it back) — in one commit. Skipped
+ * as settleReaders is (somebody at work, another computer's seal, data changed outside strom, a dry run).
  */
 export function settleOrigins(tree: Tree, decision: (c: TreeConfig) => void = fixedDecision("origins", VERSION)): { changed: number; records: number } | undefined {
-  if (tree.dryRun || tree.config.settled?.includes(ORIGINS_SETTLED) || !quiet(tree)) return undefined;
+  const settled = () => [ORIGINS_SETTLED, ORIGINS_TREE_SETTLED].every((m) => tree.config.settled?.includes(m));
+  if (tree.dryRun || settled() || !quiet(tree)) return undefined;
   let out: { changed: number; records: number } | undefined;
   tree.atomically(() => {
-    if (!freshConfig(tree) || tree.config.settled?.includes(ORIGINS_SETTLED) || !writableUnasked(tree)) return;
+    if (!freshConfig(tree) || settled() || !writableUnasked(tree)) return;
     const found = originFixes(tree);
     const r = applyOrigins(tree, found.fixes, ORIGINS_SINCE, found.fixes.length ? decision : undefined);
     tree.commit(r.changed ? `Where the values came from marked: ${r.changed} marks in ${r.records} records (only marks, no value changed)` : "Where the values came from: marked as they come from now on");

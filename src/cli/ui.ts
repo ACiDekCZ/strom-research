@@ -1442,6 +1442,7 @@ export const UI = {
   "ui.fixes.origins.found": "Found: {found, plural, one {# value} other {# values}} to mark where it came from",
   "ui.fixes.origins.example.import": "  {what} → an imported family tree ({source})",
   "ui.fixes.origins.example.user": "  {what} → the user's own",
+  "ui.fixes.origins.example.tree": "  {what} → the user's family tree, unchanged by them since it was taken in",
   "ui.fixes.origins.example.source": "  {source} · {title} → import {key}",
   "ui.fixes.origins.example.ids": "  {owner} · the IDs it had in the family tree ({source}, {xref})",
   "ui.fixes.origins.more": "  … {n} more: strom fixes show {id} --json",

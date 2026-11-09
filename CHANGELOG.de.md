@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.30.0
 
-*In Vorbereitung: die Betas bis 1.30.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.30.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Angaben am Original geprüft.** Angaben zu Geburt, Taufe, Heirat, Tod oder Begräbnis, die ihren ursprünglichen
   Eintrag zitieren, aber wahrscheinlich oder möglich bleiben, prüft der Agent an diesem Original: er sieht sich den Scan
@@ -20,6 +20,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   bestätigt, ändert der Agent nie – er schlägt nur vor. Ein Wert, den der Benutzer eingegeben hat oder der aus einem
   Stammbaum kam, wird nie überschrieben: was abweicht, ist ein Vorschlag zur Entscheidung des Benutzers. Wie viele
   Angaben warten, sagen `strom check`, `strom doctor`, `strom stats` und `strom verify status`.
+  Eine Bestätigung in der App Strom gilt für den Wert, den der Benutzer gesehen hat: eine seitdem geänderte Angabe wird nicht bestätigt.
 
 - **Angaben aus einem übernommenen Stammbaum sind geschützt.** Ein Stammbaum aus einem anderen Programm (GEDCOM) gibt
   Hinweise: der Agent ändert eine solche Angabe nur nach einem Eintrag, den er zitiert, und der Wert aus dem Stammbaum
@@ -34,6 +35,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Benutzer bearbeitet), ist veraltet: Er lässt sich nicht annehmen – über den neueren Wert wird nichts geschrieben –, nur
   mit dem behaltenen Wert schließen. Was ein Vorschlag nicht tragen kann (eine zusammen mit dem Datum geänderte Ursache),
   nennt das Ergebnis der Synchronisation, es geht nie verloren.
+  Ein Wert, der mit dem Stammbaum aus der App Strom kam und seitdem von niemandem geändert wurde, ist wie ein eigener des Benutzers geschützt.
 
 - **Ein erneut übernommener Stammbaum findet seine Personen.** Die IDs, die ein Programm Personen und Familien gab
   (`_UID`, `EXID`, `_FSFTID`… von MyHeritage, Gramps, FamilySearch und anderen), bleiben erhalten: ein Stammbaum desselben
@@ -63,7 +65,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Datei für die App Strom wird auch bei einer Forschung mit einer begründet entschiedenen Hypothese wieder
   geschrieben:** für die App ab 3.25.0 (oder unbekannter Version) lehnte `strom export gedcom` sie ab, und
   `output/tree-strom.ged` blieb nach einer Sitzung alt (eine über `strom app` in der App geöffnete Forschung war nicht
-  betroffen).
+  betroffen). **Eine große Forschung live in der App Strom zu verfolgen öffnet sich viel schneller:** der Baum für
+  die App wird für jeden Stand der Forschung einmal erstellt und bleibt gespeichert, auch nach einem Neustart der
+  Brücke, und beim Verfolgen wird eine Änderung gemeldet, sobald ihr Baum bereit ist. Die Brücke endet nicht mehr,
+  wenn das Laufwerk der Forschung kurz nicht erreichbar ist, und eine zusätzlich gestartete zweite Brücke derselben
+  Forschung endet sofort, statt unbemerkt weiterzulaufen.
+  Einer App, die den neuesten Stammbaum schon hat, wird nichts erneut gesendet.
 
 - **Eine im Terminal gezeigte oder bearbeitete Angabe** (`strom event show`, `strom event edit`) erscheint in der
   Sprache der Forschung. In der App Strom hat ein in die Forschung übernommener Stammbaum nicht mehr die erste Zeile

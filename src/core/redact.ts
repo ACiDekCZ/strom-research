@@ -58,6 +58,8 @@ export function maskKey(env: Env): Buffer {
 
 /** A record's ID as strom writes it (P0012, F3, B0003:12, B0003:12-40): never anything of a person. */
 const ID = /^[A-Z]{1,2}\d+(?::\d+(?:[-–]\d+)?)?$/;
+/** A section of strom's own documentation (strom doc R12.5): kept. */
+const SECTION = /^[A-Z]\d+(?:\.\d+)+$/;
 /** A number, a range, a version (1.29.0, 12-40, 3.5): kept. */
 const NUMBER = /^v?\d+(?:[.,:\-–]\d+)*(?:-(?:beta|rc|alpha)\.\d+)?$/;
 /** A date as people write it (2.3.1850, 1850-03-02, 02/03/1850): a person's — masked. */
@@ -95,6 +97,9 @@ export interface MaskOptions {
 
 const PROTECT = "\u0000";
 
+/** A code as Masker writes it (‹3fa9c›), anywhere in a text. */
+export const MASK_CODE = /‹[0-9a-f]{5}›/g;
+
 export class Masker {
   private readonly key: Buffer;
   private readonly homes: string[];
@@ -103,7 +108,7 @@ export class Masker {
   private readonly terms = new Set<string>();
   /** The words of 4 letters and more by their first 4 (a form of one begins as it does). */
   private readonly byPrefix = new Map<string, string[]>();
-  /** How many words were masked (said in the README). */
+  /** How many codes were made (each time one was asked). */
   masked = 0;
 
   constructor(o: MaskOptions) {
@@ -288,7 +293,7 @@ export class Masker {
   }
 
   private word(w: string): string {
-    if (ID.test(w) || ISO_TIME.test(w) || ERRNO.test(w)) return w;
+    if (ID.test(w) || SECTION.test(w) || ISO_TIME.test(w) || ERRNO.test(w)) return w;
     if (NUMBER.test(w)) return DATE.test(w) ? this.code(w) : w;
     if (DATE.test(w)) return this.code(w);
     // a host (archive.example.org): never a person's
@@ -324,7 +329,8 @@ export class Masker {
     for (const h of this.homes) s = s.split(h).join("~");
     s = s.replace(/[\p{L}\p{M}\p{N}._%+-]+@[\p{L}\p{M}\p{N}-]+(?:\.[\p{L}\p{M}\p{N}-]+)+/gu, "‹e›");
     if (!this.terms.size) return s;
-    return s.replace(/[\p{L}\p{M}]+/gu, (w) => (this.isTerm(w) ? this.code(w) : w));
+    // a code already made stays as it is (the letters of ‹bad12› are no word of a place)
+    return s.replace(/‹[0-9a-f]{5}›|[\p{L}\p{M}]+/gu, (w) => (w[0] !== "‹" && this.isTerm(w) ? this.code(w) : w));
   }
 
   /** sweep over every string of a value (keys too). */

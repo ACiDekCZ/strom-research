@@ -8,7 +8,7 @@
 // as before — an older strom's research reads as it did until the fix has run on it (with its backup and its undo).
 
 import { createHash } from "node:crypto";
-import type { Source, TreeConfig, UserReading } from "./model.ts";
+import type { Event, Source, TreeConfig, UserReading } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import type { Env } from "./paths.ts";
 import { isAgent } from "./which.ts";
@@ -27,6 +27,16 @@ export function readersSettled(tree: Pick<Tree, "config">): boolean {
  */
 export function transcriptMark(text: string): string {
   return createHash("sha256").update(text.normalize("NFC"), "utf8").digest("hex").slice(0, 16);
+}
+
+/**
+ * The mark of what a fact says, as the Strom file shows it (`3 _TXT` under `2 _STROM_EID`): its kind, label, date,
+ * place, house, cause, value and ages (NFC; never its sources, notes or status). Opaque to the Strom app — it gives it
+ * back confirming the fact (POST /facts/confirm), so a confirmation of a value seen in an older file is refused.
+ */
+export function factMark(e: Pick<Event, "kind" | "label" | "date" | "place" | "house" | "cause" | "value" | "age" | "ages">): string {
+  const ages = Object.entries(e.ages ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return transcriptMark(JSON.stringify([e.kind, e.label ?? "", e.date ?? "", e.place ?? "", e.house ?? "", e.cause ?? "", e.value ?? "", e.age ?? "", ages]));
 }
 
 /** The mark of a source's transcript, none without one. */

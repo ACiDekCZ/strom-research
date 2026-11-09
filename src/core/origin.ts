@@ -1,7 +1,9 @@
 // Where a value came from (spec 066 U3, K2.1–K2.3): a fact's date, place and value, a name, a sex — from an import of a
 // family tree (a lead), from the user, or the research's own (no origin). What an agent may change of them:
 //
-// - the user's value never: the agent proposes (a conflict of kind "user"), the user decides;
+// - the user's value never: the agent proposes (a conflict of kind "user"), the user decides — the person's own change
+//   (origin user) and their family tree taken in, unchanged since (origin user with `tree`: the Strom app's file or JSON)
+//   alike; only the person's own change is said to be theirs (the Strom file's `user`; the other one `tree`);
 // - an import's value only on a record — a new --cite of a source that is no family tree, memory, compiled work or
 //   index, or one the fact cites already — and never where the person decides (hypotheses.decide person): otherwise a
 //   proposal (a conflict of kind "import"). Changed so, the import's value is kept (`was`), its citation gives way to
@@ -9,7 +11,7 @@
 // - the research's own freely, as ever.
 //
 // The person (their terminal, the Strom app's bridge: Tree.personWrites) changes anything; what they write is theirs
-// (origin user). They may also put an import's value back (revertImported: `strom event revert`, `strom person revert`,
+// (origin user, `tree` gone). They may also put an import's value back (revertImported: `strom event revert`, `strom person revert`,
 // the bridge's POST /facts/revert). The guards sit in the commands an agent uses (event edit, person edit, name primary,
 // event retract, place rewrite) — never in core/actions.ts, which a sync and a fix use too.
 //
@@ -40,8 +42,9 @@ export const NAME_PARTS: readonly NamePart[] = ["given", "surname"];
 export type Owner = "user" | "import" | "research";
 
 /**
- * Whose a part of a value is: no origin, the research's; the user's; an import's — only the parts it names where it
- * names some (the others the user changed in the Strom app: theirs). A sex has no parts.
+ * Whose a part of a value is: no origin, the research's; the user's (their own change or their family tree's, `tree`);
+ * an import's — only the parts it names where it names some (the others the user changed in the Strom app: theirs). A
+ * sex has no parts.
  */
 export function ownerOf<P extends string>(origin: ValueOrigin<P> | undefined, part?: P): Owner {
   if (!origin) return "research";

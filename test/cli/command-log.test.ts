@@ -95,6 +95,11 @@ test("masking keeps strom's words, IDs, numbers and options; any name, path part
   assert.ok(said.includes("2026-11-09T02:36:00Z"));
   // the sweep finds a word of the research wherever it stands
   assert.ok(!m.sweep("Лотакова and others").includes("Лотаков"));
+  // a section of strom's own documentation stays (strom doctor's fix: strom doc R12.5)
+  assert.equal(m.text("Codex does not trust the folder → strom doc R12.5"), "Codex does not trust the folder → strom doc R12.5");
+  // a code once made is never masked again by a word of the research its letters spell (a place "Bad Ischl")
+  const bad = new Masker({ key: Buffer.alloc(32, 1), vocabulary: stromVocabulary(), terms: ["Bad Ischl"] });
+  assert.equal(bad.sweep("from ‹bad12› at Bad"), `from ‹bad12› at ${bad.code("Bad")}`);
 });
 
 test("the journal keeps itself small: its newest half past its size", () => {

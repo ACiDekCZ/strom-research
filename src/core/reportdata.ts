@@ -40,7 +40,7 @@ const name = (n: Name) => ({
   ...(n.kind ? { kind: n.kind } : {}),
   ...(n.primary ? { primary: true } : {}),
   ...(n.citations?.length ? { citations: n.citations.map(citation) } : {}),
-  ...(n.origin ? { origin: n.origin.by } : {}),
+  ...(n.origin ? { origin: n.origin.tree ? "tree" : n.origin.by } : {}),
 });
 
 /** A fact: its values, citations and how sure it is — the note, a quote and the participants' names left out. */
@@ -59,7 +59,7 @@ const fact = (e: Event) => ({
   ...(e.participants?.length ? { participants: e.participants.map((p) => ({ role: p.role, ...(p.person ? { person: p.person } : {}) })) } : {}),
   ...(e.confirmed ? { confirmed: e.confirmed.at } : {}),
   ...(e.verified ? { verified: { at: e.verified.at, result: e.verified.result, cites: e.verified.cites, ...(e.verified.readers ? { readers: e.verified.readers } : {}) } } : {}),
-  ...(e.origin ? { origin: e.origin.by } : {}),
+  ...(e.origin ? { origin: e.origin.tree ? "tree" : e.origin.by } : {}),
   ...(e.retracted ? { retracted: e.retracted.at } : {}),
 });
 

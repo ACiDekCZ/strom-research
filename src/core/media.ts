@@ -315,6 +315,42 @@ function cropIn(p: Region, r: Region): Region {
   return { x, y, w: Math.min(1 - x, r.w / p.w), h: Math.min(1 - y, r.h / p.h) };
 }
 
+/** The images of a list by their ID, and by the scan they show (recordset and image), in the list's order. */
+interface MediaIndex {
+  length: number;
+  byId: Map<string, Media>;
+  byImage: Map<string, Media[]>;
+}
+const indexes = new WeakMap<Media[], MediaIndex>();
+const imageKey = (m: Media) => JSON.stringify([m.recordset ?? null, m.image ?? null]);
+
+/** The index of a list of images, made once for it (a list that grew since: made again). */
+function mediaIndex(all: Media[]): MediaIndex {
+  const had = indexes.get(all);
+  if (had && had.length === all.length) return had;
+  const made: MediaIndex = { length: all.length, byId: new Map(), byImage: new Map() };
+  for (const m of all) {
+    if (!made.byId.has(m.id)) made.byId.set(m.id, m);
+    const k = imageKey(m);
+    (made.byImage.get(k) ?? made.byImage.set(k, []).get(k)!).push(m);
+  }
+  indexes.set(all, made);
+  return made;
+}
+
+/**
+ * An image of a list by its ID: the first of that ID, as `all.find` finds it — a research of tens of thousands of images
+ * asks it for each excerpt of each export (looked up once, not through the whole list each time).
+ */
+export function mediaById(all: Media[], id: string): Media | undefined {
+  return mediaIndex(all).byId.get(id);
+}
+
+/** The images of a list that show the same scan as `whole` (its recordset and image), in the list's order. */
+function sameImage(all: Media[], whole: Media): Media[] {
+  return mediaIndex(all).byImage.get(imageKey(whole)) ?? [];
+}
+
 /**
  * A registered part of a whole image that shows a region of it (fractions of the
  * whole) with more detail than the whole image has: the sharpest one, and where
@@ -324,7 +360,7 @@ function cropIn(p: Region, r: Region): Region {
 export function sharperPart(all: Media[], whole: Media, r: Region): { part: Media; crop: Region; gain: number } | undefined {
   if (!whole.width || whole.part || whole.recordset === undefined || whole.image === undefined) return undefined;
   let best: { part: Media; crop: Region; gain: number } | undefined;
-  for (const m of all) {
+  for (const m of sameImage(all, whole)) {
     const p = m.part ?? (m.id !== whole.id ? { x: 0, y: 0, w: 1, h: 1 } : undefined);
     if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
     if (!inside(r, p)) continue;
@@ -386,7 +422,7 @@ export function sharperCover(all: Media[], whole: Media, r: Region, holds?: Regi
   if (!whole.width || whole.part || whole.recordset === undefined || whole.image === undefined) return {};
   let best: { part: Media; gain: number; of: number; meet: Region } | undefined;
   let near: { part: Media; gain: number; of: number; meet: Region } | undefined;
-  for (const m of all) {
+  for (const m of sameImage(all, whole)) {
     const p = m.part;
     if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
     const o = overlap(r, p);

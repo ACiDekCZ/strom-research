@@ -359,7 +359,7 @@ const REWRITERS: Record<string, Rewriter> = {
       if (r.kind === "source") return t("ui.fixes.origins.example.source", { source: r.source, title: short(r.title), key: r.key });
       if (r.kind === "ids") return t("ui.fixes.origins.example.ids", { owner: r.owner, source: r.entry.source, xref: r.entry.xref ?? "" });
       const what = r.kind === "fact" ? `${r.event} · ${r.owner}` : r.kind === "name" ? `${r.person} · ${r.name.replace(/\//g, "").replace(/\s+/g, " ").trim()}` : `${r.person} · ${t("ui.conflict.sex")}`;
-      return t(r.by === "user" ? "ui.fixes.origins.example.user" : "ui.fixes.origins.example.import", { what, source: r.source ?? "" });
+      return t(r.by === "user" ? "ui.fixes.origins.example.user" : r.by === "tree" ? "ui.fixes.origins.example.tree" : "ui.fixes.origins.example.import", { what, source: r.source ?? "" });
     },
     apply: (tree, items, config) => applyOrigins(tree, items as OriginMark[], VERSION, config),
     done: (tree) => originsDone(tree).length,

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.30.0
 
-*Připravuje se: bety do 1.30.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.30.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Údaje ověřené proti originálu.** Narození, křest, sňatek, úmrtí nebo pohřeb, který cituje původní záznam, ale
   zůstává pravděpodobný nebo možný, agent ověří proti tomu originálu: podívá se na sken a údaj buď povýší na doložený,
@@ -18,6 +18,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   uživatel v aplikaci Strom potvrdí podle skenu, agent nikdy nezmění – jen navrhne. Hodnota, kterou zadal uživatel nebo
   která přišla z rodokmenu, se nikdy nepřepíše: co se liší, je návrh k rozhodnutí uživatele. Kolik údajů čeká, řekne
   `strom check`, `strom doctor`, `strom stats` a `strom verify status`.
+  Potvrzení v aplikaci Strom platí pro hodnotu, kterou uživatel viděl: údaj od té doby změněný se nepotvrdí.
 
 - **Údaje z převzatého rodokmenu jsou chráněné.** Rodokmen z jiného programu (GEDCOM) dává vodítka: agent takový údaj
   změní jen podle záznamu, který cituje, a hodnota z rodokmenu zůstává uložená vedle („původně z rodokmenu: …“) a jde
@@ -29,6 +30,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom fixes undo origins` značky vezme zpět. Návrh, jehož hodnota se od jeho vzniku změnila (upravil ji uživatel), je
   zastaralý: přijmout ho nelze – přes novější hodnotu se nic nezapíše –, jen uzavřít s ponechanou hodnotou. Co návrh
   neunese (příčina změněná spolu s datem), řekne výsledek synchronizace, nikdy se neztratí.
+  Hodnota, která přišla s rodokmenem z aplikace Strom a nikdo ji od té doby nezměnil, je chráněná jako hodnota uživatele.
 
 - **Znovu převzatý rodokmen najde své lidi.** ID, která program dal lidem a rodinám (`_UID`, `EXID`, `_FSFTID`…
   z MyHeritage, Gramps, FamilySearch a dalších), se uchovají: rodokmen téhož programu převzatý znovu (nebo z jiného
@@ -53,7 +55,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 - **Soubor pro aplikaci Strom se zase zapíše i u výzkumu s hypotézou rozhodnutou s odůvodněním:** pro aplikaci od
   3.25.0 (nebo neznámé verze) ho `strom export gedcom` odmítl a `output/tree-strom.ged` po session zůstal starý (výzkum
-  otevřený v aplikaci přes `strom app` se to netýkalo).
+  otevřený v aplikaci přes `strom app` se to netýkalo). **Sledování velkého výzkumu živě v aplikaci Strom se otevírá
+  mnohem rychleji:** strom pro aplikaci se sestaví jednou pro každý stav výzkumu a zůstane uložený i po novém spuštění
+  mostu, a během sledování se změna ohlásí, až je její strom připravený. Most už neskončí, když je disk výzkumu na
+  chvíli nedostupný, a druhý most téhož výzkumu spuštěný navíc hned skončí a neběží dál bez povšimnutí.
+  Aplikaci, která nejnovější strom už má, se znovu nic neposílá.
 
 - **Údaj zobrazený nebo upravený v terminálu** (`strom event show`, `strom event edit`) se vypisuje v jazyce
   výzkumu. V aplikaci Strom už rodokmen převzatý do výzkumu nemá jako odkaz celého rodokmenu první řádek z něj:

@@ -86,7 +86,8 @@ test("a bridge whose research is gone ends by itself — its .strom deleted, or 
   const w = new World();
   await w.withTree();
   const root = w.cwd;
-  const env = { STROM_LIVE_POLL_MS: "100" };
+  // (looked at again a second later: a research away for a moment ends no bridge — test/cli/live-left.test.ts)
+  const env = { STROM_LIVE_POLL_MS: "100", STROM_LIVE_GONE_MS: "1000" };
   const pids: number[] = [];
   try {
     // .strom deleted by hand (the folder of the research stays)

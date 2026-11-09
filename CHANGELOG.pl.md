@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.30.0
 
-*W przygotowaniu: bety do 1.30.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.30.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Dane sprawdzane z oryginałem.** Urodzenie, chrzest, ślub, zgon lub pochówek, który cytuje pierwotny zapis, ale
   pozostaje prawdopodobny lub możliwy, agent sprawdzi z tym oryginałem: obejrzy skan i albo podniesie daną do
@@ -19,6 +19,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Strom według skanu, agent nigdy nie zmienia – tylko proponuje. Wartość wpisana przez użytkownika lub pochodząca
   z drzewa nigdy nie jest nadpisywana: to, co się różni, jest propozycją do decyzji użytkownika. Ile danych czeka, mówią
   `strom check`, `strom doctor`, `strom stats` i `strom verify status`.
+  Potwierdzenie w aplikacji Strom dotyczy wartości, którą użytkownik widział: dana zmieniona od tego czasu nie zostaje potwierdzona.
 
 - **Dane z przejętego drzewa są chronione.** Drzewo z innego programu (GEDCOM) daje wskazówki: agent zmienia taką daną
   tylko według zapisu, który cytuje, a wartość z drzewa zostaje zachowana obok („pierwotnie z drzewa: …”) i można ją
@@ -31,6 +32,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Propozycja, której wartość zmieniła się od jej powstania (zmienił ją użytkownik), jest nieaktualna: nie można jej
   przyjąć – nic nie zostanie zapisane na nowszej wartości – można ją tylko zamknąć, zachowując wartość. Czego propozycja
   nie uniesie (przyczyna zmieniona razem z datą), mówi wynik synchronizacji, nigdy nie ginie.
+  Wartość, która przyszła z drzewem z aplikacji Strom i której nikt od tego czasu nie zmienił, jest chroniona jak wartość użytkownika.
 
 - **Ponownie przejęte drzewo odnajduje swoje osoby.** ID, które program nadał osobom i rodzinom (`_UID`, `EXID`,
   `_FSFTID`… z MyHeritage, Gramps, FamilySearch i innych), są zachowywane: drzewo tego samego programu przejęte ponownie
@@ -56,7 +58,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 - **Plik dla aplikacji Strom znów się zapisuje także w badaniu z hipotezą rozstrzygniętą z uzasadnieniem:** dla
   aplikacji od 3.25.0 (lub nieznanej wersji) `strom export gedcom` go odrzucał, a `output/tree-strom.ged` po sesji
-  zostawał stary (badania otwartego w aplikacji przez `strom app` to nie dotyczyło).
+  zostawał stary (badania otwartego w aplikacji przez `strom app` to nie dotyczyło). **Śledzenie dużego badania na
+  żywo w aplikacji Strom otwiera się dużo szybciej:** drzewo dla aplikacji powstaje raz dla każdego stanu badania i
+  zostaje zapisane, także po ponownym uruchomieniu mostu, a podczas śledzenia zmiana jest zgłaszana, gdy jej drzewo
+  jest gotowe. Most nie kończy się już, gdy dysk badania jest na chwilę niedostępny, a drugi most tego samego badania
+  uruchomiony dodatkowo kończy się od razu, zamiast działać dalej niezauważony.
+  Aplikacji, która ma już najnowsze drzewo, nic nie jest wysyłane ponownie.
 
 - **Dana pokazana lub zmieniona w terminalu** (`strom event show`, `strom event edit`) jest wypisywana w języku
   badania. W aplikacji Strom drzewo przejęte do badania nie ma już jako odnośnika całego drzewa pierwszego wiersza z

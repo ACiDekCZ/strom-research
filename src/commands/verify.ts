@@ -8,7 +8,7 @@ import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { UsageError, StromError } from "../core/errors.ts";
-import { BULK_ORDERS, BULK_SCOPES, emptyFunnel, taskPlaces, verifyAsk, verifyStop, verifyCandidates, verifyBulk, verifyConfirm, verifyCounts, verifyFactDone, type AskResult, type Estimate, type VerifyTarget } from "../core/verify.ts";
+import { BULK_ORDERS, BULK_SCOPES, emptyFunnel, taskPlaces, verifyAsk, verifyStop, verifyCandidates, verifyBulk, verifyConfirmAll, verifyCounts, verifyFactDone, type AskResult, type Estimate, type VerifyTarget } from "../core/verify.ts";
 import { displayName, resolvePerson } from "../core/people.ts";
 import { actsAsArchive, refuseInArchive } from "../core/state.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
@@ -262,16 +262,21 @@ register({
   hidden: true,
   description: "The user's own (the app, through the bridge): the fact is marked confirmed against the scan, its status as it is; tasks of verification leave it. --undo takes it back.",
   args: [{ name: "fact", description: "the fact (E…)", required: true, variadic: true }],
-  options: [{ name: "undo", type: "boolean", description: "take the confirmation back" }],
+  options: [
+    { name: "undo", type: "boolean", description: "take the confirmation back" },
+    { name: "txt", type: "string", value: "<mark>[,<mark>…]", description: "the mark of the value seen, as the Strom file gives it (3 _TXT under 2 _STROM_EID), one for each fact: a fact changed since and nothing is written (confirm.changed)" },
+  ],
   examples: ["strom verify confirm E0001", "strom verify confirm E0001 --undo"],
   run(ctx: Context, { args, opts }) {
     const tree = ctx.tree();
     const undo = !!opts.undo;
-    const set = ["strom verify confirm", ...args, ...(undo ? ["--undo"] : [])].join(" ");
+    const txts = opts.txt === undefined ? undefined : String(opts.txt).split(",").map((t) => t.trim());
+    if (txts?.some((t) => !/^[0-9a-f]{16}$/iu.test(t))) throw new UsageError(`not a fact's mark: ${String(opts.txt)}`, { code: "factconfirm.invalid", hint: "the mark the Strom file gives under 2 _STROM_EID (3 _TXT): 16 hex characters" });
+    const set = ["strom verify confirm", ...args, ...(undo ? ["--undo"] : []), ...(txts ? [`--txt ${txts.join(",")}`] : [])].join(" ");
     // the person's own: the app through the bridge, or the person's terminal
     if (!tree.personWrites) ctx.requireHuman(undo ? "Take back the confirmation against the scan?" : "Confirm the fact against the scan?", set, "verify", undefined, { window: false });
     const lang = tree.lang;
-    const results = args.map((ref) => verifyConfirm(tree, ref, !undo));
+    const results = verifyConfirmAll(tree, args, !undo, txts);
     return {
       text: lines(...results.map((r) => (r.same ? ui(lang, "ui.verify.same", { fact: r.fact }) : ui(lang, undo ? "ui.verify.unconfirmed" : "ui.verify.confirmed", { fact: r.fact })))),
       data: { results },

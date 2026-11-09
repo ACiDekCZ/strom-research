@@ -3734,6 +3734,7 @@
   "ui.fixes.origins.found": "Gefunden: {found, plural, one {# Angabe} other {# Angaben}}, deren Herkunft zu vermerken ist",
   "ui.fixes.origins.example.import": "  {what} → importierter Stammbaum ({source})",
   "ui.fixes.origins.example.user": "  {what} → eigene Angabe des Benutzers",
+  "ui.fixes.origins.example.tree": "  {what} → Stammbaum des Benutzers, seit der Übernahme unverändert",
   "ui.fixes.origins.example.source": "  {source} · {title} → Import {key}",
   "ui.fixes.origins.example.ids": "  {owner} · die IDs aus dem Stammbaum ({source}, {xref})",
   "ui.fixes.origins.more": "  … {n} weitere: strom fixes show {id} --json",

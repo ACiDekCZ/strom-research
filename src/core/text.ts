@@ -5,6 +5,23 @@
  * letter: the long s ("Poſt" -> "post"), the ordinal a and o ("1ª" -> "1a").
  */
 export function foldText(s: string): string {
+  // the same names folded again and again (each place against each record set of an export): the short ones remembered
+  if (s.length > FOLDED_LONG) return fold(s);
+  const had = folded.get(s);
+  if (had !== undefined) return had;
+  const out = fold(s);
+  if (folded.size >= FOLDED_MAX) folded.clear();
+  folded.set(s, out);
+  return out;
+}
+
+/** The texts folded lately (foldText), at most FOLDED_MAX: then forgotten all at once. */
+const folded = new Map<string, string>();
+const FOLDED_MAX = 50_000;
+/** A longer text (a transcript, a note) is folded each time: never kept. */
+const FOLDED_LONG = 200;
+
+function fold(s: string): string {
   return s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

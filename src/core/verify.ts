@@ -24,7 +24,7 @@ import path from "node:path";
 import type { Citation, Event, Family, Person, Session, Source, Task, TreeConfig } from "./model.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
 import { checkStatus, provesIt } from "./evidence.ts";
-import { fixedDecision } from "./readers.ts";
+import { factMark, fixedDecision } from "./readers.ts";
 import { freshConfig, quiet } from "./hypolinks.ts";
 import { writableUnasked } from "./integrity.ts";
 import { kinship, mainPerson } from "./kin.ts";
@@ -830,7 +830,7 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
           if (model && e.verified?.model && sameModel(e.verified.model, model) && covers(e.verified.cites, cites)) continue;
           if (cites.length) {
             if (e.status !== "lead") facts.push({ event: e, owner, how: "read" });
-          } else if (e.origin?.by === "import") facts.push({ event: e, owner, how: "search" }); // a family tree's lead: its record looked for
+          } else if (e.origin?.by === "import" || e.origin?.tree) facts.push({ event: e, owner, how: "search" }); // a family tree's lead (another program's, the user's own unchanged): its record looked for
         }
       if (!facts.length) continue;
       for (const f of facts) if (f.owner.type === "family") families.add(f.owner.id);
@@ -1046,15 +1046,41 @@ export interface ConfirmResult {
   dropped: string[];
 }
 
+/** A fact by its ID, none when the research has no such fact (or it, or its owner, is taken back or merged). */
+export function factIn(tree: Tree, id: string): Event | undefined {
+  try {
+    return factOf(tree, id, "factconfirm").event;
+  } catch {
+    return undefined;
+  }
+}
+
+/** What a fact says now, for the app to show again (confirm.changed): its date, place and value, those it has. */
+export function factNow(e: Event): Record<string, string> {
+  return { ...(e.date ? { date: e.date } : {}), ...(e.place ? { place: e.place } : {}), ...(e.value ? { value: e.value } : {}) };
+}
+
+/**
+ * A confirmation is of the value the person saw (the Strom file's `3 _TXT` under `2 _STROM_EID`, core/readers.ts
+ * factMark): the fact changed since — the app showing an older file — refused, confirm.changed with the mark now.
+ */
+export function factUnchanged(event: Event, txt: string): void {
+  const mark = factMark(event);
+  if (txt.trim().toLowerCase() !== mark)
+    throw new UsageError(`${event.id} changed since the app showed it: confirm what it says now`, { code: "confirm.changed", hint: "load the tree again and confirm the fact as it is now", params: { fact: event.id, txt: mark, ...factNow(event) } });
+}
+
 /**
  * The person's confirmation of a fact against the scan (or its taking back): a mark of its own, the status as it is. A
  * fact confirmed leaves the open tasks of verification (one at work goes on); one left with none is dropped. The same
  * state again: nothing written. One operation; the caller has checked it is the person. `day`: the day the person
- * confirmed it (a send of the Strom app, YYYY-MM-DD) — a day before today kept, else now; `reason`: what the history says.
+ * confirmed it (a send of the Strom app, YYYY-MM-DD) — a day before today kept, else now; `reason`: what the history says;
+ * `txt`: the mark of the value the person saw (factUnchanged), checked under the lock before anything.
  */
-export function verifyConfirm(tree: Tree, ref: string, confirm: boolean, opts: { day?: string; reason?: string } = {}): ConfirmResult {
+export function verifyConfirm(tree: Tree, ref: string, confirm: boolean, opts: { day?: string; reason?: string; txt?: string } = {}): ConfirmResult {
   return tree.withTreeLock(() => {
     const { event, owner } = factOf(tree, ref, "factconfirm");
+    if (opts.txt !== undefined) factUnchanged(event, opts.txt);
     if (!!event.confirmed === confirm) return { fact: event.id, owner: owner.id, ...(event.confirmed ? { confirmed: event.confirmed.at.slice(0, 10) } : {}), same: true as const, left: [], dropped: [] };
     const at = now();
     const day = opts.day && /^\d{4}-\d{2}-\d{2}$/.test(opts.day) && opts.day < at.slice(0, 10) && !Number.isNaN(Date.parse(`${opts.day}T12:00:00.000Z`)) ? `${opts.day}T12:00:00.000Z` : at;
@@ -1092,6 +1118,19 @@ export function verifyConfirm(tree: Tree, ref: string, confirm: boolean, opts: {
       ...(opts.reason ? { reason: opts.reason } : {}),
     });
     return { fact: event.id, owner: owner.id, ...(confirm ? { confirmed: day.slice(0, 10) } : {}), left, dropped };
+  });
+}
+
+/**
+ * The person's confirmation of several facts (or its taking back), each with the mark of the value the person saw
+ * (`txts`, one for each fact, or none: as before): all checked under one lock before anything is written — one fact
+ * changed since and none is confirmed (confirm.changed).
+ */
+export function verifyConfirmAll(tree: Tree, refs: string[], confirm: boolean, txts?: string[]): ConfirmResult[] {
+  if (txts && txts.length !== refs.length) throw new UsageError(`${txts.length} marks for ${refs.length} facts`, { code: "factconfirm.invalid", hint: "one mark for each fact, in their order: --txt <mark>,<mark>" });
+  return tree.withTreeLock(() => {
+    if (txts) refs.forEach((ref, i) => factUnchanged(factOf(tree, ref, "factconfirm").event, txts[i]!));
+    return refs.map((ref, i) => verifyConfirm(tree, ref, confirm, txts ? { txt: txts[i]! } : {}));
   });
 }
 

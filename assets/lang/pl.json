@@ -3734,6 +3734,7 @@
   "ui.fixes.origins.found": "Znaleziono: {found, plural, one {# daną} few {# dane} many {# danych} other {# danych}} do oznaczenia pochodzenia",
   "ui.fixes.origins.example.import": "  {what} → zaimportowane drzewo ({source})",
   "ui.fixes.origins.example.user": "  {what} → własna dana użytkownika",
+  "ui.fixes.origins.example.tree": "  {what} → drzewo użytkownika, od przejęcia bez zmian",
   "ui.fixes.origins.example.source": "  {source} · {title} → import {key}",
   "ui.fixes.origins.example.ids": "  {owner} · ID z drzewa genealogicznego ({source}, {xref})",
   "ui.fixes.origins.more": "  … i {n} kolejnych: strom fixes show {id} --json",

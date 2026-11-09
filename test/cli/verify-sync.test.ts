@@ -99,11 +99,15 @@ async function appFile(w: World, version: string): Promise<string> {
   return text.replace(head, `1 SOUR STROM\n${version ? `2 VERS ${version}\n` : ""}2 NAME Strom\n`);
 }
 
-/** The file with a confirmation of the fact added (right after its ID, as the app writes it). */
-const confirm = (text: string, id: string, day: string) => {
-  assert.ok(text.includes(`2 _STROM_EID ${id}\n`), id);
-  return text.replace(`2 _STROM_EID ${id}\n`, `2 _STROM_EID ${id}\n2 _STROM_CONFIRMED ${day}\n`);
+/** The lines of a fact's ID in the file: `2 _STROM_EID` with the mark of what it says under it (`3 _TXT`). */
+const eid = (text: string, id: string): string => {
+  const m = new RegExp(`2 _STROM_EID ${id}\\n(?:3 _TXT [0-9a-f]{16}\\n)?`, "u").exec(text);
+  assert.ok(m, id);
+  return m[0];
 };
+
+/** The file with a confirmation of the fact added (right after its ID, as the app writes it). */
+const confirm = (text: string, id: string, day: string) => text.replace(eid(text, id), `${eid(text, id)}2 _STROM_CONFIRMED ${day}\n`);
 
 /** The file with the fact's confirmation taken off (the app's "taken back": the tag missing). */
 function unconfirm(text: string, id: string): string {
@@ -177,7 +181,7 @@ test("a confirmation is taken back only of a fact whose 2 _STROM_EID the file ca
     await w.ok(["verify", "confirm", f.marriage], { env: APP });
     await w.ok(["verify", "confirm", f.josefDeath], { env: APP });
     // as an older app kept the tree (never given the IDs or the marks), sent by the beta: Josef's baptism confirmed there
-    const older = unconfirm(unconfirm(confirm(await appFile(w, "3.26.0-beta.2"), f.josefBirth, "2026-01-15"), f.marriage), f.josefDeath).replace(/^2 _STROM_EID .*\n/gmu, "");
+    const older = unconfirm(unconfirm(confirm(await appFile(w, "3.26.0-beta.2"), f.josefBirth, "2026-01-15"), f.marriage), f.josefDeath).replace(/^2 _STROM_EID .*\n(?:3 _TXT .*\n)?/gmu, "");
     assert.doesNotMatch(older, /_STROM_EID/u);
     const file = write(w, older, "starsi-kopie.ged");
     const plan = (await w.ok(["sync", file, "--json"], { env: APP })).json;
@@ -190,7 +194,7 @@ test("a confirmation is taken back only of a fact whose 2 _STROM_EID the file ca
     // the app saw the marriage (its ID there) and took its confirmation back; the death's ID gone, the baptism's of
     // another fact: nothing of them
     let text = unconfirm(unconfirm(unconfirm(await appFile(w, "3.26.0-beta.2"), f.marriage), f.josefDeath), f.josefBirth);
-    text = text.replace(`2 _STROM_EID ${f.josefDeath}\n`, "").replace(`2 _STROM_EID ${f.josefBirth}\n`, `2 _STROM_EID ${f.janBirth}\n`);
+    text = text.replace(eid(text, f.josefDeath), "").replace(eid(text, f.josefBirth), `2 _STROM_EID ${f.janBirth}\n`);
     const seen = write(w, text, "videno.ged");
     const plan2 = (await w.ok(["sync", seen, "--json"], { env: APP })).json;
     assert.deepEqual(confirms(plan2.changes), [`${f.marriage} user off`], JSON.stringify(plan2.changes));
@@ -243,7 +247,8 @@ test("a confirmation under a name is only passed by, never an error; a fact whos
     const named = (await w.ok(["sync", write(w, text, "jmeno.ged"), "--json"], { env: APP })).json;
     assert.deepEqual(named.changes, [], "a name's confirmation: no change, no error");
     // Josef's baptism dated 1851 in the app and confirmed there: the date an edit, the confirmation gone with the old value
-    const changed = confirm(text, f.josefBirth, "2026-01-15").replace(`2 _STROM_EID ${f.josefBirth}\n2 _STROM_CONFIRMED 2026-01-15\n2 DATE 1850\n`, `2 _STROM_EID ${f.josefBirth}\n2 _STROM_CONFIRMED 2026-01-15\n2 DATE 1851\n`);
+    const at = `${eid(text, f.josefBirth)}2 _STROM_CONFIRMED 2026-01-15\n`;
+    const changed = confirm(text, f.josefBirth, "2026-01-15").replace(`${at}2 DATE 1850\n`, `${at}2 DATE 1851\n`);
     assert.ok(changed.includes("2 DATE 1851\n"));
     const file = write(w, changed, "zmena.ged");
     const plan = (await w.ok(["sync", file, "--json"], { env: APP })).json;
@@ -325,7 +330,7 @@ test("K6.2: a source of an original the user gave a fact in the app — by strom
     let text = await appFile(w, "3.26.0-beta.2");
     const xref = /^0 (@[^@]+@) SOUR\n(?:[1-9] .*\n)*?1 REFN S0001\n/mu.exec(text)?.[1];
     assert.ok(xref, "the original's record in the file");
-    text = text.replace(`2 _STROM_EID ${f.janBirth}\n`, `2 _STROM_EID ${f.janBirth}\n2 SOUR ${xref}\n3 PAGE fol. 2\n`);
+    text = text.replace(eid(text, f.janBirth), `${eid(text, f.janBirth)}2 SOUR ${xref}\n3 PAGE fol. 2\n`);
     const r = (await w.ok(["sync", write(w, text), "--apply", "--json"], { env: APP })).json;
     assert.ok(r.changes.some((c: { kind: string }) => c.kind === "fact.cite"), JSON.stringify(r.changes.map((c: { kind: string }) => c.kind)));
     assert.ok(queued(w, f.janBirth), "queued by the sync");

@@ -124,6 +124,50 @@ function load(tree: Tree): ImagesIndex {
   return index;
 }
 
+/** The image records as they were read last, with the stamp of their folder (.strom/cache/media.json). */
+interface StoredRecords {
+  v: number;
+  stamp: Stamp;
+  records: Media[];
+}
+
+const RECORDS_FORMAT = 1;
+
+export function recordsFile(tree: Tree): string {
+  return path.join(tree.root, ".strom", "cache", "media.json");
+}
+
+/**
+ * Every image record, as tree.list gives them — from one file while the images' folder is exactly as it was when it
+ * was written (the stamp, as the index above): an export with the excerpts reads them all, tens of thousands of small
+ * files on a long research (seconds each time the bridge makes the tree for the app; found 2026-11-09). What this
+ * process holds or wrote itself: the records.
+ */
+export function mediaRecords(tree: Tree): Media[] {
+  if (tree.dryRun || tree.loaded(TYPE) || wroteImages(tree)) return tree.list<Media>(TYPE);
+  const dir = path.join(tree.dataDir, RECORD_TYPES[TYPE].dir);
+  const before = stampOf(dir);
+  if (before) {
+    try {
+      const stored = readJsonIfExists<StoredRecords>(recordsFile(tree));
+      if (stored && stored.v === RECORDS_FORMAT && sameStamp(stored.stamp, before) && Array.isArray(stored.records) && stored.records.length === before.count) return stored.records;
+    } catch {
+      // unreadable: read again below
+    }
+  }
+  const records = tree.list<Media>(TYPE);
+  const after = stampOf(dir);
+  if (after && before && sameStamp(before, after) && records.length === after.count && Date.now() - Number(BigInt(after.mtimeNs) / 1_000_000n) >= STABLE_MS) {
+    try {
+      const stored: StoredRecords = { v: RECORDS_FORMAT, stamp: after, records };
+      writeFileAtomic(recordsFile(tree), JSON.stringify(stored));
+    } catch {
+      // a read-only folder: the file is only a help
+    }
+  }
+  return records;
+}
+
 function wroteImages(tree: Tree): boolean {
   const prefix = `data/${RECORD_TYPES[TYPE].dir}/`;
   return tree.written.some((op) => (op.files ?? []).some((f) => f.path.startsWith(prefix)));

@@ -17,7 +17,7 @@ import { changeLines } from "../../src/core/changelog.ts";
 import { READERS_SETTLED, transcriptMark, typedByHand, userReading } from "../../src/core/readers.ts";
 import { PROVEN_SETTLED, provenToReview, settleProven } from "../../src/core/provenfix.ts";
 import { settleReaders } from "../../src/core/readerfix.ts";
-import { ORIGINS_SETTLED } from "../../src/core/originfix.ts";
+import { ORIGINS_SETTLED, ORIGINS_TREE_SETTLED } from "../../src/core/originfix.ts";
 import { readByOthers, readersOf } from "../../src/core/review.ts";
 import { readGedcom } from "../../src/core/sync.ts";
 import { waitingFor } from "../../src/core/waiting.ts";
@@ -86,11 +86,11 @@ async function lhotaci(): Promise<World> {
 }
 
 test("a new research is settled from the start: the markers are the fixes' own", opts, async () => {
-  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED]);
+  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED]);
   const w = await lhotaci();
   try {
     const c = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8"));
-    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED]);
+    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED]);
     const n = commits(w);
     assert.equal(settleReaders(Tree.open(w.cwd, w.env)), undefined, "nothing to settle in a new research");
     assert.equal(settleProven(Tree.open(w.cwd, w.env)), undefined);

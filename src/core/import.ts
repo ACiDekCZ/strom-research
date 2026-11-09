@@ -286,7 +286,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
 
   tree.withTreeLock(() => {
     // a family tree of another program: an import of this research (its key R1, R2…, the program, the file's date) —
-    // its values leads an agent changes only on a record (core/origin.ts); the Strom app's file is the user's own
+    // its values leads an agent changes only on a record (core/origin.ts); the Strom app's file is the user's own tree
     const head = records.find((r) => r.tag === "HEAD");
     const sourNode = head?.children.find((c) => c.tag === "SOUR");
     const imported: Source["imported"] | undefined = fromApp.app
@@ -302,10 +302,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         };
     const source = makeSource(tree, `${importLabel(tree.config.lang)} ${opts.name}`, opts.input, imported);
     result.source = source.id;
-    const stamp: ValueOrigin<never> = fromApp.app ? { by: "user" } : { by: "import", source: source.id };
+    const stamp: ValueOrigin<never> = fromApp.app ? { by: "user", tree: true } : { by: "import", source: source.id };
     /**
      * Where a value of the file comes from: every value of another program's file is the import's (whatever marks it
-     * carries — never read from a foreign file), every one of the Strom app's the user's. The hook for the app's own
+     * carries — never read from a foreign file), every one of the Strom app's the user's family tree's (the user's to
+     * guard, not their own change: origin user with `tree`). The hook for the app's own
      * marks (`_STROM_IMPORT Ix [DATE PLAC…]` under a fact, a NAME, a person: spec 066, read by the sync) — only where
      * `fromApp`, never in another program's file.
      */
@@ -757,7 +758,7 @@ export function marriedNamesPlan(tree: Tree, input: Input, text: string): Marrie
 export function addMarriedNames(tree: Tree, plan: MarriedNamesPlan): void {
   tree.withTreeLock(() => {
     for (const a of plan.add) {
-      const name: Name = { ...a.name, citations: [{ source: plan.source, locator: `${a.xref.replace(/@/g, "")}${MARNM_LOCATOR}` }], origin: plan.app ? { by: "user" } : { by: "import", source: plan.source } };
+      const name: Name = { ...a.name, citations: [{ source: plan.source, locator: `${a.xref.replace(/@/g, "")}${MARNM_LOCATOR}` }], origin: plan.app ? { by: "user", tree: true } : { by: "import", source: plan.source } };
       update<Person>(tree, a.person, "person", (p) => (p.names.some((n) => sameName(n, name)) ? p : { ...p, names: [...p.names, name] }), {
         op: "person.name",
         summary: `${a.person} name ${gedcomName(name)} (married) ← ${plan.source}`,
@@ -931,8 +932,8 @@ export function importStromJson(
       const add = (kind: string, date?: string, place?: string) => {
         const d = fromFlexDate(date);
         if (!d && !place) return;
-        // the Strom app's values are the user's own (spec 066)
-        const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: cite(sp, kind), origin: { by: "user" } };
+        // the Strom app's values are the user's own family tree's (spec 066): theirs to guard, nothing they confirmed
+        const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: cite(sp, kind), origin: { by: "user", tree: true } };
         if (d) ev.date = d;
         if (place) ev.place = place;
         if (date && !d) ev.note = `date as written: ${date}`;
@@ -951,12 +952,12 @@ export function importStromJson(
             surname: sp.lastName?.trim() ?? "",
             ...(cleanTitle(sp.titleBefore) ? { prefix: cleanTitle(sp.titleBefore)! } : {}),
             ...(cleanTitle(sp.titleAfter) ? { suffix: cleanTitle(sp.titleAfter)! } : {}),
-            origin: { by: "user" },
+            origin: { by: "user", tree: true },
           },
-          ...(sp.nameVariants ?? []).map((v): Name => ({ ...parseName(v), origin: { by: "user" } })),
+          ...(sp.nameVariants ?? []).map((v): Name => ({ ...parseName(v), origin: { by: "user", tree: true } })),
         ],
         sex: sp.gender === "male" ? "M" : sp.gender === "female" ? "F" : "U",
-        ...(sp.gender === "male" || sp.gender === "female" ? { sexOrigin: { by: "user" as const } } : {}),
+        ...(sp.gender === "male" || sp.gender === "female" ? { sexOrigin: { by: "user" as const, tree: true as const } } : {}),
         events,
         notes: sp.notes?.trim() ? [note(tree, sp.notes)] : [],
         refs: [{ system: "strom-app", id: sp.id }, ...(sp.refn ? [{ system: "refn", id: sp.refn }] : [])],
@@ -976,7 +977,7 @@ export function importStromJson(
       const events: Event[] = [];
       const d = fromFlexDate(sp.startDate);
       if (d || sp.startPlace) {
-        const ev: Event = { id: tree.allocate("E"), kind: "MARR", status: "lead", citations: [{ source: source.id, locator: `${sp.id} MARR` }], origin: { by: "user" } };
+        const ev: Event = { id: tree.allocate("E"), kind: "MARR", status: "lead", citations: [{ source: source.id, locator: `${sp.id} MARR` }], origin: { by: "user", tree: true } };
         if (d) ev.date = d;
         if (sp.startPlace) ev.place = sp.startPlace;
         events.push(ev);

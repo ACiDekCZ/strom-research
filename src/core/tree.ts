@@ -40,7 +40,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 export const VERSION = "1.29.0";
 
 /** What a new research is settled with from the start: nothing an older strom counted otherwise to set right in it. */
-export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1"];
+export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1"];
 
 export interface Op {
   at: string;

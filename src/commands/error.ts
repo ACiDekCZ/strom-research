@@ -13,7 +13,7 @@ import { stromVocabulary } from "../cli/vocab.ts";
 import { NeedsConsentError, UsageError } from "../core/errors.ts";
 import { gitVersion } from "../core/git.ts";
 import { downloadsDir, userHome } from "../core/paths.ts";
-import { Masker, maskKey } from "../core/redact.ts";
+import { MASK_CODE, Masker, maskKey } from "../core/redact.ts";
 import { agentSessionOf } from "../core/cmdlog.ts";
 import {
   agentsArea,
@@ -388,8 +388,26 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
         ...(Object.keys(trimmed).length ? { trimmed } : {}),
         ...(withData ? { withData: withData.added.map((a) => a.id) } : {}),
       });
-      // the address to send it to after the last look (an e-mail it masks)
-      const readme = masker.sweep(readmeText(lang, { made, where, about, sinceMs, note: str(opts.note) ? masker.note(str(opts.note)!) : undefined, areas, trimmed, label, masked: masker.masked, archive, data: !!withData })) + (withData ? `\n\n${dataText(lang, withData.added)}` : "") + `\n\n${t("ui.report.send", { address: REPORT_ADDRESS })}\n`;
+      // the README is strom's own text in the person's language: only the values put into it (the note, an area's error)
+      // masked and looked over, never its own words — a source's title or a name may be a word of its sentences
+      // (Zpráva, Nový, Kovář); the count: the codes report.json carries (README's values are some of them again)
+      const look = (v: string) => masker.sweep(v);
+      const readme =
+        readmeText(lang, {
+          made,
+          where,
+          about,
+          sinceMs,
+          note: str(opts.note) ? look(masker.note(str(opts.note)!)) : undefined,
+          areas: areas.map((a) => (a.error ? { ...a, error: look(a.error) } : a)),
+          trimmed,
+          label,
+          masked: codesIn(report),
+          archive,
+          data: !!withData,
+        }) +
+        (withData ? `\n\n${dataText(lang, withData.added)}` : "") +
+        `\n\n${t("ui.report.send", { address: REPORT_ADDRESS })}\n`;
       // the data the person agreed to: as it is, never masked (data.json)
       bytes = writeReport(file, readme, report, withData?.data);
       if (bytes <= REPORT_MAX_BYTES) break;
@@ -428,6 +446,11 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
       },
     };
   }
+}
+
+/** How many codes a value carries (‹3fa9c›): the words of a person, a place or a path the report replaced. */
+export function codesIn(v: unknown): number {
+  return (JSON.stringify(v) ?? "").match(MASK_CODE)?.length ?? 0;
 }
 
 /** README.txt: what the report is and holds, in the language strom is shown in. */

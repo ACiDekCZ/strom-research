@@ -162,6 +162,14 @@ export interface ValueOrigin<P extends string> {
   /** The source of the import (S…). */
   source?: string;
   parts?: P[];
+  /**
+   * The user's value as their own family tree gave it — the Strom app's file or JSON taken in — and not changed by the
+   * person since (the Strom file's `_STROM_ORIGIN tree`): the user's to guard (an agent only proposes), but nothing the
+   * person confirmed. Without it, `by: "user"` is the person's own change: an edit, a value put back, a proposal taken, an
+   * edit the Strom app sent. Only with `by: "user"`; an older strom ignores it and takes the value for the user's. Optional:
+   * no SCHEMA_VERSION raised.
+   */
+  tree?: true;
 }
 
 /** The import's value kept when the research changed it (spec 066): only the parts changed, the first change's. */

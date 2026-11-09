@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { main } from "../src/cli/main.ts";
 import type { ChoiceText } from "../src/core/dialog.ts";
+import { bridgesFolder, endBridges, notedBridges, within } from "./bridges.ts";
 
 /** The answer of a window with choices: the key chosen, none (null: later, Esc, no answer in time) — or one given by what it says. */
 export type Choice = string | null | ((text: ChoiceText) => string | null);
@@ -36,6 +37,21 @@ process.on("exit", () => {
 });
 // A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
 process.env.STROM_TEST_HOSTS = "1";
+// Where the bridges this process's worlds start note themselves (test/bridges.ts).
+const bridges = bridgesFolder();
+// The worlds not cleaned up yet: a test that failed before its cleanup leaves no bridge running and no folder — both
+// gone when the test file ends (found 2026-11-09: tens of bridges of failed tests running on for an hour, their research
+// still there, after a live start that gave up on a busy computer).
+const worlds = new Set<World>();
+process.on("exit", () => {
+  for (const w of worlds) {
+    try {
+      w.cleanup();
+    } catch {
+      // left for the system's own cleaning of its temp folder
+    }
+  }
+});
 
 export const hasGit = spawnSync("git", ["--version"]).status === 0;
 
@@ -87,8 +103,20 @@ export class World {
       STROM_TEST_ANCESTRY: "",
       // strom's checks of the readings looked through at once, not by a strom of their own in the background
       STROM_FIXES_REFRESH: "now",
+      // each bridge notes itself where the run keeps them (test/bridges.ts): ended with its world, none left after the run
+      STROM_TEST_BRIDGES: bridges,
     };
     this.cwd = this.dir;
+    worlds.add(this);
+  }
+
+  /** The world's folder, also as the system names it (its links followed: /var is /private/var on a Mac). */
+  dirs(): string[] {
+    try {
+      return [this.dir, fs.realpathSync.native(this.dir)];
+    } catch {
+      return [this.dir];
+    }
   }
 
   get home(): string {
@@ -151,15 +179,20 @@ export class World {
   }
 
   cleanup(): void {
-    // a bridge a test left running (one that failed before strom live stop): ended with its folder
+    worlds.delete(this);
+    // every bridge of this world a test left running (one that failed before strom live stop; one that came up after a
+    // live start gave up, named in no live.json) ended — and waited for — before its folder goes: those that noted
+    // themselves (test/bridges.ts), and any a tree's live.json names (one started with an environment of its own)
+    const pids = new Set(notedBridges(this.env.STROM_TEST_BRIDGES).filter((b) => within(b.root, this.dirs())).map((b) => b.pid));
     const trees = path.join(this.env.HOME!, "Documents", "Strom");
     for (const t of fs.existsSync(trees) ? fs.readdirSync(trees) : []) {
       try {
-        process.kill((JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid, "SIGTERM");
+        pids.add((JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid);
       } catch {
         // none running
       }
     }
+    if (pids.size) endBridges([...pids]);
     // the phone's server a test left running
     try {
       process.kill((JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid, "SIGTERM");

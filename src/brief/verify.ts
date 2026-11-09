@@ -17,7 +17,7 @@ import type { Section } from "./brief.ts";
 /** Whose value a fact is (spec 066): the user's or a family tree's is never overwritten, only proposed. */
 function whose(e: Event): string | undefined {
   if (!e.origin) return undefined;
-  if (e.origin.by === "user") return "the user's value";
+  if (e.origin.by === "user") return e.origin.tree ? "the user's family tree's value" : "the user's value";
   return `a family tree's value${e.origin.parts?.length ? ` (${e.origin.parts.join(", ")})` : ""}`;
 }
 

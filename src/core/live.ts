@@ -37,7 +37,16 @@
 //                          sources it rests on as 2 SOUR @S…@ (3 SOUR), each a record of the file — those its facts cite,
 //                          those of its background and those its text names by ID (feature story.sources); made on a
 //                          thread of its own (core/liveged.ts: new images decode whole scans, the file of a big research
-//                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile
+//                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile;
+//                          made once for each head and variant (the app's version, links, images' settings) and kept on
+//                          disk (.strom/cache/live-ged: a bridge started again gives it at once); X-Strom-Head its head.
+//                          ?stale=1 (feature ged.stale): the last one made of the variant at once, though the research
+//                          changed since (X-Strom-Stale: 1, X-Strom-Head-Now), the new one told by the event change. While
+//                          the app follows (/events), a change is told once the tree of its head is made (at most 45 s).
+//                          ETag (feature ged.etag) told by the head and the variant (none for a file with images left
+//                          for later); If-None-Match naming it: 304, no body, nothing made or waited for (with ?stale=1
+//                          the older one's ETag, its 304 still X-Strom-Stale); ETag and X-Strom-* shown to the app's page
+//                          (Access-Control-Expose-Headers), If-None-Match let through its preflight
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
@@ -252,11 +261,14 @@
 //                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
 //                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
 //                          400 verify.invalid, 409 verify.archive, 503 research.busy (feature verify.stop)
-//   POST <token>/facts/confirm {"fact": "E…", "confirm": true|false}: the user confirms a fact against the scan, or takes
-//                          it back (strom verify confirm E… [--undo]; an archive's too) — {ok, fact, owner, confirmed?,
-//                          head, parent}; the same state again: 200, nothing written; 400 factconfirm.invalid, 404
-//                          factconfirm.unknown, 409 factconfirm.retracted | factconfirm.merged, 503 research.busy
-//                          (feature facts.confirm). /status verify {waiting, asked, images, permission, kept, confirmed,
+//   POST <token>/facts/confirm {"fact": "E…", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a fact
+//                          against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
+//                          too) — {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written;
+//                          txt: the mark of the value the app showed (the Strom file's 3 _TXT under 2 _STROM_EID), a fact
+//                          changed since refused 409 confirm.changed (+txt: the mark now, now: {date?, place?, value?}),
+//                          nothing written; without txt as before; 400 factconfirm.invalid, 404 factconfirm.unknown, 409
+//                          factconfirm.retracted | factconfirm.merged, 503 research.busy (features facts.confirm,
+//                          facts.confirm.value). /status verify {waiting, asked, images, permission, kept, confirmed,
 //                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent). The Strom
 //                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
@@ -402,7 +414,7 @@
 // written then (a send, an original) is finished; only new requests need the
 // new secret. Nothing is replaced on a timer.
 
-import { settleVerify, verifyCounts } from "./verify.ts";
+import { factIn, factNow, settleVerify, verifyCounts } from "./verify.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
@@ -429,12 +441,12 @@ import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
 import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerpt.ts";
-import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, widgetOnThread, type GedMade } from "./liveged.ts";
+import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedMade } from "./liveged.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
-import { transcriptMark } from "./readers.ts";
+import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
@@ -451,6 +463,13 @@ import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatch
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
+/** The trees for the app kept in memory, one for each variant (two windows of two versions of the app). */
+const GEDS_KEPT = 2;
+/**
+ * How long a change waits to be told while the tree for the app that follows it is made (the app then loads it at
+ * once, the tree it shows meanwhile the one before): told without it after so long (STROM_LIVE_CHANGE_WAIT_MS).
+ */
+const CHANGE_WAIT_MS = 45_000;
 /** How long the bridge makes the excerpts of one source the app asks for (/excerpt/<S>): the rest the next ask makes. */
 const EXCERPT_MS = 20_000;
 /** A source with more excerpts than this is answered without the pictures: the app asks for each (?clip=). */
@@ -647,6 +666,12 @@ const LIVE_LOG_BYTES = 200 * 1024;
 /** How a bridge ended (the end event's reason, live-last.json's ended.kind). */
 type EndKind = "stopped" | "restart" | "idle" | "gone" | "signal";
 
+/**
+ * How long a bridge's research must stay gone (no strom.json, its .strom deleted) before the bridge ends: seen gone at
+ * two looks at least this far apart (STROM_LIVE_GONE_MS of the tests).
+ */
+const GONE_MS = 10_000;
+
 /** How often a running bridge reads live.idleMinutes again (STROM_LIVE_IDLE_READ_MS of the tests). */
 const IDLE_READ_MS = Number(process.env.STROM_LIVE_IDLE_READ_MS ?? 60_000);
 
@@ -812,6 +837,32 @@ export function liveRunning(root: string): LiveInfo | undefined {
     // none
   }
   return undefined;
+}
+
+/**
+ * Another bridge of this tree up already (live.json names it, it runs and is a bridge): one that started late — strom
+ * gave up waiting for it, and another was started meanwhile — is never a second bridge of the tree nobody knows of
+ * (found in tests on a busy computer: bridges no `strom live stop` could reach, live.json naming another). A bridge
+ * started to take over (STROM_LIVE_RENEWED) asks the one it replaces to end: never this.
+ */
+function otherBridge(root: string, env: Env): LiveInfo | undefined {
+  if (env.STROM_LIVE_RENEWED) return undefined;
+  const now = liveRunning(root);
+  return now && now.pid !== process.pid && isBridge(now.pid) ? now : undefined;
+}
+
+/**
+ * Tests only: the folder where a run of the tests keeps a note of each bridge (STROM_TEST_BRIDGES; test/setup.ts), so
+ * none outlives its test — ended with its world, and the run fails when one is left.
+ */
+function noteTestBridge(root: string, env: Env): void {
+  const dir = env.STROM_TEST_BRIDGES;
+  if (!dir) return;
+  try {
+    fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, root, at: new Date().toISOString() }));
+  } catch {
+    // a run whose folder is gone: nothing to keep
+  }
 }
 
 function sleep(ms: number): void {
@@ -1271,7 +1322,28 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away; origin.ids said only with the IDs sent: bridgeFeatures). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop"] as const;
+/**
+ * What the tree's file answers carry beside it: not kept by the browser (the app keeps its tree), and the headers the
+ * app on its own page reads (CORS shows a page only those named): its ETag, the head it is of, an older one's marks.
+ */
+const GED_HEADERS = { "Cache-Control": "no-store", "Access-Control-Expose-Headers": "ETag, X-Strom-Head, X-Strom-Stale, X-Strom-Head-Now" };
+
+/** The ETag of the tree's file for the app (feature ged.etag): told by the research's head and the file's variant alone. */
+export function gedTag(head: string, variant: string): string {
+  return `"${crypto.createHash("sha256").update(`${head}\n${variant}`, "utf8").digest("hex").slice(0, 32)}"`;
+}
+
+/** Does the request's If-None-Match name this ETag (a list, weak or strong, or *)? */
+export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: string): boolean {
+  const asked = req.headers["if-none-match"];
+  if (!asked) return false;
+  return String(asked)
+    .split(",")
+    .map((t) => t.trim().replace(/^W\//u, ""))
+    .some((t) => t === "*" || t === tag);
+}
+
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2276,6 +2348,7 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 
 /** Run the bridge of the tree here, until idle or stopped. */
 export function serveLive(root: string, env: Env): Promise<void> {
+  noteTestBridge(root, env);
   // the stroms it started that write (a send, an adoption, an original, a batch): never started again under them
   const kids = new Set<ChildProcess>();
   const track = (child: ChildProcess) => {
@@ -2370,7 +2443,21 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
   let lastAsked = Date.now();
-  let ged: GedMade | undefined;
+  // the trees for the app made last, one for each variant (core/liveged.ts gedVariant: the app's version, the links, the
+  // images' settings…), the newest GEDS_KEPT; each kept on disk as well (.strom/cache/live-ged), for the next bridge
+  const geds = new Map<string, GedMade>();
+  const keepGed = (variant: string, made: GedMade) => {
+    geds.delete(variant);
+    geds.set(variant, made);
+    while (geds.size > GEDS_KEPT) geds.delete(geds.keys().next().value!);
+  };
+  // the app's version the tree was last asked for by: made for it again when a commit comes, before the change is told
+  // (a bridge taking over from one of an older strom: the version the app asked that one with)
+  let gedFollow: { version: string | undefined } | undefined = env.STROM_LIVE_GED_FOR !== undefined ? { version: env.STROM_LIVE_GED_FOR || undefined } : undefined;
+  // a change told once the tree that goes with it is made (sayChange: set once the bridge listens)
+  let sayChange: ((from: string, to: string) => void) | undefined;
+  // the files kept on disk written one after another
+  let storing: Promise<void> = Promise.resolve();
   /** The excerpts the tree's file of that head leaves out, though the research has them (the same for every app): /excerpts. */
   let left: GedMade["left"] | undefined;
   let log: { head: string; text: string } | undefined;
@@ -2522,37 +2609,85 @@ export function serveLive(root: string, env: Env): Promise<void> {
     noteLive(root, `${req.method} /…/${String(what ?? "").slice(0, 40)} came with the secret from ${page}, a page that is no Strom app: the address got out — a new secret, the old one no longer works (the Strom app gets the new one when the research is opened in it again: strom app)`);
   };
 
-  /** The tree for the app as it is now (at its head; made again for another head, version of the app or links). */
-  const giveGed = async (res: http.ServerResponse, version: string | undefined) => {
+  /**
+   * The tree for the app as it is now (at its head; made again for another head, version of the app or links), with its
+   * ETag (feature ged.etag): the app that has it already (If-None-Match) gets 304 and no body.
+   */
+  const giveGed = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined) => {
     const made = await makeGed(version);
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": made.head }).end(made.bytes);
+    const tag = gedTagOf(made);
+    if (tag && tagMatches(req, tag)) return void res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": made.head }).end();
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...(tag ? { ETag: tag } : {}), "X-Strom-Head": made.head }).end(made.bytes);
+  };
+  // the variant each file made is of (its ETag is told by its head and variant)
+  const madeFor = new WeakMap<GedMade, string>();
+  /** The ETag of a file made: none for one with images left for later (made again with them next time). */
+  const gedTagOf = (made: GedMade): string | undefined => {
+    const variant = madeFor.get(made);
+    return variant === undefined || made.left.sources.some((x) => x.omitted.why === "later") ? undefined : gedTag(made.head, variant);
+  };
+  /**
+   * The app has the tree of the head now already (If-None-Match its ETag): 304 at once, nothing made, nothing waited for
+   * — but only for a file made whole (one with images left for later has no ETag the app could hold).
+   */
+  const gedUnchanged = (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined): boolean => {
+    if (!req.headers["if-none-match"]) return false;
+    const h = head(root);
+    const { variant } = variantOf(version);
+    const tag = gedTag(h, variant);
+    if (!tagMatches(req, tag)) return false;
+    res.writeHead(304, { ...GED_HEADERS, ETag: tag, "X-Strom-Head": h }).end();
+    return true;
+  };
+  /** What a tree's file for the app of that version is made by beyond the head (core/liveged.ts gedVariant). */
+  const variantOf = (version: string | undefined) => {
+    const offered = links(env);
+    const opens = appOpensLinks(new Settings(env, {}), version) ? offered.join(" ") : "";
+    return { offered, variant: gedVariant(root, env, version, opens) };
   };
   // the file being made now and what for (one at a time: the requests for the same wait for it together)
   let making: { key: string; done: Promise<GedMade> } | undefined;
   /**
-   * The tree for the app made for its head and version, when it is not made yet: on a thread of its own (core/liveged.ts),
-   * the bridge answering everything else meanwhile.
+   * The tree for the app made for its head and variant, when it is not made yet: kept on disk from before (a bridge
+   * started again, a research that did not change), else made on a thread of its own (core/liveged.ts), the bridge
+   * answering everything else meanwhile, and kept on disk — but a file with images left for later (the time to make
+   * them ran out), made again next time.
    */
   const makeGed = async (version: string | undefined): Promise<GedMade> => {
     for (;;) {
       const h = head(root);
-      const offered = links(env);
-      const opens = appOpensLinks(new Settings(env, {}), version) ? offered.join(" ") : "";
+      const { offered, variant } = variantOf(version);
       // made again for another version of the app (two windows, two versions: each gets what it reads)
-      if (ged && ged.head === h && ged.version === (version ?? "") && ged.links === opens) return ged;
-      const key = `${h}|${version ?? ""}|${opens}`;
+      const kept = geds.get(variant);
+      if (kept && kept.head === h) {
+        madeFor.set(kept, variant);
+        return kept;
+      }
+      const key = `${h}|${variant}`;
       if (making && making.key !== key) {
         // another being made (another head, another version): made after it
         await making.done.catch(() => undefined);
         continue;
       }
       if (!making) {
-        const now = { key, done: gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS }) };
+        const job = async () => {
+          const stored = await storedGed(root, env, variant, h);
+          if (stored) {
+            madeFor.set(stored, variant);
+            return stored;
+          }
+          const made = await gedOnThread({ root, env, head: h, version, links: offered, budgetMs: LIVE_IMAGES_MS });
+          madeFor.set(made, variant);
+          if (made.head === h && !made.left.sources.some((x) => x.omitted.why === "later"))
+            storing = storing.then(() => storeGed(root, variant, made)).catch((e) => noteLive(root, `the tree's file not kept on disk: ${errorText(e)}`));
+          return made;
+        };
+        const now = { key, done: job() };
         making = now;
         now.done.then(
           (made) => {
             if (making === now) making = undefined;
-            ged = made;
+            keepGed(variant, made);
             left = made.left;
           },
           () => {
@@ -2562,6 +2697,31 @@ export function serveLive(root: string, env: Env): Promise<void> {
       }
       return making.done;
     }
+  };
+  /**
+   * The tree asked with ?stale=1 (feature ged.stale): the last one made of its variant at once, though the research
+   * changed since — X-Strom-Head its head, X-Strom-Stale: 1 and X-Strom-Head-Now the head now; the tree of the head now
+   * made meanwhile and told by the event change (from the head the app has). Nothing made of its variant yet (the first
+   * time, another strom or app): made now, as without it.
+   */
+  const giveStale = async (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined) => {
+    const h = head(root);
+    const { variant } = variantOf(version);
+    const older = geds.get(variant) ?? (await storedGed(root, env, variant));
+    if (older) madeFor.set(older, variant);
+    if (older?.head === h) keepGed(variant, older);
+    if (!older || older.head === h) return afterQuiet(() => giveGed(req, res, version).catch((e) => failed(req, res, e)));
+    // the older one with its own ETag: the app holding it already gets 304 (still told it is older), the new one made
+    const tag = gedTagOf(older);
+    const stale = { "X-Strom-Head": older.head, "X-Strom-Stale": "1", "X-Strom-Head-Now": h };
+    if (tag && tagMatches(req, tag)) res.writeHead(304, { ...GED_HEADERS, ETag: tag, ...stale }).end();
+    else res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", ...GED_HEADERS, ...(tag ? { ETag: tag } : {}), ...stale }).end(older.bytes);
+    afterQuiet(() =>
+      makeGed(version).then(
+        (made) => sayChange?.(older.head, made.head),
+        (e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`),
+      ),
+    );
   };
 
   /**
@@ -2675,7 +2835,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       let since = Infinity;
       try {
         const { head: h, at } = tip(root);
-        if (!ged || ged.head !== h) since = at ? Date.now() - Date.parse(at) : Infinity;
+        if (![...geds.values()].some((g) => g.head === h)) since = at ? Date.now() - Date.parse(at) : Infinity;
       } catch {
         // git not answering: the tree is made now (it says why)
       }
@@ -3124,8 +3284,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (log?.head === h) answer(log.text);
         else logs.ask(h).then(answer, (e) => failed(req, res, e));
       } else if (what === "tree.ged" || what === "images.ged") {
+        gedFollow = { version };
+        // the app has the tree of the head now (its ETag, feature ged.etag): 304 at once, nothing made
+        if (gedUnchanged(req, res, version)) return;
+        // the last one made at once, the new one told by an event (feature ged.stale)
+        if (new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("stale") === "1") giveStale(req, res, version).catch((e) => failed(req, res, e));
         // made when the commits stop coming (an agent's commands one after another): once for them all
-        afterQuiet(() => giveGed(res, version).catch((e) => failed(req, res, e)));
+        else afterQuiet(() => giveGed(req, res, version).catch((e) => failed(req, res, e)));
       } else if (what === "events") {
         statusVersion = version;
         keeper.get(version).then(
@@ -5183,30 +5348,43 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
-   * The person's confirmation of a fact against the scan, or its taking back (POST /facts/confirm {fact: E…, confirm}):
-   * strom verify confirm E… [--undo] — an archive's and a research's waiting for its agent too (the person's own).
+   * The person's confirmation of a fact against the scan, or its taking back (POST /facts/confirm {fact: E…, txt?,
+   * confirm}): strom verify confirm E… [--undo] [--txt] — an archive's and a research's waiting for its agent too (the
+   * person's own). With txt (the mark of the value the app showed) a fact changed since is refused, 409 confirm.changed.
    * {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written. 400 factconfirm.invalid,
    * 404 factconfirm.unknown, 409 factconfirm.retracted | factconfirm.merged, 503 research.busy.
    */
   const factConfirmWrite = (): AppWrite => {
     let before = "";
+    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value), for the app to show again
+    const changed = (why: string, params: Record<string, string>) => {
+      const { txt, fact: _f, ...now } = params;
+      return { code: 409, body: { ...refusal(why, "confirm.changed", params), ...(txt ? { txt } : {}), now } };
+    };
     return {
       what: "a fact confirmed against the scan",
       codes: { badBody: "factconfirm.invalid", busy: "research.busy", failed: "factconfirm.failed" },
       busyStatus: 503,
-      ask(_tree, body) {
+      ask(tree, body) {
         const keys = Object.keys(body).sort().join(",");
-        const { fact, confirm } = body;
-        if (keys !== "confirm,fact" || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean")
-          return { code: 400, body: refusal(`the body: {"fact": "E…", "confirm": true | false}`, "factconfirm.invalid") };
+        const { fact, confirm, txt } = body;
+        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
+          return { code: 400, body: refusal(`the body: {"fact": "E…", "txt"?: "<the fact's 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
+        const id = normId(fact.trim());
+        // the value the person saw (an older file, ?stale=1) is what is confirmed: changed since, refused before anything
+        if (typeof txt === "string") {
+          const event = factIn(tree, id);
+          if (event && factMark(event) !== txt.toLowerCase()) return changed(`${id} changed since the app showed it: confirm what it says now`, { fact: id, txt: factMark(event), ...factNow(event) });
+        }
         before = head(root);
-        return { args: ["verify", "confirm", normId(fact.trim()), ...(confirm ? [] : ["--undo"])] };
+        return { args: ["verify", "confirm", id, ...(confirm ? [] : ["--undo"]), ...(typeof txt === "string" ? ["--txt", txt] : [])] };
       },
       done(_tree, data, h) {
         const r = (Array.isArray(data.results) ? data.results[0] : undefined) as { fact?: string; owner?: string; confirmed?: string; same?: boolean } | undefined;
         return { ok: true, fact: r?.fact, owner: r?.owner, ...(r?.confirmed ? { confirmed: r.confirmed } : {}), head: r?.same ? before : h, parent: before };
       },
-      refused(_tree, code, why) {
+      refused(_tree, code, why, data) {
+        if (code === "confirm.changed") return changed(why, data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {});
         if (code === "factconfirm.invalid") return { code: 400, body: refusal(why, code) };
         if (code === "factconfirm.unknown") return { code: 404, body: refusal(why, code) };
         if (code === "factconfirm.retracted" || code === "factconfirm.merged") return { code: 409, body: refusal(why, code) };
@@ -5675,6 +5853,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
   process.on("unhandledRejection", (e) => noteLive(root, `unhandled: ${errorText(e)}`));
 
   return new Promise((resolve) => {
+    // the tree's bridge runs already (this one started late, another started meanwhile): this one is not needed
+    const before = otherBridge(root, env);
+    if (before) {
+      noteLive(root, `another bridge of this tree runs already (${before.pid}): this one (${process.pid}) ends`);
+      return resolve();
+    }
     let up = false;
     let wanted = last?.port ?? 0;
     let tries = 0;
@@ -5711,14 +5895,35 @@ export function serveLive(root: string, env: Env): Promise<void> {
     else server.listen(wanted, "127.0.0.1");
     server.once("listening", () => {
       up = true;
+      // another bridge of this tree came up while this one started (two started at once): this one goes, nothing of it written
+      const meanwhile = otherBridge(root, env);
+      if (meanwhile) {
+        noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile.pid}): this one (${process.pid}) ends`);
+        server.close();
+        return resolve();
+      }
       const port = (server.address() as { port: number }).port;
       live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
       writeLive(root, live);
       writeLast(root, { port, token, pid: process.pid, started: live.started });
       // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
       // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
+      // — and still gone when looked at again a while later (STROM_LIVE_GONE_MS): a disk away for a moment (a network
+      // folder reconnecting, a disk waking) ends no bridge
       const dotStrom = folderId(path.join(root, ".strom"));
-      const researchGone = () => !fs.existsSync(path.join(root, "strom.json")) || folderId(path.join(root, ".strom")) !== dotStrom;
+      const goneMs = Number(env.STROM_LIVE_GONE_MS ?? GONE_MS);
+      let goneSince: number | undefined;
+      let goneSeen = 0;
+      const researchGone = () => {
+        if (fs.existsSync(path.join(root, "strom.json")) && folderId(path.join(root, ".strom")) === dotStrom) {
+          goneSince = undefined;
+          goneSeen = 0;
+          return false;
+        }
+        goneSince ??= Date.now();
+        goneSeen++;
+        return goneSeen >= 2 && Date.now() - goneSince >= goneMs;
+      };
       const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
       noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
 
@@ -5746,6 +5951,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
       // What changed: strom commits every change, so a new commit is news.
       let seen = safe("the start", () => head(root)) ?? "";
+      // since when a change waits for its tree (the app that follows it loads it at once); a tree being made for it
+      let untold: { since: number } | undefined;
+      let prebuilding = false;
+      const changeWaitMs = Number(env.STROM_LIVE_CHANGE_WAIT_MS ?? CHANGE_WAIT_MS);
       // what the last 24 hours added, worked out before the app asks (/status never waits for it)
       if (seen) recentNow(root, env, seen);
       // who is at work changes only with the workers present (.strom/workers: who, since, paused, alive) or a commit:
@@ -5788,6 +5997,25 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const send = (event: string, data: unknown) => {
         for (const s of streams) s.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       };
+      // a tree given older than the research (?stale=1) and the one of its head made since: the change from the older
+      sayChange = (from, to) =>
+        safe("a change", () => {
+          if (!streams.size || from === to) return;
+          const { head: h, at } = tip(root);
+          const entries = histories.since(Tree.open(root, env), [`-n${LOG_MAX}`, `${from}..${to}`]);
+          send("change", { head: to, what: subjects(root, from, to), at: (to === h ? at : undefined) ?? new Date().toISOString(), entries });
+          if (to === h) {
+            seen = to;
+            untold = undefined;
+          }
+        });
+      // the trees kept on disk by another strom: never given again
+      setTimeout(() => void tidyStoredGeds(root).catch((e) => noteLive(root, `the trees kept on disk not tidied: ${errorText(e)}`)), 5000).unref?.();
+      // a bridge taking over from one whose app followed the tree: its tree made before the app asks again
+      if (gedFollow) {
+        const follow = gedFollow;
+        setTimeout(() => void makeGed(follow.version).catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`)), 3000).unref?.();
+      }
       // sends left waiting when the bridge before ended (written at once): written now, one after another
       setTimeout(() => {
         try {
@@ -5857,7 +6085,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         };
         let child: ChildProcess;
         try {
-          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "" });
+          child = spawnBridge(root, env, { STROM_LIVE_RENEWED: disk.version, STROM_LIVE_STATUS_FOR: statusVersion ?? "", ...(gedFollow ? { STROM_LIVE_GED_FOR: gedFollow.version ?? "" } : {}) });
         } catch (e) {
           renewing = false;
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
@@ -5980,17 +6208,33 @@ export function serveLive(root: string, env: Env): Promise<void> {
           if (was !== idleMs) keeper.forget();
         }
         if (idleMs > 0 && Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
-        // its research gone (taken off the computer, a test's folder): nothing to follow
-        if (researchGone()) return stop("the research is no longer there", "gone", false);
         safe("the widget", () => widget?.tick());
         if (!streams.size) return;
         safe("a tick", () => {
           const { head: h, at } = tip(root);
-          if (h && h !== seen) {
+          // a change told once the tree for the app that follows is made (it loads it at once; meanwhile it shows the
+          // one before): made when the commits stop coming, told without it after changeWaitMs
+          let tell = !!h && h !== seen;
+          const follow = gedFollow;
+          if (tell && follow && changeWaitMs > 0) {
+            untold ??= { since: Date.now() };
+            const ready = geds.get(variantOf(follow.version).variant)?.head === h;
+            if (!ready && Date.now() - untold.since < changeWaitMs) {
+              tell = false;
+              if (!prebuilding && !(at && Date.now() - Date.parse(at) < quietMs)) {
+                prebuilding = true;
+                makeGed(follow.version)
+                  .catch((e) => noteLive(root, `the tree for the app not made: ${errorText(e)}`))
+                  .finally(() => (prebuilding = false));
+              }
+            }
+          }
+          if (tell) {
             // when the commit was made: the same as in /log, so the app knows it has it; each new commit as /log gives it (its task)
             const entries = histories.since(Tree.open(root, env), seen ? [`-n${LOG_MAX}`, `${seen}..${h}`] : ["-1", h]);
             send("change", { head: h, what: subjects(root, seen, h), at: at ?? new Date().toISOString(), entries });
             seen = h;
+            untold = undefined;
             // the app asks /status after a change: made for the new commit before it asks
             keeper.warm(statusVersion);
           }

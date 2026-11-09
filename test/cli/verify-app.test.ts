@@ -134,8 +134,9 @@ test("the Strom file: each fact's ID right after its line, the person's confirma
     await w.ok(["export", "gedcom", "--for", "strom"], { env: BETA_APP });
     const text = fs.readFileSync(file, "utf8");
     // the ID right after the fact's line, before its date; every fact of a person and of a family; none under NAME
-    assert.match(text, new RegExp(`\\n1 BIRT\\n2 _STROM_EID ${f.josefBirth}\\n2 DATE 1850\\n`, "u"));
-    assert.match(text, new RegExp(`\\n1 MARR\\n2 _STROM_EID ${f.marriage}\\n2 DATE 1875\\n`, "u"));
+    // with the mark of what it says under it (POST /facts/confirm gives it back)
+    assert.match(text, new RegExp(`\\n1 BIRT\\n2 _STROM_EID ${f.josefBirth}\\n3 _TXT [0-9a-f]{16}\\n2 DATE 1850\\n`, "u"));
+    assert.match(text, new RegExp(`\\n1 MARR\\n2 _STROM_EID ${f.marriage}\\n3 _TXT [0-9a-f]{16}\\n2 DATE 1875\\n`, "u"));
     assert.doesNotMatch(text, /\n1 NAME [^\n]*\n(?:2 [^\n]*\n)*?2 _STROM_EID/u);
     assert.deepEqual(block(text, f.marriage).filter((l) => /_STROM_(CONFIRMED|VERIFY|CHECKED)/u.test(l)), [`2 _STROM_CONFIRMED ${new Date().toISOString().slice(0, 10)}`]);
     const pos = marks.get(f.josefBirth)!.pos!;

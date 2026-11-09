@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.30.0
 
-*In preparation: the betas up to 1.30.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.30.0-beta.3. The section is complete with the release.*
 
 - **Facts checked against their originals.** A birth, a baptism, a marriage, a death or a burial that cites its
   original record but stays probable or possible is verified by the agent against that original: it looks at the scan
@@ -19,6 +19,7 @@ The changes of each version in short. The full notes and the install lines are o
   the Strom app the agent never changes – it only proposes. A value the user entered or one from a family tree is never
   overwritten: what differs is a proposal for the user to decide. How many facts wait is said by `strom check`, `strom
   doctor`, `strom stats` and `strom verify status`.
+  A confirmation in the Strom app holds for the value the user saw: a fact changed since is not confirmed.
 
 - **Values from an imported family tree are guarded.** A tree from another program (GEDCOM) gives leads: the agent
   changes such a value only by a record it cites, and the value from the family tree stays kept beside it ("originally
@@ -31,6 +32,7 @@ The changes of each version in short. The full notes and the install lines are o
   marks back. A proposal whose value has changed since it was made (the user edited it) is out of date: it cannot be
   taken – nothing is written over the newer value – only closed keeping the value. What a proposal cannot carry (a cause
   changed together with a date) is said in the sync's result, never lost.
+  A value that came with the family tree from the Strom app and nobody has changed since is guarded as the user's own.
 
 - **A family tree imported again finds its people.** The IDs a program gave its people and families (MyHeritage's,
   Gramps', FamilySearch's and others' `_UID`, `EXID`, `_FSFTID`…) are kept: a tree of the same program taken in again
@@ -56,7 +58,12 @@ The changes of each version in short. The full notes and the install lines are o
 
 - **The file for the Strom app is written for a research with a hypothesis decided with its reasons** again: for the
   app from 3.25.0 (or of a version unknown) `strom export gedcom` refused it and `output/tree-strom.ged` after a session
-  stayed as it was (the research opened in the app through `strom app` was never affected).
+  stayed as it was (the research opened in the app through `strom app` was never affected). **Following a large
+  research live in the Strom app opens much faster:** the tree for the app is made once for each state of the research
+  and kept, also when the bridge starts again, and while the app follows, a change is told once its tree is ready.
+  The bridge no longer ends when the research's disk is away for a moment, and a second bridge started for the same
+  research ends at once instead of running on unseen.
+  An app that has the newest tree already is sent nothing again.
 
 - **A fact shown or edited at the terminal** (`strom event show`, `strom event edit`) is said in the research's
   language. In the Strom app, a family tree taken into the research no longer gives the first line of it as the
