@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
@@ -22,6 +22,19 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   kończy się sam: gdy jego następca zastaje badanie w rękach innego mostu, przy najbliższej kontroli albo gdy
   aktualizacja usunęła strom, z którego działa (wcześniej co 16 sekund zgłaszał błąd). Przekazanie mostowi nowszego
   stroma jest też szybsze: stary most odpowiada, podczas gdy nowy strom jest sprawdzany.
+
+- **Obraz zapisywany z podglądu skanów archiwum czeka, gdy przeglądarka nie rysuje jego karty.** Przeglądarka nie
+  rysuje karty schowanej za inną kartą ani w oknie zasłoniętym lub zminimalizowanym, a podgląd skanów archiwum nigdy
+  wtedy nie zgłaszał, że ma wszystkie kafelki: zapisywanie poddawało się po 30 s z komunikatem „the viewer's tiles did
+  not all come” (ACTA PUBLICA). Oczekiwanie liczy teraz tylko czas, gdy przeglądarka rysuje kartę, i trwa dalej, gdy
+  znów ją rysuje; karta nierysowana przez 30 s jest zgłaszana jako taka. Gdy podgląd w międzyczasie przejdzie do
+  innego skanu, nic nie zostanie zapisane pod nazwą innego obrazu.
+
+- **`strom fetch` zgłasza obraz, który kosztuje wiele zapytań, tak jak `strom connector test`.** Konektor zbudowany
+  przed wersją 1.30, który składa każdy obraz z kafelków (sto zapytań na obraz, godziny na księgę), pobierał bez słowa.
+  Teraz pierwsze obrazy pobierania mówią agentowi raz, ile kosztuje jeden obraz i jak długo w tempie archiwum potrwa
+  księga, a także jak zatrzymać pobieranie w tle i czego szukać najpierw (jedno zapytanie na obraz). Liczone jest tylko
+  to, co samo pobieranie wysyła: archiwum nie jest o nic więcej pytane. Mówią to też `strom fetch --status` i brief.
 
 - **Drobiazgi.** Fakt, którego weryfikację przesunięto na początek, jest w pliku dla aplikacji Strom oznaczony jako
   zamówiony, więc aplikacja nie proponuje już ponownego przesunięcia. `strom error --note` ukrywa też odmienione

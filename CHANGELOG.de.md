@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
@@ -24,6 +24,20 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   findet, bei der nächsten Prüfung, oder wenn das Update den strom entfernt hat, aus dem sie läuft (vorher alle 16
   Sekunden ein Fehler). Die Übergabe an die Brücke eines neueren strom ist auch schneller: die alte Brücke antwortet
   weiter, während der neue strom geprüft wird.
+
+- **Ein Bild aus dem Betrachter eines Archivs wartet, solange der Browser seinen Tab nicht zeichnet.** Ein Browser
+  zeichnet nichts in einem Tab hinter einem anderen Tab oder in einem verdeckten oder minimierten Fenster, und der
+  Bildbetrachter des Archivs meldete seine Kacheln dann nie als vollständig: Das Speichern gab nach 30 s mit „the
+  viewer's tiles did not all come“ auf (ACTA PUBLICA). Das Warten zählt jetzt nur die Zeit, in der der Browser den Tab
+  zeichnet, und geht weiter, sobald er ihn wieder zeichnet; ein Tab, der 30 s nicht gezeichnet wird, wird als solcher
+  gemeldet. Wird der Betrachter inzwischen umgeblättert, wird nichts unter dem Namen eines anderen Bildes gespeichert.
+
+- **`strom fetch` meldet ein Bild, das viele Anfragen kostet, wie `strom connector test`.** Ein Konnektor aus der Zeit
+  vor 1.30, der jedes Bild aus Kacheln zusammensetzt (hundert Anfragen pro Bild, Stunden für ein Buch), lud ohne ein
+  Wort. Jetzt sagen die ersten Bilder eines Downloads dem Agenten einmal, was ein Bild kostet und wie lange ein Buch im
+  Tempo des Archivs dauert, dazu, wie ein Download im Hintergrund angehalten wird und wonach zuerst zu suchen ist (eine
+  Anfrage pro Bild). Gezählt wird nur, was der Download selbst sendet: Das Archiv wird dafür nichts weiter gefragt.
+  `strom fetch --status` und das Briefing sagen es auch.
 
 - **Kleinigkeiten.** Eine Angabe, deren Prüfung nach vorne gerückt wurde, ist in der Datei für die Strom-App als
   angefragt markiert, sodass die App nicht noch einmal anbietet, sie vorzuziehen. `strom error --note` verbirgt auch die

@@ -235,6 +235,13 @@ const VIEWER_LOAD_MS = 6000;
 export const VIEWER_WHOLE_PX = 2000;
 /** The longer side of a part saved from a viewer: as sharp as the image, never more than this. */
 export const VIEWER_PART_PX = 2400;
+/**
+ * How long a tab the browser does not draw may hold a viewer's image up. A browser draws no frame of a tab behind
+ * another tab or in a window covered or minimized — also when the page is told it is visible (a covered window) —, and
+ * a viewer (OpenSeadragon) counts its tiles only when it draws: they come, yet it never says they are all there. The
+ * waits count only the time frames come; no frame for this long in all is said.
+ */
+export const VIEWER_HIDDEN_MS = 30_000;
 
 const safe = (s: string) => s.normalize("NFC").replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_").replace(/^[._]+/, "") || "x";
 
@@ -495,16 +502,40 @@ export function pageScript(plan: BrowserPlan): string {
  * cut out and saved as a JPEG under a name. No request of its own: the tiles are the ones the viewer asks for.
  */
 const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // a tab the browser does not draw (another tab in front, its window covered or minimized — the page may still be
+  // told it is visible) gets no frame, and the viewer, which counts its tiles only when it draws, never says they are
+  // all there: a wait counts only the time frames come (one asked at each look), and gives up once none came for
+  // ${VIEWER_HIDDEN_MS / 1000} s in all
+  let lastFrame = 0;
+  const drawing = () => document.visibilityState !== "hidden" && Date.now() - lastFrame < 1500;
+  let unseen = 0;
+  const notShown = () => unseen > ${VIEWER_HIDDEN_MS};
+  const NOT_SHOWN = "the browser did not draw the tab with the viewer for ${VIEWER_HIDDEN_MS / 1000} s — it draws nothing in a tab behind another tab or in a window covered or minimized, so the viewer never finishes its image: the tab in front, its window uncovered, then the script again";
   const until = async (ok, ms) => {
-    const end = Date.now() + ms;
+    let left = ms;
+    let t = Date.now();
     for (;;) {
+      requestAnimationFrame(() => (lastFrame = Date.now()));
       try {
         if (ok()) return true;
       } catch (e) {}
-      if (Date.now() > end) return false;
+      const now = Date.now();
+      if (drawing()) left -= now - t;
+      else unseen += now - t;
+      t = now;
+      if (left <= 0 || notShown()) return false;
       await sleep(200);
     }
+  };
+  // two frames drawn (none comes while the browser does not draw the tab): at once where it draws, as fast as before
+  // the waits counted frames; where it does not, the wait that counts the time without them
+  const frames = async () => {
+    let drawn = false;
+    await new Promise((r) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => ((drawn = true), (lastFrame = Date.now()), r())));
+      setTimeout(r, 100);
+    });
+    return drawn || until(() => drawn, 5000);
   };
   const findViewer = () => {
     const OSD = window.OpenSeadragon;
@@ -530,6 +561,7 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // the viewer's page idx (0: the first; -1: the one it shows), whole or the region, cut out of what it drew
   const capture = async (v, idx, region, target) => {
     const pages = Array.isArray(v.tileSources) ? v.tileSources.length : 1;
+    unseen = 0;
     if (idx >= 0 && idx >= pages) return { why: "the viewer has " + pages + " page" + (pages === 1 ? "" : "s") + ", not " + (idx + 1) };
     // the addresses a viewer's page holds of its images may expire (the archive answers 410): the viewer opens nothing then
     let gone = false;
@@ -540,15 +572,16 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (idx >= 0 && pages > 1 && v.currentPage() !== idx) {
         const before = v.world.getItemAt(0);
         v.goToPage(idx);
-        if (!(await until(() => gone || (v.currentPage() === idx && v.world.getItemCount() > 0 && v.world.getItemAt(0) !== before), 30000))) return { why: "the viewer did not show page " + (idx + 1) + " in 30 s" };
+        if (!(await until(() => gone || (v.currentPage() === idx && v.world.getItemCount() > 0 && v.world.getItemAt(0) !== before), 30000))) return { why: notShown() ? NOT_SHOWN : "the viewer did not show page " + (idx + 1) + " in 30 s" };
         if (gone) return stale;
       }
-      if (!(await until(() => gone || v.world.getItemCount() > 0, 30000))) return { why: "the viewer shows no image after 30 s — a check whether a person is there is the user's to pass", check: true };
+      if (!(await until(() => gone || v.world.getItemCount() > 0, 30000))) return notShown() ? { why: NOT_SHOWN } : { why: "the viewer shows no image after 30 s — a check whether a person is there is the user's to pass", check: true };
       if (gone) return stale;
     } finally {
       v.removeHandler("open-failed", onGone);
     }
     const item = v.world.getItemAt(0);
+    const page = typeof v.currentPage === "function" ? v.currentPage() : 0;
     const canvas = v.drawer && v.drawer.canvas;
     if (!canvas || !canvas.getContext || (v.drawer.getType && v.drawer.getType() === "webgl")) return { why: "this viewer does not draw on a canvas strom can save" };
     const dim = item.source && item.source.dimensions ? item.source.dimensions : item.getContentSize();
@@ -565,14 +598,31 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     try {
       el.style.cssText = (style || "") + ";position:fixed;left:0;top:0;width:" + cw + "px;height:" + ch + "px;max-width:none;max-height:none;z-index:2147483646";
       await until(() => { const s = v.viewport.getContainerSize(); return Math.abs(s.x - cw) < 2 && Math.abs(s.y - ch) < 2; }, 5000);
+      if (notShown()) return { why: NOT_SHOWN };
       const rect = item.imageToViewportRectangle(r.x * dim.x, r.y * dim.y, rw, rh);
       v.viewport.fitBounds(rect, true);
-      await frames();
+      if (!(await frames()) && notShown()) return { why: NOT_SHOWN };
       await sleep(300);
-      const done = () => (typeof item.getFullyLoaded === "function" ? item.getFullyLoaded() : true) && (!v.imageLoader || v.imageLoader.jobsInProgress === 0);
-      if (!(await until(done, 30000))) return { why: "the viewer's tiles did not all come in 30 s" };
-      await frames();
+      const loaded = () => (typeof item.getFullyLoaded === "function" ? item.getFullyLoaded() : true);
+      const jobs = () => (v.imageLoader ? v.imageLoader.jobsInProgress : 0);
+      const done = () => loaded() && jobs() === 0;
+      if (!(await until(done, 30000))) {
+        if (notShown()) return { why: NOT_SHOWN };
+        // what the viewer said when the wait ended (no token of it a result could be taken for: no "n:nnn")
+        const said = [];
+        try {
+          said.push("all there " + (loaded() ? "yes" : "no"), "requests open " + jobs());
+          if (typeof item._tilesLoading === "number") said.push("tiles loading " + item._tilesLoading);
+          said.push("tab " + (document.visibilityState || "visible"), "last frame " + (lastFrame ? Math.round((Date.now() - lastFrame) / 100) / 10 + " s ago" : "none"), "drawn " + canvas.width + "x" + canvas.height + " px");
+          const osd = window.OpenSeadragon && window.OpenSeadragon.version;
+          if (osd && osd.versionStr) said.push("OpenSeadragon " + osd.versionStr);
+        } catch (e) {}
+        return { why: "the viewer's tiles did not all come in 30 s (" + said.join(", ") + ")" };
+      }
+      if (!(await frames()) && notShown()) return { why: NOT_SHOWN };
       if (failed) return { why: failed + " tile" + (failed === 1 ? "" : "s") + " of the image did not come — the archive may be busy", stop: true };
+      // paged meanwhile (by the person, or the page itself): what it drew is another image — never saved under this name
+      if (typeof v.currentPage === "function" && v.currentPage() !== page) return { why: "the viewer was paged to another image while this one was being saved — nothing saved; run the script again" };
       const ratio = canvas.width / (canvas.clientWidth || cw) || dpr;
       const a = v.viewport.pixelFromPoint(rect.getTopLeft(), true), b = v.viewport.pixelFromPoint(rect.getBottomRight(), true);
       const sx = Math.max(0, Math.round(a.x * ratio)), sy = Math.max(0, Math.round(a.y * ratio));

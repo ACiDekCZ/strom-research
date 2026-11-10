@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.2. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
@@ -21,6 +21,18 @@ The changes of each version in short. The full notes and the install lines are o
   own ends by itself: when its successor finds the research held by another bridge, at its next check, or when the
   update removed the strom it runs from (before, it kept failing every 16 seconds). The hand-over to a newer strom's
   bridge is quicker too: the old bridge keeps answering while the new strom is checked.
+
+- **An image saved from an archive's viewer waits while the browser does not draw its tab.** A browser draws nothing
+  in a tab behind another tab or in a window covered or minimized, and the archive's viewer then never reported its
+  tiles as all there: saving gave up after 30 s with "the viewer's tiles did not all come" (ACTA PUBLICA). The wait
+  now counts only the time the browser draws the tab and goes on once it draws it again; a tab not drawn for 30 s is
+  said as that. When the viewer is paged meanwhile, nothing is saved under another image's name.
+
+- **`strom fetch` says an image that costs many requests, as `strom connector test` does.** A connector built before
+  1.30 that puts each image together from tiles (a hundred requests an image, hours for a book) fetched without a word.
+  Now the first images of a fetch tell the agent once what one image costs and how long a book takes at the archive's
+  pace, with how to stop a fetch in the background and what to look for first (one request an image). Taken from the
+  fetch's own count: nothing more is asked of the archive. `strom fetch --status` and the brief say it too.
 
 - **Smaller things.** A fact whose verification the user moved to the front is marked as asked for in the file for the
   Strom app, so the app no longer offers to move it forward again. `strom error --note` also hides the inflected forms of

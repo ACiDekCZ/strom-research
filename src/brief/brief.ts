@@ -58,7 +58,7 @@ import { sandboxOf, WITHOUT_CLI, WITHOUT_READERS, type Sandbox } from "../core/s
 import { cliMissing } from "../core/agentcli.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
-import { activeFetches, endedFetches, withRegistered } from "../core/fetching.ts";
+import { activeFetches, endedFetches, heavySaid, withRegistered } from "../core/fetching.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -790,7 +790,7 @@ function fetchingLines(tree: Tree): string[] {
   const has = (rs: string) => new Set(tree.list<Media>("media").filter((m) => m.recordset === rs && !m.part && !m.retracted && m.image !== undefined).map((m) => m.image!));
   const out = active.map(
     (m) =>
-      `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runsArg(m.images)} reads them as they come; not fetched again`,
+      `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runsArg(m.images)} reads them as they come; not fetched again${m.heavy ? `\n  · ${heavySaid(m.heavy, m.background ? `strom fetch --stop ${m.recordset}` : undefined)}` : ""}`,
   );
   for (const e of endedFetches(root).map((x) => withRegistered(x, has(x.recordset))))
     if (e.missed.length && !active.some((m) => m.recordset === e.recordset))
@@ -799,6 +799,7 @@ function fetchingLines(tree: Tree): string[] {
           ? // its process ended without a word (killed, the computer stopped): what it registered stays
             `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} was interrupted (${e.interrupted === "gone" ? "its process ended without a word" : "nothing heard of it for long"}) with images ${runs(e.missed)} not fetched — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset}${e.background ? " --background" : ""} if they are needed (what is registered is not fetched again)`
           : `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
+        ...(e.heavy ? [`  · ${heavySaid(e.heavy)}`] : []),
       );
   return out;
 }

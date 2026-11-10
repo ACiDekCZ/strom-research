@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
@@ -21,6 +21,18 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   když jeho nástupce najde výzkum v držení jiného mostu, při nejbližší kontrole, nebo když aktualizace smazala strom,
   ze kterého běží (dřív každých 16 sekund hlásil chybu). Předání mostu novějšímu stromu je i rychlejší: starý most
   odpovídá, zatímco se nový strom ověřuje.
+
+- **Snímek ukládaný ze zobrazovače archivu počká, když prohlížeč jeho kartu nekreslí.** Prohlížeč nekreslí kartu za
+  jinou kartou ani v zakrytém či minimalizovaném okně a zobrazovač snímků archivu pak nikdy neohlásil, že má všechny
+  dlaždice: ukládání po 30 s vzdalo s „the viewer's tiles did not all come“ (ACTA PUBLICA). Čekání teď počítá jen čas,
+  kdy prohlížeč kartu kreslí, a pokračuje, jakmile ji kreslí znovu; karta nekreslená 30 s se ohlásí jako taková. Když
+  se zobrazovač mezitím přestránkuje, pod jménem jiného snímku se nic neuloží.
+
+- **`strom fetch` ohlásí snímek, který stojí mnoho požadavků, stejně jako `strom connector test`.** Konektor postavený
+  před verzí 1.30, který skládá každý snímek z dlaždic (sto požadavků na snímek, hodiny na knihu), stahoval bez varování.
+  Teď první snímky stahování agentovi jednou řeknou, kolik stojí jeden snímek a jak dlouho tempem archivu potrvá kniha,
+  i jak stahování na pozadí zastavit a co hledat nejdřív (jeden požadavek na snímek). Vychází z vlastního počítání
+  stahování: archiv se kvůli tomu na nic dalšího neptá. Říká to i `strom fetch --status` a brief.
 
 - **Drobnosti.** Údaj, jehož ověření uživatel posunul dopředu, je v souboru pro aplikaci Strom označený jako vyžádaný,
   takže aplikace už znovu nenabízí „Ověřit přednostně“. `strom error --note` skryje i skloňované tvary jmen a míst, která
