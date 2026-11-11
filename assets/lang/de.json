@@ -2316,6 +2316,7 @@
   "ui.link.what.hypothesis.pick": "die Hypothese {id} entscheiden: Variante {variant} trifft zu – {claim}",
   "ui.link.what.hypothesis.repick": "die Entscheidung der Hypothese {id} ändern: nun trifft Variante {variant} zu – {claim}",
   "ui.link.hypothesis.joins": "Damit {n, plural, one {kommt # Person} other {kommen # Personen}} zum Baum.",
+  "ui.link.hypothesis.treeSame": "Der Stammbaum ändert sich nicht.",
   "ui.link.hypothesis.pick.default": "in der Strom-App entschieden: Variante {variant}",
   "ui.link.hypothesis.repick.default": "in der Strom-App geändert: Variante {variant}",
   "ui.link.hypothesis.done": "✓ Die Hypothese {id} ist entschieden.",

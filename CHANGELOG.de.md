@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
@@ -60,7 +60,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   oder welches Paar, wird in der App eine Variante gewählt (oder „keine trifft zu“, offen lassen, die Entscheidung
   zurücknehmen). Das Terminal der Forschung zeigt die Frage mit ihren Varianten und was geschrieben würde, fragt
   einmal – Enter ist ja – und nach dem Grund (Enter lässt die Worte der App) und schreibt es als Entscheidung der
-  Person in der Strom-App. Mehrere Vorschläge des Agenten werden ebenso auf einmal übernommen. Ob zwei Einträge
+  Person in der Strom-App. Mehrere Vorschläge des Agenten werden ebenso auf einmal übernommen. Auch eine Hypothese, deren Varianten niemanden verbinden, wird dort gewählt: Nur die Entscheidung wird geschrieben, der Baum bleibt, wie er ist, und das Terminal sagt das vor der Bestätigung. Ob zwei Einträge
   dieselbe Person oder Geschwister sind, wird weiter im Terminal entschieden, auf dem ganzen Bildschirm der Hypothese.
   Die Entscheidung steht sofort im Baum: Kind oder Paar der gewählten Variante in derselben Speicherung geschrieben,
   mit der Quelle der Variante zitiert, auch in einem Archiv – der Agent schreibt es nicht noch einmal; was der Baum

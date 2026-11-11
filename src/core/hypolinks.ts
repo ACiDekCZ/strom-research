@@ -761,13 +761,13 @@ export function leftToAgent(tree: Tree, id: string): "both" | "links" | "sources
 
 /**
  * Whether a hypothesis is one the Strom app may decide by its link with a variant (strom-research://hypothesis?…&
- * do=decide&variant=): a pick among closed choices — every link of every variant says whose child or which couple, and
- * one variant at least says what it would connect. Two records of one person (same) and siblings are decided in the
- * research (a merge of people follows them), and so is one whose variants say nothing they connect.
+ * do=decide&variant=): a pick among closed choices — every link of every variant says whose child or which couple. One
+ * whose variants connect nothing is a pick too (spec 074 K1.6): only the decision is written, the tree stays as it is.
+ * Two records of one person (same) and siblings are decided in the research (a merge of people follows them), and so is
+ * one where any variant says either.
  */
 export function pickableInApp(h: Hypothesis): boolean {
-  const links = h.variants.flatMap((v) => v.links ?? []);
-  return links.length > 0 && links.every((l) => l.kind === "child" || l.kind === "partners");
+  return h.variants.every((v) => (v.links ?? []).every((l) => l.kind === "child" || l.kind === "partners"));
 }
 
 /** The links of a decided hypothesis's variant the tree records now (by the decision itself or by other work). Of an abandoned or open one: none. */

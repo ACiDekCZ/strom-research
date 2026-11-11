@@ -2316,6 +2316,7 @@
   "ui.link.what.hypothesis.pick": "rozhodnout hypotézu {id}: platí varianta {variant} – {claim}",
   "ui.link.what.hypothesis.repick": "změnit rozhodnutí hypotézy {id}: nově platí varianta {variant} – {claim}",
   "ui.link.hypothesis.joins": "Tím se ke stromu připojí {n, plural, one {# osoba} few {# osoby} other {# osob}}.",
+  "ui.link.hypothesis.treeSame": "Strom se nezmění.",
   "ui.link.hypothesis.pick.default": "rozhodnuto v aplikaci Strom: varianta {variant}",
   "ui.link.hypothesis.repick.default": "změněno v aplikaci Strom: varianta {variant}",
   "ui.link.hypothesis.done": "✓ Hypotéza {id} je rozhodnutá.",

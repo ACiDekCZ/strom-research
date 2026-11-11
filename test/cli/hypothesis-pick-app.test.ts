@@ -22,6 +22,7 @@ import { buildGed } from "../../src/core/liveged.ts";
 import { head as headOf } from "../../src/core/git.ts";
 import { Settings } from "../../src/core/config.ts";
 import { APP_DECIDES_HYPOTHESES, APP_DECIDES_HYPOTHESES_BETA, appDecidesHypotheses } from "../../src/core/stromapp.ts";
+import { pickableInApp } from "../../src/core/hypolinks.ts";
 import type { Family, Hypothesis } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
@@ -31,7 +32,7 @@ const ID = "0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f";
 /**
  * Josef Lhoták (P1, the research's) whose parents are unknown; a couple Václav Lhoták + Marie Lhotová (P2, P3, F1), a
  * couple Jakub Lhoták + Anna Lhotová (P4, P5, F2). H1: whose son Josef is — A of F1, B of F2 (both linked: a pick).
- * H2: where he was born — no links (its whole screen). S1 a baptism, S2 a census.
+ * H2: where he was born — no links (a pick too, K1.6: only the decision written). S1 a baptism, S2 a census.
  */
 async function world(): Promise<World> {
   const w = new World();
@@ -118,6 +119,7 @@ test("a variant picked in the app: confirmed with Enter, written as the person's
     const same = await link(w, "hypothesis?tree=<id>&id=H1&do=decide&variant=A", []);
     assert.match(same.out, /H0001 je rozhodnutá: platí varianta A – rozhodnuto v aplikaci Strom \d/u, same.out);
     assert.match(same.out, /Nic se nemění\./u, same.out);
+    assert.doesNotMatch(same.out, /\d\.\./u, "a day that ends with its dot ends the sentence");
     assert.doesNotMatch(same.out, /\d\.\.(?!\.)/u, "a day that ends with its dot ends the sentence: never \"10. 11..\"");
     assert.equal(opCount(w), n);
     // a variant it has not: said, nothing written
@@ -292,15 +294,73 @@ test("said before a change the tree cannot follow, on the hypothesis's own scree
   }
 });
 
-test("not a pick of the app (no links, the same person): said, then its whole screen; left open — with a proposal, without, already", opts, async () => {
+test("a hypothesis whose variants connect nothing is a pick (K1.6): Enter decides it, the tree stays, said so; changed, taken back, none holds, left open; never _REOPEN tree", opts, async () => {
   const w = await world();
   try {
+    const fams = () => Tree.open(w.cwd, w.env).list<Family>("family").map((f) => `${f.id}:${f.children.map((c) => c.person).join(",")}:${f.retracted ? "x" : ""}`).join(" ");
+    const before = fams();
     const n = opCount(w);
-    const s = await link(w, "hypothesis?tree=<id>&id=H2&do=decide&variant=A", ["n"]);
-    assert.match(s.out, /H0002 nejde rozhodnout volbou v aplikaci; rozhoduje se tady, na celé obrazovce\./u, s.out);
-    assert.match(s.out, /rozhodnout hypotézu: Kde se Josef narodil\?/u, s.out);
-    assert.equal(opCount(w), n);
+    const d = await link(w, "hypothesis?tree=<id>&id=H2&do=decide&variant=A", ["", ""]);
+    assert.equal(d.code, 0, d.out + d.err);
+    assert.match(d.out, /Aplikace Strom žádá: rozhodnout hypotézu H0002: platí varianta A – v Lhotě\nVýzkum: [^\n]*\nStrom se nezmění\./u, d.out);
+    assert.doesNotMatch(d.out, /nejde rozhodnout volbou|Ve stromu hned|připojí/u, d.out);
+    assert.match(d.out, /✓ Hypotéza H0002 je rozhodnutá\./u, d.out);
+    impersonal(d.out);
+    let h = hyp(w, "H0002");
+    assert.deepEqual([h.state, h.chosen, h.decidedBy, h.decidedIn, h.wrote], ["decided", "A", "user", "app", undefined]);
+    assert.equal(fams(), before, "only the decision written");
+    assert.deepEqual(Tree.open(w.cwd, w.env).readOps().slice(n).map((o) => o.op), ["hypothesis.decide"]);
+    // in the file for the app: a pick, decided in the app, never "the tree records it"
+    const base = { for: "strom", research: true, hypothesisLinks: true, hypothesisDecider: true, hypothesisPick: { agent: true } } as const;
+    const block = () => (exportGedcom(Tree.open(w.cwd, w.env), base as never).text ?? "").split(/\n(?=1 )/u).find((b) => b.startsWith("1 _STROM_HYPO") && b.includes("Kde se Josef narodil?")) ?? "";
+    assert.match(block(), /\n2 _BY app\n(?:.*\n)*2 _PICK Y\n/u, block());
+    assert.doesNotMatch(block(), /_REOPEN/u, block());
+    // changed to B: the same, the decision before kept
+    const c = await link(w, "hypothesis?tree=<id>&id=H2&do=decide&variant=B", ["", ""]);
+    assert.match(c.out, /změnit rozhodnutí hypotézy H0002: nově platí varianta B – jinde\nVýzkum: [^\n]*\nStrom se nezmění\./u, c.out);
+    h = hyp(w, "H0002");
+    assert.deepEqual([h.chosen, h.previous?.chosen, h.previous?.in], ["B", "A", "app"]);
+    // taken back: open again, nothing on the tree to take off
+    const r = await link(w, "hypothesis?tree=<id>&id=H2&do=reopen", ["", ""]);
+    assert.equal(r.code, 0, r.out + r.err);
     assert.equal(hyp(w, "H0002").state, "open");
+    // none holds; then left open after taking that back
+    await link(w, "hypothesis?tree=<id>&id=H2&do=abandon", ["", ""]);
+    assert.equal(hyp(w, "H0002").state, "abandoned");
+    await link(w, "hypothesis?tree=<id>&id=H2&do=reopen", ["", ""]);
+    const k = await link(w, "hypothesis?tree=<id>&id=H2&do=keep-open", [""]);
+    assert.match(k.out, /✓ Hypotéza H0002 zůstává otevřená\./u, k.out);
+    assert.equal(fams(), before);
+    // a variant without a link beside one with: what the earlier decision wrote is taken off — never "the tree stays"
+    await w.ok(["hypothesis", "add", "Je Josef syn Václava?", "--about", "P1", "--variant", "A: syn Václava a Marie", "--variant", "B: syn někoho jiného"]); // H3
+    await w.ok(["hypothesis", "link", "H3", "A", "--child", "P1", "--of", "F1"]);
+    await link(w, "hypothesis?tree=<id>&id=H3&do=decide&variant=A", ["", ""]);
+    assert.deepEqual(kids(w, "F0001"), ["P0001"]);
+    const m = await link(w, "hypothesis?tree=<id>&id=H3&do=decide&variant=B", ["", ""]);
+    assert.doesNotMatch(m.out, /Strom se nezmění/u, m.out);
+    assert.deepEqual([hyp(w, "H0003").chosen, kids(w, "F0001")], ["B", []]);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("not a pick of the app (the same person, siblings, either beside whose child): said, then its whole screen; left open — with a proposal, without, already", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["person", "add", "Josef /Lhoták/", "--sex", "M"]); // P6
+    await w.ok(["hypothesis", "add", "Je Josef z Lhoty týž?", "--about", "P1", "--variant", "A: tentýž", "--variant", "B: jiný"]); // H3
+    await w.ok(["hypothesis", "link", "H3", "A", "--same", "P1", "P6"]);
+    const n = opCount(w);
+    const s = await link(w, "hypothesis?tree=<id>&id=H3&do=decide&variant=A", ["n"]);
+    assert.match(s.out, /H0003 nejde rozhodnout volbou v aplikaci; rozhoduje se tady, na celé obrazovce\./u, s.out);
+    assert.match(s.out, /rozhodnout hypotézu: Je Josef z Lhoty týž\?/u, s.out);
+    assert.equal(opCount(w), n);
+    assert.equal(hyp(w, "H0003").state, "open");
+    // whose child beside the same person: decided in the research; siblings too
+    const mixed = { ...hyp(w, "H0001"), variants: [{ label: "A", claim: "x", support: [], links: [{ kind: "child", person: "P0001", family: "F0001" }] }, { label: "B", claim: "y", support: [], links: [{ kind: "same", persons: ["P0001", "P0006"] }] }] } as unknown as Hypothesis;
+    assert.equal(pickableInApp(mixed), false);
+    assert.equal(pickableInApp({ ...mixed, variants: [{ label: "A", claim: "x", support: [], links: [{ kind: "siblings", persons: ["P0001", "P0006"] }] }, { label: "B", claim: "y", support: [] }] } as unknown as Hypothesis), false);
+    assert.equal(pickableInApp({ ...mixed, variants: [{ label: "A", claim: "x", support: [] }, { label: "B", claim: "y", support: [] }] } as unknown as Hypothesis), true, "no links at all: a pick");
     // left open, with the agent's proposal: the proposal not taken
     await w.ok(["hypothesis", "propose", "H1", "--variant", "A", "--decision", "křest S0001 jmenuje Václava"], AGENT);
     const k = await link(w, "hypothesis?tree=<id>&id=H1&do=keep-open", [""]);
@@ -332,14 +392,15 @@ test("the agent's proposals taken at once: listed, the ones it cannot take said 
     const r = await link(w, "hypotheses?tree=<id>&do=accept&ids=H1,H2,H7", [""]);
     assert.equal(r.code, 0, r.out + r.err);
     assert.match(r.out, /Návrhy agenta k přijetí:\n {2}H0001 → varianta B: syn Jakuba a Anny/u, r.out);
-    assert.match(r.out, /Vynechané:\n {2}H0002: rozhoduje se tady, na celé obrazovce\n {2}H7: v tomto výzkumu není/u, r.out);
-    assert.match(r.out, /✓ Rozhodnuto podle návrhu: 1\./u, r.out);
+    assert.match(r.out, /\n {2}H0002 → varianta A: v Lhotě\n/u, r.out);
+    assert.match(r.out, /Vynechané:\n {2}H7: v tomto výzkumu není/u, r.out);
+    assert.match(r.out, /✓ Rozhodnuto podle návrhu: 2\./u, r.out);
     impersonal(r.out);
     const h = hyp(w, "H0001");
     assert.deepEqual([h.state, h.chosen, h.decidedIn, h.decidedBy, h.proposal], ["decided", "B", "app", "user", undefined]);
     assert.deepEqual(kids(w, "F0002"), ["P0001"], "on the tree at once, as one decided alone");
     assert.match(r.out, /H0001: Ve stromu hned: Josef Lhoták \(P0001\) jako dítě rodiny .*\(F0002\)\./u, r.out);
-    assert.equal(hyp(w, "H0002").state, "open");
+    assert.deepEqual([hyp(w, "H0002").state, hyp(w, "H0002").chosen, hyp(w, "H0002").decidedIn], ["decided", "A", "app"], "no links: only the decision (K1.6)");
     // nothing to take: said, nothing written
     const n = opCount(w);
     const none = await link(w, "hypotheses?tree=<id>&do=accept&ids=H1", []);
@@ -387,7 +448,7 @@ test("for an app that decides them by a pick: who decided where, the decision be
     const h2 = block(file, "Kde se Josef narodil?");
     assert.match(h2, /\n2 STAT open\n/u, h2);
     assert.match(h2, /\n2 _PROP A\n3 DECI křest S0001 v Lhotě\n3 _AT \d{4}-\d{2}-\d{2}/u, h2);
-    assert.doesNotMatch(h2, /_PICK/u);
+    assert.match(h2, /\n2 _PICK Y\n/u, "no links: a pick too (K1.6)");
     assert.equal(hasGedErrors(validateGedcom(file)), false, JSON.stringify(validateGedcom(file)));
     // where no agent works: no proposal, no agent
     const archive = exportGedcom(t, { ...base, hypothesisPick: { agent: false } } as never).text ?? "";
@@ -413,11 +474,11 @@ test("for an app that decides them by a pick: who decided where, the decision be
     assert.equal(hasGedErrors(validateGedcom(recFile)), false, JSON.stringify(validateGedcom(recFile)));
     // /status waiting: for the app as the menu has them, each with its person, the proposal, whether a pick decides it
     const items = waitingFor(Tree.open(w.cwd, w.env), { hypothesesApp: { open: true } }).filter((x) => x.item.kind === "hypothesis");
-    assert.deepEqual(items.map((x) => [x.item.id, x.item.person, x.item.proposal, x.item.pick, x.terminalOnly]), [["H0002", "P0001", "A", undefined, undefined]]);
+    assert.deepEqual(items.map((x) => [x.item.id, x.item.person, x.item.proposal, x.item.pick, x.terminalOnly]), [["H0002", "P0001", "A", true, undefined]]);
     await w.ok(["hypothesis", "add", "Kdo je otec Anny?", "--about", "P5", "--variant", "A: Jakub", "--variant", "B: jiný"]); // H3
     await w.ok(["hypothesis", "link", "H3", "A", "--child", "P5", "--of", "F1"]);
     const open = waitingFor(Tree.open(w.cwd, w.env), { hypothesesApp: { open: true } }).filter((x) => x.item.kind === "hypothesis");
-    assert.deepEqual(open.map((x) => [x.item.id, x.item.person, x.item.pick]), [["H0002", "P0001", undefined], ["H0003", "P0005", true]]);
+    assert.deepEqual(open.map((x) => [x.item.id, x.item.person, x.item.pick]), [["H0002", "P0001", true], ["H0003", "P0005", true]]);
     assert.deepEqual(waitingFor(Tree.open(w.cwd, w.env), {}).filter((x) => x.item.kind === "hypothesis"), [], "an older app: none");
     // the features; the gate — another copy of the app from 3.27.0-beta.4, the production app not yet
     assert.ok(BRIDGE_FEATURES.includes("hypothesis.decide.link") && BRIDGE_FEATURES.includes("hypotheses.accept.link"));

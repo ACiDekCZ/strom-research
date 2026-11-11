@@ -756,7 +756,10 @@ async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: stri
     const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(v.claim, 110) });
     // the earlier link stays (other work stands on it) and the new one cannot be written: said first, cancel suggested
     const stays = changeWarning(lang, tree, h, v);
-    if (!(await asks(ctx, lang, root, what, lines(n >= HYPOTHESIS_BIG_JOIN ? t("ui.link.hypothesis.joins", { n }) : undefined, stays) || undefined, !stays))) return false;
+    // a variant that connects nothing, and nothing of an earlier decision on the tree to take off: only the decision is
+    // written — said, never a promise of a change (spec 074 K1.6)
+    const same = !v.links?.length && !(h.wrote ?? []).some((w) => stillOnTree(tree, w));
+    if (!(await asks(ctx, lang, root, what, lines(same ? t("ui.link.hypothesis.treeSame") : undefined, n >= HYPOTHESIS_BIG_JOIN ? t("ui.link.hypothesis.joins", { n }) : undefined, stays) || undefined, !stays))) return false;
     const reason = await why(t(h.state === "open" ? "ui.link.hypothesis.pick.default" : "ui.link.hypothesis.repick.default", { variant: v.label }));
     if (!reason) return false;
     return decide([`--variant=${v.label}`, `--decision=${reason}`, ...(h.state === "open" ? [] : [`--reason=${reason}`])], "ui.link.hypothesis.done");

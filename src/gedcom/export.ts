@@ -429,11 +429,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     conflicts: opts.research ? tree.list<Conflict>("conflict") : [],
     // with the people each is about: its subject's, and those its variants name (core/directions.ts hypothesisPeople);
     // for an app that shows what a hypothesis would connect, a decided or abandoned one too while a variant of it has
-    // links — the app tells "decided for B" (its ghost now a real link) from "decided otherwise" (STAT, _CHOSEN)
+    // links — the app tells "decided for B" (its ghost now a real link) from "decided otherwise" (STAT, _CHOSEN); for an
+    // app that decides them by a pick, a decided one it may pick again too — also one whose variants connect nothing (K1.6)
     hypotheses: opts.research
       ? tree
           .list<Hypothesis>("hypothesis")
-          .filter((h) => !h.retracted && (h.state === "open" || (opts.hypothesisLinks && h.variants.some((v) => v.links?.length)) || (opts.hypothesisDecider && agentDecided(h))))
+          .filter((h) => !h.retracted && (h.state === "open" || (opts.hypothesisLinks && h.variants.some((v) => v.links?.length)) || (opts.hypothesisDecider && agentDecided(h)) || (!!opts.hypothesisPick && pickableInApp(h))))
           .map((h) => ({ h, people: hypothesisPeople(tree, h) }))
       : [],
     // a search is of the people of the task it served

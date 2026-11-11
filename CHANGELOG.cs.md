@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
@@ -52,7 +52,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Hypotéza rozhodnutá v aplikaci Strom.** U hypotézy, jejíž varianty říkají, čí je kdo dítě nebo který je to pár, se
   varianta vybere v aplikaci (nebo „žádná neplatí“, „nechat otevřenou“, „vrátit rozhodnutí“). Terminál výzkumu ukáže
   otázku s variantami a co zapíše, jednou se zeptá – Enter je ano – a proč (Enter ponechá slova aplikace) a zapíše to
-  jako rozhodnutí uživatele v aplikaci Strom. Stejně se přijme i víc návrhů agenta najednou. Zda jde o stejnou osobu
+  jako rozhodnutí uživatele v aplikaci Strom. Stejně se přijme i víc návrhů agenta najednou. Vybrat v aplikaci jde i hypotézu, jejíž varianty nikoho nespojují: zapíše se jen rozhodnutí, strom zůstane, jak je, a terminál to řekne před potvrzením. Zda jde o stejnou osobu
   nebo o sourozence, se dál rozhoduje v terminálu, na celé obrazovce hypotézy. Rozhodnutí je ve stromu hned: dítě nebo
   pár zvolené varianty se zapíše v témže uložení, s citací zdroje varianty, i v archivu – agent ho už znovu
   nezapisuje; co strom odmítne (dítě už má rodiče narozením), terminál řekne i proč a zapíše to agent. Při změně se

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.4. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
@@ -55,7 +55,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   która to para, wariant wybiera się w aplikacji (albo „żaden nie jest prawdziwy”, pozostawienie otwartej, cofnięcie
   rozstrzygnięcia). Terminal badania pokazuje pytanie z wariantami i to, co zostanie zapisane, pyta raz – Enter to tak
   – i o powód (Enter zostawia słowa aplikacji), po czym zapisuje to jako rozstrzygnięcie użytkownika w aplikacji
-  Strom. Tak samo przyjmuje się naraz kilka propozycji agenta. To, czy dwa zapisy to ta sama osoba, czy rodzeństwo,
+  Strom. Tak samo przyjmuje się naraz kilka propozycji agenta. W aplikacji wybiera się też hipotezę, której warianty nikogo nie łączą: zapisuje się tylko rozstrzygnięcie, drzewo zostaje bez zmian, a terminal mówi to przed potwierdzeniem. To, czy dwa zapisy to ta sama osoba, czy rodzeństwo,
   nadal rozstrzyga się w terminalu, na pełnym ekranie hipotezy. Rozstrzygnięcie jest w drzewie od razu: dziecko lub
   para wybranego wariantu zapisane w tym samym zapisie, z cytowaniem źródła wariantu, także w archiwum – agent nie
   zapisuje go ponownie; to, co drzewo odrzuci (dziecko ma już rodziców z urodzenia), terminal powie wraz z powodem

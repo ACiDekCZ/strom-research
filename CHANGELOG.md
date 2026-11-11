@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.4. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
@@ -53,7 +53,7 @@ The changes of each version in short. The full notes and the install lines are o
   is or which couple, a variant is picked there (or none holds, left open, the decision taken back). The research's
   terminal shows the question with its variants and what would be written, asks once — Enter is yes — and why (Enter
   keeps the app's words), and writes it as the user's decision made in the Strom app. Several of the agent's proposals
-  are taken at once the same way. Whether two records are the same person, or siblings, is still decided in the
+  are taken at once the same way. A hypothesis whose variants connect no one is picked there too: only the decision is written, the tree stays as it is, and the terminal says so before the yes. Whether two records are the same person, or siblings, is still decided in the
   terminal, on the hypothesis's whole screen. The decision is on the tree at once: the chosen variant's child or
   couple written in the same save, citing the variant's source, in an archive too — the agent does not record it
   again; what the tree refuses (a child with birth parents already) is said with why and left to the agent. Changed, what

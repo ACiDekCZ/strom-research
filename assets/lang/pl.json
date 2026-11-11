@@ -2316,6 +2316,7 @@
   "ui.link.what.hypothesis.pick": "rozstrzygnięcie hipotezy {id}: prawdziwy jest wariant {variant} – {claim}",
   "ui.link.what.hypothesis.repick": "zmiana rozstrzygnięcia hipotezy {id}: teraz prawdziwy jest wariant {variant} – {claim}",
   "ui.link.hypothesis.joins": "Tym samym do drzewa {n, plural, one {dołącza # osoba} few {dołączają # osoby} many {dołącza # osób} other {dołącza # osoby}}.",
+  "ui.link.hypothesis.treeSame": "Drzewo się nie zmieni.",
   "ui.link.hypothesis.pick.default": "rozstrzygnięte w aplikacji Strom: wariant {variant}",
   "ui.link.hypothesis.repick.default": "zmienione w aplikacji Strom: wariant {variant}",
   "ui.link.hypothesis.done": "✓ Hipoteza {id} jest rozstrzygnięta.",

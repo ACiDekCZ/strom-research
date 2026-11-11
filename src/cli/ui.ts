@@ -2311,6 +2311,7 @@ export const UI = {
   "ui.link.what.hypothesis.pick": "decide hypothesis {id}: variant {variant} holds — {claim}",
   "ui.link.what.hypothesis.repick": "change the decision of hypothesis {id}: now variant {variant} holds — {claim}",
   "ui.link.hypothesis.joins": "This joins {n, plural, one {# person} other {# people}} to the tree.",
+  "ui.link.hypothesis.treeSame": "The tree does not change.",
   "ui.link.hypothesis.pick.default": "decided in the Strom app: variant {variant}",
   "ui.link.hypothesis.repick.default": "changed in the Strom app: variant {variant}",
   "ui.link.hypothesis.done": "✓ Hypothesis {id} is decided.",
