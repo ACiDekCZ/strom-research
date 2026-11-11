@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.6. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
@@ -76,7 +76,7 @@ The changes of each version in short. The full notes and the install lines are o
   again by them. A PAGE never says two image or folio numbers: when an older locator names another than the field, the
   field's (the locator itself kept), and `strom source edit` and `show` propose the locator's rest. Older sources are
   split into the fields at once by `strom source split`: a preview of what each would become (a locator in which
-  nothing is recognised stays as it is), written by the user with `--apply` as one step and undone as one (`--undo`);
+  nothing is recognised stays as it is, up to three such shown as they stand), written by the user with `--apply` as one step and undone as one (`--undo`);
   an agent only offers it. The split is done from a Strom app that offers it too (bridge feature `sources.split`): its
   preview says how many sources, the split is written on the user's click as one step on that preview and taken back
   whole. A folio, image or call number the user removes in a Strom app that keeps these fields is removed in the

@@ -18,6 +18,8 @@ import { StromError, UsageError } from "./errors.ts";
 export const SOURCE_SPLIT_FILE = "quality/source-split.json";
 /** How many splits can be undone, each by its own ID (the oldest go first). */
 const UNDO_KEPT = 5;
+/** How many unrecognised locators the preview shows. */
+const EXAMPLES = 3;
 
 /** Where a source's entry stands, as the split sees it: the locator, the folio and the image given. */
 export interface SplitPlace {
@@ -37,9 +39,17 @@ export interface SplitOne {
 export interface SplitPlan {
   /** The sources the split changes, in their order. */
   split: SplitOne[];
-  /** Sources with a locator in which neither a folio nor an image is recognised: they stay as they are. */
+  /**
+   * Sources with a locator in which neither a folio nor an image is recognised, and neither is a field of theirs (an
+   * older source's location nothing of is understood): they stay as they are.
+   */
   unrecognized: number;
-  /** Sources with a locator whose folio and image are fields already (or its image the registered scans'): nothing to take. */
+  /** Up to three of their locators, as they stand (the location's text alone, each once): what the preview shows of them. */
+  unrecognizedExamples: string[];
+  /**
+   * Sources with a locator whose folio or image is a field already (or its image the registered scans') and nothing of
+   * it left to take — a split one's rest ("no. 7") among them.
+   */
   nothing: number;
 }
 
@@ -91,7 +101,7 @@ export function splitMark(plan: SplitPlan): string {
 
 /** What the split would do in the research now (nothing written). */
 export function splitPlan(tree: Tree): SplitPlan {
-  const out: SplitPlan = { split: [], unrecognized: 0, nothing: 0 };
+  const out: SplitPlan = { split: [], unrecognized: 0, unrecognizedExamples: [], nothing: 0 };
   const media = (id: string) => tree.get<Media>(id);
   for (const s of tree.list<Source>("source")) {
     if (s.retracted || !s.locator?.trim()) continue;
@@ -99,8 +109,12 @@ export function splitPlan(tree: Tree): SplitPlan {
     if (after) out.split.push({ source: s.id, title: s.title, before: place(s), after });
     else {
       const found = recognizeLocation(s.locator);
-      if (found.folio || found.image) out.nothing++;
-      else out.unrecognized++;
+      if (found.folio || found.image || s.folio?.trim() || sourceImage(s, media)) out.nothing++;
+      else {
+        out.unrecognized++;
+        const text = s.locator.trim().normalize("NFC");
+        if (out.unrecognizedExamples.length < EXAMPLES && !out.unrecognizedExamples.includes(text)) out.unrecognizedExamples.push(text);
+      }
     }
   }
   return out;

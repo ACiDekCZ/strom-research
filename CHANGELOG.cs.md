@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
@@ -74,7 +74,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nich dohledá. PAGE nikdy neřekne dvě čísla snímku ani folia: jmenuje-li starší umístění jiné číslo než pole, platí v
   ní pole (umístění samo zůstane), a `strom source edit` i `show` navrhnou zbytek umístění. Starší prameny se do polí
   rozdělí najednou příkazem `strom source split`: náhled, čím by se každý stal (umístění, v němž se nic nerozpozná,
-  zůstane, jak je), rozdělení zapíše uživatel s `--apply` jedním krokem a jedním se i vrátí (`--undo`); agent ho jen
+  zůstane, jak je, až tři taková ukáže, jak stojí), rozdělení zapíše uživatel s `--apply` jedním krokem a jedním se i vrátí (`--undo`); agent ho jen
   nabídne. Rozdělit se dá i z aplikace Strom, která to nabízí (funkce mostu `sources.split`): náhled řekne, kolik
   pramenů, rozdělení se zapíše na kliknutí uživatele jedním krokem podle toho náhledu a vrátí se celé. Folio, snímek
   nebo signaturu, které uživatel smaže v aplikaci Strom, jež tato pole uchovává, smaže i výzkum (vrátí se se

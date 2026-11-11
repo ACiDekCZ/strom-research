@@ -200,8 +200,8 @@
 //                          history.align.undone, 400 history.align.body
 //   GET <token>/sources/split[?all=1]   what splitting the older sources' locators into folio and image would do (strom
 //                          source split --json): {split [{source, title, before {locator?, folio?, image?}, after {…}}]
-//                          (the first 10, ?all=1 every one), count, unrecognized, nothing, undos [{id, at, sources}], plan
-//                          (its mark)} — read only; 409 source.split.archive, 503 research.busy (feature sources.split)
+//                          (the first 10, ?all=1 every one), count, unrecognized, unrecognizedExamples (up to 3 of their
+//                          locators, the location's text alone), nothing, undos [{id, at, sources}], plan (its mark)} — read only; 409 source.split.archive, 503 research.busy (feature sources.split)
 //   POST <token>/sources/split {plan}: done on the person's click after that preview, as the user's (strom source split
 //                          --apply --plan): {done {split: n}, undo, head, parent} — nothing else of the tree changes; 409
 //                          source.split.plan with the preview as it is now, 409 source.split.archive, 400 source.split.body
@@ -5018,7 +5018,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** What splitting the older sources' locators would do, as GET /sources/split answers it: the first ten (as strom source split shows them), or every one. */
   const splitPreview = (tree: Tree, all = false) => {
     const plan = splitPlan(tree);
-    return { split: all ? plan.split : plan.split.slice(0, 10), count: plan.split.length, unrecognized: plan.unrecognized, nothing: plan.nothing, undos: splitUndos(tree), plan: splitMark(plan) };
+    return { split: all ? plan.split : plan.split.slice(0, 10), count: plan.split.length, unrecognized: plan.unrecognized, unrecognizedExamples: plan.unrecognizedExamples, nothing: plan.nothing, undos: splitUndos(tree), plan: splitMark(plan) };
   };
   /** Nobody researches here (an archive, a research waiting for its agent): its sources are not split from the app. */
   const splitArchive = () => refusal("nobody researches here: the sources' locators are not split from the app", "source.split.archive");

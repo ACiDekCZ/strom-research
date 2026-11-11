@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
@@ -78,7 +78,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   przy zapisie i po nich odnajduje link, który już się nie otwiera. PAGE nigdy nie podaje dwóch numerów skanu ani
   folio: gdy starsza lokalizacja wymienia inny numer niż pole, obowiązuje w niej pole (sama lokalizacja zostaje), a
   `strom source edit` i `show` proponują resztę lokalizacji. Starsze źródła rozdziela się na pola naraz poleceniem
-  `strom source split`: podgląd, czym stałoby się każde (lokalizacja, w której nic nie rozpoznano, zostaje bez zmian),
+  `strom source split`: podgląd, czym stałoby się każde (lokalizacja, w której nic nie rozpoznano, zostaje bez zmian,
+  do trzech takich pokazuje tak, jak stoją),
   podział zapisuje użytkownik z `--apply` jednym krokiem i jednym się go cofa (`--undo`); agent tylko go proponuje.
   Podział można zrobić także z aplikacji Strom, która go oferuje (funkcja mostu `sources.split`): jej podgląd mówi,
   ile źródeł, podział zapisuje się po kliknięciu użytkownika jednym krokiem według tego podglądu i cofa w całości.

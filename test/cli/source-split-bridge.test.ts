@@ -51,6 +51,8 @@ test("bridge: GET /sources/split previews (count, the first ten, ?all=1, its pla
   const w = new World();
   try {
     await w.withTree("Lhotákovi");
+    // a write held by another strom gives up soon (a writer's two minutes were all but the test's time limit)
+    Object.assign(w.env, { STROM_LOCK_WAIT_MS: "1500" });
     await w.ok(["lang", "cs"]);
     // twelve sources to split (S1–S12), one with nothing to take (S13)
     for (let i = 1; i <= 12; i++) await w.ok(["source", "add", `Křest Lhotáka ${1880 + i}`, "--kind", "baptism", "--locator", `fol. ${i}, č. ${i + 1}, snímek ${i + 2}`]);
@@ -67,6 +69,7 @@ test("bridge: GET /sources/split previews (count, the first ten, ?all=1, its pla
     assert.equal(preview.body.split.length, 10, "the first ten");
     assert.deepEqual(preview.body.split[0], { source: "S0001", title: "Křest Lhotáka 1881", before: { locator: "fol. 1, č. 2, snímek 3" }, after: { locator: "č. 2", folio: "fol. 1", image: "3" } });
     assert.equal(preview.body.unrecognized, 1);
+    assert.deepEqual(preview.body.unrecognizedExamples, ["č. 8"]);
     assert.deepEqual(preview.body.undos, []);
     assert.match(preview.body.plan, /^[0-9a-f]{16}$/u);
     const all = (await ask(`${url}?all=1`)).body;
@@ -103,6 +106,7 @@ test("bridge: GET /sources/split previews (count, the first ten, ?all=1, its pla
     assert.deepEqual(place(w, "S0013"), ["č. 8", undefined, undefined]);
     const after = (await ask(url)).body;
     assert.equal(after.count, 0);
+    assert.deepEqual([after.unrecognized, after.unrecognizedExamples], [1, ["č. 8"]], "the split ones' rest is no unrecognised locator");
     assert.deepEqual(after.undos.map((u: { id: string; sources: number }) => [u.id, u.sources]), [[done.body.undo, 13]]);
     // nothing to split: 200, nothing written
     const nothing = await post(url, { plan: after.plan });

@@ -64,11 +64,11 @@ register({
         plan.split.length ? `would split the locator of ${counted(plan.split.length, "source")} into folio and image (nothing written):` : "nothing to split: no locator names a folio or image a field does not give",
         ...shown.map(oneLine),
         plan.split.length > shown.length ? `  … ${plan.split.length - shown.length} more (--all, or --json)` : undefined,
-        plan.unrecognized ? `unrecognised, stay as they are: ${counted(plan.unrecognized, "source")}` : undefined,
+        plan.unrecognized ? `unrecognised, stay as they are: ${counted(plan.unrecognized, "source")}${plan.unrecognizedExamples.length ? ` — ${plan.unrecognizedExamples.map((t) => JSON.stringify(t)).join(", ")}${plan.unrecognized > plan.unrecognizedExamples.length ? ", …" : ""}` : ""}` : undefined,
         plan.split.length ? "to write it: strom source split --apply — the person's, in their terminal (an agent offers it, never runs it)" : undefined,
         ...undos.map((u) => `to undo: strom source split --undo ${u.id} (${counted(u.sources, "source")}, ${u.at.slice(0, 10)})`),
       ),
-      data: { split: plan.split, count: plan.split.length, unrecognized: plan.unrecognized, nothing: plan.nothing, undos, plan: splitMark(plan) },
+      data: { split: plan.split, count: plan.split.length, unrecognized: plan.unrecognized, unrecognizedExamples: plan.unrecognizedExamples, nothing: plan.nothing, undos, plan: splitMark(plan) },
     };
   },
 });

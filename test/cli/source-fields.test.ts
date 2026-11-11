@@ -450,6 +450,48 @@ test("B (N1): an app given the file before it kept the fields, updated since, se
   }
 });
 
+test("B (N1): a short call number removed in the app is removed though the PAGE has the same number (\"č. 2\") or the note says it among its words; a note's line under its label (cs, en, de, pl, NFD) keeps it", opts, async () => {
+  const w = await world();
+  try {
+    const ged = await stromFile(w, path.join(w.dir, "strom.ged"));
+    const added = ged.replace(
+      /^0 @U1@ SUBM/m,
+      ["0 @X1@ INDI", "1 NAME Marie /Lhotáková/", "1 SEX F", "1 BIRT", "2 DATE 5 MAY 1910", "2 SOUR @X9@", "3 PAGE fol. 12, č. 2, snímek 34", "0 @X9@ SOUR", "1 TITL Křestní matrika Lhota 1905–1915", "1 REPO", "2 CALN 2", "1 PAGE fol. 12, č. 2, snímek 34", "1 _STROM_FOLIO fol. 12", "1 _STROM_IMAGE 34", "1 _STROM_LOCATOR č. 2", "0 @U1@ SUBM"].join("\n"),
+    );
+    fs.writeFileSync(path.join(w.dir, "nový.ged"), added);
+    await w.ok(["sync", path.join(w.dir, "nový.ged"), "--apply"]);
+    const made = Tree.open(w.cwd, w.env).list<Source>("source").find((s) => s.title === "Křestní matrika Lhota 1905–1915")!;
+    assert.equal(made.callNumber, "2");
+    const back = await stromFile(w, path.join(w.dir, "back.ged"));
+    // the call number removed in the app, its fields kept; the note as given
+    const sent = (name: string, note?: string) => {
+      const file = path.join(w.dir, name);
+      const text = withFields(back, { [made.id]: ["1 _STROM_FOLIO fol. 12", "1 _STROM_IMAGE 34", "1 _STROM_LOCATOR č. 2"] }).replace(/^1 REPO\r?\n2 CALN 2\r?\n/m, note ? `1 NOTE ${note.split("\n").join("\n2 CONT ")}\n` : "");
+      fs.writeFileSync(file, fromApp(text, "3.27.0-beta.5"));
+      return file;
+    };
+    // a line under its label: kept (an app that read CALN into its note), any of its languages, decomposed too
+    for (const [i, note] of ["Signatura: 2", "Call number: 2", "Zápis přepsán\nSignatur: 2", "Sygnatura: 2".normalize("NFD")].entries()) {
+      const file = sent(`štítek-${i}.ged`, note);
+      assert.match((await w.ok(["sync", file])).out, /nic nového/, note);
+      await w.ok(["sync", file, "--apply"]);
+      assert.equal(source(w, made.id).callNumber, "2", note);
+    }
+    // the same number inside the PAGE and among the note's own words: removed, undone back
+    const file = sent("smazáno.ged", "Zápis č. 2 přepsán, viz signatura 2 jinde");
+    assert.match((await w.ok(["sync", file])).out, /pramen z aplikace „Křestní matrika Lhota 1905–1915“/);
+    const done = (await w.ok(["sync", file, "--apply", "--json"])).json;
+    const s = source(w, made.id);
+    assert.deepEqual([s.folio, s.image, s.locator, s.callNumber], ["fol. 12", "34", "č. 2", undefined]);
+    await w.ok(["sync", "undo", done.input]);
+    assert.equal(source(w, made.id).callNumber, "2");
+    w.cleanup();
+  } catch (e) {
+    w.cleanup();
+    throw e;
+  }
+});
+
 test("B: the app's JSON keeps the fields from its data version 18 (a field not given back is removed), before it not", () => {
   const tree = (version?: number) => ({ ...(version !== undefined ? { version } : {}), persons: {}, partnerships: {}, sources: {} });
   assert.equal(readStromJson(tree(18)).fieldsKept, true);

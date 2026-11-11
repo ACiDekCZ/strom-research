@@ -3543,9 +3543,10 @@ type SourceField = (typeof SOURCE_FIELDS)[number];
  * keeps them (`fieldsKept`; an older app never sends them, which removes nothing), each a value of the research's own
  * (not its images' numbers, not its book's call number) that the app was given as it is now, and that the file does not
  * name elsewhere: a folio or image the location names (an app given the PAGE alone has it there), a call number the
- * location or the source's note names (an app before 3.27.0-beta.5 read CALN into its note as "Call number: …" and
- * keeps it there once it keeps the fields, until the research's file is loaded again — the field it never had). A
- * field the file still names is no field the user removed; an empty field the app was not given removes nothing.
+ * whole location is, or a line of the source's note gives under its label (an app before 3.27.0-beta.5 read CALN into
+ * its note as "Call number: …" and keeps it there once it keeps the fields, until the research's file is loaded again —
+ * the field it never had); a short call number ("2") inside a PAGE ("no. 2") or the note's own words is no such line.
+ * A field the file still names is no field the user removed; an empty field the app was not given removes nothing.
  */
 function removedFields(incoming: Snapshot, inc: SSource, b: SSource, mine: Source): { field: SourceField; was: string }[] {
   if (!incoming.fieldsKept) return [];
@@ -3554,19 +3555,32 @@ function removedFields(incoming: Snapshot, inc: SSource, b: SSource, mine: Sourc
     const own = mine[field]?.trim();
     if (!own || inc[field]?.trim() || !b[field]?.trim() || entryWords(b[field]) !== entryWords(own)) return [];
     if (field !== "callNumber" && location && locatorOverlap({ locator: location, [field]: own })?.[field]) return [];
-    if (field === "callNumber" && [inc.pageLine, inc.page, inc.note].some((t) => namesWords(t, own))) return [];
+    if (field === "callNumber" && ([inc.pageLine, inc.page].some((t) => isValue(t, own)) || noteCallNumbers(inc.note).some((t) => isValue(t, own)))) return [];
     return [{ field, was: own }];
   });
 }
 
-/** Whether a text names a value: its words, one after another, among the text's (any script, any accent, NFD or not). */
-function namesWords(text: string | undefined, value: string): boolean {
-  const words = (s: string) => foldText(s).match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
-  const want = words(value);
-  const have = text ? words(text) : [];
-  if (!want.length) return false;
-  for (let i = 0; i + want.length <= have.length; i++) if (want.every((w, j) => have[i + j] === w)) return true;
-  return false;
+/** A text's words (any script, any accent, NFD or not). */
+const valueWords = (s: string | undefined) => (s ? foldText(s).match(/[\p{L}\p{M}\p{N}]+/gu) ?? [] : []);
+
+/** Whether a text is a value as a whole: the same words, in their order (a short call number inside a PAGE is not). */
+function isValue(text: string | undefined, value: string): boolean {
+  const want = valueWords(value);
+  const have = valueWords(text);
+  return want.length > 0 && want.length === have.length && want.every((w, i) => have[i] === w);
+}
+
+/** The labels of a call number an app before 3.27.0-beta.5 wrote into a source's note, in each of its languages. */
+const CALL_NUMBER_LABELS = new Set(["signatura", "call number", "signatur", "sygnatura"]);
+
+/** The call numbers a source's note names on a line of its own ("Signatura: Lhota 12", "Call number: …"). */
+function noteCallNumbers(note: string | undefined): string[] {
+  const out: string[] = [];
+  for (const line of (note ?? "").split(/\r?\n/u)) {
+    const m = line.match(/^\s*([^:]+?)\s*:\s*(.+?)\s*$/u);
+    if (m && CALL_NUMBER_LABELS.has(valueWords(m[1]).join(" "))) out.push(m[2]!);
+  }
+  return out;
 }
 
 /** A note's line of a field the user removed in the app ("folio: removed in the app (fol. 12v)"). */

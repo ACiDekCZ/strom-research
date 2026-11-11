@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
@@ -86,7 +86,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   oder Folionummern: nennt eine ältere Fundstelle eine andere als das Feld, gilt darin das Feld (die Fundstelle selbst
   bleibt), und `strom source edit` und `show` schlagen den Rest der Fundstelle vor. Ältere Quellen werden mit `strom
   source split` auf einmal in die Felder aufgeteilt: eine Vorschau, was aus jeder würde (eine Fundstelle, in der
-  nichts erkannt wird, bleibt, wie sie ist), die Aufteilung schreibt der Benutzer mit `--apply` als einen Schritt und
+  nichts erkannt wird, bleibt, wie sie ist, bis zu drei solche zeigt sie, wie sie stehen), die Aufteilung schreibt der Benutzer mit `--apply` als einen Schritt und
   macht sie als einen rückgängig (`--undo`); ein Agent bietet sie nur an. Die Aufteilung geht auch aus einer
   Strom-App, die sie anbietet (Brückenfunktion `sources.split`): ihre Vorschau sagt, wie viele Quellen, die Aufteilung
   wird auf den Klick des Benutzers als ein Schritt nach dieser Vorschau geschrieben und ganz zurückgenommen. Ein

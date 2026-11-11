@@ -38,6 +38,8 @@ test("source split: a preview by anybody (nothing written), the split the person
     fs.writeFileSync(path.join(dir, "obr-060.jpg"), encodeJpeg(blank(60, 40, 1, 120), 85));
     await w.ok(["media", "add", dir, "--recordset", "B0001"]); // M1, image 60
     await w.ok(["source", "add", "Křest Josefa Lhotáka 1887", "--kind", "baptism", "--recordset", "B0001", "--clip", "M0001@0.05,0.40,0.45,0.18", "--locator", "fol. 20, snímek 60"]); // S7: the scans' image
+    // nothing recognised in them (another script, one twice): S8–S11
+    for (const [i, locator] of ["č. 8", "kolonka 3", "запись 4", "Eintrag 9"].entries()) await w.ok(["source", "add", `Křest Lhotáka ${1890 + i}`, "--kind", "baptism", "--locator", locator]);
     const before = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true }).text;
     const ops = Tree.open(w.cwd, w.env).readOps().length;
 
@@ -46,7 +48,7 @@ test("source split: a preview by anybody (nothing written), the split the person
     assert.match(preview.out, /^would split the locator of 6 sources into folio and image \(nothing written\):$/m);
     assert.match(preview.out, /^ {2}S0001 {2}"fol\. 12, č\. 5, snímek 3" → --folio "fol\. 12" --image 3 --locator "č\. 5"$/m);
     assert.match(preview.out, /^ {2}S0006 {2}"Snímek č\. 6" → --image 6 --locator \(none\)$/m);
-    assert.match(preview.out, /^unrecognised, stay as they are: 1 source$/m);
+    assert.match(preview.out, /^unrecognised, stay as they are: 5 sources — "č\. 8", "kolonka 3", "запись 4", …$/m);
     assert.match(preview.out, /^to write it: strom source split --apply — the person's, in their terminal/m);
     const plan = (await w.ok(["source", "split", "--json"], agent)).json;
     assert.deepEqual(
@@ -60,7 +62,8 @@ test("source split: a preview by anybody (nothing written), the split the person
         ["S0007", { locator: "snímek 60", folio: "fol. 20" }],
       ],
     );
-    assert.equal(plan.unrecognized, 1);
+    assert.equal(plan.unrecognized, 5);
+    assert.deepEqual(plan.unrecognizedExamples, ["č. 8", "kolonka 3", "запись 4"], "three, each once, the location's text alone");
     assert.equal(Tree.open(w.cwd, w.env).readOps().length, ops, "the preview writes nothing");
 
     // the split and its undo: the person's alone
@@ -77,6 +80,9 @@ test("source split: a preview by anybody (nothing written), the split the person
     assert.deepEqual(place(w, "S0006"), [undefined, undefined, "6"]);
     assert.equal(Tree.open(w.cwd, w.env).readOps().length, ops + 1, "one step");
     assert.match((await w.ok(["source", "split"])).out, /^nothing to split/m);
+    // a split one's rest ("č. 5") is no unrecognised locator: its folio and image are fields
+    const rest = (await w.ok(["source", "split", "--json"])).json;
+    assert.deepEqual([rest.unrecognized, rest.unrecognizedExamples, rest.nothing], [5, ["č. 8", "kolonka 3", "запись 4"], 5]);
 
     // the PAGE: one number each, as before where the locator said them
     const after = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true }).text;
