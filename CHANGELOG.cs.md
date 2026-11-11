@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom

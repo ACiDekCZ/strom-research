@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),

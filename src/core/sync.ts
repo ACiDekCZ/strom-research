@@ -128,6 +128,11 @@ export interface SSource {
   page?: string;
   /** The PAGE line as the file has it (of the record), whatever its fields say. */
   pageLine?: string;
+  /**
+   * Of a source given field by field, its first citation's page: an app before 3.27.0-beta.5 gave a source with no page of
+   * its own that one (as an older strom read it), no page the user wrote.
+   */
+  citedPage?: string;
   /** The folio or page as the book numbers it (_STROM_FOLIO; the app's JSON `folio`). */
   folio?: string;
   /** The image number(s) (_STROM_IMAGE; the app's JSON `image`). */
@@ -959,6 +964,7 @@ function citedDetails(sources: Map<string, SSource>, facts: SFact[]): void {
       if (!s) continue;
       // a location given field by field has its rest where the file says it (none: none), never a citation's
       if (!s.page && !s.structured && c.page) s.page = c.page;
+      else if (!s.page && s.structured && c.page && s.citedPage === undefined) s.citedPage = c.page;
       if (!s.date && c.date) s.date = c.date;
       if (s.quay === undefined && c.quay !== undefined) s.quay = c.quay;
     }
@@ -3615,7 +3621,9 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
   let readSet: Set<string> | undefined;
   if (!incoming.sources?.size) return map;
   const live = tree.list<Source>("source").filter((s) => !s.retracted);
-  const pageOf = (s: Source) => s.locator ?? ours.sources?.get(s.id)?.page;
+  // where in the book the research gives the app a source: its locator, else its first citation's page (a source given
+  // field by field with none of its own: an app before 3.27.0-beta.5 gave it that one, its own split of a source by it)
+  const pageOf = (s: Source) => s.locator ?? ours.sources?.get(s.id)?.page ?? ours.sources?.get(s.id)?.citedPage;
   for (const [key, inc] of incoming.sources) {
     let mine = key.startsWith("x:") ? undefined : tree.get<Source>(key);
     for (let hops = 0; mine?.mergedInto && hops < 10; hops++) mine = tree.get<Source>(mine.mergedInto);
@@ -3647,7 +3655,7 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
       const set = mine.recordset ? tree.get<RecordSet>(mine.recordset) : undefined;
       const was = {
         text: [b.text, o?.text, mine.transcript],
-        page: [b.page, b.pageLine, o?.page, o?.pageLine, mine.locator, composedPage(mine, tree.lang), ...cited],
+        page: [b.page, b.pageLine, b.citedPage, o?.page, o?.pageLine, o?.citedPage, mine.locator, composedPage(mine, tree.lang), ...cited],
         folio: [b.folio, o?.folio, mine.folio],
         image: [b.image, o?.image, sourceImage(mine, (id) => tree.get<Media>(id))?.value],
         callNumber: [b.callNumber, o?.callNumber, sourceCallNumber(mine, set)],

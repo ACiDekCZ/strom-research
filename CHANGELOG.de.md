@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben

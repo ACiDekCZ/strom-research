@@ -492,6 +492,50 @@ test("B (N1): a short call number removed in the app is removed though the PAGE 
   }
 });
 
+test("an app before 3.27.0-beta.5 gave a source with no page of its own its first citation's (a source given by its scans' image only): sent back from it, or after the app's update, nothing read otherwise, no source new, no citation; a page the user wrote is a reading still", opts, async () => {
+  const w = await world();
+  try {
+    const dir = fs.mkdtempSync(path.join(w.dir, "snímky-"));
+    fs.writeFileSync(path.join(dir, "obr-060.jpg"), encodeJpeg(blank(60, 40, 1, 120), 85));
+    await w.ok(["media", "add", dir, "--recordset", "B0001"]); // M1, image 60
+    await w.ok(["source", "add", "Oddavky Karla Lhotského 1891", "--kind", "marriage", "--recordset", "B0001", "--clip", "M0001@0.05,0.40,0.45,0.18"]); // S3
+    await w.ok(["person", "add", "Karel /Lhotský/", "--sex", "M"]); // P2
+    await w.ok(["event", "add", "P0002", "BIRT", "--date", "1866", "--cite", "S0003", "--locator", "č. 9"]);
+    await w.ok(["event", "add", "P0002", "OCCU", "--value", "rolník", "--cite", "S0003", "--locator", "č. 9"]);
+    const ged = await stromFile(w, path.join(w.dir, "strom.ged"));
+    const id = record(ged, "S0003").match(/^0 @([^@]+)@/)![1]!;
+    assert.doesNotMatch(record(ged, id), /^1 PAGE/m, "no page of its own");
+    // the app 3.26: the source's PAGE its first citation's; the second citation, of another quality, on a source of its own
+    // made of it (no REFN), as the app's own split
+    const giveFirst = (text: string, page: string) => text.replace(new RegExp(`^(0 @${id}@ SOUR\\r?\\n(?:[1-9].*\\r?\\n)*?1 TITL .*\\r?\\n)`, "m"), `$11 PAGE ${page}\n`);
+    const split = (text: string) => {
+      const own = record(text, id);
+      const copy = own.replace(/^0 @[^@]+@/, "0 @X77@").replace(/^1 REFN .*\r?\n/m, "").replace(/^1 _STROM_[A-Z]+ .*\r?\n/gm, "");
+      const occu = text.match(/^1 OCCU rolník\r?\n(?:[2-9].*\r?\n)*/m)![0];
+      return text.replace(occu, occu.replace(`2 SOUR @${id}@`, "2 SOUR @X77@").replace(/^3 QUAY .*$/m, "3 QUAY 1")).replace(/^0 @U1@ SUBM/m, `${copy.trimEnd()}\n0 @U1@ SUBM`);
+    };
+    const sends = {
+      "3.26.ged": fromApp(split(giveFirst(ged, "č. 9")), "3.26.0"),
+      "3.27.ged": fromApp(withFields(giveFirst(ged, "č. 9"), { S0003: ["1 _STROM_IMAGE 60"] }), "3.27.0-beta.6"),
+    };
+    for (const [name, text] of Object.entries(sends)) {
+      const file = path.join(w.dir, name);
+      fs.writeFileSync(file, text);
+      const plan = (await w.ok(["sync", file, "--json"])).json;
+      assert.deepEqual(plan.changes.map((c: { kind: string }) => c.kind), [], name);
+    }
+    // a page the user wrote in the app: read otherwise still
+    const edited = path.join(w.dir, "upraveno.ged");
+    fs.writeFileSync(edited, fromApp(giveFirst(ged, "č. 10"), "3.26.0"));
+    const plan = (await w.ok(["sync", edited, "--json"])).json;
+    assert.deepEqual(plan.changes.map((c: { kind: string; fields?: string[] }) => [c.kind, c.fields]), [["source.reading", ["page"]]]);
+    w.cleanup();
+  } catch (e) {
+    w.cleanup();
+    throw e;
+  }
+});
+
 test("B: the app's JSON keeps the fields from its data version 18 (a field not given back is removed), before it not", () => {
   const tree = (version?: number) => ({ ...(version !== undefined ? { version } : {}), persons: {}, partnerships: {}, sources: {} });
   assert.equal(readStromJson(tree(18)).fieldsKept, true);

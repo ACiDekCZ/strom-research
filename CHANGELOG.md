@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.7. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
