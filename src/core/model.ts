@@ -935,11 +935,54 @@ export interface Hypothesis extends BaseRecord {
   decidedByAgent?: string;
   /** When it was decided (ISO), by the person or an agent. */
   decidedAt?: string;
+  /**
+   * Decided by the person through the Strom app's link (the variant picked there, confirmed in the terminal: strom
+   * hypothesis decide --from-app). Only the person's decision; the next one takes it off.
+   */
+  decidedIn?: "app";
+  /**
+   * The decision before the last change (decided again, or opened again): for the Strom app (_PREV) — the notes keep
+   * every earlier one in words.
+   */
+  previous?: HypothesisPrevious;
   /** When the person left an open hypothesis with no proposal open (What waits; strom hypothesis decide --keep-open). */
   leftOpen?: string;
   /** What an agent proposes the person decide (strom hypothesis propose): taken off when the person decides. */
   proposal?: HypothesisProposal;
+  /**
+   * What the person's decision wrote on the tree itself (spec 074 K1.5): each link of its variant, the family it went
+   * into and the sources it cited there. Taken off again when the person changes the decision or takes it back, while
+   * no other work stands on it (core/hypolinks.ts workOnLink); an agent's decision never writes it.
+   */
+  wrote?: HypothesisWrote[];
   notes: Note[];
+}
+
+/** One link of a decided variant the person's decision wrote on the tree (Hypothesis.wrote). */
+export interface HypothesisWrote {
+  link: VariantLink;
+  /** The family the link went into. */
+  family: string;
+  /** The family was made by the decision (else one of the tree's got the child). */
+  made?: true;
+  /** The sources the decision cited on the family (those it had already not counted). */
+  cited?: string[];
+  /** When it was written (ISO): anything changed after it on its people or family is other work. */
+  at: string;
+}
+
+/** A decision of a hypothesis that a later one replaced (decided again, or opened again). */
+export interface HypothesisPrevious {
+  state: "decided" | "abandoned";
+  /** Its variant (none: abandoned, or a hypothesis whose variants say nothing they connect). */
+  chosen?: string;
+  decision?: string;
+  /** When it was decided (ISO). */
+  at?: string;
+  /** Who: the person, or an agent the person let decide. */
+  by: "user" | "agent";
+  /** The person's, through the Strom app's link. */
+  in?: "app";
 }
 
 /** An agent's proposal of a decision of a hypothesis: the person decides it (What waits, strom hypothesis decide). */

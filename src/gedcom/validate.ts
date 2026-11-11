@@ -27,23 +27,36 @@ const ORIGINAL_ID_TAGS = ["_XREF", "_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES", "_STROM_IMPORT"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
+  // the research's lines and the branches off them (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
+  "HEAD._STROM_DIRECTION": ["NAME", "TYPE", "_FOCUS", "STAT"],
+  "HEAD._STROM_BRANCH": ["_VIA", "_NEAREST", "_DIRECTION", "_MODE"],
+  "_STROM_BRANCH._VIA": ["TYPE"],
   // an import of a family tree the values came from (the Strom profile, APP_SHOWS_ORIGIN)
   "HEAD._STROM_IMPORT": ["SOUR", "VERS", "DATE", "_AT", "FILE", "_SHA"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", "_STROM_SEX_ORIGIN", "_STROM_IMPORT", "_STROM_XID", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", "_STROM_SEX_ORIGIN", "_STROM_IMPORT", "_STROM_XID", "_STROM_DIRECTION", "_STROM_WAIT", "_STROM_ADDED", ...INDI_EVENTS],
+  // a person's places among the lines, the tasks about them waiting outside (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
+  "INDI._STROM_DIRECTION": ["TYPE", "_BRANCH"],
+  "INDI._STROM_WAIT": ["TYPE", "TITL", "_ON", "_GROUP", "STAT", "_SENT", "_PRIO"],
+  "_STROM_WAIT._GROUP": ["TYPE", "_KEY", "_URL"],
   // the IDs a person had in a family tree it came from (or not: _STROM_XID), spec 066 K3.2
   "INDI._STROM_IMPORT": ORIGINAL_ID_TAGS,
   "INDI._STROM_XID": ORIGINAL_ID_TAGS,
   "INDI._STROM_SEX_ORIGIN": ["_STROM_WAS"],
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_KIND", "_STROM_TAKE", "VAL", "DECI"],
   // who decided a hypothesis, why and when (APP_SHOWS_HYPOTHESIS_DECIDER: 2 _BY agent, 2 DECI, 2 _AT)
-  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR", "_BY", "DECI", "_AT"],
-  // what a variant of a hypothesis would connect (the Strom profile)
-  _VAR: ["TITL", "_LINK", "_INTREE", "SOUR"],
+  // and for an app that decides one by a pick (APP_DECIDES_HYPOTHESES): 2 _PICK, 2 _PREV, 2 _REOPEN, 2 _PROP, 2 _LEFT
+  "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR", "_BY", "DECI", "_AT", "_PICK", "_PREV", "_REOPEN", "_PROP", "_LEFT"],
+  "_STROM_HYPO._PREV": ["_BY", "DECI", "_AT"],
+  "_STROM_HYPO._REOPEN": ["TYPE", "_COUNT", "_STAYS"],
+  "_STROM_HYPO._PROP": ["DECI", "_AT"],
+  // what a variant of a hypothesis would connect (the Strom profile); what speaks against it, the people it joins
+  _VAR: ["TITL", "_LINK", "_INTREE", "SOUR", "_AGAINST", "_PEOPLE"],
+  "_VAR._AGAINST": ["SOUR"],
   _LINK: ["_PERS", "_FAM", "_PAR"],
   _INTREE: ["_PERS", "_FAM"],
   "INDI._STROM_SEARCHED": ["TITL", "DATE", "RESN", "_AT"],
@@ -100,7 +113,7 @@ const CHILDREN: Record<string, string[]> = {
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
 const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE", "_STROM_WAS"]);
-const TEXT_TAGS = new Set(["_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
+const TEXT_TAGS = new Set(["_ON", "_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI", "_AGAINST"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT", "_BY",
@@ -112,6 +125,8 @@ const EXTENSIONS = new Set([
   "_DRAFT",
   // what a variant of a hypothesis would connect, and what of it the tree records already
   "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN", "_INTREE",
+  // a hypothesis an app decides by a pick: the decision before, why it stays, the agent's proposal, left open, against, people joined
+  "_PICK", "_PREV", "_REOPEN", "_COUNT", "_STAYS", "_PROP", "_LEFT", "_AGAINST", "_PEOPLE",
   // a source's excerpts the file leaves out, and why
   "_STROM_IMG_OMITTED",
   // the name a person is shown by; a couple's state; parents who are no couple; an archive
@@ -136,6 +151,9 @@ const EXTENSIONS = new Set([
   "_STROM_XID", "_XREF", "_UID", "_FSFTID",
   // the verification of a fact against its originals: its ID, the user's confirmation, how it waits, the last result
   "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_WHY", "_READERS",
+  // the research in the app's table: its lines, the branches off them, each person's places, what waits outside, who it added
+  "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH", "_FOCUS", "_VIA", "_NEAREST", "_DIRECTION", "_MODE", "_BRANCH",
+  "_STROM_WAIT", "_ON", "_GROUP", "_KEY", "_SENT", "_PRIO", "_STROM_ADDED",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -150,11 +168,15 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_STORY") return "_STORY";
   if (parent === "_WITN") return "_WITN";
   if (parent === "_VAR" && anc[1] === "_STROM_HYPO") return "_VAR";
+  if ((parent === "_PREV" || parent === "_REOPEN" || parent === "_PROP") && anc[1] === "_STROM_HYPO" && depth === 3) return `_STROM_HYPO.${parent}`;
+  if (parent === "_AGAINST" && anc[2] === "_VAR") return "_VAR._AGAINST";
   if (parent === "_LINK" && anc[2] === "_VAR") return "_LINK";
   if (parent === "_INTREE" && anc[2] === "_VAR") return "_INTREE";
   if (parent === "_JOIN" && anc[1] === "_STROM_EDGE" && anc[2] === "_HYPO") return "_STROM_EDGE._JOIN";
   if (parent === "ADDR") return "ADDR";
   if (parent === "_STROM_WAS") return "_STROM_WAS";
+  if (parent === "_VIA" && anc[1] === "_STROM_BRANCH" && depth === 3) return "_STROM_BRANCH._VIA";
+  if (parent === "_GROUP" && anc[1] === "_STROM_WAIT" && depth === 3) return "_STROM_WAIT._GROUP";
   if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED") && depth === 3) return parent;
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {

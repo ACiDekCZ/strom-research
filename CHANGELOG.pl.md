@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
@@ -35,6 +35,37 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Teraz pierwsze obrazy pobierania mówią agentowi raz, ile kosztuje jeden obraz i jak długo w tempie archiwum potrwa
   księga, a także jak zatrzymać pobieranie w tle i czego szukać najpierw (jedno zapytanie na obraz). Liczone jest tylko
   to, co samo pobieranie wysyła: archiwum nie jest o nic więcej pytane. Mówią to też `strom fetch --status` i brief.
+
+- **Dołączenie rodziny do bocznej gałęzi to praca poza liniami.** Zadanie, które dołączyłoby osoby niezwiązane z
+  drzewem, pomagało linii zawsze, gdy dołączało je do kogokolwiek z drzewa – także do rodzeństwa przodka, więc szło z
+  linią, choć praca poza liniami miała czekać na końcu. Teraz pomaga linii tylko dołączenie do osoby z linii lub jej
+  partnera; dołączone do bocznej gałęzi należy do tej gałęzi i przychodzi zgodnie z jej wyborem. Hipoteza linii i
+  powód podany przez agenta zachowują swoje miejsce. `/status` mostu mówi, jak zadanie, nad którym trwa praca, pomaga
+  linii (funkcja `working.helps`), aby aplikacja mogła pokazać, dlaczego idzie z linią.
+
+- **Badania w tabeli aplikacji Strom.** Dla aplikacji Strom, która to pokazuje, plik dla aplikacji podaje przy każdej
+  osobie jej miejsce wśród linii badań według tej samej reguły, którą kieruje się kolejka: w linii (w każdej, do której
+  należy), partner osoby z linii, boczna gałąź poza liniami (z linią, do której ją dodano) albo wyspa, której nic nie
+  łączy z drzewem; nagłówek wymienia linie i gałęzie. Przy każdej osobie są też zadania czekające na coś z zewnątrz
+  (list wysłany lub do wysłania, pytanie do rodziny, strona do przejrzenia) wraz z miejscem, gdzie się je załatwia, oraz
+  kiedy badania dodały tę osobę. `GET /directions/people` mostu podaje te same miejsca na żywo, z odciskiem, który
+  powtarza `/status` (funkcja `directions.places`).
+
+- **Hipoteza rozstrzygnięta w aplikacji Strom.** Przy hipotezie, której warianty mówią, czyim dzieckiem ktoś jest albo
+  która to para, wariant wybiera się w aplikacji (albo „żaden nie jest prawdziwy”, pozostawienie otwartej, cofnięcie
+  rozstrzygnięcia). Terminal badania pokazuje pytanie z wariantami i to, co zostanie zapisane, pyta raz – Enter to tak
+  – i o powód (Enter zostawia słowa aplikacji), po czym zapisuje to jako rozstrzygnięcie użytkownika w aplikacji
+  Strom. Tak samo przyjmuje się naraz kilka propozycji agenta. To, czy dwa zapisy to ta sama osoba, czy rodzeństwo,
+  nadal rozstrzyga się w terminalu, na pełnym ekranie hipotezy. Rozstrzygnięcie jest w drzewie od razu: dziecko lub
+  para wybranego wariantu zapisane w tym samym zapisie, z cytowaniem źródła wariantu, także w archiwum – agent nie
+  zapisuje go ponownie; to, co drzewo odrzuci (dziecko ma już rodziców z urodzenia), terminal powie wraz z powodem
+  i zapisze to agent. Przy zmianie usuwa się to, co zapisało poprzednie rozstrzygnięcie; przy cofnięciu to, co zapisało
+  ono samo, o ile w międzyczasie nie opiera się na tym dalsza praca – kolejne dziecko, dane lub źródło rodziny,
+  scalenie, nigdy własne dane osób (aplikacja wie to wcześniej); zmianę, po której dotychczasowe powiązanie by zostało,
+  a nowego nie dałoby się zapisać, terminal powie przed potwierdzeniem, a Enter wtedy anuluje, także przy kilku propozycjach naraz; w terminalu również przez `strom
+  hypothesis decide --reopen` (tylko użytkownik). Dla aplikacji plik Strom mówi, kto i gdzie rozstrzygnął, poprzednie
+  rozstrzygnięcie, propozycję agenta, co przemawia przeciw każdemu wariantowi i ile osób dołącza do drzewa; `/status`
+  mostu wymienia czekające hipotezy (features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
 - **Drobiazgi.** Fakt, którego weryfikację przesunięto na początek, jest w pliku dla aplikacji Strom oznaczony jako
   zamówiony, więc aplikacja nie proponuje już ponownego przesunięcia. `strom error --note` ukrywa też odmienione

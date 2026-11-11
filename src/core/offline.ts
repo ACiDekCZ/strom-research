@@ -8,8 +8,10 @@
 // is ordered so at once, a link recorded later moves the task by itself):
 //   a) it serves a hypothesis or a conflict of a line — named on the task (--about H…/X…) or in its words — whose
 //      people (those its variants would connect too) are in a line: that line;
-//   b) it would join people to the tree — some of its people (or of the hypothesis it names) are kin of the tree, some
-//      are not: the line it joins them to, the nearest by family links from the people of the tree it names;
+//   b) it would join people to a line — some of its people (or of the hypothesis it names) are kin of the tree, some are
+//      not, and among those of the tree is a person of a line or their partner: that line (the narrowest). Joining
+//      them to a side branch (an ancestor's sibling, the kin of one married in) helps no line: the task is that
+//      branch's, as in d) (spec 036 K1.7);
 //   p) it is about the partner of a person in a line (every marriage of that person; in a line of descendants the
 //      partners of the descendants): that line's work (helps "partner") — the partner of a partner is not;
 //   c) the agent said how it helps (strom task add|edit --helps "<how>"): the line named there by its ID (G…), else the
@@ -31,6 +33,7 @@ import type { Conflict, Hypothesis, OffLine, Person, Research, Task } from "./mo
 import type { Tree } from "./tree.ts";
 import { aboutPeople, directionOf, hypothesisPeople, scopes as scopesOf, type Scope } from "./directions.ts";
 import { kinship } from "./kin.ts";
+import { linePeople as peopleOfLine } from "./frontier.ts";
 import { descendantGenerations, familiesAsChild, familiesAsPartner } from "./people.ts";
 import { personNow } from "./quality.ts";
 import { readJsonIfExists, stringifyCanonical } from "./json.ts";
@@ -287,13 +290,16 @@ export function placer(tree: Tree, all: Scope[], file?: OfflineFile): (t: Pick<T
     }
     const ofQuestion = narrowest(questionPeople);
     if (ofQuestion) return { research: ofQuestion, helps: "question" };
-    // b) joining people to the tree: some of them kin of the tree, some not
+    // b) joining people to a line: some of them kin of the tree, some not — and joined to a person of a line or their
+    // partner; joined to a side branch only, the task is that branch's (d)
     kin ??= kinship(tree);
     const all2 = [...new Set([...about, ...questionPeople])];
     const inTree = all2.filter((p) => kin!.has(p));
-    if (inTree.length && inTree.length < all2.length) {
-      const to = nearest(inTree);
-      return { ...(to ? { research: to } : {}), helps: "joins" };
+    const joining = inTree.length > 0 && inTree.length < all2.length;
+    if (joining) {
+      const to = new Set(inTree.map((p) => people().get(p) ?? partnerLines().get(p)).filter((x): x is string => !!x));
+      const at = lines.filter((s) => to.has(s.research.id)).sort((a, b) => a.people.size - b.people.size || a.research.id.localeCompare(b.research.id))[0];
+      if (at) return { research: at.research.id, helps: "joins" };
     }
     // p) the partner of a person of a line: that line's work
     const partnerOf = about.map((p) => partnerLines().get(p)).find((x) => x);
@@ -307,7 +313,8 @@ export function placer(tree: Tree, all: Scope[], file?: OfflineFile): (t: Pick<T
     }
     // d) its branch: the one of its person nearest a line (then the smaller key) — added to a line by the person, or off
     found ??= findBranches(tree, all, people());
-    const at = about
+    // joining people off the tree: the branch of those of the tree they are joined to
+    const at = (joining ? [...about, ...inTree] : about)
       .map((p) => found!.of.get(p))
       .filter((x): x is { branch: string; dist: number } => !!x)
       .sort((a, b) => a.dist - b.dist || byId(a.branch.slice(2), b.branch.slice(2)))[0];
@@ -533,4 +540,68 @@ export function branchJson(b: BranchView, text: (t: Task) => string): Record<str
 export function offLineJson(v: OffLineView, text: (t: Task) => string, branches = true): Record<string, unknown> {
   const { branches: list, ...rest } = v;
   return { ...rest, ...(branches ? { branches: list.map((b) => branchJson(b, text)) } : {}) };
+}
+
+/** Where a person stands among the lines: in a line, the partner of one of its people, a branch off the lines, an island the tree does not reach. */
+export const PLACE_ROLES = ["line", "partner", "branch", "island"] as const;
+export type PlaceRole = (typeof PLACE_ROLES)[number];
+
+/** One place of a person: the line (absent for a branch nobody added to a line and for an island), how, and the branch. */
+export interface PersonPlace {
+  line?: string;
+  role: PlaceRole;
+  branch?: string;
+}
+
+export interface Places {
+  /** The lines that count (none taken back, done ones too), the narrowest first. */
+  lines: Research[];
+  /** The branches off the lines (only with two lines or more). */
+  branches: Map<string, Branch>;
+  /** Each person's places, the narrowest line first; a person in none (outside: no line, no branch, no island) is absent. */
+  people: Map<string, PersonPlace[]>;
+}
+
+/**
+ * Where each person of the tree stands among the lines — what the table of the Strom app shows, by the rule the queue
+ * places their tasks by (placer): a person of a line (every line they are in: the ancestors of a line of ancestors,
+ * the descendants of a line of descendants, the people of a review; done lines too, as the queue counts them), the
+ * partner of a person of a line who is in no line (every line of their partners), a person of a branch off the lines
+ * (findBranches: with two lines or more; its line when the person added the branch to one), an island (nobody of the
+ * research is kin to them, core/edge.ts). Unlike the queue, the person a question asks about is that line's (as GET
+ * /directions/people shows them). Computed from the tree as it is; nothing written.
+ */
+export function personPlaces(tree: Tree, all: Scope[] = scopesOf(tree), file?: OfflineFile): Places {
+  const lines = counted(all);
+  const sized = lines
+    .map((s) => ({ r: s.research, people: [...peopleOfLine(tree, s.research).keys()].filter((p) => { const x = tree.get<Person>(p); return x?.type === "person" && !x.retracted; }) }))
+    .sort((a, b) => a.people.length - b.people.length || byId(a.r.id, b.r.id));
+  const people = new Map<string, PersonPlace[]>();
+  const add = (p: string, place: PersonPlace) => {
+    const at = people.get(p) ?? [];
+    if (!at.some((x) => x.line === place.line && x.role === place.role)) at.push(place);
+    people.set(p, at);
+  };
+  for (const { r, people: ps } of sized) for (const p of ps) add(p, { line: r.id, role: "line" });
+  const inLine = new Set(people.keys());
+  for (const { r, people: ps } of sized)
+    for (const p of ps)
+      for (const f of familiesAsPartner(tree, p))
+        for (const x of f.partners) if (x !== p && !inLine.has(x) && !tree.get<Person>(x)?.retracted) add(x, { line: r.id, role: "partner" });
+  const kin = kinship(tree);
+  const found = findBranches(tree, all);
+  const choices = file ?? readOffline(tree);
+  const ids = new Set(lines.map((s) => s.research.id));
+  for (const p of tree.list<Person>("person")) {
+    if (p.retracted || people.has(p.id)) continue;
+    if (kin.size && !kin.has(p.id)) {
+      add(p.id, { role: "island" });
+      continue;
+    }
+    const b = found.of.get(p.id);
+    if (!b) continue;
+    const c = choices.branches[b.branch.slice(2)];
+    add(p.id, { ...(c?.mode === "line" && c.line && ids.has(c.line) ? { line: c.line } : {}), role: "branch", branch: b.branch });
+  }
+  return { lines: sized.map((x) => x.r), branches: found.branches, people };
 }

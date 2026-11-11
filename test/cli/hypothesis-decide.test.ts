@@ -12,7 +12,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { waitingFor } from "../../src/core/waiting.ts";
-import type { Hypothesis } from "../../src/core/model.ts";
+import type { Family, Hypothesis } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 const AGENT = { env: { AI_AGENT: "1" } };
@@ -107,13 +107,20 @@ test("an agent proposes, the work goes on: kept on the hypothesis, shown by show
     assert.deepEqual(waitingFor(tree).filter((x) => x.item.kind === "hypothesis"), [], "the bridge asks for none");
     // the person: as proposed
     const d = await w.ok(["hypothesis", "decide", "H1", "--proposed"]);
-    assert.match(d.out, /zapíše agent do stromu při své příští práci/u, "the research's language (cs)");
+    // the link is on the tree now: only the source it names is left to the agent (said so, never "what it connects")
+    assert.match(d.out, /Zdroje, které rozhodnutí uvádí, připíše agent k osobám při své příští práci\./u, "the research's language (cs)");
+    assert.doesNotMatch(d.out, /Co rozhodnutí spojuje/u, d.out);
     const after = hyp(w, "H0001");
     assert.deepEqual([after.state, after.chosen, after.decision, after.decidedBy, after.proposal], ["decided", "A", "křest S0001 jmenuje Václava a Marii", "user", undefined]);
     assert.ok(ops(w).includes("H0001 decided for A as proposed"));
-    // the agent's next session: the link of the variant decided is to be recorded
-    assert.match((await w.ok(["brief"])).out, /## Decided by the user — record it on the tree first\n {2}H0001 Čí syn je Josef\? — decided for A: .*\n {4}⇢ child P0001 of F0001: strom family child F0001 P0001 --cite S…/u);
-    await w.ok(["family", "child", "F1", "P1", "--cite", "S1"]);
+    // the person's decision is on the tree at once (spec 074 K1.5): the link of the variant decided — the agent's next
+    // session never records it again; the source it names stays the agent's (a fact of Josef citing it)
+    assert.match(d.out, /\non the tree now: child P0001 of F0001 \(F0001\)\n/u, d.out);
+    assert.ok(Tree.open(w.cwd, w.env).get<Family>("F0001")!.children.some((c) => c.person === "P0001"));
+    const brief = (await w.ok(["brief"])).out;
+    assert.match(brief, /## Decided by the user — record it on the tree first\n {2}H0001 Čí syn je Josef\? — decided for A: .*\n {4}P0001: S0001 named/u, brief);
+    assert.doesNotMatch(brief, /⇢ child P0001/u, "the link is on the tree");
+    await w.ok(["event", "add", "P1", "CHR", "--date", "1850", "--cite", "S1"]);
     assert.doesNotMatch((await w.ok(["brief"])).out, /Decided by the user/u, "recorded: nothing more to say");
     assert.equal(waitingFor(Tree.open(w.cwd, w.env), { hypotheses: true }).filter((x) => x.item.kind === "hypothesis").length, 0);
   } finally {

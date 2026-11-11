@@ -60,6 +60,7 @@ const SAID: Record<string, PhraseKey> = {
   "hypothesis.decide": "log.hypothesis.decide",
   "hypothesis.propose": "log.hypothesis.propose",
   "hypothesis.keep": "log.hypothesis.keep",
+  "hypothesis.reopen": "log.hypothesis.reopen",
   "conflict.add": "log.conflict.add",
   "conflict.resolve": "log.conflict.resolve",
   "conflict.leave": "log.conflict.leave",
@@ -367,6 +368,17 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       const decision = h?.type !== "hypothesis" ? "" : agentDecided(h) && h.decision && (h.chosen ?? "") === (m?.[3] ?? "") ? short(h.decision) : short(h.question);
       if (m) {
         say(m[2] === "abandoned" ? phrase(lang, "log.hypothesis.abandon.agent", { id: m[1]!, decision }) : phrase(lang, "log.hypothesis.decide.agent", { id: m[1]!, variant: m[3] ?? "", decision }));
+        continue;
+      }
+    }
+    // a hypothesis the person decided in the Strom app (its link, confirmed in the terminal — spec 074) or opened
+    // again there: which, for what, and why
+    if ((o.op === "hypothesis.decide" || o.op === "hypothesis.reopen") && / in the Strom app$/u.test(o.summary)) {
+      const m = /^(H\d+) (decided|abandoned|reopened)(?: for (\S+))?/u.exec(o.summary);
+      const h = get<Hypothesis>(first);
+      const decision = h?.type !== "hypothesis" ? "" : h.decidedIn === "app" && h.decision && (h.chosen ?? "") === (m?.[3] ?? "") ? short(h.decision) : short(h.question);
+      if (m) {
+        say(phrase(lang, m[2] === "reopened" ? "log.hypothesis.reopen.app" : m[2] === "abandoned" ? "log.hypothesis.abandon.app" : "log.hypothesis.decide.app", { id: m[1]!, variant: m[3] ?? "", decision: m[2] === "reopened" && h?.type === "hypothesis" ? short(h.question) : decision }));
         continue;
       }
     }

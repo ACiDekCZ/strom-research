@@ -249,7 +249,7 @@ export function offLineLine(tree: Tree, t: Task, offLine: OffLine): string | und
       : mode === "last"
         ? `it waits until the lines have nothing to do (${whose})`
         : `it comes now and then, one in ${new Settings(tree.env, {}).offLineShare(tree.config)} sessions, else after the lines' work (${whose})`;
-  return `· ${t.id} is off the lines${p.branch ? ` (branch ${p.branch})` : ""}: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${how}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
+  return `· ${t.id} is off the lines${p.branch ? ` (branch ${p.branch})` : ""}: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${how}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to a person of a line or their partner), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
 }
 
 /**

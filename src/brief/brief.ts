@@ -1592,7 +1592,7 @@ export function buildBrief(
       "- new questions → strom task add … (what, where, why, done-when)",
       // a research of several lines: work off them waits for them unless it says how it helps one (core/offline.ts)
       tree.list<Research>("research").filter((r) => !r.retracted).length > 1
-        ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree) — else it comes only now and then or after the lines\' work (the person\'s choice: strom offline list)'
+        ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to a person of a line or their partner) — else it comes only now and then or after the lines\' work (the person\'s choice: strom offline list); joining people to a side branch helps no line; what work on a side branch finds about an ancestor goes to that person of the line: an argument or a task about them (--about P…)'
         : "",
       // the branches the person chose not to research: no new work there
       ((b) => (b.length ? `- not researched, the person's choice: the branches ${b.join(", ")} (strom offline show <B-…>) — no new task about their people` : ""))(neverPeople(tree).branches),

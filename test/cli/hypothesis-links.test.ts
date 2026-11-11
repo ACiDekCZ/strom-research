@@ -179,8 +179,8 @@ test("the Strom file: each variant of an open hypothesis with its claim, links a
   const alone = exportGedcom(tree, { for: "strom", research: true, hypothesisLinks: true, persons: new Set(["P0001", "P0002", "P0005"]) }).text;
   assert.deepEqual(validateGedcom(alone), []);
   assert.match(block(alone, "P0002"), /\n2 _VAR B\n3 TITL .*\n3 SOUR @S0001@\n1 /, "the family not in the file: no link");
-  // decided for B and the link recorded: the link it chose stays beside _CHOSEN (the app's ghost becomes the real link)
-  await w.ok(["family", "child", "F2", "P2"]);
+  // decided for B by the person: the link is on the tree at once (spec 074 K1.5); the link it chose stays beside
+  // _CHOSEN (the app's ghost becomes the real link)
   const linked = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true, hypothesisLinks: true }).text;
   assert.match(block(linked, "P0002"), /\n2 _CHOSEN B\n[^]*\n2 _VAR B\n3 TITL .*\n3 _LINK child\n4 _PERS @P0002@\n4 _FAM @F0002@\n/);
   w.cleanup();

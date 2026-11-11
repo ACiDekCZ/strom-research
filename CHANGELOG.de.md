@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
@@ -38,6 +38,40 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Tempo des Archivs dauert, dazu, wie ein Download im Hintergrund angehalten wird und wonach zuerst zu suchen ist (eine
   Anfrage pro Bild). Gezählt wird nur, was der Download selbst sendet: Das Archiv wird dafür nichts weiter gefragt.
   `strom fetch --status` und das Briefing sagen es auch.
+
+- **Eine Familie an einen Nebenzweig anzuschließen ist Arbeit abseits der Linien.** Eine Aufgabe, die Menschen ohne
+  Verbindung zum Stammbaum anschließen würde, half einer Linie, sobald sie sie an irgendwen aus dem Stammbaum anschloss
+  – auch an ein Geschwister eines Vorfahren, und ging so mit der Linie, obwohl die Arbeit abseits der Linien am Ende
+  warten sollte. Jetzt hilft sie einer Linie nur, wenn sie sie an einen Menschen der Linie oder dessen Partner
+  anschließt; an einen Nebenzweig angeschlossen gehört sie zu diesem Zweig und kommt, wie seine Wahl es sagt. Eine
+  Hypothese der Linie und ein Grund, den der Agent angibt, behalten ihren Platz. `/status` der Brücke sagt, wie die
+  Aufgabe in Arbeit einer Linie hilft (Funktion `working.helps`), damit die App zeigen kann, warum sie mit der Linie geht.
+
+- **Die Forschung in der Tabelle der Strom-App.** Für eine Strom-App, die es zeigt, nennt die Datei für die App bei
+  jeder Person ihren Platz unter den Linien der Forschung nach der Regel, nach der auch die Warteschlange geht: in einer
+  Linie (in jeder, zu der sie gehört), Partner einer Person einer Linie, ein Seitenzweig außerhalb der Linien (mit der
+  Linie, der er zugeordnet wurde) oder eine Insel, die nichts mit dem Baum verbindet; der Kopf nennt die Linien und
+  Zweige. Bei jeder Person stehen auch die Aufgaben, die auf etwas von außen warten (ein Brief, gesendet oder noch zu
+  senden, eine Frage an die Familie, eine Website zum Ansehen), mit dem Ort, wo sie bearbeitet werden, und wann die
+  Forschung die Person hinzugefügt hat. `GET /directions/people` der Brücke nennt dieselben Plätze live, mit einem
+  Fingerabdruck, den `/status` wiederholt (Funktion `directions.places`).
+
+- **Eine Hypothese in der Strom-App entschieden.** Bei einer Hypothese, deren Varianten sagen, wessen Kind jemand ist
+  oder welches Paar, wird in der App eine Variante gewählt (oder „keine trifft zu“, offen lassen, die Entscheidung
+  zurücknehmen). Das Terminal der Forschung zeigt die Frage mit ihren Varianten und was geschrieben würde, fragt
+  einmal – Enter ist ja – und nach dem Grund (Enter lässt die Worte der App) und schreibt es als Entscheidung der
+  Person in der Strom-App. Mehrere Vorschläge des Agenten werden ebenso auf einmal übernommen. Ob zwei Einträge
+  dieselbe Person oder Geschwister sind, wird weiter im Terminal entschieden, auf dem ganzen Bildschirm der Hypothese.
+  Die Entscheidung steht sofort im Baum: Kind oder Paar der gewählten Variante in derselben Speicherung geschrieben,
+  mit der Quelle der Variante zitiert, auch in einem Archiv – der Agent schreibt es nicht noch einmal; was der Baum
+  ablehnt (ein Kind hat schon leibliche Eltern), wird mit dem Grund gesagt und bleibt dem Agenten. Bei einer Änderung
+  wird entfernt, was die Entscheidung davor geschrieben hat; beim Zurücknehmen, was sie geschrieben hat, sofern
+  inzwischen keine weitere Arbeit darauf aufbaut – ein weiteres Kind, eine Angabe oder Quelle der Familie, eine
+  Zusammenführung, nie die eigenen Angaben der Personen (die App weiß es vorher); eine Änderung, nach der die bisherige
+  Verbindung bliebe und die neue nicht eingetragen werden könnte, sagt das Terminal vor der Bestätigung, und Enter bricht dann ab, auch bei mehreren Vorschlägen auf einmal; im Terminal auch mit `strom hypothesis decide --reopen` (nur
+  die Person selbst). Für die App sagt die Strom-Datei, wer wo entschieden hat, die Entscheidung davor, den Vorschlag
+  des Agenten, was gegen jede Variante spricht und wie viele Personen sie zum Baum bringt; `/status` der Brücke nennt
+  die wartenden Hypothesen (Features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
 - **Kleinigkeiten.** Eine Angabe, deren Prüfung nach vorne gerückt wurde, ist in der Datei für die Strom-App als
   angefragt markiert, sodass die App nicht noch einmal anbietet, sie vorzuziehen. `strom error --note` verbirgt auch die

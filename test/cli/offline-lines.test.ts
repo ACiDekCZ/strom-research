@@ -1,6 +1,6 @@
 // Work off the lines (spec 036, 038 K7): in a research of several lines, a task about a side branch none of them reaches
 // comes now and then, else after the lines' work — unless it helps a line (a hypothesis of the line, joining people to
-// the tree, the agent's --helps); queue.offLine occasional (default) / last / normal (as before) / never. Judged afresh,
+// a person of a line or their partner, the agent's --helps); queue.offLine occasional (default) / last / normal (as before) / never. Judged afresh,
 // nothing written.
 
 import { test } from "node:test";
@@ -112,9 +112,11 @@ test("helps a line: a hypothesis of the line, joining people to the tree, the ag
   const a = (await w.ok(["task", "add", "Křty dětí Anny", "--level", "locate", "--where", "Lhota", "--why", "rozhodne H0001", "--done-when", "b", "--about", "P4", "--priority", "5", "--json"])).json;
   assert.deepEqual(a.helps, { by: "question", research: "G0001" });
   assert.equal(a.task.helps, undefined, "nothing written: judged from the tree");
-  // b) people nothing links to the tree joined to it: the line it joins them to
+  // b) people nothing links to the tree joined to a line — to the partner of its person (Václav's second wife)
   await w.ok(["person", "add", "Tomáš /Lhoták/", "--sex", "M"]); // P7, linked to nobody
-  const b = (await task(w, "Je Tomáš synem Anny?", ["P7", "P4"], "--priority", "4")).json;
+  await w.ok(["person", "add", "Ludmila /Lhotská/", "--sex", "F"]); // P8
+  await w.ok(["family", "add", "--partner", "P5", "--partner", "P8"]);
+  const b = (await task(w, "Je Tomáš synem Ludmily?", ["P7", "P8"], "--priority", "4")).json;
   assert.deepEqual(b.helps, { by: "joins", research: "G0001" });
   // c) the agent's word, the line named by its ID (any script around it)
   const c = await task(w, "Karel jako svědek", ["P6"], "--helps", "Karel svědkem na oddavkách předků linie G0002", "--priority", "3");
@@ -147,6 +149,65 @@ test("helps a line: a hypothesis of the line, joining people to the tree, the ag
   w.cleanup();
 });
 
+test("joining people off the tree to a side branch helps no line: the task is that branch's (spec 036 K1.7)", opts, async () => {
+  const w = await world();
+  await w.ok(["config", "set", "queue.offLine", "last", "--for-tree"]);
+  await task(w, "Křest Josefa", ["P2"]); // T1, line G0001
+  await w.ok(["person", "add", "Tomáš /Lhoták/", "--sex", "M"]); // P7, linked to nobody
+  await w.ok(["person", "add", "Ludmila /Lhotská/", "--sex", "F"]); // P8
+  await w.ok(["family", "add", "--partner", "P5", "--partner", "P8"]); // Václav's second wife: the partner of a person of G0001
+  // joined to Anna, an ancestor's sister: off the lines, in her branch, after the lines' work
+  const toSister = await task(w, "Je Tomáš synem Anny?", ["P7", "P4"], "--priority", "5"); // T2
+  assert.equal(toSister.json.helps, undefined);
+  assert.equal(toSister.json.offLine, "last");
+  assert.equal(toSister.json.branch, "B-P0004");
+  // the same through a hypothesis named on the task: the person off the tree and the hypothesis that would join them
+  await w.ok(["hypothesis", "add", "Je P0007 synem P0004?", "--about", "P7", "--about", "P4", "--variant", "A: syn P0004", "--variant", "B: jiná rodina"]); // H1
+  const viaHypothesis = await task(w, "Svatba Tomáše, přečíst vlastním okem", ["P7", "H0001"], "--priority", "5"); // T3
+  assert.equal(viaHypothesis.json.helps, undefined);
+  assert.equal(viaHypothesis.json.branch, "B-P0004");
+  // joined to Karel, married to the sister: her branch too
+  const toHusband = await task(w, "Je Tomáš synem Karla?", ["P7", "P6"], "--priority", "5"); // T4
+  assert.equal(toHusband.json.branch, "B-P0004");
+  assert.equal(toHusband.json.helps, undefined);
+  // joined to the partner of a person of the line: helps that line, goes with it
+  const toPartner = (await task(w, "Je Tomáš synem Ludmily?", ["P7", "P8"], "--priority", "1")).json; // T5
+  assert.deepEqual(toPartner.helps, { by: "joins", research: "G0001" });
+  // joined to a person of the line through a hypothesis of the line: the line's own work, as before
+  await w.ok(["hypothesis", "add", "Je P0007 synem P0002?", "--about", "P7", "--about", "P2", "--variant", "A: syn P0002", "--variant", "B: jiná rodina"]); // H2
+  const toLine = (await task(w, "Křest Tomáše", ["P7", "H0002"], "--priority", "1")).json; // T6
+  assert.equal(toLine.task.research, "G0001");
+  assert.equal(toLine.offLine, undefined);
+  // the sister's own task: off the lines, unchanged
+  const sister = (await task(w, "Oddavky Anny", ["P4"], "--priority", "5")).json; // T7
+  assert.equal(sister.branch, "B-P0004");
+  // joined to the sister, but the agent says how it helps the line (a godparent of the ancestor): its word holds (c)
+  const said = (await task(w, "Je Tomáš synem Anny? Kmotr Josefových dětí", ["P7", "P4"], "--helps", "Tomáš kmotrem dětí předka P2", "--priority", "5")).json; // T8
+  assert.deepEqual(said.helps, { by: "agent", research: "G0001" });
+  assert.equal(said.offLine, undefined);
+  assert.equal(sister.branch, "B-P0004");
+  assert.equal(sister.offLine, "last");
+  // the queue: the lines' work and what helps them, then the branch, as queue.offLine last says
+  const q = await queue(w);
+  assert.deepEqual(q.slice(0, 4).map((t) => t.id).sort(), ["T0001", "T0005", "T0006", "T0008"]);
+  assert.deepEqual(q.slice(4).map((t) => t.id), ["T0002", "T0003", "T0004", "T0007"]);
+  assert.match(q.find((t) => t.id === "T0002")!.why, /^off the lines \(branch B-P0004\), helping none: after the lines' work \(offLine last/);
+  assert.deepEqual((await order(w, "--research", "G0001")).sort(), ["T0001", "T0005", "T0006", "T0008"]);
+  // the branch added to a line by the person: its joining tasks help that line
+  await w.ok(["offline", "set", "B-P0004", "--line", "G0002"]);
+  const added = await queue(w);
+  for (const id of ["T0002", "T0003", "T0004", "T0007"]) assert.deepEqual(added.find((t) => t.id === id)!.helps, { by: "branch", research: "G0002" }, id);
+  await w.ok(["offline", "set", "B-P0004", "--default"]);
+  // a session already at work on one goes on (K1.3): never taken, but in progress first
+  await w.ok(["config", "set", "queue.offLine", "never", "--for-tree"]);
+  await w.ok(["session", "start", "T2"]);
+  assert.equal((await order(w))[0], "T0002");
+  await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  assert.ok(!(await order(w)).includes("T0002"), "not taken once its session ended");
+  assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
 test("off the lines in the overviews: strom plan says it waits at the end, the brief and the guide give the rule, the menu sets it", opts, async () => {
   const w = await world();
   await task(w, "Křest Josefa", ["P2"]);
@@ -157,6 +218,9 @@ test("off the lines in the overviews: strom plan says it waits at the end, the b
   // the brief of a research of several lines: a task off them only with --helps
   assert.match((await w.ok(["brief", "T1"])).out, /a task none of whose people is in a line \(a side branch\): only with --helps "<how it helps G…>"/);
   assert.match((await w.ok(["guide"])).out, /--helps "<how it helps G…>"/);
+  // joining people to a side branch helps no line; what work there finds about an ancestor goes to that person of the line (K1.4, K1.7)
+  assert.match((await w.ok(["brief", "T1"])).out, /joining people to a side branch helps no line; what work on a side branch finds about an ancestor goes to that person of the line: an argument or a task about them \(--about P…\)/);
+  assert.match((await w.ok(["guide"])).out, /joining them to a side branch does not\. What work on a side branch\s+finds about an ancestor goes to that person of the line/);
   // the menu: settings → the agent working alone → work off the lines: never
   const set = await w.ok([], { tty: true, answers: ["8", "2", "6", "1", "4", "0", "0", "0", "0"] });
   assert.match(set.out, /Práce mimo linie: občas, jednou za čas/);
@@ -189,6 +253,32 @@ test("the Strom app: a queue item off the lines says when it comes, one that hel
     assert.deepEqual(status.researches.map((r) => [r.id, r.tasks]), [["G0001", 1], ["G0002", 1]]);
     await w.ok(["config", "set", "queue.offLine", "normal", "--for-tree"]);
     assert.ok((await get()).queue.every((q) => !q.offLine), "normal: nothing said");
+    // the task at work says why it stands with a line, as the queue does (spec 036 K1.8; feature working.helps)
+    assert.ok(status.features.includes("working.helps"));
+    await w.ok(["person", "add", "Tomáš /Lhoták/", "--sex", "M"]); // P7, linked to nobody
+    await w.ok(["person", "add", "Ludmila /Lhotská/", "--sex", "F"]); // P8
+    await w.ok(["family", "add", "--partner", "P5", "--partner", "P8"]);
+    await task(w, "Je Tomáš synem Ludmily?", ["P7", "P8"]); // T4: joins him to the partner of a person of G0001
+    const { enterWorker } = await import("../../src/core/workers.ts");
+    const leave = enterWorker(w.cwd, "run-t", "Claude Code on its own");
+    w.env.STROM_WORKER = "run-t";
+    type At = { research?: string; helps?: string; branch?: string };
+    const at = async () => ((await (await fetch(`${info.url}/status`)).json()) as { working: At[] }).working.map((x) => [x.research, x.helps, x.branch]);
+    try {
+      for (const [id, want] of [
+        ["T4", [["G0001", "joins", undefined]]],
+        ["T3", [["G0002", "agent", undefined]]],
+        ["T2", [[undefined, undefined, "B-P0004"]]],
+        ["T1", [["G0001", undefined, undefined]]],
+      ] as const) {
+        await w.ok(["session", "start", id]);
+        assert.deepEqual(await at(), want, id);
+        await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
+      }
+    } finally {
+      delete w.env.STROM_WORKER;
+      leave();
+    }
   } finally {
     await w.ok(["live", "stop"]);
   }

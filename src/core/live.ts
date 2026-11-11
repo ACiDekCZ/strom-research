@@ -17,7 +17,10 @@
 //                          working too): the place record (L…) of the book the agent examines, when the research knows
 //                          it (place, core/workplace.ts; none: not known) — feature working.place; work on a family
 //                          (a couple's story): the family (family F…) and its husband, else wife, as the person —
-//                          feature working.family.
+//                          feature working.family. A task that belongs to no line but helps one says how, as the
+//                          queue does (helps: question | joins | agent | partner | branch, with research the line it
+//                          helps); one off the lines or added to a line says its branch (branch B-P…) — feature
+//                          working.helps.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -335,9 +338,15 @@
 //                          places.undo). The questions of places wait in /status waiting as kind "place" (section decide)
 //   GET <token>/quality    what the person marked no error (quality/dismissed.json): {rev, dismissed}; read in an archive
 //                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
-//   GET <token>/directions/people  who is in which line: {people: {P…: [G…, …]}, head} — the narrowest line first, only
-//                          active and paused ones; a line of descendants: its person and their descendants within its
-//                          generations (the app loads it when head changes; feature directions.people)
+//   GET <token>/directions/people  who is in which line: {people: {P…: [G…, …]}, places, lines, branches, rev, head} —
+//                          people: the narrowest line first, only active and paused ones; a line of descendants: its
+//                          person and their descendants within its generations (the app loads it when head changes;
+//                          feature directions.people). places: every person's places among the lines by the rule the
+//                          queue places tasks by (core/offline.ts personPlaces; done lines too) {P…: [{line?, role:
+//                          line|partner|branch|island, branch?: B-P…}]}, a person outside them all absent — what the
+//                          Strom file says (_STROM_DIRECTION); lines [{id, name, direction, focus, state}]; branches
+//                          [{id, person, via {person, rel}, nearest?, line?, mode?}]; rev its fingerprint, /status
+//                          directions.rev (feature directions.places). An archive: all empty, no rev
 //   POST <token>/directions  {person, direction: ancestors|descendants|question, name?, question?, limits?:
 //                          {generations?, before?}, note?, branch?}: strom research new (+ strom intake --text … --research
 //                          G… for note) — {direction, head, parent}, the line last in the order of work; its tasks come
@@ -450,6 +459,7 @@ import { RETURN_OP } from "./timetravel.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
+import { directionsOf, directionsRev, placesJson } from "./tablemarks.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
 import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
@@ -507,7 +517,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -1520,7 +1530,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -1826,20 +1836,25 @@ function sessionOps(root: string, s: Session): Op[] {
 }
 
 /** Who is at work now, on which task (an agent strom started, and its open session). */
-function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; paused?: Paused }[] {
+function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; helps?: string; branch?: string; paused?: Paused }[] {
   const open = openSessions(tree);
   let place: ((t: Task) => Placed) | undefined;
   return liveWorkers(root).map((w) => {
     const s = open.find((x) => x.worker === w.id);
     const task = s?.task ? tree.get<Task>(s.task) : undefined;
-    // its own line, its task's — or the line its task helps (core/offline.ts); a task about nobody: none
-    const research = s ? (sessionResearch(tree, s, all) ?? (task ? (place ??= placer(tree, all))(task).research : undefined)) : undefined;
+    // its own line, its task's — or the line its task helps and how, or its branch off the lines (core/offline.ts, as
+    // the queue places it); a task about nobody: none
+    const own = s ? sessionResearch(tree, s, all) : undefined;
+    const p = s && !own && task ? (place ??= placer(tree, all))(task) : undefined;
+    const research = own ?? p?.research;
     return {
       who: whoAtWork(w.label, tree.lang),
       since: w.since,
       ...(w.paused ? { paused: w.paused } : {}),
       ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...worked(tree, sessionOps(root, s), task) } : {}),
       ...(research ? { research } : {}),
+      ...(p?.helps ? { helps: p.helps } : {}),
+      ...(p?.branch ? { branch: p.branch } : {}),
     };
   });
 }
@@ -1938,6 +1953,18 @@ function directionPeople(tree: Tree, all: Scope[]): Record<string, string[]> {
     .sort((a, b) => a.people.size - b.people.size || a.id.localeCompare(b.id));
   for (const s of lines) for (const p of s.people.keys()) (out[p] ??= []).push(s.id);
   return out;
+}
+
+/** The fingerprint of the lines, the branches and every person's places at a head of each research (core/tablemarks.ts). */
+const directionsRevs = new Map<string, { head: string; rev: string }>();
+
+/** The fingerprint of GET /directions/people `places` (/status directions.rev): worked out once a head. */
+function directionsRevAt(tree: Tree, h: string): string {
+  const had = directionsRevs.get(tree.root);
+  if (had && h && had.head === h) return had.rev;
+  const rev = directionsRev(directionsOf(tree));
+  if (h) directionsRevs.set(tree.root, { head: h, rev });
+  return rev;
 }
 
 /** What the app may do with the lines here (/status caps): nothing in an archive or a research waiting for its agent. */
@@ -2413,6 +2440,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
+      // the hypotheses, for an app that decides one by a pick (spec 074 V13): as the menu's What waits has them
+      ...(appDecidesHypotheses(settings, version) ? { hypothesesApp: { open: settings.hypothesesDecide(tree.config) === "person" } } : {}),
       scopes: all,
     }).map((w) => w.item),
     live: liveState(env),
@@ -2436,6 +2465,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     ...historyOfStatus(tree, settings, last.head, archive),
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
+    // the fingerprint of every person's places among the lines (GET /directions/people places): none in an archive
+    ...(archive ? {} : { directions: { rev: directionsRevAt(tree, last.head) } }),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, order?.parked ?? [], all, settings.offLine(tree.config))),
     // how many tasks of the queue each line and branch has (the labels; the tasks themselves: GET /queue)
@@ -3491,7 +3522,17 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       } else if (what === "directions" && sub === "people" && !act) {
         // who is in which line: none in an archive or a research waiting for its agent (it shows no lines)
         const tree = Tree.open(root, env);
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: actsAsArchive(tree) ? {} : directionPeople(tree, scopes(tree)), head: head(root) }));
+        // …and every person's places among the lines by the rule of the queue (core/offline.ts personPlaces): the same the
+        // Strom file says (_STROM_DIRECTION), with their fingerprint
+        const h = head(root);
+        if (actsAsArchive(tree)) res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: {}, places: {}, lines: [], branches: [], head: h }));
+        else {
+          const all = scopes(tree);
+          const d = directionsOf(tree, all);
+          const rev = directionsRev(d);
+          if (h) directionsRevs.set(root, { head: h, rev });
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: directionPeople(tree, all), places: placesJson(d.places), lines: d.lines, branches: d.branches, rev, head: h }));
+        }
       } else if (what === "offline" && sub && !act) {
         // one branch off the lines and all its open tasks (also those not taken): never in an archive, never while written
         const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));

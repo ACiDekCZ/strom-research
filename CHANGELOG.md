@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.3. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
@@ -33,6 +33,36 @@ The changes of each version in short. The full notes and the install lines are o
   Now the first images of a fetch tell the agent once what one image costs and how long a book takes at the archive's
   pace, with how to stop a fetch in the background and what to look for first (one request an image). Taken from the
   fetch's own count: nothing more is asked of the archive. `strom fetch --status` and the brief say it too.
+
+- **Joining a family to a side branch is work off the lines.** A task that would join people nothing links to the tree
+  helped a line whenever it joined them to anybody of the tree — also to an ancestor's sibling, so it went with the
+  line though work off the lines was set to wait at the end. Now it helps a line only when it joins them to a person of
+  the line or their partner; joined to a side branch, it belongs to that branch and comes as its choice says. A
+  hypothesis of the line and a reason the agent gives keep their place. The bridge's `/status` says how the task at
+  work helps a line (feature `working.helps`), so the app can say why it goes with the line.
+
+- **The research in the Strom app's table.** For a Strom app that shows it, the file for the app says each person's
+  place among the research's lines by the rule the queue goes by: in a line (every line they are in), the partner of a
+  person of a line, a side branch off the lines (with the line it was added to), or an island nothing links to the tree;
+  the header names the lines and the branches. Under each person also the tasks that wait outside for them (a letter
+  sent or still to send, a question to the family, a site to look at) with where each is handled, and when the
+  research added the person. The bridge's `GET /directions/people` says the same places live, with a fingerprint that
+  `/status` repeats (feature `directions.places`).
+
+- **A hypothesis decided in the Strom app.** Where the app shows a hypothesis whose variants say whose child someone
+  is or which couple, a variant is picked there (or none holds, left open, the decision taken back). The research's
+  terminal shows the question with its variants and what would be written, asks once — Enter is yes — and why (Enter
+  keeps the app's words), and writes it as the user's decision made in the Strom app. Several of the agent's proposals
+  are taken at once the same way. Whether two records are the same person, or siblings, is still decided in the
+  terminal, on the hypothesis's whole screen. The decision is on the tree at once: the chosen variant's child or
+  couple written in the same save, citing the variant's source, in an archive too — the agent does not record it
+  again; what the tree refuses (a child with birth parents already) is said with why and left to the agent. Changed, what
+  the decision before wrote is taken off; taken back, what it wrote is taken off, unless other work stands on it by
+  then — another child, a fact or source of the family, a merge, never the people's own facts (the app is told
+  beforehand); a change that would keep the earlier link and could not write the new one is said before the yes and Enter then cancels, also among several proposals taken at once; `strom hypothesis decide --reopen` does it in the terminal too (the user's only). For
+  the app, the Strom file says who decided and where, the decision before, the agent's proposal, what speaks against
+  each variant and how many people it joins to the tree; the bridge's `/status` lists the hypotheses that wait
+  (features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
 - **Smaller things.** A fact whose verification the user moved to the front is marked as asked for in the file for the
   Strom app, so the app no longer offers to move it forward again. `strom error --note` also hides the inflected forms of

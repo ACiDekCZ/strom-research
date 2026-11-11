@@ -29,7 +29,8 @@ import { storiesToApprove } from "./stories.ts";
 import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
 import { Settings } from "./config.ts";
-import { scopes, type Scope } from "./directions.ts";
+import { aboutPeople, hypothesisPeople, scopes, type Scope } from "./directions.ts";
+import { pickableInApp } from "./hypolinks.ts";
 import { lineOf, offLineView, type BranchView } from "./offline.ts";
 import { conflictTitle, displayName } from "./people.ts";
 import { conflictsToDecide } from "./conflicts.ts";
@@ -202,6 +203,13 @@ export interface WaitingOptions {
    * --keep-open) — where the person decides them (hypotheses.decide person; the terminal).
    */
   hypothesesOpen?: boolean;
+  /**
+   * The hypotheses for a Strom app that decides them by a pick (the bridge, APP_DECIDES_HYPOTHESES; spec 074 V13): the
+   * same as the menu's — the agent's proposals, and with open the open ones with no proposal the person did not leave
+   * open —, shown in the app too, each with its first person, the variant proposed ("none": none holds) and pick (a pick
+   * of a variant there decides it; else its whole screen here).
+   */
+  hypothesesApp?: { open: boolean };
   /** The research's directions, when the caller has them. */
   scopes?: Scope[];
 }
@@ -593,21 +601,30 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   // the hypotheses an agent proposes how to decide: only the person decides one (an archive says nothing of an agent) —
   // then, where the person decides them (hypotheses.decide person), the open ones with no proposal they did not leave
   // open: after the proposals (priority below theirs), until an agent proposes how to decide one
-  if (o.hypotheses && !actsAsArchive(tree)) {
+  // (the same for a Strom app that decides them by a pick: shown there too, with what it needs of each)
+  const hyp = o.hypotheses ? { open: !!o.hypothesesOpen, app: false } : o.hypothesesApp ? { open: o.hypothesesApp.open, app: true } : undefined;
+  if (hyp && !actsAsArchive(tree)) {
     const all = tree.list<Hypothesis>("hypothesis").filter((x) => !x.retracted && !x.mergedInto);
     const group = { key: "hypotheses", name: phrase(lang, "wait.group.hypotheses"), kind: "other" as const };
+    const forApp = (h: Hypothesis) => {
+      if (!hyp.app) return {};
+      const person = aboutPeople(tree, h.subject)[0] ?? hypothesisPeople(tree, h)[0];
+      const p = h.proposal;
+      return { ...(person ? { person } : {}), ...(p ? { proposal: p.abandon || !p.variant ? "none" : p.variant } : {}), ...(pickableInApp(h) ? { pick: true } : {}) };
+    };
+    const only = hyp.app ? {} : { terminalOnly: true as const };
     for (const h of all.filter((x) => x.proposal).sort((a, b) => a.proposal!.at.localeCompare(b.proposal!.at) || a.id.localeCompare(b.id)))
       out.push({
         hypothesis: h,
-        terminalOnly: true,
-        item: { id: h.id, what: h.question, on: "", at: h.proposal!.at, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [] },
+        ...only,
+        item: { id: h.id, what: h.question, on: "", at: h.proposal!.at, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [], ...forApp(h) },
       });
-    if (o.hypothesesOpen)
+    if (hyp.open)
       for (const h of all.filter((x) => x.state === "open" && !x.proposal && !x.leftOpen).sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id)))
         out.push({
           hypothesis: h,
-          terminalOnly: true,
-          item: { id: h.id, what: h.question, on: "", at: h.created, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [], priority: -1 },
+          ...only,
+          item: { id: h.id, what: h.question, on: "", at: h.created, kind: "hypothesis", section: "decide", group, phase: "todo", actions: [], priority: -1, ...forApp(h) },
         });
   }
   // the questions about the reading of scans only a person answers

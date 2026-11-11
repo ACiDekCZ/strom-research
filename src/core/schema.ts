@@ -207,6 +207,12 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     // an agent's decision (hypotheses.decide agent): who; when it was decided; an open one the person left open
     decidedByAgent: S({ max: 100 }),
     decidedAt: S(),
+    // the person's decision through the Strom app's link; the decision a later one replaced (the app's _PREV)
+    decidedIn: S({ enum: ["app"] }),
+    previous: {
+      t: "object",
+      of: { state: S({ req: true, enum: ["decided", "abandoned"] }), chosen: S({ max: 20 }), decision: S({ max: 1000 }), at: S(), by: S({ req: true, enum: ["user", "agent"] }), in: S({ enum: ["app"] }) },
+    },
     leftOpen: S(),
     proposal: {
       t: "object",

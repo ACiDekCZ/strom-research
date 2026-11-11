@@ -28,7 +28,7 @@
 import { GedWriter, clipChars, lineValue } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task, ValueOrigin } from "../core/model.ts";
-import { agentDecided, linkInTree, recordedLinks } from "../core/hypolinks.ts";
+import { agentDecided, changeKeeps, linkInTree, pickableInApp, recordedLinks, reopenBlock } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, currentName, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -42,10 +42,11 @@ import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
 import { proposalKind } from "../core/proposals.ts";
 import { otherNames, recordIndex } from "../core/placeid.ts";
-import { mainPerson } from "../core/kin.ts";
+import { branchJoined, kinship, mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
+import type { TableMarks, TableWait } from "../core/tablemarks.ts";
 import { readersOf } from "../core/review.ts";
 import { confirmedOn, factMark, markOf } from "../core/readers.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
@@ -163,6 +164,13 @@ export interface ExportOptions {
    */
   hypothesisDecider?: boolean;
   /**
+   * The Strom profile, for an app that decides a hypothesis by a pick (APP_DECIDES_HYPOTHESES, spec 074): 2 _BY app,
+   * 2 _PICK Y, 2 _PREV, 2 _REOPEN no, 2 _PROP, 2 _LEFT under each _STROM_HYPO and 3 _AGAINST, 3 _PEOPLE under each
+   * of its 2 _VAR. agent: an agent works on this research — false in an archive, which says nothing of an agent (no
+   * 2 _PROP, no _BY agent).
+   */
+  hypothesisPick?: { agent: boolean };
+  /**
    * The Strom profile, for an app that decides a conflict of the user's edit by side (APP_DECIDES_CONFLICTS): under an
    * open one it may, 2 _STROM_TAKE Y; under each of its values the side (3 _STROM_SIDE user|research), the value empty
    * when the side's is (a title taken off), a sex also as 3 _STROM_RAW M|F|U.
@@ -225,6 +233,19 @@ export interface ExportOptions {
    * (core/verify.ts verifyMarks; empty in an archive). The app never sends them back as edits: strom sync passes them.
    */
   verify?: ReadonlyMap<string, { state: string; pos?: number }>;
+  /**
+   * The Strom profile, for an app that shows the research in its table (APP_SHOWS_RESEARCH_TABLE; core/tablemarks.ts):
+   * in the header `1 _STROM_DIRECTIONS Y` (the file says the lines, all of them) with `1 _STROM_DIRECTION G…` per line
+   * (`2 NAME`, `2 TYPE ancestors|descendants|person|question`, `2 _FOCUS P…`, `2 STAT active|paused|done`) and
+   * `1 _STROM_BRANCH B-P…` per branch off the lines (`2 _VIA P…` with `3 TYPE sibling|partner|child|parent|other`,
+   * `2 _NEAREST G…`, `2 _DIRECTION G…` when the person added it to a line, `2 _MODE` the person's own choice); under
+   * each person `1 _STROM_DIRECTION [G…]` per place among the lines (`2 TYPE line|partner|branch|island`, `2 _BRANCH
+   * B-P…`; a person outside them all has none), `1 _STROM_WAIT T…` per waiting task about them (`2 TYPE` the kind of
+   * wait, `2 TITL` the task, `2 _ON` what it waits for, `2 _GROUP` where it is handled with `3 TYPE` and `3 _KEY` and
+   * `3 _URL`, `2 STAT todo|sent`, `2 _SENT <when>`, `2 _PRIO n`) and `1 _STROM_ADDED <when, UTC to the second>` on a
+   * person the research added. The app never sends them back as edits: strom sync passes them.
+   */
+  table?: TableMarks;
 }
 
 /** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
@@ -399,6 +420,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     }
   };
 
+  // the people each variant joins, counted once (a hypothesis is written under each of its people)
+  const joined = new Map<string, number>();
+  let kin: ReturnType<typeof kinship> | undefined;
+
   // What the research knows beyond the facts (the Strom profile, opts.research): read once.
   const research = {
     conflicts: opts.research ? tree.list<Conflict>("conflict") : [],
@@ -453,6 +478,25 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
     // the file says the bounds of a lineage the person set, all of them (none: none), for an app that keeps them
     if (opts.lines) w.line(1, "_STROM_LINES", "Y");
+    // the research's lines and the branches off them, for an app that shows the research in its table
+    if (opts.table) {
+      w.line(1, "_STROM_DIRECTIONS", "Y");
+      for (const l of opts.table.lines) {
+        w.line(1, "_STROM_DIRECTION", l.id);
+        w.line(2, "NAME", l.name);
+        w.line(2, "TYPE", l.direction);
+        w.line(2, "_FOCUS", l.focus);
+        w.line(2, "STAT", l.state);
+      }
+      for (const b of opts.table.branches) {
+        w.line(1, "_STROM_BRANCH", b.id);
+        w.line(2, "_VIA", b.via.person);
+        w.line(3, "TYPE", b.via.rel);
+        if (b.nearest) w.line(2, "_NEAREST", b.nearest);
+        if (b.line) w.line(2, "_DIRECTION", b.line);
+        if (b.mode) w.line(2, "_MODE", b.mode);
+      }
+    }
     // the imports of family trees the values below came from: as the app names its own (the research's R1…, the app's I1…)
     for (const [key, s] of importsNamed) {
       w.line(1, "_STROM_IMPORT", key);
@@ -560,6 +604,16 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (e) edge(e);
       const isle = ends.islands.get(p.id);
       if (isle) island(isle);
+    }
+    if (opts.table && opts.for === "strom") {
+      for (const at of opts.table.places.get(p.id) ?? []) {
+        w.line(1, "_STROM_DIRECTION", at.line);
+        w.line(2, "TYPE", at.role);
+        if (at.branch) w.line(2, "_BRANCH", at.branch);
+      }
+      for (const wt of opts.table.waits.get(p.id) ?? []) waitLines(wt);
+      const added = opts.table.added.get(p.id);
+      if (added) w.line(1, "_STROM_ADDED", added);
     }
     for (const link of famc.get(p.id) ?? []) {
       w.line(1, "FAMC", x(link.fam));
@@ -987,11 +1041,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         if (h.state === "decided" && h.chosen) w.line(2, "_CHOSEN", h.chosen);
       }
       // who decided it, why and when (an agent's decision marked; none: the person's)
+      const pick = opts.hypothesisPick;
       if (opts.hypothesisDecider && h.state !== "open") {
-        if (agentDecided(h)) w.line(2, "_BY", "agent");
+        if (agentDecided(h)) {
+          if (!pick || pick.agent) w.line(2, "_BY", "agent");
+        } else if (pick && h.decidedIn === "app") w.line(2, "_BY", "app");
         if (h.decision) w.text(2, "DECI", h.decision);
         if (h.decidedAt && /^\d{4}-\d{2}-\d{2}/.test(h.decidedAt)) w.line(2, "_AT", h.decidedAt.slice(0, 10));
       }
+      if (pick) hypothesisPicks(h, pick.agent);
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
       if (opts.hypothesisLinks) for (const v of h.variants) variant(h, v);
     }
@@ -1012,6 +1070,42 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
    * (3 _INTREE: nothing uncertain to show, never "not linked yet"), and the sources its claim and support name (the
    * app's ZADANI_VYZKUM_nejista-spojeni.md).
    */
+  /**
+   * What an app that decides a hypothesis by a pick reads of it (spec 074, V11): whether a pick decides it, the decision
+   * before (its variant, by whom, why, when), why it cannot be taken back (an agent recorded it, or other work stands on
+   * what the decision wrote), the agent's proposal
+   * (never where no agent works) and the day it was left open.
+   */
+  function hypothesisPicks(h: Hypothesis, agent: boolean): void {
+    if (pickableInApp(h)) w.line(2, "_PICK", "Y");
+    const prev = h.previous;
+    if (prev) {
+      w.line(2, "_PREV", prev.state === "decided" && prev.chosen ? prev.chosen : "none");
+      if (prev.by === "agent" && agent) w.line(3, "_BY", "agent");
+      else if (prev.by === "user" && prev.in === "app") w.line(3, "_BY", "app");
+      if (prev.decision) w.text(3, "DECI", prev.decision);
+      if (prev.at && /^\d{4}-\d{2}-\d{2}/.test(prev.at)) w.line(3, "_AT", prev.at.slice(0, 10));
+    }
+    // why it cannot be taken back: links an agent recorded (tree), or other work on what the decision wrote (work)
+    const blocked = reopenBlock(tree, h);
+    if (blocked) {
+      w.line(2, "_REOPEN", "no");
+      w.line(3, "TYPE", blocked.type);
+      w.line(3, "_COUNT", String(blocked.count));
+      // the variants a pick of which changes nothing on the tree: the old link stays (other work stands on it) and
+      // theirs cannot be written — never "another variant picked changes it" there
+      for (const v of h.variants) if (changeKeeps(tree, h, v).blocked.length) w.line(3, "_STAYS", v.label);
+    }
+    if (h.state !== "open") return;
+    const p = h.proposal;
+    if (p && agent) {
+      w.line(2, "_PROP", p.abandon || !p.variant ? "none" : p.variant);
+      if (p.decision) w.text(3, "DECI", p.decision);
+      if (/^\d{4}-\d{2}-\d{2}/.test(p.at)) w.line(3, "_AT", p.at.slice(0, 10));
+    }
+    if (h.leftOpen && /^\d{4}-\d{2}-\d{2}/.test(h.leftOpen)) w.line(2, "_LEFT", h.leftOpen.slice(0, 10));
+  }
+
   function variant(h: Hypothesis, v: HypothesisVariant): void {
     const open = h.state === "open";
     w.line(2, "_VAR", v.label);
@@ -1051,6 +1145,22 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         citedSources.add(s);
         w.line(3, "SOUR", x(s));
       }
+    if (!opts.hypothesisPick) return;
+    // what speaks against it, each as written, with the sources it names that are in the file
+    for (const text of v.against) {
+      if (!text.trim()) continue;
+      w.text(3, "_AGAINST", text);
+      for (const s of new Set(text.match(SOURCE_ID) ?? []))
+        if (sourceById.has(s)) {
+          citedSources.add(s);
+          w.line(4, "SOUR", x(s));
+        }
+    }
+    // the people off the tree it joins (core/kin.ts branchJoined, the number the research weighs a large branch by)
+    const key = `${h.id} ${v.label}`;
+    if (!joined.has(key)) joined.set(key, branchJoined(tree, h, v, (kin ??= kinship(tree))));
+    const joins = joined.get(key)!;
+    if (joins > 0) w.line(3, "_PEOPLE", String(joins));
   }
 
   /** Years as a GEDCOM date: one year, or FROM … TO …. */
@@ -1129,6 +1239,21 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   }
 
   /** A person of a family nothing links to the tree: how many people it has, the hypotheses that would join it, the tasks waiting for it. */
+  /** A task about the person that waits for something outside: what, for what, where it is handled, sent when. */
+  function waitLines(t: TableWait): void {
+    w.line(1, "_STROM_WAIT", t.task);
+    w.line(2, "TYPE", t.kind);
+    w.text(2, "TITL", t.what);
+    if (t.on) w.text(2, "_ON", t.on);
+    w.line(2, "_GROUP", t.group.name.normalize("NFC"));
+    w.line(3, "TYPE", t.group.kind);
+    w.line(3, "_KEY", t.group.key.normalize("NFC"));
+    if (t.group.url) w.text(3, "_URL", t.group.url);
+    w.line(2, "STAT", t.phase);
+    if (t.sent) w.line(2, "_SENT", asOfNow(new Date(t.sent)));
+    w.line(2, "_PRIO", String(t.priority));
+  }
+
   function island(i: Island): void {
     w.line(1, "_STROM_ISLAND", String(i.people.length));
     for (const h of i.hypotheses) {

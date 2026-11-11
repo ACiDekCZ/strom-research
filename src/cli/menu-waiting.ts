@@ -22,14 +22,14 @@ import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
-import { askWhy, pickClaim, waitingDo } from "./menu-links.ts";
+import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, Hypothesis, HypothesisVariant, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
 import { transcriptMark, userReading } from "../core/readers.ts";
 import { phrase, type PhraseKey } from "../core/phrases.ts";
-import { agentDecided, decidedToRecord } from "../core/hypolinks.ts";
+import { agentDecided } from "../core/hypolinks.ts";
 import { normId } from "../core/records.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { branchOf } from "../core/offline.ts";
@@ -583,10 +583,19 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
       ...(proposed ? ["", `    ${proposed}`, ...(p!.reason ? [`    ${t("ui.wait.hypothesis.again", { reason: p!.reason })}`] : [])] : []),
     ].join("\n"),
   );
+  // a change the tree cannot follow (the earlier link stays, other work stands on it; the new one is not written): said
+  // first, the person goes on or cancels — cancel suggested
+  const goesOn = async (v: HypothesisVariant): Promise<boolean> => {
+    const stays = changeWarning(lang, tree, h, v);
+    if (!stays) return true;
+    out(stays);
+    return ctx.confirm(t("ui.link.go"), false);
+  };
   // another variant, or none holds — and why: the decision's words; a decided one decided again: the reason too
   const otherwise = async (): Promise<{ argv: string[]; abandon: boolean } | undefined> => {
     const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(x.claim, 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
     if (v === undefined) return undefined;
+    if (v < h.variants.length && !(await goesOn(h.variants[v]!))) return undefined;
     const why = await askWhy(ctx, lang);
     if (!why) return undefined;
     const abandon = v === h.variants.length;
@@ -601,6 +610,8 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
       out(t("ui.wait.hypothesis.kept"));
       return true;
     }
+    const proposedVariant = !p.abandon && p.variant ? h.variants.find((x) => x.label === p.variant) : undefined;
+    if (i === 0 && proposedVariant && !(await goesOn(proposedVariant))) return false;
     picked = i === 0 ? { argv: ["hypothesis", "decide", h.id, "--proposed"], abandon: !!p.abandon } : await otherwise();
   } else if (h.state === "open") {
     const i = await ctx.choose("", [{ label: t("ui.wait.hypothesis.decide") }, { label: t("ui.wait.hypothesis.leave") }], 2, { back: t("ui.browse.back") });
@@ -618,7 +629,9 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
   }
   if (!picked || (await run(picked.argv, true)) !== 0) return false;
   out(t(picked.abandon ? "ui.wait.hypothesis.abandoned" : "ui.wait.hypothesis.decided"));
-  if (!picked.abandon && !archive && decidedToRecord(Tree.open(root, ctx.env)).some((x) => x.hypothesis.id === h.id)) out(t("ui.hypothesis.decided.next"));
+  // the person's decision is on the tree at once (spec 074 K1.5): what it wrote, took off, could not write
+  // (and what of it is left to the agent: decisionOnTree says it, never in an archive)
+  for (const line of decisionOnTree(lang, root, ctx.env, h)) out(line);
   return true;
 }
 

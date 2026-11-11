@@ -160,7 +160,10 @@ conversation opened anywhere, a bot on its own server)
   new --person <them>. A task on a side branch no line reaches (an ancestor's sibling and their family)
   comes now and then or after the lines' work (setting queue.offLine; each branch's own choice: strom
   offline list) unless it says how it helps a line: strom task add … --helps "<how it helps G…>" (godparent
-  or witness of an ancestor, the same house, a surname for an ancestor). A branch the user chose not to
+  or witness of an ancestor, the same house, a surname for an ancestor); joining people to a person of a
+  line or their partner helps it, joining them to a side branch does not. What work on a side branch
+  finds about an ancestor goes to that person of the line: an argument or a task about them (--about P…).
+  A branch the user chose not to
   research gets no new task. The user wants a task next or at the end: strom task order T… --next|--last;
   a branch added to a line or not researched: strom offline set B-… --line G…|--mode never. The user wants a direction to wait or to end: strom research pause|done G…
   (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back). The order
