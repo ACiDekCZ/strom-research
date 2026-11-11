@@ -84,7 +84,9 @@ const CHILDREN: Record<string, string[]> = {
   "FAM._STROM_XID": ORIGINAL_ID_TAGS,
   // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
   // and WWW: the page of its scan in the online archive (the app links it)
-  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED", "_STROM_ORIG"],
+  // and, for an app that reads them, the location field by field: folio, image, the rest (APP_READS_SOURCE_FIELDS);
+  // a REPO with no pointer carries the call number of a source of no archive known (GEDCOM 5.5.1 allows it)
+  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED", "_STROM_ORIG", "_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR"],
   "SOUR._STROM_READING": ["_STROM_ENTRY"],
   "SOUR._STROM_READ": ["_CONF", "_TXT"],
   "SOUR._STROM_IMG_OMITTED": ["_STROM_CLIP"],
@@ -113,7 +115,7 @@ const CHILDREN: Record<string, string[]> = {
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
 const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE", "_STROM_WAS"]);
-const TEXT_TAGS = new Set(["_ON", "_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI", "_AGAINST"]);
+const TEXT_TAGS = new Set(["_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR", "_ON", "_STROM_WHY", "_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI", "_AGAINST"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT", "_BY",
@@ -137,6 +139,8 @@ const EXTENSIONS = new Set([
   "_TXT", "_CONF",
   // a source the research can read again from its original here
   "_STROM_ORIG",
+  // a source's location field by field: its folio, image, the rest
+  "_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
   // an excerpt by reference in the bridge's file (FILE strom-image:<sha256>): its kind, pixels and size

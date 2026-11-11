@@ -182,6 +182,11 @@ export function wakesBy(tree: Tree, shared: string | undefined, t: Task, display
   return `${t.id} waits for the user: their answer brings it back (strom's menu, What waits; the Strom app) — nothing else does`;
 }
 
+/** How the order of a conversation differs from what strom run takes (core/queue.ts runOrder). */
+const CONVERSATION_ORDER =
+  "The order of a conversation: no story's turn. Working alone, strom run puts one story first now and then — the\n" +
+  "order the menu and the Strom app show as what comes next.";
+
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
 export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
@@ -695,6 +700,7 @@ register(
   {
     path: ["task", "next"],
     summary: "The task to work on now (never asks — the queue is ordered)",
+    description: CONVERSATION_ORDER,
     group: "tasks",
     tree: true,
     options: [
@@ -735,7 +741,8 @@ register(
     description:
       "The order (setting queue.strategy): balanced — work that can be done now before work waiting for a download,\n" +
       "the nearest ancestors first, a line that just had sessions waits for the others, a task tried again and again\n" +
-      "sinks; depth — stay on the line of the last sessions; priority — strict priority. --json says why for each.",
+      "sinks; depth — stay on the line of the last sessions; priority — strict priority. --json says why for each.\n" +
+      CONVERSATION_ORDER,
     group: "tasks",
     tree: true,
     options: [

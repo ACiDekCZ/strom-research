@@ -733,6 +733,40 @@ export function appDecidesHypotheses(settings: Settings, version?: string, gate:
 }
 
 /**
+ * The first Strom app that reads a source's location field by field (spec 075; the app's
+ * ZADANI_VYZKUM_citace-pole.md): on each source after its PAGE (composed of them, as every app gets it) 1 _STROM_FOLIO,
+ * 1 _STROM_IMAGE (also one only the registered images give) and 1 _STROM_LOCATOR (the rest of the location) — in the
+ * Strom file and the bridge's /tree.ged. An older app leaves them out of the research's file and counts them as tags it
+ * left out. Production: from the app's version set here (none yet); another copy of the app (its beta, its development)
+ * from APP_READS_SOURCE_FIELDS_BETA (3.27.0-beta.5); an app of unknown version stays off (today's file), in
+ * production and in another copy alike.
+ */
+export const APP_READS_SOURCE_FIELDS: string | undefined = undefined;
+
+/** The first beta of the app that reads a source's location field by field (another copy of the app gets them from it). */
+export const APP_READS_SOURCE_FIELDS_BETA: string | undefined = "3.27.0-beta.5";
+
+/**
+ * The first Strom app that keeps a source's location field by field (its answer, 11 Nov 2026: 3.27.0-beta.5) — a real
+ * pre-release, not a gate: a file of it (its HEAD's 2 VERS) without a field the app was given says the user removed it.
+ */
+export const APP_KEEPS_SOURCE_FIELDS = "3.27.0-beta.5";
+
+/** The data version of the Strom app's JSON from which a source keeps its folio, image and call number (its answer: 18, U3). */
+export const APP_DATA_SOURCE_FIELDS = 18;
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) keep a source's location field by field? No version said: no. */
+export function appKeepsSourceFields(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_KEEPS_SOURCE_FIELDS) >= 0;
+}
+
+/** Does the Strom app of this version read a source's location field by field (_STROM_FOLIO, _STROM_IMAGE, _STROM_LOCATOR)? */
+export function appReadsSourceFields(settings: Settings, version?: string, gate: string | undefined = APP_READS_SOURCE_FIELDS, beta: string | undefined = APP_READS_SOURCE_FIELDS_BETA): boolean {
+  return newTagsFor(settings, version, gate, beta);
+}
+
+/**
  * A gate of new tags an older app would count as unsupported: an app of unknown version (strom app from a terminal, an
  * app that says none) gets nothing, in production and in another copy of the app alike — today's file; another copy of
  * the app (its beta, its development) of a known version from the beta gate (none set: at once), production from the gate.

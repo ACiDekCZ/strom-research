@@ -1156,6 +1156,7 @@ export const UI = {
   "ui.help.cmd.quality.undo": "Take back such a mark: the finding may be reported again",
   "ui.help.cmd.place.answer": "Answer the research's question about a place",
   "ui.help.cmd.place.undo": "Undo a step on places: an answer, a name taken off",
+  "ui.help.cmd.source.split": "Split where the older sources' entries stand into folio and image: a preview, then one step that can be undone",
   "ui.help.cmd.hypothesis.decide": "Decide an uncertain connection (a hypothesis) by one of its variants, with a reason",
   "ui.help.cmd.connector.add": "Install a downloader for an archive from a folder or a git address",
   "ui.help.cmd.connector.remove": "Remove a downloader for an archive, its consent with it",

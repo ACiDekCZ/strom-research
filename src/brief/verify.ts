@@ -8,6 +8,7 @@
 import type { Event, Source, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { regionText } from "../core/media.ts";
+import { composedPage } from "../core/sourcefields.ts";
 import { setsWithImages } from "../core/mediaindex.ts";
 import { provesIt } from "../core/evidence.ts";
 import { langName } from "../core/lang.ts";
@@ -25,14 +26,16 @@ function whose(e: Event): string | undefined {
 function sourceLine(tree: Tree, id: string, original: boolean, withImages: Set<string>): string {
   const s = tree.get<Source>(id);
   if (!s || s.type !== "source") return `      ${id} (no longer there)`;
-  const head = `      ${s.id} ${s.title}${s.locator ? ` · ${s.locator}` : ""}${original ? "" : ` · ${s.kind}, not the original`}`;
+  // where the entry stands: the folio and the image (given) the locator does not say, the locator
+  const where = composedPage(s, "en");
+  const head = `      ${s.id} ${s.title}${where ? ` · ${where}` : ""}${original ? "" : ` · ${s.kind}, not the original`}`;
   if (!original) return head;
   const looks: string[] = [];
   for (const c of s.clips ?? []) looks.push(`strom media view ${c.media} --crop ${regionText(c.region)}`);
   for (const m of s.media ?? []) if (!(s.clips ?? []).some((c) => c.media === m)) looks.push(`strom media view ${m}`);
   if (s.input) looks.push(`strom media view ${s.input}`);
   if (looks.length) return `${head}\n        the entry: ${looks.join(" · ")}`;
-  if (s.recordset && withImages.has(s.recordset)) return `${head}\n        the book ${s.recordset} is here: find the image of ${s.locator ?? "the entry"} (strom source show ${s.id}), then strom media view ${s.recordset}:<n>`;
+  if (s.recordset && withImages.has(s.recordset)) return `${head}\n        the book ${s.recordset} is here: find the image of ${where ?? "the entry"} (strom source show ${s.id}), then strom media view ${s.recordset}:<n>`;
   return `${head}\n        no image of it here${s.recordset ? ` (${s.recordset})` : ""}: fetched only within the archive's terms (strom fetch … --recordset ${s.recordset ?? "B…"}), else --kept --reason`;
 }
 

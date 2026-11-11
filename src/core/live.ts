@@ -33,7 +33,9 @@
 //                          research}; none for a task about nobody) — feature queue.own. Each in the queue says its place
 //                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
 //                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
-//                          the same research and branch GET /queue filters by — feature queue.page
+//                          the same research and branch GET /queue filters by — feature queue.page. The order is strom
+//                          run's (core/queue.ts runOrder): one story first at a story's turn, the tasks of history by
+//                          their pace; kind: story | history says such a task (none for the research's work)
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
 //                          for an app that keeps them the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES;
 //                          feature lineage.read: strom sync takes them back); under each _STORY (and its 2 _DRAFT) the
@@ -196,6 +198,16 @@
 //   POST <token>/history/align/undo {undo}: that align taken back (its events shown again, the hides it took away back;
 //                          its tasks stay) — {undone {shown, hidden}, head, parent}; 404 history.align.undo, 409
 //                          history.align.undone, 400 history.align.body
+//   GET <token>/sources/split[?all=1]   what splitting the older sources' locators into folio and image would do (strom
+//                          source split --json): {split [{source, title, before {locator?, folio?, image?}, after {…}}]
+//                          (the first 10, ?all=1 every one), count, unrecognized, nothing, undos [{id, at, sources}], plan
+//                          (its mark)} — read only; 409 source.split.archive, 503 research.busy (feature sources.split)
+//   POST <token>/sources/split {plan}: done on the person's click after that preview, as the user's (strom source split
+//                          --apply --plan): {done {split: n}, undo, head, parent} — nothing else of the tree changes; 409
+//                          source.split.plan with the preview as it is now, 409 source.split.archive, 400 source.split.body
+//   POST <token>/sources/split/undo {undo}: that split taken back whole (strom source split --undo) — {undone {restored:
+//                          n}, head, parent}; 404 source.split.undo, 409 source.split.changed {count, sources [{id, title}]
+//                          (the first 5)}: changed since, nothing undone; 400 source.split.body
 //   POST <token>/history/kinds {kinds: [...], scope: "tree" | "default"} | {scope: "tree", inherit: true}: the kinds of
 //                          history looked for, a kind left out at once (strom config set history.kinds … [--for-tree];
 //                          default: this computer's, for the researches without their own) — {experiments {kinds,
@@ -472,6 +484,7 @@ import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livesta
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
+import { forStory } from "./stories.ts";
 import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
@@ -510,7 +523,7 @@ import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./w
 import { widgetWriter } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { busyIn } from "./busy.ts";
-import { effectiveState, rankTasks, type Ranked } from "./queue.ts";
+import { effectiveState, runOrder, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import { whatsNew } from "./whatsnew.ts";
@@ -529,6 +542,7 @@ import { qrSvg } from "./qr.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
+import { splitMark, splitPlan, splitUndos } from "./sourcesplit.ts";
 import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
@@ -539,7 +553,7 @@ import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
 import { readAgainAll } from "./sourceread.ts";
-import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
+import { checkNote, forHistory, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
 import { alignData, alignEmpty, planAlign } from "./historyalign.ts";
 import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventKind } from "./eventkinds.ts";
 import { placeEstimate, placeRecord } from "./placehistory.ts";
@@ -1530,7 +1544,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2081,6 +2095,8 @@ interface QueueItem {
   own?: "next" | "last";
   /** Why it stands where it does (core/queue.ts Reason): none for a task about nobody. */
   why?: Ranked["reason"];
+  /** A story to write, or a task of the history of the places: none for the research's work. */
+  kind?: "story" | "history";
 }
 
 /**
@@ -2094,7 +2110,7 @@ function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: Offlin
 
 /** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
 function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}) };
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}) };
 }
 
 /** The tasks put aside (parked, not back by their date): after the queue, by their IDs — no place in it. */
@@ -2122,7 +2138,8 @@ function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[
   const key = [h, now().slice(0, 10), settings.strategy(tree.config), settings.offLine(tree.config), mtime(path.join(tree.root, TREE_FILE)), mtime(configFile(tree.env)), mtime(path.join(tree.root, ...OFFLINE_FILE.split("/")))].join("|");
   const had = rankedCache.get(tree.root);
   if (had && had.key === key && Date.now() - had.at < Number(tree.env.STROM_LIVE_QUEUE_MS ?? 10_000)) return had;
-  const ranked = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config));
+  // the order strom run takes them (core/queue.ts runOrder): a story at its turn, the tasks of history by their pace
+  const ranked = runOrder(tree, tree.list<Task>("task"), settings.strategy(tree.config));
   // what a page needs, kept with the order: a page asked again reads no task of the research (thousands of files)
   const parked = parkedTasks(tree);
   const rev = crypto.createHash("sha256").update([h, ranked.map((r) => r.task.id).join(","), parked.map((t) => t.id).join(",")].join("|")).digest("hex").slice(0, 16);
@@ -2207,7 +2224,7 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
  * A page of the whole queue (GET /queue, feature queue.page): the tasks in the order of the queue — those put aside
  * after, without a place — as /status queue[] says each (pos: its place in the whole queue), only those of a branch,
  * a line (as /status queueCounts counts them) or a state when asked; total: how many the filter leaves. The same order
- * as /status (rankTasks), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
+ * as /status (runOrder), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
  * queue.
  */
 export function queuePage(tree: Tree, settings: Settings, ask: QueueAsk, h: string): { items: QueueItem[]; total: number; from: number; next?: number; rev?: string } {
@@ -3328,6 +3345,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       writeFor(req, res, origin, act === "undo" ? historyAlignUndo() : historyAlign());
       return;
     }
+    if (req.method === "POST" && t === token && what === "sources" && sub === "split" && (!act || act === "undo")) {
+      writeFor(req, res, origin, act === "undo" ? sourceSplitUndo() : sourceSplit());
+      return;
+    }
     if (req.method === "POST" && t === token && what === "stories" && !sub) {
       writeFor(req, res, origin, storiesWrite());
       return;
@@ -3506,6 +3527,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         else if (actsAsArchive(tree)) json(409, refusal("nobody researches here: nothing of history is looked for", "history.archive"));
         else if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
         else json(200, alignPreview(tree, asked));
+      } else if (what === "sources" && sub === "split" && !act) {
+        // what splitting the older sources' locators would do — read only, never in an archive, never while written
+        const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+        const tree = Tree.open(root, env);
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (actsAsArchive(tree)) json(409, splitArchive());
+        else if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        else json(200, splitPreview(tree, q.get("all") === "1"));
       } else if (what === "surnames" && !sub) {
         // the forms of a surname: suggested from the records, decided by the person — never while the research is written
         const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
@@ -4985,6 +5015,74 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     };
   };
 
+  /** What splitting the older sources' locators would do, as GET /sources/split answers it: the first ten (as strom source split shows them), or every one. */
+  const splitPreview = (tree: Tree, all = false) => {
+    const plan = splitPlan(tree);
+    return { split: all ? plan.split : plan.split.slice(0, 10), count: plan.split.length, unrecognized: plan.unrecognized, nothing: plan.nothing, undos: splitUndos(tree), plan: splitMark(plan) };
+  };
+  /** Nobody researches here (an archive, a research waiting for its agent): its sources are not split from the app. */
+  const splitArchive = () => refusal("nobody researches here: the sources' locators are not split from the app", "source.split.archive");
+  const SPLIT_CODES = { badBody: "source.split.body", busy: "research.busy", failed: "source.split.failed" };
+
+  /**
+   * The older sources' locators split into folio and image on the person's click after the app's preview (POST
+   * /sources/split {plan: <the preview's mark>}): one operation, written as the user's (strom source split --apply
+   * --plan), undone as one (POST /sources/split/undo). Another split by now: 409 source.split.plan with the preview as it is.
+   */
+  const sourceSplit = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the older sources' locators split into folio and image",
+      codes: SPLIT_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || typeof body.plan !== "string" || !/^[0-9a-f]{16}$/u.test(body.plan)) return { code: 400, body: refusal(`the body: {"plan": "<the plan of GET /sources/split>"}`, "source.split.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: splitArchive() };
+        const preview = splitPreview(tree);
+        if (preview.plan !== body.plan) return { code: 409, body: { ...refusal("the split would now do otherwise than the preview said: see it again", "source.split.plan"), preview } };
+        before = head(root);
+        if (!preview.count) return { code: 200, body: { done: { split: 0 }, head: before, parent: before } };
+        return { args: ["source", "split", "--apply", "--plan", body.plan] };
+      },
+      done(_tree, data, h) {
+        return { done: { split: Number(data.count ?? 0) }, ...(typeof data.undo === "string" ? { undo: data.undo } : {}), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "source.split.plan") return { code: 409, body: { ...refusal(why, code), preview: splitPreview(tree) } };
+        return undefined;
+      },
+    };
+  };
+
+  /** A split of the app taken back whole (POST /sources/split/undo {undo}). 404 source.split.undo; 409 source.split.changed: changed since, nothing undone. */
+  const sourceSplitUndo = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a split of the sources' locators taken back",
+      codes: SPLIT_CODES,
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || typeof body.undo !== "string" || !/^\d{14}-[0-9a-f]{6}$/u.test(body.undo)) return { code: 400, body: refusal(`the body: {"undo": "<the undo of POST /sources/split>"}`, "source.split.body") };
+        before = head(root);
+        return { args: ["source", "split", "--undo", body.undo] };
+      },
+      done(_tree, data, h) {
+        return { undone: { restored: Array.isArray(data.restored) ? data.restored.length : 0 }, head: h, parent: before };
+      },
+      refused(tree, code, why, data) {
+        if (code === "source.split.undo") return { code: 404, body: refusal(why, code) };
+        if (code === "source.split.changed") {
+          const p = data.params && typeof data.params === "object" ? (data.params as Record<string, unknown>) : {};
+          const ids = String(p.sources ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+          return { code: 409, body: { ...refusal(why, code), count: ids.length, sources: ids.slice(0, 5).map((id) => ({ id, title: tree.get<Source>(id)?.title ?? id })) } };
+        }
+        return undefined;
+      },
+    };
+  };
+
   /** The lines' codes (POST /directions…): a body that is not one, the research busy (503 + Retry-After), a failure. */
   const DIRECTION_CODES = { badBody: "directions.body", busy: "research.busy", failed: "directions.failed" };
   const badDirection = (why: string) => ({ code: 400, body: refusal(why, "directions.body") });
@@ -5001,7 +5099,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** One line as /status researches[] says it, after a write. */
   const directionNow = (tree: Tree, id: string): Record<string, unknown> | undefined => {
     const all = scopes(tree);
-    const queued = rankTasks(tree, tree.list<Task>("task"), new Settings(env, {}).strategy(tree.config)).map((r) => r.task);
+    const queued = runOrder(tree, tree.list<Task>("task"), new Settings(env, {}).strategy(tree.config)).map((r) => r.task);
     return directions(tree, all, queued, [], foundNow(tree, all, head(root))).find((d) => d.id === id);
   };
   /** A text of the app's: one line, at most so many characters. */
@@ -6238,6 +6336,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       const meanwhile = withLiveOwner(root, () => {
         const rival = rivalBridge(root, env);
         if (rival) return rival;
+        // its start in its log before live.json says it is there: what strom live start answers its log has said already
+        const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
+        noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
         try {
           writeOwner(root);
         } catch {
@@ -6273,9 +6374,6 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         goneSeen++;
         return goneSeen >= 2 && Date.now() - goneSince >= goneMs;
       };
-      const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
-      noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
-
       // A read that fails (another strom writing that moment) is tried again at the next tick; written down once — each
       // part of the tick on its own (another part working meanwhile, the readings, the widget, is no "works again")
       const troubles = new Map<string, { text: string; times: number }>();

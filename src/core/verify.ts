@@ -37,8 +37,7 @@ import { phrase } from "./phrases.ts";
 import { costPartial, sessionCost } from "./session.ts";
 import { UsageError } from "./errors.ts";
 import { lineMarks } from "./lineages.ts";
-import { lacksImages, ownTurn, rankTasks, waitsForDecision } from "./queue.ts";
-import { Settings } from "./config.ts";
+import { lacksImages, ownTurn, runOrder, waitsForDecision } from "./queue.ts";
 import { setsWithImages } from "./mediaindex.ts";
 import { permissionQuestions } from "./archivewait.ts";
 import { isVerifyTask, originalCites, searchesRecord, taskFacts, VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH, verifiesInTurn } from "./verifyfacts.ts";
@@ -1208,7 +1207,7 @@ export interface TaskPlace {
 export function taskPlaces(tree: Tree, ids: string[]): TaskPlace[] {
   const tasks = [...new Set(ids)].map((id) => tree.get<Task>(id)).filter((t): t is Task => !!t && t.type === "task");
   if (!tasks.length) return [];
-  const rank = new Map(rankTasks(tree, tree.list<Task>("task"), new Settings(tree.env, {}).strategy(tree.config)).map((r, i) => [r.task.id, i + 1]));
+  const rank = new Map(runOrder(tree).map((r, i) => [r.task.id, i + 1]));
   const how = waitOf(tree);
   return tasks
     .map((t, i) => ({ t, i, state: how(t), at: rank.get(t.id) }))
@@ -1241,7 +1240,7 @@ export function verifyMarks(tree: Tree): Map<string, { state: VerifyWait; pos?: 
       out.set(id, { state: how });
       continue;
     }
-    place ??= new Map(rankTasks(tree, tree.list<Task>("task"), new Settings(tree.env, {}).strategy(tree.config)).map((r, i) => [r.task.id, i + 1]));
+    place ??= new Map(runOrder(tree).map((r, i) => [r.task.id, i + 1]));
     const pos = place.get(task.id);
     out.set(id, { state: how, ...(pos !== undefined ? { pos } : {}) });
   }

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
@@ -28,7 +28,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   kdy prohlížeč kartu kreslí, a pokračuje, jakmile ji kreslí znovu; karta nekreslená 30 s se ohlásí jako taková. Když
   se zobrazovač mezitím přestránkuje, pod jménem jiného snímku se nic neuloží.
 
-- **`strom fetch` ohlásí snímek, který stojí mnoho požadavků, stejně jako `strom connector test`.** Konektor postavený
+  **`strom fetch` ohlásí snímek, který stojí mnoho požadavků, stejně jako `strom connector test`.** Konektor postavený
   před verzí 1.30, který skládá každý snímek z dlaždic (sto požadavků na snímek, hodiny na knihu), stahoval bez varování.
   Teď první snímky stahování agentovi jednou řeknou, kolik stojí jeden snímek a jak dlouho tempem archivu potrvá kniha,
   i jak stahování na pozadí zastavit a co hledat nejdřív (jeden požadavek na snímek). Vychází z vlastního počítání
@@ -63,10 +63,30 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   osob připojí ke stromu; `/status` mostu vypisuje čekající hypotézy (features `hypothesis.decide.link`,
   `hypotheses.accept.link`).
 
+- **Zápis se najde znovu, i když archiv změní odkazy.** Kde zápis v knize stojí, se ukládá po polích: `strom source
+  add|edit --folio` (strana nebo folio, jak je kniha čísluje, „fol. 12v“), `--image` (číslo snímku na portálu archivu)
+  a `--call-number` (signatura knihy u zápisu mimo evidované knihy), vedle `--locator` pro zbytek (číslo zápisu).
+  `strom source show` uvádí archiv, signaturu, folio a snímek pohromadě (snímek i z evidovaných skenů) a navrhne folio
+  a snímek, které jmenuje starší umístění – sám je nikdy nezapíše; stávající prameny zůstávají, jak jsou. Soubor pro
+  aplikaci Strom i jiné programy má jednu čitelnou PAGE složenou z polí („pag. 112, č. 3, snímek 57“) a signaturu jako
+  CALN; samotná pole dostane aplikace Strom od verze, která je čte (feature mostu `sources.fields`), a jejich úpravy
+  se vracejí synchronizací jako úpravy strany. Agent pole vyplňuje při zápisu a odkaz, který se už neotevře, podle
+  nich dohledá. PAGE nikdy neřekne dvě čísla snímku ani folia: jmenuje-li starší umístění jiné číslo než pole, platí v
+  ní pole (umístění samo zůstane), a `strom source edit` i `show` navrhnou zbytek umístění. Starší prameny se do polí
+  rozdělí najednou příkazem `strom source split`: náhled, čím by se každý stal (umístění, v němž se nic nerozpozná,
+  zůstane, jak je), rozdělení zapíše uživatel s `--apply` jedním krokem a jedním se i vrátí (`--undo`); agent ho jen
+  nabídne. Rozdělit se dá i z aplikace Strom, která to nabízí (funkce mostu `sources.split`): náhled řekne, kolik
+  pramenů, rozdělení se zapíše na kliknutí uživatele jedním krokem podle toho náhledu a vrátí se celé. Folio, snímek
+  nebo signaturu, které uživatel smaže v aplikaci Strom, jež tato pole uchovává, smaže i výzkum (vrátí se se
+  synchronizací); starší aplikace nesmaže nic. Když umístění neříká nic než folio a snímek, které už dávají pole,
+  navrhne `strom source show` ho vyprázdnit a `strom source edit --locator ""` to udělá.
+
 - **Drobnosti.** Údaj, jehož ověření uživatel posunul dopředu, je v souboru pro aplikaci Strom označený jako vyžádaný,
   takže aplikace už znovu nenabízí „Ověřit přednostně“. `strom error --note` skryje i skloňované tvary jmen a míst, která
   výzkum zná („z Brna“, „v Praze“). `strom task wait --request` najde soubor i tehdy, když je jeho jméno zadané v jiné
-  normalizační formě Unicode (cesta napsaná na Macu, použitá na Windows).
+  normalizační formě Unicode (cesta napsaná na Macu, použitá na Windows). Co je na řadě – v menu před `strom run`
+  i ve frontě aplikace Strom – je pořadí, v jakém úkoly bere `strom run`: když přijde řada na vyprávění, je první
+  jedno vyprávění, ne všechna.
 
 ## 1.30.1
 

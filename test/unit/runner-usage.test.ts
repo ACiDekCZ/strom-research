@@ -4,7 +4,7 @@
 // the session —
 // never a number the agent did not say. Each runner is given a stand-in of its agent that prints a recorded stream.
 
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -20,6 +20,37 @@ import { usageFileName, usageRecorder } from "../../src/core/metrics.ts";
 import { clearsOf } from "../../src/core/readstats.ts";
 
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "agents");
+
+/**
+ * Runs `run` with the agent's time limit reached only once the runner has heard (its log holds) what the stand-in
+ * says before it works on: the clock of the time limit is a fake one, moved on then. A real one would cut off a
+ * stand-in a loaded computer starts later than the limit (found in full test runs: nothing heard, nothing counted).
+ */
+async function atTimeLimit<T>(t: TestContext, logFile: string, said: string, run: (timeoutMs: number) => Promise<T>): Promise<T> {
+  const timeoutMs = 1500;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let ended = false;
+  const ran = run(timeoutMs).finally(() => (ended = true));
+  // (looked at on an interval: setTimeout is the fake clock's now)
+  await new Promise<void>((resolve, reject) => {
+    const by = Date.now() + 120_000;
+    const look = setInterval(() => {
+      let log = "";
+      try {
+        log = fs.readFileSync(logFile, "utf8");
+      } catch {
+        // not written yet
+      }
+      const why = log.includes(said) ? "" : ended ? "the run ended before its time limit" : Date.now() > by ? "waited 120 s in vain for the stand-in's stream" : undefined;
+      if (why === undefined) return;
+      clearInterval(look);
+      if (why) reject(new Error(why));
+      else resolve();
+    }, 20);
+  });
+  t.mock.timers.tick(timeoutMs);
+  return await ran;
+}
 
 test("the stand-in's Windows launcher names no folder: cmd reads its lines in the console's code page, not UTF-8", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom usage ě "));
@@ -95,14 +126,14 @@ test("Codex: a turn that failed at the plan's limit — the use known kept, the 
   assert.deepEqual([r.metrics.turns, r.metrics.costPartial, r.metrics.inputTokens], [3, true, undefined]);
 });
 
-test("Codex: stopped at its time limit and resumed to write down — two turns' sums, neither a context (no clear made up)", { skip: process.platform === "win32" }, async () => {
+test("Codex: stopped at its time limit and resumed to write down — two turns' sums, neither a context (no clear made up)", { skip: process.platform === "win32" }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom usage ě "));
   try {
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin, { recursive: true });
     const script = path.join(bin, "agent.mjs");
-    // exec: its turn, then it works on until stopped; exec resume: the short turn of the wrap-up (the time limit long
-    // enough for the stand-in to start and say its turn under a full test run's load)
+    // exec: its turn, then it works on until stopped (its time limit reached once its turn is heard); exec resume: the
+    // short turn of the wrap-up
     fs.writeFileSync(
       script,
       'import fs from "node:fs";\nconst resumed = process.argv.includes("resume");\nprocess.stdout.write(fs.readFileSync(resumed ? process.env.FAKE_RESUME : process.env.FAKE_STREAM, "utf8"));\nif (!resumed) setInterval(() => {}, 1000);\n',
@@ -110,7 +141,8 @@ test("Codex: stopped at its time limit and resumed to write down — two turns' 
     fs.writeFileSync(path.join(bin, "codex"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
     const env = { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, FAKE_STREAM: path.join(fixtures, "codex-stream-exec.jsonl"), FAKE_RESUME: path.join(fixtures, "codex-stream-resume.jsonl") };
     const got: UsageSample[] = [];
-    const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), timeoutMs: 4000, wrapUp: { ms: 20_000, prompt: "Time is up" }, onUsage: (u) => got.push(u) });
+    const logFile = path.join(dir, "runs", "N0001.log");
+    const r = await atTimeLimit(t, logFile, fs.readFileSync(env.FAKE_STREAM, "utf8"), (timeoutMs) => codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile, timeoutMs, wrapUp: { ms: 20_000, prompt: "Time is up" }, onUsage: (u) => got.push(u) }));
     assert.equal(r.outcome, "timeout");
     assert.deepEqual(got.slice(1), [
       { total: true, in: 7012000, cr: 6800000, out: 41000, turns: 3 },
@@ -237,7 +269,7 @@ test("the use written: a head, the agent's session once, each sample — nothing
   }
 });
 
-test("OpenCode stopped at its time limit resumes its own session, never its scan reader's that spoke last", { skip: process.platform === "win32" }, async () => {
+test("OpenCode stopped at its time limit resumes its own session, never its scan reader's that spoke last", { skip: process.platform === "win32" }, async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom resume ě "));
   try {
     const bin = path.join(dir, "bin");
@@ -252,7 +284,8 @@ test("OpenCode stopped at its time limit resumes its own session, never its scan
     );
     fs.writeFileSync(path.join(bin, "opencode"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
     const env = { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, FAKE_STREAM: path.join(fixtures, "opencode-stream-reader-last.jsonl"), FAKE_ASKED: asked };
-    await opencodeRunner.run({ cwd: dir, prompt: "Brief — Příliš žluťoučký kůň", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), timeoutMs: 1500, wrapUp: { ms: 10_000, prompt: "Zapsat, co se našlo." } });
+    const logFile = path.join(dir, "runs", "N0001.log");
+    await atTimeLimit(t, logFile, fs.readFileSync(env.FAKE_STREAM, "utf8"), (timeoutMs) => opencodeRunner.run({ cwd: dir, prompt: "Brief — Příliš žluťoučký kůň", kickoff: "k", env, logFile, timeoutMs, wrapUp: { ms: 10_000, prompt: "Zapsat, co se našlo." } }));
     const starts = fs.readFileSync(asked, "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
     assert.equal(starts.length, 2, "resumed once");
     const resumed = starts[1]!;
@@ -267,7 +300,7 @@ test("OpenCode stopped at its time limit resumes its own session, never its scan
  * A stand-in agent that prints its first stream and works on until stopped (the time limit); started again with
  * `resumeFlag` among its arguments, it prints the stream of the wrap-up and ends.
  */
-async function stoppedThenResumed(runner: Runner, command: string, first: unknown[], resumed: unknown[], resumeFlag: string): Promise<RunResult> {
+async function stoppedThenResumed(t: TestContext, runner: Runner, command: string, first: unknown[], resumed: unknown[], resumeFlag: string): Promise<RunResult> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom usage ě "));
   try {
     const bin = path.join(dir, "bin");
@@ -282,7 +315,8 @@ async function stoppedThenResumed(runner: Runner, command: string, first: unknow
     );
     fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
     const env = { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir };
-    return await runner.run({ cwd: dir, prompt: "Brief — Příliš žluťoučký kůň", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), timeoutMs: 1500, wrapUp: { ms: 20_000, prompt: "Zapsat, co se našlo." }, onUsage: () => undefined });
+    const logFile = path.join(dir, "runs", "N0001.log");
+    return await atTimeLimit(t, logFile, lines(first), (timeoutMs) => runner.run({ cwd: dir, prompt: "Brief — Příliš žluťoučký kůň", kickoff: "k", env, logFile, timeoutMs, wrapUp: { ms: 20_000, prompt: "Zapsat, co se našlo." }, onUsage: () => undefined }));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -290,8 +324,9 @@ async function stoppedThenResumed(runner: Runner, command: string, first: unknow
 
 const grokUsage = (n: number, inp: number, out: number, cr: number, cw?: number) => ({ type: "usage", messageId: `resp_${n}`, usage: { input_tokens: inp, output_tokens: out, cache_read_input_tokens: cr, ...(cw === undefined ? {} : { cache_creation_input_tokens: cw }) } });
 
-test("Grok stopped at its time limit and finished through resume: the session's tokens are both processes' — the first one's from its responses, its cost unknown", { skip: process.platform === "win32" }, async () => {
+test("Grok stopped at its time limit and finished through resume: the session's tokens are both processes' — the first one's from its responses, its cost unknown", { skip: process.platform === "win32" }, async (t) => {
   const r = await stoppedThenResumed(
+    t,
     grokRunner,
     "grok",
     [grokUsage(1, 4000, 300, 0, 50000), { type: "text", data: "Čtu křty." }, grokUsage(2, 1500, 200, 50000, 2000), grokUsage(3, 900, 100, 52000)],
@@ -306,10 +341,11 @@ test("Grok stopped at its time limit and finished through resume: the session's 
   assert.equal(m.costPartial, true);
 });
 
-test("Claude Code stopped at its time limit and finished through resume: the first start's own requests count (its subagent's apart), its cost unknown", { skip: process.platform === "win32" }, async () => {
+test("Claude Code stopped at its time limit and finished through resume: the first start's own requests count (its subagent's apart), its cost unknown", { skip: process.platform === "win32" }, async (t) => {
   const sid = "00000000-0000-4000-8000-0000000000c9";
   const said = (id: string, u: Record<string, number>, sub?: string) => ({ type: "assistant", message: { id, role: "assistant", model: "claude-model-x", content: [{ type: "text", text: "…" }], usage: u }, parent_tool_use_id: sub ?? null, session_id: sid });
   const r = await stoppedThenResumed(
+    t,
     claudeRunner,
     "claude",
     [
@@ -330,10 +366,10 @@ test("Claude Code stopped at its time limit and finished through resume: the fir
   assert.equal(m.costPartial, true);
 });
 
-test("Antigravity stopped at its time limit before its result keeps its answer steps' tokens, its cost unknown", { skip: process.platform === "win32" }, async () => {
+test("Antigravity stopped at its time limit before its result keeps its answer steps' tokens, its cost unknown", { skip: process.platform === "win32" }, async (t) => {
   const conv = "00000000-0000-4000-8000-0000000000a9";
   const step = (i: number, u: Record<string, number>) => ({ event: "step_update", step_update: { conversation_id: conv, step_index: i, state: "DONE", step_type: "agent_response", usage: u } });
-  const r = await stoppedThenResumed(antigravityRunner, "agy", [{ event: "init", conversation_id: conv }, step(1, { input_tokens: 14000, output_tokens: 300, cache_read_tokens: 0 }), step(3, { input_tokens: 2000, output_tokens: 150, cache_read_tokens: 14000 })], [], "--never");
+  const r = await stoppedThenResumed(t, antigravityRunner, "agy", [{ event: "init", conversation_id: conv }, step(1, { input_tokens: 14000, output_tokens: 300, cache_read_tokens: 0 }), step(3, { input_tokens: 2000, output_tokens: 150, cache_read_tokens: 14000 })], [], "--never");
   assert.equal(r.outcome, "timeout");
   assert.deepEqual([r.metrics.inputTokens, r.metrics.outputTokens, r.metrics.cacheReadTokens, r.metrics.costPartial], [16000, 450, 14000, true]);
 });

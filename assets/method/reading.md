@@ -76,12 +76,17 @@ never open again a view cleared from your context — your notes hold it.
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
 - **Cite the image, and where the entry is on it**: `strom source add …
-  --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, 2nd entry"` — the
-  crop you read it in, as its view prints it; a searched range goes in
+  --clip B0001:57@0.05,0.40,0.45,0.18 --folio "pag. 112" --locator "2nd entry"`
+  — the crop you read it in, as its view prints it; a searched range goes in
   `strom search add … --pages 40-69`. Pages missing from the book (the
   numbering jumps) were not searched: say so in `--note` (strom read puts the
   gaps its readers saw there), or leave them out of the range
   (`--pages 40-52,55-69`).
+- **A link that no longer opens its entry**: find it again by the archive,
+  call number, folio and image `strom source show S…` gives (an image number
+  may shift by a few, a folio does not), through strom only, then
+  `strom source edit S… --url <its page now> [--image <n>] --reason "…"`,
+  with the locator's rest where strom proposes it (`--locator "…"`).
 <!-- for verify enrich intake -->
 - Page ↔ image: `strom recordset calibrate B0001 --point 57=112` (measured on
   the image, never guessed); then `strom media view B0001 --page 112` works.

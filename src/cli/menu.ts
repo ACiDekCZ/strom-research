@@ -29,7 +29,7 @@ import { newerVersion } from "../core/update.ts";
 import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
 import { loadGate } from "../core/gate.ts";
-import { lacksImages } from "../core/queue.ts";
+import { lacksImages, RUN_TURNS } from "../core/queue.ts";
 import { forHistory, historyOn } from "../core/pastevents.ts";
 import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
@@ -310,7 +310,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             // their pace (the places to map before the research), without what others hold.
             const fresh = Tree.open(root!, ctx.env);
             const held = othersAtWork(fresh, fresh.env).tasks;
-            const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), storyTurn: true, history: true }).filter((x) => !held.has(x.id));
+            const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
             const shown = queue.slice(0, RUN_LIST);
             // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on.
             const history = historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];

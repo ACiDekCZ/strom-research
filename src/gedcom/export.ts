@@ -37,6 +37,7 @@ import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
+import { composedPage, sourceCallNumber, sourceImage } from "../core/sourcefields.ts";
 import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
@@ -234,6 +235,12 @@ export interface ExportOptions {
    */
   verify?: ReadonlyMap<string, { state: string; pos?: number }>;
   /**
+   * The Strom profile, for an app that reads a source's location field by field (APP_READS_SOURCE_FIELDS, spec 075):
+   * after its PAGE (composed of them, readable by any program) 1 _STROM_FOLIO, 1 _STROM_IMAGE (also one only its
+   * registered images give) and 1 _STROM_LOCATOR (the rest), each where it has one.
+   */
+  sourceFields?: boolean;
+  /**
    * The Strom profile, for an app that shows the research in its table (APP_SHOWS_RESEARCH_TABLE; core/tablemarks.ts):
    * in the header `1 _STROM_DIRECTIONS Y` (the file says the lines, all of them) with `1 _STROM_DIRECTION G…` per line
    * (`2 NAME`, `2 TYPE ancestors|descendants|person|question`, `2 _FOCUS P…`, `2 STAT active|paused|done`) and
@@ -369,7 +376,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // says it in DATA TEXT — found by the joint check of spec 066, "PAGE I1 BIRT" on every fact of the tree)
   const stromPages = new Map<string, string | undefined>();
   const stromPage = (s: Source, c: Citation): string | undefined => {
-    if (!stromPages.has(s.id)) stromPages.set(s.id, s.locator ?? (s.kind === "family-tree" ? undefined : c.locator));
+    if (!stromPages.has(s.id)) stromPages.set(s.id, composedPage(s, lang) ?? (s.kind === "family-tree" ? undefined : c.locator));
     return stromPages.get(s.id);
   };
 
@@ -701,15 +708,32 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     w.text(1, "TITL", s.title);
     const set = s.recordset ? recordsets.get(s.recordset) : undefined;
     const repo = s.repository ?? set?.repository;
+    // the book's call number (the source's own, else its record set's): CALN under REPO — a source of no archive known
+    // with a call number of its own a REPO with no pointer (GEDCOM 5.5.1: n REPO [@R@|<NULL>]); a record set's alone
+    // stays in its note there, as before
+    const caln = sourceCallNumber(s, set);
     if (repo && repos.some((r) => r.id === repo)) {
       w.line(1, "REPO", x(repo));
-      if (set?.callNumber) w.line(2, "CALN", set.callNumber);
+      if (caln) w.line(2, "CALN", caln);
       usedRepos.add(repo);
+    } else if (s.callNumber?.trim()) {
+      w.line(1, "REPO");
+      w.line(2, "CALN", s.callNumber.trim());
     }
     // Where in the book, for Strom on the record itself: the app's "reference" of the source (it reads 1 PAGE there in
-    // every version; GEDCOM 5.5.1 has PAGE on a citation only, so another program gets it in the note)
-    const page = !strict && s.locator?.trim() ? s.locator : undefined;
+    // every version; GEDCOM 5.5.1 has PAGE on a citation only, so another program gets it in the note) — composed of the
+    // folio, the rest of the location and the image given (core/sourcefields.ts): the locator alone where none is
+    const composed = composedPage(s, lang);
+    const page = !strict && composed?.trim() ? composed : undefined;
     if (page) w.text(1, "PAGE", page);
+    // the fields themselves, for a Strom app that reads them (an older one counts them as tags it left out): the image
+    // also where only the registered scans give it
+    if (!strict && opts.sourceFields) {
+      const image = sourceImage(s, (id) => tree.get<Media>(id))?.value;
+      if (s.folio?.trim()) w.text(1, "_STROM_FOLIO", s.folio.trim());
+      if (image) w.text(1, "_STROM_IMAGE", image);
+      if (s.locator?.trim()) w.text(1, "_STROM_LOCATOR", s.locator);
+    }
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
     if (s.transcript) w.text(1, "TEXT", s.transcript);
     // the page of its scan in the online archive, for Strom: the app links it (its excerpts' own _URL first); GEDCOM
@@ -719,7 +743,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const url = s.url ?? set?.url;
     const head = [
       set ? `${L("recordset")}: ${set.title}${set.callNumber && (strict || repeat) ? ` (${set.callNumber})` : ""}` : "",
-      page ? "" : (s.locator ?? ""),
+      page ? "" : (composed ?? ""),
       s.date ? `${L("recorded")}: ${s.date}` : "",
       s.language ? `${L("language")}: ${s.language}` : "",
       url ? `${L("url")}: ${url}${s.accessed ? ` (${s.accessed})` : ""}` : "",
@@ -1318,7 +1342,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const src = sourceById.get(c.source);
     if (!src) return undefined;
     citedSources.add(c.source);
-    const page = strict ? (c.locator ?? src.locator) : stromPage(src, c);
+    const page = strict ? (c.locator ?? composedPage(src, lang)) : stromPage(src, c);
     w.line(level, "SOUR", x(c.source));
     if (page) w.text(level + 1, "PAGE", page);
     w.line(level + 1, "QUAY", quay(src, c));

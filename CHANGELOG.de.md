@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
@@ -32,7 +32,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   zeichnet, und geht weiter, sobald er ihn wieder zeichnet; ein Tab, der 30 s nicht gezeichnet wird, wird als solcher
   gemeldet. Wird der Betrachter inzwischen umgeblättert, wird nichts unter dem Namen eines anderen Bildes gespeichert.
 
-- **`strom fetch` meldet ein Bild, das viele Anfragen kostet, wie `strom connector test`.** Ein Konnektor aus der Zeit
+  **`strom fetch` meldet ein Bild, das viele Anfragen kostet, wie `strom connector test`.** Ein Konnektor aus der Zeit
   vor 1.30, der jedes Bild aus Kacheln zusammensetzt (hundert Anfragen pro Bild, Stunden für ein Buch), lud ohne ein
   Wort. Jetzt sagen die ersten Bilder eines Downloads dem Agenten einmal, was ein Bild kostet und wie lange ein Buch im
   Tempo des Archivs dauert, dazu, wie ein Download im Hintergrund angehalten wird und wonach zuerst zu suchen ist (eine
@@ -73,11 +73,35 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   des Agenten, was gegen jede Variante spricht und wie viele Personen sie zum Baum bringt; `/status` der Brücke nennt
   die wartenden Hypothesen (Features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
+- **Ein Eintrag wird wiedergefunden, auch wenn das Archiv seine Links ändert.** Wo ein Eintrag im Buch steht, wird
+  Feld für Feld gespeichert: `strom source add|edit --folio` (Seite oder Folio, wie das Buch zählt, „fol. 12v“),
+  `--image` (die Bildnummer im Portal des Archivs) und `--call-number` (die Signatur des Buchs bei einem Eintrag
+  außerhalb der erfassten Bücher), neben `--locator` für den Rest (die Nummer des Eintrags). `strom source show` nennt
+  Archiv, Signatur, Folio und Bild zusammen (ein Bild auch aus den erfassten Scans) und schlägt Folio und Bild vor,
+  die eine ältere Fundstelle nennt – geschrieben werden sie nie von selbst; bestehende Quellen bleiben, wie sie sind.
+  Die Datei für die Strom-App und andere Programme hat eine lesbare PAGE aus den Feldern („pag. 112, Nr. 3, Bild 57“)
+  und die Signatur als CALN; die Felder selbst bekommt die Strom-App ab der Version, die sie liest (Funktion der
+  Brücke `sources.fields`), und ihre Änderungen kommen per Abgleich zurück wie die einer Seite. Der Agent füllt sie
+  beim Erfassen aus und findet einen Link, der sich nicht mehr öffnet, über sie wieder. Eine PAGE nennt nie zwei Bild-
+  oder Folionummern: nennt eine ältere Fundstelle eine andere als das Feld, gilt darin das Feld (die Fundstelle selbst
+  bleibt), und `strom source edit` und `show` schlagen den Rest der Fundstelle vor. Ältere Quellen werden mit `strom
+  source split` auf einmal in die Felder aufgeteilt: eine Vorschau, was aus jeder würde (eine Fundstelle, in der
+  nichts erkannt wird, bleibt, wie sie ist), die Aufteilung schreibt der Benutzer mit `--apply` als einen Schritt und
+  macht sie als einen rückgängig (`--undo`); ein Agent bietet sie nur an. Die Aufteilung geht auch aus einer
+  Strom-App, die sie anbietet (Brückenfunktion `sources.split`): ihre Vorschau sagt, wie viele Quellen, die Aufteilung
+  wird auf den Klick des Benutzers als ein Schritt nach dieser Vorschau geschrieben und ganz zurückgenommen. Ein
+  Folio, ein Bild oder eine Signatur, die der Benutzer in einer Strom-App löscht, die diese Felder behält, wird auch
+  in der Forschung gelöscht (mit der Synchronisierung rückgängig); eine ältere App löscht nichts. Sagt eine Fundstelle
+  nichts als das Folio und das Bild, die ihre Felder schon geben, schlägt `strom source show` vor, sie zu leeren, und
+  `strom source edit --locator ""` tut es.
+
 - **Kleinigkeiten.** Eine Angabe, deren Prüfung nach vorne gerückt wurde, ist in der Datei für die Strom-App als
   angefragt markiert, sodass die App nicht noch einmal anbietet, sie vorzuziehen. `strom error --note` verbirgt auch die
   gebeugten Formen der Namen und Orte, die die Forschung kennt (tschechisch *z Brna*, *v Praze*). `strom task wait
   --request` findet die Datei auch, wenn ihr Name in der anderen Unicode-Form angegeben ist (ein Pfad vom Mac, unter
-  Windows verwendet).
+  Windows verwendet). Was als Nächstes kommt – im Menü vor `strom run` und in der Warteschlange der Strom-App –, ist
+  die Reihenfolge, in der `strom run` die Aufgaben nimmt: Ist eine Erzählung an der Reihe, steht eine Erzählung vorn,
+  nicht alle.
 
 ## 1.30.1
 

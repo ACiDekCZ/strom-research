@@ -8,7 +8,7 @@ the shell run strom, not edit files), run it again. `#name` labels what a line
 creates, `@name` uses it later; a found search comes after the source it found
 (`--found @s`).
 
-    source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, entry 2" --language la --information primary --transcript @notes/entry.txt #s
+    source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --folio "pag. 112" --locator "entry 2" --language la --information primary --transcript @notes/entry.txt #s
     event add P0001 CHR --date "25 JUN 1885" --place "Týnec" --house 13 --cite @s --quote "baptizatus est" --with "godparent:Marie Dvořáková" --with "midwife:Anna Nová" --with "officiant:P. Josef Kříž" --status proven
     cite E0001 @s --quote "natus 24. Junii" --status proven
     name add P0002 "Marie /Svobodová/" --kind birth --cite @s --quote "Maria filia Josephi Svoboda"
@@ -22,6 +22,13 @@ creates, `@name` uses it later; a found search comes after the source it found
   the Strom app shows the entry cut out of the scan next to its words. Every
   entry read from a scan gets it when it is recorded — you have the entry in
   front of you; strom reminds you of one without it (source add, task done).
+- Where the entry stands, field by field, so it is found again when a link
+  stops working: `--folio` the page or folio as the book numbers it, with its
+  word ("pag. 112", "fol. 12v"); `--locator` the rest (the entry's number, a
+  column); `--image` the image's number only for an entry with no registered
+  image (the clip gives it); `--call-number` for an entry in no record set.
+  Older sources whose locator names them: `strom source split` previews them
+  all; offer it to the user (`--apply` is theirs), never confirm it yourself.
 - `--transcript` is the entry's words as they stand in it — its own language,
   spelling and abbreviations, line by line, unread letters `[?]`; the Strom app
   shows them next to the entry's image. Every entry read gets them.

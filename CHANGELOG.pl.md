@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
@@ -30,7 +30,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   znów ją rysuje; karta nierysowana przez 30 s jest zgłaszana jako taka. Gdy podgląd w międzyczasie przejdzie do
   innego skanu, nic nie zostanie zapisane pod nazwą innego obrazu.
 
-- **`strom fetch` zgłasza obraz, który kosztuje wiele zapytań, tak jak `strom connector test`.** Konektor zbudowany
+  **`strom fetch` zgłasza obraz, który kosztuje wiele zapytań, tak jak `strom connector test`.** Konektor zbudowany
   przed wersją 1.30, który składa każdy obraz z kafelków (sto zapytań na obraz, godziny na księgę), pobierał bez słowa.
   Teraz pierwsze obrazy pobierania mówią agentowi raz, ile kosztuje jeden obraz i jak długo w tempie archiwum potrwa
   księga, a także jak zatrzymać pobieranie w tle i czego szukać najpierw (jedno zapytanie na obraz). Liczone jest tylko
@@ -67,10 +67,32 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   rozstrzygnięcie, propozycję agenta, co przemawia przeciw każdemu wariantowi i ile osób dołącza do drzewa; `/status`
   mostu wymienia czekające hipotezy (features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
+- **Wpis da się odnaleźć, nawet gdy archiwum zmieni linki.** To, gdzie wpis stoi w księdze, jest zapisywane pole po
+  polu: `strom source add|edit --folio` (strona lub folio tak, jak numeruje je księga, „fol. 12v”), `--image` (numer
+  skanu w portalu archiwum) i `--call-number` (sygnatura księgi przy wpisie spoza zarejestrowanych ksiąg), obok
+  `--locator` na resztę (numer wpisu). `strom source show` podaje archiwum, sygnaturę, folio i skan razem (skan także
+  z zarejestrowanych obrazów) i proponuje folio i skan, które wymienia starsza lokalizacja – nigdy nie zapisuje ich
+  sam; istniejące źródła zostają bez zmian. Plik dla aplikacji Strom i innych programów ma jedną czytelną PAGE złożoną
+  z pól („pag. 112, nr 3, skan 57”) i sygnaturę jako CALN; same pola aplikacja Strom dostaje od wersji, która je czyta
+  (funkcja mostu `sources.fields`), a ich zmiany wracają przez synchronizację jak zmiany strony. Agent wypełnia je
+  przy zapisie i po nich odnajduje link, który już się nie otwiera. PAGE nigdy nie podaje dwóch numerów skanu ani
+  folio: gdy starsza lokalizacja wymienia inny numer niż pole, obowiązuje w niej pole (sama lokalizacja zostaje), a
+  `strom source edit` i `show` proponują resztę lokalizacji. Starsze źródła rozdziela się na pola naraz poleceniem
+  `strom source split`: podgląd, czym stałoby się każde (lokalizacja, w której nic nie rozpoznano, zostaje bez zmian),
+  podział zapisuje użytkownik z `--apply` jednym krokiem i jednym się go cofa (`--undo`); agent tylko go proponuje.
+  Podział można zrobić także z aplikacji Strom, która go oferuje (funkcja mostu `sources.split`): jej podgląd mówi,
+  ile źródeł, podział zapisuje się po kliknięciu użytkownika jednym krokiem według tego podglądu i cofa w całości.
+  Folio, skan lub sygnatura usunięte przez użytkownika w aplikacji Strom, która przechowuje te pola, znikają także w
+  badaniu (cofa się je z synchronizacją); starsza aplikacja niczego nie usuwa. Gdy lokalizacja nie mówi nic poza folio
+  i skanem, które dają już pola, `strom source show` proponuje ją opróżnić, a `strom source edit --locator ""` to
+  robi.
+
 - **Drobiazgi.** Fakt, którego weryfikację przesunięto na początek, jest w pliku dla aplikacji Strom oznaczony jako
   zamówiony, więc aplikacja nie proponuje już ponownego przesunięcia. `strom error --note` ukrywa też odmienione
   formy imion i miejsc znanych badaniu (czeskie *z Brna*, *v Praze*). `strom task wait --request` znajduje plik także
-  wtedy, gdy jego nazwa jest podana w innej formie Unicode (ścieżka wpisana na Macu, użyta w Windows).
+  wtedy, gdy jego nazwa jest podana w innej formie Unicode (ścieżka wpisana na Macu, użyta w Windows). To, co jest
+  następne – w menu przed `strom run` i w kolejce aplikacji Strom – to kolejność, w jakiej zadania bierze `strom run`:
+  gdy przychodzi kolej na opowieść, na początku jest jedna opowieść, nie wszystkie.
 
 ## 1.30.1
 

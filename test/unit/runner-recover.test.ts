@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { GO_ON_MIN_MS } from "../../src/runners/jsonl.ts";
 import { opencodeError, opencodeRunner } from "../../src/runners/opencode.ts";
 import { transientNetworkError, type RunOptions, type RunResult } from "../../src/runners/runner.ts";
 import { agentStandIn } from "../helpers.ts";
@@ -19,6 +20,8 @@ interface Start {
   code?: number;
   /** Ends killed by this signal (not on Windows). */
   signal?: NodeJS.Signals;
+  /** Works this long before it ends (at the least: a loaded computer makes it longer). */
+  workMs?: number;
 }
 
 const SID = "ses_main0001";
@@ -45,6 +48,7 @@ async function ran(plan: Start[], given: Partial<RunOptions> = {}, env: Record<s
         "const p = plan[Math.min(n, plan.length - 1)];",
         'for (const e of p.events) process.stdout.write(JSON.stringify(e) + "\\n");',
         "if (p.stderr) process.stderr.write(p.stderr);",
+        "if (p.workMs) await new Promise((r) => setTimeout(r, p.workMs));",
         "if (p.signal) process.kill(process.pid, p.signal);",
         "else process.exitCode = p.code ?? 0;",
         "",
@@ -182,9 +186,14 @@ test("never resumed: a certificate, a login, a limit, a model, a permission, a c
 test("within the session's time: the wait and the work before count — too little left after the wait, it ends as it failed", async () => {
   const fail = failed({ name: "UnknownError", data: { message: "EPROTO: The TLS handshake failed" } });
   const later = { events: [step("stop")], code: 0 };
-  // a minute and a second in all: after a wait of 10 ms a minute is left — resumed; after 5 s it would not be
-  assert.equal((await ran([fail, later], { timeoutMs: 61_000 })).starts.length, 2);
-  assert.equal((await ran([fail, later], { timeoutMs: 61_000 }, { STROM_AGENT_RETRY_MS: "5000,15000" })).starts.length, 1);
+  // what must be left after the wait (GO_ON_MIN_MS) and a minute more: after a wait of 10 ms enough is left — resumed
+  // (however long a loaded computer takes to start the agent); after a wait longer than that minute it would not be
+  const ample = GO_ON_MIN_MS + 60_000;
+  assert.equal((await ran([fail, later], { timeoutMs: ample })).starts.length, 2);
+  assert.equal((await ran([fail, later], { timeoutMs: ample }, { STROM_AGENT_RETRY_MS: "61000,65000" })).starts.length, 1);
+  // half a second more than must be left, and the first start worked a second before it failed: not resumed (a slower
+  // computer only leaves less)
+  assert.equal((await ran([{ ...fail, workMs: 1000 }, later], { timeoutMs: GO_ON_MIN_MS + 500 })).starts.length, 1);
   assert.equal((await ran([fail, later], { timeoutMs: 30_000 })).starts.length, 1);
 });
 

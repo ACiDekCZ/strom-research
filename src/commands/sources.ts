@@ -32,6 +32,7 @@ import { create, csvOpt, listOpt, normId, requireRecord, textOpt, update } from 
 import { makeNote, makeNotes, parseDate } from "../core/actions.ts";
 import { calibrationLine, fitCalibration } from "../core/calibration.ts";
 import { foldText } from "../core/text.ts";
+import { locatorOverlap, recognizeLocation, sourceCallNumber, sourceImage } from "../core/sourcefields.ts";
 import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../core/media.ts";
 import { mediaOrient, partRegion } from "../core/views.ts";
 import { fileToShown } from "../image/image.ts";
@@ -203,7 +204,10 @@ register(
       { name: "recordset", type: "string", value: "<B…>", description: "the book or collection it is in" },
       { name: "repo", type: "string", value: "<R…>", description: "archive holding it" },
       { name: "input", type: "string", value: "<I…>", description: "the input (document from the user) it comes from" },
-      { name: "locator", type: "string", value: "<where>", description: "folio, page, entry number, image" },
+      { name: "locator", type: "string", value: "<where>", description: "where in the book: entry number, column — with --folio and --image the rest; alone the whole location; an empty one in an edit empties it" },
+      { name: "folio", type: "string", value: "<as written>", description: 'the folio or page as the book numbers it, with its word: "fol. 12v", "pag. 112"' },
+      { name: "image", type: "string", value: "<n>", description: "the image number(s) as the portal counts them (34, 57-58) — only for an entry with no registered image (--clip, --media give it)" },
+      { name: "call-number", type: "string", value: "<sig>", description: "the book's call number — for an entry in no record set of the research (or another one)" },
       { name: "date", type: "string", value: "<date>", description: "when the record was made (GEDCOM date)" },
       { name: "transcript", type: "string", value: "<text|@file>", description: "word-for-word transcription, original language" },
       { name: "translation", type: "string", value: "<text|@file>", description: "translation into the research language" },
@@ -222,7 +226,8 @@ register(
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
     examples: [
-      'strom source add "Křest Jana Nováka 1905" --kind baptism --recordset B0001 --locator "fol. 45, č. 12" --language la --information primary --transcript @zapis.txt --clip B0001:2@0.05,0.40,0.45,0.18',
+      'strom source add "Křest Jana Nováka 1905" --kind baptism --recordset B0001 --folio "fol. 45" --locator "č. 12" --language la --information primary --transcript @zapis.txt --clip B0001:2@0.05,0.40,0.45,0.18',
+      'strom source add "Oddavky Jana Lhotáka 1890" --kind marriage --repo R0001 --call-number "Lhota 7" --folio "pag. 112" --image 57 --locator "č. 3" --url https://archive.example.org/view/57',
       'strom source add "Rodinný strom od tety Marie" --kind family-tree --form authored --input I0001',
     ],
     run(ctx, { args, opts }) {
@@ -252,6 +257,9 @@ register(
           repository: opts.repo ? normId(opts.repo as string) : undefined,
           input: opts.input ? normId(opts.input as string) : undefined,
           locator: str(opts.locator),
+          folio: str(opts.folio),
+          image: str(opts.image),
+          callNumber: str(opts["call-number"]),
           date: parseDate(opts.date as string | undefined, "record date"),
           transcript,
           translation: textOpt(opts.translation, readText(ctx)),
@@ -268,7 +276,7 @@ register(
         (id) => `+${id} source "${truncate(args[0]!, 60)}"${media.length ? ` on ${media.join(" ")}` : ""}`,
         media,
       );
-      return { text: lines(written(tree), joinedNote(merged.joined), clipNote(tree, src), transcriptNote(tree, src), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src } };
+      return { text: lines(written(tree), overlapLine(src), joinedNote(merged.joined), clipNote(tree, src), transcriptNote(tree, src), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src, ...(locatorOverlap(src) ? { locatorOverlap: locatorOverlap(src) } : {}) } };
     },
   },
   {
@@ -276,7 +284,7 @@ register(
     summary: "List sources (filter by text, kind, recordset)",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "text in title, locator or transcript", mistaken: ["find", "search", "text"] }],
+    args: [{ name: "filter", description: "text in title, locator, folio, image or transcript", mistaken: ["find", "search", "text"] }],
     options: [
       { name: "kind", type: "string", value: "<kind>", description: "only this kind" },
       { name: "recordset", type: "string", value: "<B…>", description: "only from this recordset" },
@@ -285,7 +293,7 @@ register(
     run(ctx: Context, { args, opts }: Input) {
       const tree = ctx.tree();
       let all = tree.list<Source>("source").filter((s) => !s.retracted);
-      if (args[0]) all = all.filter((s) => matches(s.title, args[0]!) || matches(s.locator, args[0]!) || matches(s.transcript, args[0]!));
+      if (args[0]) all = all.filter((s) => matches(s.title, args[0]!) || matches(s.locator, args[0]!) || matches(s.folio, args[0]!) || matches(s.image, args[0]!) || matches(s.transcript, args[0]!));
       if (opts.kind) all = all.filter((s) => s.kind === opts.kind);
       if (opts.recordset) all = all.filter((s) => s.recordset === normId(opts.recordset as string));
       const page = paginate(all, ctx.limit, ctx.page);
@@ -317,10 +325,16 @@ register(
         for (const e of f.events) for (const c of e.citations) if (c.source === s.id) citing.push(`${f.id} ${e.id} ${e.kind}${at(c)}`);
       }
       const again = readAgainState(tree, s);
+      const loc = locationOf(tree, s);
       const text = lines(
         `${s.id} ${s.title}`,
         `kind ${s.kind} · ${s.form} · information ${s.information}${s.language ? ` · language ${s.language}` : ""}${s.date ? ` · dated ${s.date}` : ""}`,
         s.recordset || s.repository ? `in     ${[s.recordset, s.repository].filter(Boolean).join(" · ")}${s.locator ? ` · ${s.locator}` : ""}` : s.locator ? `at     ${s.locator}` : undefined,
+        // what finds the entry again when its link no longer leads to it: the archive, the book's call number, the folio, the image
+        loc.line ? `find   ${loc.line}` : undefined,
+        loc.proposed ? `from its locator: ${[loc.proposed.folio ? `--folio ${shellArg(loc.proposed.folio)}` : "", loc.proposed.image ? `--image ${shellArg(loc.proposed.image)}` : "", loc.proposed.locator !== undefined ? locatorArg(loc.proposed.locator) : ""].filter(Boolean).join(" ")} (strom source edit ${s.id} to take them)` : undefined,
+        // with a proposal, its edit says the rest (of the fields it takes too)
+        overlapLine(s, !loc.proposed),
         s.url ? `url    ${s.url}` : undefined,
         s.media?.length ? `images ${s.media.map((id) => { const m = tree.get<Media>(id); return m ? `${id}${m.recordset ? ` (${m.recordset}:${m.image ?? "?"})` : ""}` : id; }).join(" · ")} — strom media view <M…>` : undefined,
         // as --clip takes them: of the picture as its view shows it
@@ -331,10 +345,83 @@ register(
         citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : "\ncited by nothing yet",
         ...s.notes.map((n) => `note   ${n.text}`),
       );
-      return { text, data: { source: s, citedBy: citing, ...(again ? { readAgain: again } : {}) } };
+      return {
+        text,
+        data: {
+          source: s,
+          ...(loc.image ? { image: loc.image.value, ...(loc.image.derived ? { imageDerived: true } : {}) } : {}),
+          ...(loc.callNumber ? { callNumber: loc.callNumber } : {}),
+          ...(loc.proposed ? { proposed: loc.proposed } : {}),
+          ...(locatorOverlap(s) ? { locatorOverlap: locatorOverlap(s) } : {}),
+          citedBy: citing,
+          ...(again ? { readAgain: again } : {}),
+        },
+      };
     },
   },
 );
+
+/** The reason proposed with a locator cut to its rest (what it said is in the fields now). */
+const FIELDS_REASON = "the folio and image are in their own fields";
+
+/** The locator without what the proposal takes into fields (the folio, the image or both): "" when nothing is left, undefined when it takes nothing of it. */
+function restWithout(s: Source, taken: { folio?: string; image?: string }): string | undefined {
+  const o = locatorOverlap({ locator: s.locator, folio: taken.folio ?? s.folio, image: taken.image ?? s.image });
+  return o ? o.rest ?? "" : undefined;
+}
+
+/** The locator option a proposal gives: its rest, or emptied when nothing is left of it (N1-a). */
+const locatorArg = (rest: string) => `--locator ${rest ? shellArg(rest) : '""'} --reason "${FIELDS_REASON}"`;
+
+/**
+ * When a source's locator names the folio or the image its fields give too (spec 075 N1): what the PAGE says of it
+ * (once: the same number as the locator says it, another the field's) and the edit that keeps the locator to the
+ * rest — never written by itself (decision 5).
+ */
+function overlapLine(s: Pick<Source, "id" | "folio" | "image" | "locator">, withEdit = true): string | undefined {
+  const o = locatorOverlap(s);
+  if (!o) return undefined;
+  const said = [
+    o.folio ? (o.folio.same ? `the folio (${o.folio.named}) too` : `folio ${o.folio.named}, the field ${s.folio!.trim()}`) : "",
+    o.image ? (o.image.same ? `the image (${o.image.named}) too` : `image ${o.image.named}, the field ${s.image!.trim()}`) : "",
+  ].filter(Boolean).join(" and ");
+  const differs = !!(o.folio && !o.folio.same) || !!(o.image && !o.image.same);
+  const page = differs ? "the PAGE says the field's" : "the PAGE says it once";
+  // nothing left of it once the fields say it: emptied (N1-a)
+  const fix = withEdit ? ` · the locator ${o.rest ? "to its rest" : "emptied, nothing else in it"}: strom source edit ${s.id} ${locatorArg(o.rest ?? "")}` : "";
+  return `its locator names ${said} — ${page}, the locator is kept as it is${fix}`;
+}
+
+/**
+ * Where a source's entry stands, to find it again (spec 075): its archive, the book's call number (its own or its
+ * record set's), folio, image (its own or that of its registered images) — and what its locator names of the folio
+ * and the image while they are not given (a proposal: written only by strom source edit).
+ */
+function locationOf(tree: Tree, s: Source): { line?: string; image?: { value: string; derived: boolean }; callNumber?: string; proposed?: { folio?: string; image?: string; locator?: string } } {
+  const set = s.recordset ? tree.get<RecordSet>(s.recordset) : undefined;
+  const repoId = s.repository ?? set?.repository;
+  const repo = repoId ? tree.get<Repository>(repoId) : undefined;
+  const callNumber = sourceCallNumber(s, set);
+  const image = sourceImage(s, (id) => tree.get<Media>(id));
+  const parts = [
+    repo ? `${repo.id} ${repo.name}` : "",
+    callNumber ? `call number ${callNumber}${s.callNumber?.trim() ? "" : " (its book's)"}` : "",
+    s.folio ? s.folio : "",
+    image ? `image ${image.value}${image.derived ? " (from its images)" : ""}` : "",
+  ].filter(Boolean);
+  const found = recognizeLocation(s.locator);
+  const proposed: { folio?: string; image?: string; locator?: string } = { ...(!s.folio && found.folio ? { folio: found.folio } : {}), ...(!image && found.image ? { image: found.image } : {}) };
+  // what is left of the locator once both are fields (N1): proposed with them, never a part the fields do not take —
+  // emptied ("") when nothing is left (N1-a)
+  const rest = proposed.folio || proposed.image ? restWithout(s, proposed) : undefined;
+  if (rest !== undefined) proposed.locator = rest;
+  return {
+    ...(parts.length && (callNumber || s.folio || image) ? { line: parts.join(" · ") } : {}),
+    ...(image ? { image } : {}),
+    ...(callNumber ? { callNumber } : {}),
+    ...(proposed.folio || proposed.image ? { proposed } : {}),
+  };
+}
 
 // ── repositories ───────────────────────────────────────────────────────────
 
@@ -864,7 +951,8 @@ register(
     writes: true,
     description:
       "Only the options given change; --media adds images, --note adds a note. Changing what a record says or\n" +
-      "how good it is (kind, form, information, date, locator, transcript, record set) needs --reason; filling in doesn't.",
+      "how good it is (kind, form, information, date, locator, folio, image, call number, transcript, record set) needs\n" +
+      "--reason; filling in doesn't.",
     args: [{ name: "source", description: "source ID (S0001)", required: true }],
     options: [
       ...editOptions(addOptions("source add"), [{ name: "title", type: "string", value: "<text>", description: "a better title" }]).filter((o) => o.name !== "input"),
@@ -873,6 +961,7 @@ register(
     examples: [
       'strom source edit S0001 --translation "Jan, son of Josef" --media B0001:2',
       'strom source edit S0001 --information secondary --reason "the entry was written years later"',
+      'strom source edit S0001 --url https://archive.example.org/view/58 --image 58 --reason "the archive moved its viewer; found again by call number and folio"',
       "strom source edit S0001 --clip M0001@0.05,0.42,0.45,0.16",
     ],
     run(ctx, { args, opts }) {
@@ -895,7 +984,7 @@ register(
           throw new UsageError(`changing transcript of ${before.id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id: before.id, fields: "--transcript" } });
         proposed = proposeTranscript(tree, before.id, transcript, { why: str(opts.reason)! });
         transcript = undefined;
-        const rest = [opts.title, opts.kind, opts.recordset, opts.repo, opts.locator, opts.date, opts.translation, opts.language, opts.information, opts.form, opts.url, opts.note, drop].some((v) => v !== undefined) || media.length > 0 || clips.length > 0;
+        const rest = [opts.title, opts.kind, opts.recordset, opts.repo, opts.locator, opts.folio, opts.image, opts["call-number"], opts.date, opts.translation, opts.language, opts.information, opts.form, opts.url, opts.note, drop].some((v) => v !== undefined) || media.length > 0 || clips.length > 0;
         if (!rest) return { text: lines(written(tree), proposed.line), data: { source: tree.get<Source>(before.id), proposal: proposed } };
       }
       const s = editFields<Source>(
@@ -908,6 +997,9 @@ register(
           recordset: opts.recordset ? normId(opts.recordset as string) : undefined,
           repository: opts.repo ? normId(opts.repo as string) : undefined,
           locator: str(opts.locator),
+          folio: str(opts.folio),
+          image: str(opts.image),
+          callNumber: str(opts["call-number"]),
           date: opts.date === undefined ? undefined : parseDate(opts.date as string, "record date"),
           transcript,
           translation: textOpt(opts.translation, readText(ctx)),
@@ -917,7 +1009,7 @@ register(
           url: str(opts.url),
           accessed: str(opts.url) ? new Date().toISOString().slice(0, 10) : undefined,
         },
-        { kind: "other", form: undefined, information: "unknown", date: undefined, locator: undefined, transcript: undefined, recordset: undefined },
+        { kind: "other", form: undefined, information: "unknown", date: undefined, locator: undefined, folio: undefined, image: undefined, callNumber: undefined, transcript: undefined, recordset: undefined },
         opts,
         (cur) => {
           let kept = cur.clips ?? [];
@@ -937,6 +1029,8 @@ register(
           const next = merged.clips;
           if (next.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`, { hint: `take one away: --clip-remove <n> (strom source show ${cur.id})` });
           return {
+            // --locator "": the locator emptied, its folio and image in their fields (N1-a) — a change as any other
+            ...(typeof opts.locator === "string" && !opts.locator.trim() && cur.locator !== undefined ? { locator: undefined } : {}),
             ...(media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
             ...(drop !== undefined || clips.length ? { clips: next.length ? next : undefined } : {}),
             // a new wording typed by hand at the person's terminal: their reading of it (anyone else's: a reading of the
@@ -945,7 +1039,9 @@ register(
           };
         },
       );
-      return { text: lines(written(tree), joinedNote(joined), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined, proposed?.line), data: { source: s, ...(proposed ? { proposal: proposed } : {}) } };
+      // a locator that names what the folio or image given now say too: said, the rest proposed (N1)
+      const where = opts.locator !== undefined || opts.folio !== undefined || opts.image !== undefined ? locatorOverlap(s) : undefined;
+      return { text: lines(written(tree), where ? overlapLine(s) : undefined, joinedNote(joined), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined, proposed?.line), data: { source: s, ...(proposed ? { proposal: proposed } : {}), ...(where ? { locatorOverlap: where } : {}) } };
     },
   },
   {

@@ -54,6 +54,18 @@ const alive = (pid: number) => {
   }
 };
 
+/**
+ * A stand-in bridge (`script` with `live serve` among its arguments) that has begun to look for its stop file: waited
+ * for by the file it writes once it does, not by its process alone — a loaded computer starts Node later than the
+ * moment endBridge gives a bridge to take its ask.
+ */
+async function standIn(root: string, script: string): Promise<ReturnType<typeof spawn>> {
+  const ready = path.join(root, `ready-${crypto.randomUUID()}`);
+  const c = spawn(process.execPath, ["-e", `${script};require("fs").writeFileSync(${JSON.stringify(ready)},"")`, "live", "serve"], { cwd: root, stdio: "ignore" });
+  await until("the stand-in bridge looks for its stop file", () => fs.existsSync(ready), 60_000);
+  return c;
+}
+
 test("strom live stop asks the bridge through its stop file: the end said on its stream, the stream closed, live.log says why — at once", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   await w.withTree();
@@ -119,8 +131,7 @@ test("endBridge on Windows: a bridge that hears its stop file ends as it should;
   try {
     // hears it: takes the ask meant for it and ends by itself
     const hears = `const f=${JSON.stringify(file)},fs=require("fs");setInterval(()=>{try{if(JSON.parse(fs.readFileSync(f,"utf8")).pid===process.pid){fs.rmSync(f);process.exit(0)}}catch{}},50)`;
-    const good = spawn(process.execPath, ["-e", hears, "live", "serve"], { cwd: root, stdio: "ignore" });
-    await until("it runs", () => good.pid !== undefined && alive(good.pid));
+    const good = await standIn(root, hears);
     assert.equal(await endBridgeAs("win32", good.pid!, root), "stopped");
     assert.equal(await exited(good), null, "it ended by itself");
     // does not hear it (a bridge of an older strom): on Windows a signal ends it at once, unheard — "killed", said so
@@ -144,19 +155,18 @@ test("endBridge: a bridge that says it writes what the app sent is waited for un
   const busy = path.join(root, ".strom", "live-busy.json");
   const written = path.join(root, "written");
   const exited = (c: ReturnType<typeof spawn>) => new Promise<string | null>((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
-  // asked to end, it writes on for `writes` ms (saying so), then ends by itself
+  // asked to end, it writes on for `writes` ms (saying so, its note written whole as the bridge writes it: never read
+  // half written — an empty note read is a bridge that no longer says it writes), then ends by itself
   const writer = (writes: number) =>
-    `const f=${JSON.stringify(file)},b=${JSON.stringify(busy)},w=${JSON.stringify(written)},fs=require("fs");let at=0;setInterval(()=>{let a;try{a=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}if(a?.pid!==process.pid)return;at||=Date.now();if(Date.now()-at<${writes}){fs.writeFileSync(b,JSON.stringify({pid:process.pid,at:Date.now()}));return}fs.writeFileSync(w,"whole");fs.rmSync(f);fs.rmSync(b,{force:true});process.exit(0)},50)`;
+    `const f=${JSON.stringify(file)},b=${JSON.stringify(busy)},w=${JSON.stringify(written)},fs=require("fs");let at=0;setInterval(()=>{let a;try{a=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}if(a?.pid!==process.pid)return;at||=Date.now();if(Date.now()-at<${writes}){fs.writeFileSync(b+"."+process.pid,JSON.stringify({pid:process.pid,at:Date.now()}));fs.renameSync(b+"."+process.pid,b);return}fs.writeFileSync(w,"whole");fs.rmSync(f);fs.rmSync(b,{force:true});process.exit(0)},50)`;
   try {
     // writing longer than the ask is waited for (600 ms): ended as it should once written, never cut short
-    const slow = spawn(process.execPath, ["-e", writer(2000), "live", "serve"], { cwd: root, stdio: "ignore" });
-    await until("it runs", () => slow.pid !== undefined && alive(slow.pid));
+    const slow = await standIn(root, writer(2000));
     assert.equal(await endBridgeAs("win32", slow.pid!, root, { writeMs: 20_000 }), "stopped");
     assert.equal(await exited(slow), null, "it ended by itself");
     assert.equal(fs.readFileSync(written, "utf8"), "whole", "what it wrote was written whole");
     // one that says it writes for ever: waited for only as long as given, then ended for good — and said so
-    const stuck = spawn(process.execPath, ["-e", writer(3_600_000), "live", "serve"], { cwd: root, stdio: "ignore" });
-    await until("it runs", () => stuck.pid !== undefined && alive(stuck.pid));
+    const stuck = await standIn(root, writer(3_600_000));
     const from = Date.now();
     assert.equal(await endBridgeAs("win32", stuck.pid!, root, { writeMs: 1000 }), "killed");
     assert.equal(await exited(stuck), "SIGKILL");

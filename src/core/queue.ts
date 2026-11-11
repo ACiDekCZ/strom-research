@@ -376,16 +376,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         : undefined,
       first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
       placesAsked ? "places the person asked to be identified: on top of the queue" : undefined,
-      storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
+      storyTurn ? STORY_WHY : undefined,
       blocked ? "needs images the user has to download" : undefined,
       `p${t.priority}`,
       t.level === "intake" ? "the user's material" : at ? `generation ${gen}` : "not about an ancestor",
       lineAt !== undefined && working.length > 1 ? `line ${lineAt + 1} of ${working.length}` : undefined,
       recent ? `its line had ${recent} of the last ${RECENT} sessions` : undefined,
       tried ? `tried ${tried}×` : undefined,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    ].filter((x): x is string => !!x);
     const lineOwn = hist ? undefined : (directionOf(tree, t, all) ?? p.research);
     const reason: Reason | undefined = mine
       ? { kind: "own", do: mine }
@@ -407,11 +405,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(mine ? { own: mine } : {}),
       ...(ahead || verifyNow ? { turn: true as const } : {}),
     };
-    return { task: t, why, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
+    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });
-  return rows
-    .sort(
-      (a, b) =>
+  const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
         // the person's own turn: next before everything but the work at hand (the first chosen first), last after everything
         a.own - b.own ||
@@ -430,9 +426,36 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // priority: strictly the lines' order of work, the tasks of no line after them
         (strategy === "priority" ? a.lineRank - b.lineRank || b.task.priority - a.task.priority || a.gen - b.gen : b.score - a.score) ||
         (LEVEL_ORDER[a.task.level] ?? 9) - (LEVEL_ORDER[b.task.level] ?? 9) ||
-        a.task.created.localeCompare(b.task.created),
-    )
-    .map(({ task, why, extra }) => ({ task, why, ...extra }));
+        a.task.created.localeCompare(b.task.created);
+  rows.sort(cmp);
+  // a story's turn is one session's: the first story in the order takes it, the others keep their place after the
+  // research (strom run takes one story, then a session has had a story — what the queue shows says the same)
+  const turnStory = rows.find((r) => r.storyTurn);
+  if (turnStory && rows.some((r) => r.storyTurn && r !== turnStory)) {
+    for (const r of rows)
+      if (r.storyTurn && r !== turnStory) {
+        r.storyTurn = false;
+        r.story = 2;
+      }
+    rows.sort(cmp);
+  }
+  return rows.map(({ task, why, storyTurn, extra }) => ({ task, why: why.map((w) => (w === STORY_WHY ? (storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined) : w)).filter(Boolean).join(" · "), ...extra }));
+}
+
+/** The place of a story's turn among the reasons of a task (filled in once the one story of the turn is known). */
+const STORY_WHY = "\u0000story";
+
+/**
+ * What strom run takes when it works alone: now and then a story's turn (one story first), the tasks of history by
+ * their pace. Every place that shows the person or the Strom app what comes next goes by it (the menu before strom
+ * run, the bridge's queue and the places it tells of tasks) — a conversation is the user's to lead, its order (strom
+ * task next, task list, session start) has no story's turn and no history unless asked for.
+ */
+export const RUN_TURNS = { storyTurn: true, history: true } as const;
+
+/** The queue in the order strom run takes it (RUN_TURNS): the tasks it would take, each with the reason. */
+export function runOrder(tree: Tree, tasks: Task[] = tree.list<Task>("task"), strategy: Strategy = new Settings(tree.env, {}).strategy(tree.config)): Ranked[] {
+  return rankTasks(tree, tasks, strategy, RUN_TURNS);
 }
 
 /** Why a task of history stands where it does: history's turn now, when it comes, the place that put it first. */

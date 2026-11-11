@@ -14,7 +14,7 @@ import { update, requireRecord } from "../core/records.ts";
 import { detectAgent } from "../core/which.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { answerBranch, BRANCH_MODES, branchJson, branchKey, branchOf, offLineJson, offLineView, readOffline, setBranch, type BranchView } from "../core/offline.ts";
-import { ownTurn, rankTasks } from "../core/queue.ts";
+import { ownTurn, runOrder } from "../core/queue.ts";
 import { resolveResearch } from "./research.ts";
 import { rankData } from "./tasks.ts";
 
@@ -216,7 +216,8 @@ register(
 /** The task as the queue has it now (its why, its branch, the person's turn); not in the queue: the task alone. */
 function taskTurn(ctx: Context, tree: Tree, id: string): { task: Task } & Record<string, unknown> {
   const t = tree.get<Task>(id)!;
-  const ranked = rankTasks(tree, tree.list<Task>("task"), ctx.settings.strategy(tree.config));
+  // its place as strom run would take it, as the Strom app shows the queue (core/queue.ts runOrder)
+  const ranked = runOrder(tree, tree.list<Task>("task"), ctx.settings.strategy(tree.config));
   const at = ranked.findIndex((r) => r.task.id === id);
   const r = ranked[at];
   return { task: t, ...(r ? { why: r.why, ...rankData(r), place: at + 1 } : {}) };

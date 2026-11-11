@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.31.0-beta.5. The section is complete with the release.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
@@ -28,7 +28,7 @@ The changes of each version in short. The full notes and the install lines are o
   now counts only the time the browser draws the tab and goes on once it draws it again; a tab not drawn for 30 s is
   said as that. When the viewer is paged meanwhile, nothing is saved under another image's name.
 
-- **`strom fetch` says an image that costs many requests, as `strom connector test` does.** A connector built before
+  **`strom fetch` says an image that costs many requests, as `strom connector test` does.** A connector built before
   1.30 that puts each image together from tiles (a hundred requests an image, hours for a book) fetched without a word.
   Now the first images of a fetch tell the agent once what one image costs and how long a book takes at the archive's
   pace, with how to stop a fetch in the background and what to look for first (one request an image). Taken from the
@@ -64,10 +64,31 @@ The changes of each version in short. The full notes and the install lines are o
   each variant and how many people it joins to the tree; the bridge's `/status` lists the hypotheses that wait
   (features `hypothesis.decide.link`, `hypotheses.accept.link`).
 
+- **An entry is found again when the archive changes its links.** Where an entry stands in its book is kept field by
+  field: `strom source add|edit --folio` (the page or folio as the book numbers it, "fol. 12v"), `--image` (the
+  image's number on the archive's portal) and `--call-number` (the book's, for an entry in no record set), beside
+  `--locator` for the rest (the entry's number). `strom source show` says the archive, the call number, the folio and
+  the image together (an image also from the registered scans), and proposes the folio and image an older locator
+  names — never written by itself; existing sources stay as they are. The file for the Strom app and other programs
+  keeps one readable PAGE composed of them ("pag. 112, entry 3, image 57"), the call number as CALN; the Strom app
+  gets the fields themselves from the version that reads them (bridge feature `sources.fields`), and its edits of them
+  come back by sync like a page's. The agent fills them in as it records, and a link that no longer opens is found
+  again by them. A PAGE never says two image or folio numbers: when an older locator names another than the field, the
+  field's (the locator itself kept), and `strom source edit` and `show` propose the locator's rest. Older sources are
+  split into the fields at once by `strom source split`: a preview of what each would become (a locator in which
+  nothing is recognised stays as it is), written by the user with `--apply` as one step and undone as one (`--undo`);
+  an agent only offers it. The split is done from a Strom app that offers it too (bridge feature `sources.split`): its
+  preview says how many sources, the split is written on the user's click as one step on that preview and taken back
+  whole. A folio, image or call number the user removes in a Strom app that keeps these fields is removed in the
+  research too (undone with the sync); an older app removes nothing. When a locator says nothing but the folio and
+  image its fields give, `strom source show` proposes emptying it, and `strom source edit --locator ""` does so.
+
 - **Smaller things.** A fact whose verification the user moved to the front is marked as asked for in the file for the
   Strom app, so the app no longer offers to move it forward again. `strom error --note` also hides the inflected forms of
   the names and places the research knows ("from Brno" said as *z Brna*). `strom task wait --request` finds the file
-  also when its name is given in the other Unicode form (a path typed on a Mac, used on Windows).
+  also when its name is given in the other Unicode form (a path typed on a Mac, used on Windows). What comes next — in
+  the menu before `strom run` and in the Strom app's queue — is the order `strom run` takes: at a story's turn one story
+  first, not all of them.
 
 ## 1.30.1
 

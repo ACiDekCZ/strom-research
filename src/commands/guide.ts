@@ -176,7 +176,7 @@ conversation opened anywhere, a bot on its own server)
 
 RECORDING
 A record (register entry, certificate) — the source first, then its facts:
-  strom source add "Křest Jana Nováka 1885" --kind baptism --recordset B0001 --clip B0001:12@0.05,0.40,0.45,0.18 --locator "fol. 12, č. 3" --form original --information primary --transcript @zapis.txt
+  strom source add "Křest Jana Nováka 1885" --kind baptism --recordset B0001 --clip B0001:12@0.05,0.40,0.45,0.18 --folio "fol. 12" --locator "č. 3" --form original --information primary --transcript @zapis.txt
   strom person add "Jan /Novák/" --sex M --born "24 JUN 1885" --born-place "Kamenice nad Lipou" --cite S0001
   strom family add --partner P0002 --partner P0003 --child P0001    the baptism naming the parents proves the link
   strom event add P0001 CHR --date "25 JUN 1885" --cite S0001 --locator "fol. 12" --with "godparent:Marie Dvořáková" --status proven
@@ -191,6 +191,9 @@ Corrections — a person, a fact, a source:
   strom person edit P0003 --sex F --name "…" --reason "…"
   strom event edit E0001 --date "…" --reason "…"
   strom source edit S0001 --locator "…" --reason "…"   (filling in, e.g. --translation, needs no reason)
+A link that no longer opens its entry: found again by the archive, call number, folio and image (strom source show S0001),
+then strom source edit S0001 --url <its page now> --reason "…" (a locator that names the folio or image too: its rest
+with it, --locator "…", as strom source show proposes).
 Lessons — a quirk of a book, an archive or a place, for whoever works with it next (strom lesson add "…" --on B…);
 one found wrong or out of date is corrected, never added again:
   strom lesson edit K0001 --rule "…" --reason "…"

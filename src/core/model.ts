@@ -413,8 +413,14 @@ export interface Source extends BaseRecord {
   recordset?: string;
   repository?: string;
   input?: string;
-  /** Where exactly: folio, page, entry number, image. */
+  /** Where exactly: folio, page, entry number, image — with folio and image given apart, the rest (entry number, column). */
   locator?: string;
+  /** The folio or page as the book numbers it, with its word: "fol. 12v", "pag. 112" (spec 075; core/sourcefields.ts). */
+  folio?: string;
+  /** The entry's image number(s) as the archive's portal counts them ("34", "57–58"); none: those of its registered images. */
+  image?: string;
+  /** The book's call number, where the entry is in no record set of the research or in another one than its record set says. */
+  callNumber?: string;
   /** Date the record was made (GEDCOM form). */
   date?: string;
   transcript?: string;

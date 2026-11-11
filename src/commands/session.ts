@@ -5,6 +5,7 @@
 // closes what the agent left open, exports the GEDCOM and commits. Between
 // sessions not a single token is spent.
 
+import { RUN_TURNS } from "../core/queue.ts";
 import { queueVerify } from "../core/verify.ts";
 import { opsLogsOf } from "../core/opslog.ts";
 import fs from "node:fs";
@@ -976,7 +977,7 @@ register(
         // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
         // historyTurn), or with --history those alone in their order; the gate, if any, decides whether a session starts at all.
         const free = () =>
-          taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: !historyOnly, history: historyOnly ? "only" : true }).find((t) => !others.has(t.id));
+          taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), ...(historyOnly ? { history: "only" as const } : RUN_TURNS) }).find((t) => !others.has(t.id));
         let task: Task | undefined;
         if (placesOnly) {
           task = tree.list<Task>("task").find((t) => t.origin === PLACES_IDENTIFY_ORIGIN && (t.state === "open" || t.state === "doing") && !others.has(t.id));
