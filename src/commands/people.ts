@@ -924,7 +924,7 @@ register(
       { name: "n", description: "the note's number (strom note list <id>; a fact's note is 1)", required: true },
       { name: "text", description: "the corrected note", required: true },
     ],
-    examples: ['strom note edit T0002 1 "Book 12 searched 1801–1830: no entry" --reason "the years were written wrong"'],
+    examples: ['strom note edit T0002 1 "Book 12 searched 1801-1830: no entry" --reason "the years were written wrong"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const id = noteHolderId(tree, args[0]!);

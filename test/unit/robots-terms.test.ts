@@ -63,6 +63,7 @@ test("the terms that count: an allowed entry of the list with automatedUse, quot
   assert.equal(openByTerms({ ...base, quote: undefined }), false, "no quote word for word");
   assert.equal(openByTerms({ ...base, terms: undefined }), false, "no address of the terms");
   assert.equal(openByTerms({ ...base, quoteFrom: "robots" }), false, "a quote of its robots.txt is no terms");
+  assert.equal(openByTerms({ ...base, quoteFrom: "reply", replied: "2026-11-12" }), false, "an archive's reply is no public terms");
   assert.equal(openByTerms({ ...base, browserOnly: true }), false);
   assert.equal(openByTerms(undefined), false);
   // strom's own list: the open map services marked so, the archive's paths there kept off still; others unmarked

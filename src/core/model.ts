@@ -726,6 +726,11 @@ export interface Task extends BaseRecord {
   /** Why it was put aside (strom task park --reason, or strom run parking a stuck task). */
   parkedReason?: string;
   /**
+   * Parked by strom run because strom was refused to the agent in its sessions again and again (its sandbox): "denied"
+   * — one such task at a time, until a session records something (K031). Optional: an older strom keeps it.
+   */
+  parkedFor?: string;
+  /**
    * A task of history for these kinds of events alone (strom history align: a kind turned on, looked for where the
    * history was looked for without it). Optional: an older strom keeps it and looks for every kind.
    */

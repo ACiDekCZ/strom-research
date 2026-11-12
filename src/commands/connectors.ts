@@ -1999,21 +1999,27 @@ function bookImagesOf(ctx: Context, c: Connector, book: string, books: RunReport
  * what they cover — for the agent who builds it: connector.json's policy starts from them. Never an address of a
  * portal's own: the connector is built from the portal as it is.
  */
-function knownTermsOf(ctx: Context, hosts: string[]): { text: string; data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] } | undefined {
+function knownTermsOf(ctx: Context, hosts: string[]): { text: string; data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots" | "reply"; replied?: string; terms?: string; scope?: string; checked?: string }[] } | undefined {
   const seen = new Set<string>();
-  const data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] = [];
+  const data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots" | "reply"; replied?: string; terms?: string; scope?: string; checked?: string }[] = [];
   for (const h of hosts) {
     const k = termsFor(ctx.env, bareHost(h));
     if (!k || seen.has(`${k.name ?? k.host} ${k.quote ?? ""}`)) continue;
     seen.add(`${k.name ?? k.host} ${k.quote ?? ""}`);
-    data.push({ host: k.host, ...(k.name ? { name: k.name } : {}), level: k.level, ...(k.quote ? { quote: k.quote } : {}), from: k.quoteFrom === "robots" ? "robots" : "terms", ...(k.terms ? { terms: k.terms } : {}), ...(k.scope ? { scope: k.scope } : {}), ...(k.checked ? { checked: k.checked } : {}) });
+    data.push({ host: k.host, ...(k.name ? { name: k.name } : {}), level: k.level, ...(k.quote ? { quote: k.quote } : {}), from: k.quoteFrom ?? "terms", ...(k.replied ? { replied: k.replied } : {}), ...(k.terms ? { terms: k.terms } : {}), ...(k.scope ? { scope: k.scope } : {}), ...(k.checked ? { checked: k.checked } : {}) });
   }
   if (!data.length) return undefined;
   return {
     text: lines(
       ...data.flatMap((k) => [
         `strom knows the terms of ${k.name ?? k.host}: ${k.level}${k.checked ? ` (checked ${k.checked})` : ""}`,
-        k.quote ? `  "${k.quote}" — ${k.from === "robots" ? "its robots.txt" : "its terms"}${k.terms ? `: ${k.terms}` : ""}` : k.terms ? `  its terms: ${k.terms}` : undefined,
+        k.quote
+          ? k.from === "reply"
+            ? `  "${k.quote}" — the archive's written reply${k.replied ? ` of ${k.replied}` : ""} (not its published terms)${k.terms ? `; its terms: ${k.terms}` : ""}`
+            : `  "${k.quote}" — ${k.from === "robots" ? "its robots.txt" : "its terms"}${k.terms ? `: ${k.terms}` : ""}${k.replied ? ` (named in the archive's written reply of ${k.replied})` : ""}`
+          : k.terms
+            ? `  its terms: ${k.terms}`
+            : undefined,
         k.scope ? `  what it covers: ${k.scope}` : undefined,
       ]),
       `  start connector.json's policy from them (terms, termsSummary, automation) — robots.txt and official exports still yours to read (DISCOVERY.md, step 1)`,

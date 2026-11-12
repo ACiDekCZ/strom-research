@@ -305,6 +305,9 @@ register(
     group: "research",
     tree: true,
     writes: true,
+    // what a file would bring (no --apply) and the inbox read only: anybody's, also on a research sealed on another
+    // computer; --app starts the bridge, which writes what the app sends at once — a write
+    writesWith: ({ opts }) => !!opts.apply || !!opts.app,
     // the Strom app may take minutes to send the tree: the tree is locked only while a sync is written
     lock: "sections",
     description:

@@ -197,7 +197,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     tree.actor = s.id;
     if (task && task.state !== "doing") {
       // taken up: what kept it aside goes (a parked task's date and reason)
-      const { parkedUntil: _until, parkedReason: _reason, awaitsPermission: _decision, ...rest } = task;
+      const { parkedUntil: _until, parkedReason: _reason, parkedFor: _for, awaitsPermission: _decision, ...rest } = task;
       const doing = { ...rest, state: "doing" as const, updated: now() };
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }

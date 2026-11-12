@@ -413,7 +413,7 @@ export function fetchesArea(root: string, sinceMs: number, masker: Masker): { ru
 }
 
 /** The sessions of the agents since a time: when, how they ended, their numbers — never their summary or notes. */
-export function sessionsArea(root: string, sinceMs: number): { sessions: unknown[]; open: number } {
+export function sessionsArea(root: string, sinceMs: number, masker: Masker): { sessions: unknown[]; open: number } {
   const dir = path.join(root, "data", RECORD_TYPES.session.dir);
   let files: string[];
   try {
@@ -447,10 +447,53 @@ export function sessionsArea(root: string, sinceMs: number): { sessions: unknown
       ...(s.ended ? { ended: s.ended } : {}),
       ...(Object.keys(nums).length ? { metrics: nums } : {}),
       ...runExit(root, id),
+      ...runDenied(root, id, masker),
     });
   }
   out.sort((a, b) => String(a.started).localeCompare(String(b.started)));
   return { sessions: out.slice(-60), open };
+}
+
+/**
+ * The commands the agent's permissions or sandbox refused in a run's session, as the run kept them beside its log
+ * (.strom/runs/<session>.denied.json, commands/session.ts keepDenied: at most DENIED_KEPT, each cut to
+ * DENIED_CHARS): each masked as every value going out, whether strom was the one refused, whether refused whole (K031).
+ */
+function runDenied(root: string, id: string, masker: Masker): { denied?: { command: string; strom: boolean; whole: boolean }[] } {
+  try {
+    const kept = readJsonIfExists<unknown>(path.join(root, ".strom", "runs", `${id}.denied.json`));
+    if (!Array.isArray(kept)) return {};
+    const denied = kept
+      .filter((d): d is { command: string; strom?: unknown; whole?: unknown } => typeof d?.command === "string")
+      .slice(0, DENIED_KEPT)
+      // masked as a log's line (what is quoted one code, a path's parts, any word not strom's), then cut: the run keeps
+      // more of it than the report shows, so a quote and a path are whole when masked (K031)
+      .map((d) => ({ command: cutDenied(masker.text(cutDenied(d.command, DENIED_KEPT_CHARS))), strom: d.strom === true, whole: d.whole === true }));
+    return denied.length ? { denied } : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * How many refused commands of a session are kept for strom error, and how long each in the report (K031: the report
+ * stays small) — and how long each as the run keeps it (masked whole before it is cut for the report).
+ */
+export const DENIED_KEPT = 10;
+export const DENIED_CHARS = 200;
+export const DENIED_KEPT_CHARS = 2000;
+
+/**
+ * A refused command cut to `max` characters, "…" where it was cut: whole characters, never part of a word (a name cut
+ * in half would no longer be known to the masker) nor of a masked word's code (‹3fa9c›) — any script.
+ */
+export function cutDenied(command: string, max = DENIED_CHARS): string {
+  const chars = [...command];
+  if (chars.length <= max) return command;
+  const head = chars.slice(0, max - 1).join("");
+  // (alternatives, not a class: Node 26's V8 misses a class of properties before $ when the last character is astral)
+  const inWord = /(?:\p{L}|\p{M}|\p{N})$/u.test(head) && /^(?:\p{L}|\p{M}|\p{N})/u.test(chars[max - 1]!);
+  return (inWord ? head.replace(/(?:\p{L}|\p{M}|\p{N})+$/u, "") : head).replace(/‹[0-9a-f]{0,5}$/u, "") + "…";
 }
 
 /** What strom wrote of a run's agent's end into its log (never the agent's own output): its exit code. */

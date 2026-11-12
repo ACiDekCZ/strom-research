@@ -145,6 +145,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     research: R("research"),
     state: S({ req: true, enum: TASK_STATES }),
     parkedUntil: S(),
+    parkedFor: S({ max: 40 }),
     heldFrom: S({ enum: ["waiting"] }),
     waitingOn: S(),
     awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }) } },

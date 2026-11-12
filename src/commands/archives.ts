@@ -22,7 +22,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { currentSession } from "../core/session.ts";
 import type { Session } from "../core/model.ts";
 import { noteSessionWait, wakeForArchive, type Woken } from "../core/archivewait.ts";
-import { connectorFor, levelWords, waysOffered, wokenLines } from "../core/archiveasks.ts";
+import { connectorFor, levelWords, replyText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { claudeHere } from "../cli/menu-parts.ts";
 import { shippedTerms, within } from "../core/knownterms.ts";
 import {
@@ -258,6 +258,7 @@ export function humanPaces(ctx: Context, levels: ArchiveLevel[], activity: "imag
 
 /** What the person reads of an archive's terms: strom's quote with its address, else the connector's reading (said so). */
 function termsLine(lang: string, a: ArchiveLevel): string {
+  if (a.quote && a.quoteBy === "reply") return replyText(lang, a.quote, a.replied);
   if (a.quoteBy === "robots") {
     const text = ui(lang, a.quote ? "ui.archive.terms.robots" : "ui.archive.terms.robots.none", { quote: a.quote ?? "", terms: a.terms ?? "" });
     return a.terms ? text : text.replace(/\s*\(\)/u, "");

@@ -238,6 +238,12 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     keptBytes += after;
     if (plain && e.bytes > SHRINK_FROM) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "shrink", why: "a closed session's log: the images in it left out, compressed" });
   }
+  // the commands refused in a session, kept for strom error (K031): with their session's log, or as old
+  for (const e of entries(root, "runs").filter((x) => x.rel.endsWith(".denied.json"))) {
+    const s = sessionOf(e);
+    if (running(e)) continue;
+    if ((s && goneSessions.has(s)) || at - e.mtime > LIMITS.logs.days * DAY) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "remove", why: "a closed session's refused commands, with its log" });
+  }
   // the briefs: with their session's log, or as old
   for (const e of entries(root, "briefs").filter((x) => x.rel.endsWith(".md"))) {
     const s = /^(N\d+)\.md$/.exec(path.basename(e.rel))?.[1];

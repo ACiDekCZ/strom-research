@@ -233,8 +233,10 @@ export interface PendingQuestion {
   window?: string;
   terms?: string;
   quote?: string;
-  /** The quote is strom's known terms of the archive, the site's robots.txt as strom's list quotes it, or the connector's own reading (its termsSummary, D5). */
-  quoteBy?: "strom" | "connector" | "robots";
+  /** The quote is strom's known terms of the archive, the site's robots.txt as strom's list quotes it, the archive's reply strom's list quotes, or the connector's own reading (its termsSummary, D5). */
+  quoteBy?: "strom" | "connector" | "robots" | "reply";
+  /** The day of the archive's reply quoted (quoteBy reply). */
+  replied?: string;
   /** permission: the research and the task that needed it last. */
   tree?: string;
   task?: string;
@@ -488,8 +490,9 @@ export interface ArchiveLevel {
   /** Where its terms are, and the sentence quoted (strom's known terms first, else the connector's reading). */
   terms?: string;
   quote?: string;
-  /** The quote is the connector's own reading (its termsSummary), not strom's known terms (D5); robots: the site's robots.txt, not its terms. */
-  quoteBy?: "strom" | "connector" | "robots";
+  /** The quote is the connector's own reading (its termsSummary), not strom's known terms (D5); robots: the site's robots.txt, not its terms; reply: the archive's written reply (on the day `replied`), not its terms. */
+  quoteBy?: "strom" | "connector" | "robots" | "reply";
+  replied?: string;
   /** A connector that says now the archive allows more than before: kept as before until the person accepts it. */
   milder?: { connector: string; from: Claim; to: Claim };
   /** The tree's archive that gave a stricter level. */
@@ -669,7 +672,7 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
     title: known?.name ?? t?.repo.name ?? c?.manifest.title ?? host,
     // robots.txt said so (strom's list quotes it, or strom read it): said as robots.txt, never as the terms (with its address)
     ...(known?.terms ? { terms: known.terms } : robotsSaid ? { terms: `https://${rec.robots?.host ?? other.robots?.host ?? host}/robots.txt` } : c?.manifest.policy.terms ? { terms: c.manifest.policy.terms } : t?.repo.terms ? { terms: t.repo.terms } : {}),
-    ...(known?.quote ? { quote: known.quote, quoteBy: known.quoteFrom === "robots" ? ("robots" as const) : ("strom" as const) } : robotsSaid ? { ...(browserOnly?.line ? { quote: browserOnly.line } : {}), quoteBy: "robots" as const } : summary ? { quote: summary, quoteBy: "connector" as const } : {}),
+    ...(known?.quote ? { quote: known.quote, quoteBy: known.quoteFrom === "robots" || known.quoteFrom === "reply" ? known.quoteFrom : ("strom" as const), ...(known.quoteFrom === "reply" && known.replied ? { replied: known.replied } : {}) } : robotsSaid ? { ...(browserOnly?.line ? { quote: browserOnly.line } : {}), quoteBy: "robots" as const } : summary ? { quote: summary, quoteBy: "connector" as const } : {}),
     ...(known?.scope ? { scope: known.scope } : {}),
     ...(milder ? { milder } : {}),
     ...(t ? { repository: t.repo.id } : {}),
@@ -828,6 +831,7 @@ export function askLater(env: Env, a: ArchiveLevel, q: { connector?: string; way
       ...(a.terms ? { terms: a.terms } : {}),
       ...(a.quote ? { quote: a.quote } : {}),
       ...(a.quoteBy ? { quoteBy: a.quoteBy } : {}),
+      ...(a.replied ? { replied: a.replied } : {}),
       ...(q.tree ? { tree: q.tree } : {}),
       ...(q.task ? { task: q.task } : {}),
       ...(q.tree && q.task ? { tasks: [{ tree: q.tree, task: q.task }] } : {}),

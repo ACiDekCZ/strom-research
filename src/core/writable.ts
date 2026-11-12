@@ -9,7 +9,7 @@ import path from "node:path";
 import { StromError, UsageError } from "./errors.ts";
 import { hardLinksHere } from "./lock.ts";
 import type { Env } from "./paths.ts";
-import { AGENTS, detectAgent } from "./which.ts";
+import { AGENTS, detectAgent, isAgent } from "./which.ts";
 
 /** What the system says when it refuses writing (no right, a sandbox, a read-only disk). */
 const REFUSED = new Set(["EACCES", "EPERM", "EROFS"]);
@@ -35,11 +35,13 @@ export const SANDBOX_HINT =
  * - any other agent: the general words.
  * The level of an agent is the person's choice alone: named, never changed.
  */
-export function sandboxHint(env: Env, where?: string): string {
+export function sandboxHint(env: Env, where?: string, platform: NodeJS.Platform = process.platform): string {
   const here = sandboxHere(env);
   const root = where ? researchOf(where) : undefined;
   const never = "never another folder, never strom's settings changed";
-  const alone = "strom run on its own (no pipe, no redirection like 2>&1, no cd before it): the research's .codex/rules/strom.rules lets that run outside Codex's sandbox";
+  // on Windows: what else sends strom into Codex's sandbox (K031)
+  const windows = platform === "win32" ? "; on Windows also no & or cmd /c before it, a plain hyphen (-) never the dash (–) in its texts, no quotes inside a quoted text (a text that needs them: its command line in a file of notes/, strom batch --file)" : "";
+  const alone = `strom run on its own (no pipe, no redirection like 2>&1, no cd before it${windows}): the research's .codex/rules/strom.rules lets that run outside Codex's sandbox`;
   // strom run working alone (codex exec): nobody approves anything there — Codex's approval is "never" whatever is
   // asked (GitHub #8) — so the agent stops instead of waiting for an approval, and strom run tells the person
   if (here === "codex-strom" && env.STROM_DEADLINE && env.STROM_NONINTERACTIVE === "1")
@@ -67,6 +69,20 @@ export function sandboxHint(env: Env, where?: string): string {
       `(strom chat does), or approves this command outside the sandbox; ${never}`
     );
   return SANDBOX_HINT;
+}
+
+/**
+ * What lets strom out of Codex's sandbox on Windows (measured 2026-11-12, codex-cli 0.167.2, Windows PowerShell 5.1:
+ * K031): Codex runs a command by its rules outside the sandbox only when it splits the PowerShell script into plain
+ * words beginning with strom (`strom a; strom b` too) — `& strom`, a pipe, `Set-Location`, `cmd /c` and any argument
+ * with a dash (–, U+2013) go into the sandbox or are refused, and quotes inside a quoted text are lost on the way.
+ * A text that needs them goes through a file strom reads (strom batch --file: one command line each, any text kept —
+ * no new option on each command). `q` quotes the code (a backtick in Markdown). Empty elsewhere than on Windows.
+ */
+export function codexWindowsRule(q: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32"
+    ? `Codex on Windows lets strom out of its sandbox only as plain words: strom first (never ${q}& strom${q}, ${q}cmd /c${q} or ${q}Set-Location${q} before it), in its texts a plain hyphen (1890-1900, never the dash –) and no quotes inside a quoted text — any of them sends the command into the sandbox, where strom cannot write. A text that needs them (a note, a history's text): its command line in a file of notes/, run by ${q}strom batch --file notes/<file>.txt${q}.`
+    : "";
 }
 
 /** Which sandbox strom most likely runs in: Codex strom started, Codex started by hand, Claude Code's — or another. */
@@ -204,4 +220,42 @@ export function writeProblems(root: string, agent: boolean): WriteProblem[] {
   if (fs.existsSync(gitDir) && writeRefusal(gitDir)) out.push({ where: gitDir, place: ".git", cause });
   if (!stromRefused && !hardLinksHere(lockDir)) out.push({ where: lockDir, place: ".strom", cause: "nolink" });
   return out;
+}
+
+/** Why the user's settings could not be read: missing where strom looks for them, or reading them refused. */
+export function settingsUnread(file: string): "missing" | "refused" | undefined {
+  try {
+    fs.readFileSync(file);
+    return undefined;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return "missing";
+    return refusedCode(code) ? "refused" : undefined;
+  }
+}
+
+/**
+ * A switch the user's settings hold found off under an agent (K031: an agent's sandbox on Windows ran strom with
+ * another home, or kept it from the settings — strom took the default "off", and the agent was told of a setting the
+ * user had on): when strom cannot read the user's settings (`settingsFile` missing or refused) or cannot write the
+ * research (.strom, .git), the sandbox is said — fs.sandboxed, the words a run counts as strom refused — never the
+ * switch. Undefined: no agent, or everything readable and writable — the switch is off indeed. A tree's own off is
+ * the tree's (never asked here: the caller leaves it out).
+ */
+export function sandboxedSwitch(env: Env, root: string, settingsFile: string, key: string): UsageError | undefined {
+  if (!isAgent(env)) return undefined;
+  const unread = settingsUnread(settingsFile);
+  const refused = writeProblems(root, true).filter((p) => p.cause === "sandbox");
+  if (!unread && !refused.length) return undefined;
+  const said = [
+    ...(unread ? [`the user's settings ${unread === "missing" ? "not found at" : "not let to be read at"} ${settingsFile}`] : []),
+    ...refused.map((p) => `no right to write ${p.where}`),
+  ];
+  const where = refused[0]?.where ?? settingsFile;
+  const mark = refusalMark(env.STROM_SESSION);
+  return new UsageError(`${key} could not be read as the user set it: ${said.join("; ")} — ${SANDBOX_REFUSAL}${mark ? ` ${mark}` : ""}`, {
+    hint: sandboxHint(env, where),
+    code: "fs.sandboxed",
+    params: { where },
+  });
 }

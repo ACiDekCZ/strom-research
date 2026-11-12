@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.1
 
-*Připravuje se: bety do 1.31.1-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.1-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Nastavení pro prohlížeče archivů, které prohlížeč vykresluje pomalu.** Kde prohlížeč vykreslí kartu jen zhruba
   jednou za sekundu (kreslení bez grafické karty, vzdálená plocha), potřebuje prohlížeč snímků archivu (ACTA PUBLICA)
@@ -17,8 +17,23 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Náhled `strom source split` na výzkumu zapečetěném na jiném počítači.** Dřív se odmítl, dokud výzkum nebyl
   převzat (`strom seal adopt`), přestože jen čte. Teď náhled ukáže, co by rozdělení udělalo, jako každé čtení; zápis
   (`--apply`) i jeho vrácení dál čekají na převzetí výzkumu.
+- **Totéž u `strom sync <soubor>` a `strom input names`:** co by rodokmen přinesl a která příjmení po sňatku by se
+  přidala, se ukáže i na výzkumu zapečetěném na jiném počítači; zápis (`--apply`, `strom sync --app`, `--undo`) dál
+  čeká na převzetí výzkumu.
 - **`strom repair undo <razítko> --json` bez terminálu** teď odpovídá jako `strom repair`: `status: "needs-consent"`
   s příkazem ke spuštění v terminálu, ne jen kódem 4.
+- **Agent, kterému sandbox nedovolí číst nastavení nebo zapisovat do výzkumu** (Codex na Windows), se teď dozví
+  právě to — s příkazem ke spuštění mimo sandbox — místo „dějiny jsou pro tento výzkum vypnuté, zapíná je jen
+  uživatel“, které ho posílalo k nastavení, jež bylo zapnuté.
+- **Úkol, u kterého sandbox nebo oprávnění agenta třikrát za sebou nepustily strom k výzkumu** (nic se nezapsalo), se
+  odloží: s důvodem a u Codexu i s tím, co pomůže (`strom task show`), a běh pokračuje dalším úkolem, místo aby běh za
+  během začínal tentýž. Znovu probuzený úkol (`strom task wake`) se počítá od probuzení. Takto se odkládá vždy nejvýš
+  jeden úkol — když sandbox odmítá všechno, běh skončí jako dřív. `strom error` ukáže, které příkazy byly odmítnuty,
+  zkrácené a zamaskované.
+- **Codex na Windows pouští strom ze sandboxu jen jako holý příkaz**: bez `&`, roury nebo `cd` před ním, bez pomlčky (–)
+  a bez uvozovek uvnitř textu v uvozovkách v argumentech. Agent na Windows se to teď dozví (AGENTS.md, `strom guide`,
+  rada sandboxu), i s cestou pro delší text: jeho příkaz v souboru v `notes/`, spuštěný přes `strom batch --file`.
+  Příklady stromu už pomlčku mezi čísly nenabízejí.
 
 ## 1.31.0
 

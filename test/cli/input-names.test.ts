@@ -98,3 +98,37 @@ test("strom input names: another file than the one imported is refused, so is an
   assert.match(none.out + none.err, /strom input list/);
   w.cleanup();
 });
+
+test("strom input names: shown on a research sealed on another computer as any read (rc 0, nothing written); --apply and --undo ask for it to be taken over first", opts, async () => {
+  const { w } = oldResearch();
+  try {
+    // the first strom of this version marks once where the values came from (origins-1): before the seal goes
+    await w.ok(["check"]);
+    const id = readJsonFile(path.join(w.cwd, "strom.json")).id as string;
+    fs.rmSync(path.join(w.env.STROM_CONFIG_DIR!, "keys", `${id}.key`));
+    const files = () => fs.readdirSync(w.cwd, { recursive: true, encoding: "utf8" }).filter((f) => !f.split(path.sep).includes(".git") && !f.split(path.sep).includes(".strom")).sort().map((f) => [f, fs.statSync(path.join(w.cwd, f)).isFile() ? fs.readFileSync(path.join(w.cwd, f), "utf8") : ""]);
+    const before = files();
+    const head = () => spawnSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout;
+    const was = head();
+
+    for (const env of [{ CLAUDECODE: "1" }, {}] as Record<string, string>[]) {
+      const shown = await w.run(["input", "names", "I0001", "--json"], { env });
+      assert.equal(shown.code, 0, shown.out + shown.err);
+      assert.deepEqual(shown.json.add.map((x: Row) => `${x.person} ${x.name}`).sort(), ["P0001 Eva /Šťastná/", "P0002 Marie /Nováková/", "P0004 Ольга /Иванова/"]);
+      assert.equal(shown.json.applied, false);
+    }
+    assert.deepEqual(files(), before, "the preview writes nothing");
+    assert.equal(head(), was, "no commit");
+
+    for (const how of ["--apply", "--undo"]) {
+      const refused = await w.run(["input", "names", "I0001", how, "--json"]);
+      assert.equal(refused.code, 4, refused.out + refused.err);
+      assert.equal(refused.json.code, "seal.foreign");
+      assert.equal(refused.json.status, "needs-consent");
+    }
+    assert.deepEqual(files(), before);
+    assert.equal(head(), was);
+  } finally {
+    w.cleanup();
+  }
+});

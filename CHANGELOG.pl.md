@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.1
 
-*W przygotowaniu: bety do 1.31.1-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.1-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Ustawienie dla przeglądarek archiwów, które przeglądarka rysuje powoli.** Gdy przeglądarka rysuje kartę tylko mniej
   więcej raz na sekundę (rysowanie bez karty graficznej, zdalny pulpit), przeglądarka skanów archiwum (ACTA PUBLICA)
@@ -18,8 +18,23 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Podgląd `strom source split` w badaniu zapieczętowanym na innym komputerze.** Był odrzucany, dopóki badanie nie
   zostało przejęte (`strom seal adopt`), choć tylko czyta. Teraz podgląd pokazuje, co zrobiłby podział, jak każde
   czytanie; zapis (`--apply`) i jego cofnięcie nadal czekają na przejęcie badania.
+- **Tak samo przy `strom sync <plik>` i `strom input names`:** co wniosłoby drzewo i które nazwiska po ślubie zostałyby
+  dodane, widać także w badaniu zapieczętowanym na innym komputerze; zapis (`--apply`, `strom sync --app`, `--undo`)
+  nadal czeka na przejęcie badania.
 - **`strom repair undo <znacznik> --json` bez terminala** odpowiada teraz jak `strom repair`: `status: "needs-consent"`
   z poleceniem do uruchomienia w terminalu, nie tylko kodem wyjścia 4.
+- **Agent, któremu sandbox nie pozwala czytać ustawień ani zapisywać w badaniu** (Codex w Windows), dowiaduje się
+  teraz właśnie tego — z poleceniem do uruchomienia poza sandboxem — zamiast „historia jest w tym badaniu wyłączona,
+  włącza ją tylko użytkownik”, co kierowało go do ustawienia, które było włączone.
+- **Zadanie, przy którym sandbox albo uprawnienia agenta trzy razy z rzędu nie dopuściły strom do badań,** zostaje
+  odłożone (nic nie zapisano): z powodem, a w przypadku Codexa także z tym, co pomaga (`strom task show`), a przebieg
+  idzie dalej następnym zadaniem, zamiast przebieg za przebiegiem zaczynać to samo. Zadanie wybudzone ponownie (`strom
+  task wake`) liczy się od wybudzenia. Tak odkłada się najwyżej jedno zadanie naraz — gdy sandbox odmawia wszystkiego,
+  przebieg kończy się jak dotąd. `strom error` pokazuje, które polecenia odrzucono, skrócone i zamaskowane.
+- **Codex w Windows wypuszcza strom z sandboxu tylko jako zwykłe polecenie**: bez `&`, potoku ani `cd` przed nim, bez
+  półpauzy (–) i bez cudzysłowów wewnątrz tekstu w cudzysłowie w argumentach. Agent w Windows dowiaduje się teraz o tym
+  (AGENTS.md, `strom guide`, wskazówka sandboxu), razem ze sposobem na dłuższy tekst: jego polecenie w pliku w `notes/`,
+  uruchomione przez `strom batch --file`. Przykłady strom nie podsuwają już półpauzy między liczbami.
 
 ## 1.31.0
 

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.1
 
-*In Vorbereitung: die Betas bis 1.31.1-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.1-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Eine Einstellung für Archiv-Viewer, die ein Browser langsam zeichnet.** Wo der Browser einen Tab nur etwa einmal
   pro Sekunde zeichnet (Zeichnen ohne Grafikkarte, ein Remote-Desktop), braucht der Viewer des Archivs (ACTA PUBLICA)
@@ -19,8 +19,25 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   abgelehnt, bis die Forschung übernommen war (`strom seal adopt`), obwohl sie nur liest. Jetzt zeigt die Vorschau wie
   jedes Lesen, was die Aufteilung täte; das Schreiben (`--apply`) und sein Rückgängigmachen warten weiter auf die
   Übernahme der Forschung.
+- **Ebenso bei `strom sync <Datei>` und `strom input names`:** was ein Stammbaum brächte und welche Namen nach der
+  Heirat hinzukämen, wird auch bei einer auf einem anderen Computer versiegelten Forschung gezeigt; das Schreiben
+  (`--apply`, `strom sync --app`, `--undo`) wartet weiter auf die Übernahme der Forschung.
 - **`strom repair undo <Stempel> --json` ohne Terminal** antwortet jetzt wie `strom repair`: `status: "needs-consent"`
   mit dem Befehl, der in einem Terminal auszuführen ist, nicht nur mit dem Exit-Code 4.
+- **Ein Agent, dessen Sandbox strom von den Einstellungen oder der Forschung fernhält** (Codex unter Windows), erfährt
+  jetzt genau das — mit dem Befehl, der außerhalb der Sandbox auszuführen ist — statt „die Geschichte ist für diese
+  Forschung aus, nur der Benutzer schaltet sie ein“, was ihn zu einer Einstellung schickte, die eingeschaltet war.
+- **Eine Aufgabe, bei der die Sandbox oder die Berechtigungen des Agenten strom dreimal hintereinander nicht an die
+  Forschung ließen,** wird zurückgestellt (nichts wurde erfasst): mit ihrem Grund und bei Codex mit dem, was hilft
+  (`strom task show`), und der Lauf geht mit der nächsten Aufgabe weiter, statt Lauf für Lauf dieselbe zu beginnen. Eine
+  wieder geweckte Aufgabe (`strom task wake`) zählt ab dann neu. So wird höchstens eine Aufgabe auf einmal
+  zurückgestellt — lehnt die Sandbox alles ab, endet der Lauf wie bisher. `strom error` zeigt, welche Befehle abgelehnt
+  wurden, gekürzt und maskiert.
+- **Codex unter Windows lässt strom nur als einfachen Befehl aus seiner Sandbox**: ohne `&`, Pipe oder `cd` davor, ohne
+  Gedankenstrich (–) und ohne Anführungszeichen innerhalb eines Textes in Anführungszeichen in den Argumenten. Der Agent
+  unter Windows erfährt das jetzt (AGENTS.md, `strom guide`, der Hinweis der Sandbox), mit dem Weg für einen längeren
+  Text: sein Befehl in einer Datei in `notes/`, ausgeführt mit `strom batch --file`. Die Beispiele von strom bieten
+  keinen Gedankenstrich zwischen Zahlen mehr an.
 
 ## 1.31.0
 

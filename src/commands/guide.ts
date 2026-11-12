@@ -8,6 +8,7 @@ import { langName } from "../core/lang.ts";
 import { appSite } from "../core/stromapp.ts";
 import { WEB_PER_HOST, webRuleLines } from "../core/web.ts";
 import { powershellUtf8Rule } from "../core/self.ts";
+import { codexWindowsRule } from "../core/writable.ts";
 
 /**
  * The history of the places in a conversation (spec 020 K2.8): only in the guide of a research whose user has it on —
@@ -37,6 +38,7 @@ export const HISTORY_GUIDE = `THE HISTORY OF THE PLACES (the user has it on: wha
 /** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here; history: the user has the history of the places on here. */
 export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform, history = false, decide: "person" | "agent" = "person"): string {
   const ps = powershellUtf8Rule("", platform);
+  const codexWin = codexWindowsRule("", platform);
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language; a record in another language or script gets a translation into ${langName(lang)} too (--translation).`
     : "Talk to the user in their language. Set it as the research language: strom setup --lang <code> (cs, en, de, pl, …).";
@@ -385,7 +387,7 @@ A PROBLEM WITH STROM (the user reports one, or wants to "send the error")
 
 OUTPUT AND ERRORS
 - One line per record, IDs first. Read the text; add --json only to parse.
-- Listings are paged (--limit, --page). Do not pipe strom output.${ps ? `\n- ${ps}` : ""}
+- Listings are paged (--limit, --page). Do not pipe strom output.${ps ? `\n- ${ps}` : ""}${codexWin ? `\n- ${codexWin}` : ""}
 - People can be named by ID (P0001) or name ("Jan Novák", no diacritics ok).
   An ambiguous name lists candidates (exit 2) — then use the ID.
 - Every error ends with "→ <what to run next>".

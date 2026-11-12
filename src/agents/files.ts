@@ -26,6 +26,7 @@ import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
+import { codexWindowsRule } from "../core/writable.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -33,6 +34,7 @@ export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platfor
   const lang = langName(tree.config.lang);
   // (Windows only: written on the computer the agent works on, as its other files)
   const ps = powershellUtf8Rule("`", platform);
+  const codexWin = codexWindowsRule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
   // who decides the hypotheses (hypotheses.decide — the user's; refreshed when a conversation or a run starts)
@@ -88,7 +90,7 @@ the researcher; \`strom\` is your only way to read and change the research.
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`), no
    redirection (\`2>&1\`), no \`cd\` before them: output is already short,
    listings take \`--limit\` and \`--page\`, and such commands may be refused by
-   your permissions (Codex's sandbox lets strom out only on its own).${ps ? `\n   ${ps}` : ""}
+   your permissions (Codex's sandbox lets strom out only on its own).${ps ? `\n   ${ps}` : ""}${codexWin ? `\n   ${codexWin}` : ""}
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.

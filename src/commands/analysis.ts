@@ -312,7 +312,7 @@ register(
       { name: "by", type: "string", value: "<who>", description: "main (default), reader, user" },
       { name: "note", type: "string", value: "<text>", description: "what was illegible, what is left" },
     ],
-    examples: ['strom search add "Křty Novák 1903–1907" --recordset B0001 --years 1903-1907 --surname Novák --method page-by-page --result negative --task T0001'],
+    examples: ['strom search add "Křty Novák 1903-1907" --recordset B0001 --years 1903-1907 --surname Novák --method page-by-page --result negative --task T0001'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const recordsets = csvOpt(opts.recordset).map((b) => requireRecord<RecordSet>(tree, b, "recordset").id);

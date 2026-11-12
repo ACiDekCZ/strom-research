@@ -72,7 +72,7 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const target = c && hosts.length > 1 && hosts.some((h) => !q?.archiveHosts?.includes(h)) ? c.name : host;
   out("");
   out(` ${t("ui.archive.item", { title, host: hosts.join(", ") })}`);
-  out(`    ${termsText(lang, ctx.env, { host, ...(a?.quote ? { quote: a.quote } : q?.quote ? { quote: q.quote } : {}), ...(a?.terms ?? q?.terms ? { terms: (a?.terms ?? q?.terms)! } : {}), ...(a?.quoteBy ? { quoteBy: a.quoteBy } : q?.quoteBy ? { quoteBy: q.quoteBy } : {}) })}`);
+  out(`    ${termsText(lang, ctx.env, { host, ...(a?.quote ? { quote: a.quote } : q?.quote ? { quote: q.quote } : {}), ...(a?.terms ?? q?.terms ? { terms: (a?.terms ?? q?.terms)! } : {}), ...(a?.quoteBy ? { quoteBy: a.quoteBy, ...(a.replied ? { replied: a.replied } : {}) } : q?.quoteBy ? { quoteBy: q.quoteBy, ...(q.replied ? { replied: q.replied } : {}) } : {}) })}`);
   const tasks = tree && !isArchive(tree) ? (q?.kind === "permission" ? tasksStanding(tree, q) : [...new Set(hosts.flatMap((h) => tasksWaitingOn(tree, h).map((x) => x.id)))]) : [];
   if (tasks.length) out(`    ${t("ui.archive.item.tasks", { ids: tasks.join(", ") })}`);
   // a question that waits: since when (the first time asked) and how many times a command needed it

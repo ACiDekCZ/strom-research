@@ -23,8 +23,18 @@ export interface KnownTerms {
   name?: string;
   terms?: string;
   quote?: string;
-  /** The quote is the site's robots.txt (its address `terms`), not its terms of use: said so to the person. */
-  quoteFrom?: "robots";
+  /**
+   * Where the quote is from when not the terms at `terms`: robots, the site's robots.txt (its address `terms`), not its
+   * terms of use; reply, the archive's written reply to strom's author on the day `replied` — not public terms, so never
+   * said as terms nor with an address (`terms`, when given, is a public page of its own), and it never opens automated
+   * use (openByTerms). Both said so to the person.
+   */
+  quoteFrom?: "robots" | "reply";
+  /**
+   * The day of the archive's written reply the entry follows: with quoteFrom reply the reply quoted; without it the
+   * quote stays its public terms at `terms`, which the reply named (said as its terms).
+   */
+  replied?: string;
   /** The terms page itself, where `terms` is the robots.txt (what it says: termsPageSays). */
   termsPage?: string;
   checked?: string;
@@ -123,10 +133,10 @@ export function knownPaceMs(host: string): number {
 
 /**
  * An entry whose terms expressly allow automated use: `automatedUse` on an "allowed" one, quoted word for word from its
- * terms (not its robots.txt) and not only for a person's browser — anything less, robots.txt holds as before.
+ * terms (not its robots.txt, not an archive's reply) and not only for a person's browser — anything less, robots.txt holds as before.
  */
 export function openByTerms(k: KnownTerms | undefined): boolean {
-  return !!k && k.automatedUse === true && k.level === "allowed" && !k.browserOnly && k.quoteFrom !== "robots" && typeof k.quote === "string" && !!k.quote.trim() && typeof k.terms === "string" && /^https?:\/\//u.test(k.terms);
+  return !!k && k.automatedUse === true && k.level === "allowed" && !k.browserOnly && !k.quoteFrom && typeof k.quote === "string" && !!k.quote.trim() && typeof k.terms === "string" && /^https?:\/\//u.test(k.terms);
 }
 
 /** strom's own list says a host's terms expressly allow automated use (its strictest entry, a site above it too). */

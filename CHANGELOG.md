@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.1
 
-*In preparation: the betas up to 1.31.1-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.31.1-beta.3. The section is complete with the release.*
 
 - **A setting for archive viewers a browser draws slowly.** Where the browser draws a tab only about once a second
   (drawing without the graphics card, a remote desktop), the archive's viewer (ACTA PUBLICA) needs minutes for one
@@ -17,8 +17,23 @@ The changes of each version in short. The full notes and the install lines are o
 - **The preview of `strom source split` on a research sealed on another computer.** It was refused until the research
   was taken over there (`strom seal adopt`), though it only reads. Now the preview shows what the split would do, as
   any reading does; writing it (`--apply`) and its undo still wait for the research to be taken over.
+- **The same for `strom sync <file>` and `strom input names`:** what a family tree would bring and which married names
+  would be added are shown on a research sealed on another computer too; writing them (`--apply`, `strom sync --app`,
+  `--undo`) still waits for the research to be taken over.
 - **`strom repair undo <stamp> --json` without a terminal** now answers as `strom repair` does: `status:
   "needs-consent"` with the command to run in a terminal, not only exit code 4.
+- **An agent whose sandbox keeps strom from the settings or the research** (Codex on Windows) is now told so — the
+  command to run outside the sandbox — instead of "the history is off for this research, only the user turns it on",
+  which sent it after a setting that was on.
+- **A task at which the agent's sandbox or permissions kept strom from the research in three sessions in a row is put
+  aside** (nothing recorded): with its reason and, for Codex, what helps (`strom task show`), and the run goes on with
+  the next task instead of starting the same one again run after run. A task woken again (`strom task wake`) counts from
+  then. Never more than one task at a time is put aside so — when the sandbox refuses everything, the run stops as
+  before. `strom error` shows which commands were refused, shortened and masked.
+- **Codex on Windows lets strom out of its sandbox only as a plain command**: no `&`, pipe or `cd` before it, no dash
+  (–) and no quotes inside a quoted text in its arguments. The agent on Windows now hears so (AGENTS.md, `strom guide`,
+  the sandbox's hint), with the way for a longer text: its command in a file of `notes/`, run by `strom batch --file`.
+  strom's own examples no longer offer a dash between numbers.
 
 ## 1.31.0
 

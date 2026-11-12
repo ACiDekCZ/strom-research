@@ -1,5 +1,5 @@
 {
-  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked; a release adds an archive.",
+  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use; quoteFrom reply: the quote is the archive's written reply to strom's author on the day replied — never public terms nor an address (terms, when given, is a public page of its own), and it never opens automated use. replied alone: the day of the archive's written reply the entry follows, its quote still its public terms at terms. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked (or an archive's reply, quoteFrom reply, word for word); a release adds an archive.",
   "archives": [
     {
       "host": "mza.cz",
@@ -24,11 +24,11 @@
       "host": "ebadatelna.soapraha.cz",
       "name": "Státní oblastní archiv v Praze (eBadatelna)",
       "level": "manual",
-      "terms": "https://ebadatelna.soapraha.cz/robots.txt",
-      "quote": "# Ostatní roboty - zákaz stahování digitalizátů / User-agent: * / Disallow: /d/ / Disallow: /a/",
-      "robots": "User-agent: rodokmen · Disallow: / · User-agent: ClaudeBot · Disallow: / · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: / · User-agent: * · Disallow: /d/ · Disallow: /a/ (since 2 November 2026)",
-      "checked": "2026-11-04",
-      "quoteFrom": "robots",
+      "quote": "Pokud si ručně stáhnete snímek do svého PC, není důvod omezovat u takto staženého snímku použití AI agenta.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-12",
+      "robots": "User-agent: rodokmen · Disallow: / · User-agent: ClaudeBot · Disallow: / · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: / · User-agent: * · Disallow: /d/ · Disallow: /a/ (since 2 November 2026; https://ebadatelna.soapraha.cz/robots.txt)",
+      "checked": "2026-11-12",
       "browserOnly": true,
       "termsPage": "https://soapraha.gov.cz/castokladenedotazy/",
       "termsPageSays": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
@@ -36,7 +36,7 @@
         "/d/",
         "/a/"
       ],
-      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file"
+      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file (the archive's reply of 2026-11-12: no reason to restrict an AI agent's use of an image the person saved by hand; its technical measures are not final); the permanent link of an image is the address in the browser's address bar while it is shown — cite that"
     },
     {
       "host": "digi.ceskearchivy.cz",
@@ -44,6 +44,7 @@
       "level": "manual",
       "terms": "https://digi.ceskearchivy.cz/Uvod",
       "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.",
+      "replied": "2026-11-05",
       "robots": "403 Forbidden for strom's User-Agent, robots.txt and the terms page too (2026-11-03); before: Allow: /DA* · Disallow: /help/* · /pages/* · /oai/* · /Assets/*",
       "disallow": [
         "/help/",
@@ -669,6 +670,7 @@
       "level": "manual",
       "terms": "https://digi.ceskearchivy.cz/Uvod",
       "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech a na jiných stránkách je zakázáno.",
+      "replied": "2026-11-05",
       "robots": "User-agent: * · Disallow: /administrator/ · /images/ · /media/ … (Joomla default)",
       "scope": "the archive's information pages only; its scans are on digi.ceskearchivy.cz (a person's browser only, selected images by hand only); the research rules and price lists lie under /images/, which robots.txt keeps off (the terms quoted as read on 2026-11-05)",
       "checked": "2026-11-05"
@@ -1491,7 +1493,9 @@
       "robots": "User-agent: * · Disallow: /wp-admin",
       "scope": "its website, the inventories (XML/HTML) of the registers of the former eastern territories (fonds 298–557) and their links to the image galleries on agadd.home.net.pl and agadd2.home.net.pl; the galleries' scans may be used without restriction, downloaded and used freely, the place of the originals given (the archive's reply of 2026-11-06, quoted); cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
       "checked": "2026-11-06",
-      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-06"
     },
     {
       "host": "agadd.home.net.pl",
@@ -1500,7 +1504,9 @@
       "robots": "none (404)",
       "scope": "static galleries of the registers of the former eastern territories (Roman and Greek Catholic, Protestant, Jewish), linked from AGAD's inventories: one image at a time at a slow pace, never a whole book (strom's own rule; the archive's reply of 2026-11-06 sets no limit and lets the scans be downloaded and used freely); registers younger than 100 (births) or 80 years (marriages, deaths) are not in them; cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
       "checked": "2026-11-06",
-      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-06"
     },
     {
       "host": "agadd2.home.net.pl",
@@ -1508,7 +1514,9 @@
       "level": "unknown",
       "scope": "static galleries of registers linked from AGAD's inventories: one image at a time at a slow pace, never a whole book (strom's own rule; the archive's reply of 2026-11-06 sets no limit and lets the scans be downloaded and used freely); cite the original's place, as the archive asks: \"Archiwum Główne Akt Dawnych, <zespół>, sygn. <n>, s./k. <n>\" — a gallery's address only beside it, never in its place",
       "checked": "2026-11-06",
-      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta."
+      "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-06"
     },
     {
       "host": "archiwum.mkw.pl",

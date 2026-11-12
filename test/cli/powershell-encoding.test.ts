@@ -24,7 +24,9 @@ test("on Windows the agent hears how to keep strom's output in PowerShell 5.1 wh
     assert.doesNotMatch(agentsMd(tree, other), /PowerShell|OutputEncoding/, other);
     assert.doesNotMatch(guideText("en", "https://stromapp.info/", undefined, other), /OutputEncoding/, other);
   }
-  assert.equal(agentsMd(tree, "linux"), win.replace(`\n${line}`, ""), "nothing else differs");
+  const codex = win.split("\n").find((l) => l.startsWith("   Codex on Windows lets strom out of its sandbox"));
+  assert.ok(codex, "Codex's rule on Windows (K031)");
+  assert.equal(agentsMd(tree, "linux"), win.replace(`\n${line}`, "").replace(`\n${codex}`, ""), "nothing else differs");
   const guide = guideText("en", "https://stromapp.info/", undefined, "win32");
   assert.match(guide, /\n- In Windows PowerShell 5\.1, set \[Console\]::OutputEncoding = \[System\.Text\.UTF8Encoding\]::new\(\) before keeping strom's output/);
   w.cleanup();
