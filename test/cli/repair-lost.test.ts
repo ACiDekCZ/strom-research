@@ -132,6 +132,15 @@ test("a history older than the research: verify says the way that loses nothing,
     assert.equal(agentUndo.code, 4, agentUndo.out);
     assert.equal(agentUndo.json.status, "needs-consent");
     assert.equal((await w.run(["repair", "undo", stamp])).code, 4);
+    // a script with no terminal: the consent it needs, as strom repair says it (win131 N2)
+    const script = await w.run(["repair", "undo", stamp, "--json"]);
+    assert.equal(script.code, 4, script.out + script.err);
+    assert.equal(script.json.status, "needs-consent", script.out + script.err);
+    assert.equal(script.json.needs[0].set, `strom repair undo ${stamp}`);
+    assert.match(script.json.needs[0].question, /^Put back what strom repair removed or replaced \(\d+ files?, a sealed change\)\?$/);
+    assert.match(script.json.hint, new RegExp(`strom repair undo ${stamp}`));
+    const plain = await w.run(["repair", "undo", stamp]);
+    assert.match(plain.out + plain.err, new RegExp(`strom repair undo ${stamp}`), plain.out + plain.err);
     const after = snapshot(data);
     assert.equal((await w.ok(["repair", "undo", stamp], { tty: true, answers: ["n"] })).code, 0);
     assert.deepEqual(snapshot(data), after);

@@ -97,6 +97,11 @@ export interface CommandDef {
   /** Writes to the tree: gets --dry-run, is committed automatically. */
   writes?: boolean;
   /**
+   * A writing command that writes only with these options, a preview without them (source split without --apply):
+   * the preview reads as any read does — no lock, no commit, no seal asked (a research sealed on another computer).
+   */
+  writesWith?(input: Input): boolean;
+  /**
    * command (default): a writing command holds the tree lock from start to commit;
    * sections: a long one (copying files, the network) locks only while it writes.
    */

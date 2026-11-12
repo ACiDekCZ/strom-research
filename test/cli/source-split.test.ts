@@ -114,3 +114,36 @@ test("source split: a preview by anybody (nothing written), the split the person
     w.cleanup();
   }
 });
+
+test("source split: the preview on a research sealed on another computer reads as any read (rc 0, nothing written); writing it (--apply) asks for it to be taken over first", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["source", "add", "Křest Jana Lhotáka 1881", "--kind", "baptism", "--locator", "fol. 12, č. 5, snímek 3"]); // S1
+    const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    fs.rmSync(path.join(w.env.STROM_CONFIG_DIR!, "keys", `${id}.key`));
+    const files = () => fs.readdirSync(w.cwd, { recursive: true, encoding: "utf8" }).filter((f) => !f.split(path.sep).includes(".git") && !f.split(path.sep).includes(".strom")).sort().map((f) => [f, fs.statSync(path.join(w.cwd, f)).isFile() ? fs.readFileSync(path.join(w.cwd, f), "utf8") : ""]);
+    const before = files();
+    const head = fs.readFileSync(path.join(w.cwd, ".git", "HEAD"), "utf8");
+
+    for (const env of [agent.env, {}]) {
+      const preview = await w.run(["source", "split", "--json"], { env });
+      assert.equal(preview.code, 0, preview.out + preview.err);
+      assert.equal(preview.json.count, 1);
+      assert.deepEqual(preview.json.split[0].after, { locator: "č. 5", folio: "fol. 12", image: "3" });
+    }
+    assert.match((await w.ok(["source", "split"])).out, /would split the locator of 1 source/);
+    assert.deepEqual(files(), before, "the preview writes nothing");
+    assert.equal(fs.readFileSync(path.join(w.cwd, ".git", "HEAD"), "utf8"), head);
+
+    // writing it waits for the research taken over here
+    const apply = await w.run(["source", "split", "--apply", "--json"]);
+    assert.equal(apply.code, 4, apply.out + apply.err);
+    assert.equal(apply.json.code, "seal.foreign");
+    assert.equal(apply.json.status, "needs-consent");
+    assert.deepEqual(place(w, "S0001"), ["fol. 12, č. 5, snímek 3", undefined, undefined]);
+    assert.deepEqual(files(), before);
+  } finally {
+    w.cleanup();
+  }
+});

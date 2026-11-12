@@ -267,11 +267,11 @@ register(
       const data = undoData(plan);
       const said = undoSaid(plan, lang);
       if (plan.back.length === 0) return { text: lines(said, ui(lang, "ui.repair.undo.nothing")), data: { ...data, undone: false, nothing: true } };
-      if (!ctx.interactive) return { text: lines(said, "", ui(lang, "ui.repair.undo.person", { command: set })), data: { ...data, undone: false, run: set }, exitCode: 4 };
+      // a script, --json or no terminal: the consent it needs, as strom repair says it (status needs-consent, what to run)
+      ctx.requireHuman(`Put back what strom repair removed or replaced (${plan.back.length} file${plan.back.length === 1 ? "" : "s"}, a sealed change)?`, set, "repair", lines(said, "", ui(lang, "ui.repair.undo.person", { command: set })), { window: false });
       if (liveRunning(tree.root)) throw new UsageError("the bridge to the Strom app runs on this research: nothing put back", { hint: `strom live stop, then ${set}`, code: "repair.undo-bridge" });
       if (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0)
         throw new UsageError("somebody is at work on this research: putting back only once they finished", { hint: `strom session finish, then ${set}`, code: "repair.undo-busy" });
-      ctx.requireHuman("Put back what strom repair removed (a sealed change)?", set, "repair", ui(lang, "ui.repair.undo.person", { command: set }), { window: false });
       ctx.io.stdout(said + "\n");
       if (!(await ctx.confirm(ui(lang, "ui.repair.undo.ask"), false))) return { text: ui(lang, "ui.cancelled"), data: { ...data, undone: false } };
       const r = applyUndo(tree, plan);

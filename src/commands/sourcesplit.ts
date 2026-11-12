@@ -22,6 +22,8 @@ register({
   group: "sources",
   tree: true,
   writes: true,
+  // the preview reads only: anybody's, also on a research sealed on another computer (prod 1.31.0 N2)
+  writesWith: ({ opts }) => !!opts.apply || opts.undo !== undefined,
   person: PERSON,
   agentMay: { when: "without --apply and --undo (the preview)", check: (_ctx, { opts }) => !opts.apply && opts.undo === undefined },
   description:

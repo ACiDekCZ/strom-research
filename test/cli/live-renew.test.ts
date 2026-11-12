@@ -287,7 +287,9 @@ test("a bridge of an older strom left beside the tree's starts the newer strom's
     const owner = (await w.ok(["live", "start", "--json"])).json as { pid: number };
     // a bridge of an older strom beside it (it claims nothing; live.json names the tree's bridge): a newer strom on disk,
     // it starts that strom's bridge to take over (naming itself only as its parent) and goes on when that one ends at
-    // once — as the older strom did; asked through its stop file, it ends
+    // once — as the older strom did; asked through its stop file, it ends. Started detached, as strom starts a bridge
+    // (spawnBridge): on Windows a child started otherwise is ended with the process that started it (Node puts it in a
+    // job that closes with its parent), before it can say it ended that one (found on Windows: the line never written)
     const older = path.join(w.dir, "older-bridge.cjs");
     fs.writeFileSync(
       older,
@@ -296,7 +298,7 @@ test("a bridge of an older strom left beside the tree's starts the newer strom's
         "const fs = require('node:fs');",
         "const path = require('node:path');",
         "const dot = path.join(process.env.STROM_TREE, '.strom');",
-        "const next = spawn(process.execPath, [process.env.OLDER_CLI, 'live', 'serve'], { cwd: process.env.STROM_TREE, env: { ...process.env, STROM_LIVE_RENEWED: '9.9.9' }, stdio: 'ignore' });",
+        "const next = spawn(process.execPath, [process.env.OLDER_CLI, 'live', 'serve'], { cwd: process.env.STROM_TREE, env: { ...process.env, STROM_LIVE_RENEWED: '9.9.9' }, stdio: 'ignore', detached: true });",
         "next.on('exit', (code) => fs.writeFileSync(path.join(dot, 'older-next.json'), JSON.stringify({ pid: next.pid, code })));",
         "setInterval(() => {",
         "  try {",

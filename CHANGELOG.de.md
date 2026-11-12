@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.31.1
 
-*In Vorbereitung: die Betas bis 1.31.1-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.31.1-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Eine Einstellung für Archiv-Viewer, die ein Browser langsam zeichnet.** Wo der Browser einen Tab nur etwa einmal
   pro Sekunde zeichnet (Zeichnen ohne Grafikkarte, ein Remote-Desktop), braucht der Viewer des Archivs (ACTA PUBLICA)
@@ -15,6 +15,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Meldung nennt jetzt, was hilft: `strom config set browser.tileWait 180` (60–600 s) — das Skript wartet dann, solange
   die Kacheln noch kommen, und antwortet dem Agenten „strom-wait“, bis es fertig ist. Ohne die Einstellung ändert sich
   nichts.
+- **Die Vorschau von `strom source split` bei einer auf einem anderen Computer versiegelten Forschung.** Sie wurde
+  abgelehnt, bis die Forschung übernommen war (`strom seal adopt`), obwohl sie nur liest. Jetzt zeigt die Vorschau wie
+  jedes Lesen, was die Aufteilung täte; das Schreiben (`--apply`) und sein Rückgängigmachen warten weiter auf die
+  Übernahme der Forschung.
+- **`strom repair undo <Stempel> --json` ohne Terminal** antwortet jetzt wie `strom repair`: `status: "needs-consent"`
+  mit dem Befehl, der in einem Terminal auszuführen ist, nicht nur mit dem Exit-Code 4.
 
 ## 1.31.0
 

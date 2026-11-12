@@ -7,13 +7,18 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.31.1
 
-*In preparation: the betas up to 1.31.1-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.31.1-beta.2. The section is complete with the release.*
 
 - **A setting for archive viewers a browser draws slowly.** Where the browser draws a tab only about once a second
   (drawing without the graphics card, a remote desktop), the archive's viewer (ACTA PUBLICA) needs minutes for one
   image and saving gave up after 30 s with "the viewer's tiles did not all come". That message now names what helps:
   `strom config set browser.tileWait 180` (60–600 s) — the script then waits while the tiles still come and answers
   the agent "strom-wait" until it is done. Without the setting nothing changes.
+- **The preview of `strom source split` on a research sealed on another computer.** It was refused until the research
+  was taken over there (`strom seal adopt`), though it only reads. Now the preview shows what the split would do, as
+  any reading does; writing it (`--apply`) and its undo still wait for the research to be taken over.
+- **`strom repair undo <stamp> --json` without a terminal** now answers as `strom repair` does: `status:
+  "needs-consent"` with the command to run in a terminal, not only exit code 4.
 
 ## 1.31.0
 

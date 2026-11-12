@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.31.1
 
-*W przygotowaniu: bety do 1.31.1-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.31.1-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Ustawienie dla przeglądarek archiwów, które przeglądarka rysuje powoli.** Gdy przeglądarka rysuje kartę tylko mniej
   więcej raz na sekundę (rysowanie bez karty graficznej, zdalny pulpit), przeglądarka skanów archiwum (ACTA PUBLICA)
@@ -15,6 +15,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Ten komunikat podaje teraz, co pomaga: `strom config set browser.tileWait 180` (60–600 s) — skrypt czeka wtedy,
   dopóki kafelki jeszcze przychodzą, i odpowiada agentowi „strom-wait”, aż skończy. Bez tego ustawienia nic się nie
   zmienia.
+- **Podgląd `strom source split` w badaniu zapieczętowanym na innym komputerze.** Był odrzucany, dopóki badanie nie
+  zostało przejęte (`strom seal adopt`), choć tylko czyta. Teraz podgląd pokazuje, co zrobiłby podział, jak każde
+  czytanie; zapis (`--apply`) i jego cofnięcie nadal czekają na przejęcie badania.
+- **`strom repair undo <znacznik> --json` bez terminala** odpowiada teraz jak `strom repair`: `status: "needs-consent"`
+  z poleceniem do uruchomienia w terminalu, nie tylko kodem wyjścia 4.
 
 ## 1.31.0
 

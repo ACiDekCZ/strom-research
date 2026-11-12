@@ -66,7 +66,7 @@ async function standIn(root: string, script: string): Promise<ReturnType<typeof 
   return c;
 }
 
-test("strom live stop asks the bridge through its stop file: the end said on its stream, the stream closed, live.log says why — at once", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("strom live stop asks the bridge through its stop file: the end said on its stream, the stream closed, live.log says why — at once", { skip: !hasGit }, async () => {
   const w = new World();
   await w.withTree();
   const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
@@ -110,6 +110,18 @@ test("strom live stop asks the bridge through its stop file: the end said on its
 });
 
 /**
+ * How a stand-in bridge ended: "exit 0" by itself; ended for good by another process "SIGKILL" — on Windows a process
+ * ended by another one has no signal, only the code TerminateProcess gave it ("exit 1").
+ */
+const exited = (c: ReturnType<typeof spawn>) =>
+  new Promise<string>((r) => {
+    const said = (code: number | null, sig: NodeJS.Signals | null) => r(sig ?? `exit ${code}`);
+    if (c.exitCode !== null || c.signalCode) said(c.exitCode, c.signalCode);
+    else c.once("exit", said);
+  });
+const KILLED = process.platform === "win32" ? "exit 1" : "SIGKILL";
+
+/**
  * endBridge in a process of its own (as strom live stop runs it), told it runs on another system — never waited for
  * synchronously here: this process reaps its children (a bridge that ended is otherwise still there, as on Windows it is not)
  */
@@ -123,22 +135,22 @@ function endBridgeAs(platform: string, pid: number, root: string, more: { writeM
   return new Promise((resolve, reject) => c.on("exit", (code) => (code === 0 ? resolve(out) : reject(new Error(err)))));
 }
 
-test("endBridge on Windows: a bridge that hears its stop file ends as it should; one that does not is ended for good and said so — never always \"stopped\"", { skip: process.platform === "win32" }, async () => {
+test("endBridge on Windows: a bridge that hears its stop file ends as it should; one that does not is ended for good and said so — never always \"stopped\"", {}, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-live-stop-"));
   fs.mkdirSync(path.join(root, ".strom"));
   const file = path.join(root, ".strom", "live-stop.json");
-  const exited = (c: ReturnType<typeof spawn>) => new Promise<string | null>((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
+
   try {
     // hears it: takes the ask meant for it and ends by itself
     const hears = `const f=${JSON.stringify(file)},fs=require("fs");setInterval(()=>{try{if(JSON.parse(fs.readFileSync(f,"utf8")).pid===process.pid){fs.rmSync(f);process.exit(0)}}catch{}},50)`;
     const good = await standIn(root, hears);
     assert.equal(await endBridgeAs("win32", good.pid!, root), "stopped");
-    assert.equal(await exited(good), null, "it ended by itself");
+    assert.equal(await exited(good), "exit 0", "it ended by itself");
     // does not hear it (a bridge of an older strom): on Windows a signal ends it at once, unheard — "killed", said so
     const deaf = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)", "live", "serve"], { cwd: root, stdio: "ignore" });
     await until("it runs", () => deaf.pid !== undefined && alive(deaf.pid));
     assert.equal(await endBridgeAs("win32", deaf.pid!, root), "killed");
-    assert.equal(await exited(deaf), "SIGKILL");
+    assert.equal(await exited(deaf), KILLED);
     assert.equal(fs.existsSync(file), false, "an ask nobody took is not left behind");
     // no such process: none was there to end
     assert.equal(await endBridgeAs("win32", deaf.pid!, root), "gone");
@@ -147,14 +159,14 @@ test("endBridge on Windows: a bridge that hears its stop file ends as it should;
   }
 });
 
-test("endBridge: a bridge that says it writes what the app sent is waited for until it is written; one that keeps saying so only a while, then ended", { skip: process.platform === "win32" }, async () => {
+test("endBridge: a bridge that says it writes what the app sent is waited for until it is written; one that keeps saying so only a while, then ended", {}, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-live-stop-"));
   fs.mkdirSync(path.join(root, ".strom"));
   fs.writeFileSync(path.join(root, "strom.json"), "{}");
   const file = path.join(root, ".strom", "live-stop.json");
   const busy = path.join(root, ".strom", "live-busy.json");
   const written = path.join(root, "written");
-  const exited = (c: ReturnType<typeof spawn>) => new Promise<string | null>((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
+
   // asked to end, it writes on for `writes` ms (saying so, its note written whole as the bridge writes it: never read
   // half written — an empty note read is a bridge that no longer says it writes), then ends by itself
   const writer = (writes: number) =>
@@ -163,13 +175,13 @@ test("endBridge: a bridge that says it writes what the app sent is waited for un
     // writing longer than the ask is waited for (600 ms): ended as it should once written, never cut short
     const slow = await standIn(root, writer(2000));
     assert.equal(await endBridgeAs("win32", slow.pid!, root, { writeMs: 20_000 }), "stopped");
-    assert.equal(await exited(slow), null, "it ended by itself");
+    assert.equal(await exited(slow), "exit 0", "it ended by itself");
     assert.equal(fs.readFileSync(written, "utf8"), "whole", "what it wrote was written whole");
     // one that says it writes for ever: waited for only as long as given, then ended for good — and said so
     const stuck = await standIn(root, writer(3_600_000));
     const from = Date.now();
     assert.equal(await endBridgeAs("win32", stuck.pid!, root, { writeMs: 1000 }), "killed");
-    assert.equal(await exited(stuck), "SIGKILL");
+    assert.equal(await exited(stuck), KILLED);
     assert.ok(Date.now() - from < 15_000, `not waited for longer than given (${Date.now() - from} ms)`);
     assert.match(fs.readFileSync(path.join(root, ".strom", "live.log"), "utf8"), new RegExp(`the bridge ${stuck.pid} still wrote what the app sent after \\d+ s: ended without waiting longer`));
     assert.equal(fs.existsSync(file), false, "an ask nobody took is not left behind");
@@ -178,7 +190,7 @@ test("endBridge: a bridge that says it writes what the app sent is waited for un
   }
 });
 
-test("strom live stop while the app sends an original: the bridge ends once it is written, the original kept — never cut short", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("strom live stop while the app sends an original: the bridge ends once it is written, the original kept — never cut short", { skip: !hasGit }, async () => {
   const w = new World();
   await w.withTree();
   await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);

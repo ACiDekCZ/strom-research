@@ -7,13 +7,18 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.31.1
 
-*Připravuje se: bety do 1.31.1-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.31.1-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Nastavení pro prohlížeče archivů, které prohlížeč vykresluje pomalu.** Kde prohlížeč vykreslí kartu jen zhruba
   jednou za sekundu (kreslení bez grafické karty, vzdálená plocha), potřebuje prohlížeč snímků archivu (ACTA PUBLICA)
   na jeden snímek minuty a ukládání vzdalo po 30 s se zprávou, že dlaždice nedorazily všechny. Ta zpráva teď jmenuje,
   co pomůže: `strom config set browser.tileWait 180` (60–600 s) — skript pak čeká, dokud dlaždice ještě přicházejí,
   a agentovi odpovídá „strom-wait“, dokud není hotovo. Bez nastavení se nemění nic.
+- **Náhled `strom source split` na výzkumu zapečetěném na jiném počítači.** Dřív se odmítl, dokud výzkum nebyl
+  převzat (`strom seal adopt`), přestože jen čte. Teď náhled ukáže, co by rozdělení udělalo, jako každé čtení; zápis
+  (`--apply`) i jeho vrácení dál čekají na převzetí výzkumu.
+- **`strom repair undo <razítko> --json` bez terminálu** teď odpovídá jako `strom repair`: `status: "needs-consent"`
+  s příkazem ke spuštění v terminálu, ne jen kódem 4.
 
 ## 1.31.0
 
