@@ -37,7 +37,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.30.1";
+export const VERSION = "1.31.0";
 
 /** What a new research is settled with from the start: nothing an older strom counted otherwise to set right in it. */
 export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1"];

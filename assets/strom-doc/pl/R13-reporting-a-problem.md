@@ -87,11 +87,15 @@ Raport mówi, gdzie wystąpił problem, i może zawierać opis słowami człowie
   - uruchomione przez agenta bez `--where`: miejsce zostaje „nie wiadomo”, a strom mówi agentowi, żeby zapytał
     człowieka i uruchomił polecenie ponownie;
   - `--note "…"` to opis problemu słowami człowieka, najwyżej 2000 znaków; nazwiska z badania są w nim maskowane.
+  - **Od badania 1.31.0:** maskowane są też odmienione formy nazwisk i miejsc znanych badaniu, w których zmieniają się
+    ostatnia jedna lub dwie litery („z Brna” od Brno, „v Praze” od Praha). Rdzeń ma co najmniej 3 litery, a końcówka
+    jest tym krótsza, im krótszy jest rdzeń; zwykłe słowo, które tylko podobnie się zaczyna, zostaje czytelne. Tak
+    samo maskowany jest cały raport.
 - **Obsługa:** `strom error --where app --about sync`, `strom error --since 2d --note "pobieranie zatrzymało się
   w połowie"`.
 - **Obowiązuje od:** badanie 1.30.0
 
-<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) -->
+<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) · research:c5ee74ab src/core/redact.ts formOf (změněné poslední 1–2 písmeno, kmen ≥ 3, koncovka podle kmene; slovo ze 3 písmen jen o písmeno delší), byPrefix 3 písmena · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R13.5"></a>
 ## R13.5 Dane osób tylko za zgodą

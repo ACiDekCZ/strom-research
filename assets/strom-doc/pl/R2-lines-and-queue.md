@@ -124,8 +124,13 @@ opowieść przychodzi jednak na kolej jako pierwsza (przy samodzielnej pracy age
 obowiązuje.
 
 - **Obowiązuje od:** badanie 1.1.0
+- **Od badania 1.31.0:** przy kolei opowieści idzie naprzód tylko pierwsza opowieść w kolejności, pozostałe zostają za
+  badaniem. Kolejność, w jakiej zadania bierze `strom run` (z koleją opowieści i z zadaniami historii, gdy są na
+  kolei), pokazuje też menu przed `strom run` („Teraz kolej na te zadania, w kolejności, w jakiej weźmie je agent:”)
+  i kolejka w aplikacji Strom ([S4.2](S4-research-from-the-app.md#S4.2)); kolejka mostu niesie przy zadaniu, czy to
+  opowieść, czy historia. `strom task next` i `strom task list` mają kolejność rozmowy: bez kolei opowieści.
 
-<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 -->
+<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 · 1.31.0: research 5f48cdaf src/core/queue.ts rankTasks (turnStory: jen první vyprávění tahu), RUN_TURNS, runOrder; src/cli/menu.ts (ui.run.next), src/core/live.ts (/status queue[], GET /queue, kind story|history), src/commands/tasks.ts CONVERSATION_ORDER (task next, task list) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R2.2.3"></a>
 ### R2.2.3 Zadania, które czekają poza kolejką
@@ -152,8 +157,10 @@ W badaniu z wieloma liniami **praca poza liniami** to zadanie o ludziach, do kt�
 przodka i jej rodzina), które nie pomaga żadnej linii. Taka praca idzie **dopiero po pracy nad liniami**.
 
 - **Granice:** zadanie pomaga linii, a więc nie jest poza liniami, gdy wymienia hipotezę lub sprzeczność linii,
-  łączy ludzi z drzewem albo agent zapisał, jak pomaga linii (rodzeństwo przodka jako chrzestny lub świadek, ten sam
-  dom, nazwisko przodka). Własna rodzina rodzeństwa linii nie pomaga.
+  łączy ludzi z drzewem przez osobę linii albo jej partnera, albo agent zapisał, jak pomaga linii (rodzeństwo przodka
+  jako chrzestny lub świadek, ten sam dom, nazwisko przodka). Własna rodzina rodzeństwa linii nie pomaga: łączenie
+  ludzi z boczną gałęzią (na przykład z rodzeństwem przodka) należy do tej gałęzi i przychodzi na nie kolej według jej
+  wyboru ([R2.3.1](#R2.3.1)). Hipoteza linii i powód zapisany przez agenta obowiązują dalej.
 - **Opcje:** **na końcu, dopiero po liniach** (domyślnie) · **normalnie, jak praca linii** · **nigdy** (zadań się nie
   bierze, nic nie jest usuwane).
 - **Obsługa:** terminal: **Ustawienia → Samodzielna praca agenta → Praca poza liniami**,
@@ -163,8 +170,14 @@ przodka i jej rodzina), które nie pomaga żadnej linii. Taka praca idzie **dopi
 - **Od badania 1.26.0:** nowa opcja domyślna **czasem, raz na jakiś czas**: jedno zadanie poza liniami na 10 sesji
   (`queue.offLineShare`), z najbliższej gałęzi. Do pracy poza liniami należy też mąż lub żona przodka
   ([R2.1.3](#R2.1.3)).
+- **Od badania 1.31.0:** linii pomaga tylko łączenie ludzi z osobą linii albo z jej partnerem; wcześniej wystarczało
+  połączenie z kimkolwiek z drzewa, także z rodzeństwem przodka. Most w `/status` mówi przy zadaniu, nad którym trwa
+  praca, jak pomaga linii (funkcja `working.helps`). Aplikacja 3.27.0 pokazuje to w **Przeglądzie badania** w wierszu
+  **Teraz** („pomaga linii … · łączy ludzi z drzewem”, „poza liniami · gałąź …”,
+  [S4.1](S4-research-from-the-app.md#S4.1)) i we wstępie wyboru pracy poza liniami
+  ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
 
-<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast -->
+<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast · výzkum 1.31.0: src/core/offline.ts (b: joins jen k osobě linie nebo partnerovi, jinak větev; a, c mají přednost), HelpsBy, /status working[].helps, branch · commity 576cf7e5, 2e54c8d5 · CHANGELOG.cs.md 1.31.0 „Připojení rodiny k vedlejší větvi je práce mimo linie“ · spec 036 K1.7 -->
 
 <a id="R2.3.1"></a>
 ### R2.3.1 Wybór dla jednej gałęzi i jednego zadania
@@ -189,7 +202,7 @@ Oprócz wyboru dla całego badania własny wybór może mieć jedna gałąź (ta
 <a id="R2.3.2"></a>
 ### R2.3.2 Rosnąca gałąź dostaje propozycję linii
 
-Gdy gałąź poza liniami urośnie do 10 otwartych zadań lub 5 osób, w **Czeka na decyzję** pojawia się pytanie: dodać
+Gdy gałąź poza liniami urośnie do 10 otwartych zadań lub 5 osób, w **Czeka na załatwienie** pojawia się pytanie: dodać
 do linii, założyć linię, zostawić bez zmian albo nie badać. Po odpowiedzi „zostawić” propozycja wraca dopiero przy
 dwukrotnej wielkości. Gałąź z własnym wyborem i wybór **nigdy** propozycji nie dostają.
 
@@ -197,7 +210,7 @@ dwukrotnej wielkości. Gałąź z własnym wyborem i wybór **nigdy** propozycji
   przy gałęzi jest wstrzymana lub zakończona, aplikacja proponuje najwęższą trwającą linię, do której należy osoba
   gałęzi; gdy takiej nie ma, linię wstrzymaną z uwagą **(wstrzymana)**.
 - **Obsługa:** terminal: **Proponować linie dla rosnących gałęzi** (włączyć/wyłączyć), `strom offline answer B-P…
-  line|keep|never`, `strom config set queue.suggestTasks|queue.suggestPersons <n>`. Aplikacja: **Czeka na decyzję**,
+  line|keep|never`, `strom config set queue.suggestTasks|queue.suggestPersons <n>`. Aplikacja: **Czeka na załatwienie**,
   ustawienie **Proponuj linie dla rosnących gałęzi** ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
 - **Obowiązuje od:** badanie 1.26.0
 

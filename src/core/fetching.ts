@@ -11,6 +11,36 @@ import path from "node:path";
 /** Images a fetch registers at once (one commit each): readers begin on the first batch, the history grows little. */
 export const FETCH_BATCH = 10;
 
+/**
+ * What one image of a fetch costs where it is more than HEAVY_IMAGE requests (tiles, most likely): the requests an
+ * image, the time a book takes at the archive's pace, the book's own number of images where it is known. From the
+ * fetch's own measure — nothing asked of the archive for it.
+ */
+export interface FetchHeavy {
+  perImage: number;
+  bookMs: number;
+  bookImages?: number;
+}
+
+/** More requests than this for one whole image: tiles, most likely — hours for a book (DISCOVERY.md, step 2). */
+export const HEAVY_IMAGE = 10;
+/** A book of this many images, for the time a book takes when the book's own number is not known here. */
+export const BOOK_GUESS = 200;
+
+/** A time said: seconds, minutes, else hours. */
+export function spanSaid(ms: number): string {
+  const secs = Math.round(ms / 1000);
+  if (secs < 90) return `${secs} s`;
+  if (secs < 90 * 60) return `${Math.round(secs / 60)} min`;
+  return `${Math.round(secs / 360) / 10} h`;
+}
+
+/** A fetch's costly image said in one short part of a line (strom fetch --status, the brief); `stop`: the command that stops it. */
+export function heavySaid(h: FetchHeavy, stop?: string): string {
+  const per = Math.round(h.perImage * 10) / 10;
+  return `⚠ ${per} requests an image (tiles, most likely): about ${spanSaid(h.bookMs)} for ${h.bookImages ? `its ${h.bookImages} images` : `a book of ${BOOK_GUESS} images`} — ${stop ? `${stop}; ` : ""}a connector of one request an image first (DISCOVERY.md, step 2)`;
+}
+
 /** A fetch nothing was heard of this long (no image, no wait for a limit it said) is taken for gone. */
 export const FETCH_SILENT_MS = 10 * 60_000;
 
@@ -40,6 +70,8 @@ export interface ActiveFetch {
   yielding?: boolean;
   /** Its work folder in .strom/fetch (a name, no path): taken away once its process is gone. */
   work?: string;
+  /** One image costs more than HEAVY_IMAGE requests (tiles, most likely), as its own measure counted. */
+  heavy?: FetchHeavy;
 }
 
 function dir(root: string): string {
@@ -63,7 +95,7 @@ function writeMark(file: string, mark: ActiveFetch): void {
 }
 
 /** The mark of a fetch beginning: kept up to date as it goes, gone when it ends (whatever way it ends). */
-export function markFetch(root: string, start: Omit<ActiveFetch, "pid" | "host" | "at" | "registered" | "since">): { beat: (change?: Partial<Pick<ActiveFetch, "registered" | "waitUntil" | "yielding">>) => void; end: () => void } {
+export function markFetch(root: string, start: Omit<ActiveFetch, "pid" | "host" | "at" | "registered" | "since">): { beat: (change?: Partial<Pick<ActiveFetch, "registered" | "waitUntil" | "yielding" | "heavy">>) => void; end: () => void } {
   fs.mkdirSync(dir(root), { recursive: true });
   const file = path.join(dir(root), `active-${start.recordset}.${process.pid}.json`);
   const at = new Date().toISOString();
@@ -126,6 +158,7 @@ function gone(root: string, file: string, m: ActiveFetch): void {
       ...(m.since ? { since: m.since } : {}),
       ...(m.session ? { session: m.session } : {}),
       ...(m.task ? { task: m.task } : {}),
+      ...(m.heavy ? { heavy: m.heavy } : {}),
       exitCode: 1,
     });
   }
@@ -278,6 +311,8 @@ export interface EndedFetch {
   task?: string;
   /** The exit code it ended with. */
   exitCode: number;
+  /** One image cost more than HEAVY_IMAGE requests (tiles, most likely), as its own measure counted. */
+  heavy?: FetchHeavy;
 }
 
 function endedFile(root: string, recordset: string, pid: number): string {

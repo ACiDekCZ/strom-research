@@ -24,10 +24,10 @@ The list is worked out from the research each time; nothing is written into it.
 
 - The line **Waiting: N (of these X only here in the terminal, Y waiting for a reply)** splits the count the way the
   app does. The app's number is N without the items for the terminal only and without requests sent.
-- Only in the terminal are trees sent from the app (**The Strom app**), questions about reading scans (**The reading
-  of scans**), conflicts (**Conflicts to decide**, see [R5](R5-conflicts.md)), hypotheses to decide (from research 1.28.0) and
-  milder terms of an archive. In the
-  overview **What waits** they come first under the heading **Only here in the terminal (not in the Strom app)**,
+- Only in the terminal are trees sent from the app (**The Strom app**), questions about reading scans (**The reading of
+  scans**), conflicts (**Conflicts to decide**, see [R5](R5-conflicts.md)), hypotheses to decide (from research 1.28.0;
+  from 1.31.0 the Strom app that can decide them gets them too, [R6.3.4](#R6.3.4)) and milder terms of an archive. In
+  the overview **What waits** they come first under the heading **Only here in the terminal (not in the Strom app)**,
   followed by **Also in the Strom app**.
 - The page for the phone only reads: without the items for the terminal only, with stories, 20 items first, at most
   200 at once. It says **Decisions are made on the computer in the Research overview.**
@@ -154,8 +154,8 @@ decide**, see [R3.4.1](R3-verification-and-citation.md#R3.4.1)). Decisions come 
   When 10 or more open hypotheses wait, the app offers the switch to **The AI decides** in **What the research
   knows** (confirmed in the research). With **The AI decides** the
   agent decides itself what a cited record supports, and only its proposals wait (decisions it may not make itself).
-  The group is only in the terminal; the Strom app does not show it ([R6.1.1](#R6.1.1)). In a Strom archive the group
-  does not exist.
+  The Strom app that can decide hypotheses shows the group too ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)); an
+  older app does not get it ([R6.1.1](#R6.1.1)). In a Strom archive the group does not exist.
 - **Controls:** terminal: **What waits** → the item, `strom hypothesis decide H… --proposed | --keep-open`. The same
   choices are in the person review: **Add to the research** → **Review one person** → **Hypotheses about the person
   (n)**.

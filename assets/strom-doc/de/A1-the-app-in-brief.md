@@ -11,11 +11,20 @@ deren Nummer.
 Die Strom-App ist ein Stammbaum im Browser (stromapp.info) oder in einer einzigen HTML-Datei. Die Stammbäume werden
 im Speicher des Browsers auf diesem Gerät gespeichert. Es gibt weder ein Konto noch einen Server mit Daten.
 
-- **Grenzen:** der Speicher des Browsers gehört einem Browser auf einem Gerät. Auf ein anderes Gerät kommt ein
-  Stammbaum als Datei (JSON-Sicherung, GEDCOM, eigenständige HTML-Datei, [A7](A7-book-pages-and-export.md)).
-- **Gilt seit:** App 1.0.0
+- **Grenzen:**
+  - der Speicher des Browsers gehört einem Browser auf einem Gerät. Auf ein anderes Gerät kommt ein Stammbaum als
+    Datei (JSON-Sicherung, GEDCOM, eigenständige HTML-Datei, [A7](A7-book-pages-and-export.md));
+  - die Verschlüsselung mit Passwort (**Daten verschlüsseln**, **Daten entsperren**, der Export **Mit Passwort
+    verschlüsseln**, eine verschlüsselte Datei) funktioniert nur unter einer sicheren Adresse: über https, auf
+    `localhost` oder `127.0.0.1` und in einer vom Datenträger geöffneten Datei. Unter einer Adresse `http://` im
+    Netzwerk (z. B. die App auf einem eigenen Server im Heimnetz) erlaubt sie der Browser nicht. Der Dialog des
+    Passworts sagt das gleich beim Öffnen: „Verschlüsselung funktioniert nur über https oder auf diesem Computer
+    (localhost). Diese Adresse ist nicht sicher.“ Das Speichern eines Stammbaums mit Fotos braucht keine
+    Verschlüsselung.
+- **Gilt seit:** App 1.0.0; 3.27.0: die Meldung zur nicht sicheren Adresse (vorher meldete das Passwort dort „Falsches
+  Passwort“)
 
-<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 -->
+<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 · šifrování: app:src/crypto.ts isCryptoAvailable (isSecureContext, crypto.subtle), classifyCryptoError (jen OperationError = špatné heslo) · src/crypto-errors.ts cryptoFailureText, resetPasswordError (hláška při otevření dialogu), requireCrypto · src/ui/encryption-ui.ts, src/ui/import-export.ts · strings.ts encryption.enable, unlockData, encryptToggle, wrongPassword, insecureContext · commity 266d6a76, cceadca6 (SHA-256 obrázků bez crypto.subtle) · GitHub #13 · dirigent:prace/1110-app-github-11-13 (https, localhost/127.0.0.1, soubor z disku) -->
 
 <a id="A1.2"></a>
 ## A1.2 Personen, Beziehungen und Stammlinien
@@ -32,7 +41,8 @@ haben. Nachnamen kennt sie in weiblicher und männlicher Form (Horák und Horák
 
 Die App zeigt immer das Umfeld einer **zentralen Person**, nicht den ganzen Stammbaum auf einmal. Die Ansichten
 **Familie**, **Nachkommen**, **Zeitleiste**, **Fächer** und **Karte** lesen dasselbe Umfeld unterschiedlich. Eine
-Ansicht kann eine Stammlinie hervorheben.
+Ansicht kann eine Stammlinie hervorheben. Ab App 3.27.0 zeigt die Ansicht **Tabelle** den ganzen Stammbaum in Zeilen
+von Personen, Verbindungen, Ereignissen oder Quellen, mit berechneten Werten, Vollständigkeit und den Befunden der Prüfung.
 
 - Ausführlich: [A6](A6-views.md).
 

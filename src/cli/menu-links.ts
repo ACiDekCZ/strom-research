@@ -17,7 +17,7 @@ import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
 import { DEFAULT_RUN_MINUTES, readStored } from "../core/config.ts";
 import { choosePace } from "../commands/setup.ts";
-import type { Conflict, Family, Hypothesis, Person, Research, Session, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
@@ -36,7 +36,7 @@ import { agentsHere, hasDesktopApp, suggestedWay, waysHere, type Where } from ".
 import { cliMissing } from "../core/agentcli.ts";
 import { offerAgentCli } from "./fixes.ts";
 import { chooseWay } from "./ways.ts";
-import { claimText } from "../core/people.ts";
+import { claimText, displayName } from "../core/people.ts";
 import { normId } from "../core/records.ts";
 import { settledClaim } from "../core/labels.ts";
 import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
@@ -52,6 +52,8 @@ import { bareArchive } from "../commands/archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
 import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
+import { agentDecided, changeKeeps, leftToAgent, linkKey, pickableInApp, recordedOfDecision, reopenBlock, whyNotWritten } from "../core/hypolinks.ts";
+import { branchJoined } from "../core/kin.ts";
 import { fileRefused } from "../core/taskfiles.ts";
 import { placesPinned } from "../core/pastevents.ts";
 import { fixCheck, fixEnv, pendingFixes, quietCheck } from "../commands/fixchecks.ts";
@@ -614,14 +616,224 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
  * A hypothesis the Strom app asks to decide (strom-research://hypothesis?…&do=decide): open with or without a proposal,
  * or decided — its decision changed — on the screen of What waits; an unknown one only said.
  */
-export async function hypothesisDo(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+export async function hypothesisDo(ctx: Context, run: Run, lang: string, root: string, id: string, how: HypothesisHow = "decide", variant?: string): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   const h = tree.get<Hypothesis>(normId(id, "hypothesis"));
   if (!h || h.type !== "hypothesis" || h.retracted || h.mergedInto) return stop(ctx, t("ui.link.hypothesis.none", { id }));
+  // picked in the app (a variant, none holds, left open, taken back): only a pick among closed choices — whose child,
+  // which couple; the rest (the same person, siblings) is decided here, on its whole screen
+  const picked = how !== "decide" || variant !== undefined;
+  if (picked && !pickableInApp(h)) out(ctx, t("ui.link.hypothesis.notInApp", { id: h.id }));
+  else if (picked) return hypothesisPicked(ctx, run, lang, root, h, how, variant);
   if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(h.question, 120) })))) return false;
   const { decideHypothesis } = await import("./menu-waiting.ts");
   return decideHypothesis(ctx, run, lang, root, h.id);
+}
+
+/** What a link of the Strom app does with one hypothesis (strom-research://hypothesis?…&do=). */
+export type HypothesisHow = "decide" | "abandon" | "keep-open" | "reopen";
+
+/** People a decision joins to the tree from which the terminal says how many (the app's K1.4: "a large part of the tree"). */
+export const HYPOTHESIS_BIG_JOIN = 50;
+
+/** A person or a family as the person reads it: the name and the ID ("Josef Lhoták (P0001)", "Václav Lhoták + Marie Lhotová (F0001)"). */
+function whoSaid(tree: Tree, id: string): string {
+  const r = tree.get<Person | Family>(id);
+  if (r?.type === "person") return `${displayName(r)} (${id})`;
+  if (r?.type === "family") {
+    const names = r.partners.map((p) => tree.get<Person>(p)).filter((p): p is Person => p?.type === "person").map(displayName);
+    return names.length ? `${names.join(" + ")} (${id})` : id;
+  }
+  return id;
+}
+
+/** One link of a variant in the research language — into the family it went to, when there is one. */
+function linkSaid(t: ReturnType<typeof translator>, tree: Tree, l: VariantLink, family?: string): string {
+  if (l.kind === "child") {
+    const of = family ?? l.family;
+    return t("ui.hypothesis.tree.child", { child: whoSaid(tree, l.person), family: of ? whoSaid(tree, of) : (l.parents ?? []).map((p) => whoSaid(tree, p)).join(" + ") });
+  }
+  const [a = "", b = ""] = l.persons.map((p) => whoSaid(tree, p));
+  if (l.kind === "partners") return `${t("ui.hypothesis.tree.couple", { a, b })}${family ? ` (${family})` : ""}`;
+  if (l.kind === "same") return t("ui.hypothesis.tree.same", { a, b });
+  return t("ui.hypothesis.tree.siblings", { people: l.persons.map((p) => whoSaid(tree, p)).join(", ") });
+}
+
+/** Whether a link a decision wrote is on the tree still: its family there, the child in it. */
+function stillOnTree(tree: Tree, w: HypothesisWrote): boolean {
+  const f = tree.get<Family>(w.family);
+  if (!f || f.type !== "family" || f.retracted) return false;
+  return w.made || w.link.kind !== "child" || f.children.some((c) => c.person === (w.link as { person: string }).person);
+}
+
+/**
+ * What the person's decision did on the tree, said right after it in the research language (spec 074 K1.5): the links
+ * of its variant on the tree now, what an earlier decision wrote taken off (or kept: other work stands on it), the
+ * links not written (the tree refused them, a merge, siblings). `before`: the hypothesis as it was before the decision.
+ */
+export function decisionOnTree(lang: string, root: string, env: Context["env"], before: Hypothesis): string[] {
+  const t = translator(lang);
+  const tree = Tree.open(root, env);
+  const h = tree.get<Hypothesis>(before.id);
+  if (!h || h.type !== "hypothesis") return [];
+  const key = (w: HypothesisWrote) => `${w.family} ${linkKey(w.link)} ${w.at}`;
+  const had = new Set((before.wrote ?? []).map(key));
+  const has = new Set((h.wrote ?? []).map(key));
+  const now = (h.wrote ?? []).filter((w) => !had.has(key(w)));
+  const gone = (before.wrote ?? []).filter((w) => !has.has(key(w)));
+  const off = gone.filter((w) => !stillOnTree(tree, w));
+  const kept = gone.filter((w) => stillOnTree(tree, w));
+  const chosen = h.state === "decided" ? h.variants.find((v) => v.label === h.chosen) : undefined;
+  const recorded = new Set(recordedOfDecision(tree, h).map(linkKey));
+  const notNow = (chosen?.links ?? []).filter((l) => !recorded.has(linkKey(l)));
+  const say = (ws: HypothesisWrote[]) => ws.map((w) => linkSaid(t, tree, w.link, w.family)).join("; ");
+  // each link not written with why (a child kept in the family of an earlier link other work stands on: that)
+  const keptIn = new Set(kept.map((w) => w.family));
+  const whyNot = (l: VariantLink) => {
+    const why = whyNotWritten(tree, l);
+    const said = why.code === "parents" && why.family && keptIn.has(why.family) ? t("ui.hypothesis.why.kept") : why.code === "parents" ? t("ui.hypothesis.why.parents", { family: whoSaid(tree, why.family ?? "") }) : t(`ui.hypothesis.why.${why.code}`);
+    return t("ui.hypothesis.tree.whyNot", { link: linkSaid(t, tree, l), why: said });
+  };
+  // what is the agent's still: said only of what is left to it (never in an archive)
+  const left = h.state === "decided" && !actsAsArchive(tree) ? leftToAgent(tree, h.id) : undefined;
+  return [
+    off.length ? t("ui.hypothesis.tree.off", { links: say(off) }) : undefined,
+    kept.length ? t("ui.hypothesis.tree.kept", { links: say(kept) }) : undefined,
+    now.length ? t("ui.hypothesis.tree.now", { links: say(now) }) : undefined,
+    notNow.length ? t("ui.hypothesis.tree.notNow", { links: notNow.map(whyNot).join("; ") }) : undefined,
+    left ? t(left === "both" ? "ui.hypothesis.decided.next" : left === "links" ? "ui.hypothesis.decided.links" : "ui.hypothesis.decided.sources") : undefined,
+  ].filter((x): x is string => !!x);
+}
+
+/**
+ * Said before a decision is changed to another variant (spec 074 K1.5): the links of the earlier decision that stay on
+ * the tree (other work stands on them) and the links of the new variant that cannot be written because of them — the
+ * person then goes on or cancels. Nothing kept against it: none.
+ */
+export function changeWarning(lang: string, tree: Tree, h: Hypothesis, v: HypothesisVariant | undefined): string | undefined {
+  const { kept, blocked } = changeKeeps(tree, h, v);
+  if (!blocked.length) return undefined;
+  const t = translator(lang);
+  return t("ui.hypothesis.tree.stays", { kept: kept.map((w) => linkSaid(t, tree, w.link, w.family)).join("; "), links: blocked.map((l) => linkSaid(t, tree, l)).join("; ") });
+}
+
+/** How a decided hypothesis stands, said in one line: for which variant (or none holds), by whom (never an agent in an archive), when. */
+function decidedLine(t: (key: UIKey, values?: Record<string, string | number>) => string, tree: Tree, h: Hypothesis, lang: string): string {
+  const day = humanDay(h.decidedAt ?? h.updated, lang);
+  const by = agentDecided(h) ? (actsAsArchive(tree) ? "" : t("ui.link.hypothesis.by.agent", { day })) : h.decidedIn === "app" ? t("ui.link.hypothesis.by.app", { day }) : t("ui.link.hypothesis.by.person", { day });
+  const said = h.state === "abandoned" ? t("ui.link.hypothesis.isAbandoned", { id: h.id, by }) : t("ui.link.hypothesis.isDecided", { id: h.id, variant: h.chosen ?? "–", by });
+  // a day that ends with its own dot ("10. 11.") ends the sentence: never "10. 11.."
+  return said.replace(/(?<!\.)\.\.(?!\.)/gu, ".");
+}
+
+/**
+ * A pick of the Strom app, confirmed here (spec 074): its question, what was picked (a variant — with how many people
+ * it joins to the tree from HYPOTHESIS_BIG_JOIN —, none holds, left open, the decision taken back) and the person's yes;
+ * then why, Enter for the app's words. Written as the person's decision in the app (--from-app). Decided meanwhile,
+ * the same already, or taken back where the tree records the decision: said, nothing written.
+ */
+async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: string, h: Hypothesis, how: HypothesisHow, label?: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const archive = actsAsArchive(tree);
+  const p = archive ? undefined : h.proposal;
+  out(ctx, ["", ` ${h.id} · ${h.question}`, ...h.variants.map((v) => `    ${v.label}) ${truncate(v.claim, 110)}`), ...(h.state !== "open" ? [`    ${decidedLine(t, tree, h, lang)}`] : []), ""].join("\n"));
+  const why = async (fallback: string): Promise<string | undefined> => {
+    const said = (await ctx.ask(t("ui.link.hypothesis.why", { reason: fallback }))).trim();
+    return said === "0" ? undefined : said || fallback;
+  };
+  const decide = async (argv: string[], done: UIKey): Promise<boolean> => {
+    if ((await run(["hypothesis", "decide", h.id, ...argv, "--from-app"], true)) !== 0) return false;
+    out(ctx, [t(done, { id: h.id }), ...decisionOnTree(lang, root, ctx.env, h)].join("\n"));
+    return true;
+  };
+  if (how === "decide") {
+    const v = h.variants.find((x) => x.label === label);
+    if (!v) return stop(ctx, t("ui.link.hypothesis.noVariant", { id: h.id, variant: label ?? "", labels: h.variants.map((x) => x.label).join(", ") }));
+    if (h.state === "decided" && h.chosen === v.label) return stop(ctx, `${decidedLine(t, tree, h, lang)} ${t("ui.link.hypothesis.nothing")}`);
+    const n = branchJoined(tree, h, v);
+    const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(v.claim, 110) });
+    // the earlier link stays (other work stands on it) and the new one cannot be written: said first, cancel suggested
+    const stays = changeWarning(lang, tree, h, v);
+    // a variant that connects nothing, and nothing of an earlier decision on the tree to take off: only the decision is
+    // written — said, never a promise of a change (spec 074 K1.6)
+    const same = !v.links?.length && !(h.wrote ?? []).some((w) => stillOnTree(tree, w));
+    if (!(await asks(ctx, lang, root, what, lines(same ? t("ui.link.hypothesis.treeSame") : undefined, n >= HYPOTHESIS_BIG_JOIN ? t("ui.link.hypothesis.joins", { n }) : undefined, stays) || undefined, !stays))) return false;
+    const reason = await why(t(h.state === "open" ? "ui.link.hypothesis.pick.default" : "ui.link.hypothesis.repick.default", { variant: v.label }));
+    if (!reason) return false;
+    return decide([`--variant=${v.label}`, `--decision=${reason}`, ...(h.state === "open" ? [] : [`--reason=${reason}`])], "ui.link.hypothesis.done");
+  }
+  if (how === "abandon") {
+    if (h.state === "abandoned") return stop(ctx, `${decidedLine(t, tree, h, lang)} ${t("ui.link.hypothesis.nothing")}`);
+    if (!(await asks(ctx, lang, root, t("ui.link.what.hypothesis.abandon", { id: h.id })))) return false;
+    const reason = await why(t("ui.link.hypothesis.abandon.default"));
+    if (!reason) return false;
+    return decide(["--abandon", `--decision=${reason}`, ...(h.state === "open" ? [] : [`--reason=${reason}`])], "ui.link.hypothesis.abandoned");
+  }
+  if (how === "keep-open") {
+    // left open: an open one only (a decided one is taken back: reopen); one the person left open already, with no
+    // proposal since, needs nothing
+    if (h.state !== "open") return stop(ctx, `${decidedLine(t, tree, h, lang)} ${t("ui.link.hypothesis.keepDecided")}`);
+    if (!p && h.leftOpen) return stop(ctx, t("ui.link.hypothesis.leftAlready", { id: h.id }));
+    if (!(await asks(ctx, lang, root, t(p ? "ui.link.what.hypothesis.keepProposal" : "ui.link.what.hypothesis.keep", { id: h.id })))) return false;
+    if ((await run(["hypothesis", "decide", h.id, "--keep-open"], true)) !== 0) return false;
+    out(ctx, t("ui.link.hypothesis.kept", { id: h.id }));
+    return true;
+  }
+  // taken back: open again, what the decision wrote taken off — while no agent recorded it and no other work stands on it
+  if (h.state === "open") return stop(ctx, t("ui.link.hypothesis.isOpen", { id: h.id }));
+  const blocked = reopenBlock(tree, h);
+  if (blocked) return stop(ctx, t(blocked.type === "tree" ? "ui.link.hypothesis.recorded" : "ui.link.hypothesis.work", { id: h.id, n: blocked.count }));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.hypothesis.reopen", { id: h.id })))) return false;
+  const reason = await why(t("ui.link.hypothesis.reopen.default"));
+  if (!reason) return false;
+  return decide(["--reopen", `--reason=${reason}`], "ui.link.hypothesis.reopened");
+}
+
+/**
+ * The agent's proposals of several hypotheses taken at once, as the Strom app asks it (strom-research://hypotheses?…&
+ * do=accept&ids=, spec 074 P2): each listed with what it would decide (and how many people it joins), those it cannot
+ * take with why (none, no proposal, not a pick of the app's); one yes, then each decided as proposed — the person's, in
+ * the app. True when any was written.
+ */
+export async function acceptProposals(ctx: Context, run: Run, lang: string, root: string, ids: string[]): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const archive = actsAsArchive(tree);
+  const take: Hypothesis[] = [];
+  const said: string[] = [];
+  for (const id of ids) {
+    const h = tree.get<Hypothesis>(normId(id, "hypothesis"));
+    if (!h || h.type !== "hypothesis" || h.retracted || h.mergedInto) said.push(`  ${t("ui.link.accept.skip.none", { id })}`);
+    else if (!h.proposal || archive) said.push(`  ${t("ui.link.accept.skip.noProposal", { id: h.id })}`);
+    else if (!pickableInApp(h)) said.push(`  ${t("ui.link.accept.skip.notInApp", { id: h.id })}`);
+    else take.push(h);
+  }
+  // a decided one changed to the proposal whose old link stays (other work stands on it) and whose new one cannot be
+  // written: said first, as on the hypothesis's own screen — nothing promised of it, cancel suggested (spec 074 K1.5)
+  let stays = false;
+  const line = (h: Hypothesis): string[] => {
+    const p = h.proposal!;
+    if (p.abandon || !p.variant) return [`  ${t("ui.link.accept.none", { id: h.id, question: truncate(h.question, 80) })}`];
+    const v = h.variants.find((x) => x.label === p.variant);
+    const warn = changeWarning(lang, tree, h, v);
+    if (warn) stays = true;
+    const n = v && !warn ? branchJoined(tree, h, v) : 0;
+    return [`  ${t("ui.link.accept.variant", { id: h.id, variant: p.variant, claim: truncate(v?.claim ?? "", 80) })}${n ? ` ${t("ui.link.accept.joins", { n })}` : ""}`, ...(warn ? [`    ${warn}`] : [])];
+  };
+  if (!take.length) return stop(ctx, [t("ui.link.accept.nothing"), ...said].join("\n"));
+  out(ctx, ["", t("ui.link.accept.list"), ...take.flatMap(line), ...(said.length ? ["", t("ui.link.accept.skipped"), ...said] : []), ""].join("\n"));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.hypotheses.accept", { n: take.length }), undefined, !stays))) return false;
+  let done = 0;
+  const said2: string[] = [];
+  for (const h of take)
+    if ((await run(["hypothesis", "decide", h.id, "--proposed", "--from-app"], true)) === 0) {
+      done++;
+      said2.push(...decisionOnTree(lang, root, ctx.env, h).map((x) => `  ${h.id}: ${x}`));
+    }
+  out(ctx, [t("ui.link.accept.done", { n: done }), ...said2].join("\n"));
+  return done > 0;
 }
 
 /**

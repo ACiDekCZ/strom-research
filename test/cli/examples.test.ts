@@ -21,7 +21,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save", "repair undo"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts); repair undo: the copies of a repair done (their stamp known only there) and the person's terminal (test/cli/repair-lost.test.ts)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -118,6 +118,9 @@ async function seeded(): Promise<World> {
   // the agent's proposal the person decides (hypothesis decide --proposed|--keep-open), a second one to propose
   await w.ok(["hypothesis", "propose", "H0001", "--variant", "A", "--decision", "kmotři jsou sourozenci"], { env: { AI_AGENT: "1" } });
   await w.ok(["hypothesis", "add", "Kde se Josef narodil?", "--about", "P0006", "--variant", "A: v Týnci", "--variant", "B: jinde"]); // H0002
+  // a decided one, to open again (hypothesis decide --reopen)
+  await w.ok(["hypothesis", "add", "Kdy se Josef oženil?", "--about", "P0006", "--variant", "A: 1875", "--variant", "B: 1880"]); // H0003
+  await w.ok(["hypothesis", "decide", "H0003", "--variant", "A", "--decision", "oddací zápis"]);
   // a name and a note taken back, a task's note to correct (name retract|restore, note edit|retract|restore)
   await w.ok(["name", "add", "P0002", "Josef /Nowak/", "--kind", "alias"]);
   await w.ok(["name", "add", "P0002", "Josef /Nowack/", "--kind", "alias"]);

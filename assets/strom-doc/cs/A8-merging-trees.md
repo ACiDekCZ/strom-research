@@ -39,8 +39,10 @@ Aplikace ke každé osobě ze slučovaného zdroje hledá osobu v cílovém stro
   proti ženě, roky narození nejvýš 3 od sebe a bez rozdílného globálního ID; jinak je to návrh se skóre nejvýš 79.
   Označení záznamu a `RIN` přidají ke shodě jmen 25 bodů jen u souborů téhož programu. Rodiny se podle ID nepárují
   ([S6.7](S6-tree-from-another-program.md#S6.7)).
+- **Od aplikace 3.27.0:** ID programu (`_UID`, `UID`, `_FSFTID`, `AFN`, `EXID`), které ve stromu nese víc osob,
+  neříká, která z nich to je: shodu samo nezaloží, jen ji nabídne.
 
-<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
+<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons · 3.27.0: app:b5595ca1 src/merge/matching.ts idNamesSeveral (víc osob stromu se stejným silným ID → jen idCandidate), findDirectMatches · src/merge/id-match.ts STRONG_TAGS · CHANGELOG.cs.md 3.27.0 · spec 066 K3.2 -->
 
 <a id="A8.3"></a>
 ## A8.3 Co rozhoduje člověk
@@ -76,6 +78,9 @@ Kromě osob a vztahů se sloučí i seznamy, které patří celému stromu.
 
 - **Prameny:** stejný pramen (stejná signatura, jinak stejný popis) se nezdvojí; citace se převedou na ponechaný
   pramen a chybějící přepis a datum se doplní.
+- **Od aplikace 3.27.0:** pramen, který se od ponechaného liší jen výchozí spolehlivostí, je týž pramen a nezdvojí se;
+  převedené citace si nechají svou spolehlivost ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Jiné datum zápisu
+  nebo jiné řádky citace dál dávají samostatný pramen.
 - **Místa:** souřadnice, záznamy míst a jiné názvy míst se sjednotí; kde oba stromy znají totéž místo, platí cílový
   strom.
 - **Tvary příjmení** ([A4.5](A4-surnames-and-families.md#A4.5)) se sjednotí; skupiny, které se překrývají, se spojí.
@@ -89,4 +94,4 @@ Kromě osob a vztahů se sloučí i seznamy, které patří celému stromu.
   **Co teď** ([S6.4](S6-tree-from-another-program.md#S6.4)). Ruční sloučení dvou osob
   ([A5.6](A5-tree-check.md#A5.6)) poznámky nespojuje.
 
-<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->
+<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations -->

@@ -22,14 +22,15 @@ Postup v kostce:
 
 > **Poznámka: kde přesně platí prohlížeč agenta.** Prohlížeč agenta hlídá strom u **Claude Code** s rozšířením
 > **Claude in Chrome**, ve vestavěném prohlížeči aplikace Claude ([R12.2](R12-where-the-agent-works.md#R12.2))
-> a v prohlížeči Codexu podle adres v jeho kódu, když člověk potvrdil hook stromu
-> ([R12.5](R12-where-the-agent-works.md#R12.5)). Prohlížeč jiného agenta (Antigravity a další) a ovládání počítače
+> a v prohlížeči Codexu v terminálu podle adres v jeho kódu, když člověk potvrdil hook stromu
+> ([R12.5](R12-where-the-agent-works.md#R12.5)). Prohlížeč aplikace ChatGPT (Codex) běží přes cloud ChatGPT a strom
+> ho nehlídá ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)). Prohlížeč jiného agenta (Antigravity a další) a ovládání počítače
 > žádného agenta strom hlídat neumí: agent s nimi do archivu, kam smí jen prohlížeč člověka, sám nejde a snímky
 > uloží člověk. Vestavěné prohlížeče a ovládání
 > počítače desktopových aplikací agentů strom nedoporučuje; agent je použije jen na výslovnou žádost člověka
 > ([R9.4.2](#R9.4.2)). Kde se s agentem mluví a co strom kde hlídá, shrnuje [R12](R12-where-the-agent-works.md).
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0, 1.30.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST, codexInChatgptApp (v1.30.0, 33ac2e38) · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Druhy archivů
@@ -200,8 +201,10 @@ hlídá i vestavěný prohlížeč aplikace Claude ([R12.2](R12-where-the-agent-
 ### R9.4.2 Vestavěné prohlížeče a ovládání počítače: nedoporučené
 
 - Ve výzkumu se z desktopových aplikací agentů nic nevypíná. Vestavěný prohlížeč aplikace Claude (i její náhled)
-  strom hlídá jako Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), prohlížeč aplikace ChatGPT
-  (Codex) podle adres v jeho kódu, až člověk potvrdí hook stromu ([R12.5](R12-where-the-agent-works.md#R12.5)).
+  strom hlídá jako Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Prohlížeč aplikace ChatGPT
+  (Codex) běží přes cloud ChatGPT a strom ho nehlídá, ať je hook stromu v Codexu potvrzený, nebo ne; o webech
+  rozhoduje dialog ChatGPT ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)). Prohlížeč Codexu v terminálu strom
+  hlídá podle adres v jeho kódu, až člověk potvrdí hook stromu ([R12.5](R12-where-the-agent-works.md#R12.5)).
   Ovládání počítače aplikace Claude ani aplikace ChatGPT strom nehlídá
   ([R12.10](R12-where-the-agent-works.md#R12.10)). Žádné z nich strom nedoporučuje.
 - **Jen metodika:** agent je sám od sebe nepoužije: do archivu, kam smí jen prohlížeč člověka, s nimi nejde a snímky
@@ -212,9 +215,10 @@ hlídá i vestavěný prohlížeč aplikace Claude ([R12.2](R12-where-the-agent-
 - **Proč:** před nehlídanými strom nemá žádný hook, takže stránky, které otevřou, nekontroluje. Stahovač archivu,
   stažení stránek webu a prohlížeč agenta v Chrome se pravidly archivů řídí vždy ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Ovládání:** terminál: `strom doctor`, řádek **prohlížeč desktopových aplikací**.
-- **Platí od:** výzkum 1.27.0; 1.29.0: vestavěný prohlížeč aplikace Claude a prohlížeč Codexu hlídané
+- **Platí od:** výzkum 1.27.0; 1.29.0: vestavěný prohlížeč aplikace Claude a prohlížeč Codexu hlídané; 1.30.0:
+  prohlížeč aplikace ChatGPT strom nehlídá
 
-<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
+<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept; assets/lang/cs.json ui.doc.desktop.codex; CHANGELOG.cs.md 1.30.0 · dirigent:test/vysledek-062-u4-codex.md · 1.29.0 (53dba68d; dev 6968ab72): agent řekne, zda strom cestu hlídá -->
 
 <a id="R9.4.3"></a>
 ### R9.4.3 Stav prohlížeče ve strom doctor a v aplikaci
@@ -252,6 +256,10 @@ snímek v Chrome a uloží to, co ukazuje prohlížeč snímků archivu.
   - adresa snímku projde kontrolou prohlížeče agenta ([R9.4](#R9.4));
   - uloží se jen snímek, který karta ukazuje na své vlastní adrese. Prohlížeč posunutý na jiný snímek se odmítne a
     nic se neuloží. Nikdy víc, než prohlížeč archivu dává, nikdy větší než originál;
+  - ukládání čeká, až prohlížeč archivu ukáže celý snímek, nejvýš 30 s. Od výzkumu 1.31.0 se počítá jen čas, kdy
+    prohlížeč kartu kreslí (nekreslí kartu za jinou kartou ani v zakrytém či minimalizovaném okně). Karta nekreslená
+    30 s se ohlásí jako taková („the browser did not draw the tab with the viewer for 30 s …“: karta dopředu, okno
+    odkryté, pak skript znovu); prohlížeč archivu, který mezitím přestránkuje na jiný snímek, neuloží nic;
   - příkaz nastaví úkol na čekání na ten snímek. Soubor se uloží do složky stažených souborů (`strom-T…-<číslo>.jpg`)
     a `strom media add --inbox --waiting` ho přesune do složky úkolu pod číslem snímku ([R9.6](#R9.6)).
 - **Hranice:** Chrome uloží z jedné stránky jen jeden soubor. Další stažení z téže stránky musí dovolit člověk v
@@ -264,9 +272,9 @@ snímek v Chrome a uloží to, co ukazuje prohlížeč snímků archivu.
 - **Proč:** svolení „přes prohlížeč“ dovoluje to, co by udělal člověk ve svém prohlížeči, jeho tempem.
 - **Ovládání:** terminál (agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, potom
   `strom media add --inbox --waiting`.
-- **Platí od:** výzkum 1.27.0. Zadržený snímek se ohlásí od výzkumu 1.30.0.
+- **Platí od:** výzkum 1.27.0. Zadržený snímek se ohlásí od výzkumu 1.30.0, nekreslená karta od 1.31.0.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Čekání na snímky a návrat úkolu

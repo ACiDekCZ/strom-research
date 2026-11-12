@@ -47,8 +47,10 @@ Die App sucht zu jeder Person aus der zusammengeführten Quelle eine Person im Z
   globale ID; sonst ist sie ein Vorschlag mit einem Wert von höchstens 79. Datensatzkennung und `RIN` geben einer
   Übereinstimmung der Namen 25 Punkte dazu, nur bei Dateien desselben Programms. Familien werden nicht nach der ID
   abgeglichen ([S6.7](S6-tree-from-another-program.md#S6.7)).
+- **Ab App 3.27.0:** eine ID des Programms (`_UID`, `UID`, `_FSFTID`, `AFN`, `EXID`), die im Stammbaum mehr
+  als eine Person trägt, sagt nicht, welche es ist: Sie begründet allein keine Übereinstimmung, sie bietet sie nur an.
 
-<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
+<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons · 3.27.0: app:b5595ca1 src/merge/matching.ts idNamesSeveral (víc osob stromu se stejným silným ID → jen idCandidate), findDirectMatches · src/merge/id-match.ts STRONG_TAGS · CHANGELOG.cs.md 3.27.0 · spec 066 K3.2 -->
 
 <a id="A8.3"></a>
 ## A8.3 Was der Mensch entscheidet
@@ -89,6 +91,10 @@ Außer Personen und Beziehungen werden auch die Listen zusammengeführt, die dem
 
 - **Quellen:** dieselbe Quelle (dieselbe Signatur, sonst dieselbe Beschreibung) wird nicht verdoppelt; Zitationen
   gehen auf die behaltene Quelle über, und fehlende Abschrift und fehlendes Datum werden ergänzt.
+- **Ab App 3.27.0:** Eine Quelle, die sich von der behaltenen nur in der Standard-Zuverlässigkeit unterscheidet, ist
+  dieselbe Quelle und wird nicht verdoppelt; die übertragenen Zitationen behalten ihre Zuverlässigkeit
+  ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Ein anderes Eintragsdatum oder andere Zeilen der Zitation ergeben
+  weiter eine eigene Quelle.
 - **Orte:** Koordinaten, Ortsdatensätze und andere Namen von Orten werden vereinheitlicht; wo beide Stammbäume
   denselben Ort kennen, gilt der Zielstammbaum.
 - **Namensschreibweisen** ([A4.5](A4-surnames-and-families.md#A4.5)) werden vereinheitlicht; Gruppen, die sich
@@ -105,4 +111,4 @@ Außer Personen und Beziehungen werden auch die Listen zusammengeführt, die dem
   ([S6.4](S6-tree-from-another-program.md#S6.4)). Das manuelle Zusammenführen zweier Personen
   ([A5.6](A5-tree-check.md#A5.6)) verbindet die Notizen nicht.
 
-<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->
+<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations -->

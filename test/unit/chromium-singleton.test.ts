@@ -42,12 +42,31 @@ function setup(): { home: string; marker: string; socket: string; out: string; e
   return { home, marker, socket, out: path.join(home, "got"), env: { HOME: home, STROM_APP_DIRS: apps } };
 }
 
-async function startedSoon(marker: string): Promise<boolean> {
-  for (let i = 0; i < 40; i++) {
-    if (fs.existsSync(marker)) return true;
-    await new Promise((r) => setTimeout(r, 50));
+const until = async (done: () => boolean, ms: number): Promise<boolean> => {
+  for (const end = Date.now() + ms; ; await new Promise((r) => setTimeout(r, 25))) {
+    if (done()) return true;
+    if (Date.now() > end) return false;
   }
-  return false;
+};
+
+/**
+ * Whether the browser's program was started (its stand-in wrote the marker). Started: waited for as long as a busy
+ * computer takes (found: 2 s were not enough under the whole suite), over as soon as it is. Not started: given the time a
+ * program like it takes to start on this computer now, measured — the same stand-in started beside, three times its time
+ * (a budget of this machine's speed, never fixed milliseconds).
+ */
+async function startedSoon(marker: string): Promise<boolean> {
+  return until(() => fs.existsSync(marker), 30_000);
+}
+
+async function neverStarted(marker: string, s: { home: string; env: Record<string, string> }): Promise<boolean> {
+  const control = path.join(s.home, "control");
+  const t = Date.now();
+  spawn("/bin/sh", ["-c", `echo x > "${control}"`], { stdio: "ignore" }).unref();
+  assert.ok(await until(() => fs.existsSync(control), 30_000), "the control program started");
+  const took = Date.now() - t;
+  await until(() => fs.existsSync(marker), Math.max(500, took * 3));
+  return !fs.existsSync(marker);
 }
 
 test("the message a second start of the browser sends: START, the folder, the command line, NUL between", () => {
@@ -68,7 +87,7 @@ test("macOS, the browser running: the app's address goes through its socket and 
     assert.equal(openWebApp({ browser: "Google Chrome", appId: "a".repeat(32), profile: "Profile 3" }, url, s.env, "darwin"), true);
     const exe = path.join(s.env.STROM_APP_DIRS!, "Google Chrome.app", "Contents", "MacOS", "Google Chrome");
     assert.equal(fs.readFileSync(s.out, "utf8"), singletonMessage([exe, "--profile-directory=Profile 3", `--app-id=${"a".repeat(32)}`, `--app-launch-url-for-shortcuts-menu-item=${url}`]));
-    assert.equal(await startedSoon(s.marker), false, "the browser's program was started");
+    assert.ok(await neverStarted(s.marker, s), "the browser's program was started");
   } finally {
     browser.kill();
     fs.rmSync(s.home, { recursive: true, force: true });

@@ -5,6 +5,89 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.31.0
+
+*12. 11. 2026 · patří k aplikaci Strom 3.27.0.*
+
+- **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
+  je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom
+  verify`, `strom check` i odmítnutý zápis hlásí `history-reverted` s počtem záznamů, které by oprava odstranila, a
+  ukážou cestu, která nic neztratí: zálohu celé složky, `.git` ze zálohy nebo z Time Machine, nebo `strom seal accept`
+  od uživatele. `strom repair`, který by odstranil víc než tři záznamy nebo jakýkoli takový záznam, řekne které a
+  zeptá se uživatele v jeho terminálu; agent ho nikdy nespustí. Co oprava odložila stranou, vrátí `strom repair undo
+  <razítko>` (uživatel ve svém terminálu, jedna zapečetěná operace), i po opravě z verze 1.30.
+
+- **Jeden most na výzkum i po aktualizaci.** Most staršího stromu, který zůstal běžet vedle mostu výzkumu, skončí sám:
+  když jeho nástupce najde výzkum v držení jiného mostu, při nejbližší kontrole, nebo když aktualizace smazala strom,
+  ze kterého běží (dřív každých 16 sekund hlásil chybu). Předání mostu novějšímu stromu je i rychlejší: starý most
+  odpovídá, zatímco se nový strom ověřuje.
+
+- **Snímek ukládaný ze zobrazovače archivu počká, když prohlížeč jeho kartu nekreslí.** Prohlížeč nekreslí kartu za
+  jinou kartou ani v zakrytém či minimalizovaném okně a zobrazovač snímků archivu pak nikdy neohlásil, že má všechny
+  dlaždice: ukládání po 30 s vzdalo s „the viewer's tiles did not all come“ (ACTA PUBLICA). Čekání teď počítá jen čas,
+  kdy prohlížeč kartu kreslí, a pokračuje, jakmile ji kreslí znovu; karta nekreslená 30 s se ohlásí jako taková. Když
+  se zobrazovač mezitím přestránkuje, pod jménem jiného snímku se nic neuloží.
+
+  **`strom fetch` ohlásí snímek, který stojí mnoho požadavků, stejně jako `strom connector test`.** Konektor postavený
+  před verzí 1.30, který skládá každý snímek z dlaždic (sto požadavků na snímek, hodiny na knihu), stahoval bez varování.
+  Teď první snímky stahování agentovi jednou řeknou, kolik stojí jeden snímek a jak dlouho tempem archivu potrvá kniha,
+  i jak stahování na pozadí zastavit a co hledat nejdřív (jeden požadavek na snímek). Vychází z vlastního počítání
+  stahování: archiv se kvůli tomu na nic dalšího neptá. Říká to i `strom fetch --status` a brief.
+
+- **Připojení rodiny k vedlejší větvi je práce mimo linie.** Úkol, který by připojil lidi bez vazby na strom, pomáhal
+  linii vždy, když je připojoval ke komukoli ze stromu – i k sourozenci předka, takže šel s linií, ačkoli práce mimo
+  linie měla čekat na konci. Teď linii pomáhá jen připojení k člověku linie nebo k jeho partnerovi; připojení k
+  vedlejší větvi patří do té větve a přijde na řadu podle její volby. Hypotéza linie a důvod uvedený agentem platí dál.
+  `/status` mostu říká, jak úkol, na kterém se právě pracuje, linii pomáhá (funkce `working.helps`), aby aplikace
+  mohla ukázat, proč jde s linií.
+
+- **Výzkum v tabulce aplikace Strom.** Pro aplikaci Strom, která to umí ukázat, říká soubor pro aplikaci u každé
+  osoby její místo mezi liniemi výzkumu podle stejného pravidla, jakým se řídí fronta: v linii (ve všech, do kterých
+  patří), partner osoby z linie, vedlejší větev mimo linie (s linií, ke které byla přidána), nebo ostrov, který se
+  stromem nic nespojuje; hlavička jmenuje linie a větve. U každé osoby jsou i úkoly, které čekají zvenku (dopis
+  odeslaný nebo k odeslání, dotaz na rodinu, stránka k prohlédnutí), s tím, kde se který vyřizuje, a kdy osobu výzkum
+  přidal. `GET /directions/people` mostu říká stejná místa živě, s otiskem, který opakuje `/status` (funkce
+  `directions.places`).
+
+- **Hypotéza rozhodnutá v aplikaci Strom.** U hypotézy, jejíž varianty říkají, čí je kdo dítě nebo který je to pár, se
+  varianta vybere v aplikaci (nebo „žádná neplatí“, „nechat otevřenou“, „vrátit rozhodnutí“). Terminál výzkumu ukáže
+  otázku s variantami a co zapíše, jednou se zeptá – Enter je ano – a proč (Enter ponechá slova aplikace) a zapíše to
+  jako rozhodnutí uživatele v aplikaci Strom. Stejně se přijme i víc návrhů agenta najednou. Vybrat v aplikaci jde i hypotézu, jejíž varianty nikoho nespojují: zapíše se jen rozhodnutí, strom zůstane, jak je, a terminál to řekne před potvrzením. Zda jde o stejnou osobu
+  nebo o sourozence, se dál rozhoduje v terminálu, na celé obrazovce hypotézy. Rozhodnutí je ve stromu hned: dítě nebo
+  pár zvolené varianty se zapíše v témže uložení, s citací zdroje varianty, i v archivu – agent ho už znovu
+  nezapisuje; co strom odmítne (dítě už má rodiče narozením), terminál řekne i proč a zapíše to agent. Při změně se
+  odebere, co zapsalo předchozí rozhodnutí; při vrácení se odebere, co rozhodnutí zapsalo, pokud na tom mezitím nestojí
+  další práce – další dítě, údaj nebo zdroj rodiny, sloučení, nikdy vlastní údaje osob (aplikace to ví předem); změnu,
+  po které by stará vazba zůstala a nová se zapsat nedala, terminál řekne před potvrzením a Enter pak ruší, i u víc návrhů najednou; v terminálu to umí i `strom hypothesis decide --reopen` (jen uživatel). Pro aplikaci
+  soubor Stromu říká, kdo a kde rozhodl, předchozí rozhodnutí, návrh agenta, co mluví proti každé variantě a kolik
+  osob připojí ke stromu; `/status` mostu vypisuje čekající hypotézy (features `hypothesis.decide.link`,
+  `hypotheses.accept.link`).
+
+- **Zápis se najde znovu, i když archiv změní odkazy.** Kde zápis v knize stojí, se ukládá po polích: `strom source
+  add|edit --folio` (strana nebo folio, jak je kniha čísluje, „fol. 12v“), `--image` (číslo snímku na portálu archivu)
+  a `--call-number` (signatura knihy u zápisu mimo evidované knihy), vedle `--locator` pro zbytek (číslo zápisu).
+  `strom source show` uvádí archiv, signaturu, folio a snímek pohromadě (snímek i z evidovaných skenů) a navrhne folio
+  a snímek, které jmenuje starší umístění – sám je nikdy nezapíše; stávající prameny zůstávají, jak jsou. Soubor pro
+  aplikaci Strom i jiné programy má jednu čitelnou PAGE složenou z polí („pag. 112, č. 3, snímek 57“) a signaturu jako
+  CALN; samotná pole dostane aplikace Strom od verze, která je čte (feature mostu `sources.fields`), a jejich úpravy
+  se vracejí synchronizací jako úpravy strany. Agent pole vyplňuje při zápisu a odkaz, který se už neotevře, podle
+  nich dohledá. PAGE nikdy neřekne dvě čísla snímku ani folia: jmenuje-li starší umístění jiné číslo než pole, platí v
+  ní pole (umístění samo zůstane), a `strom source edit` i `show` navrhnou zbytek umístění. Starší prameny se do polí
+  rozdělí najednou příkazem `strom source split`: náhled, čím by se každý stal (umístění, v němž se nic nerozpozná,
+  zůstane, jak je, až tři taková ukáže, jak stojí), rozdělení zapíše uživatel s `--apply` jedním krokem a jedním se i vrátí (`--undo`); agent ho jen
+  nabídne. Rozdělit se dá i z aplikace Strom, která to nabízí (funkce mostu `sources.split`): náhled řekne, kolik
+  pramenů, rozdělení se zapíše na kliknutí uživatele jedním krokem podle toho náhledu a vrátí se celé. Folio, snímek
+  nebo signaturu, které uživatel smaže v aplikaci Strom, jež tato pole uchovává, smaže i výzkum (vrátí se se
+  synchronizací); starší aplikace nesmaže nic. Když umístění neříká nic než folio a snímek, které už dávají pole,
+  navrhne `strom source show` ho vyprázdnit a `strom source edit --locator ""` to udělá.
+
+- **Drobnosti.** Údaj, jehož ověření uživatel posunul dopředu, je v souboru pro aplikaci Strom označený jako vyžádaný,
+  takže aplikace už znovu nenabízí „Ověřit přednostně“. `strom error --note` skryje i skloňované tvary jmen a míst, která
+  výzkum zná („z Brna“, „v Praze“). `strom task wait --request` najde soubor i tehdy, když je jeho jméno zadané v jiné
+  normalizační formě Unicode (cesta napsaná na Macu, použitá na Windows). Co je na řadě – v menu před `strom run`
+  i ve frontě aplikace Strom – je pořadí, v jakém úkoly bere `strom run`: když přijde řada na vyprávění, je první
+  jedno vyprávění, ne všechna.
+
 ## 1.30.1
 
 *9. 11. 2026 · patří k aplikaci Strom 3.26.0.*

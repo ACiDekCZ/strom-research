@@ -16,7 +16,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [R3 Weryfikacja i cytowanie](R3-verification-and-citation.md): stopnie pewności, co musi być spełnione dla Udokumentowane, źródła i wskazówki
 - [R4 Miejsca](R4-places.md): identyfikacja miejsc, nazwy i przynależność, co rozstrzyga człowiek
 - [R5 Sprzeczności](R5-conflicts.md): jak powstaje sprzeczność, kto ją rozstrzyga, czego agent nie nadpisze
-- [R6 Czeka na decyzję](R6-awaiting-action.md): czego badanie potrzebuje od człowieka i gdzie się to załatwia
+- [R6 Czeka na załatwienie](R6-awaiting-action.md): czego badanie potrzebuje od człowieka i gdzie się to załatwia
 - [R7 Kiedy i jak długo agent pracuje](R7-when-the-agent-works.md): sesje, limit czasu, warunek przebiegu, limit subskrypcji
 - [R8 Wyszukiwanie i odczyt wpisów w skanach](R8-reading-scans.md): księga, skany przez program pobierający, czytelnicy, własny odczyt, zapis znaleziska i pewność
 - [R9 Archiwa: co wolno agentowi, a co robi człowiek](R9-archives.md): rodzaje archiwów, zgoda, przeglądarka agenta, oczekiwanie na skany, co robi człowiek
@@ -24,7 +24,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [R11 Materiały od użytkownika](R11-material-from-the-user.md): pliki i teksty od użytkownika, dokument i wskazówka, przejęte drzewo genealogiczne, partia z aplikacji
 - [R12 Gdzie agent pracuje i czego strom pilnuje](R12-where-the-agent-works.md): terminal, aplikacje Claude, ChatGPT (Codex) i OpenCode, Antigravity i Grok Build, samodzielny bieg: czego strom gdzie pilnuje i co robi człowiek
 - [R13 Zgłosić problem: `strom error`](R13-reporting-a-problem.md): jeden plik ZIP do wysłania, co w nim jest, a czego nie, jaki problem i jakie polecenie, dane osób tylko za zgodą, agent i zgłaszanie problemu
-- [R14 Pieczęć i integralność badania](R14-seal-and-integrity.md): co nie zgadza się z pieczęcią i drogi dalej (`strom repair`, `strom seal adopt`, `strom seal accept`), przyjęcie badania takiego, jakie jest, gdy zaginęła jego historia
+- [R14 Pieczęć i integralność badania](R14-seal-and-integrity.md): co nie zgadza się z pieczęcią i drogi dalej (`strom repair`, `strom seal adopt`, `strom seal accept`), przyjęcie badania takiego, jakie jest, gdy zaginęła jego historia, historia starsza niż badanie, `strom repair` pyta człowieka i `strom repair undo`
 
 ## A Aplikacja Strom
 
@@ -33,7 +33,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [A3 Udokumentowanie w aplikacji](A3-evidence-in-the-app.md): źródła, cytowania, wycinki, załączniki, materiały i gdzie brakuje dowodów
 - [A4 Rody i nazwiska](A4-surnames-and-families.md): ród i założyciel, osoby wżenione, żeńskie formy nazwisk, wyszukiwanie imion
 - [A5 Kontrola drzewa](A5-tree-check.md): czego aplikacja pilnuje w drzewie, z jakimi progami, oraz To nie błąd
-- [A6 Widoki i wybór osób](A6-views.md): Rodzina, Potomkowie, Oś czasu, Wachlarz, Mapa i ród w widoku
+- [A6 Widoki i wybór osób](A6-views.md): Rodzina, Potomkowie, Oś czasu, Wachlarz, Mapa, ród w widoku i Tabela
 - [A7 Księga, strony i eksport](A7-book-pages-and-export.md): kto jest żyjący, ochrona żyjących, księga rodu, strony, zapisany HTML
 - [A8 Scalanie drzew](A8-merging-trees.md): scalanie pliku, drzewa lub widoku w nowe drzewo, parowanie osób
 - [A9 Obsługa aplikacji](A9-using-the-app.md): gdzie co jest, czytelne nazwy elementów, edycja podczas śledzenia badania, agent w aplikacji

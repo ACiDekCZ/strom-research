@@ -17,7 +17,10 @@
 //                          working too): the place record (L…) of the book the agent examines, when the research knows
 //                          it (place, core/workplace.ts; none: not known) — feature working.place; work on a family
 //                          (a couple's story): the family (family F…) and its husband, else wife, as the person —
-//                          feature working.family.
+//                          feature working.family. A task that belongs to no line but helps one says how, as the
+//                          queue does (helps: question | joins | agent | partner | branch, with research the line it
+//                          helps); one off the lines or added to a line says its branch (branch B-P…) — feature
+//                          working.helps.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -30,7 +33,9 @@
 //                          research}; none for a task about nobody) — feature queue.own. Each in the queue says its place
 //                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
 //                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
-//                          the same research and branch GET /queue filters by — feature queue.page
+//                          the same research and branch GET /queue filters by — feature queue.page. The order is strom
+//                          run's (core/queue.ts runOrder): one story first at a story's turn, the tasks of history by
+//                          their pace; kind: story | history says such a task (none for the research's work)
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
 //                          for an app that keeps them the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES;
 //                          feature lineage.read: strom sync takes them back); under each _STORY (and its 2 _DRAFT) the
@@ -193,6 +198,16 @@
 //   POST <token>/history/align/undo {undo}: that align taken back (its events shown again, the hides it took away back;
 //                          its tasks stay) — {undone {shown, hidden}, head, parent}; 404 history.align.undo, 409
 //                          history.align.undone, 400 history.align.body
+//   GET <token>/sources/split[?all=1]   what splitting the older sources' locators into folio and image would do (strom
+//                          source split --json): {split [{source, title, before {locator?, folio?, image?}, after {…}}]
+//                          (the first 10, ?all=1 every one), count, unrecognized, unrecognizedExamples (up to 3 of their
+//                          locators, the location's text alone), nothing, undos [{id, at, sources}], plan (its mark)} — read only; 409 source.split.archive, 503 research.busy (feature sources.split)
+//   POST <token>/sources/split {plan}: done on the person's click after that preview, as the user's (strom source split
+//                          --apply --plan): {done {split: n}, undo, head, parent} — nothing else of the tree changes; 409
+//                          source.split.plan with the preview as it is now, 409 source.split.archive, 400 source.split.body
+//   POST <token>/sources/split/undo {undo}: that split taken back whole (strom source split --undo) — {undone {restored:
+//                          n}, head, parent}; 404 source.split.undo, 409 source.split.changed {count, sources [{id, title}]
+//                          (the first 5)}: changed since, nothing undone; 400 source.split.body
 //   POST <token>/history/kinds {kinds: [...], scope: "tree" | "default"} | {scope: "tree", inherit: true}: the kinds of
 //                          history looked for, a kind left out at once (strom config set history.kinds … [--for-tree];
 //                          default: this computer's, for the researches without their own) — {experiments {kinds,
@@ -335,9 +350,15 @@
 //                          places.undo). The questions of places wait in /status waiting as kind "place" (section decide)
 //   GET <token>/quality    what the person marked no error (quality/dismissed.json): {rev, dismissed}; read in an archive
 //                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
-//   GET <token>/directions/people  who is in which line: {people: {P…: [G…, …]}, head} — the narrowest line first, only
-//                          active and paused ones; a line of descendants: its person and their descendants within its
-//                          generations (the app loads it when head changes; feature directions.people)
+//   GET <token>/directions/people  who is in which line: {people: {P…: [G…, …]}, places, lines, branches, rev, head} —
+//                          people: the narrowest line first, only active and paused ones; a line of descendants: its
+//                          person and their descendants within its generations (the app loads it when head changes;
+//                          feature directions.people). places: every person's places among the lines by the rule the
+//                          queue places tasks by (core/offline.ts personPlaces; done lines too) {P…: [{line?, role:
+//                          line|partner|branch|island, branch?: B-P…}]}, a person outside them all absent — what the
+//                          Strom file says (_STROM_DIRECTION); lines [{id, name, direction, focus, state}]; branches
+//                          [{id, person, via {person, rel}, nearest?, line?, mode?}]; rev its fingerprint, /status
+//                          directions.rev (feature directions.places). An archive: all empty, no rev
 //   POST <token>/directions  {person, direction: ancestors|descendants|question, name?, question?, limits?:
 //                          {generations?, before?}, note?, branch?}: strom research new (+ strom intake --text … --research
 //                          G… for note) — {direction, head, parent}, the line last in the order of work; its tasks come
@@ -450,6 +471,7 @@ import { RETURN_OP } from "./timetravel.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
+import { directionsOf, directionsRev, placesJson } from "./tablemarks.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
 import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
@@ -462,6 +484,7 @@ import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livesta
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
+import { forStory } from "./stories.ts";
 import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
@@ -500,14 +523,14 @@ import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./w
 import { widgetWriter } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { busyIn } from "./busy.ts";
-import { effectiveState, rankTasks, type Ranked } from "./queue.ts";
+import { effectiveState, runOrder, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -519,6 +542,7 @@ import { qrSvg } from "./qr.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
+import { splitMark, splitPlan, splitUndos } from "./sourcesplit.ts";
 import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
@@ -529,7 +553,7 @@ import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
 import { readAgainAll } from "./sourceread.ts";
-import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
+import { checkNote, forHistory, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES, placesOn, placesPinned, regionsOn } from "./pastevents.ts";
 import { alignData, alignEmpty, planAlign } from "./historyalign.ts";
 import { EVENT_KINDS, kindsAdded, kindsNamed, kindsOf, kindsSetting, type EventKind } from "./eventkinds.ts";
 import { placeEstimate, placeRecord } from "./placehistory.ts";
@@ -978,6 +1002,22 @@ function dropLiveNote(root: string, pid: number): void {
 }
 
 /**
+ * The bridge that started this one to take over from it (a newer strom on disk), when another bridge holds the tree:
+ * not the tree's bridge either — ended too, never left to go on beside it (found 2026-11-09 after an update: a bridge of
+ * an older strom, whose successor ended for the tree's bridge, took that for "did not take over" and ran on for hours
+ * from a version's folder the update had removed). Only that bridge — the one that said so (STROM_LIVE_REPLACES) or, of
+ * an older strom, this one's parent — never one live.json names (that one checks its claim itself), never a process that
+ * is no bridge; on Windows, which cannot tell a bridge by its command, only asked through its stop file, never a signal.
+ */
+function endStarter(root: string, env: Env, holder: number): void {
+  const starter = replacedBridge(env);
+  if (!starter || starter === holder || starter === process.pid) return;
+  if (liveRunning(root)?.pid === starter) return;
+  const how = endBridge(starter, root, { why: `another bridge of this tree runs (${holder}): the bridge of strom ${env.STROM_LIVE_RENEWED ?? VERSION} it started ended for it`, back: false, askOnly: process.platform === "win32" });
+  if (how === "stopped" || how === "killed") noteLive(root, `the bridge ${starter} that started this one (${process.pid}) ended too: another bridge of this tree runs (${holder})`);
+}
+
+/**
  * Tests only: the folder where a run of the tests keeps a note of each bridge (STROM_TEST_BRIDGES; test/setup.ts), so
  * none outlives its test — ended with its world, and the run fails when one is left.
  */
@@ -1217,7 +1257,7 @@ function readStopAsk(root: string): StopAsk | undefined {
  * it says so, at most `writeMs` (STROM_LIVE_STOP_WRITE_MS, 30 s); only then a signal. How it ended: "stopped" as it
  * should, "killed" for good, "alive" when even that did not end it, "gone" when no bridge ran.
  */
-export function endBridge(pid: number, root: string, opts: { waitMs?: number; askMs?: number; writeMs?: number; platform?: NodeJS.Platform; why?: string; back?: boolean } = {}): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
+export function endBridge(pid: number, root: string, opts: { waitMs?: number; askMs?: number; writeMs?: number; platform?: NodeJS.Platform; why?: string; back?: boolean; askOnly?: boolean } = {}): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
   const platform = opts.platform ?? process.platform;
   const waitMs = opts.waitMs ?? 3000;
   if (!isBridge(pid, platform)) return "gone";
@@ -1260,6 +1300,9 @@ export function endBridge(pid: number, root: string, opts: { waitMs?: number; as
     }
     if (heard) {
       if (gone(waitMs + 1000)) return "stopped";
+    } else if (opts.askOnly) {
+      // only asked (a process not to be told for a bridge by its command): one that did not hear is left as it is
+      return "alive";
     } else {
       // not heard (a bridge of an older strom, one stuck): asked by a signal — on Windows that ends it at once, unheard
       const signal = platform === "win32" ? "SIGKILL" : "SIGTERM";
@@ -1501,7 +1544,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -1807,20 +1850,25 @@ function sessionOps(root: string, s: Session): Op[] {
 }
 
 /** Who is at work now, on which task (an agent strom started, and its open session). */
-function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; paused?: Paused }[] {
+function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; helps?: string; branch?: string; paused?: Paused }[] {
   const open = openSessions(tree);
   let place: ((t: Task) => Placed) | undefined;
   return liveWorkers(root).map((w) => {
     const s = open.find((x) => x.worker === w.id);
     const task = s?.task ? tree.get<Task>(s.task) : undefined;
-    // its own line, its task's — or the line its task helps (core/offline.ts); a task about nobody: none
-    const research = s ? (sessionResearch(tree, s, all) ?? (task ? (place ??= placer(tree, all))(task).research : undefined)) : undefined;
+    // its own line, its task's — or the line its task helps and how, or its branch off the lines (core/offline.ts, as
+    // the queue places it); a task about nobody: none
+    const own = s ? sessionResearch(tree, s, all) : undefined;
+    const p = s && !own && task ? (place ??= placer(tree, all))(task) : undefined;
+    const research = own ?? p?.research;
     return {
       who: whoAtWork(w.label, tree.lang),
       since: w.since,
       ...(w.paused ? { paused: w.paused } : {}),
       ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...worked(tree, sessionOps(root, s), task) } : {}),
       ...(research ? { research } : {}),
+      ...(p?.helps ? { helps: p.helps } : {}),
+      ...(p?.branch ? { branch: p.branch } : {}),
     };
   });
 }
@@ -1919,6 +1967,18 @@ function directionPeople(tree: Tree, all: Scope[]): Record<string, string[]> {
     .sort((a, b) => a.people.size - b.people.size || a.id.localeCompare(b.id));
   for (const s of lines) for (const p of s.people.keys()) (out[p] ??= []).push(s.id);
   return out;
+}
+
+/** The fingerprint of the lines, the branches and every person's places at a head of each research (core/tablemarks.ts). */
+const directionsRevs = new Map<string, { head: string; rev: string }>();
+
+/** The fingerprint of GET /directions/people `places` (/status directions.rev): worked out once a head. */
+function directionsRevAt(tree: Tree, h: string): string {
+  const had = directionsRevs.get(tree.root);
+  if (had && h && had.head === h) return had.rev;
+  const rev = directionsRev(directionsOf(tree));
+  if (h) directionsRevs.set(tree.root, { head: h, rev });
+  return rev;
 }
 
 /** What the app may do with the lines here (/status caps): nothing in an archive or a research waiting for its agent. */
@@ -2035,6 +2095,8 @@ interface QueueItem {
   own?: "next" | "last";
   /** Why it stands where it does (core/queue.ts Reason): none for a task about nobody. */
   why?: Ranked["reason"];
+  /** A story to write, or a task of the history of the places: none for the research's work. */
+  kind?: "story" | "history";
 }
 
 /**
@@ -2048,7 +2110,7 @@ function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: Offlin
 
 /** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
 function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}) };
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}) };
 }
 
 /** The tasks put aside (parked, not back by their date): after the queue, by their IDs — no place in it. */
@@ -2076,7 +2138,8 @@ function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[
   const key = [h, now().slice(0, 10), settings.strategy(tree.config), settings.offLine(tree.config), mtime(path.join(tree.root, TREE_FILE)), mtime(configFile(tree.env)), mtime(path.join(tree.root, ...OFFLINE_FILE.split("/")))].join("|");
   const had = rankedCache.get(tree.root);
   if (had && had.key === key && Date.now() - had.at < Number(tree.env.STROM_LIVE_QUEUE_MS ?? 10_000)) return had;
-  const ranked = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config));
+  // the order strom run takes them (core/queue.ts runOrder): a story at its turn, the tasks of history by their pace
+  const ranked = runOrder(tree, tree.list<Task>("task"), settings.strategy(tree.config));
   // what a page needs, kept with the order: a page asked again reads no task of the research (thousands of files)
   const parked = parkedTasks(tree);
   const rev = crypto.createHash("sha256").update([h, ranked.map((r) => r.task.id).join(","), parked.map((t) => t.id).join(",")].join("|")).digest("hex").slice(0, 16);
@@ -2161,7 +2224,7 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
  * A page of the whole queue (GET /queue, feature queue.page): the tasks in the order of the queue — those put aside
  * after, without a place — as /status queue[] says each (pos: its place in the whole queue), only those of a branch,
  * a line (as /status queueCounts counts them) or a state when asked; total: how many the filter leaves. The same order
- * as /status (rankTasks), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
+ * as /status (runOrder), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
  * queue.
  */
 export function queuePage(tree: Tree, settings: Settings, ask: QueueAsk, h: string): { items: QueueItem[]; total: number; from: number; next?: number; rev?: string } {
@@ -2394,6 +2457,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
+      // the hypotheses, for an app that decides one by a pick (spec 074 V13): as the menu's What waits has them
+      ...(appDecidesHypotheses(settings, version) ? { hypothesesApp: { open: settings.hypothesesDecide(tree.config) === "person" } } : {}),
       scopes: all,
     }).map((w) => w.item),
     live: liveState(env),
@@ -2417,6 +2482,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     ...historyOfStatus(tree, settings, last.head, archive),
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
+    // the fingerprint of every person's places among the lines (GET /directions/people places): none in an archive
+    ...(archive ? {} : { directions: { rev: directionsRevAt(tree, last.head) } }),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, order?.parked ?? [], all, settings.offLine(tree.config))),
     // how many tasks of the queue each line and branch has (the labels; the tasks themselves: GET /queue)
@@ -2505,14 +2572,18 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 }
 
 /** Run the bridge of the tree here, until idle or stopped. */
-export function serveLive(root: string, env: Env): Promise<void> {
+export function serveLive(root: string, env: Env): Promise<number | undefined> {
   noteTestBridge(root, env);
   // the tree's bridge runs already, or another one claimed the tree a moment before (a newer strom's bridge taking over
-  // while a strom starts one): this one is not needed — it ends before it writes or takes anything
+  // while a strom starts one): this one is not needed — it ends before it writes or takes anything, and so does the
+  // bridge that started it to take over (none of the tree's either). What it ended for: the bridge that holds the tree
+  // (strom live serve: exit EXIT.locked, so the bridge that started it knows it ended for another bridge, not that it
+  // could not start).
   const before = claimTree(root, env);
   if (before) {
     noteLive(root, `another bridge of this tree runs already (${before}): this one (${process.pid}) ends`);
-    return Promise.resolve();
+    endStarter(root, env, before);
+    return Promise.resolve(before);
   }
   // the stroms it started that write (a send, an adoption, an original, a batch): never started again under them
   const kids = new Set<ChildProcess>();
@@ -3274,6 +3345,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, act === "undo" ? historyAlignUndo() : historyAlign());
       return;
     }
+    if (req.method === "POST" && t === token && what === "sources" && sub === "split" && (!act || act === "undo")) {
+      writeFor(req, res, origin, act === "undo" ? sourceSplitUndo() : sourceSplit());
+      return;
+    }
     if (req.method === "POST" && t === token && what === "stories" && !sub) {
       writeFor(req, res, origin, storiesWrite());
       return;
@@ -3452,6 +3527,15 @@ export function serveLive(root: string, env: Env): Promise<void> {
         else if (actsAsArchive(tree)) json(409, refusal("nobody researches here: nothing of history is looked for", "history.archive"));
         else if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
         else json(200, alignPreview(tree, asked));
+      } else if (what === "sources" && sub === "split" && !act) {
+        // what splitting the older sources' locators would do — read only, never in an archive, never while written
+        const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+        const tree = Tree.open(root, env);
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (actsAsArchive(tree)) json(409, splitArchive());
+        else if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        else json(200, splitPreview(tree, q.get("all") === "1"));
       } else if (what === "surnames" && !sub) {
         // the forms of a surname: suggested from the records, decided by the person — never while the research is written
         const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
@@ -3468,7 +3552,17 @@ export function serveLive(root: string, env: Env): Promise<void> {
       } else if (what === "directions" && sub === "people" && !act) {
         // who is in which line: none in an archive or a research waiting for its agent (it shows no lines)
         const tree = Tree.open(root, env);
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: actsAsArchive(tree) ? {} : directionPeople(tree, scopes(tree)), head: head(root) }));
+        // …and every person's places among the lines by the rule of the queue (core/offline.ts personPlaces): the same the
+        // Strom file says (_STROM_DIRECTION), with their fingerprint
+        const h = head(root);
+        if (actsAsArchive(tree)) res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: {}, places: {}, lines: [], branches: [], head: h }));
+        else {
+          const all = scopes(tree);
+          const d = directionsOf(tree, all);
+          const rev = directionsRev(d);
+          if (h) directionsRevs.set(root, { head: h, rev });
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people: directionPeople(tree, all), places: placesJson(d.places), lines: d.lines, branches: d.branches, rev, head: h }));
+        }
       } else if (what === "offline" && sub && !act) {
         // one branch off the lines and all its open tasks (also those not taken): never in an archive, never while written
         const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
@@ -4921,6 +5015,74 @@ export function serveLive(root: string, env: Env): Promise<void> {
     };
   };
 
+  /** What splitting the older sources' locators would do, as GET /sources/split answers it: the first ten (as strom source split shows them), or every one. */
+  const splitPreview = (tree: Tree, all = false) => {
+    const plan = splitPlan(tree);
+    return { split: all ? plan.split : plan.split.slice(0, 10), count: plan.split.length, unrecognized: plan.unrecognized, unrecognizedExamples: plan.unrecognizedExamples, nothing: plan.nothing, undos: splitUndos(tree), plan: splitMark(plan) };
+  };
+  /** Nobody researches here (an archive, a research waiting for its agent): its sources are not split from the app. */
+  const splitArchive = () => refusal("nobody researches here: the sources' locators are not split from the app", "source.split.archive");
+  const SPLIT_CODES = { badBody: "source.split.body", busy: "research.busy", failed: "source.split.failed" };
+
+  /**
+   * The older sources' locators split into folio and image on the person's click after the app's preview (POST
+   * /sources/split {plan: <the preview's mark>}): one operation, written as the user's (strom source split --apply
+   * --plan), undone as one (POST /sources/split/undo). Another split by now: 409 source.split.plan with the preview as it is.
+   */
+  const sourceSplit = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the older sources' locators split into folio and image",
+      codes: SPLIT_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || typeof body.plan !== "string" || !/^[0-9a-f]{16}$/u.test(body.plan)) return { code: 400, body: refusal(`the body: {"plan": "<the plan of GET /sources/split>"}`, "source.split.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: splitArchive() };
+        const preview = splitPreview(tree);
+        if (preview.plan !== body.plan) return { code: 409, body: { ...refusal("the split would now do otherwise than the preview said: see it again", "source.split.plan"), preview } };
+        before = head(root);
+        if (!preview.count) return { code: 200, body: { done: { split: 0 }, head: before, parent: before } };
+        return { args: ["source", "split", "--apply", "--plan", body.plan] };
+      },
+      done(_tree, data, h) {
+        return { done: { split: Number(data.count ?? 0) }, ...(typeof data.undo === "string" ? { undo: data.undo } : {}), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "source.split.plan") return { code: 409, body: { ...refusal(why, code), preview: splitPreview(tree) } };
+        return undefined;
+      },
+    };
+  };
+
+  /** A split of the app taken back whole (POST /sources/split/undo {undo}). 404 source.split.undo; 409 source.split.changed: changed since, nothing undone. */
+  const sourceSplitUndo = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a split of the sources' locators taken back",
+      codes: SPLIT_CODES,
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || typeof body.undo !== "string" || !/^\d{14}-[0-9a-f]{6}$/u.test(body.undo)) return { code: 400, body: refusal(`the body: {"undo": "<the undo of POST /sources/split>"}`, "source.split.body") };
+        before = head(root);
+        return { args: ["source", "split", "--undo", body.undo] };
+      },
+      done(_tree, data, h) {
+        return { undone: { restored: Array.isArray(data.restored) ? data.restored.length : 0 }, head: h, parent: before };
+      },
+      refused(tree, code, why, data) {
+        if (code === "source.split.undo") return { code: 404, body: refusal(why, code) };
+        if (code === "source.split.changed") {
+          const p = data.params && typeof data.params === "object" ? (data.params as Record<string, unknown>) : {};
+          const ids = String(p.sources ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+          return { code: 409, body: { ...refusal(why, code), count: ids.length, sources: ids.slice(0, 5).map((id) => ({ id, title: tree.get<Source>(id)?.title ?? id })) } };
+        }
+        return undefined;
+      },
+    };
+  };
+
   /** The lines' codes (POST /directions…): a body that is not one, the research busy (503 + Retry-After), a failure. */
   const DIRECTION_CODES = { badBody: "directions.body", busy: "research.busy", failed: "directions.failed" };
   const badDirection = (why: string) => ({ code: 400, body: refusal(why, "directions.body") });
@@ -4937,7 +5099,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   /** One line as /status researches[] says it, after a write. */
   const directionNow = (tree: Tree, id: string): Record<string, unknown> | undefined => {
     const all = scopes(tree);
-    const queued = rankTasks(tree, tree.list<Task>("task"), new Settings(env, {}).strategy(tree.config)).map((r) => r.task);
+    const queued = runOrder(tree, tree.list<Task>("task"), new Settings(env, {}).strategy(tree.config)).map((r) => r.task);
     return directions(tree, all, queued, [], foundNow(tree, all, head(root))).find((d) => d.id === id);
   };
   /** A text of the app's: one line, at most so many characters. */
@@ -6125,10 +6287,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
   process.on("uncaughtException", (e) => noteLive(root, `uncaught: ${errorText(e)}`));
   process.on("unhandledRejection", (e) => noteLive(root, `unhandled: ${errorText(e)}`));
 
-  return new Promise((resolve) => {
+  return new Promise<number | undefined>((resolve) => {
     let up = false;
     let wanted = last?.port ?? 0;
     let tries = 0;
+    // when the port is asked for again: at once after the bridge before ended (its port free — the address the app
+    // follows answers again sooner), else after a while
+    let again = 250;
     server.on("error", (e: NodeJS.ErrnoException) => {
       if (!up && wanted && e.code === "EADDRINUSE") {
         // the bridge before this one still holds it (stuck, or ending just now): ended, its port taken again — the
@@ -6143,9 +6308,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
         } else if (ended !== "gone") {
           noteLive(root, `the bridge before (${before}) still held port ${wanted}: ended`);
           tries = 1;
+          if (ended === "stopped" || ended === "killed") again = 0;
         }
         if (tries > 0 && tries++ < 20) {
-          setTimeout(() => server.listen(wanted, "127.0.0.1"), 250);
+          setTimeout(() => server.listen(wanted, "127.0.0.1"), again);
+          again = 250;
           return;
         }
         noteLive(root, `port ${wanted} is taken: another one — the Strom app needs the new address (strom app --live)`);
@@ -6154,7 +6321,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return;
       }
       noteLive(root, `the server: ${errorText(e)}`);
-      if (!up) resolve();
+      if (!up) resolve(undefined);
     });
     // taking over from the bridge of an older strom (it answers meanwhile): /status made first, so the app's first ask
     // here waits for no thread's start (a few seconds on a slow computer) — at most a while
@@ -6169,6 +6336,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const meanwhile = withLiveOwner(root, () => {
         const rival = rivalBridge(root, env);
         if (rival) return rival;
+        // its start in its log before live.json says it is there: what strom live start answers its log has said already
+        const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
+        noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
         try {
           writeOwner(root);
         } catch {
@@ -6183,7 +6353,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
         noteLive(root, `another bridge of this tree came up meanwhile (${meanwhile}): this one (${process.pid}) ends`);
         dropOwner(root);
         server.close();
-        return resolve();
+        if (meanwhile) endStarter(root, env, meanwhile);
+        return resolve(meanwhile);
       }
       // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
       // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
@@ -6203,9 +6374,6 @@ export function serveLive(root: string, env: Env): Promise<void> {
         goneSeen++;
         return goneSeen >= 2 && Date.now() - goneSince >= goneMs;
       };
-      const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
-      noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
-
       // A read that fails (another strom writing that moment) is tried again at the next tick; written down once — each
       // part of the tick on its own (another part working meanwhile, the readings, the widget, is no "works again")
       const troubles = new Map<string, { text: string; times: number }>();
@@ -6346,15 +6514,53 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // another strom does — the app waits a moment, not the new one's start (found: ~4.5 s without an answer when this
       // one closed first). One that does not take over (ends at once, never asks): this one goes on, said in the log.
       let handing: { pid: number | undefined; version: string } | undefined;
+      // ended (stop): what a renewal waited for is dropped — never a new bridge started for one that ended meanwhile
+      let over = false;
+      // Whether the strom on disk starts at all (--version), asked without holding the bridge: it answers meanwhile — a
+      // strom's start is seconds on a computer under load, which the app once waited out without an answer.
       const renew = (disk: { version: string; probe?: "fail" }) => {
         renewing = true;
         tried = disk.version;
         const { command, args } = lastingLauncher();
-        const probe = spawnSync(command, disk.probe === "fail" ? ["-e", "process.exit(7)"] : [...args, "--version"], { env: env as NodeJS.ProcessEnv, encoding: "utf8", timeout: 60_000, windowsHide: true });
-        if (probe.status !== 0) {
+        const failed = (status: string, err: string) => {
           renewing = false;
-          return noteLive(root, `strom ${disk.version} is on disk but does not start (exit ${probe.status ?? probe.signal ?? "?"}${probe.stderr ? `: ${String(probe.stderr).trim().split("\n").pop()?.slice(0, 200)}` : ""}): this bridge (${runs}) goes on`);
+          noteLive(root, `strom ${disk.version} is on disk but does not start (exit ${status}${err ? `: ${err.trim().split("\n").pop()?.slice(0, 200)}` : ""}): this bridge (${runs}) goes on`);
+        };
+        let probe: ChildProcess;
+        try {
+          probe = spawn(command, disk.probe === "fail" ? ["-e", "process.exit(7)"] : [...args, "--version"], { env: env as NodeJS.ProcessEnv, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+        } catch (e) {
+          return failed("?", errorText(e));
         }
+        let err = "";
+        probe.stderr?.on("data", (d: Buffer) => {
+          if (err.length < 4096) err += d.toString("utf8");
+        });
+        const slow = setTimeout(() => {
+          try {
+            probe.kill("SIGKILL");
+          } catch {
+            // gone
+          }
+        }, 60_000);
+        slow.unref?.();
+        let heard = false;
+        probe.once("error", (e) => {
+          if (heard) return;
+          heard = true;
+          clearTimeout(slow);
+          if (!over) failed("?", errorText(e));
+        });
+        probe.once("close", (code, signal) => {
+          if (heard) return;
+          heard = true;
+          clearTimeout(slow);
+          if (over) return;
+          if (code !== 0) return failed(String(code ?? signal ?? "?"), err);
+          handOver(disk);
+        });
+      };
+      const handOver = (disk: { version: string }) => {
         noteLive(root, `strom ${disk.version} on disk: the bridge starts again with it (port ${port}, its token kept)`);
         const back = (why: string) => {
           if (!handing) return;
@@ -6375,7 +6581,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           return noteLive(root, `the bridge of strom ${disk.version} did not take over (${errorText(e)}): this one (${runs}) goes on`);
         }
         handing = { pid: child.pid, version: disk.version };
-        child.once("exit", (code, signal) => back(`it ended at once (exit ${code ?? signal ?? "?"})`));
+        child.once("exit", (code, signal) => back(code === EXIT.locked ? "it ended at once: another bridge of this tree runs" : `it ended at once (exit ${code ?? signal ?? "?"})`));
         setTimeout(() => {
           if (!handing) return;
           try {
@@ -6440,11 +6646,46 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const HISTORY_MS = Number(env.STROM_LIVE_HISTORY_MS ?? 60_000);
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + Number(env.STROM_TIDY_FIRST_MS ?? 5 * 60_000);
+      // Another bridge holds the tree (its claim, live.json naming it — not this one): this one is none of the tree's —
+      // one left over beside it (started late, by an older strom, its successor ended) ends itself, looked at every
+      // while (STROM_LIVE_OWNER_MS). One live.json names goes on: a bridge claiming the tree while it starts ends for it.
+      const OWNER_MS = Number(env.STROM_LIVE_OWNER_MS ?? 10_000);
+      let ownerChecked = Date.now();
+      // (only read — live.json and the claim are written whole — never waiting for the owner lock in the bridge's tick)
+      const heldBy = () => {
+        let named: unknown;
+        try {
+          named = (JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as { pid?: unknown }).pid;
+        } catch {
+          // none
+        }
+        return named === process.pid ? undefined : rivalBridge(root, env);
+      };
+      // The strom this bridge runs is gone from the disk (an update removed its version's folder, npm put another in
+      // its place): what it loads only when needed (its threads, the widget) fails from now on — it ends, said in its
+      // log (found 2026-11-09: a bridge whose version's folder an update had removed wrote a failure every 16 s for
+      // hours). Seen gone at two looks STROM_LIVE_GONE_MS apart: files being replaced for a moment end no bridge.
+      const ownCode = fileURLToPath(import.meta.url);
+      let codeGoneSince: number | undefined;
+      const codeGone = () => {
+        if (fs.existsSync(ownCode)) {
+          codeGoneSince = undefined;
+          return false;
+        }
+        codeGoneSince ??= Date.now();
+        return Date.now() - codeGoneSince >= goneMs;
+      };
       const timer = setInterval(() => {
         // its research gone (taken off the computer, a test's folder, moved; its .strom deleted): nothing to follow —
         // even while handing over (found: bridges of a folder removed in the middle of it left running for hours)
         if (researchGone()) return stop("the research is no longer there", "gone", false);
         if (renewing) return;
+        if (codeGone()) return stop(`the strom it runs is no longer on the disk (${path.dirname(path.dirname(path.dirname(ownCode)))}): this one (${process.pid}) ends`, "stopped", false);
+        if (Date.now() - ownerChecked > OWNER_MS) {
+          ownerChecked = Date.now();
+          const holder = safe("the tree's claim", heldBy);
+          if (holder) return stop(`another bridge of this tree holds it (${holder}): this one (${process.pid}) ends`, "stopped", false);
+        }
         if (Date.now() - renewChecked > RENEW_MS) {
           renewChecked = Date.now();
           const disk = diskVersion(env);
@@ -6584,6 +6825,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const handed = !!handing && reason === "restart";
         if (handed) noteLive(root, `handed over to the bridge of strom ${handing!.version} (${handing!.pid ?? "?"})`);
         handing = undefined;
+        over = true;
         clearInterval(timer);
         clearInterval(keepAlive);
         clearInterval(stopAsked);
@@ -6612,7 +6854,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const was = readLast(root);
         if (was?.pid === process.pid && !was.ended) writeLast(root, { ...was, ended: { at: new Date().toISOString(), reason: why, kind: reason } });
         noteLive(root, `ended: ${why}`);
-        resolve();
+        resolve(undefined);
       };
       process.once("SIGTERM", () => stop("SIGTERM", "signal"));
       process.once("SIGINT", () => stop("SIGINT", "signal"));

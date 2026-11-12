@@ -10,11 +10,18 @@ Strom app 3.21.2 and the research 1.25.2; changes from a later version carry its
 The Strom app is a family tree in the browser (stromapp.info) or in one HTML file. Trees are stored in the browser's
 storage on this device. There is no account and no server with the data.
 
-- **Limits:** the browser's storage belongs to one browser on one device. A tree moves to another device as a file
-  (JSON backup, GEDCOM, standalone HTML, [A7](A7-book-pages-and-export.md)).
-- **Since:** app 1.0.0
+- **Limits:**
+  - the browser's storage belongs to one browser on one device. A tree moves to another device as a file
+    (JSON backup, GEDCOM, standalone HTML, [A7](A7-book-pages-and-export.md));
+  - encryption with a password (**Encrypt data**, **Unlock data**, the export **Encrypt with a password**, an
+    encrypted file) works only at a secure address: over https, on `localhost` or `127.0.0.1` and in a file opened
+    from the disk. At an `http://` address in a network (e.g. the app on one's own server in a home network) the
+    browser does not allow it. The password dialog says so right after it opens: “Encryption works only over https
+    or on this computer (localhost). This address is not secure.” Saving a tree with photos does not need encryption.
+- **Since:** app 1.0.0; 3.27.0: the message about an address that is not secure (before, the password reported
+  “Incorrect password” there)
 
-<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 -->
+<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 · šifrování: app:src/crypto.ts isCryptoAvailable (isSecureContext, crypto.subtle), classifyCryptoError (jen OperationError = špatné heslo) · src/crypto-errors.ts cryptoFailureText, resetPasswordError (hláška při otevření dialogu), requireCrypto · src/ui/encryption-ui.ts, src/ui/import-export.ts · strings.ts encryption.enable, unlockData, encryptToggle, wrongPassword, insecureContext · commity 266d6a76, cceadca6 (SHA-256 obrázků bez crypto.subtle) · GitHub #13 · dirigent:prace/1110-app-github-11-13 (https, localhost/127.0.0.1, soubor z disku) -->
 
 <a id="A1.2"></a>
 ## A1.2 People, relationships and family lines
@@ -31,7 +38,8 @@ Horáková, Jaworski and Jaworska).
 
 The app always shows the surroundings of one **central person**, not the whole tree at once. The views **Family**,
 **Descendants**, **Timeline**, **Fan** and **Map** read the same surroundings in different ways. A view can highlight
-one family line.
+one family line. From app 3.27.0 the **Table** view shows the whole tree in rows of people, unions, events or
+sources, with computed values, completeness and the findings of the check.
 
 - In detail: [A6](A6-views.md).
 

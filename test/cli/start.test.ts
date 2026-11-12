@@ -1086,7 +1086,7 @@ test("the live bridge does not end because of one error, says what happened in i
     await w.ok(["person", "add", "Karel /Novák/", "--sex", "M"]);
     await w.ok(["session", "start"]);
     const back = (await w.ok(["live", "--json"])).json;
-    assert.equal(back.running, true);
+    assert.equal(back.running, true, `brought back — its log:\n${fs.readFileSync(log, "utf8").split("\n").slice(-6).join("\n")}\nlive-last.json: ${fs.readFileSync(path.join(w.cwd, ".strom", "live-last.json"), "utf8")}`);
     assert.equal(back.url, again.url, "brought back by itself: its address kept");
     assert.notEqual(back.pid, again.pid);
     assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge ${again.pid} ended without a word: started again`));

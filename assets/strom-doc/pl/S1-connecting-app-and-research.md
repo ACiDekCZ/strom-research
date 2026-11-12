@@ -36,8 +36,13 @@ nigdzie indziej.
   kończył się sam po dwóch godzinach. Wartość zapisana przez człowieka zostaje.
 - **Od badania 1.30.0:** most, którego badanie zniknęło, kończy się dopiero po drugiej kontroli co najmniej 10 s
   później (wcześniej od razu); drugi most tego samego badania od razu się kończy.
+- **Od badania 1.31.0:** także po aktualizacji zostaje przy badaniu jeden most. Most działający obok mostu badania
+  (tego, który wskazuje `.strom/live.json`) kończy się sam przy najbliższej kontroli (co 10 s). Most, któremu
+  aktualizacja usunęła strom, z którego działa, też się kończy i zapisuje to w `.strom/live.log`. Nowy most, który się
+  kończy, bo badanie trzyma inny most, kończy też most, który go uruchomił do przekazania, chyba że to most badania.
+  Przekazanie mostu nowszemu strom jest szybsze: stary most odpowiada, podczas gdy nowy strom jest sprawdzany.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 · research:0c6f2205 src/core/live.ts OWNER_MS 10_000 (most mimo live.json skončí), kód stromu smazaný aktualizací (dvě kontroly GONE_MS, live.log), EXIT.locked → konec mostu, který spustil předání (STROM_LIVE_REPLACES), kromě mostu z live.json · 0239e6c3 předání: starý most odpovídá během ověření nového · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S1.2"></a>
 ## S1.2 Badanie otwiera się w aplikacji linkiem z terminala

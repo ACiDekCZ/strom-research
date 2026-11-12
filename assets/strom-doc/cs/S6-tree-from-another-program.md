@@ -167,8 +167,11 @@ vrátit.
 - **Ovládání:** aplikace: nabídka stromu → **Zálohy** → okno **Historie záloh**: **Vytvořit zálohu teď**,
   **Obnovit**, **Stáhnout**; přepínač **Automatické zálohy tohoto stromu**.
 - **Platí od:** aplikace 3.26.0 (záloha před **Vložit do stromu**)
+- **Od aplikace 3.27.0:** záloha **Před úpravou dat pro novou verzi** vznikne, než aplikace při otevření upraví strom
+  uložený starší verzí; dnes jen kvůli sloučení pramenů, které se lišily jen spolehlivostí
+  ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
 
-<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download -->
+<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration -->
 
 <a id="S6.6"></a>
 ## S6.6 Export zpět do programu, nebo ke sdílení
@@ -198,6 +201,9 @@ Export GEDCOM se nejdřív ptá, **K čemu soubor je**: **Zpět do {program}** (
 - **Ovládání:** **Export → Export GEDCOM → K čemu soubor je**; z karty **Co teď** odkaz **Zpět do {program}: export
   s prameny…** (otevře export s volbou zpět).
 - **Platí od:** aplikace 3.26.0
+- **Od aplikace 3.27.0:** fotka rodiny ze souboru jiného programu se ve **Zpět do {program}** vrátí u rodiny tak, jak
+  ji soubor zapsal; odkaz na záznam média jde zpět jako fotka zapsaná přímo u rodiny
+  ([A2.2](A2-loading-a-family-tree.md#A2.2)).
 
 <!-- zdroj: app:7cf409bd src/ged-exporter.ts backSourceRecordCount (sourceGroups: jeden záznam za skupinu) · src/ui/export-gedcom-ui.ts backSources → exportGed.sumSources · e2e/export-gedcom-back.spec.ts · app:1c9b2392 src/ged-exporter.ts backToXrefs (původní xref, ID řádky úrovně 1, REFN + TYPE {prog} xref, _XXX téhož programu, jinak _STROM_IMPORT / _STROM_XID) · src/ui/import-export.ts:267 keepDeceasedSources: true (jen GEDCOM) · strings.ts exportGed.* -->
 
@@ -224,15 +230,21 @@ ID, ale jinak se neshoduje, se jen nabídne.
   osoby**); skóre 50, vždy jen ke kontrole. Nespáruje se, když má příbuzný dvě stejnojmenné osoby, liší se pohlaví
   nebo data narození či úmrtí.
 - **Hranice:**
-  - rodiny se podle ID nepárují. Ruční sloučení dvou osob poznámky nespojuje;
+  - rodiny se podle ID nepárují;
+  - ID, které ve stromu nese víc osob, shodu samo nezaloží, jen ji nabídne
+    ([A8.2](A8-merging-trees.md#A8.2));
   - značky **Z rodokmenu** sloučení stromu ze starší verze nedoplní: jeho hodnoty zůstanou údaji člověka. Značky dá
     nový import souboru;
   - dvojníky z dřívějšího sloučení sloučení neodstraní; mažou se ručně.
+- **Ruční sloučení dvou osob** (okno **Sloučit osoby**) spojí poznámky obou osob i obou spojených rodin, každou
+  část jednou.
 - **Ovládání:** **Import → Import GEDCOM → Sloučit s existujícím** ([A8](A8-merging-trees.md)).
-- **Platí od:** aplikace 3.26.0
+- **Platí od:** aplikace 3.26.0; 3.27.0: ID u víc osob stromu jen nabídne; ruční sloučení osob spojí poznámky
+  (dřív je nespojovalo)
 
 <!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek -->
 <!-- zdroj: app:1c9b2392 src/merge/matching.ts ID_MATCH_SCORE 100, ID_CANDIDATE_SCORE 60, ID_MAX_YEAR_GAP 3, WEAK_ID_BONUS 25, offerOnlyCap · src/merge/executor.ts:82 AUTO_CONFIRM_SCORE = 80 · src/merge/notes.ts · strings.ts merge reason id „Stejné ID v souboru“ · dirigent:prace/1108-app-066-u8/karta.md Výsledek (FAM se podle ID nepárují; mergePersons neslučuje poznámky) -->
+<!-- zdroj: 3.27.0: app:ffe1da9f src/data.ts mergePersons (notes: mergeNoteText keep+remove; partnership note: mergeNoteText) · app:b5595ca1 src/merge/matching.ts idNamesSeveral, findDirectMatches · app:a5fc9656 src/ged-parser.ts keptMedia, extras OBJE (export zpět jako ostatní _XXX rodiny) · strings.ts personMerge.title „Sloučit osoby“ · CHANGELOG.cs.md 3.27.0 · dirigent:test/vysledek-1109-app-drobnosti-ged.md P1 (dialog poznámku jako konflikt nenabízí: detectFieldConflicts jen jméno, příjmení, narození, úmrtí) -->
 
 <a id="S6.8"></a>
 ## S6.8 Rodokmen ve výzkumu

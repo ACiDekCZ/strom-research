@@ -212,13 +212,14 @@ Websites wird nie erlaubt.
     bestätigt ist oder nicht;
   - Codex im Terminal bleibt überwacht, sobald der Hook von strom in Codex bestätigt ist ([R12.5](#R12.5)).
 - **Warum:** strom beurteilt nur einen Aufruf, den ihm der Agent über einen Hook zeigt; der Browser in der Cloud von
-  ChatGPT ruft keinen Hook auf.
+  ChatGPT ruft keinen Hook auf. Auf einem Mac am 8. 11. 2026 (Forschung 1.29.0) lief der Hook von strom kein
+  einziges Mal, während die App ChatGPT mit ihrem Browser arbeitete.
 - **Bedienung:** Terminal: `strom doctor` (die Zeile **App ChatGPT** als Warnung: „ihren Browser überwacht strom nicht
   (er läuft über die Cloud von ChatGPT), über Websites entscheidet der Dialog von ChatGPT“, mit einem Rat zum Dialog),
   `strom setup` (sagt es einmal, wenn die App ChatGPT gewählt wird).
 - **Gilt seit:** Forschung 1.30.0
 
-<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
+<!-- zdroj: research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 · dirigent:test/vysledek-062-u4-codex.md (ChatGPT.app 26.1021 a 26.1103: hook-calls.log prázdný) -->
 
 <a id="R12.6"></a>
 ## R12.6 Was nicht geprüft ist

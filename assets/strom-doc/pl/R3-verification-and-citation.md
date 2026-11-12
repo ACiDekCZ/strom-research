@@ -85,8 +85,12 @@ Stopień nie może twierdzić więcej, niż dają cytaty danej. Kod sprawdza to 
 - Aplikacja: **Wiarygodność** źródła trafia do badania jako **Oryginał** = źródło oryginalne z informacją pierwotną,
   **Odpis / indeks** = źródło oryginalne z informacją wtórną, **Niepewne** = odpis z nieznaną informacją.
 - **Obowiązuje od:** badanie 1.0.0; Wiarygodność z aplikacji badanie 1.12.0
+- **Od aplikacji 3.27.0:** aplikacja trzyma wiarygodność także przy każdym cytacie i zapisuje ją w pliku dla badania
+  jako `QUAY` tego cytatu ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Badanie bierze z niej tylko formę
+  i informację nowego źródła (domyślną wiarygodność źródła, w przeciwnym razie `QUAY` jego pierwszego cytatu); `QUAY`
+  cytatu, który badanie zapisało samo, nie zmienia się po drodze przez aplikację.
 
-<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 -->
+<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
 
 <a id="R3.3"></a>
 ## R3.3 Źródło czy wskazówka
@@ -134,6 +138,8 @@ Cytat mówi, gdzie dokładnie w źródle stoi dana. Źródło to jeden wpis; kil
 - **Obowiązuje od:** badanie 1.1.0 (wycinek, `strom clips`, `strom transcripts`); transkrypcja 1.0.0
 - **Od badania 1.26.0:** pomoc opcji `--clip` mówi „kolejny na każde łamanie strony, najwyżej 3” (w 1.25.2 „drugi”).
   Zasada się nie zmienia.
+- **Od badania 1.31.0:** miejsce wpisu w księdze zapisuje się w polach `--folio`, `--image`, `--call-number`;
+  `--locator` trzyma resztę ([R3.4.3](#R3.4.3)).
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
@@ -197,6 +203,70 @@ Dwa wycinki tego samego obrazu, które mocno się nakładają, to jeden wpis wyc
 - **Obowiązuje od:** badanie 1.29.0
 
 <!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
+<a id="R3.4.3"></a>
+### R3.4.3 Gdzie stoi wpis: folio, skan, sygnatura
+
+Gdzie wpis stoi w księdze, badanie trzyma w polach, aby odnaleźć wpis ponownie także wtedy, gdy link do skanu
+przestanie się otwierać.
+
+- **Pola źródła:** `--folio` (strona albo folio, tak jak numeruje je księga, także ze słowem: „pag. 112”, „fol. 12v”),
+  `--image` (numer skanu na portalu archiwum), `--call-number` (sygnatura księgi przy wpisie spoza zarejestrowanych
+  ksiąg badania), a obok nich `--locator` na resztę (numer wpisu, kolumna).
+- **Tylko metodyka:** agent wypełnia pola przy zapisie. Folio zawsze, skan tylko przy wpisie bez zarejestrowanego skanu
+  (wtedy numer skanu daje wycinek), sygnaturę tylko poza zarejestrowaną księgą. Link, który już nie otwiera wpisu,
+  agent odszukuje po archiwum, sygnaturze, folio i skanie z `strom source show` (numer skanu może się przesunąć o kilka,
+  folio nie), tylko przez strom, i poprawia go `strom source edit S… --url … [--image …] --reason "…"`.
+- **Pilnuje kod:**
+  - `strom source show` ma wiersz `find` z archiwum, sygnaturą, folio i skanem razem (skan także z zarejestrowanych
+    skanów). Przy starszym źródle, którego lokalizacja wymienia folio albo skan, proponuje „from its locator: --folio …
+    --image … --locator …”; sam niczego nie zapisuje;
+  - uzupełnienie pustego pola nie potrzebuje powodu, zmiana wypełnionego pola tak (`--reason`). `--locator ""`
+    (z powodem) opróżnia lokalizację, gdy nie zostało w niej nic poza folio i skanem z pól; `source show` wtedy to
+    proponuje;
+  - GEDCOM: jedna czytelna `PAGE` złożona z pól („pag. 112, nr 3, skan 57”, w języku badania) dla aplikacji Strom
+    i innych programów, sygnatura jako `CALN`. Same pola (`_STROM_FOLIO`, `_STROM_IMAGE`, `_STROM_LOCATOR`) dostaje
+    tylko aplikacja Strom, która je czyta. Źródło bez tych pól eksportuje się dokładnie jak dotąd;
+  - `PAGE` nigdy nie poda dwóch numerów skanu ani folio. Gdy lokalizacja wymienia inny numer niż pole, w `PAGE`
+    obowiązuje pole, sama lokalizacja zostaje, a `source add|edit|show` ostrzega i proponuje resztę lokalizacji
+    (`--locator "<reszta>"`).
+- **Granice:** rozpoznanie folio i skanu to kod drzewa, bez agenta, takie samo jak w aplikacji
+  ([A3.9](A3-evidence-in-the-app.md#A3.9)). Dwa folia albo dwa skany w jednej lokalizacji nie zostaną rozpoznane.
+  Istniejące źródła zostają, jakie są, dopóki człowiek ich nie podzieli ([R3.4.4](#R3.4.4)). Zmiany pól z aplikacji
+  i ich usunięcie: [S2.2.2](S2-edits-from-the-app.md#S2.2.2).
+- **Obsługa:** terminal: `strom source add "…" --folio "pag. 112" --image 57 --locator "nr 3"`, `strom source edit S…
+  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <text>` szuka
+  także w folio i skanie.
+- **Obowiązuje od:** badanie 1.31.0
+
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+
+<a id="R3.4.4"></a>
+### R3.4.4 Podział starszych lokalizacji: podgląd, zapisuje człowiek
+
+Starsze źródła mają lokalizację jednym tekstem („fol. 12, skan 3”). Polecenie `strom source split` dzieli je na pola
+naraz: kod, bez agenta i bez kosztów.
+
+- **Pilnuje kod:**
+  - bez przełącznika to tylko **podgląd**: ile źródeł by się podzieliło, pierwsze 10 „przed → po” (`--all` wszystkie),
+    ilu nie rozpoznano, z najwyżej trzema przykładami tak, jak są zapisane. Nic się nie zapisuje. Podgląd może uruchomić także agent;
+  - `--apply` zapisuje podział jednym krokiem i wypisuje `undo: strom source split --undo <id>`; `--undo <id>`
+    przywraca wszystkie źródła, jakie były. Jedno i drugie tylko człowiek w swoim terminalu, agentowi strom tego
+    odmawia;
+  - wypełnione folio albo skan zostaje. Skanu, który dają zarejestrowane skany, się nie bierze. Część, którą pole podaje
+    inaczej, zostaje w lokalizacji. Lokalizacja, w której nic nie zostanie rozpoznane, zostaje, jaka jest. Źródło, które ma już
+    folio lub skan, nie liczy się do nierozpoznanych: reszta jego lokalizacji nie jest niczym do podziału;
+  - cofnąć można ostatnie 5 podziałów, każdy jego id. Źródło zmienione po podziale odrzuca cofnięcie w całości.
+- **Tylko metodyka:** agent proponuje podział człowiekowi, nigdy nie potwierdza go sam.
+- **Z aplikacji Strom:** badanie oferuje ten sam podział także aplikacji, gdy działa: podgląd z liczbą, podział na
+  kliknięcie człowieka jednym krokiem według tego podglądu, cofnięcie w całości
+  ([A3.9.1](A3-evidence-in-the-app.md#A3.9.1)). Źródła zmienione w międzyczasie podgląd odrzuca i pokazuje ponownie.
+  W Archiwum Strom podziału nie ma.
+- **Obsługa:** terminal: `strom source split`, `strom source split --all`, `strom source split --apply`, `strom source
+  split --undo <id>` (podgląd wypisuje id do cofnięcia).
+- **Obowiązuje od:** badanie 1.31.0
+
+<!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
 <a id="R3.5"></a>
 ## R3.5 Ślepy drugi odczyt
@@ -268,7 +338,7 @@ objęło. Najdroższy błąd to przeszukać tę samą księgę dwa razy.
 ## R3.7 Kiedy agent pyta człowieka
 
 Odczyty i stopnie pewności ustala agent sam. Człowieka pyta tylko tam, gdzie bez niego nie da się iść dalej. Pytanie
-trafia do **Czeka na decyzję** (zob. [R6](R6-awaiting-action.md)) jako zdanie bezosobowe.
+trafia do **Czeka na załatwienie** (zob. [R6](R6-awaiting-action.md)) jako zdanie bezosobowe.
 
 - **Tylko metodyka,** agent pyta (`strom task wait T… --on "…"`): podobna forma nazwiska we właściwym domu lub latach
   (prosi o stronę, zanim ją wykluczy); katalog, którego agent nie otworzy (`--kind web --url`); skany, których

@@ -15,34 +15,48 @@ Każdy wynik ma wagę:
 
 | Waga | Sekcja w oknie | Znaczenie |
 |---|---|---|
-| błąd | **Problemy** | dane sobie przeczą albo są uszkodzone ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
-| ostrzeżenie | **Problemy** | mało prawdopodobne, ale możliwe |
+| błąd | **Do sprawdzenia** | dane sobie przeczą albo są uszkodzone ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
+| do sprawdzenia | **Do sprawdzenia** | nietypowa wartość, mało prawdopodobna, ale możliwa; warto ją sprawdzić |
 | info | **Wskazówki** | „To nie są błędy. Wskazówki, które mogą pomóc w poszukiwaniach.” ([A5.5](#A5.5), [A5.6](#A5.6)) |
 
 - **Granice:**
   - Wyniki tego samego rodzaju tworzą grupę, uporządkowaną według wagi, wielkości i nazwy. Otwarta jest tylko grupa
     z błędem.
-    Powyżej 50 wyników kolejne pokazują się po 20. Na telefonie (do 640 px) **Wskazówki** są zwinięte, jeśli są też
-    **Problemy**.
+    Powyżej 50 wyników kolejne pokazują się po 20. Na telefonie (do 640 px) **Wskazówki** są zwinięte, jeśli jest też
+    sekcja **Do sprawdzenia**.
+  - **Od aplikacji 3.27.0:** sekcja błędów i wyników do sprawdzenia nazywa się **Do sprawdzenia** (wcześniej
+    **Problemy**). Drzewo bez nich ma „Nic do sprawdzenia”, ze wskazówkami „Nic do sprawdzenia. 3 wskazówki.”
   - Osób zastępczych się nie zgłasza. Wynik oznaczony **To nie błąd** ([A5.7](#A5.7)) nie jest liczony ani
     pokazywany.
   - Drzewo tylko do odczytu wyniki tylko pokazuje. Przy innym niż otwarte drzewie naprawa lub oznaczenie najpierw
     drzewo otwiera.
+  - **Od aplikacji 3.27.0:** waga, która wcześniej nazywała się „ostrzeżenie”, nazywa się **do sprawdzenia**, także
+    w podsumowaniach i liczbach („2 błędy, 1 do sprawdzenia, 3 wskazówki.”). Widok Tabela pokazuje wyniki
+    bezpośrednio w komórkach, a wynik oznaczony **To nie błąd** jako **nietypowe** ([A6.7.5](A6-views.md#A6.7.5)).
 - **Obsługa:** okno **Walidacja drzewa**: **Przegląd drzewa → Jakość danych → Szybkie działania → Szczegóły
   walidacji**, wiersz „n wskazówek ›” w **Spójność** (otwiera od razu **Wskazówki**), karta z błędami w **Na czym się
   skupić**.
-  Po imporcie GEDCOM aplikacja pyta („Kontrola danych”) tylko wtedy, gdy znajdzie błędy lub ostrzeżenia
+  Od aplikacji 3.27.0 także **Jakość danych ›** w dymku wyniku w widoku Tabela: otwiera okno na grupie tego wyniku
+  (przy wyniku oznaczonym **To nie błąd** na liście oznaczonych).
+  Po imporcie GEDCOM aplikacja pyta („Kontrola danych”) tylko wtedy, gdy znajdzie błędy lub wyniki do sprawdzenia
   ([A2](A2-loading-a-family-tree.md)).
   To samo po scaleniu z innym drzewem, dla nowych wyników. Własnej pozycji w menu kontrola nie ma.
-- **Obowiązuje od:** aplikacja 1.0.0; sekcje **Problemy** i **Wskazówki** aplikacja 3.17.0
+- **Obowiązuje od:** aplikacja 1.0.0; sekcje **Problemy** i **Wskazówki** aplikacja 3.17.0; nazwa **do sprawdzenia**
+  i odnośnik z widoku Tabela aplikacja 3.27.0; sekcja **Do sprawdzenia** i „Nic do sprawdzenia” aplikacja 3.27.0
 
-<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck -->
+<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck · 3.27.0: app:59a8eed0 strings.ts treeManager.validationWarnings „k ověření“, summaryErrors, summaryNoErrors, treeOverview.countWarnings · src/ui/table-view/table-bubble.ts (Kvalita dat ›) → src/ui/tree-stats.ts showTreeValidationDialog focus · table.sev.* · commit e530019b · „K ověření“: strings.ts treeManager.valProblems, commit 79764eba; „Nic k ověření“: validationPassed, summaryLeadsOnly, commit b1cbe546 (T54 G15) -->
 
 <a id="A5.1.1"></a>
 ### A5.1.1 Naprawa jednym kliknięciem
 
-Niektóre wyniki mają przycisk **Napraw**, a grupa **Napraw wszystko (n)**. Naprawa to jeden krok wstecz
-(„naprawa z walidacji”) i zapisuje się w historii zmian.
+Niektóre wyniki mają przycisk **Napraw**; podsumowanie nad wynikami ma **Napraw wszystko (n)** dla wszystkich wyników,
+które da się naprawić. Naprawa to jeden krok wstecz („naprawa z walidacji”) i zapisuje się w historii zmian.
+
+- Pod **Napraw wszystko (n)** jest, co zostanie naprawione, z liczbami, tylko dla rodzajów, które drzewo ma: „Do
+  naprawy: uszkodzone powiązania między osobami a związkami (2); związek osoby z samą sobą – zostanie usunięty (1);
+  zduplikowany związek – zostanie połączony z pierwszym, dzieci zostają (1); miejsce zapisane na kilka sposobów –
+  zostanie ujednolicone do najczęstszego zapisu (3). Pozostałe wyniki pozostaną bez zmian.” W drzewie tylko do
+  odczytu nie ma ani przycisku, ani tego wiersza.
 
 | Wynik | Co zrobi naprawa |
 |---|---|
@@ -52,15 +66,15 @@ Niektóre wyniki mają przycisk **Napraw**, a grupa **Napraw wszystko (n)**. Nap
 | Zduplikowany związek | zostawi pierwszy, dzieci przeniesie do niego |
 | Jedno miejsce zapisane na kilka sposobów | przepisze wszystkie zapisy na najczęstszy |
 
-- **Obowiązuje od:** aplikacja 1.1.0; naprawa miejsc 1.10.0
+- **Obowiązuje od:** aplikacja 1.1.0; naprawa miejsc 1.10.0; wiersz pod **Napraw wszystko (n)** aplikacja 3.27.0
 
-<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll -->
+<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll · řádek: src/ui/tree-stats.ts fixAllNoteText (orphaned*/missing* → links, selfPartnership, duplicatePartnership, placeSpelling), strings.ts treeManager.valFixAllNote, jen bez ro, commit 79764eba (T54 G15) -->
 
 <a id="A5.2"></a>
 ## A5.2 Relacje w rodzinie
 
 Kontrola szuka relacji, które nie mogą być prawdziwe. Wszystkie są błędami, poza zduplikowanym związkiem
-(ostrzeżenie).
+(do sprawdzenia).
 
 | Wynik w aplikacji | Kiedy |
 |---|---|
@@ -82,40 +96,58 @@ Kontrola szuka relacji, które nie mogą być prawdziwe. Wszystkie są błędami
 
 Kontrola zgłasza tylko to, co na pewno nie jest prawdziwe. Niepełną lub przybliżoną datę liczy w całym możliwym
 zakresie: bez miesiąca od stycznia do grudnia, „około” ± 2 lata, „przed” do 20 lat wcześniej, „po” do 20 lat później,
-zakres do swojego końca. Dopiero gdy naruszenie obowiązuje w całym zakresie, jest wynikiem.
+zakres do swojego końca. Dopiero gdy naruszenie obowiązuje w całym zakresie, jest wynikiem. Wyjątkiem są łagodniejsze
+granice do sprawdzenia z aplikacji 3.27.0 (niżej): tam wystarczy, że granicę przekroczy jeden koniec możliwego wieku.
 
 | Wynik w aplikacji | Waga | Kiedy |
 |---|---|---|
 | **Data zgonu jest przed urodzeniem** | błąd | |
-| **Nieprawdopodobnie długie życie** | ostrzeżenie | ponad 115 lat |
+| **Nieprawdopodobnie długie życie** | do sprawdzenia | ponad 115 lat |
 | **Rodzic młodszy niż dziecko** | błąd | według daty urodzenia |
-| **Rodzic bardzo młody / bardzo stary w chwili urodzenia dziecka** | ostrzeżenie | mniej niż 12 / ponad 80 lat; tylko daty urodzenia |
-| **Zdarzenie datowane przed urodzeniem** | ostrzeżenie | |
-| **Zdarzenie datowane po zgonie** | ostrzeżenie | poza: Pochówek, Kremacja, Testament, Postępowanie spadkowe |
+| **Rodzic bardzo młody / bardzo stary w chwili urodzenia dziecka** | do sprawdzenia | mniej niż 12 / ponad 80 lat; tylko daty urodzenia |
+| **Matka przy urodzeniu poniżej 16 lat** / **… powyżej 45 lat** | do sprawdzenia | od aplikacji 3.27.0, zob. niżej |
+| **Ojciec przy urodzeniu poniżej 18 lat** / **… powyżej 60 lat** | do sprawdzenia | od aplikacji 3.27.0, zob. niżej |
+| **Zdarzenie datowane przed urodzeniem** | do sprawdzenia | |
+| **Zdarzenie datowane po zgonie** | do sprawdzenia | poza: Pochówek, Kremacja, Testament, Postępowanie spadkowe |
 | **Dziecko urodzone po śmierci matki** | błąd | ponad 1 miesiąc po śmierci; tylko biologiczni rodzice |
-| **Dziecko urodzone długo po śmierci ojca** (… **rodzica**, płeć nieznana) | ostrzeżenie | ponad 10 miesięcy |
+| **Dziecko urodzone długo po śmierci ojca** (… **rodzica**, płeć nieznana) | do sprawdzenia | ponad 10 miesięcy |
 | **Ślub datowany przed urodzeniem partnera** | błąd | |
-| **Ślub datowany po zgonie partnera** | ostrzeżenie | |
-| **Ślub w wieku dziecięcym** | ostrzeżenie | mniej niż 14 lat |
+| **Ślub datowany po zgonie partnera** | do sprawdzenia | |
+| **Ślub w wieku dziecięcym** | do sprawdzenia | mniej niż 14 lat |
+| **Ślub w wieku poniżej 16 lat** | do sprawdzenia | od aplikacji 3.27.0, zob. niżej |
+| **Zapisany wiek różni się o więcej niż 2 lata** | do sprawdzenia | od aplikacji 3.27.0, zob. niżej |
 | **Skrajna różnica wieku partnerów** | info (**Wskazówki**) | 40 lat i więcej |
 | **Urodzenie/zgon wpisane jako zdarzenie życiowe** | błąd | urodzenie lub zgon na liście zdarzeń |
-| **Własne zdarzenie nie ma nazwy** / **Zdarzenie ma nieprawidłową datę** | ostrzeżenie | |
+| **Własne zdarzenie nie ma nazwy** / **Zdarzenie ma nieprawidłową datę** | do sprawdzenia | |
 
 - **Granice:** te same wyjątki po zgonie ma `strom check` badania. Rodzic bez rodzaju relacji liczy się jako
   biologiczny.
+- **Od aplikacji 3.27.0:** łagodniejsze granice do sprawdzenia:
+  - **matka** młodsza niż 16 lub starsza niż 45 lat i **ojciec** młodszy niż 18 lub starszy niż 60 lat w chwili
+    urodzenia dziecka. Tylko biologiczny rodzic o znanej płci, wiek z obu dat urodzenia;
+  - **ślub** w wieku poniżej 16 lat;
+  - wystarczy, że granicę przekroczy jeden koniec możliwego wieku (wiek „15–16” jest poniżej 16). Data z **ok.**
+    liczy się jako szacunek wieku; daty z **przed** lub **po** się nie porównuje;
+  - zgłasza się tylko surowszy wynik: gdzie już obowiązuje **Rodzic młodszy niż dziecko**, **Rodzic bardzo młody /
+    bardzo stary** lub **Ślub w wieku dziecięcym**, łagodniejszego wyniku nie ma;
+  - **zapisany wiek** (przy ślubie wiek każdego z pary, przy zgonie, przy urodzeniu) porównuje się z wiekiem z daty
+    urodzenia i daty zdarzenia. Wynik jest, gdy odbiega od możliwego zakresu o więcej niż 2 lata. Wieku zapisanego
+    słowem albo z ok., przed, po się nie porównuje, ani gdy któraś z dat jest tylko szacunkiem;
+  - wiersz wyniku pokazuje daty i wiek („* 1850 → * 1866: 15–16”, „⚭ 1872: 30 ≠ 26–27”).
 - **Obowiązuje od:** aplikacja 1.0.0 (wiek rodziców); 1.4.0 (zdarzenia); 1.7.0 (daty i zgon); dziecko po śmierci
-  rodzica o nieznanej płci 3.10.0; cztery wyjątki po zgonie 3.17.0 (wcześniej tylko pochówek)
+  rodzica o nieznanej płci 3.10.0; cztery wyjątki po zgonie 3.17.0 (wcześniej tylko pochówek); łagodniejsze granice
+  wieku rodziców i ślubu oraz zapisany wiek 3.27.0
 
-<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* -->
+<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* · 3.27.0: app:59a8eed0 src/validation.ts MOTHER_MIN_AGE 16, MOTHER_MAX_AGE 45, FATHER_MIN_AGE 18, FATHER_MAX_AGE 60, checkParentAgeLimits (gender female/male, parentRelTypes biological, jen když není parentYoungerThanChild/parentTooYoung/parentTooOld), ageSpan (< > → null; ~ approxAgeBetween), spanText, MARRIAGE_MIN_YEARS 16 (else za childMarriage), checkRecordedAges SLACK_YEARS 2 (Partnership.ages, deathAge, birthAge), src/dates.ts recordedAgeGap, ageRangeBetween · strings.ts treeManager.valMotherTooYoung16, valMotherTooOld45, valFatherTooYoung18, valFatherTooOld60, valMarriageUnder16, valRecordedAgeMismatch, validationWarnings, countWarnings, summaryErrors · spec 073 §7.6 · CHANGELOG.cs.md 3.27.0 -->
 
 <a id="A5.4"></a>
 ## A5.4 Źródła, załączniki i scalenie przy imporcie
 
 | Wynik w aplikacji | Waga | Kiedy |
 |---|---|---|
-| **Cytat odwołuje się do nieistniejącego źródła** | ostrzeżenie | cytat przy osobie, zdarzeniu, związku lub załączniku |
-| **Załącznik nie ma użytecznych danych** | ostrzeżenie | dane nie są obrazem ani PDF (załącznika tylko z oryginałem się nie zgłasza) |
-| **Zdjęcie nie jest obsługiwanym obrazem** | ostrzeżenie | inny format niż JPEG, PNG, WebP, GIF |
+| **Cytat odwołuje się do nieistniejącego źródła** | do sprawdzenia | cytat przy osobie, zdarzeniu, związku lub załączniku |
+| **Załącznik nie ma użytecznych danych** | do sprawdzenia | dane nie są obrazem ani PDF (załącznika tylko z oryginałem się nie zgłasza) |
+| **Zdjęcie nie jest obsługiwanym obrazem** | do sprawdzenia | inny format niż JPEG, PNG, WebP, GIF |
 | Prawdopodobnie dwie osoby scalone w jedną podczas importu pliku GEDCOM (Strom 3.8.1 i starsze)… | błąd | zob. niżej |
 
 Starsze wersje mogły przy imporcie dać dwóm osobom ten sam identyfikator. Kontrola zgłasza to przy wyraźnym znaku
@@ -245,6 +277,9 @@ Oznaczenie to zmiana drzewa: ma krok wstecz i wpis w historii zmian. Przy możli
   - Oznaczenie przy miejscu nie ma osób, dlatego do badania się go nie wysyła. Przy wydzieleniu części drzewa zostają
     tylko oznaczenia, których wszystkie osoby zostają.
   - Oznaczenie zapisane w badaniu aplikacja zna tylko przy otwartym drzewie z badania, gdy badanie działa.
+  - **Od aplikacji 3.27.0:** przedmiot przy **Ślub w wieku poniżej 16 lat** to rok ślubu, przy **Zapisany wiek różni
+    się o więcej niż 2 lata** dana (urodzenie, ślub, zgon), a przy ślubie jego rok. Oznaczony wynik widok Tabela
+    pokazuje jako **nietypowe** i stamtąd można go też oznaczyć i przywrócić ([A6.7.5](A6-views.md#A6.7.5)).
 - **Obsługa:** w wierszu wyniku **To nie błąd** / **To dwie różne osoby**, przez 6 s propozycja **Cofnij**. Lista
   **Oznaczono jako „to nie błąd”: n** pod wynikami, przy każdym oznaczeniu data lub **Oznaczono w badaniu**, przycisk
   **Przywróć** · terminal: `strom quality list`, `strom quality dismiss possibleDuplicate P… P…`,
@@ -252,7 +287,7 @@ Oznaczenie to zmiana drzewa: ma krok wstecz i wpis w historii zmian. Przy możli
   człowiek, nigdy agent.
 - **Obowiązuje od:** aplikacja 3.17.0 (badanie 1.22.0)
 
-<!-- zdroj: app:src/validation.ts:1415 qualityFinding · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
+<!-- zdroj: app:src/validation.ts:1415 qualityFinding (3.27.0: marriageUnder16 rok, recordedAgeMismatch field + rok) · src/ui/table-view/table-bubble.ts · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
 
 <a id="A5.8"></a>
 ## A5.8 Przegląd drzewa → Jakość danych
@@ -262,20 +297,20 @@ badanie rozróżniło.
 
 | Blok | Co pokazuje |
 |---|---|
-| **Spójność** | podsumowanie („2 błędy, 1 ostrzeżenie, 3 wskazówki.”), 5 najpoważniejszych **Problemów**, „i jeszcze n…”, wiersz „n wskazówek ›” |
+| **Spójność** | podsumowanie („2 błędy, 1 do sprawdzenia, 3 wskazówki.”), 5 najpoważniejszych błędów i wyników do sprawdzenia, „i jeszcze n…”, wiersz „n wskazówek ›” |
 | **Kompletność danych** | udział osób z **Data urodzenia**, **Data zgonu (u zmarłych)**, **Miejsce urodzenia**, **Zdjęcie**; poniżej 50 % wyróżnione; „Zawartość drzewa:” (zdjęcia, zdarzenia, źródła, załączniki) |
 | **Pewność danych z badania**, **Gdzie brakuje dowodów** | udokumentowanie, zob. [R3.8](R3-verification-and-citation.md#R3.8) i [A3](A3-evidence-in-the-app.md) |
 | **Struktura** | liczba związków; niepołączone części albo „Wszystkie osoby są połączone w jedną rodzinę.” |
 | **Szybkie działania** | **Szczegóły walidacji**, **Usuń osierocone miejsca (n)**, **Podziel na rodziny** |
 
 - **Granice:**
-  - Powyżej 10 MB zdjęć i załączników dochodzi ostrzeżenie. Osierocone miejsce to miejsce, do którego nic się nie
-    odwołuje.
+  - Powyżej 10 MB zdjęć i załączników dochodzi powiadomienie („Media zajmują ponad 10 MB. Plik drzewa wolniej się
+    zapisuje i udostępnia.”). Osierocone miejsce to miejsce, do którego nic się nie odwołuje.
   - Niepołączona część nie ma drogi do głównej rodziny; można ją wydzielić (**Wydziel niepołączone części**).
   - Karta w **Na czym się skupić** pokazuje liczbę błędów i najczęstszy rodzaj. Ma przycisk **Popraw** (otwarte
     drzewo) lub **Szczegóły walidacji**; oba otwierają okno.
 - **Obsługa:** **Przegląd drzewa → Jakość danych**; w menu drzewa także bezpośrednio **Jakość danych**.
   Działania, które zmieniają dane, są możliwe tylko w otwartym drzewie.
-- **Obowiązuje od:** aplikacja 3.13.0; wskazówki i oznaczenia 3.17.0
+- **Obowiązuje od:** aplikacja 3.13.0; wskazówki i oznaczenia 3.17.0; „do sprawdzenia” zamiast „ostrzeżenie” 3.27.0
 
 <!-- zdroj: app:src/ui/tree-overview.ts:101 TOP_ISSUES, :108 LOW_SHARE, :1882 treeOverviewQualityHtml, :925 selectFocusCards · src/ui/tree-actions.ts:191 overview-quality · strings.ts treeOverview.consistencyTitle, completenessTitle, field*, contentLabel, mediaWarning, structureTitle, allConnected, quickActions, actValidation, actCleanPlaces, actSplitFamilies, cardValidation -->

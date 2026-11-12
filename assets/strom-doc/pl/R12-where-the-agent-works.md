@@ -205,13 +205,14 @@ odpowiednich stron.
     w Codexie potwierdzony;
   - Codex w terminalu pozostaje pilnowany, gdy tylko hook stroma jest w Codexie potwierdzony ([R12.5](#R12.5)).
 - **Dlaczego:** strom ocenia tylko wywołanie, które agent pokaże mu hookiem; przeglądarka w chmurze ChatGPT nie
-  wywołuje żadnego hooka.
+  wywołuje żadnego hooka. Na Macu 8 listopada 2026 (badanie 1.29.0) hook stroma nie uruchomił się ani razu, gdy
+  aplikacja ChatGPT pracowała ze swoją przeglądarką.
 - **Obsługa:** terminal: `strom doctor` (wiersz **aplikacja ChatGPT** jako ostrzeżenie: „przeglądarki strom nie
   pilnuje (działa przez chmurę ChatGPT), o stronach decyduje okno dialogowe ChatGPT”, z radą do okna dialogowego),
   `strom setup` (mówi to raz, gdy zostanie wybrana aplikacja ChatGPT).
 - **Obowiązuje od:** badanie 1.30.0
 
-<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
+<!-- zdroj: research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 · dirigent:test/vysledek-062-u4-codex.md (ChatGPT.app 26.1021 a 26.1103: hook-calls.log prázdný) -->
 
 <a id="R12.6"></a>
 ## R12.6 Czego nie sprawdzono

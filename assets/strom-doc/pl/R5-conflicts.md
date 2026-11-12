@@ -169,7 +169,7 @@ albo pyta.
 - **Zatwierdzona opowieść:** po zatwierdzeniu przez człowieka jest zablokowana. Nową wersję agent zapisuje obok,
   a ta czeka na człowieka: zatwierdzić zamiast starej albo zostawić starą.
 - **Ręczne położenie miejsca:** położenie umieszczone ręcznie się nie zmienia. Gdy akty mówią inaczej, w **Czeka na
-  decyzję** pojawia się pytanie **Sprzeczne położenie** ([R4.3](R4-places.md#R4.3)).
+  załatwienie** pojawia się pytanie **Sprzeczne położenie** ([R4.3](R4-places.md#R4.3)).
 - **Decyzja człowieka w sprzeczności:** [R5.4](#R5.4).
 - **Obsługa:** terminal: `strom story approve P…`, `strom story discard P…`; menu **Co czeka**.
 - **Obowiązuje od:** transkrypcja użytkownika badanie 1.12.0, zatwierdzona opowieść 1.10.0, ręczne położenie 1.25.0.
@@ -202,7 +202,7 @@ na komputerze, na którym działa badanie. Aplikacja otwiera badanie w terminalu
   z Archiwum Strom**), **Pozostaw otwartą**. Sprzeczność między źródłami proponuje twierdzenia jak w odnośniku.
 - **Granice:** w badaniu z agentem **Co czeka** pokazuje tylko sprzeczności ze zmian w aplikacji. Sprzeczności między
   źródłami są tam tylko w Archiwum Strom i w badaniu, które czeka na agenta. W przeciwnym razie terminal pokazuje je
-  tylko w `strom conflict list`. W **Czeka na decyzję** aplikacji sprzeczności nie ma.
+  tylko w `strom conflict list`. W **Czeka na załatwienie** aplikacji sprzeczności nie ma.
 - **Obsługa:** zob. wyżej; terminal ponadto `strom conflict show X…`.
 - **Obowiązuje od:** aplikacja 3.4.0 (**Co wie badanie**, **sprzeczność ›**, **Rozstrzygnij w badaniu**, **Zostaw
   agentowi**), sekcja w panelu badania i znacznik na karcie od aplikacji 3.5.0. Wybór strony od aplikacji 3.11.0

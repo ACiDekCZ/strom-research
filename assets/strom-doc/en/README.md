@@ -24,7 +24,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [R11 Material from the user](R11-material-from-the-user.md): files and texts from the user, a document and a lead, an imported family tree, a batch from the app
 - [R12 Where the agent works and what strom watches](R12-where-the-agent-works.md): the terminal, the Claude, ChatGPT (Codex) and OpenCode apps, Antigravity and Grok Build, a run alone: what strom watches where and what a person does
 - [R13 Report a problem: `strom error`](R13-reporting-a-problem.md): one ZIP file to send, what is in it and what not, which problem and which command, people's data only with consent, the agent and reporting a problem
-- [R14 The seal and the integrity of a research](R14-seal-and-integrity.md): what does not match its seal and the ways on (`strom repair`, `strom seal adopt`, `strom seal accept`), accepting a research as it is when its history is lost
+- [R14 The seal and the integrity of a research](R14-seal-and-integrity.md): what does not match its seal and the ways on (`strom repair`, `strom seal adopt`, `strom seal accept`), accepting a research as it is when its history is lost, a history older than the research, `strom repair` asking the person and `strom repair undo`
 
 ## A The Strom app
 
@@ -33,7 +33,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [A3 Evidence in the app](A3-evidence-in-the-app.md): sources, citations, excerpts, attachments, materials and where evidence is missing
 - [A4 Family lines and surnames](A4-surnames-and-families.md): the family line and its founder, people married in, female surname forms, finding names
 - [A5 Tree check](A5-tree-check.md): what the app watches in the tree, with which thresholds, and Not an error
-- [A6 Views and the choice of people](A6-views.md): Family, Descendants, Timeline, Fan, Map and a family line in the view
+- [A6 Views and the choice of people](A6-views.md): Family, Descendants, Timeline, Fan, Map, a family line in the view and Table
 - [A7 Book, pages and export](A7-book-pages-and-export.md): who is living, privacy of living people, the family book, pages, saved HTML
 - [A8 Merging trees](A8-merging-trees.md): merging a file, a tree or a view into a new tree, matching people
 - [A9 Using the app](A9-using-the-app.md): where things are, readable names of controls, editing while following the research, the agent in the app

@@ -180,6 +180,34 @@ test("the Strom file: each fact's ID right after its line, the person's confirma
   }
 });
 
+// The app offers "verify first" for a fact that waits (_STROM_VERIFY wait) behind another task (3 _POS > 1), never for
+// one asked; put first, the sweep's task holding the fact stays the person's ask until a session on it ends.
+test("the sweep's task the person put first (verify of a fact it holds) is asked in the Strom file, /status counts and verify status — not wait again behind the task before it", opts, async () => {
+  const { w, f } = await lhotaci();
+  try {
+    await w.ok(["frontier", "--research", "G0001", "--apply"]); // the sweep: Josef's facts, the marriage
+    await w.ok(["verify", "facts", "P0001"]); // the person's first: Jan's birth looked for
+    const before = verifyMarks(open(w)).get(f.josefBirth)!;
+    assert.equal(before.state, "wait");
+    const asked = (await w.ok(["verify", "facts", f.josefBirth, "--json"])).json;
+    const held = open(w).get<Task>(asked.task)!;
+    assert.equal(held.origin, "verify:auto", "the sweep's task put first, nothing doubled");
+    const marks = verifyMarks(open(w));
+    assert.equal(marks.get(f.josefBirth)?.state, "asked");
+    assert.equal(marks.get(f.josefDeath)?.state, "asked", "every fact of the task the same");
+    assert.equal(marks.get(f.josefBirth)?.pos, 2, "behind the task asked for before it");
+    assert.equal(marks.get(f.marriage)?.state, "wait", "the sweep's other task waits for its turn");
+    await w.ok(["export", "gedcom", "--for", "strom"], { env: BETA_APP });
+    const text = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+    assert.deepEqual(block(text, f.josefBirth).filter((l) => /_STROM_VERIFY|_POS/u.test(l)), ["2 _STROM_VERIFY asked", "3 _POS 2"]);
+    const s = (await w.ok(["verify", "status", "--json"])).json;
+    assert.equal(s.asked, 3, "Jan's birth and Josef's two facts");
+    assert.equal(s.waiting, 4);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("the Strom file with every switch of the profile at once, the verification's marks too: nothing the exporter writes is unknown to the validator", opts, async () => {
   const { w, f } = await lhotaci();
   try {

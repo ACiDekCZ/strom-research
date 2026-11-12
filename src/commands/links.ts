@@ -141,7 +141,7 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "places" ||
     (link.action === "conflict" && link.do === "agent") ||
     // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
-    (link.action === "hypotheses" && link.decide === "agent") ||
+    (link.action === "hypotheses" && "decide" in link && link.decide === "agent") ||
     (link.action === "task" && link.do === "chat") ||
     (link.action === "fixes" && link.id !== undefined && !quietCheck(fixCheck(link.id) ?? { remedy: "read-again" }));
   if (!forAgent) return undefined;
@@ -259,10 +259,16 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     }
     case "hypothesis": {
       // a hypothesis decided, left open or its decision changed: the screen of What waits, here
+      // (or picked in the Strom app — a variant, none holds, left open, taken back: only confirmed here)
       const { hypothesisDo } = await import("../cli/menu-links.ts");
-      return end(await hypothesisDo(ctx, run, treeLang, root, link.id));
+      return end(await hypothesisDo(ctx, run, treeLang, root, link.id, link.do, link.variant));
     }
     case "hypotheses": {
+      // the agent's proposals of several taken: listed, then the person's yes here
+      if (!("decide" in link)) {
+        const { acceptProposals } = await import("../cli/menu-links.ts");
+        return end(await acceptProposals(ctx, run, treeLang, root, link.ids.split(",")));
+      }
       // who decides the hypotheses: the agent only on the person's yes here, back to the person at once
       const { hypothesesDo } = await import("../cli/menu-links.ts");
       return end(await hypothesesDo(ctx, run, treeLang, root, link.decide));
@@ -467,8 +473,12 @@ register(
       "  &take=user|research — the side picked in the app: only confirmed, and why.\n" +
       "strom-research://hypothesis?tree=<id>&id=H0007&do=decide — the hypothesis decided by the user in the terminal: as proposed\n" +
       "  or otherwise, one with no proposal decided or left open, a decided one's decision changed (the reason asked).\n" +
+      "  &variant=B — the variant picked in the app (whose child, which couple only): only confirmed, and why (Enter: the app's\n" +
+      "  words); do=abandon (none holds), do=keep-open, do=reopen (open again while the tree records nothing of the decision).\n" +
       "strom-research://hypotheses?tree=<id>&decide=agent|person — who decides the hypotheses of the research (hypotheses.decide):\n" +
       "  the agent only on the user's yes in the terminal, back to the user at once.\n" +
+      "strom-research://hypotheses?tree=<id>&do=accept&ids=H0007,H0009 — the agent's proposals taken (at most 50): listed, then\n" +
+      "  the user's yes in the terminal.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +
@@ -552,7 +562,7 @@ register(
         return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
       }
       // the hypotheses decided by the person again needs nobody's answer: done in each copy of the research, no terminal
-      if (link.action === "hypotheses" && link.decide === "person" && !ctx.io.tty) {
+      if (link.action === "hypotheses" && "decide" in link && link.decide === "person" && !ctx.io.tty) {
         const copies = researchesWithId(ctx, link.tree);
         if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
         const { hypothesesDo } = await import("../cli/menu-links.ts");

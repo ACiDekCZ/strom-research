@@ -5,6 +5,91 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.31.0
+
+*2026-11-12 · goes with the Strom app 3.27.0.*
+
+- **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
+  older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom
+  verify`, `strom check` and a refused write say `history-reverted` with the number of records a repair would remove,
+  and point to the way that loses nothing: the whole folder backed up, `.git` put back from a backup or Time Machine,
+  or `strom seal accept` by the user. `strom repair` that would remove more than three records, or any such record,
+  says what and asks the user at their terminal; an agent never runs it. What a repair moved aside comes back with
+  `strom repair undo <stamp>` (the user, in their terminal; one sealed operation), also after a repair of 1.30.
+
+- **One bridge per research, even after an update.** A bridge of an older strom left running beside the research's
+  own ends by itself: when its successor finds the research held by another bridge, at its next check, or when the
+  update removed the strom it runs from (before, it kept failing every 16 seconds). The hand-over to a newer strom's
+  bridge is quicker too: the old bridge keeps answering while the new strom is checked.
+
+- **An image saved from an archive's viewer waits while the browser does not draw its tab.** A browser draws nothing
+  in a tab behind another tab or in a window covered or minimized, and the archive's viewer then never reported its
+  tiles as all there: saving gave up after 30 s with "the viewer's tiles did not all come" (ACTA PUBLICA). The wait
+  now counts only the time the browser draws the tab and goes on once it draws it again; a tab not drawn for 30 s is
+  said as that. When the viewer is paged meanwhile, nothing is saved under another image's name.
+
+  **`strom fetch` says an image that costs many requests, as `strom connector test` does.** A connector built before
+  1.30 that puts each image together from tiles (a hundred requests an image, hours for a book) fetched without a word.
+  Now the first images of a fetch tell the agent once what one image costs and how long a book takes at the archive's
+  pace, with how to stop a fetch in the background and what to look for first (one request an image). Taken from the
+  fetch's own count: nothing more is asked of the archive. `strom fetch --status` and the brief say it too.
+
+- **Joining a family to a side branch is work off the lines.** A task that would join people nothing links to the tree
+  helped a line whenever it joined them to anybody of the tree — also to an ancestor's sibling, so it went with the
+  line though work off the lines was set to wait at the end. Now it helps a line only when it joins them to a person of
+  the line or their partner; joined to a side branch, it belongs to that branch and comes as its choice says. A
+  hypothesis of the line and a reason the agent gives keep their place. The bridge's `/status` says how the task at
+  work helps a line (feature `working.helps`), so the app can say why it goes with the line.
+
+- **The research in the Strom app's table.** For a Strom app that shows it, the file for the app says each person's
+  place among the research's lines by the rule the queue goes by: in a line (every line they are in), the partner of a
+  person of a line, a side branch off the lines (with the line it was added to), or an island nothing links to the tree;
+  the header names the lines and the branches. Under each person also the tasks that wait outside for them (a letter
+  sent or still to send, a question to the family, a site to look at) with where each is handled, and when the
+  research added the person. The bridge's `GET /directions/people` says the same places live, with a fingerprint that
+  `/status` repeats (feature `directions.places`).
+
+- **A hypothesis decided in the Strom app.** Where the app shows a hypothesis whose variants say whose child someone
+  is or which couple, a variant is picked there (or none holds, left open, the decision taken back). The research's
+  terminal shows the question with its variants and what would be written, asks once — Enter is yes — and why (Enter
+  keeps the app's words), and writes it as the user's decision made in the Strom app. Several of the agent's proposals
+  are taken at once the same way. A hypothesis whose variants connect no one is picked there too: only the decision is written, the tree stays as it is, and the terminal says so before the yes. Whether two records are the same person, or siblings, is still decided in the
+  terminal, on the hypothesis's whole screen. The decision is on the tree at once: the chosen variant's child or
+  couple written in the same save, citing the variant's source, in an archive too — the agent does not record it
+  again; what the tree refuses (a child with birth parents already) is said with why and left to the agent. Changed, what
+  the decision before wrote is taken off; taken back, what it wrote is taken off, unless other work stands on it by
+  then — another child, a fact or source of the family, a merge, never the people's own facts (the app is told
+  beforehand); a change that would keep the earlier link and could not write the new one is said before the yes and Enter then cancels, also among several proposals taken at once; `strom hypothesis decide --reopen` does it in the terminal too (the user's only). For
+  the app, the Strom file says who decided and where, the decision before, the agent's proposal, what speaks against
+  each variant and how many people it joins to the tree; the bridge's `/status` lists the hypotheses that wait
+  (features `hypothesis.decide.link`, `hypotheses.accept.link`).
+
+- **An entry is found again when the archive changes its links.** Where an entry stands in its book is kept field by
+  field: `strom source add|edit --folio` (the page or folio as the book numbers it, "fol. 12v"), `--image` (the
+  image's number on the archive's portal) and `--call-number` (the book's, for an entry in no record set), beside
+  `--locator` for the rest (the entry's number). `strom source show` says the archive, the call number, the folio and
+  the image together (an image also from the registered scans), and proposes the folio and image an older locator
+  names — never written by itself; existing sources stay as they are. The file for the Strom app and other programs
+  keeps one readable PAGE composed of them ("pag. 112, entry 3, image 57"), the call number as CALN; the Strom app
+  gets the fields themselves from the version that reads them (bridge feature `sources.fields`), and its edits of them
+  come back by sync like a page's. The agent fills them in as it records, and a link that no longer opens is found
+  again by them. A PAGE never says two image or folio numbers: when an older locator names another than the field, the
+  field's (the locator itself kept), and `strom source edit` and `show` propose the locator's rest. Older sources are
+  split into the fields at once by `strom source split`: a preview of what each would become (a locator in which
+  nothing is recognised stays as it is, up to three such shown as they stand), written by the user with `--apply` as one step and undone as one (`--undo`);
+  an agent only offers it. The split is done from a Strom app that offers it too (bridge feature `sources.split`): its
+  preview says how many sources, the split is written on the user's click as one step on that preview and taken back
+  whole. A folio, image or call number the user removes in a Strom app that keeps these fields is removed in the
+  research too (undone with the sync); an older app removes nothing. When a locator says nothing but the folio and
+  image its fields give, `strom source show` proposes emptying it, and `strom source edit --locator ""` does so.
+
+- **Smaller things.** A fact whose verification the user moved to the front is marked as asked for in the file for the
+  Strom app, so the app no longer offers to move it forward again. `strom error --note` also hides the inflected forms of
+  the names and places the research knows ("from Brno" said as *z Brna*). `strom task wait --request` finds the file
+  also when its name is given in the other Unicode form (a path typed on a Mac, used on Windows). What comes next — in
+  the menu before `strom run` and in the Strom app's queue — is the order `strom run` takes: at a story's turn one story
+  first, not all of them.
+
 ## 1.30.1
 
 *2026-11-09 · goes with the Strom app 3.26.0.*

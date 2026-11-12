@@ -692,6 +692,92 @@ export function appShowsVerify(settings: Settings, version?: string, gate: strin
   return appShowsOrigin(settings, version, gate, beta);
 }
 
+/**
+ * The first Strom app that shows the research in its table (the app's ZADANI_VYZKUM_tabulka-vyzkum.md, its §16.10): in
+ * the header 1 _STROM_DIRECTION per line (2 NAME, 2 TYPE, 2 _FOCUS, 2 STAT) and 1 _STROM_BRANCH per branch off the
+ * lines (2 _VIA with 3 TYPE, 2 _NEAREST, 2 _DIRECTION, 2 _MODE); under each person 1 _STROM_DIRECTION per place among
+ * the lines (2 TYPE line|partner|branch|island, 2 _BRANCH), 1 _STROM_WAIT per waiting task about them (2 TYPE, 2 TITL,
+ * 2 _GROUP with 3 TYPE and 3 _KEY, 2 STAT, 2 _SENT, 2 _PRIO) and 1 _STROM_ADDED <when> on a person the research added
+ * — in the Strom file and the bridge's /tree.ged. Production: from the app's version set here (3.27.0, out 2026-11-12); another copy
+ * of the app (its beta, its development) from APP_SHOWS_RESEARCH_TABLE_BETA (3.27.0-beta.4); an app of unknown version
+ * stays off (today's file), in production and in another copy alike.
+ */
+export const APP_SHOWS_RESEARCH_TABLE: string | undefined = "3.27.0";
+
+/** The first beta of the app that shows the research in its table (another copy of the app gets the tags from it). */
+export const APP_SHOWS_RESEARCH_TABLE_BETA: string | undefined = "3.27.0-beta.4";
+
+/** Does the Strom app of this version show the research in its table (_STROM_DIRECTION, _STROM_BRANCH, _STROM_WAIT, _STROM_ADDED)? */
+export function appShowsResearchTable(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_RESEARCH_TABLE, beta: string | undefined = APP_SHOWS_RESEARCH_TABLE_BETA): boolean {
+  return newTagsFor(settings, version, gate, beta);
+}
+
+/**
+ * The first Strom app that decides a hypothesis by a pick (spec 074; the app's ZADANI_VYZKUM_rozhodnout-hypotezu.md,
+ * V11): under each _STROM_HYPO 2 _BY app (the person's decision through the app's link), 2 _PICK Y (decided by a pick
+ * of a variant there), 2 _PREV B|none (the decision before, 3 _BY, 3 DECI, 3 _AT), 2 _REOPEN no (it cannot be taken
+ * back: 3 TYPE tree — an agent recorded its links —, or work — other work stands on what the decision wrote —, 3 _COUNT, 3 _STAYS <label>: each variant a pick of which changes nothing on the tree, the old link staying and its own not written), 2 _PROP B|none (the agent's proposal, 3 DECI, 3 _AT; never in an archive), 2 _LEFT
+ * (left open), under each 2 _VAR 3 _AGAINST (4 SOUR) and 3 _PEOPLE (people off the tree it joins); in /status the
+ * features hypothesis.decide.link, hypotheses.accept.link and the hypotheses that wait. Production: from the app's
+ * version set here (3.27.0, out 2026-11-12); another copy of the app (its beta, its development) from APP_DECIDES_HYPOTHESES_BETA
+ * (3.27.0-beta.4); an app of unknown version stays off (today's file), in production and in another copy alike.
+ */
+export const APP_DECIDES_HYPOTHESES: string | undefined = "3.27.0";
+
+/** The first beta of the app that decides a hypothesis by a pick (another copy of the app gets it from it). */
+export const APP_DECIDES_HYPOTHESES_BETA: string | undefined = "3.27.0-beta.4";
+
+/** Does the Strom app of this version decide a hypothesis by a pick (_PICK, _PREV, _PROP, _AGAINST, _PEOPLE; the hypotheses in /status.waiting)? */
+export function appDecidesHypotheses(settings: Settings, version?: string, gate: string | undefined = APP_DECIDES_HYPOTHESES, beta: string | undefined = APP_DECIDES_HYPOTHESES_BETA): boolean {
+  return newTagsFor(settings, version, gate, beta);
+}
+
+/**
+ * The first Strom app that reads a source's location field by field (spec 075; the app's
+ * ZADANI_VYZKUM_citace-pole.md): on each source after its PAGE (composed of them, as every app gets it) 1 _STROM_FOLIO,
+ * 1 _STROM_IMAGE (also one only the registered images give) and 1 _STROM_LOCATOR (the rest of the location) — in the
+ * Strom file and the bridge's /tree.ged. An older app leaves them out of the research's file and counts them as tags it
+ * left out. Production: from the app's version set here (3.27.0, out 2026-11-12); another copy of the app (its beta, its development)
+ * from APP_READS_SOURCE_FIELDS_BETA (3.27.0-beta.5); an app of unknown version stays off (today's file), in
+ * production and in another copy alike.
+ */
+export const APP_READS_SOURCE_FIELDS: string | undefined = "3.27.0";
+
+/** The first beta of the app that reads a source's location field by field (another copy of the app gets them from it). */
+export const APP_READS_SOURCE_FIELDS_BETA: string | undefined = "3.27.0-beta.5";
+
+/**
+ * The first Strom app that keeps a source's location field by field (its answer, 11 Nov 2026: 3.27.0-beta.5) — a real
+ * pre-release, not a gate: a file of it (its HEAD's 2 VERS) without a field the app was given says the user removed it.
+ */
+export const APP_KEEPS_SOURCE_FIELDS = "3.27.0-beta.5";
+
+/** The data version of the Strom app's JSON from which a source keeps its folio, image and call number (its answer: 18, U3). */
+export const APP_DATA_SOURCE_FIELDS = 18;
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) keep a source's location field by field? No version said: no. */
+export function appKeepsSourceFields(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_KEEPS_SOURCE_FIELDS) >= 0;
+}
+
+/** Does the Strom app of this version read a source's location field by field (_STROM_FOLIO, _STROM_IMAGE, _STROM_LOCATOR)? */
+export function appReadsSourceFields(settings: Settings, version?: string, gate: string | undefined = APP_READS_SOURCE_FIELDS, beta: string | undefined = APP_READS_SOURCE_FIELDS_BETA): boolean {
+  return newTagsFor(settings, version, gate, beta);
+}
+
+/**
+ * A gate of new tags an older app would count as unsupported: an app of unknown version (strom app from a terminal, an
+ * app that says none) gets nothing, in production and in another copy of the app alike — today's file; another copy of
+ * the app (its beta, its development) of a known version from the beta gate (none set: at once), production from the gate.
+ */
+function newTagsFor(settings: Settings, version: string | undefined, gate: string | undefined, beta: string | undefined): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings)) return !beta || compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

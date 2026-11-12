@@ -5,6 +5,96 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.31.0
+
+*12.11.2026 · współpracuje z aplikacją Strom 3.27.0.*
+
+- **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
+  ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),
+  `strom verify`, `strom check` i odrzucony zapis zgłaszają `history-reverted` z liczbą rekordów, które naprawa by
+  usunęła, i wskazują drogę, która nic nie traci: kopię zapasową całego folderu, `.git` z kopii zapasowej lub z Time
+  Machine albo `strom seal accept` wykonane przez użytkownika. `strom repair`, który usunąłby więcej niż trzy rekordy
+  lub którykolwiek taki rekord, mówi które i pyta w terminalu użytkownika; agent nigdy go nie uruchamia. To, co naprawa
+  odłożyła na bok, przywraca `strom repair undo <znacznik>` (użytkownik w swoim terminalu, jedna zapieczętowana
+  operacja), także po naprawie z wersji 1.30.
+
+- **Jeden most na badanie, także po aktualizacji.** Most starszego stroma, który został uruchomiony obok mostu badania,
+  kończy się sam: gdy jego następca zastaje badanie w rękach innego mostu, przy najbliższej kontroli albo gdy
+  aktualizacja usunęła strom, z którego działa (wcześniej co 16 sekund zgłaszał błąd). Przekazanie mostowi nowszego
+  stroma jest też szybsze: stary most odpowiada, podczas gdy nowy strom jest sprawdzany.
+
+- **Obraz zapisywany z podglądu skanów archiwum czeka, gdy przeglądarka nie rysuje jego karty.** Przeglądarka nie
+  rysuje karty schowanej za inną kartą ani w oknie zasłoniętym lub zminimalizowanym, a podgląd skanów archiwum nigdy
+  wtedy nie zgłaszał, że ma wszystkie kafelki: zapisywanie poddawało się po 30 s z komunikatem „the viewer's tiles did
+  not all come” (ACTA PUBLICA). Oczekiwanie liczy teraz tylko czas, gdy przeglądarka rysuje kartę, i trwa dalej, gdy
+  znów ją rysuje; karta nierysowana przez 30 s jest zgłaszana jako taka. Gdy podgląd w międzyczasie przejdzie do
+  innego skanu, nic nie zostanie zapisane pod nazwą innego obrazu.
+
+  **`strom fetch` zgłasza obraz, który kosztuje wiele zapytań, tak jak `strom connector test`.** Konektor zbudowany
+  przed wersją 1.30, który składa każdy obraz z kafelków (sto zapytań na obraz, godziny na księgę), pobierał bez słowa.
+  Teraz pierwsze obrazy pobierania mówią agentowi raz, ile kosztuje jeden obraz i jak długo w tempie archiwum potrwa
+  księga, a także jak zatrzymać pobieranie w tle i czego szukać najpierw (jedno zapytanie na obraz). Liczone jest tylko
+  to, co samo pobieranie wysyła: archiwum nie jest o nic więcej pytane. Mówią to też `strom fetch --status` i brief.
+
+- **Dołączenie rodziny do bocznej gałęzi to praca poza liniami.** Zadanie, które dołączyłoby osoby niezwiązane z
+  drzewem, pomagało linii zawsze, gdy dołączało je do kogokolwiek z drzewa – także do rodzeństwa przodka, więc szło z
+  linią, choć praca poza liniami miała czekać na końcu. Teraz pomaga linii tylko dołączenie do osoby z linii lub jej
+  partnera; dołączone do bocznej gałęzi należy do tej gałęzi i przychodzi zgodnie z jej wyborem. Hipoteza linii i
+  powód podany przez agenta zachowują swoje miejsce. `/status` mostu mówi, jak zadanie, nad którym trwa praca, pomaga
+  linii (funkcja `working.helps`), aby aplikacja mogła pokazać, dlaczego idzie z linią.
+
+- **Badania w tabeli aplikacji Strom.** Dla aplikacji Strom, która to pokazuje, plik dla aplikacji podaje przy każdej
+  osobie jej miejsce wśród linii badań według tej samej reguły, którą kieruje się kolejka: w linii (w każdej, do której
+  należy), partner osoby z linii, boczna gałąź poza liniami (z linią, do której ją dodano) albo wyspa, której nic nie
+  łączy z drzewem; nagłówek wymienia linie i gałęzie. Przy każdej osobie są też zadania czekające na coś z zewnątrz
+  (list wysłany lub do wysłania, pytanie do rodziny, strona do przejrzenia) wraz z miejscem, gdzie się je załatwia, oraz
+  kiedy badania dodały tę osobę. `GET /directions/people` mostu podaje te same miejsca na żywo, z odciskiem, który
+  powtarza `/status` (funkcja `directions.places`).
+
+- **Hipoteza rozstrzygnięta w aplikacji Strom.** Przy hipotezie, której warianty mówią, czyim dzieckiem ktoś jest albo
+  która to para, wariant wybiera się w aplikacji (albo „żaden nie jest prawdziwy”, pozostawienie otwartej, cofnięcie
+  rozstrzygnięcia). Terminal badania pokazuje pytanie z wariantami i to, co zostanie zapisane, pyta raz – Enter to tak
+  – i o powód (Enter zostawia słowa aplikacji), po czym zapisuje to jako rozstrzygnięcie użytkownika w aplikacji
+  Strom. Tak samo przyjmuje się naraz kilka propozycji agenta. W aplikacji wybiera się też hipotezę, której warianty nikogo nie łączą: zapisuje się tylko rozstrzygnięcie, drzewo zostaje bez zmian, a terminal mówi to przed potwierdzeniem. To, czy dwa zapisy to ta sama osoba, czy rodzeństwo,
+  nadal rozstrzyga się w terminalu, na pełnym ekranie hipotezy. Rozstrzygnięcie jest w drzewie od razu: dziecko lub
+  para wybranego wariantu zapisane w tym samym zapisie, z cytowaniem źródła wariantu, także w archiwum – agent nie
+  zapisuje go ponownie; to, co drzewo odrzuci (dziecko ma już rodziców z urodzenia), terminal powie wraz z powodem
+  i zapisze to agent. Przy zmianie usuwa się to, co zapisało poprzednie rozstrzygnięcie; przy cofnięciu to, co zapisało
+  ono samo, o ile w międzyczasie nie opiera się na tym dalsza praca – kolejne dziecko, dane lub źródło rodziny,
+  scalenie, nigdy własne dane osób (aplikacja wie to wcześniej); zmianę, po której dotychczasowe powiązanie by zostało,
+  a nowego nie dałoby się zapisać, terminal powie przed potwierdzeniem, a Enter wtedy anuluje, także przy kilku propozycjach naraz; w terminalu również przez `strom
+  hypothesis decide --reopen` (tylko użytkownik). Dla aplikacji plik Strom mówi, kto i gdzie rozstrzygnął, poprzednie
+  rozstrzygnięcie, propozycję agenta, co przemawia przeciw każdemu wariantowi i ile osób dołącza do drzewa; `/status`
+  mostu wymienia czekające hipotezy (features `hypothesis.decide.link`, `hypotheses.accept.link`).
+
+- **Wpis da się odnaleźć, nawet gdy archiwum zmieni linki.** To, gdzie wpis stoi w księdze, jest zapisywane pole po
+  polu: `strom source add|edit --folio` (strona lub folio tak, jak numeruje je księga, „fol. 12v”), `--image` (numer
+  skanu w portalu archiwum) i `--call-number` (sygnatura księgi przy wpisie spoza zarejestrowanych ksiąg), obok
+  `--locator` na resztę (numer wpisu). `strom source show` podaje archiwum, sygnaturę, folio i skan razem (skan także
+  z zarejestrowanych obrazów) i proponuje folio i skan, które wymienia starsza lokalizacja – nigdy nie zapisuje ich
+  sam; istniejące źródła zostają bez zmian. Plik dla aplikacji Strom i innych programów ma jedną czytelną PAGE złożoną
+  z pól („pag. 112, nr 3, skan 57”) i sygnaturę jako CALN; same pola aplikacja Strom dostaje od wersji, która je czyta
+  (funkcja mostu `sources.fields`), a ich zmiany wracają przez synchronizację jak zmiany strony. Agent wypełnia je
+  przy zapisie i po nich odnajduje link, który już się nie otwiera. PAGE nigdy nie podaje dwóch numerów skanu ani
+  folio: gdy starsza lokalizacja wymienia inny numer niż pole, obowiązuje w niej pole (sama lokalizacja zostaje), a
+  `strom source edit` i `show` proponują resztę lokalizacji. Starsze źródła rozdziela się na pola naraz poleceniem
+  `strom source split`: podgląd, czym stałoby się każde (lokalizacja, w której nic nie rozpoznano, zostaje bez zmian,
+  do trzech takich pokazuje tak, jak stoją),
+  podział zapisuje użytkownik z `--apply` jednym krokiem i jednym się go cofa (`--undo`); agent tylko go proponuje.
+  Podział można zrobić także z aplikacji Strom, która go oferuje (funkcja mostu `sources.split`): jej podgląd mówi,
+  ile źródeł, podział zapisuje się po kliknięciu użytkownika jednym krokiem według tego podglądu i cofa w całości.
+  Folio, skan lub sygnatura usunięte przez użytkownika w aplikacji Strom, która przechowuje te pola, znikają także w
+  badaniu (cofa się je z synchronizacją); starsza aplikacja niczego nie usuwa. Gdy lokalizacja nie mówi nic poza folio
+  i skanem, które dają już pola, `strom source show` proponuje ją opróżnić, a `strom source edit --locator ""` to
+  robi.
+
+- **Drobiazgi.** Fakt, którego weryfikację przesunięto na początek, jest w pliku dla aplikacji Strom oznaczony jako
+  zamówiony, więc aplikacja nie proponuje już ponownego przesunięcia. `strom error --note` ukrywa też odmienione
+  formy imion i miejsc znanych badaniu (czeskie *z Brna*, *v Praze*). `strom task wait --request` znajduje plik także
+  wtedy, gdy jego nazwa jest podana w innej formie Unicode (ścieżka wpisana na Macu, użyta w Windows). To, co jest
+  następne – w menu przed `strom run` i w kolejce aplikacji Strom – to kolejność, w jakiej zadania bierze `strom run`:
+  gdy przychodzi kolej na opowieść, na początku jest jedna opowieść, nie wszystkie.
+
 ## 1.30.1
 
 *9.11.2026 · współpracuje z aplikacją Strom 3.26.0.*

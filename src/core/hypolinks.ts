@@ -8,17 +8,18 @@
 // than none — and leaves the rest to the agent as tasks.
 
 import path from "node:path";
-import type { Family, Hypothesis, HypothesisVariant, Person, Source, Task, VariantLink } from "./model.ts";
+import type { Family, Hypothesis, HypothesisPrevious, HypothesisVariant, HypothesisWrote, Person, Source, Task, VariantLink } from "./model.ts";
 import { UsageError } from "./errors.ts";
 import { create, normId, update } from "./records.ts";
-import { birthEvent, familiesAsChild, familiesAsPartner } from "./people.ts";
+import { birthEvent, closesCircle, familiesAsChild, familiesAsPartner, isBirthFamily } from "./people.ts";
 import { foldText } from "./text.ts";
 import { phrase } from "./phrases.ts";
 import { liveHolder } from "./lock.ts";
 import { liveWorkers, runsAtWork } from "./workers.ts";
 import { readJson } from "./json.ts";
 import { writableUnasked } from "./integrity.ts";
-import { TREE_FILE, typeOfId, VERSION, type Tree } from "./tree.ts";
+import { now, TREE_FILE, typeOfId, VERSION, type Tree } from "./tree.ts";
+import { addChild, addFamily } from "./actions.ts";
 
 /**
  * A variant whose link the tree records already: it gets none (nothing uncertain to show — strom hypothesis show marks
@@ -672,12 +673,15 @@ export function linkHints(tree: Tree, h: Hypothesis, labels: string[]): string[]
 // ── a decision the user made: what goes on the tree ───────────────────────
 
 /**
- * The sources a hypothesis names (in its question, variants, support, notes, decision) that none of the facts of its
+ * The sources a decided hypothesis names (its chosen variant, its decision) that none of the facts of its
  * people cite — said when it is decided (found live: a fallen soldier's memorial and a casualty list kept in the
  * research's notes while who he was stayed a hypothesis; decided by a marriage entry, his death was never written).
  */
 export function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; sources: string[] }[] {
-  const text = [h.question, h.decision ?? "", ...h.variants.flatMap((v) => [v.claim, ...v.support, ...v.against]), ...h.notes.map((n) => n.text)].join("\n");
+  // the chosen variant's own (its claim, what supports it) and the decision's: never another variant's, what speaks
+  // against it, nor an earlier decision kept in the notes — a decision changed would cite the old one's sources
+  const v = h.variants.find((x) => x.label === h.chosen);
+  const text = [h.decision ?? "", ...(v ? [v.claim, ...v.support] : [])].join("\n");
   const named = [...new Set(text.match(/(?<![\p{L}\p{N}])S\d{4,}(?!\p{N})/gu) ?? [])].filter((s) => {
     const src = tree.get<Source>(s);
     return src?.type === "source" && !src.retracted;
@@ -741,4 +745,236 @@ export function decidedToRecord(tree: Tree): DecidedToRecord[] {
     if (links.length || sources.length) out.push({ hypothesis: h, links, sources });
   }
   return out;
+}
+
+/**
+ * What of a decided hypothesis is the agent's to record still (said to the person after the decision, never in an
+ * archive): links of its variant not on the tree, sources it names its people's facts do not cite, both, or nothing.
+ */
+export function leftToAgent(tree: Tree, id: string): "both" | "links" | "sources" | undefined {
+  const todo = decidedToRecord(tree).find((x) => x.hypothesis.id === id);
+  if (!todo) return undefined;
+  return todo.links.length && todo.sources.length ? "both" : todo.links.length ? "links" : "sources";
+}
+
+// ── decided in the Strom app (spec 074) ────────────────────────────────────
+
+/**
+ * Whether a hypothesis is one the Strom app may decide by its link with a variant (strom-research://hypothesis?…&
+ * do=decide&variant=): a pick among closed choices — every link of every variant says whose child or which couple. One
+ * whose variants connect nothing is a pick too (spec 074 K1.6): only the decision is written, the tree stays as it is.
+ * Two records of one person (same) and siblings are decided in the research (a merge of people follows them), and so is
+ * one where any variant says either.
+ */
+export function pickableInApp(h: Hypothesis): boolean {
+  return h.variants.every((v) => (v.links ?? []).every((l) => l.kind === "child" || l.kind === "partners"));
+}
+
+/** The links of a decided hypothesis's variant the tree records now (by the decision itself or by other work). Of an abandoned or open one: none. */
+export function recordedOfDecision(tree: Tree, h: Hypothesis): VariantLink[] {
+  if (h.state !== "decided") return [];
+  const v = h.variants.find((x) => x.label === h.chosen);
+  return (v?.links ?? []).filter((l) => recordedNow(tree, l));
+}
+
+// ── the person's decision on the tree at once (spec 074 K1.5) ──────────────
+
+/** The sources (S…) a variant's support cites that the research has. */
+export function citedInSupport(tree: Tree, v: HypothesisVariant): string[] {
+  const found = v.support.join("\n").match(/(?<![\p{L}\p{M}\p{N}])S\d+(?![\p{L}\p{M}\p{N}])/gu) ?? [];
+  const named = [...new Set(found.map((s) => `S${s.slice(1).replace(/^0+(?=\d)/, "").padStart(4, "0")}`))];
+  return named.filter((id) => {
+    const src = tree.get(id);
+    return src?.type === "source" && !src.retracted;
+  });
+}
+
+/** What a person's decision wrote on the tree, and the links it left (the agent's work, or refused by the tree: why). */
+export interface DecisionWritten {
+  wrote: HypothesisWrote[];
+  left: { link: VariantLink; why: string }[];
+}
+
+/** One link of whose child or which couple written as an agent records it (strom family child / family add --cite S…). */
+function writeLink(tree: Tree, l: VariantLink, source: string | undefined): Omit<HypothesisWrote, "at"> {
+  const citation = source ? { source } : undefined;
+  if (l.kind !== "child") {
+    const f = addFamily(tree, { partners: [...new Set(l.persons)], children: [], citation });
+    return { link: l, family: f.id, made: true, ...(source ? { cited: [source] } : {}) };
+  }
+  const there: Family | undefined = l.family ? tree.get<Family>(l.family) : l.parents?.length ? familyOf(tree, [...new Set(l.parents)]) : undefined;
+  const usable = usableFamily(there);
+  const into = there?.mergedInto;
+  if (l.family && !usable) throw new UsageError(`${l.family} is ${into ? `merged into ${into}` : "no family of the tree"}`);
+  if (there && usable) {
+    const had = (there.citations ?? []).some((c) => c.source === source && !c.locator);
+    addChild(tree, there.id, l.person, "birth", citation);
+    return { link: l, family: there.id, ...(source && !had ? { cited: [source] } : {}) };
+  }
+  if (!l.parents?.length) throw new UsageError(`whose child ${l.person} is: no parents named`);
+  const f = addFamily(tree, { partners: [...new Set(l.parents)], children: [l.person], citation });
+  return { link: l, family: f.id, made: true, ...(source ? { cited: [source] } : {}) };
+}
+
+/**
+ * The links of the variant the person decided for, written on the tree at once — as an agent records them (the child
+ * into its family, a new family of the parents or of the couple, citing the first source its support cites), without
+ * an agent, in an archive too. Whose child and which couple only: two records of one person (a merge) and siblings stay
+ * the agent's; a link the tree refuses (the child has other birth parents, would be their own ancestor) stays too, with
+ * why. A link the tree records already is left as it is. Under the tree's lock; the caller commits — one command, one
+ * commit, put back whole if it fails.
+ */
+export function writeDecision(tree: Tree, v: HypothesisVariant): DecisionWritten {
+  const out: DecisionWritten = { wrote: [], left: [] };
+  const source = citedInSupport(tree, v)[0];
+  return tree.withTreeLock(() => {
+    const written: Omit<HypothesisWrote, "at">[] = [];
+    for (const l of v.links ?? []) {
+      if (recordedNow(tree, l)) continue;
+      if (l.kind !== "child" && l.kind !== "partners") {
+        out.left.push({ link: l, why: l.kind === "same" ? "two records of one person are merged by the agent (strom person merge)" : "siblings are recorded by the agent (strom family add --child …)" });
+        continue;
+      }
+      // the tree's checks come before anything is written (strom family add / child): a refusal writes nothing
+      try {
+        written.push(writeLink(tree, l, source));
+      } catch (e) {
+        if (!(e instanceof UsageError)) throw e;
+        out.left.push({ link: l, why: e.message });
+      }
+    }
+    // stamped after the last write: whatever changes the link's family or people later is other work
+    const at = now();
+    out.wrote = written.map((w) => ({ ...w, at }));
+    return out;
+  });
+}
+
+/** The people a written link joins: the child and its parents, or the couple. */
+function linkPeople(tree: Tree, w: HypothesisWrote): Set<string> {
+  const f = tree.get<Family>(w.family);
+  return new Set(w.link.kind === "child" ? [w.link.person, ...(f?.partners ?? [])] : linkIds(w.link));
+}
+
+/**
+ * Whether other work stands on a link the person's decision wrote (spec 074 K2.2): what rests on the link itself — its
+ * family changed after it (another child, a fact, a source of the family, its partners), its family or one of its
+ * people merged (into another record, or another one into them), or a family made since with one of them (more people
+ * joined through it). A person's own facts, names and sources do not rest on whose child or which couple they are: a
+ * birth added to the child keeps the link the decision's, taken off with it. Then the link is not taken off: the
+ * decision is changed or decided in the research, never undone over the work. A family gone meanwhile (taken off by
+ * the person): none.
+ */
+export function workOnLink(tree: Tree, w: HypothesisWrote): boolean {
+  const f = tree.get<Family>(w.family);
+  if (!f || f.type !== "family") return false;
+  if (f.mergedInto) return true;
+  if (f.retracted) return false;
+  if (f.updated > w.at) return true;
+  if (w.made && (f.events.some((e) => !e.retracted) || f.notes.length)) return true;
+  const people = linkPeople(tree, w);
+  for (const id of people) if (tree.get<Person>(id)?.mergedInto) return true;
+  // another record merged into one of its people since (the merged one is kept as a stub that points to them)
+  if (tree.list<Person>("person").some((p) => !!p.mergedInto && people.has(p.mergedInto) && p.updated > w.at)) return true;
+  return tree.list<Family>("family").some((g) => g.id !== f.id && !g.retracted && g.created > w.at && (g.partners.some((x) => people.has(x)) || g.children.some((c) => people.has(c.person))));
+}
+
+/**
+ * What changing the person's decision to another variant would leave (spec 074 K1.5, said before it is changed): the
+ * links the decision wrote that stay on the tree (other work stands on them), and the links of the new variant that
+ * cannot be written because of them — the child stays the child of the family the old link put it in. Nothing blocked:
+ * the change takes the old links off and writes the new ones (or the tree refuses them for a reason of its own).
+ */
+export function changeKeeps(tree: Tree, h: Hypothesis, v: HypothesisVariant | undefined): { kept: HypothesisWrote[]; blocked: VariantLink[] } {
+  if (h.state !== "decided" || h.chosen === v?.label) return { kept: [], blocked: [] };
+  const kept = (h.wrote ?? []).filter((w) => workOnLink(tree, w));
+  const children = new Set(kept.flatMap((w) => (w.link.kind === "child" ? [w.link.person] : [])));
+  const blocked = (v?.links ?? []).filter((l) => l.kind === "child" && children.has(l.person) && !recordedNow(tree, l));
+  return { kept, blocked };
+}
+
+/**
+ * Why a link of a decided variant is not on the tree (said to the person in their language): two records of one person
+ * and siblings are the agent's, a child that has birth parents in another family, one who would be their own ancestor.
+ */
+export function whyNotWritten(tree: Tree, l: VariantLink): { code: "merge" | "siblings" | "parents" | "ancestor" | "other"; family?: string } {
+  if (l.kind === "same") return { code: "merge" };
+  if (l.kind === "siblings") return { code: "siblings" };
+  if (l.kind !== "child") return { code: "other" };
+  const there = l.family ? tree.get<Family>(l.family) : l.parents?.length ? familyOf(tree, [...new Set(l.parents)]) : undefined;
+  const other = familiesAsChild(tree, l.person).find((f) => f.id !== there?.id && usableFamily(f) && isBirthFamily(f, l.person));
+  if (other) return { code: "parents", family: other.id };
+  if (closesCircle(tree, there?.partners ?? [...new Set(l.parents ?? [])], l.person)) return { code: "ancestor" };
+  return { code: "other" };
+}
+
+/** The links of the person's decision taken off the tree, and those kept because other work stands on them. */
+export interface DecisionUndone {
+  undone: HypothesisWrote[];
+  kept: HypothesisWrote[];
+}
+
+/**
+ * What the person's decision wrote, taken off again (the decision changed or taken back): a family it made withdrawn,
+ * a child it put into a family of the tree taken out of it with the source it cited there. A link other work stands on
+ * is kept (workOnLink) — it stays the tree's own. Under the tree's lock; the caller commits.
+ */
+export function undoDecision(tree: Tree, h: Hypothesis, reason: string): DecisionUndone {
+  const out: DecisionUndone = { undone: [], kept: [] };
+  return tree.withTreeLock(() => {
+    for (const w of h.wrote ?? []) {
+      const f = tree.get<Family>(w.family);
+      if (!f || f.type !== "family" || (f.retracted && !f.mergedInto)) continue;
+      if (workOnLink(tree, w)) {
+        out.kept.push(w);
+        continue;
+      }
+      if (w.made) update<Family>(tree, f.id, "family", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "family.retract", summary: `${f.id} retracted: ${reason}`, reason, targets: linkIds(w.link) });
+      else if (w.link.kind === "child") {
+        const child = w.link.person;
+        const cited = new Set(w.cited ?? []);
+        update<Family>(
+          tree,
+          f.id,
+          "family",
+          (x) => {
+            const citations = (x.citations ?? []).filter((c) => !(cited.has(c.source) && !c.locator));
+            const { citations: _c, ...rest } = x;
+            return { ...rest, children: x.children.filter((c) => c.person !== child), ...(citations.length ? { citations } : {}) };
+          },
+          { op: "family.edit", summary: `${f.id} -${child}`, reason, targets: [child] },
+        );
+      }
+      out.undone.push(w);
+    }
+    return out;
+  });
+}
+
+/**
+ * Why a decided hypothesis cannot be opened again (spec 074 K2.2, the Strom app's _REOPEN): links of its variant the
+ * tree records that the decision did not write itself (an agent recorded them, with its sources: `tree`), or links it
+ * wrote that other work stands on (`work`) — with how many. None: it can be taken back (what it wrote taken off).
+ * An abandoned one always can.
+ */
+export function reopenBlock(tree: Tree, h: Hypothesis): { type: "tree" | "work"; count: number } | undefined {
+  if (h.state !== "decided") return undefined;
+  const mine = new Set((h.wrote ?? []).map((w) => linkKey(w.link)));
+  const other = recordedOfDecision(tree, h).filter((l) => !mine.has(linkKey(l)));
+  if (other.length) return { type: "tree", count: other.length };
+  const work = (h.wrote ?? []).filter((w) => workOnLink(tree, w)).length;
+  return work ? { type: "work", count: work } : undefined;
+}
+
+/** The decision of a hypothesis as it is now, kept when a later one replaces it (none of an open one). */
+export function previousOf(h: Hypothesis): HypothesisPrevious | undefined {
+  if (h.state === "open") return undefined;
+  return {
+    state: h.state,
+    ...(h.state === "decided" && h.chosen ? { chosen: h.chosen } : {}),
+    ...(h.decision ? { decision: h.decision } : {}),
+    ...(h.decidedAt ? { at: h.decidedAt } : {}),
+    by: agentDecided(h) ? "agent" : "user",
+    ...(h.decidedIn === "app" && !agentDecided(h) ? { in: "app" as const } : {}),
+  };
 }

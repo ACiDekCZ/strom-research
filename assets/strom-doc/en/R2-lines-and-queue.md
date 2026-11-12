@@ -120,8 +120,14 @@ Otherwise a story waits until the research has nothing to do. After 5 sessions w
 story comes up first (when the agent works alone). This does not apply with the priority strategy.
 
 - **Since:** research 1.1.0
+- **From research 1.31.0:** in a story turn only the first story in the order goes first, the others stay behind the
+  research. The order in which `strom run` takes the tasks (with the story turn and with history tasks when they are
+  due) is shown also by the menu before `strom run` ("Next in the queue, in the order the agent takes them:") and by
+  the queue in the Strom app ([S4.2](S4-research-from-the-app.md#S4.2)); the bridge's queue says at a task whether it
+  is a story or history. `strom task next` and `strom task list` have the conversation's order: without the story
+  turn.
 
-<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 -->
+<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 · 1.31.0: research 5f48cdaf src/core/queue.ts rankTasks (turnStory: jen první vyprávění tahu), RUN_TURNS, runOrder; src/cli/menu.ts (ui.run.next), src/core/live.ts (/status queue[], GET /queue, kind story|history), src/commands/tasks.ts CONVERSATION_ORDER (task next, task list) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R2.2.3"></a>
 ### R2.2.3 Tasks that wait outside the queue
@@ -148,8 +154,11 @@ In a research with several lines, **work off the lines** is a task about people 
 and her family) that helps no line. Such work comes **after the work on the lines**.
 
 - **Limits:** a task helps a line, and so is not off the lines, when it names a hypothesis or conflict of the line,
-  joins people to the tree, or the agent wrote how it helps the line (an ancestor's sibling as godparent or witness,
-  the same house, an ancestor's surname). The sibling's own family does not help the line.
+  joins people to the tree through a person of the line or that person's partner, or the agent wrote how it helps
+  the line (an ancestor's sibling as godparent or witness, the same house, an ancestor's surname). The sibling's own
+  family does not help the line: joining people to a side branch (for example to an ancestor's sibling) belongs to that
+  branch and comes in turn by its choice ([R2.3.1](#R2.3.1)). A hypothesis of the line and a reason the agent wrote
+  still count.
 - **Choices:** **at the end, after the lines** (default) · **as the lines' work** · **never** (the tasks are not taken,
   nothing is deleted).
 - **Controls:** terminal: **Settings → The agent working alone → Work off the lines**,
@@ -159,8 +168,14 @@ and her family) that helps no line. Such work comes **after the work on the line
 - **From research 1.26.0:** a new default choice **occasionally, one in a while**: one task off the lines per 10 sessions
   (`queue.offLineShare`), from the nearest branch. The spouse of an ancestor also belongs to work off the lines
   ([R2.1.3](#R2.1.3)).
+- **From research 1.31.0:** only joining people to a person of the line or to that person's partner helps the line;
+  before, joining them to anyone in the tree was enough, also to an ancestor's sibling. The bridge in `/status` says
+  at the task being worked on how it helps the line (the feature `working.helps`). App 3.27.0 shows it in the
+  **Research overview** in the row **Now** ("helps the direction … · connects people to the tree", "outside the
+  directions · branch …", [S4.1](S4-research-from-the-app.md#S4.1)) and in the introduction of the choice of work
+  outside the directions ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
 
-<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast -->
+<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast · výzkum 1.31.0: src/core/offline.ts (b: joins jen k osobě linie nebo partnerovi, jinak větev; a, c mají přednost), HelpsBy, /status working[].helps, branch · commity 576cf7e5, 2e54c8d5 · CHANGELOG.cs.md 1.31.0 „Připojení rodiny k vedlejší větvi je práce mimo linie“ · spec 036 K1.7 -->
 
 <a id="R2.3.1"></a>
 ### R2.3.1 A choice for one branch and one task

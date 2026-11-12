@@ -41,8 +41,10 @@ score.
   not man against woman, years of birth at most 3 apart and no differing global ID; otherwise it is a proposal with a
   score of at most 79. The record identifier and `RIN` add 25 points to a name match only for files of the same
   program. Families are not paired by ID ([S6.7](S6-tree-from-another-program.md#S6.7)).
+- **From app 3.27.0:** a program's ID (`_UID`, `UID`, `_FSFTID`, `AFN`, `EXID`) that more than one person in
+  the tree carries does not say which of them it is: it does not make a match by itself, it only offers it.
 
-<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons -->
+<!-- zdroj: app:src/merge/matching.ts:318 findMatches, :781 (85 high, 55 medium), :790 calculateMatchScore, :618 UNKNOWN_NAME_MATCH_SCORE · strings.ts merge.highConfidence, merge.mediumConfidence, merge.lowConfidence, merge.matchReasons · 3.27.0: app:b5595ca1 src/merge/matching.ts idNamesSeveral (víc osob stromu se stejným silným ID → jen idCandidate), findDirectMatches · src/merge/id-match.ts STRONG_TAGS · CHANGELOG.cs.md 3.27.0 · spec 066 K3.2 -->
 
 <a id="A8.3"></a>
 ## A8.3 What a person decides
@@ -77,6 +79,9 @@ Besides people and relationships, the lists that belong to the whole tree are me
 
 - **Sources:** the same source (the same call number, otherwise the same description) is not doubled; citations are
   moved to the kept source and a missing transcription and date are filled in.
+- **From app 3.27.0:** a source that differs from the kept one only in its default reliability is the same source and
+  is not doubled; the moved citations keep their reliability ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Another
+  record date or other lines of the citation still give a source of its own.
 - **Places:** coordinates, place records and other names of places are joined; where both trees know the same place,
   the target tree wins.
 - **Surname spellings** ([A4.5](A4-surnames-and-families.md#A4.5)) are joined; groups that overlap are combined.
@@ -91,4 +96,4 @@ Besides people and relationships, the lists that belong to the whole tree are me
   the app shows the card **What next** ([S6.4](S6-tree-from-another-program.md#S6.4)). A manual merge of two people
   ([A5.6](A5-tree-check.md#A5.6)) does not join notes.
 
-<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) -->
+<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations -->

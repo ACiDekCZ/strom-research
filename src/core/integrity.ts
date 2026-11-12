@@ -13,6 +13,7 @@
 //   Every operation of every log and every record file, plus the commit seal.
 
 import { opsLogs } from "./opslog.ts";
+import { historyLostError, lostOnRepair } from "./repair.ts";
 import fs from "node:fs";
 import path from "node:path";
 import * as git from "./git.ts";
@@ -589,6 +590,11 @@ export function assertIntact(tree: Tree): void {
     : tree.key && errors.some((f) => f.code === "foreign-commit") && lastSealed(tree, tree.key).inTerminal
       ? REPAIR_IN_TERMINAL_HINT
       : undefined;
+  // the history (git) older than the research: strom repair would remove work — the way that loses nothing instead
+  if (!way) {
+    const lost = lostOnRepair(tree);
+    if (lost) throw historyLostError(lost);
+  }
   // a person reads it in the research's language (ui.error.tree.changed-outside), the way said as one of three hints
   const inTerminal = way !== undefined && (way === REPAIR_IN_TERMINAL_HINT || way.startsWith("the user runs in their terminal"));
   throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {

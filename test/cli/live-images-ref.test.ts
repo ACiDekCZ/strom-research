@@ -100,7 +100,7 @@ test("the file by reference names the same images as the whole file, byte for by
   try {
     const st = JSON.parse((await ask(`${info.url}/status`)).text) as { features: string[] };
     assert.ok(st.features.includes("ged.imagesByHash"));
-    assert.equal(BRIDGE_FEATURES.at(-1), "ged.imagesByHash", "appended");
+    assert.ok(BRIDGE_FEATURES.indexOf("ged.imagesByHash") > BRIDGE_FEATURES.indexOf("ged.etag"), "appended");
 
     const whole = await ask(`${info.url}/tree.ged`);
     const slim = await ask(`${info.url}/tree.ged?images=ref`);

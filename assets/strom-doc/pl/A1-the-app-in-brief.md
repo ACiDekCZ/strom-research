@@ -10,11 +10,18 @@ Opisuje aplikację Strom 3.21.2 i badanie 1.25.2; zmiany z nowszej wersji mają 
 Aplikacja Strom to drzewo genealogiczne w przeglądarce (stromapp.info) lub w jednym pliku HTML. Drzewa zapisują się
 w pamięci przeglądarki na tym urządzeniu. Nie ma konta ani serwera z danymi.
 
-- **Granice:** pamięć przeglądarki należy do jednej przeglądarki na jednym urządzeniu. Na inne urządzenie drzewo
-  przenosi się plikiem (kopia zapasowa JSON, GEDCOM, samodzielny HTML, [A7](A7-book-pages-and-export.md)).
-- **Obowiązuje od:** aplikacja 1.0.0
+- **Granice:**
+  - pamięć przeglądarki należy do jednej przeglądarki na jednym urządzeniu. Na inne urządzenie drzewo przenosi się
+    plikiem (kopia zapasowa JSON, GEDCOM, samodzielny HTML, [A7](A7-book-pages-and-export.md));
+  - szyfrowanie hasłem (**Szyfruj dane**, **Odblokuj dane**, eksport **Zaszyfruj hasłem**, zaszyfrowany plik) działa
+    tylko pod bezpiecznym adresem: przez https, na `localhost` lub `127.0.0.1` i w pliku otwartym z dysku. Pod adresem
+    `http://` w sieci (np. aplikacja na własnym serwerze w sieci domowej) przeglądarka na nie nie pozwala. Okno hasła
+    mówi to od razu po otwarciu: „Szyfrowanie działa tylko przez https lub na tym komputerze (localhost). Ten adres
+    nie jest bezpieczny.” Zapisanie drzewa ze zdjęciami szyfrowania nie potrzebuje.
+- **Obowiązuje od:** aplikacja 1.0.0; 3.27.0: komunikat o niezabezpieczonym adresie (wcześniej hasło zgłaszało tam
+  „Nieprawidłowe hasło”)
 
-<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 -->
+<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 · šifrování: app:src/crypto.ts isCryptoAvailable (isSecureContext, crypto.subtle), classifyCryptoError (jen OperationError = špatné heslo) · src/crypto-errors.ts cryptoFailureText, resetPasswordError (hláška při otevření dialogu), requireCrypto · src/ui/encryption-ui.ts, src/ui/import-export.ts · strings.ts encryption.enable, unlockData, encryptToggle, wrongPassword, insecureContext · commity 266d6a76, cceadca6 (SHA-256 obrázků bez crypto.subtle) · GitHub #13 · dirigent:prace/1110-app-github-11-13 (https, localhost/127.0.0.1, soubor z disku) -->
 
 <a id="A1.2"></a>
 ## A1.2 Osoby, relacje i rody
@@ -30,7 +37,8 @@ rodu przez małżeństwo. Nazwiska zna w formie żeńskiej i męskiej (Horák i 
 
 Aplikacja pokazuje zawsze otoczenie jednej **osoby w centrum**, nie całe drzewo naraz. Widoki **Rodzina**,
 **Potomkowie**, **Oś czasu**, **Wachlarz** i **Mapa** czytają to samo otoczenie na różne sposoby. Widok może
-wyróżnić jeden ród.
+wyróżnić jeden ród. Od aplikacji 3.27.0 widok **Tabela** pokazuje całe drzewo w wierszach osób, związków, wydarzeń
+lub źródeł, z wartościami obliczonymi, kompletnością i ustaleniami kontroli.
 
 - Szczegółowo: [A6](A6-views.md).
 
@@ -77,7 +85,7 @@ treści części A, R i S, **Słowniczek pojęć** i wyszukiwanie według słowa
     od …”).
 - **Obsługa:** aplikacja: **Akcje → Jak działa Strom**, na telefonie **Więcej → Jak działa Strom** albo **O aplikacji
   → Jak działa Strom**. Kółko **?** w nagłówku otwiera pomoc od razu przy zasadzie: w Przeglądzie badania i małym
-  panelu przy sekcjach **Kolejka** ([R2.4](R2-lines-and-queue.md#R2.4)), **Czeka na decyzję** ([R6.4](R6-awaiting-action.md#R6.4))
+  panelu przy sekcjach **Kolejka** ([R2.4](R2-lines-and-queue.md#R2.4)), **Czeka na załatwienie** ([R6.4](R6-awaiting-action.md#R6.4))
   i **Teraz** ([R7](R7-when-the-agent-works.md), przy wstrzymaniu [R7.6](R7-when-the-agent-works.md#R7.6)), w oknie **Miejsca** ([R4.5](R4-places.md#R4.5)), w menedżerze miejsc
   ([R4.4](R4-places.md#R4.4)), w panelu sprzeczności ([R5.3](R5-conflicts.md#R5.3)) i w **Co wie badanie → Sprzeczności**
   ([R5.6](R5-conflicts.md#R5.6)). W badaniu: `strom doc`

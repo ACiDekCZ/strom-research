@@ -101,7 +101,7 @@ import {
 import { registerImages, wakeWaiting } from "./media.ts";
 import { autoCommit } from "../cli/commit.ts";
 import type { CommandDef } from "../cli/registry.ts";
-import { activeFetches, askStop, BACKGROUND_ENV, backgroundLog, backgroundOf, endedFetches, FETCH_BATCH, FETCH_SILENT_MS, isRunWorker, markEnded, markFetch, processAlive, watchBackground, withRegistered, type ActiveFetch, type BackgroundOf, type EndedFetch } from "../core/fetching.ts";
+import { activeFetches, askStop, BACKGROUND_ENV, backgroundLog, backgroundOf, BOOK_GUESS, endedFetches, FETCH_BATCH, FETCH_SILENT_MS, HEAVY_IMAGE, heavySaid, isRunWorker, markEnded, markFetch, processAlive, spanSaid, watchBackground, withRegistered, type ActiveFetch, type BackgroundOf, type EndedFetch, type FetchHeavy } from "../core/fetching.ts";
 import { finishAsked } from "../core/clock.ts";
 import { isLiveWorker } from "../core/workers.ts";
 import { stromLauncher } from "../core/self.ts";
@@ -1899,19 +1899,6 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   };
 }
 
-/** More requests than this for one whole image: tiles, most likely — hours for a book (DISCOVERY.md, step 2). */
-export const HEAVY_IMAGE = 10;
-/** A book of this many images, for the time a book takes when the book's own number is not known here. */
-const BOOK_GUESS = 200;
-
-/** A time said: seconds, minutes, else hours. */
-function spanSaid(ms: number): string {
-  const secs = Math.round(ms / 1000);
-  if (secs < 90) return `${secs} s`;
-  if (secs < 90 * 60) return `${Math.round(secs / 60)} min`;
-  return `${Math.round(secs / 360) / 10} h`;
-}
-
 /**
  * A test's fetch whose one image cost more than HEAVY_IMAGE requests (as this run's measure counted them: what went to
  * the archive's hosts), or that got no image whole within a cap past it: said to the agent with what it means for a
@@ -1924,26 +1911,78 @@ function heavyImage(ctx: Context, c: Connector, book: string, r: RunReport, sent
   const capped = !got && !!r.stopped && max >= HEAVY_IMAGE && Math.max(r.requests, r.sent) >= max;
   if (got ? sent / got <= HEAVY_IMAGE : !capped) return undefined;
   const per = got ? sent / got : undefined;
-  const least = per ?? max;
-  const pace = connectorPace(ctx, c, human);
-  const size = bookImagesOf(ctx, c, book, r);
-  const n = size ?? BOOK_GUESS;
-  const bookMs = requestsSpan(Math.ceil(least * n), pace, [], 0);
-  const imageMs = requestsSpan(Math.ceil(least) + 1, pace, [], 0);
-  const cost = per !== undefined ? `one image cost ${nf(per)} requests` : `not one image whole within ${max} requests: one costs more (--max up to 50 to see how many)`;
+  const cost = heavyCost(ctx, c, per ?? max, per === undefined, bookImagesOf(ctx, c, book, r.books), human);
   return {
     text: lines(
-      `⚠ ${cost} (tiles, most likely) — at its pace (${paceText(pace)}) ${per !== undefined ? "about" : "at least"} ${spanSaid(imageMs)} an image, ${spanSaid(bookMs)} for ${size !== undefined ? `this book's ${size} images` : `a book of ${BOOK_GUESS} images`}`,
+      `⚠ ${per !== undefined ? `one image cost ${nf(per)} requests` : `not one image whole within ${max} requests: one costs more (--max up to 50 to see how many)`} ${cost.said}`,
       "  before tiles look again for one request an image (DISCOVERY.md, step 2): the portal's own link to the full image, a download of the whole book (ZIP, PDF), a IIIF image (full/max)",
       "  tiles only when nothing else exists: then say in README.md what an image costs, and tell the user how long a book takes",
     ),
-    data: { ...(per !== undefined ? { perImage: Math.round(per * 100) / 100 } : { atLeast: max }), ...(size !== undefined ? { bookImages: size } : {}), bookMs },
+    data: { ...(per !== undefined ? { perImage: cost.data.perImage } : { atLeast: max }), ...(cost.data.bookImages !== undefined ? { bookImages: cost.data.bookImages } : {}), bookMs: cost.data.bookMs },
+  };
+}
+
+/**
+ * What an image of `least` requests means at the connector's pace (`atLeast`: it costs more than that): the rest of
+ * the sentence after the cost ("(tiles, most likely) — at its pace … an image, … for a book"), and its data. `size`:
+ * the book's own number of images where it is known, else a book of BOOK_GUESS.
+ */
+function heavyCost(ctx: Context, c: Connector, least: number, atLeast: boolean, size: number | undefined, human: Map<string, Pace>): { said: string; data: FetchHeavy } {
+  const pace = connectorPace(ctx, c, human);
+  const bookMs = requestsSpan(Math.ceil(least * (size ?? BOOK_GUESS)), pace, [], 0);
+  const imageMs = requestsSpan(Math.ceil(least) + 1, pace, [], 0);
+  return {
+    said: `(tiles, most likely) — at its pace (${paceText(pace)}) ${atLeast ? "at least" : "about"} ${spanSaid(imageMs)} an image, ${spanSaid(bookMs)} for ${size !== undefined ? `this book's ${size} images` : `a book of ${BOOK_GUESS} images`}`,
+    data: { perImage: Math.round(least * 100) / 100, ...(size !== undefined ? { bookImages: size } : {}), bookMs },
+  };
+}
+
+/**
+ * strom fetch's own image of many requests (tiles, most likely), said to the agent once a run as connector test says
+ * it — a connector built before that test said it goes on without a word otherwise. From the run's own measure
+ * (FetchMeter): from its second image what each image after the first cost (a manifest, robots.txt asked once at the
+ * start are no image's), a run of one image at its end; nothing is asked of the archive for it. Said on stderr (a
+ * fetch in the background: into its log), its mark carries it (strom fetch --status, the brief), the result's data too.
+ */
+function heavyFetch(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string | undefined, meter: FetchMeter, human: Map<string, Pace>, say: (s: string) => void, background: boolean) {
+  let first: number | undefined;
+  let found: FetchHeavy | undefined;
+  const tell = (per: number, books: RunReport["books"]) => {
+    if (found || per <= HEAVY_IMAGE) return;
+    const book = String(request.book);
+    const own = recordset ? ctx.tree().get<RecordSet>(recordset)?.images : undefined;
+    const size = Number.isInteger(own) && own! > 0 ? own : bookImagesOf(ctx, c, book, books);
+    const cost = heavyCost(ctx, c, per, false, size, human);
+    found = cost.data;
+    say(
+      lines(
+        `  ⚠ connector ${c.name}: one image costs ${nf(per)} requests ${cost.said}`,
+        `    this fetch goes on at that pace${background && recordset ? ` in the background — stop it: strom fetch --stop ${recordset}` : ""}`,
+        `    a connector of one request an image first (DISCOVERY.md, step 2): the portal's own link to the full image, a download of the whole book (ZIP, PDF), a IIIF image (full/max) — then strom connector test ${c.name} --fetch ${shellArg(book)} --images 1`,
+      ) + "\n",
+    );
+    return found;
+  };
+  return {
+    /** An image came (`got`: how many so far): from the second on, what one costs. */
+    image(got: number): FetchHeavy | undefined {
+      if (found) return undefined;
+      if (got <= 1) {
+        first = meter.requests();
+        return undefined;
+      }
+      return first === undefined ? undefined : tell((meter.requests() - first) / (got - 1), []);
+    },
+    /** The run ended: one image only — what the whole run cost. */
+    end(r: RunReport): FetchHeavy | undefined {
+      return !found && r.images.length === 1 ? tell(meter.requests() + (r.pages ?? 0) || r.requests, r.books) : undefined;
+    },
   };
 }
 
 /** How many images a book of a connector has, as this run (a book it gave) or the research (a record set of it) knows. */
-function bookImagesOf(ctx: Context, c: Connector, book: string, r: RunReport): number | undefined {
-  const given = r.books.find((b) => b.id === book && Number.isInteger(b.images) && b.images! > 0)?.images;
+function bookImagesOf(ctx: Context, c: Connector, book: string, books: RunReport["books"]): number | undefined {
+  const given = books.find((b) => b.id === book && Number.isInteger(b.images) && b.images! > 0)?.images;
   if (given) return given;
   if (!ctx.hasTree()) return undefined;
   const tree = ctx.tree();
@@ -2401,6 +2440,10 @@ function fetchBatches(ctx: Context, c: Connector, request: Extract<ConnectorRequ
     waiting(until: number) {
       mark.beat({ waitUntil: until });
     },
+    /** One image costs many requests (tiles): its mark says it (strom fetch --status, the brief). */
+    heavy(h: FetchHeavy) {
+      mark.beat({ registered: done.size, heavy: h });
+    },
     /** The run is over: what it gave and no batch holds is registered; a placeholder an earlier batch took withdrawn. */
     finish(images: FetchedImage[]): Registered {
       const kept = new Set(images.map((i) => i.file));
@@ -2668,7 +2711,8 @@ async function joinFetch(ctx: Context, recordset: string, joined: { images: numb
 function activeLine(m: ActiveFetch): string {
   const since = m.since ? ` · since ${clock(Date.parse(m.since))}` : "";
   const state = m.waitUntil && m.waitUntil > Date.now() ? ` · waits for the archive until ${clockUp(m.waitUntil)}, then goes on by itself` : m.yielding ? " · waits while a fetch in the foreground asks the archive" : "";
-  return `${m.recordset} (${m.connector} ${m.book}): ${m.registered}/${m.images.length} images registered · ${m.background ? `in the background${m.task ? ` for ${m.task}` : ""}${m.session ? ` (session ${m.session})` : ""}` : "in the foreground"}${since}${state} · pid ${m.pid}`;
+  const heavy = m.heavy ? ` · ${heavySaid(m.heavy, m.background ? `strom fetch --stop ${m.recordset}` : undefined)}` : "";
+  return `${m.recordset} (${m.connector} ${m.book}): ${m.registered}/${m.images.length} images registered · ${m.background ? `in the background${m.task ? ` for ${m.task}` : ""}${m.session ? ` (session ${m.session})` : ""}` : "in the foreground"}${since}${state} · pid ${m.pid}${heavy}`;
 }
 
 function endedLine(e: EndedFetch): string {
@@ -2677,7 +2721,7 @@ function endedLine(e: EndedFetch): string {
     ? ` · ${e.background ? "in the background" : "in the foreground"}, last heard ${clock(Date.parse(e.at))} — interrupted: ${e.interrupted === "gone" ? `its process (pid ${e.pid}) ended without a word (killed, or the computer stopped)` : `nothing heard of it for ${FETCH_SILENT_MS / 60_000} min (pid ${e.pid})`}`
     : ` · ended ${clock(Date.parse(e.at))}${e.stopped ? ` — stopped: ${e.stopped}` : e.exitCode ? ` — exit ${e.exitCode}` : ""}`;
   const again = `strom fetch ${e.connector} ${shellArg(e.book)} --images ${imagesArg(e.missed)} --recordset ${e.recordset}${e.interrupted && e.background ? " --background" : ""}`;
-  return `${e.recordset} (${e.connector} ${e.book}): ${e.registered.length}/${e.images.length} images registered${e.registered.length ? ` (images ${runs(e.registered)})` : ""}${how}${e.missed.length ? ` · not fetched: images ${runs(e.missed)} (${again}${e.interrupted ? " — what is registered is not fetched again" : ""})` : ""}`;
+  return `${e.recordset} (${e.connector} ${e.book}): ${e.registered.length}/${e.images.length} images registered${e.registered.length ? ` (images ${runs(e.registered)})` : ""}${how}${e.missed.length ? ` · not fetched: images ${runs(e.missed)} (${again}${e.interrupted ? " — what is registered is not fetched again" : ""})` : ""}${e.heavy ? ` · ${heavySaid(e.heavy)}` : ""}`;
 }
 
 /** strom fetch --status: what is being fetched for this research now, and the fetches in the background that ended lately. */
@@ -2831,6 +2875,14 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const from = (f: string) => `connector ${c.name} · ${path.basename(f)}`;
   // the images of a book registered as they come, in batches: a reader of the book begins on the first ones
   const batches = request.cmd === "fetch" && recordset ? fetchBatches(ctx, c, request, recordset, from, child, forTask, workDir) : undefined;
+  // an image of many requests (tiles): said once a run, as connector test says it (the run's own measure)
+  const heavy = request.cmd === "fetch" ? heavyFetch(ctx, c, request, recordset, meter, gate.human, count.say, !!child) : undefined;
+  let found: FetchHeavy | undefined;
+  const costly = (h: FetchHeavy | undefined) => {
+    if (!h) return;
+    found = h;
+    batches?.heavy(h);
+  };
   let endCode: number | undefined;
   // why the connector stopped before the end (an error of it, a refusal, a host gone silent) — not a Ctrl-C
   let cut: string | undefined;
@@ -2840,7 +2892,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       workDir,
       netDir: netDir(ctx),
       onLog: (l) => count.say(`  · ${l}\n`),
-      onImage: (n, im) => (count.got(n), batches?.took(im)),
+      onImage: (n, im) => (count.got(n), batches?.took(im), costly(heavy?.image(n))),
       waitMs: waits.waitMs,
       onWait: (w) => (count.clear(), batches?.waiting(w.until), waits.onWait(w)),
       ...metered(meter),
@@ -2851,6 +2903,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       ...(child ? { background: true, onYield: (w: boolean) => batches?.yielding(w) } : {}),
     });
     count.clear();
+    costly(heavy?.end(r));
     if (r.stopped && !batches?.interrupted()) cut = r.stopped;
     refusalSaid(ctx, c, r.refused);
     // what the agent does after a refusal: another way first, the person's check only when the source stays necessary
@@ -2953,7 +3006,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     // the connector stopped with images left: no success — the output says which and how to go on (a refusal: its own advice, as before)
     const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && (!r.images.length || (missed.length && !r.refused)) ? EXIT.error : after?.exitCode;
     endCode = code ?? 0;
-    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}) }, ...(code ? { exitCode: code } : {}) };
+    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}), ...(found ? { heavy: found } : {}) }, ...(code ? { exitCode: code } : {}) };
   } finally {
     // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes; one in
     // the foreground the connector stopped with images left says so too (its output may be lost to the agent)
@@ -2979,6 +3032,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
           since: new Date(t0).toISOString(),
           ...(session ? { session } : {}),
           ...(child?.task ? { task: child.task } : {}),
+          ...(found ? { heavy: found } : {}),
           exitCode: endCode ?? 1,
         });
     }

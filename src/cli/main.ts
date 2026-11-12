@@ -62,7 +62,7 @@ export { splitCommand } from "./execute.ts";
  * Besides the writing ones, the commands that start work or write into a research or beside it: none runs while the
  * backup before another channel or an older version could not be made.
  */
-const STARTS_WORK = new Set(["menu", "run", "chat", "app", "live start", "init", "unpack", "trees remove", "compact", "repair", "seal adopt", "seal accept", "sync discard", "agents sync", "session finish", "link open"]);
+const STARTS_WORK = new Set(["menu", "run", "chat", "app", "live start", "init", "unpack", "trees remove", "compact", "repair", "repair undo", "seal adopt", "seal accept", "sync discard", "agents sync", "session finish", "link open"]);
 
 /** Compact JSON: indentation costs an agent tokens and adds nothing for a parser. */
 function toJson(value: unknown): string {

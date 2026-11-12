@@ -145,8 +145,7 @@ function offTreeFamily(tree: Tree, kin: Map<string, Kin>, people: string[]): Set
  * How many people off the tree a variant of a hypothesis would join to it: the branch of those it names (with its
  * subject) whom nothing links to the tree yet, when it names someone of the tree too — else 0 (it joins no branch).
  */
-export function branchJoined(tree: Tree, h: Hypothesis, v: HypothesisVariant): number {
-  const kin = kinship(tree);
+export function branchJoined(tree: Tree, h: Hypothesis, v: HypothesisVariant, kin: Map<string, Kin> = kinship(tree)): number {
   if (!kin.size) return 0;
   const named = [...new Set([...aboutPeople(tree, h.subject), ...variantPeople(tree, v)])].filter((id) => {
     const p = tree.get<Person>(id);

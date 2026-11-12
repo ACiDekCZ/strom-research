@@ -492,10 +492,13 @@ register(
     tree: true,
     async run(ctx) {
       const tree = bridgeTree(ctx);
-      await serveLive(tree.root, ctx.env);
+      const held = await serveLive(tree.root, ctx.env);
       // a bridge that ended is gone as a process, whatever still holds it (found on Mac: bridges of folders long removed
       // still running, nobody to follow them)
       setTimeout(() => process.exit(), 3000).unref();
+      // ended for another bridge of the tree (exit EXIT.locked): the bridge that started it to take over knows it from
+      // a start that failed
+      if (held) return { text: ui(tree.lang, "ui.live.ended"), data: { heldBy: held }, exitCode: EXIT.locked };
       return { text: ui(tree.lang, "ui.live.ended"), data: {} };
     },
   },

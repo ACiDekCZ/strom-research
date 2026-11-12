@@ -5,6 +5,104 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.31.0
+
+*12.11.2026 · gehört zur Strom-App 3.27.0.*
+
+- **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
+  Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben
+  iCloud-Kopien wie `index 2`), melden `strom verify`, `strom check` und ein abgelehnter Schreibvorgang
+  `history-reverted` mit der Zahl der Datensätze, die eine Reparatur entfernen würde, und zeigen den Weg, der nichts
+  verliert: den ganzen Ordner sichern, `.git` aus einer Sicherung oder Time Machine zurückholen, oder `strom seal
+  accept` durch die Nutzerin oder den Nutzer. `strom repair`, das mehr als drei Datensätze oder einen solchen entfernen
+  würde, nennt sie und fragt im eigenen Terminal nach; ein Agent startet es nie. Was eine Reparatur beiseitegelegt hat,
+  holt `strom repair undo <Stempel>` zurück (im eigenen Terminal, ein versiegelter Vorgang), auch nach einer Reparatur
+  mit 1.30.
+
+- **Eine Brücke pro Forschung, auch nach einem Update.** Eine Brücke eines älteren strom, die neben der Brücke der
+  Forschung weiterlief, beendet sich selbst: wenn ihre Nachfolgerin die Forschung von einer anderen Brücke gehalten
+  findet, bei der nächsten Prüfung, oder wenn das Update den strom entfernt hat, aus dem sie läuft (vorher alle 16
+  Sekunden ein Fehler). Die Übergabe an die Brücke eines neueren strom ist auch schneller: die alte Brücke antwortet
+  weiter, während der neue strom geprüft wird.
+
+- **Ein Bild aus dem Betrachter eines Archivs wartet, solange der Browser seinen Tab nicht zeichnet.** Ein Browser
+  zeichnet nichts in einem Tab hinter einem anderen Tab oder in einem verdeckten oder minimierten Fenster, und der
+  Bildbetrachter des Archivs meldete seine Kacheln dann nie als vollständig: Das Speichern gab nach 30 s mit „the
+  viewer's tiles did not all come“ auf (ACTA PUBLICA). Das Warten zählt jetzt nur die Zeit, in der der Browser den Tab
+  zeichnet, und geht weiter, sobald er ihn wieder zeichnet; ein Tab, der 30 s nicht gezeichnet wird, wird als solcher
+  gemeldet. Wird der Betrachter inzwischen umgeblättert, wird nichts unter dem Namen eines anderen Bildes gespeichert.
+
+  **`strom fetch` meldet ein Bild, das viele Anfragen kostet, wie `strom connector test`.** Ein Konnektor aus der Zeit
+  vor 1.30, der jedes Bild aus Kacheln zusammensetzt (hundert Anfragen pro Bild, Stunden für ein Buch), lud ohne ein
+  Wort. Jetzt sagen die ersten Bilder eines Downloads dem Agenten einmal, was ein Bild kostet und wie lange ein Buch im
+  Tempo des Archivs dauert, dazu, wie ein Download im Hintergrund angehalten wird und wonach zuerst zu suchen ist (eine
+  Anfrage pro Bild). Gezählt wird nur, was der Download selbst sendet: Das Archiv wird dafür nichts weiter gefragt.
+  `strom fetch --status` und das Briefing sagen es auch.
+
+- **Eine Familie an einen Nebenzweig anzuschließen ist Arbeit abseits der Linien.** Eine Aufgabe, die Menschen ohne
+  Verbindung zum Stammbaum anschließen würde, half einer Linie, sobald sie sie an irgendwen aus dem Stammbaum anschloss
+  – auch an ein Geschwister eines Vorfahren, und ging so mit der Linie, obwohl die Arbeit abseits der Linien am Ende
+  warten sollte. Jetzt hilft sie einer Linie nur, wenn sie sie an einen Menschen der Linie oder dessen Partner
+  anschließt; an einen Nebenzweig angeschlossen gehört sie zu diesem Zweig und kommt, wie seine Wahl es sagt. Eine
+  Hypothese der Linie und ein Grund, den der Agent angibt, behalten ihren Platz. `/status` der Brücke sagt, wie die
+  Aufgabe in Arbeit einer Linie hilft (Funktion `working.helps`), damit die App zeigen kann, warum sie mit der Linie geht.
+
+- **Die Forschung in der Tabelle der Strom-App.** Für eine Strom-App, die es zeigt, nennt die Datei für die App bei
+  jeder Person ihren Platz unter den Linien der Forschung nach der Regel, nach der auch die Warteschlange geht: in einer
+  Linie (in jeder, zu der sie gehört), Partner einer Person einer Linie, ein Seitenzweig außerhalb der Linien (mit der
+  Linie, der er zugeordnet wurde) oder eine Insel, die nichts mit dem Baum verbindet; der Kopf nennt die Linien und
+  Zweige. Bei jeder Person stehen auch die Aufgaben, die auf etwas von außen warten (ein Brief, gesendet oder noch zu
+  senden, eine Frage an die Familie, eine Website zum Ansehen), mit dem Ort, wo sie bearbeitet werden, und wann die
+  Forschung die Person hinzugefügt hat. `GET /directions/people` der Brücke nennt dieselben Plätze live, mit einem
+  Fingerabdruck, den `/status` wiederholt (Funktion `directions.places`).
+
+- **Eine Hypothese in der Strom-App entschieden.** Bei einer Hypothese, deren Varianten sagen, wessen Kind jemand ist
+  oder welches Paar, wird in der App eine Variante gewählt (oder „keine trifft zu“, offen lassen, die Entscheidung
+  zurücknehmen). Das Terminal der Forschung zeigt die Frage mit ihren Varianten und was geschrieben würde, fragt
+  einmal – Enter ist ja – und nach dem Grund (Enter lässt die Worte der App) und schreibt es als Entscheidung der
+  Person in der Strom-App. Mehrere Vorschläge des Agenten werden ebenso auf einmal übernommen. Auch eine Hypothese, deren Varianten niemanden verbinden, wird dort gewählt: Nur die Entscheidung wird geschrieben, der Baum bleibt, wie er ist, und das Terminal sagt das vor der Bestätigung. Ob zwei Einträge
+  dieselbe Person oder Geschwister sind, wird weiter im Terminal entschieden, auf dem ganzen Bildschirm der Hypothese.
+  Die Entscheidung steht sofort im Baum: Kind oder Paar der gewählten Variante in derselben Speicherung geschrieben,
+  mit der Quelle der Variante zitiert, auch in einem Archiv – der Agent schreibt es nicht noch einmal; was der Baum
+  ablehnt (ein Kind hat schon leibliche Eltern), wird mit dem Grund gesagt und bleibt dem Agenten. Bei einer Änderung
+  wird entfernt, was die Entscheidung davor geschrieben hat; beim Zurücknehmen, was sie geschrieben hat, sofern
+  inzwischen keine weitere Arbeit darauf aufbaut – ein weiteres Kind, eine Angabe oder Quelle der Familie, eine
+  Zusammenführung, nie die eigenen Angaben der Personen (die App weiß es vorher); eine Änderung, nach der die bisherige
+  Verbindung bliebe und die neue nicht eingetragen werden könnte, sagt das Terminal vor der Bestätigung, und Enter bricht dann ab, auch bei mehreren Vorschlägen auf einmal; im Terminal auch mit `strom hypothesis decide --reopen` (nur
+  die Person selbst). Für die App sagt die Strom-Datei, wer wo entschieden hat, die Entscheidung davor, den Vorschlag
+  des Agenten, was gegen jede Variante spricht und wie viele Personen sie zum Baum bringt; `/status` der Brücke nennt
+  die wartenden Hypothesen (Features `hypothesis.decide.link`, `hypotheses.accept.link`).
+
+- **Ein Eintrag wird wiedergefunden, auch wenn das Archiv seine Links ändert.** Wo ein Eintrag im Buch steht, wird
+  Feld für Feld gespeichert: `strom source add|edit --folio` (Seite oder Folio, wie das Buch zählt, „fol. 12v“),
+  `--image` (die Bildnummer im Portal des Archivs) und `--call-number` (die Signatur des Buchs bei einem Eintrag
+  außerhalb der erfassten Bücher), neben `--locator` für den Rest (die Nummer des Eintrags). `strom source show` nennt
+  Archiv, Signatur, Folio und Bild zusammen (ein Bild auch aus den erfassten Scans) und schlägt Folio und Bild vor,
+  die eine ältere Fundstelle nennt – geschrieben werden sie nie von selbst; bestehende Quellen bleiben, wie sie sind.
+  Die Datei für die Strom-App und andere Programme hat eine lesbare PAGE aus den Feldern („pag. 112, Nr. 3, Bild 57“)
+  und die Signatur als CALN; die Felder selbst bekommt die Strom-App ab der Version, die sie liest (Funktion der
+  Brücke `sources.fields`), und ihre Änderungen kommen per Abgleich zurück wie die einer Seite. Der Agent füllt sie
+  beim Erfassen aus und findet einen Link, der sich nicht mehr öffnet, über sie wieder. Eine PAGE nennt nie zwei Bild-
+  oder Folionummern: nennt eine ältere Fundstelle eine andere als das Feld, gilt darin das Feld (die Fundstelle selbst
+  bleibt), und `strom source edit` und `show` schlagen den Rest der Fundstelle vor. Ältere Quellen werden mit `strom
+  source split` auf einmal in die Felder aufgeteilt: eine Vorschau, was aus jeder würde (eine Fundstelle, in der
+  nichts erkannt wird, bleibt, wie sie ist, bis zu drei solche zeigt sie, wie sie stehen), die Aufteilung schreibt der Benutzer mit `--apply` als einen Schritt und
+  macht sie als einen rückgängig (`--undo`); ein Agent bietet sie nur an. Die Aufteilung geht auch aus einer
+  Strom-App, die sie anbietet (Brückenfunktion `sources.split`): ihre Vorschau sagt, wie viele Quellen, die Aufteilung
+  wird auf den Klick des Benutzers als ein Schritt nach dieser Vorschau geschrieben und ganz zurückgenommen. Ein
+  Folio, ein Bild oder eine Signatur, die der Benutzer in einer Strom-App löscht, die diese Felder behält, wird auch
+  in der Forschung gelöscht (mit der Synchronisierung rückgängig); eine ältere App löscht nichts. Sagt eine Fundstelle
+  nichts als das Folio und das Bild, die ihre Felder schon geben, schlägt `strom source show` vor, sie zu leeren, und
+  `strom source edit --locator ""` tut es.
+
+- **Kleinigkeiten.** Eine Angabe, deren Prüfung nach vorne gerückt wurde, ist in der Datei für die Strom-App als
+  angefragt markiert, sodass die App nicht noch einmal anbietet, sie vorzuziehen. `strom error --note` verbirgt auch die
+  gebeugten Formen der Namen und Orte, die die Forschung kennt (tschechisch *z Brna*, *v Praze*). `strom task wait
+  --request` findet die Datei auch, wenn ihr Name in der anderen Unicode-Form angegeben ist (ein Pfad vom Mac, unter
+  Windows verwendet). Was als Nächstes kommt – im Menü vor `strom run` und in der Warteschlange der Strom-App –, ist
+  die Reihenfolge, in der `strom run` die Aufgaben nimmt: Ist eine Erzählung an der Reihe, steht eine Erzählung vorn,
+  nicht alle.
+
 ## 1.30.1
 
 *9.11.2026 · gehört zur Strom-App 3.26.0.*

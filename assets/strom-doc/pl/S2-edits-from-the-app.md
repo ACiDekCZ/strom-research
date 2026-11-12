@@ -68,6 +68,30 @@ w ten sam sposób **Co zostało zapisane** z sekcjami **Zapisano** i **Nie zapis
 
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
+<a id="S2.2.2"></a>
+### S2.2.2 Folio, skan i sygnatura z aplikacji
+
+Aplikacja, która przechowuje pola źródła ([A3.9](A3-evidence-in-the-app.md#A3.9)), wysyła badaniu sygnaturę, folio,
+skan i dalszą lokalizację w polach. Badanie porównuje je pole po polu i zapisuje zmianę jako zmianę strony źródła.
+
+- **Usunięcie:** folio, skan albo sygnaturę, które człowiek usunie w aplikacji, usuwa też badanie. Przywraca je
+  cofnięcie wysłania ([S2.7](#S2.7)).
+- **Granice:**
+  - starsza aplikacja, która pól nie zna, nie usuwa niczego. Zmiana całej strony ze starszej aplikacji zastępuje
+    lokalizację i usuwa podane folio i skan (cofnięcie je przywraca);
+  - nie usuwa się wartość, którą plik aplikacji jeszcze wymienia: folio albo skan w stronie (`PAGE`), sygnatura jako
+    cała strona albo we własnym wierszu notatki źródła („Sygnatura: …”, w dowolnym języku). Lepiej, żeby została, niż
+    żeby usunęło się to, czego aplikacja nie widziała jako pola;
+  - sygnatura księgi i numer skanu z zarejestrowanych skanów nie są polami źródła: usunięcie w aplikacji ich nie
+    zmienia;
+  - przy źródle, które przeczytało badanie, zmiana ani usunięcie nie zapisuje się do źródła; zapisuje się notatka obok
+    („folio/strona: usunięto w aplikacji Strom (było fol. 12v)”).
+- **Na liście Co zostanie wysłane** ([S2.2.1](#S2.2.1)) zmieniona sygnatura, folio albo skan jest zmianą strony
+  źródła.
+- **Obowiązuje od:** aplikacja 3.27.0 z badaniem 1.31.0
+
+<!-- zdroj: research:337787ff, 87785596 src/core/sync.ts:3534 SOURCE_EDITS, SOURCE_FIELDS, :3551 removedFields (fieldsKept, entryWords, locatorOverlap, isValue, noteCallNumbers, CALL_NUMBER_LABELS), removedLine (sync.reading.removed) · 4de28f00 (úprava celé PAGE ze starší aplikace nahradí locator a smaže folio/snímek, undo vrátí) · app:c3278633 src/research-changes.ts (změna signatury, folia, snímku jako strana), src/ged-exporter.ts sourceFields · CHANGELOG.cs.md 1.31.0 · dirigent:prace/1111-vyzkum-citace-most-n1, prace/1111-vyzkum-citace-pole · spec 075 U1c B -->
+
 <a id="S2.3"></a>
 ## S2.3 Co badanie zrobi z wysłanymi zmianami
 

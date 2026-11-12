@@ -47,7 +47,7 @@ import { permissionWait } from "../core/archivewait.ts";
 import type { Repository } from "../core/model.ts";
 import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
-import { requestNote } from "../core/waiting.ts";
+import { requestNote, requestPath } from "../core/waiting.ts";
 import { addressesPerson } from "../core/impersonal.ts";
 
 
@@ -182,6 +182,11 @@ export function wakesBy(tree: Tree, shared: string | undefined, t: Task, display
   return `${t.id} waits for the user: their answer brings it back (strom's menu, What waits; the Strom app) — nothing else does`;
 }
 
+/** How the order of a conversation differs from what strom run takes (core/queue.ts runOrder). */
+const CONVERSATION_ORDER =
+  "The order of a conversation: no story's turn. Working alone, strom run puts one story first now and then — the\n" +
+  "order the menu and the Strom app show as what comes next.";
+
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
 export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
@@ -249,7 +254,7 @@ export function offLineLine(tree: Tree, t: Task, offLine: OffLine): string | und
       : mode === "last"
         ? `it waits until the lines have nothing to do (${whose})`
         : `it comes now and then, one in ${new Settings(tree.env, {}).offLineShare(tree.config)} sessions, else after the lines' work (${whose})`;
-  return `· ${t.id} is off the lines${p.branch ? ` (branch ${p.branch})` : ""}: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${how}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
+  return `· ${t.id} is off the lines${p.branch ? ` (branch ${p.branch})` : ""}: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${how}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to a person of a line or their partner), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
 }
 
 /**
@@ -561,21 +566,7 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
     wait.kind = k as NonNullable<Task["wait"]>["kind"];
   }
   if (typeof opts.to === "string" && opts.to.trim()) wait.to = impersonal(tree, "--to", opts.to).slice(0, 300);
-  if (opts.request !== undefined) {
-    const raw = String(opts.request).trim();
-    const parts = raw.split(/[\\/]+/);
-    // a path of the tree's notes/, as given (never normalized): no absolute path, no way out of notes/
-    if (!raw || path.isAbsolute(raw) || /^[A-Za-z]:/.test(raw) || parts[0] !== "notes" || parts.length < 2 || parts.some((p) => p === ".." || p === "."))
-      throw new UsageError(`--request takes a file of the tree's notes/, as notes/<file>.md — not "${raw}"`, { hint: `save the request's text first (notes/request-<what>.md), then strom task wait ${id} … --request notes/request-<what>.md` });
-    let file = false;
-    try {
-      file = fs.statSync(path.join(tree.root, ...parts)).isFile();
-    } catch {
-      file = false;
-    }
-    if (!file) throw new UsageError(`--request: no file ${raw} in this tree`, { hint: `save the request's text there first, then name it again`, code: "task.request-missing" });
-    wait.note = parts.join("/");
-  }
+  if (opts.request !== undefined) wait.note = requestPath(tree.root, String(opts.request), id);
   if (opts.url !== undefined) {
     if (has.check) throw new UsageError("--url with --check: --check carries the site's address itself", { hint: "leave out --url" });
     const raw = String(opts.url).trim();
@@ -709,6 +700,7 @@ register(
   {
     path: ["task", "next"],
     summary: "The task to work on now (never asks — the queue is ordered)",
+    description: CONVERSATION_ORDER,
     group: "tasks",
     tree: true,
     options: [
@@ -749,7 +741,8 @@ register(
     description:
       "The order (setting queue.strategy): balanced — work that can be done now before work waiting for a download,\n" +
       "the nearest ancestors first, a line that just had sessions waits for the others, a task tried again and again\n" +
-      "sinks; depth — stay on the line of the last sessions; priority — strict priority. --json says why for each.",
+      "sinks; depth — stay on the line of the last sessions; priority — strict priority. --json says why for each.\n" +
+      CONVERSATION_ORDER,
     group: "tasks",
     tree: true,
     options: [

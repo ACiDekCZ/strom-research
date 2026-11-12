@@ -31,6 +31,8 @@ colour alone.
   a fact from the family tree that the family tree cites, **cited in the family tree, not verified in Strom**. The tip
   also holds the actions **Verify** ([S7.3](#S7.3)), **Confirm against the scan** and **Undo** ([S7.8](#S7.8)), where
   they apply.
+  From app 3.27.0 each source in the bubble has the reliability of the citation at this fact (**Original**, **Copy /
+  index**, **Uncertain**), not the source's default reliability ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
 - **Enforced by the code:**
   - two dots go only to a fact for which two readers of the record agreed when the research verified it
     ([R8.8.1](R8-reading-scans.md#R8.8.1)); a fact proven otherwise has one;
@@ -47,7 +49,7 @@ colour alone.
   Reliability at facts in the person card** (on by default).
 - **Since:** app 3.26.0, research 1.30.0
 
-<!-- zdroj: app:7b0471f8 src/reliability.ts (RELIABILITY_ORDER, reliabilityStep: readers ≥ 2 → dvě tečky; noSource se z aplikace nekrmí, verifyLocalEvidence dává jen confirmedByHuman) · src/verify.ts factVerifyReaders (_STROM_CHECKED proven, readers) · src/ui/fact-status.ts titleProven2/titleProven1 · src/ui/status-tip.ts readersAgree · src/settings.ts display.reliabilityCard (ON) · index.html settings-group-card · strings.ts reliability.*, verify.reasonHead, verify.confirmedAt · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree → import, nikdy human), treeOriginWords, reliabilityOptionsOf (původ z dat stromu, ne z mostu) · research:94d75934 src/core/model.ts ValueOrigin.tree, src/core/import.ts (soubor aplikace Strom → user + tree) -->
+<!-- zdroj: app:7b0471f8 src/reliability.ts (RELIABILITY_ORDER, reliabilityStep: readers ≥ 2 → dvě tečky; noSource se z aplikace nekrmí, verifyLocalEvidence dává jen confirmedByHuman) · src/verify.ts factVerifyReaders (_STROM_CHECKED proven, readers) · src/ui/fact-status.ts titleProven2/titleProven1 · src/ui/status-tip.ts readersAgree · 3.27.0: app:dde0151a src/ui/status-tip.ts factSourcesModel, sourceSub(quality citace) · src/settings.ts display.reliabilityCard (ON) · index.html settings-group-card · strings.ts reliability.*, verify.reasonHead, verify.confirmedAt · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree → import, nikdy human), treeOriginWords, reliabilityOptionsOf (původ z dat stromu, ne z mostu) · research:94d75934 src/core/model.ts ValueOrigin.tree, src/core/import.ts (soubor aplikace Strom → user + tree) -->
 
 <a id="S7.2"></a>
 ## S7.2 One mark on the card in the tree
@@ -69,6 +71,10 @@ behind the facts. It takes the weakest of the card's three facts: name, birth an
     other facts and those of their families decide (residence, occupation, a marriage): one confirmed or proven
     fact, or a citation of quality 2 or 3, is enough and the mark is ●○ (the person is known from a record, for
     example as the father in a child's baptism);
+  - from app 3.27.0 the quality of a citation is its own reliability, otherwise the source's default reliability
+    ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)): the same source can be a citation of quality 3 at the occupation
+    and of quality 2 at the birth. A record of a change by the research that is not cited at the fact counts by its
+    source;
   - a research tree whose stored data carry the research's origin of facts has the mark by degrees right after the
     page loads, the same with the bridge and without it; this holds for trees stored earlier too;
   - a tree that does not know where its facts come from (without research and without an import from another
@@ -79,7 +85,7 @@ behind the facts. It takes the weakest of the card's three facts: name, birth an
 - **Controls:** **Settings → Person card → Show on card → Sources and reliability** (on by default).
 - **Since:** app 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) -->
+<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · 3.27.0: app:dde0151a src/reliability.ts citesSourceRead (FactCitationRef, citationQuality; holé id = záznam změny výzkumu podle pramene), cardFactCitations, withChangeRecord · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) -->
 
 <a id="S7.3"></a>
 ## S7.3 Verify at a fact
@@ -102,6 +108,10 @@ on the lines.
   line has **Verify first** in its tip. The same preview with the estimate as at **Verify** follows; after **Start
   verifying** the research moves the task with this fact to the head of its queue and the tip shows the place the
   research answers (“1st in the research's queue”).
+  - **From research 1.31.0:** a task the person moved up this way is kept as asked for by a person (`asked`) in the
+    file for the app, in the bridge's state (`/status`) and in the counts of `strom verify status`, until a session on
+    it ends. The app then does not offer **Verify first** at the fact again after a reload; before, it offered it
+    again. This holds for the whole person too ([S7.4](#S7.4)).
 - **Enforced by the code:**
   - a verification asked for by a person goes first in the research's queue ([R2](R2-lines-and-queue.md));
   - **Verify** is offered only for a tree linked to the research, when the bridge runs and the research can verify
@@ -119,7 +129,7 @@ on the lines.
   Terminal: `strom verify facts P…|F…|E… [--fact …] [--dry-run]`.
 - **Since:** research 1.30.0, app 3.26.0
 
-<!-- zdroj: app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) -->
+<!-- zdroj: app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S7.4"></a>
 ## S7.4 Verify facts at a person

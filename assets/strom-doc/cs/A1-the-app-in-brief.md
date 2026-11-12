@@ -10,11 +10,17 @@ aplikaci Strom 3.21.2 a výzkum 1.25.2; změny z novější verze mají u sebe j
 Aplikace Strom je rodokmen v prohlížeči (stromapp.info) nebo v jednom souboru HTML. Stromy se ukládají do úložiště
 prohlížeče na tomto zařízení. Účet ani server s daty není.
 
-- **Hranice:** úložiště prohlížeče patří jednomu prohlížeči na jednom zařízení. Na jiné zařízení se strom přenese
-  souborem (záloha JSON, GEDCOM, samostatný HTML, [A7](A7-book-pages-and-export.md)).
-- **Platí od:** aplikace 1.0.0
+- **Hranice:**
+  - úložiště prohlížeče patří jednomu prohlížeči na jednom zařízení. Na jiné zařízení se strom přenese
+    souborem (záloha JSON, GEDCOM, samostatný HTML, [A7](A7-book-pages-and-export.md));
+  - šifrování heslem (**Šifrovat data**, **Odemknout data**, export **Zašifrovat heslem**, šifrovaný soubor) funguje
+    jen na zabezpečené adrese: přes https, na `localhost` nebo `127.0.0.1` a v souboru otevřeném z disku. Na adrese
+    `http://` v síti (např. aplikace na vlastním serveru v domácí síti) ho prohlížeč nedovolí. Dialog hesla to řekne
+    hned po otevření: „Šifrování funguje jen přes https nebo na tomto počítači (localhost). Tato adresa není
+    zabezpečená.“ Uložení stromu s fotkami šifrování nepotřebuje.
+- **Platí od:** aplikace 1.0.0; 3.27.0: hláška o nezabezpečené adrese (dřív tam heslo hlásilo „Nesprávné heslo“)
 
-<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 -->
+<!-- zdroj: app:strings.ts about.description, embeddedMode.infoText1, embeddedMode.infoText2 · šifrování: app:src/crypto.ts isCryptoAvailable (isSecureContext, crypto.subtle), classifyCryptoError (jen OperationError = špatné heslo) · src/crypto-errors.ts cryptoFailureText, resetPasswordError (hláška při otevření dialogu), requireCrypto · src/ui/encryption-ui.ts, src/ui/import-export.ts · strings.ts encryption.enable, unlockData, encryptToggle, wrongPassword, insecureContext · commity 266d6a76, cceadca6 (SHA-256 obrázků bez crypto.subtle) · GitHub #13 · dirigent:prace/1110-app-github-11-13 (https, localhost/127.0.0.1, soubor z disku) -->
 
 <a id="A1.2"></a>
 ## A1.2 Osoby, vztahy a rody
@@ -29,7 +35,9 @@ přiženili. Příjmení zná v ženském i mužském tvaru (Horák a Horáková
 ## A1.3 Pohledy: okolí jedné osoby
 
 Aplikace ukazuje vždy okolí jedné **ústřední osoby**, ne celý strom najednou. Pohledy **Rodina**, **Potomci**,
-**Časová osa**, **Vějíř** a **Mapa** čtou totéž okolí různě. Pohled může zvýraznit jeden rod.
+**Časová osa**, **Vějíř** a **Mapa** čtou totéž okolí různě. Pohled může zvýraznit jeden rod. Od aplikace 3.27.0
+ukazuje pohled **Tabulka** celý strom po řádcích osob, svazků, událostí nebo pramenů, s dopočty, úplností a nálezy
+kontroly.
 
 - Podrobně: [A6](A6-views.md).
 

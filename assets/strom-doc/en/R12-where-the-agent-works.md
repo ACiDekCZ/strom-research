@@ -200,12 +200,14 @@ and the sites are decided by ChatGPT's dialog. In ChatGPT's “cloud browser” 
   - strom neither watches nor records the ChatGPT app's browser, whether strom's hook in Codex is confirmed or not;
   - Codex in the terminal stays watched once strom's hook in Codex is confirmed ([R12.5](#R12.5)).
 - **Why:** strom judges only a call the agent shows it through a hook; the browser in ChatGPT's cloud calls no hook.
+  On a Mac on 8 November 2026 (research 1.29.0), strom's hook did not run once while the ChatGPT app worked with
+  its browser.
 - **Controls:** terminal: `strom doctor` (the row **the ChatGPT app** as a warning: “strom does not watch its browser
   (it runs through ChatGPT's cloud); the sites are decided by ChatGPT's dialog”, with advice on the dialog),
   `strom setup` (says it once when the ChatGPT app is chosen).
 - **Since:** research 1.30.0
 
-<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · src/cli/ui.ts ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
+<!-- zdroj: research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept · src/cli/ui.ts ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 · dirigent:test/vysledek-062-u4-codex.md (ChatGPT.app 26.1021 a 26.1103: hook-calls.log prázdný) -->
 
 <a id="R12.6"></a>
 ## R12.6 What is not verified

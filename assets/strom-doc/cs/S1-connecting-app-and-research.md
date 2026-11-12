@@ -35,8 +35,13 @@ nejdou.
   hodinách. Hodnota, kterou si člověk uložil, zůstává.
 - **Od výzkumu 1.30.0:** most, jehož výzkum zmizel, skončí až po druhé kontrole aspoň o 10 s později (dřív hned);
   druhý most téhož výzkumu hned skončí.
+- **Od výzkumu 1.31.0:** i po aktualizaci zůstane u výzkumu jeden most. Most, který běží vedle mostu výzkumu (toho,
+  kterého jmenuje `.strom/live.json`), skončí sám při nejbližší kontrole (každých 10 s). Most, kterému aktualizace
+  smazala strom, ze kterého běží, skončí také a zapíše to do `.strom/live.log`. Nový most, který skončí, protože
+  výzkum drží jiný most, ukončí i most, který ho spustil k předání, pokud to není most výzkumu. Předání mostu
+  novějšímu stromu je rychlejší: starý most odpovídá, zatímco se nový strom ověřuje.
 
-<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 -->
+<!-- zdroj: research:src/core/live.ts (v1.25.2) header :1-80, token crypto.randomBytes :1702, leaked :1809, :1995, LIVE_IDLE_MS / live.idleMinutes :1705, config.ts DEFAULT_LIVE_IDLE_MINUTES = 0 (od 1.29.0), live-last.json :518, seal.foreign / tree.not-downloaded / disk.full · src/commands/start.ts live · src/core/config.ts live.idleMinutes · research:94d75934 src/core/live.ts GONE_MS 10_000 (researchGone: dvě kontroly aspoň 10 s od sebe), otherBridge (most téhož stromu už běží → konec) · CHANGELOG.cs.md 1.30.0 · research:0c6f2205 src/core/live.ts OWNER_MS 10_000 (most mimo live.json skončí), kód stromu smazaný aktualizací (dvě kontroly GONE_MS, live.log), EXIT.locked → konec mostu, který spustil předání (STROM_LIVE_REPLACES), kromě mostu z live.json · 0239e6c3 předání: starý most odpovídá během ověření nového · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S1.2"></a>
 ## S1.2 Výzkum se otevře v aplikaci odkazem z terminálu

@@ -59,8 +59,9 @@ function handlerName(env: Env): string {
  * (the queue and the estimate, the session on the person's yes in the terminal); strom's fixes of the research, one of them, or one
  * put back (shown, then set right or put back only on the person's word in the terminal); the research back in time (the
  * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal);
- * a hypothesis decided, left open or its decision changed (the person's, in the terminal), and who decides the hypotheses
- * (the agent only on the person's yes in the terminal).
+ * a hypothesis decided, left open or its decision changed (the person's, in the terminal; a variant picked in the app,
+ * none holds, left open or the decision taken back — only confirmed there), and who decides the hypotheses (the agent
+ * only on the person's yes in the terminal) or the agent's proposals of several taken (listed, then the person's yes).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
@@ -109,8 +110,16 @@ export const LINK_KINDS_SCOPES = ["tree", "default"] as const;
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 /** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
 export const LINK_CONFLICT_TAKES = ["user", "research"] as const;
-/** What a link does with a hypothesis: the person decides it in the terminal (open, proposed or decided — changed). */
-export const LINK_HYPOTHESIS_DOS = ["decide"] as const;
+/**
+ * What a link does with a hypothesis: the person decides it in the terminal (open, proposed or decided — changed) —
+ * with a variant picked in the Strom app (variant=), only confirmed there; none of the variants holds (abandon); left
+ * open, the proposal not taken (keep-open); a decision taken back (reopen) — spec 074.
+ */
+export const LINK_HYPOTHESIS_DOS = ["decide", "abandon", "keep-open", "reopen"] as const;
+/** What a link does with the hypotheses: who decides them (decide=), or the agent's proposals taken (do=accept&ids=). */
+export const LINK_HYPOTHESES_DOS = ["accept"] as const;
+/** The most hypotheses one link takes the proposals of (hypotheses?do=accept&ids=). */
+export const LINK_ACCEPT_MAX = 50;
 /** Who decides the hypotheses of the research (hypotheses.decide): the agent only on the person's yes in the terminal. */
 export const LINK_HYPOTHESES_DECIDE = ["agent", "person"] as const;
 
@@ -121,6 +130,8 @@ const TASK = /^T\d{1,9}$/;
 const PLACE = /^L\d{1,9}$/;
 const CONFLICT = /^X\d{1,9}$/;
 const HYPOTHESIS = /^H\d{1,9}$/;
+/** A variant of a hypothesis, by its label (A, B, … AA). */
+const VARIANT = /^[A-Z]{1,3}$/;
 const INPUT = /^I\d{1,9}$/;
 /** A tree the app sent, as the bridge marked it (core/sync.ts receiveTree). */
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
@@ -197,8 +208,9 @@ export type Link =
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
   | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number]; take?: (typeof LINK_CONFLICT_TAKES)[number] }
-  | { action: "hypothesis"; tree: string; id: string; do: (typeof LINK_HYPOTHESIS_DOS)[number] }
+  | { action: "hypothesis"; tree: string; id: string; do: (typeof LINK_HYPOTHESIS_DOS)[number]; variant?: string }
   | { action: "hypotheses"; tree: string; decide: (typeof LINK_HYPOTHESES_DECIDE)[number] }
+  | { action: "hypotheses"; tree: string; do: (typeof LINK_HYPOTHESES_DOS)[number]; ids: string }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
@@ -309,12 +321,29 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const take = how === "decide" && q.has("take") ? oneOf(q, "take", LINK_CONFLICT_TAKES) : undefined;
       return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: how, ...(take ? { take } : {}) };
     }
-    case "hypothesis":
-      // one hypothesis, by its ID only: its screen in the terminal (decided there, left open, or its decision changed)
-      return { action, tree: id, id: idOf(q, "id", HYPOTHESIS, true)!, do: oneOf(q, "do", LINK_HYPOTHESIS_DOS, "decide") };
-    case "hypotheses":
+    case "hypothesis": {
+      // one hypothesis, by its ID: its screen in the terminal (decided there, left open, or its decision changed) — or
+      // the variant picked in the app (only a label, only of a decision), none holds, left open, taken back: only
+      // confirmed there (never a text: the reason is asked in the terminal)
+      const how = oneOf(q, "do", LINK_HYPOTHESIS_DOS, "decide");
+      if (q.has("variant") && how !== "decide") throw new LinkError("variant only with do=decide");
+      const variant = q.has("variant") ? (q.get("variant") ?? "").toUpperCase() : undefined;
+      if (variant !== undefined && !VARIANT.test(variant)) throw new LinkError("no variant named");
+      return { action, tree: id, id: idOf(q, "id", HYPOTHESIS, true)!, do: how, ...(variant ? { variant } : {}) };
+    }
+    case "hypotheses": {
+      // the agent's proposals taken: the hypotheses by their IDs only (at most LINK_ACCEPT_MAX), listed and confirmed
+      // in the terminal
+      if (q.has("do")) {
+        if (q.has("decide")) throw new LinkError("do or decide, not both");
+        const how = oneOf(q, "do", LINK_HYPOTHESES_DOS);
+        const ids = [...new Set((q.get("ids") ?? "").split(",").map((x) => x.trim().toUpperCase()).filter(Boolean))];
+        if (!ids.length || ids.length > LINK_ACCEPT_MAX || !ids.every((x) => HYPOTHESIS.test(x))) throw new LinkError("no hypotheses named");
+        return { action, tree: id, do: how, ids: ids.join(",") };
+      }
       // who decides the hypotheses: a fixed value only — the agent on the person's yes in the terminal
       return { action, tree: id, decide: oneOf(q, "decide", LINK_HYPOTHESES_DECIDE) };
+    }
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
     case "sync": {

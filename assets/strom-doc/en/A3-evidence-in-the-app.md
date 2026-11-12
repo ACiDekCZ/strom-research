@@ -12,13 +12,14 @@ the import of sources from GEDCOM is in [A2](A2-loading-a-family-tree.md).
 A source is one particular entry: a baptism, a marriage, a death. A tree has one list of sources. People and facts
 only refer to it, so one entry can support several people and several facts.
 
-- Fields: **Title** (required), **Repository**, **Reference**, **URL**, **Note**. Under **More: transcript, record
-  date, reliability** are **Transcript of the entry**, **Record date** and **Reliability**. The section is open when
-  one of them is filled in.
+- Fields: **Title** (required), **Archive**, **Call number**, **Folio/page**, **Image**, **Other location**, **URL**,
+  **Note**. Where the entry stands in the book is described in [A3.9](#A3.9). Under **More: transcript, record date,
+  reliability** are **Transcript of the entry**, **Record date** and **Source reliability**. The section is open when one of
+  them is filled in.
 - **Record date** says when the entry was made. It can differ from the date of the event, e.g. a baptism recorded
   later.
-- **Reliability** has three levels: **Original**, **Copy / index**, **Uncertain**. A second click on the chosen level
-  cancels it. It rates one source, not a fact. How the research takes it is described in
+- **Source reliability** has three levels: **Original**, **Copy / index**, **Uncertain**. A second click on the
+  chosen level cancels it. How the research takes it is described in
   [R3.2.1](R3-verification-and-citation.md#R3.2.1).
 - **Limits:** a source without a title cannot be saved ("Enter a source title"). An invalid **Record date** is not
   saved. The reliability value 0 from a GEDCOM import is shown as **Uncertain** and stays until another level is
@@ -27,9 +28,14 @@ only refer to it, so one entry can support several people and several facts.
   sources, sorting by title); **Edit source**, **Add source**. The item **Sources** in the **Actions** menu is only in
   a tree that can be edited, and only when some source already exists or **Settings → Person card → Advanced fields**
   is on.
-- **Since:** app 1.4.0; **Reliability** and **Record date** 3.1.0
+- **Since:** app 1.4.0; **Source reliability** and **Record date** 3.1.0; **Call number**, **Folio/page**, **Image** and
+  **Other location** 3.27.0 (before, **Repository** and **Reference**)
+- **From app 3.27.0:** **Source reliability** is the default reliability of its citations. A citation that has its
+  own reliability (from a GEDCOM import, [A2.6.1](A2-loading-a-family-tree.md#A2.6.1)) keeps it even when the
+  default changes; the other citations follow the change. A fact shows the reliability of its citation ([A3.6](#A3.6),
+  [S7.1](S7-reliability-and-verification.md#S7.1)). Before, the reliability rated only the whole source.
 
-<!-- zdroj: app:src/types.ts Source · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/fieldQuality/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel -->
+<!-- zdroj: app:src/types.ts Source · od 3.27.0: app:9732853b strings.ts sources.fieldRepository/fieldCallNumber/fieldFolio/fieldImage/fieldReference · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/reliabilityLabel (index.html source-quality-label)/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel · 3.27.0 výchozí spolehlivost: app:dde0151a src/citation-quality.ts setCitationQuality, citation-quality-shown.test.ts (formulář = výchozí) -->
 
 <a id="A3.1.1"></a>
 ### A3.1.1 Transcript and Transcription verified
@@ -96,8 +102,12 @@ of evidence of a person ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
   entry's part stays whole and selected for checking. Opened from a citation chip, it is cited right there.
 - **Since:** app 3.1.0 (**Recently used**, **Another entry from the same register**); **Another page** 3.9.0;
   3.25.0: **Another entry from the same register** without the entry's number and date
+- **From app 3.27.0:** the search also covers the call number, folio and image. At a source with fields ([A3.9](#A3.9))
+  **Another entry from the same register** takes over the archive, call number and link; **Folio/page**, **Image**
+  and **Other location** stay empty and the cursor stands in **Folio/page**. **Another page** at a source with fields
+  also takes over the call number. An older source (the location as one text) behaves as before.
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
 <a id="A3.3"></a>
 ## A3.3 Excerpt of the entry
@@ -204,6 +214,9 @@ person, for birth and death, for events, for marriages and for couples' shared e
 
 - One row per source, under it what it supports: "Person", "Birth 1865", "Marriage 1890"… The row also shows the
   reliability.
+  From app 3.27.0 it is the reliability of the citations: when the citations of the source agree in reliability, it
+  is at the row once; when they differ, each fact is followed by its own ("Birth 1865 Copy / index · Occupation
+  Original").
 - Order: by the oldest year of what the source supports, otherwise by **Record date**; without a date at the end, then
   by title.
 - **Cite a source** opens the picker with **Supports** ([A3.2](#A3.2)).
@@ -226,7 +239,7 @@ person, for birth and death, for events, for marriages and for couples' shared e
   numbered in the list of sources. How the research keeps a story's sources: [R3.9](R3-verification-and-citation.md#R3.9).
 - **Since:** app 3.3.0; **Find a source in the research** 3.19.0; **What the text is based on** 3.22.0
 
-<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 -->
+<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 · 3.27.0: app:dde0151a src/person-sources.ts rowQuality, PersonSourceCite.quality, src/ui/person-sources-ui.ts source-quality-tag · app:66fc3f7f (údaj a štítek se nezalomí) -->
 
 <a id="A3.7"></a>
 ## A3.7 Where evidence is missing
@@ -297,3 +310,90 @@ running on this computer.
   research**), the line under the filter says where the images are, and **?** opens this rule.
 
 <!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->
+
+<a id="A3.9"></a>
+## A3.9 Where the entry stands in the book
+
+Where the entry stands is written at a source by fields. By the archive, call number, folio and image the entry is
+found again even when the archive changes the addresses of its images or the book has no page numbers.
+
+- **Fields:**
+  - **Archive**: an archive, parish, library;
+  - **Call number**: the call number of the book, an inventory number;
+  - **Folio/page**: the folio or page as the book numbers it, with the word too ("fol. 12v", "pag. 112");
+  - **Image**: the image number in the archive's viewer. **?** beside the field says why: "The image number in the
+    archive’s viewer. With archive, call number, folio and image the entry can be found again after its address
+    changes.";
+  - **Other location**: the rest, e.g. the entry number, column, volume.
+- **An older source** has where the entry stands as one text in **Other location** and the new fields empty. When
+  **Folio/page** and **Image** are both empty and the text names a folio or an image, the editor proposes under the
+  fields "From the location: fol. 31 recto · image 3 · rest “no. 2”". **Use** fills the three fields ("Taken from the
+  location “…”. Saved with Save."), **Undo** returns them. Nothing is saved by itself: the fields taken over are saved
+  only with **Save**, as one step back. The recognition is the app's code, the same as in the research
+  ([R3.4.3](R3-verification-and-citation.md#R3.4.3)).
+- **Conflict:** when **Other location** names another image or folio than the field, the editor says so ("The location
+  names image 35, the Image field says 34. GED uses the field.") and offers **Change location to “…”** (or **Remove the
+  conflicting part**). Saving works with the conflict too; GEDCOM gets the field.
+- **Where it shows:**
+  - the source viewer under the excerpts: **Book** (archive · call number) and **Entry** (folio · image · other
+    location), at an older source the whole **Location**; under them the link to the page in the archive, without a
+    link "No link. The entry is found by its book and entry details.";
+  - **Actions → Sources** and the source picker: archive · call number · folio · image in short ("img. 34");
+  - the citation chip: its bubble has three lines (title, book, entry);
+  - the person page, the family book and the family pages also give the call number, folio and image;
+  - the Table: the columns in [A6.7.11](A6-views.md#A6.7.11) and [A6.7.12](A6-views.md#A6.7.12).
+  A source without the new fields looks everywhere as before.
+- **Limits:**
+  - a cleared field is removed from the source. In a tree from the research the clearing also goes through to the
+    research ([S2.2.2](S2-edits-from-the-app.md#S2.2.2));
+  - **Another entry from the same register** and **Another page** with fields are described in [A3.2.1](#A3.2.1);
+  - GEDCOM: the book as `REPO` with `CALN`, one readable `PAGE` and Strom's own tags ([A2.6](A2-loading-a-family-tree.md#A2.6),
+    [A2.7](A2-loading-a-family-tree.md#A2.7));
+  - pag. and fol. and recto and verso (r/v) are not told apart separately: they are part of the text **Folio/page**.
+- **Controls:** the source editor (**Edit source**, **Add source**): **Archive**, **Call number**, **Folio/page**,
+  **Image**, **Other location**, **URL**; the proposal **From the location:** with **Use** and **Undo**.
+- **Since:** app 3.27.0
+
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+
+<a id="A3.9.1"></a>
+### A3.9.1 Split as suggested
+
+The older locations of all sources can be split into fields at once: folio/page and image move to their own fields,
+the rest stays in **Other location**. The code splits them, without an agent, and one step also undoes it.
+
+- **Offer:** in **Actions → Sources** and above Table › Sources the line "The locations of 12 sources can be split into
+  fields." with **Split as suggested…**. The window **Split locations into fields** shows a preview: **Source**,
+  **Location before**, **Folio/page**, **Image**, **Other location**; first 6 sources, **Show all (n)** loads more on
+  scroll. How many locations were not recognised ("… stay unchanged") stands under the preview, and under it up to
+  three examples ("E.g. “Book N 7, entry without number”."), each once and at most 60 characters ("…").
+- **Rule:** "A field that is already filled is not overwritten. A part the field states differently stays in the
+  location." A value that stays has "· unchanged" in the preview. The note line "Call number: …" from an earlier GEDCOM
+  import moves into the empty field **Call number** (the column **Call number** with "· from note").
+- **Split (n)** changes all n sources in one step, also those the preview has not shown yet. The notice "n locations
+  split." offers **Undo** for 8 seconds; Ctrl+Z (on a Mac ⌘Z) undoes it too. While the split is the last step,
+  **Sources** say "Locations split on … (n sources)." with **Undo…** and the window opens with the row **Undo the split
+  of …**. When nothing is left to split: "No other locations to split right now."
+- **Tree from the research:** the research splits, only when it runs and can split
+  ([R3.4.4](R3-verification-and-citation.md#R3.4.4)). The preview is the research's; **Split** asks it to split exactly
+  what the preview showed, and the progress stays on the button until the research writes. The app then takes over the
+  new version of the research by itself when only the locations of sources differ and nothing waits to be sent.
+  **Undo** undoes the split via the research.
+- **Limits:**
+  - a tree from the research without the research running: in **Sources** only the sentence "Splitting locations works
+    while the research is running.", in the Table nothing. The Strom archive, a read-only tree and a locked tree do
+    not offer splitting;
+  - sources changed in the meantime: "The sources changed in the meantime. The preview shows them as they are now.";
+    the research busy with another task: "The research is busy with another task. Splitting works again in a moment."
+    with **Try again**;
+  - undoing is refused whole when a source changed after the split: it says how many and the first three, nothing is
+    undone. In the app without the research, after a later change of the tree: "Undo is no longer possible: the tree
+    changed since the split.";
+  - an unrecognised location stays as it is. A source that already has a folio or an image in a field is not counted
+    among the unrecognised: the rest of its location ("No. 5") is nothing to split. In a research tree the examples of
+    unrecognised ones come from the research; when it sends none, the preview shows only the count.
+- **Controls:** **Actions → Sources → Split as suggested…**; Table › Sources, the line above the table; **Split (n)**,
+  **Undo**, **Undo…**. The research in the terminal: `strom source split` ([R3.4.4](R3-verification-and-citation.md#R3.4.4)).
+- **Since:** app 3.27.0; a tree from the research with research 1.31.0
+
+<!-- zdroj: app:8dd21adf src/source-split.ts SplitSourceKind (local/bridge/needsResearch/archive/none), localSplitPlan (řádek poznámky „Signatura:“ v každém jazyce importu), splitOffer (needsResearch jen v Prameny) · src/ui/source-split-ui.ts:37 TOAST_MS 8000, sourceSplitKind (read-only/zamčený → none, archiv → archive, most + feature sources.split → bridge) · 5a59f01d src/source-split-bridge.ts (GET/POST sources/split, undo), příklady nerozpoznaných přes most (unrecognizedExamples, výzkum ff760309) a lokální plán jako výzkum (zbytek u pole folia/snímku = nic, NFC, bez duplicit, nejvýš 3, ořez 60 znaků po grafémech): app:34cb5996 src/source-split.ts localSplitPlan, SPLIT_UNRECOGNIZED_EXAMPLES, src/source-split-bridge.ts examplesOf, src/ui/source-split-ui.ts:614, strings.ts sources.split.unrecEx · src/ui/misc.ts:1352 Ctrl/⌘+Z · strings.ts sources.split.* (offer, open, needsResearch, doneLine, undoOpen, title, lead, rule, sigNote, col*, kept, fromNote, all, shown, unrec, go, progress, toast, undo, undoRow, nothingLeft, errPlan, errBusy, retry, errUndoLater, errUndo) · spec 075 K4.2 · research:c4fe4fac -->

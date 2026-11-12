@@ -8,13 +8,12 @@
 import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Search, Session, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { now } from "./tree.ts";
-import { Settings } from "./config.ts";
 import { aboutPeople, directionOf, hypothesisPeople, joiningVariants, namesId, scopes, type Scope } from "./directions.ts";
 import { birthEstimate, birthRecordProven, birthWindow, frontier, FRONTIER_LEVELS, RECORD_KINDS, recordsetsCovering, type FrontierItem } from "./frontier.ts";
 import { kinship, offTree } from "./kin.ts";
 import { familiesAsChild, familiesAsPartner, parentsOf, primaryName } from "./people.ts";
 import { livingBorn } from "./review.ts";
-import { effectiveState, rankTasks } from "./queue.ts";
+import { effectiveState, runOrder } from "./queue.ts";
 import { subjectPeople } from "./records.ts";
 import { foldText } from "./text.ts";
 import { parseYears } from "./years.ts";
@@ -224,7 +223,7 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
   const searches = tree.list<Search>("search").filter((q) => !q.retracted);
   const sessions = tree.list<Session>("session");
   const researches = new Map(tree.list<Research>("research").map((r) => [r.id, r]));
-  const ranked = rankTasks(tree, tasks, new Settings(tree.env, {}).strategy(tree.config)).map((r) => r.task.id);
+  const ranked = runOrder(tree, tasks).map((r) => r.task.id);
   const position = new Map(ranked.map((id, i) => [id, i + 1]));
   const off = offTree(tree);
   const isles = islands(tree, kin, tasks, hypotheses);

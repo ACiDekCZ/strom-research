@@ -60,13 +60,20 @@ test("a newer strom on disk: the bridge starts again with it at its port and tok
 });
 
 test("a newer strom on disk: the address answers through the hand-over — the old bridge until the new one runs, never the new one's start without an answer", opts, async () => {
-  // a bridge's start made slow (a slow computer, a cold disk): the old one answers while the new one starts
+  // the new strom's start made slow (a slow computer, a cold disk) — asked whether it starts (--version), then its
+  // bridge: the old one answers meanwhile. A budget, not a time just above the usual one: an old bridge that closed
+  // before the new one ran, or waited for the new strom's --version without answering (it did until 1.30.1: the test
+  // failed at load 100), would leave the address without an answer for a whole start (5 s here); a hand-over takes a
+  // fraction of a second, the budget leaves room for a computer under load
+  const START_MS = 5000;
+  const BUDGET_MS = 3500;
   const b = await bridge({ version: "9.9.9" }, (w) => {
-    fs.writeFileSync(path.join(w.dir, "slow.cjs"), "if (process.argv.includes('serve')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500);\n");
+    fs.writeFileSync(path.join(w.dir, "slow.cjs"), `if ((process.argv.includes('serve') && process.env.STROM_LIVE_STATUS_FOR !== undefined) || process.argv.includes('--version')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${START_MS});\n`);
     w.env.NODE_OPTIONS = `${w.env.NODE_OPTIONS ?? ""} --require=${JSON.stringify(path.join(w.dir, "slow.cjs"))}`.trim();
   });
   try {
-    let last = Date.now();
+    // measured from the first answer on: the bridge's first /status (made cold) is no hand-over
+    let last = 0;
     let gap = 0;
     let done = false;
     const watch = (async () => {
@@ -74,18 +81,19 @@ test("a newer strom on disk: the address answers through the hand-over — the o
         const ok = await fetch(`${b.info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" }, signal: AbortSignal.timeout(1000) }).then((r) => r.ok, () => false);
         const now = Date.now();
         if (ok) {
-          gap = Math.max(gap, now - last);
+          if (last) gap = Math.max(gap, now - last);
           last = now;
         }
         await new Promise((r) => setTimeout(r, 50));
       }
     })();
+    await until("the first answer", () => last > 0);
     b.update();
     await until("the new bridge", () => /handed over/.test(b.log()) && fs.existsSync(path.join(b.w.cwd, ".strom", "live.json")) && b.live().pid !== b.info.pid);
     await new Promise((r) => setTimeout(r, 500));
     done = true;
     await watch;
-    assert.ok(gap < 2000, `the longest time without an answer: ${gap} ms`);
+    assert.ok(gap < BUDGET_MS, `the longest time without an answer: ${gap} ms`);
     assert.equal(b.live().token, b.info.token);
   } finally {
     await b.w.ok(["live", "stop"]);
@@ -254,6 +262,109 @@ test("a newer strom on disk and a strom starting the bridge at once: one bridge 
     assert.equal(live().port, a.port, "at the address the app follows");
     assert.equal(live().token, a.token);
     assert.doesNotMatch(log(), /needs the new address/u);
+  } finally {
+    w.cleanup();
+  }
+});
+
+const cliOf = (root: string) => path.join(root, "src", "cli.ts");
+const repo = path.join(import.meta.dirname, "..", "..");
+const exited = (child: ReturnType<typeof spawn>, ms: number) =>
+  new Promise<boolean>((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve(true);
+    const t = setTimeout(() => resolve(false), ms);
+    child.once("exit", () => {
+      clearTimeout(t);
+      resolve(true);
+    });
+  });
+
+test("a bridge of an older strom left beside the tree's starts the newer strom's to take over: that one ends for the tree's bridge, and the older one with it — never goes on (found 2026-11-09: one ran on for hours from a removed version)", opts, async () => {
+  const w = new World();
+  let stray: ReturnType<typeof spawn> | undefined;
+  try {
+    await w.withTree("Lhotákovi");
+    const owner = (await w.ok(["live", "start", "--json"])).json as { pid: number };
+    // a bridge of an older strom beside it (it claims nothing; live.json names the tree's bridge): a newer strom on disk,
+    // it starts that strom's bridge to take over (naming itself only as its parent) and goes on when that one ends at
+    // once — as the older strom did; asked through its stop file, it ends
+    const older = path.join(w.dir, "older-bridge.cjs");
+    fs.writeFileSync(
+      older,
+      [
+        "const { spawn } = require('node:child_process');",
+        "const fs = require('node:fs');",
+        "const path = require('node:path');",
+        "const dot = path.join(process.env.STROM_TREE, '.strom');",
+        "const next = spawn(process.execPath, [process.env.OLDER_CLI, 'live', 'serve'], { cwd: process.env.STROM_TREE, env: { ...process.env, STROM_LIVE_RENEWED: '9.9.9' }, stdio: 'ignore' });",
+        "next.on('exit', (code) => fs.writeFileSync(path.join(dot, 'older-next.json'), JSON.stringify({ pid: next.pid, code })));",
+        "setInterval(() => {",
+        "  try {",
+        "    const ask = JSON.parse(fs.readFileSync(path.join(dot, 'live-stop.json'), 'utf8'));",
+        "    if (ask.pid === process.pid) { fs.rmSync(path.join(dot, 'live-stop.json'), { force: true }); process.exit(0); }",
+        "  } catch {}",
+        "}, 100);",
+        "setTimeout(() => process.exit(0), 60000);",
+        "",
+      ].join("\n"),
+    );
+    stray = spawn(process.execPath, [older, "live", "serve"], { cwd: w.cwd, env: { ...w.env, STROM_TREE: w.cwd, OLDER_CLI: cliOf(repo) }, stdio: "ignore" });
+    const ended = await exited(stray, 15_000);
+    const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+    assert.ok(ended, `the older bridge ended too:\n${log()}`);
+    const next = Number(new RegExp(`\\[(\\d+)\\] another bridge of this tree runs already \\(${owner.pid}\\)`).exec(log())?.[1]);
+    assert.ok(next > 0, log());
+    await until("said in the log", () => new RegExp(`\\[${next}\\] the bridge ${stray!.pid} that started this one \\(${next}\\) ended too`).test(log()));
+    // the tree's bridge goes on, alone
+    assert.ok(bridgeRuns(owner.pid));
+    // a bridge that ends for another of the tree says so by its exit (EXIT.locked), never as a start that failed
+    const again = spawn(process.execPath, [cliOf(repo), "live", "serve"], { cwd: w.cwd, env: { ...w.env, STROM_TREE: w.cwd }, stdio: "ignore" });
+    assert.ok(await exited(again, 30_000));
+    assert.equal(again.exitCode, 5);
+    assert.equal((JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { pid: number }).pid, owner.pid);
+  } finally {
+    stray?.kill("SIGKILL");
+    w.cleanup();
+  }
+});
+
+test("a bridge none of the tree's any more (another one claims it, live.json names that one) ends itself at its next look — strom live start --current leaves one bridge", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    Object.assign(w.env, { STROM_LIVE_OWNER_MS: "200", STROM_LIVE_POLL_MS: "100" });
+    const first = (await w.ok(["live", "start", "--json"])).json as { pid: number };
+    // strom lost track of it (a bridge started late, one of an older strom whose notes another one wrote over): a strom
+    // starting the tree's bridge now starts another
+    for (const f of ["live.json", "live-owner.json", "live-last.json"]) fs.rmSync(path.join(w.cwd, ".strom", f), { force: true });
+    const second = (await w.ok(["live", "start", "--current", "--json"])).json as { pid: number };
+    assert.notEqual(second.pid, first.pid);
+    await until("the bridge left beside it ended", () => !bridgeRuns(first.pid), 10_000);
+    const log = fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+    assert.match(log, new RegExp(`\\[${first.pid}\\] ended: another bridge of this tree holds it \\(${second.pid}\\)`));
+    assert.ok(bridgeRuns(second.pid), "the tree's bridge goes on");
+    assert.deepEqual(notedBridges().filter((b) => within(b.root, w.dirs()) && bridgeRuns(b.pid)).map((b) => b.pid), [second.pid]);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a bridge whose strom is no longer on the disk (an update removed its version's folder) ends, said in its log — never a failure every while for hours", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    // a version of strom in a folder of its own, as an installation keeps it
+    const version = path.join(w.dir, "app-1.0.0");
+    for (const part of ["src", "assets", "package.json"]) fs.cpSync(path.join(repo, part), path.join(version, part), { recursive: true });
+    const started = spawn(process.execPath, [cliOf(version), "live", "start", "--json"], { cwd: w.cwd, env: { ...w.env, STROM_LIVE_GONE_MS: "300", STROM_LIVE_POLL_MS: "100" }, stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    started.stdout!.on("data", (d: Buffer) => (out += d.toString("utf8")));
+    assert.ok(await exited(started, 30_000));
+    const info = JSON.parse(out) as { pid: number };
+    assert.ok(bridgeRuns(info.pid));
+    fs.rmSync(version, { recursive: true, force: true });
+    await until("the bridge ended", () => !bridgeRuns(info.pid), 10_000);
+    assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8"), new RegExp(`\\[${info.pid}\\] ended: the strom it runs is no longer on the disk \\(.*app-1\\.0\\.0\\)`));
   } finally {
     w.cleanup();
   }

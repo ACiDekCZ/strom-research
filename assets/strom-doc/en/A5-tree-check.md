@@ -14,31 +14,44 @@ Each finding has a severity:
 
 | Severity | Section in the dialog | Meaning |
 |---|---|---|
-| error | **Problems** | the data contradict each other or are broken ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
-| warning | **Problems** | unlikely but possible |
+| error | **To check** | the data contradict each other or are broken ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
+| to check | **To check** | an unusual value, unlikely but possible; worth checking |
 | info | **Leads** | "Not errors. Leads that may help the research." ([A5.5](#A5.5), [A5.6](#A5.6)) |
 
 - **Limits:**
   - Findings of the same kind form a group, sorted by severity, size and name. Only a group with an error is open.
-    Over 50 findings, more are shown 20 at a time. On a phone (up to 640 px) **Leads** are collapsed when there are
-    **Problems** too.
+    Over 50 findings, more are shown 20 at a time. On a phone (up to 640 px) **Leads** are collapsed when there is
+    the section **To check** too.
   - Placeholder persons are not reported. A finding marked **Not an error** ([A5.7](#A5.7)) is neither counted nor
     shown.
   - A read-only tree only shows findings. For a tree other than the open one, a fix or a mark opens the tree first.
+  - **From app 3.27.0:** the severity formerly called "warning" is called **to check**, in summaries and counts too
+    ("2 errors, 1 to check, 3 leads."). The Table view shows findings right in the cells, and a finding marked
+    **Not an error** as **unusual** ([A6.7.5](A6-views.md#A6.7.5)).
+  - **From app 3.27.0:** the section of errors and findings to check is called **To check** (formerly **Problems**).
+    A tree without them has "Nothing to check", with leads "Nothing to check. 3 leads."
 - **Controls:** the dialog **Tree validation**: **Tree overview → Data quality → Quick actions → Validation details**,
   the row "n leads ›" in **Consistency** (opens **Leads** directly), the card with errors in **Where to focus**.
-  After a GEDCOM import the app asks ("Data check") only when it finds errors or warnings
+  From app 3.27.0 also **Data quality ›** in a finding's bubble in the Table view: it opens the dialog at that
+  finding's group (for a finding marked **Not an error** at the list of marked findings).
+  After a GEDCOM import the app asks ("Data check") only when it finds errors or findings to check
   ([A2](A2-loading-a-family-tree.md)).
   The same after a merge with another tree, for new findings. The check has no menu item of its own.
-- **Since:** app 1.0.0; the sections **Problems** and **Leads** app 3.17.0
+- **Since:** app 1.0.0; the sections **Problems** and **Leads** app 3.17.0; the name **to check** and the link from the
+  Table view app 3.27.0; the section **To check** and "Nothing to check" app 3.27.0
 
-<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck -->
+<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck · 3.27.0: app:59a8eed0 strings.ts treeManager.validationWarnings „k ověření“, summaryErrors, summaryNoErrors, treeOverview.countWarnings · src/ui/table-view/table-bubble.ts (Kvalita dat ›) → src/ui/tree-stats.ts showTreeValidationDialog focus · table.sev.* · commit e530019b · „K ověření“: strings.ts treeManager.valProblems, commit 79764eba; „Nic k ověření“: validationPassed, summaryLeadsOnly, commit b1cbe546 (T54 G15) -->
 
 <a id="A5.1.1"></a>
 ### A5.1.1 One-click fix
 
-Some findings have a button **Fix** and the group **Fix all (n)**. A fix is one step back ("fix from validation") and
-is written into the change history.
+Some findings have a button **Fix**; the summary above the findings has **Fix all (n)** for all findings that can be
+fixed. A fix is one step back ("fix from validation") and is written into the change history.
+
+- Under **Fix all (n)** stands what is fixed, with counts, only for the kinds the tree has: "Fixes: broken links
+  between people and unions (2); a union of a person with themselves – removed (1); a duplicate union – merged into
+  the first, children kept (1); a place written several ways – unified to the most used spelling (3). Other findings
+  stay unchanged." In a read-only tree neither the button nor the line is there.
 
 | Finding | What the fix does |
 |---|---|
@@ -48,14 +61,14 @@ is written into the change history.
 | Duplicate partnership | keeps the first, moves the children to it |
 | One place written several ways | rewrites all spellings to the most frequent one |
 
-- **Since:** app 1.1.0; fixing places 1.10.0
+- **Since:** app 1.1.0; fixing places 1.10.0; the line under **Fix all (n)** app 3.27.0
 
-<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll -->
+<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll · řádek: src/ui/tree-stats.ts fixAllNoteText (orphaned*/missing* → links, selfPartnership, duplicatePartnership, placeSpelling), strings.ts treeManager.valFixAllNote, jen bez ro, commit 79764eba (T54 G15) -->
 
 <a id="A5.2"></a>
 ## A5.2 Family links
 
-The check looks for links that cannot hold. All are errors, except a duplicate partnership (warning).
+The check looks for links that cannot hold. All are errors, except a duplicate partnership (to check).
 
 | Finding in the app | When |
 |---|---|
@@ -77,40 +90,60 @@ The check looks for links that cannot hold. All are errors, except a duplicate p
 
 The check reports only what certainly does not hold. It counts an incomplete or approximate date over its whole
 possible range: without a month January to December, "about" ± 2 years, "before" up to 20 years earlier, "after" up to
-20 years later, a range up to its end. Only when the violation holds over the whole range is it a finding.
+20 years later, a range up to its end. Only when the violation holds over the whole range is it a finding. The
+exception are the milder limits to check from app 3.27.0 (below): there it is enough when the limit is crossed by one
+end of the possible age.
 
 | Finding in the app | Severity | When |
 |---|---|---|
 | **Death date is before birth date** | error | |
-| **Implausibly long lifespan** | warning | more than 115 years |
+| **Implausibly long lifespan** | to check | more than 115 years |
 | **Parent younger than child** | error | by date of birth |
-| **Parent very young / very old at birth** | warning | under 12 / over 80 years; birth dates only |
-| **Event dated before birth** | warning | |
-| **Event dated after death** | warning | except: Burial, Cremation, Will, Probate |
+| **Parent very young / very old at birth** | to check | under 12 / over 80 years; birth dates only |
+| **Mother younger than 16 at the birth** / **… older than 45 at the birth** | to check | from app 3.27.0, see below |
+| **Father younger than 18 at the birth** / **… older than 60 at the birth** | to check | from app 3.27.0, see below |
+| **Event dated before birth** | to check | |
+| **Event dated after death** | to check | except: Burial, Cremation, Will, Probate |
 | **Child born after the mother's death** | error | more than 1 month after the death; own parents only |
-| **Child born long after the father's death** (… **a parent's**, sex unknown) | warning | more than 10 months |
+| **Child born long after the father's death** (… **a parent's**, sex unknown) | to check | more than 10 months |
 | **Wedding dated before a partner's birth** | error | |
-| **Wedding dated after a partner's death** | warning | |
-| **Married as a child** | warning | under 14 years |
+| **Wedding dated after a partner's death** | to check | |
+| **Married as a child** | to check | under 14 years |
+| **Married under the age of 16** | to check | from app 3.27.0, see below |
+| **Recorded age differs by more than 2 years** | to check | from app 3.27.0, see below |
 | **Extreme age difference between partners** | info (**Leads**) | 40 years and more |
 | **Birth/death recorded as a life event** | error | birth or death in the list of events |
-| **Custom event has no label** / **Event has an invalid date** | warning | |
+| **Custom event has no label** / **Event has an invalid date** | to check | |
 
 - **Limits:** the research's `strom check` has the same exceptions after death. A parent without a type of
   relationship counts as biological.
+- **From app 3.27.0:** milder limits to check:
+  - a **mother** younger than 16 or older than 45 and a **father** younger than 18 or older than 60 at a child's
+    birth. Only a biological parent of known sex, the age from both dates of birth;
+  - a **marriage** at an age under 16;
+  - it is enough when the limit is crossed by one end of the possible age (an age "15–16" is under 16). A date with
+    **about** counts as an estimate of the age; a date with **before** or **after** is not compared;
+  - only the stricter finding is reported: where **Parent younger than child**, **Parent very young / very old** or
+    **Married as a child** already holds, the milder finding is not;
+  - the **recorded age** (at a marriage the age of each of the couple, at death, at birth) is compared with the age
+    from the date of birth and the date of the event. It is a finding when it is outside the possible range by more
+    than 2 years. An age written in words or with about, before, after is not compared, nor when one of the dates is
+    only an estimate;
+  - the row of the finding shows the dates and the age ("* 1850 → * 1866: 15–16", "⚭ 1872: 30 ≠ 26–27").
 - **Since:** app 1.0.0 (age of parents); 1.4.0 (events); 1.7.0 (dates and death); a child after the death of a parent
-  of unknown sex 3.10.0; four exceptions after death 3.17.0 (before only burial)
+  of unknown sex 3.10.0; four exceptions after death 3.17.0 (before only burial); milder limits for the age of
+  parents and of marriage and the recorded age 3.27.0
 
-<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* -->
+<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* · 3.27.0: app:59a8eed0 src/validation.ts MOTHER_MIN_AGE 16, MOTHER_MAX_AGE 45, FATHER_MIN_AGE 18, FATHER_MAX_AGE 60, checkParentAgeLimits (gender female/male, parentRelTypes biological, jen když není parentYoungerThanChild/parentTooYoung/parentTooOld), ageSpan (< > → null; ~ approxAgeBetween), spanText, MARRIAGE_MIN_YEARS 16 (else za childMarriage), checkRecordedAges SLACK_YEARS 2 (Partnership.ages, deathAge, birthAge), src/dates.ts recordedAgeGap, ageRangeBetween · strings.ts treeManager.valMotherTooYoung16, valMotherTooOld45, valFatherTooYoung18, valFatherTooOld60, valMarriageUnder16, valRecordedAgeMismatch, validationWarnings, countWarnings, summaryErrors · spec 073 §7.6 · CHANGELOG.cs.md 3.27.0 -->
 
 <a id="A5.4"></a>
 ## A5.4 Sources, attachments and merges on import
 
 | Finding in the app | Severity | When |
 |---|---|---|
-| **Citation points to a missing source** | warning | a citation at a person, event, partnership or attachment |
-| **Attachment has no usable data** | warning | the data are neither an image nor a PDF (an attachment with an original only is not reported) |
-| **Photo is not a supported image** | warning | a format other than JPEG, PNG, WebP, GIF |
+| **Citation points to a missing source** | to check | a citation at a person, event, partnership or attachment |
+| **Attachment has no usable data** | to check | the data are neither an image nor a PDF (an attachment with an original only is not reported) |
+| **Photo is not a supported image** | to check | a format other than JPEG, PNG, WebP, GIF |
 | Two people probably merged into one when a GEDCOM file was imported (Strom 3.8.1 and older) … | error | see below |
 
 Older versions could give two people the same ID on import. The check reports it on a clear sign (more than 2 parents,
@@ -240,6 +273,10 @@ button is called **Two different people**.
     marks whose people all stay are kept.
   - The app knows a mark written in the research only for an open tree from the research, when the research is
     running.
+  - **From app 3.27.0:** the subject for **Married under the age of 16** is the year of the marriage, for **Recorded
+    age differs by more than 2 years** the fact (birth, marriage, death) and for a marriage its year. The Table view
+    shows a marked finding as **unusual**, and from there it can be marked and restored too
+    ([A6.7.5](A6-views.md#A6.7.5)).
 - **Controls:** in the row of a finding **Not an error** / **Two different people**, for 6 s the offer **Undo**. The
   list **Marked as not an error: n** under the findings, at each mark a date or **Marked in the research**, the button
   **Restore** · terminal: `strom quality list`, `strom quality dismiss possibleDuplicate P… P…`,
@@ -247,7 +284,7 @@ button is called **Two different people**.
   never the agent.
 - **Since:** app 3.17.0 (research 1.22.0)
 
-<!-- zdroj: app:src/validation.ts:1415 qualityFinding · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
+<!-- zdroj: app:src/validation.ts:1415 qualityFinding (3.27.0: marriageUnder16 rok, recordedAgeMismatch field + rok) · src/ui/table-view/table-bubble.ts · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
 
 <a id="A5.8"></a>
 ## A5.8 Tree overview → Data quality
@@ -257,19 +294,20 @@ findings and without pairs the research told apart.
 
 | Block | What it shows |
 |---|---|
-| **Consistency** | a summary ("2 errors, 1 warning, 3 leads."), the 5 most serious **Problems**, "and n more…", the row "n leads ›" |
+| **Consistency** | a summary ("2 errors, 1 to check, 3 leads."), the 5 most serious errors and findings to check, "and n more…", the row "n leads ›" |
 | **Data completeness** | the share of people with **Birth date**, **Date of death (deceased)**, **Birthplace**, **Photo**; under 50 % highlighted; "Tree content:" (photos, events, sources, attachments) |
 | **Certainty of research facts**, **Where evidence is missing** | evidence, see [R3.8](R3-verification-and-citation.md#R3.8) and [A3](A3-evidence-in-the-app.md) |
 | **Structure** | the number of unions; unconnected parts, or "All people are connected into one family." |
 | **Quick actions** | **Validation details**, **Clean up orphaned places (n)**, **Split into families** |
 
 - **Limits:**
-  - Over 10 MB of photos and attachments a warning is added. An orphaned place is a place nothing refers to.
+  - Over 10 MB of photos and attachments a notice is added ("Media exceed 10 MB. The tree file saves and shares more
+    slowly."). An orphaned place is a place nothing refers to.
   - An unconnected part has no path to the main family; it can be separated (**Separate unconnected parts**).
   - The card in **Where to focus** shows the number of errors and the most frequent kind. It has the button **Fix**
     (open tree) or **Validation details**; both open the dialog.
 - **Controls:** **Tree overview → Data quality**; in the tree menu also **Data quality** directly.
   Actions that change data work only in the open tree.
-- **Since:** app 3.13.0; leads and marks 3.17.0
+- **Since:** app 3.13.0; leads and marks 3.17.0; "to check" instead of "warning" 3.27.0
 
 <!-- zdroj: app:src/ui/tree-overview.ts:101 TOP_ISSUES, :108 LOW_SHARE, :1882 treeOverviewQualityHtml, :925 selectFocusCards · src/ui/tree-actions.ts:191 overview-quality · strings.ts treeOverview.consistencyTitle, completenessTitle, field*, contentLabel, mediaWarning, structureTitle, allConnected, quickActions, actValidation, actCleanPlaces, actSplitFamilies, cardValidation -->

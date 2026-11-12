@@ -182,3 +182,32 @@ export async function runInTab(script: string, origin: string, downloads: string
   assert.ok(clicks > 0 || /^strom:/.test(line), line);
   return { line, waits: waits.filter((w) => w < 60000) };
 }
+
+/** A connector whose images come in `per` tiles each (the same four of the portal, overlapping); a whole image for book "whole". */
+export function tiled(dir: string, base: string, per: number, bookImages?: number): void {
+  program(
+    dir,
+    `import { book, done, fail, get, image, imageFromTiles, request } from "./sdk.ts";
+const BASE = ${JSON.stringify(base)};
+const req = await request();
+if (req.cmd !== "fetch") fail("fetch only");
+${bookImages ? `book({ id: req.book, title: "Lhota N 1784–1820", images: ${bookImages} });` : ""}
+for (const n of req.images) {
+  const file = "s" + String(n).padStart(4, "0") + ".jpg";
+  if (req.book === "whole") {
+    const got = await get(BASE + "/img/5359/" + n + ".jpg", { save: file });
+    image(n, file, got.url);
+    continue;
+  }
+  const tiles = [];
+  for (let k = 0; k < ${per}; k++) {
+    const c = k % 2, r = Math.floor(k / 2) % 2;
+    await get(BASE + "/tile/5359/" + n + "/" + c + "-" + r + ".jpg", { save: "t" + n + "-" + k + ".jpg" });
+    tiles.push({ file: "t" + n + "-" + k + ".jpg", x: c * 400, y: r * 300 });
+  }
+  imageFromTiles(n, file, tiles, { width: 800, height: 600 }, BASE + "/view/" + n);
+}
+done();
+`,
+  );
+}

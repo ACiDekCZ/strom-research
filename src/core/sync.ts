@@ -23,6 +23,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { isCompiled } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
@@ -48,7 +49,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, appKeepsPeriods, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -120,8 +121,26 @@ export interface SSource {
   title: string;
   /** The archive's name. */
   repo?: string;
-  /** Where in the book: the source's page, else its first citation's. */
+  /**
+   * Where in the book: the source's page, else its first citation's — of a source given field by field (`structured`)
+   * the rest of the location (_STROM_LOCATOR; none: none), its PAGE composed of the fields.
+   */
   page?: string;
+  /** The PAGE line as the file has it (of the record), whatever its fields say. */
+  pageLine?: string;
+  /**
+   * Of a source given field by field, its first citation's page: an app before 3.27.0-beta.5 gave a source with no page of
+   * its own that one (as an older strom read it), no page the user wrote.
+   */
+  citedPage?: string;
+  /** The folio or page as the book numbers it (_STROM_FOLIO; the app's JSON `folio`). */
+  folio?: string;
+  /** The image number(s) (_STROM_IMAGE; the app's JSON `image`). */
+  image?: string;
+  /** The book's call number (REPO > CALN; the app's JSON `callNumber`). */
+  callNumber?: string;
+  /** The location given field by field (a _STROM_FOLIO, _STROM_IMAGE or _STROM_LOCATOR on the record; a key of them in JSON): PAGE is no edit then. */
+  structured?: true;
   /** The words of the entry. */
   text?: string;
   /** When the entry was written (its citations' DATA DATE). */
@@ -264,6 +283,11 @@ export interface Snapshot {
   again?: string;
   /** The Strom app's version that wrote the file (its HEAD: 1 SOUR STROM, 2 VERS). */
   appVersion?: string;
+  /**
+   * The file is of a Strom app that keeps a source's location field by field (its 3.27.0-beta.5, its JSON's data version
+   * 18): a folio, image or call number it was given and does not give back is one the user removed (spec 075, B).
+   */
+  fieldsKept?: true;
   /**
    * The groups of a surname's forms the user made one family, and the suggestions rejected (the header's notes "Strom
    * surname-variant groups|rejections", core/surnames.ts): undefined where neither note is there.
@@ -716,7 +740,13 @@ export function readGedcom(text: string): Snapshot {
     const repo = r.children.find((c) => c.tag === "REPO");
     const repoName = repo ? (/^@[^@]+@$/.test(repo.value.trim()) ? repoNames.get(repo.value.trim()) : repo.value.trim()) || val(repo, "NAME") : undefined;
     const text = r.children.find((c) => c.tag === "TEXT");
-    const page = val(r, "PAGE")?.trim();
+    const pageLine = val(r, "PAGE")?.trim();
+    // the location field by field (spec 075): the fields count, PAGE is composed of them; else PAGE is the location
+    const structured = r.children.some((c) => c.tag === "_STROM_FOLIO" || c.tag === "_STROM_IMAGE" || c.tag === "_STROM_LOCATOR");
+    const page = structured ? val(r, "_STROM_LOCATOR")?.trim() : pageLine;
+    const folio = structured ? val(r, "_STROM_FOLIO")?.trim() : undefined;
+    const image = structured ? val(r, "_STROM_IMAGE")?.trim() : undefined;
+    const callNumber = repo ? val(repo, "CALN")?.trim() : undefined;
     const url = val(r, "WWW")?.trim();
     const note = children(r, "NOTE").map(noteText).map((t) => t.trim()).filter(Boolean).join("\n\n");
     sources.set(key, {
@@ -724,6 +754,11 @@ export function readGedcom(text: string): Snapshot {
       title: (val(r, "TITL") ?? "").replace(/\s+/g, " ").trim(),
       ...(repoName?.trim() ? { repo: repoName.trim() } : {}),
       ...(page ? { page } : {}),
+      ...(pageLine ? { pageLine } : {}),
+      ...(folio ? { folio } : {}),
+      ...(image ? { image } : {}),
+      ...(callNumber ? { callNumber } : {}),
+      ...(structured ? { structured: true as const } : {}),
       ...(text?.value.trim() ? { text: text.value.trim() } : {}),
       ...(url ? { url } : {}),
       ...(note ? { note } : {}),
@@ -902,6 +937,7 @@ export function readGedcom(text: string): Snapshot {
   return {
     format: "gedcom",
     ...(appVersion ? { appVersion } : {}),
+    ...(appKeepsSourceFields(appVersion) ? { fieldsKept: true as const } : {}),
     ...(surnames ? { surnames } : {}),
     ...(lines ? { lines: true as const } : {}),
     ...(treeId ? { treeId } : {}),
@@ -926,7 +962,9 @@ function citedDetails(sources: Map<string, SSource>, facts: SFact[]): void {
     for (const c of f.cites ?? []) {
       const s = sources.get(c.source);
       if (!s) continue;
-      if (!s.page && c.page) s.page = c.page;
+      // a location given field by field has its rest where the file says it (none: none), never a citation's
+      if (!s.page && !s.structured && c.page) s.page = c.page;
+      else if (!s.page && s.structured && c.page && s.citedPage === undefined) s.citedPage = c.page;
       if (!s.date && c.date) s.date = c.date;
       if (s.quay === undefined && c.quay !== undefined) s.quay = c.quay;
     }
@@ -1002,6 +1040,10 @@ interface AppSource {
   title?: string;
   repository?: string;
   reference?: string;
+  /** The location field by field (spec 075): with any of them `reference` is the rest of it. */
+  folio?: string;
+  image?: string;
+  callNumber?: string;
   url?: string;
   note?: string;
   quality?: number;
@@ -1044,6 +1086,8 @@ export function readStromJson(data: unknown): Snapshot {
   // the sex "unknown" is the user's (U01): a sex of its own from the app's data version 12 (its 3.10.0-beta.11), never
   // a guess of it; before it, only where the research's unknown stood beside the app's stand-in (research.sexU)
   const sexU = (typeof d.version === "number" && d.version >= APP_DATA_SEX_UNKNOWN) || d.research?.sexU === true;
+  // a source's location field by field (spec 075): from the data version that keeps it, a field not given back is removed
+  const fieldsKept = typeof d.version === "number" && d.version >= APP_DATA_SOURCE_FIELDS;
   // the sources: ours by their REFN, the app's own by its ID; a citation takes the entry's page, date and quality
   const sources = new Map<string, SSource>();
   const sourceKeys = new Map<string, string>();
@@ -1055,11 +1099,16 @@ export function readStromJson(data: unknown): Snapshot {
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
     const date = fromFlexDate(str(a.recordDate));
     const q = typeof a.quality === "number" && a.quality >= 0 && a.quality <= 3 ? Math.round(a.quality) : undefined;
+    const structured = typeof a.folio === "string" || typeof a.image === "string" || typeof a.callNumber === "string";
     sources.set(key, {
       key,
       title: (str(a.title) ?? "").replace(/\s+/g, " "),
       ...(str(a.repository) ? { repo: str(a.repository)! } : {}),
       ...(str(a.reference) ? { page: str(a.reference)! } : {}),
+      ...(str(a.folio) ? { folio: str(a.folio)! } : {}),
+      ...(str(a.image) ? { image: str(a.image)! } : {}),
+      ...(str(a.callNumber) ? { callNumber: str(a.callNumber)! } : {}),
+      ...(structured ? { structured: true as const } : {}),
       ...(str(a.transcript) ? { text: str(a.transcript)! } : {}),
       ...(date ? { date } : {}),
       ...(str(a.url) ? { url: str(a.url)! } : {}),
@@ -1279,7 +1328,7 @@ export function readStromJson(data: unknown): Snapshot {
   }
   const r = d.research;
   const transcripts = r?.transcripts === "evidence" ? "evidence" : "lead";
-  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), problems: [] };
+  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), ...(fieldsKept ? { fieldsKept: true as const } : {}), problems: [] };
 }
 
 /**
@@ -1356,7 +1405,7 @@ const tieOf = (f: SFamily, child: string, parent: string) => f.relationsBy?.[chi
 
 /** Our records as the app is given them: the export for it, read like any file — with the facts' IDs. */
 export function snapshotOfTree(tree: Tree): Snapshot {
-  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true }).text);
+  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true }).text);
 }
 
 /** The folders of data/ the export for the app reads. */
@@ -2274,6 +2323,10 @@ export interface Change {
   sourceId?: string;
   /** source.title: the research's title of the source (the file's new one is `text`). */
   wasTitle?: string;
+  /** source.changed, source.reading: what of the source the user edited (none said: its words and page, as before 1.31). */
+  fields?: SourceEdit[];
+  /** source.changed, source.reading: the fields of the location the user removed in the app (spec 075, B), each with the research's value. */
+  removed?: { field: SourceField; was: string }[];
   /** A fact taken with its sources: it stands on the user's reading of a record (their transcript counts as one). */
   reads?: boolean;
   /** fact.part: who the file names at the fact (`was` the research's fact), and the research's entry of them (its role). */
@@ -2918,7 +2971,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   let given0: Snapshot | undefined | null = null;
   const givenAt = () => (given0 === null ? (given0 = snapshotAt(tree, incoming.head!)) : given0);
   let now0: Snapshot | undefined;
-  const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
+  const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
 
   // people
   for (const [key, p] of incoming.persons) {
@@ -3452,7 +3505,10 @@ const sourceTitle = (s: string | undefined) => (s ?? "").normalize("NFC").replac
 /** Folded for matching an entry: no accents, case, stops or doubled spaces. */
 const entryKey = (s: string | undefined) => fold((s ?? "").replace(/[.,;:]/g, " "));
 
-/** The research's source of the same entry as the file's: the same title, page and archive, and the same words (or one has none). */
+/**
+ * The research's source of the same entry as the file's: the same title, page and archive, and the same words (or one
+ * has none). The page: the rest of the location as either has it, or the PAGE line composed of the fields (spec 075).
+ */
 function sameEntry(tree: Tree, ours: Source, page: string | undefined, theirs: SSource): boolean {
   const repoOf = (s: Source) => {
     const id = s.repository ?? (s.recordset ? tree.get<RecordSet>(s.recordset)?.repository : undefined);
@@ -3460,7 +3516,8 @@ function sameEntry(tree: Tree, ours: Source, page: string | undefined, theirs: S
   };
   // a whole book (no page, no words): its exact title and archive
   if (!page && !ours.transcript && !theirs.page && !theirs.text) return exact(ours.title) === exact(theirs.title) && exact(repoOf(ours)) === exact(theirs.repo);
-  if (entryKey(ours.title) !== entryKey(theirs.title) || entryKey(page) !== entryKey(theirs.page) || entryKey(repoOf(ours)) !== entryKey(theirs.repo)) return false;
+  const samePage = entryKey(page) === entryKey(theirs.page) || (!!theirs.pageLine && entryKey(composedPage(ours, tree.lang)) === entryKey(theirs.pageLine));
+  if (entryKey(ours.title) !== entryKey(theirs.title) || !samePage || entryKey(repoOf(ours)) !== entryKey(theirs.repo)) return false;
   return !ours.transcript || !theirs.text || exact(ours.transcript) === exact(theirs.text);
 }
 
@@ -3478,6 +3535,66 @@ export function readByResearch(tree: Tree): Set<string> {
   const out = new Set<string>();
   for (const op of tree.readOps()) if (op.op === "source.edit" && sessions.has(op.by)) for (const t of op.targets ?? []) out.add(t);
   return out;
+}
+
+/** What of a source the user may edit in the app: its words, the rest of its location, folio, image, call number. */
+const SOURCE_EDITS = ["text", "page", "folio", "image", "callNumber"] as const;
+type SourceEdit = (typeof SOURCE_EDITS)[number];
+/** The location's fields the user may remove in the app (spec 075, B). */
+const SOURCE_FIELDS = ["folio", "image", "callNumber"] as const;
+type SourceField = (typeof SOURCE_FIELDS)[number];
+
+/**
+ * The location's fields the user removed in the app since it was given (spec 075, B): only from a file of an app that
+ * keeps them (`fieldsKept`; an older app never sends them, which removes nothing), each a value of the research's own
+ * (not its images' numbers, not its book's call number) that the app was given as it is now, and that the file does not
+ * name elsewhere: a folio or image the location names (an app given the PAGE alone has it there), a call number the
+ * whole location is, or a line of the source's note gives under its label (an app before 3.27.0-beta.5 read CALN into
+ * its note as "Call number: …" and keeps it there once it keeps the fields, until the research's file is loaded again —
+ * the field it never had); a short call number ("2") inside a PAGE ("no. 2") or the note's own words is no such line.
+ * A field the file still names is no field the user removed; an empty field the app was not given removes nothing.
+ */
+function removedFields(incoming: Snapshot, inc: SSource, b: SSource, mine: Source): { field: SourceField; was: string }[] {
+  if (!incoming.fieldsKept) return [];
+  const location = inc.pageLine ?? inc.page;
+  return SOURCE_FIELDS.flatMap((field) => {
+    const own = mine[field]?.trim();
+    if (!own || inc[field]?.trim() || !b[field]?.trim() || entryWords(b[field]) !== entryWords(own)) return [];
+    if (field !== "callNumber" && location && locatorOverlap({ locator: location, [field]: own })?.[field]) return [];
+    if (field === "callNumber" && ([inc.pageLine, inc.page].some((t) => isValue(t, own)) || noteCallNumbers(inc.note).some((t) => isValue(t, own)))) return [];
+    return [{ field, was: own }];
+  });
+}
+
+/** A text's words (any script, any accent, NFD or not). */
+const valueWords = (s: string | undefined) => (s ? foldText(s).match(/[\p{L}\p{M}\p{N}]+/gu) ?? [] : []);
+
+/** Whether a text is a value as a whole: the same words, in their order (a short call number inside a PAGE is not). */
+function isValue(text: string | undefined, value: string): boolean {
+  const want = valueWords(value);
+  const have = valueWords(text);
+  return want.length > 0 && want.length === have.length && want.every((w, i) => have[i] === w);
+}
+
+/** The labels of a call number an app before 3.27.0-beta.5 wrote into a source's note, in each of its languages. */
+const CALL_NUMBER_LABELS = new Set(["signatura", "call number", "signatur", "sygnatura"]);
+
+/** The call numbers a source's note names on a line of its own ("Signatura: Lhota 12", "Call number: …"). */
+function noteCallNumbers(note: string | undefined): string[] {
+  const out: string[] = [];
+  for (const line of (note ?? "").split(/\r?\n/u)) {
+    const m = line.match(/^\s*([^:]+?)\s*:\s*(.+?)\s*$/u);
+    if (m && CALL_NUMBER_LABELS.has(valueWords(m[1]).join(" "))) out.push(m[2]!);
+  }
+  return out;
+}
+
+/** A note's line of a field the user removed in the app ("folio: removed in the app (fol. 12v)"). */
+const removedLine = (lang: string, r: { field: SourceField; was: string }) => `${phrase(lang, `sync.reading.${r.field}`)}: ${phrase(lang, "sync.reading.removed", { was: r.was })}`;
+
+/** The location's fields of a new source as the app gives them (spec 075). */
+function sourceFieldsOf(inc: Pick<SSource, "folio" | "image" | "callNumber">): Pick<Source, "folio" | "image" | "callNumber"> {
+  return { ...(inc.folio ? { folio: inc.folio } : {}), ...(inc.image ? { image: inc.image } : {}), ...(inc.callNumber ? { callNumber: inc.callNumber } : {}) };
 }
 
 /** The locators the research's facts and names cite a source at. */
@@ -3504,7 +3621,9 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
   let readSet: Set<string> | undefined;
   if (!incoming.sources?.size) return map;
   const live = tree.list<Source>("source").filter((s) => !s.retracted);
-  const pageOf = (s: Source) => s.locator ?? ours.sources?.get(s.id)?.page;
+  // where in the book the research gives the app a source: its locator, else its first citation's page (a source given
+  // field by field with none of its own: an app before 3.27.0-beta.5 gave it that one, its own split of a source by it)
+  const pageOf = (s: Source) => s.locator ?? ours.sources?.get(s.id)?.page ?? ours.sources?.get(s.id)?.citedPage;
   for (const [key, inc] of incoming.sources) {
     let mine = key.startsWith("x:") ? undefined : tree.get<Source>(key);
     for (let hops = 0; mine?.mergedInto && hops < 10; hops++) mine = tree.get<Source>(mine.mergedInto);
@@ -3530,13 +3649,24 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
       // an imported family tree: a line of it a fact cites is no page the user wrote (an older strom gave the app the
       // first of them as the tree's PAGE)
       const cited = inc.page && mine.kind === "family-tree" && !mine.locator ? citedLocators(tree, mine.id) : [];
-      const was = { text: [b.text, o?.text, mine.transcript], page: [b.page, o?.page, mine.locator, ...cited] };
-      const edited = (["text", "page"] as const).filter((f) => inc[f] && was[f].every((x) => entryWords(inc[f]) !== entryWords(x)));
+      // the location field by field (spec 075): each against what the app was given, what the research gives now and
+      // has (its own, else its book's call number and its images' numbers); the page also against the PAGE composed
+      // of them (an older app sends PAGE whole: a page it did not edit is the composed one)
+      const set = mine.recordset ? tree.get<RecordSet>(mine.recordset) : undefined;
+      const was = {
+        text: [b.text, o?.text, mine.transcript],
+        page: [b.page, b.pageLine, b.citedPage, o?.page, o?.pageLine, o?.citedPage, mine.locator, composedPage(mine, tree.lang), ...cited],
+        folio: [b.folio, o?.folio, mine.folio],
+        image: [b.image, o?.image, sourceImage(mine, (id) => tree.get<Media>(id))?.value],
+        callNumber: [b.callNumber, o?.callNumber, sourceCallNumber(mine, set)],
+      };
+      const edited = SOURCE_EDITS.filter((f) => inc[f] && was[f].every((x) => entryWords(inc[f]) !== entryWords(x)));
+      const removed = removedFields(incoming, inc, b, mine);
       const read = researchRead(tree, mine, (readSet ??= readByResearch(tree)));
       // a reading of the user's kept beside the research's already (an earlier send of the same): nothing again
-      const kept = read && mine.notes.some((n) => edited.every((f) => exact(n.text).includes(entryWords(inc[f]))));
-      if (edited.length && !kept) {
-        push({ kind: read ? "source.reading" : "source.changed", action: read ? "add" : "correct", source: key, sourceId: mine.id, text: mine.title, ...(!read && (incoming.transcripts === "evidence" || mine.app?.read) ? { reads: true } : {}) });
+      const kept = read && mine.notes.some((n) => edited.every((f) => exact(n.text).includes(entryWords(inc[f]))) && removed.every((r) => exact(n.text).includes(entryWords(removedLine(tree.lang, r)))));
+      if ((edited.length || removed.length) && !kept) {
+        push({ kind: read ? "source.reading" : "source.changed", action: read ? "add" : "correct", source: key, sourceId: mine.id, text: mine.title, fields: [...edited, ...removed.map((r) => r.field)], ...(removed.length ? { removed } : {}), ...(!read && (incoming.transcripts === "evidence" || mine.app?.read) ? { reads: true } : {}) });
       }
       // renamed in the app since it was given (an empty title takes nothing away): the research's title corrected —
       // renamed by the research too since then, the user's title kept beside it, unless the user's word wins
@@ -4253,6 +4383,7 @@ export function applySync(
           title,
           ...(repository ? { repository } : {}),
           ...(inc.page ? { locator: inc.page } : {}),
+          ...sourceFieldsOf(inc),
           ...(inc.date ? { date: inc.date } : {}),
           ...(inc.url ? { url: inc.url } : {}),
           ...(check.edited ? { app: { read: false } } : {}),
@@ -4277,6 +4408,7 @@ export function applySync(
         title,
         ...(repository ? { repository } : {}),
         ...(inc.page ? { locator: inc.page } : {}),
+        ...sourceFieldsOf(inc),
         ...(inc.date ? { date: inc.date } : {}),
         ...(inc.text ? { transcript: inc.text } : {}),
         ...(inc.url ? { url: inc.url } : {}),
@@ -4668,19 +4800,34 @@ export function applySync(
             kept(c, `${s.id} is the user's reading: ${c.kind === "source.verified" ? "verified" : "changed"} by nobody but the user — tell the user`, { source: s.id });
             break;
           }
-          const before = JSON.stringify({ transcript: s.transcript ?? null, locator: s.locator ?? null, app: s.app ?? null });
+          const before = JSON.stringify({ transcript: s.transcript ?? null, locator: s.locator ?? null, app: s.app ?? null, folio: s.folio ?? null, image: s.image ?? null, callNumber: s.callNumber ?? null });
           const read = tree.personWrites && (c.kind === "source.verified" || evidence || !!s.app?.read);
+          // what the user edited (a change of before 1.31 names none: its words and page); an app that sends the PAGE
+          // whole (no fields of its own) gives the whole location in it: its folio and image are in the new locator
+          const edits = (f: SourceEdit) => c.kind === "source.changed" && !!inc[f] && (!c.fields || c.fields.includes(f));
+          const whole = edits("page") && !inc.structured;
+          // a field the user removed in the app (spec 075, B): gone here too, its value in the history (undone with the sync)
+          const removed = new Set(c.kind === "source.changed" ? (c.removed ?? []).filter((r) => s[r.field]?.trim() === r.was).map((r) => r.field) : []);
           update<Source>(
             tree,
             s.id,
             "source",
-            (x) => ({
-              ...x,
-              ...(c.kind === "source.changed" && inc.text ? { transcript: inc.text } : {}),
-              ...(c.kind === "source.changed" && inc.page ? { locator: inc.page } : {}),
-              app: { ...x.app, read, ...((tree.personWrites && c.kind === "source.verified") || x.app?.verified ? { verified: true } : {}) },
-            }),
-            { op: "source.sync", summary: `${s.id} ${c.kind === "source.verified" ? "transcript verified by the user" : "the user's reading corrected"} (${reason})` },
+            ({ folio, image, ...x }) => {
+              const y: Source = {
+                ...x,
+                ...(!whole && folio ? { folio } : {}),
+                ...(!whole && image ? { image } : {}),
+                ...(edits("text") ? { transcript: inc.text } : {}),
+                ...(edits("page") ? { locator: inc.page } : {}),
+                ...(edits("folio") ? { folio: inc.folio } : {}),
+                ...(edits("image") ? { image: inc.image } : {}),
+                ...(edits("callNumber") ? { callNumber: inc.callNumber } : {}),
+                app: { ...x.app, read, ...((tree.personWrites && c.kind === "source.verified") || x.app?.verified ? { verified: true } : {}) },
+              };
+              for (const f of removed) delete y[f];
+              return y;
+            },
+            { op: "source.sync", summary: `${s.id} ${c.kind === "source.verified" ? "transcript verified by the user" : "the user's reading corrected"}${removed.size ? ` (removed: ${[...removed].join(", ")})` : ""} (${reason})` },
           );
           applied.push({ do: "source.edit", id: s.id, before });
           raise(s.id);
@@ -4713,7 +4860,15 @@ export function applySync(
           const n = addNote(
             tree,
             s.id,
-            [phrase(lang, "sync.reading.note", { source: source.id }), inc.page ? `${phrase(lang, "sync.reading.page")}: ${inc.page}` : "", inc.text ? `${phrase(lang, "sync.reading.text")}:\n${inc.text}` : ""].filter(Boolean).join("\n"),
+            [
+              phrase(lang, "sync.reading.note", { source: source.id }),
+              inc.page ? `${phrase(lang, "sync.reading.page")}: ${inc.page}` : "",
+              ...(["folio", "image", "callNumber"] as const).map((f) => (inc[f] && (!c.fields || c.fields.includes(f)) ? `${phrase(lang, `sync.reading.${f}`)}: ${inc[f]}` : "")),
+              ...(c.removed ?? []).map((r) => removedLine(lang, r)),
+              inc.text ? `${phrase(lang, "sync.reading.text")}:\n${inc.text}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
           );
           applied.push({ do: "note.add", id: s.id, before: n.at });
           for (const o of [...tree.list<Person>("person"), ...tree.list<Family>("family")])
@@ -5878,13 +6033,22 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         break;
       }
       case "source.edit": {
-        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null; title?: string };
+        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null; title?: string; folio?: string | null; image?: string | null; callNumber?: string | null };
+        // the location's fields as they were (a change of before 1.31 kept none: they stay as they are)
+        const fields = (["folio", "image", "callNumber"] as const).filter((f) => f in b);
         update<Source>(
           tree,
           a.id,
           "source",
           // its title too, when a rename in the app changed it
-          ({ transcript: _t, locator: _l, app: _a, ...x }) => ({ ...x, ...(b.title ? { title: b.title } : {}), ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) }) as Source,
+          ({ transcript: _t, locator: _l, app: _a, ...x }) => {
+            const y: Source = { ...x, ...(b.title ? { title: b.title } : {}), ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) } as Source;
+            for (const f of fields) {
+              if (b[f]) y[f] = b[f]!;
+              else delete y[f];
+            }
+            return y;
+          },
           { op: "source.sync", summary: `${a.id} as it was: ${reason}` },
         );
         break;

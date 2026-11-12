@@ -192,12 +192,14 @@ se volí **Zamítnout**; **Povolit přístup ke všem relevantním webům** se n
   - prohlížeč aplikace ChatGPT strom nehlídá ani nezapisuje, ať je hook stromu v Codexu potvrzený, nebo ne;
   - Codex v terminálu zůstává hlídaný, jakmile je hook stromu v Codexu potvrzený ([R12.5](#R12.5)).
 - **Proč:** strom posoudí jen volání, které mu agent ukáže hookem; prohlížeč v cloudu ChatGPT žádný hook nevolá.
+  Na Macu 8. 11. 2026 (výzkum 1.29.0) se v aplikaci ChatGPT hook stromu při práci s prohlížečem nespustil ani
+  jednou.
 - **Ovládání:** terminál: `strom doctor` (řádek **aplikace ChatGPT** jako varování: „prohlížeč strom nehlídá (běží
   přes cloud ChatGPT), o webech rozhoduje dialog ChatGPT“, s radou k dialogu), `strom setup` (řekne to jednou, když
   se zvolí aplikace ChatGPT).
 - **Platí od:** výzkum 1.30.0
 
-<!-- zdroj: research:v1.30.0 src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 -->
+<!-- zdroj: research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept · assets/lang/cs.json ui.doc.chatgptapp, ui.doc.chatgptapp.browser, ui.doc.chatgptapp.advice, ui.setup.chatgpt, ui.doc.desktop.codex · test/cli/browser-advice.test.ts · CHANGELOG.cs.md 1.30.0 · dirigent:spec/062 P6 · dirigent:test/vysledek-062-u4-codex.md (ChatGPT.app 26.1021 a 26.1103: hook-calls.log prázdný) -->
 
 <a id="R12.6"></a>
 ## R12.6 Co ověřené není
