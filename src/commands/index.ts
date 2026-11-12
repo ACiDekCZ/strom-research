@@ -30,6 +30,7 @@ import "./document.ts";
 import "./clips.ts";
 import "./transcripts.ts";
 import "./analysis.ts";
+import "./facts.ts";
 import "./grep.ts";
 import "./show.ts";
 import "./browse.ts";

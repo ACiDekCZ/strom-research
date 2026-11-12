@@ -135,7 +135,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
  * trees in the app have it. An ID that is no UUID: the name alone.
  */
 export function treeUrl(env: Env, name: string, id: string): string {
-  const url = new URL(appUrlSetting(new Settings(env, {})).url);
+  return withTree(appUrlSetting(new Settings(env, {})).url, name, id);
+}
+
+/** An address of the app (its page, the bridge's or a file's to take in) naming the tree as treeUrl does. */
+export function withTree(address: string, name: string, id: string): string {
+  const url = new URL(address);
   const slug = appSlug(name);
   if (slug) url.searchParams.set("tree", slug);
   const research = id.trim().toLowerCase();

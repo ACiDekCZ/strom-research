@@ -11,6 +11,9 @@ import type { Context } from "../cli/context.ts";
 import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { diskFull, EXIT, StromError, UsageError } from "../core/errors.ts";
+import { resolvePerson } from "../core/people.ts";
+import { personUrl, treeUrl, withTree } from "../core/widget.ts";
+import type { Person } from "../core/model.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
@@ -306,6 +309,13 @@ register({
   },
 });
 
+/** The person strom app --person opens the app on: a person of the tree, never one retracted or merged. */
+function appPerson(tree: Tree, ref: string): Person {
+  const p = resolvePerson(tree, ref);
+  if (p.retracted) throw new UsageError(`${p.id} is retracted: the app shows no such person`, { hint: "strom facts or strom person list: the people of the tree" });
+  return p;
+}
+
 register(
   {
     path: ["app"],
@@ -319,10 +329,19 @@ register(
     options: [
       { name: "live", type: "boolean", description: "the app follows this research while it goes on (the live bridge)" },
       { name: "images", type: "boolean", description: "each entry with its image (the default; kept for older scripts)" },
+      { name: "person", type: "string", value: "<P…>", description: "open the app on this person of the tree (an app before 3.21 opens the tree)" },
     ],
-    examples: ["strom app", "strom app --live", "strom app install"],
+    examples: ["strom app", "strom app --live", "strom app --person P0001", "strom app install"],
     async run(ctx, { opts }) {
       const lang = ctx.uiLang();
+      // a person to open the app on (?person=, with the tree it is of): one of the tree, never one taken back
+      const person = typeof opts.person === "string" && opts.person.trim() ? appPerson(ctx.tree(), opts.person) : undefined;
+      const atPerson = (url: string): string => (person ? personUrl(withTree(url, ctx.tree().config.name, ctx.tree().config.id), person.id) : url);
+      const personPage = (p: Person) => {
+        const url = personUrl(treeUrl(ctx.env, ctx.tree().config.name, ctx.tree().config.id), p.id);
+        const opened = openForUser(url, ctx.env);
+        return { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, person: p.id } };
+      };
       // a strom.app.url that is no address of the app (the variable, or written by hand into the settings): refused
       // before anything starts — nothing opened, no address built on it with the bridge's secret (B1-c)
       stromAppUrl(ctx.settings);
@@ -365,7 +384,7 @@ register(
           // The bridge serves the tree's GEDCOM to the app; it ends by itself when nobody asks it anything.
           const info = startLive(root, ctx.env, { current: true });
           if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
-          const url = follow ? liveAppUrl(info.url, ctx.settings) : importAppUrl(`${info.url}/tree.ged`, ctx.settings);
+          const url = atPerson(follow ? liveAppUrl(info.url, ctx.settings) : importAppUrl(`${info.url}/tree.ged`, ctx.settings));
           const { opened, via } = openAppIn(win, url, ctx.env);
           const browser = win.browser ?? (win.webApp ? { name: win.webApp.browser } : undefined);
           const where = via === "app" ? ui(lang, "ui.app.where.installed") : (browser?.name ?? "");
@@ -382,10 +401,12 @@ register(
             movedText = ui(lang, "ui.app.moved", { browser: win.browser.name, from: fromWords((k) => ui(lang, k), browserKind(moved.from) ?? "other"), file: ctx.display(moved.file) });
           }
           const text = lines(goneText, movedText, opened ? ui(lang, follow ? "ui.app.following" : "ui.app.research", { name, where }) : ui(lang, "ui.app.url", { url }), withImages);
-          const said = { text, data: { opened, via: via ?? "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow } };
+          const said = { text, data: { opened, via: via ?? "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow, ...(person ? { person: person.id } : {}) } };
           // an agent opens the app for the person, never learns where the bridge takes what the person sends
           return isAgent(ctx.env) ? withoutSecret(said, info.token) : said;
         }
+        // a person and no browser to hand the research over: the tree's page in the app on that person (as the app has it)
+        if (person) return personPage(person);
         // A: no such browser to hand it over, but the Strom app installed from one takes the file itself (its file handler).
         if (!follow && installed && /Chrome|Edge|Brave|Chromium|Vivaldi/.test(installed.kind) && openFileWith(installed.path, file, ctx.env))
           return { text: lines(ui(lang, "ui.app.research", { name, where: installed.kind }), withImages), data: { opened: true, via: "file", file, app: installed.path, follow } };
@@ -401,11 +422,13 @@ register(
         const since = Date.now();
         const info = startLive(ctx.tree().root, ctx.env);
         if (!info) throw notStarted(ctx.tree().root, since);
-        const url = liveAppUrl(info.url, ctx.settings);
+        const url = atPerson(liveAppUrl(info.url, ctx.settings));
         const opened = openForUser(url, ctx.env);
-        const said = { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, bridge: info.url } };
+        const said = { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, bridge: info.url, ...(person ? { person: person.id } : {}) } };
         return isAgent(ctx.env) ? withoutSecret(said, info.token) : said;
       }
+      // a person: the tree's page in the app on that person (the tree as the app has it)
+      if (person) return personPage(person);
       const app = noticeStromApp(ctx.settings, ctx.env, { look: true }) ?? installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
       const opened = openForUser(app?.path ?? stromAppUrl(ctx.settings), ctx.env);
       const text = opened ? ui(lang, "ui.app.opened", { where: app ? app.kind : ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url: stromAppUrl(ctx.settings) });

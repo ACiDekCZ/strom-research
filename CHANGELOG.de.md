@@ -5,9 +5,27 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
-## 1.31.1
+## 1.32.0
 
-*In Vorbereitung: die Betas bis 1.31.1-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.32.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Fragen an den Stammbaum mit einem Aufruf: `strom facts`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
+  wohnte, wer im 18. Jahrhundert in Lhota geboren wurde: eine Zeile je Angabe einer Person mit Wert, Ort, Hausnummer,
+  Datum, Sicherheit und Quellen. Filter nach Art, Beruf, Wert, Ort, Hausnummer, Jahren, Nachname (auch seinen anderen
+  Formen), Quelle und Status; wessen Angaben: die direkte Linie, die Blutsverwandten (Standard, auch Seitenlinien), mit
+  ihren Partnern, oder der ganze Baum. `--count` und `--by generation|kin|place|decade|surname` zählen sie. Widerrufene
+  Personen und Angaben nie, widerlegte nur auf Wunsch; ein unbekanntes `--kind` wird mit den gültigen Arten abgelehnt.
+- **Wie jede Person mit der Hauptperson verwandt ist, in Worten:** in der Sprache der Forschung, mit der Seite
+  (väterlich, mütterlich) und der Generation, wie es der Verwandtschaftsrechner der Strom-App sagt.
+- **Berufe auch in ihren tschechischen, deutschen, lateinischen und polnischen Formen:** mlynar findet auch Müller und
+  molitor; Personen mit dem Wort nur im Namen oder in einer Notiz werden getrennt gezählt, mit dem `strom find`, das sie
+  findet.
+- **Der Agent beantwortet Fragen an den Stammbaum mit `strom facts`,** mit den IDs der Personen, der Verwandtschaft und
+  der Quelle, und sagt, wie sicher jede Angabe ist: ein Hinweis oder eine wahrscheinliche Angabe nie als Tatsache.
+- **Eine Hausnummer mit eigenem Wort** (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
+- **`strom app --person P…`** öffnet die Strom-App bei dieser Person des Baums (eine App vor 3.21 öffnet den Baum).
+
+## 1.31.1
 
 - **Eine Einstellung für Archiv-Viewer, die ein Browser langsam zeichnet.** Wo der Browser einen Tab nur etwa einmal
   pro Sekunde zeichnet (Zeichnen ohne Grafikkarte, ein Remote-Desktop), braucht der Viewer des Archivs (ACTA PUBLICA)

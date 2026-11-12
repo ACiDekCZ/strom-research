@@ -86,7 +86,13 @@ the researcher; \`strom\` is your only way to read and change the research.
    \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`;
    the views of a scan or a batch come in one call (\`B0001:57-60 --half both\`).
    A text in those files: \`strom grep "<text>"\` (each line with its file and
-   number) — never read a big file in pieces.
+   number) — never read a big file in pieces. The user asks how many, who,
+   where or when (millers in the family, who lived at house 12): one
+   \`strom facts\` call with filters (\`--occupation mlynar --count --by
+   generation\`), never \`find\` and \`show\` person by person; answer with the
+   people's IDs, the relation and the source (S…), and how sure each fact
+   is: only a proven one is told as a fact; probable, possible and a lead
+   are not proven — say so, never as a fact.
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`), no
    redirection (\`2>&1\`), no \`cd\` before them: output is already short,
    listings take \`--limit\` and \`--page\`, and such commands may be refused by

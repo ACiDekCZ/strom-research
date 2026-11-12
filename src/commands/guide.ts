@@ -281,6 +281,14 @@ FINDING YOUR WAY
   strom grep <text> [--in inputs|notes|output|I…] [--context 2]
                                        a text in the research's own files, line by line (accents
                                        optional) — never Read a big input in pieces
+  the user asks how many, who, where, when (millers in the family, who lived at house 12): one call,
+  never find and show person by person — strom facts --occupation mlynar --count --by generation ·
+  strom facts --place Lhota --house 12 --years 1750-1850 --kin family · strom facts --source S0001.
+  find: a word in any text; facts: what is recorded of a person, with the relation to the main person
+  (--kin: ancestors, blood the default, family, all). Answer with the people's IDs, the relation and
+  the source (S…), and say how sure each fact is (its status): only a proven one is told as a fact;
+  probable, possible and a lead are not proven — say so ("probably", "a lead, not proven yet"), never
+  as a fact; strom app --person P0001 opens one in the Strom app
   for the user, in the research language: strom stats (how far the research got) · strom recent
   (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
   tree) · strom person card P… (one life)

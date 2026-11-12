@@ -5,9 +5,26 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
-## 1.31.1
+## 1.32.0
 
-*W przygotowaniu: bety do 1.31.1-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.32.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Pytania o drzewo jednym wywołaniem: `strom facts`.** Ilu młynarzy jest w rodzie, kto mieszkał pod numerem 12, kto
+  urodził się w Lhocie w XVIII wieku: wiersz na każdą daną osoby z wartością, miejscem, numerem domu, datą, pewnością
+  i źródłami. Filtry według rodzaju, zawodu, wartości, miejsca, numeru domu, lat, nazwiska (także jego innych form),
+  źródła i stanu; czyje dane: linia prosta, krewni (domyślnie, także linie boczne), z ich partnerami, albo całe drzewo.
+  `--count` i `--by generation|kin|place|decade|surname` je liczą. Osoby i dane wycofane nigdy, obalone tylko na
+  życzenie; nieznany `--kind` zostaje odrzucony z listą prawidłowych rodzajów.
+- **Jak każda osoba jest spokrewniona z osobą główną, słowami:** w języku badania, ze stroną (ojca, matki)
+  i pokoleniem, tak jak mówi kalkulator pokrewieństwa aplikacji Strom.
+- **Zawody także w formach czeskich, niemieckich, łacińskich i polskich:** mlynar znajduje też Müller i molitor; osoby
+  ze słowem tylko w nazwisku lub notatce liczone są osobno, z `strom find`, który je znajduje.
+- **Agent odpowiada na pytania o drzewo poleceniem `strom facts`,** z ID osób, pokrewieństwem i źródłem, i mówi, jak
+  pewna jest każda dana: wskazówka ani dana prawdopodobna nigdy jako fakt.
+- **Numer domu zapisany z własnym słowem** (č. 7, Nr. 7) nie ma już słowa dwa razy, także na karcie osoby.
+- **`strom app --person P…`** otwiera aplikację Strom na tej osobie drzewa (aplikacja przed 3.21 otwiera drzewo).
+
+## 1.31.1
 
 - **Ustawienie dla przeglądarek archiwów, które przeglądarka rysuje powoli.** Gdy przeglądarka rysuje kartę tylko mniej
   więcej raz na sekundę (rysowanie bez karty graficznej, zdalny pulpit), przeglądarka skanów archiwum (ACTA PUBLICA)

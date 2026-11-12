@@ -5,9 +5,26 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
-## 1.31.1
+## 1.32.0
 
-*Připravuje se: bety do 1.31.1-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.32.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Otázky nad rodokmenem jedním voláním: `strom facts`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
+  narodil ve Lhotě v 18. století: řádek za každý údaj osoby s hodnotou, místem, číslem popisným, datem, jistotou
+  a prameny. Filtry podle druhu, povolání, hodnoty, místa, čísla, let, příjmení (i jeho dalších tvarů), pramene a stavu;
+  čí údaje: přímá linie, pokrevní příbuzní (výchozí, i boční větve), i s partnery, nebo celý strom. `--count`
+  a `--by generation|kin|place|decade|surname` je spočítají. Odvolané osoby a údaje nikdy, vyvrácené jen na požádání;
+  neznámý `--kind` odmítne se seznamem platných druhů.
+- **Jak je každá osoba příbuzná výchozí osobě, slovy:** v jazyce výzkumu, se stranou (otcova, matčina) a generací,
+  jak to říká kalkulačka vztahů aplikace Strom.
+- **Povolání i v českých, německých, latinských a polských tvarech:** mlynar najde i Müller a molitor; osoby se slovem
+  jen ve jméně nebo poznámce se počítají zvlášť, se `strom find`, který je najde.
+- **Agent odpovídá na otázky nad rodokmenem příkazem `strom facts`,** s ID osob, vztahem a pramenem, a říká, jak jistý
+  je každý údaj: vodítko ani pravděpodobný údaj nikdy jako fakt.
+- **Číslo domu zapsané i se slovem** (č. 7, Nr. 7) už nemá slovo dvakrát, ani na kartě osoby.
+- **`strom app --person P…`** otevře aplikaci Strom na této osobě stromu (aplikace před 3.21 otevře strom).
+
+## 1.31.1
 
 - **Nastavení pro prohlížeče archivů, které prohlížeč vykresluje pomalu.** Kde prohlížeč vykreslí kartu jen zhruba
   jednou za sekundu (kreslení bez grafické karty, vzdálená plocha), potřebuje prohlížeč snímků archivu (ACTA PUBLICA)

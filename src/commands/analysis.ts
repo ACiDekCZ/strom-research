@@ -37,6 +37,7 @@ import { sameFamily } from "../core/surnames.ts";
 import { changeLines } from "../core/changelog.ts";
 import { isAgent } from "../core/which.ts";
 import { foldText, unfoldIndex } from "../core/text.ts";
+import { searchText } from "../core/searchtext.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { takeSide } from "../core/sync.ts";
 import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/conflicts.ts";
@@ -1328,23 +1329,8 @@ register(
 
 // ── find and gaps ──────────────────────────────────────────────────────────
 
-/** Searchable text of a record, for `strom find`. */
-/** What was taken back or replaced (spec 016): kept for the history, never searched — at any depth of a record. */
-const NOT_SEARCHED = new Set(["retractedNames", "retractedNotes", "edits", "noteEdits"]);
-
-function haystack(r: AnyRecord): string {
-  const parts: string[] = [];
-  const add = (v: unknown) => {
-    if (typeof v === "string") parts.push(v);
-    else if (Array.isArray(v)) v.forEach(add);
-    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) if (!NOT_SEARCHED.has(k)) add(x);
-  };
-  const { id: _i, type: _t, created: _c, updated: _u, ...rest } = r as unknown as Record<string, unknown>;
-  // a person's titles ("Ing.", "ml.") are never searched as their name — the Strom app finds nobody by them either
-  if (r.type === "person") rest.names = r.names.map(({ prefix: _p, suffix: _s, ...n }) => n);
-  add(rest);
-  return parts.join(" \u0001 ");
-}
+/** Searchable text of a record, for `strom find` (core/searchtext.ts). */
+const haystack = searchText;
 
 function label(tree: Tree, r: AnyRecord): string {
   switch (r.type) {
@@ -1386,7 +1372,9 @@ register(
     summary: "Full-text search across everything (people, sources, transcripts, searches, tasks, notes)",
     group: "analysis",
     tree: true,
-    description: "Words in one argument must all be there. Several arguments are several searches in one go (e.g. old codes\nof a converted research) — each answered on its own.",
+    description:
+      "Words in one argument must all be there. Several arguments are several searches in one go (e.g. old codes\nof a converted research) — each answered on its own.\n" +
+      "A word in any text (a name, a note); the facts recorded of people (how many millers, who lived at house 12,\nwho is related how): strom facts.",
     args: [{ name: "text", description: "words to find (diacritics optional); several arguments = several searches", required: true, variadic: true }],
     options: [{ name: "type", type: "string", value: "<type>", description: `only one record type: ${Object.keys(RECORD_TYPES).join(", ")}`, aliases: ["kind"] }],
     examples: ['strom find "čp. 12"', "strom find mlynar --type source", "strom find \"č. 12\" \"č. 15\" mlynar"],

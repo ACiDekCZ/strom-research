@@ -7,6 +7,7 @@ import { MONTHS } from "../core/gdate.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { displayName } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
+import { houseHasWord } from "../core/house.ts";
 import type { Tree } from "../core/tree.ts";
 import type { Family, Person, RecordSet, Session, Source } from "../core/model.ts";
 
@@ -155,6 +156,8 @@ export function generationName(g: number, lang: string): string {
 /** Where a fact happened: the place, with the house when the record gives it. */
 export function humanPlace(place: string | undefined, house: string | undefined, lang: string): string {
   if (!house) return place ?? "";
+  // a house written with its own word ("č. 7", "Nr. 12") as it is: never "č. č. 7"
+  if (houseHasWord(house)) return [place, house].filter(Boolean).join(" ");
   return ui(lang, "ui.card.house", { place: place ?? "", house }).replace(/^[,\s]+/, "");
 }
 
