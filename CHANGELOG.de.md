@@ -7,9 +7,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.32.0
 
-*In Vorbereitung: die Betas bis 1.32.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.32.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
-- **Fragen an den Stammbaum mit einem Aufruf: `strom facts`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
+- **Fragen an den Stammbaum mit einem Aufruf: `strom query`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
   wohnte, wer im 18. Jahrhundert in Lhota geboren wurde: eine Zeile je Angabe einer Person mit Wert, Ort, Hausnummer,
   Datum, Sicherheit und Quellen. Filter nach Art, Beruf, Wert, Ort, Hausnummer, Jahren, Nachname (auch seinen anderen
   Formen), Quelle und Status; wessen Angaben: die direkte Linie, die Blutsverwandten (Standard, auch Seitenlinien), mit
@@ -20,8 +20,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Berufe auch in ihren tschechischen, deutschen, lateinischen und polnischen Formen:** mlynar findet auch Müller und
   molitor; Personen mit dem Wort nur im Namen oder in einer Notiz werden getrennt gezählt, mit dem `strom find`, das sie
   findet.
-- **Der Agent beantwortet Fragen an den Stammbaum mit `strom facts`,** mit den IDs der Personen, der Verwandtschaft und
-  der Quelle, und sagt, wie sicher jede Angabe ist: ein Hinweis oder eine wahrscheinliche Angabe nie als Tatsache.
+- **Auch die Erzählungen: `strom query --story <Wort>`** nennt die Personen und Paare, in deren Erzählung das Wort
+  steht, jede mit dem Satz und den Quellen, auf die er sich stützt, mit denselben Filtern, Zählungen und Gruppen.
+- **Der Agent beantwortet Fragen an den Stammbaum mit `strom query`,** mit dem Namen und der ID jeder Person in Klammern
+  (zum Öffnen in der Strom-App), der ganzen Verwandtschaft und der Quelle mit ihrem Titel, und sagt, wie sicher jede
+  Angabe ist: ein Hinweis oder eine wahrscheinliche Angabe nie als Tatsache. Eine Erzählung zeigt nur, wo zu suchen ist;
+  wem ein Eintrag gehört, wer wer ist und das Prüfen der Angaben geht weiter wie bisher, aus den Quellen.
 - **Eine Hausnummer mit eigenem Wort** (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
 - **`strom app --person P…`** öffnet die Strom-App bei dieser Person des Baums (eine App vor 3.21 öffnet den Baum).
 

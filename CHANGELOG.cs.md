@@ -7,9 +7,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.32.0
 
-*Připravuje se: bety do 1.32.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.32.0-beta.2. Oddíl bude úplný s vydáním.*
 
-- **Otázky nad rodokmenem jedním voláním: `strom facts`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
+- **Otázky nad rodokmenem jedním voláním: `strom query`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
   narodil ve Lhotě v 18. století: řádek za každý údaj osoby s hodnotou, místem, číslem popisným, datem, jistotou
   a prameny. Filtry podle druhu, povolání, hodnoty, místa, čísla, let, příjmení (i jeho dalších tvarů), pramene a stavu;
   čí údaje: přímá linie, pokrevní příbuzní (výchozí, i boční větve), i s partnery, nebo celý strom. `--count`
@@ -19,8 +19,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jak to říká kalkulačka vztahů aplikace Strom.
 - **Povolání i v českých, německých, latinských a polských tvarech:** mlynar najde i Müller a molitor; osoby se slovem
   jen ve jméně nebo poznámce se počítají zvlášť, se `strom find`, který je najde.
-- **Agent odpovídá na otázky nad rodokmenem příkazem `strom facts`,** s ID osob, vztahem a pramenem, a říká, jak jistý
-  je každý údaj: vodítko ani pravděpodobný údaj nikdy jako fakt.
+- **I vyprávění: `strom query --story <slovo>`** vypíše osoby a páry, v jejichž vyprávění slovo je, každou s větou
+  a prameny, o které se opírá, se stejnými filtry, počty i skupinami.
+- **Agent odpovídá na otázky nad rodokmenem příkazem `strom query`,** se jménem a ID osoby v závorce (aby šla otevřít v
+  aplikaci Strom), celým vztahem a pramenem jeho názvem, a říká, jak jistý je každý údaj: vodítko ani pravděpodobný údaj
+  nikdy jako fakt. Vyprávění jen ukazuje, kde hledat; čí je zápis, kdo je kdo a ověřování údajů jde dál jako dosud, z
+  pramenů.
 - **Číslo domu zapsané i se slovem** (č. 7, Nr. 7) už nemá slovo dvakrát, ani na kartě osoby.
 - **`strom app --person P…`** otevře aplikaci Strom na této osobě stromu (aplikace před 3.21 otevře strom).
 

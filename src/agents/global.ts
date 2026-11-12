@@ -90,10 +90,15 @@ mentions strom, a family tree or the Strom app.
    then works offline); \`strom app\` opens it — with the research, followed
    live while you work, when the app can take it. Without it, the user can ask
    you about anyone in the tree: answer from \`strom person show\` and the like;
-   how many, who, where, when (millers in the family): \`strom facts\` with
-   filters, with the people's IDs, the relation and the source (S…); only a
+   how many, who, where, when (millers in the family): \`strom query\` with
+   filters; each person's name with their ID in brackets after it, the
+   relation in words whole as query gives it, never shortened, the source by
+   its title with its S… in brackets; only a
    proven fact is told as a fact, probable, possible and a lead are said to
-   be unproven — \`strom app --person P…\` opens one in the app.
+   be unproven; a story (\`--story <word>\`) retells the facts, only shows
+   where to look — \`strom app --person P…\` opens one in the app. It
+   answers; whose a record is, verifying and writing facts go as ever
+   (\`strom person show\`, the sources, the method).
 `;
 
 export interface GlobalTarget {

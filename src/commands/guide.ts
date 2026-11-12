@@ -282,13 +282,19 @@ FINDING YOUR WAY
                                        a text in the research's own files, line by line (accents
                                        optional) — never Read a big input in pieces
   the user asks how many, who, where, when (millers in the family, who lived at house 12): one call,
-  never find and show person by person — strom facts --occupation mlynar --count --by generation ·
-  strom facts --place Lhota --house 12 --years 1750-1850 --kin family · strom facts --source S0001.
-  find: a word in any text; facts: what is recorded of a person, with the relation to the main person
-  (--kin: ancestors, blood the default, family, all). Answer with the people's IDs, the relation and
-  the source (S…), and say how sure each fact is (its status): only a proven one is told as a fact;
+  never find and show person by person — strom query --occupation mlynar --count --by generation ·
+  strom query --place Lhota --house 12 --years 1750-1850 --kin family · strom query --source S0001.
+  find: a word in any text; query: what is recorded of a person, with the relation to the main person
+  (--kin: ancestors, blood the default, family, all). Answer with each person's name and their ID in
+  brackets after it (Karel Lhoták (P0012)), the relation in words whole as query gives it, never
+  shortened, the source by its title with its S… in brackets, and say how sure each fact is (its
+  status): only a proven one is told as a fact;
   probable, possible and a lead are not proven — say so ("probably", "a lead, not proven yet"), never
-  as a fact; strom app --person P0001 opens one in the Strom app
+  as a fact; strom app --person P0001 opens one in the Strom app. The stories holding a word:
+  strom query --story mlyn — a story retells the facts: answer from the facts and their sources, a
+  story only shows where to look. query answers the user and shows where to look; whose a record is,
+  who a person is, verifying and writing facts go as ever (strom person show, the sources, the method)
+  — a row of query is not enough for it.
   for the user, in the research language: strom stats (how far the research got) · strom recent
   (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
   tree) · strom person card P… (one life)

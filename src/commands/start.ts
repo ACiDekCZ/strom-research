@@ -312,7 +312,7 @@ register({
 /** The person strom app --person opens the app on: a person of the tree, never one retracted or merged. */
 function appPerson(tree: Tree, ref: string): Person {
   const p = resolvePerson(tree, ref);
-  if (p.retracted) throw new UsageError(`${p.id} is retracted: the app shows no such person`, { hint: "strom facts or strom person list: the people of the tree" });
+  if (p.retracted) throw new UsageError(`${p.id} is retracted: the app shows no such person`, { hint: "strom query or strom person list: the people of the tree" });
   return p;
 }
 

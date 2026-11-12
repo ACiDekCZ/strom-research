@@ -1,4 +1,4 @@
-// strom facts — the facts of the tree as rows, for questions over the data ("how many millers in the family", "who
+// strom query — the facts of the tree as rows, for questions over the data ("how many millers in the family", "who
 // lived in house 12", "the births of a surname in a century"): one call gives who (with the relation to the main
 // person in words, the side and the generation), what, where, when, how sure and on what source — counted and grouped
 // when asked. Read only (core/facts.ts). strom find stays the search of any text.
@@ -9,7 +9,7 @@ import { counted, lines, LIST_PAGE_MAX, moreLine, paginate, shellArg, truncate }
 import { ui, type UIKey } from "../cli/ui.ts";
 import { eventName, humanDate, humanPlace, statusName } from "../cli/human.ts";
 import { UsageError } from "../core/errors.ts";
-import { ASKED_STATUSES, FACT_GROUPS, KIN_SETS, factKind, findFacts, groupRows, parseYears, personLabel, termLang, type FactGroup, type FactQuery, type FactRow, type KinSet } from "../core/facts.ts";
+import { ASKED_STATUSES, FACT_GROUPS, KIN_SETS, factKind, findFacts, findStories, groupRows, parseYears, personLabel, termLang, type FactGroup, type FactQuery, type FactRow, type KinSet, type StoryRow } from "../core/query.ts";
 import { houseHasWord } from "../core/house.ts";
 import { mainPerson } from "../core/kin.ts";
 import { displayName, lifespan, resolvePerson } from "../core/people.ts";
@@ -22,7 +22,7 @@ import type { Tree } from "../core/tree.ts";
 
 const WIDER: Record<KinSet, KinSet | undefined> = { ancestors: "blood", blood: "family", family: "all", all: undefined };
 
-/** The English words of a set (an agent's text); a person reads them in the research's language (ui.facts.kin.*). */
+/** The English words of a set (an agent's text); a person reads them in the research's language (ui.query.kin.*). */
 const KIN_EN: Record<KinSet, string> = {
   ancestors: "{of} and the ancestors",
   blood: "blood relatives of {of}",
@@ -33,7 +33,7 @@ const KIN_EN: Record<KinSet, string> = {
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], name: string): T | undefined {
   if (value === undefined || value === false) return undefined;
   const v = String(value).trim().toLowerCase();
-  if (!(allowed as readonly string[]).includes(v)) throw new UsageError(`--${name} takes ${allowed.join(", ")}`, { hint: `strom facts --${name} ${allowed[0]}` });
+  if (!(allowed as readonly string[]).includes(v)) throw new UsageError(`--${name} takes ${allowed.join(", ")}`, { hint: `strom query --${name} ${allowed[0]}` });
   return v as T;
 }
 
@@ -42,10 +42,10 @@ function ofPerson(tree: Tree, ref: unknown): Person {
   const id = typeof ref === "string" && ref.trim() ? resolvePerson(tree, ref).id : mainPerson(tree);
   if (!id)
     throw new UsageError("no main person to relate the facts to", {
-      hint: "strom config set main.person P0001 (the person the tree is for), or strom facts --of P0001",
+      hint: "strom config set main.person P0001 (the person the tree is for), or strom query --of P0001",
     });
   const p = tree.get<Person>(id);
-  if (!p || p.retracted) throw new UsageError(`${id} is retracted: no facts are related to it`, { hint: "strom facts --of P0001 (a person of the tree)" });
+  if (!p || p.retracted) throw new UsageError(`${id} is retracted: no facts are related to it`, { hint: "strom query --of P0001 (a person of the tree)" });
   return p;
 }
 
@@ -61,7 +61,7 @@ function openOf(ctx: Context, tree: Tree): (id: string) => string | undefined {
 }
 
 register({
-  path: ["facts"],
+  path: ["query"],
   summary: "The facts of the tree as rows: who (and how related), what, where, when, how sure, on what source — counted and grouped",
   group: "analysis",
   tree: true,
@@ -74,8 +74,15 @@ register({
     "found at the start of a word of the value, label or cause (not the note), with any accent or none, and with the\n" +
     "forms of an occupation in Czech, German, Latin and Polish (mlynar finds Müller, molitor); --exact: the word itself.\n" +
     "--kin: ancestors (the person and the direct line), blood (the default: the ancestors and all their descendants,\n" +
-    "the side branches too), family (blood and their partners), all (the whole tree). Answer with the people's IDs, the\n" +
-    "relation and the source (S…); the Strom app opens a person: strom app --person P0001.",
+    "the side branches too), family (blood and their partners), all (the whole tree). Answer with each person's name and\n" +
+    "their ID in brackets after it, the relation in words whole as strom query gives it, never shortened, the source by\n" +
+    "its title with its S… in brackets; the Strom app opens a person: strom app --person P0001.\n" +
+    "--story <word>: the people (and couples) whose story holds the word (found as with --value), each with the sentence\n" +
+    "and the sources it rests on where they can be told (else the story's); the other filters choose the people (those\n" +
+    "with a fact answering them). A story retells the facts: answer from the facts and sources, a story only shows\n" +
+    "where to look.\n" +
+    "For answering the user and for finding where to look: whose a record is, who a person is, verifying and writing\n" +
+    "facts go as ever through strom person show, the sources and the method — a row of strom query is not enough for it.",
   options: [
     { name: "kind", type: "string", multiple: true, value: "<tag>", description: "only facts of this kind: OCCU, RESI, BIRT, DEAT, MARR … (repeatable, or comma separated)" },
     { name: "occupation", type: "string", multiple: true, value: "<word>", description: "an occupation (OCCU) by a word, with its forms in other languages (repeatable: any)" },
@@ -87,17 +94,18 @@ register({
     { name: "surname", type: "string", value: "<surname>", description: "people of this surname (its other forms too: Lhotakova, the groups made one family)" },
     { name: "source", type: "string", value: "<S…|words>", description: "facts citing this source (its ID, or words of its title)" },
     { name: "status", type: "string", multiple: true, value: "<status>", description: `only facts this sure: ${ASKED_STATUSES.join(", ")} (repeatable); disproven only so` },
+    { name: "story", type: "string", multiple: true, value: "<word>", description: "the stories holding this word, a row per story (repeatable: any of them)" },
     { name: "of", type: "string", value: "<P…>", description: "the person the relations are to (default: the main person, strom config get main.person)" },
     { name: "kin", type: "string", value: "<set>", description: `whose facts: ${KIN_SETS.join(", ")} (default blood)` },
     { name: "count", type: "boolean", description: "only the numbers (people, facts); with --by for each group" },
     { name: "by", type: "string", value: "<group>", description: `group by ${FACT_GROUPS.join(", ")} (with --count: numbers only)` },
   ],
   examples: [
-    "strom facts --occupation mlynar --count --by generation",
-    "strom facts --occupation mlynar",
-    "strom facts --place Lhota --house 12 --by kin",
-    "strom facts --surname Lhotak --years 1700-1800 --kind BIRT --count --by decade",
-    "strom facts --source S0001",
+    "strom query --occupation mlynar --count --by generation",
+    "strom query --occupation mlynar",
+    "strom query --place Lhota --house 12 --by kin",
+    "strom query --surname Lhotak --years 1700-1800 --kind BIRT --count --by decade",
+    "strom query --source S0001",
   ],
   run(ctx, { opts }) {
     const tree = ctx.tree();
@@ -107,22 +115,25 @@ register({
     const of = ofPerson(tree, opts.of);
     const kin = oneOf(opts.kin, KIN_SETS, "kin") ?? "blood";
     const by = oneOf(opts.by, FACT_GROUPS, "by") as FactGroup | undefined;
+    const storyWords = listOpt(opts.story).filter((x) => x.trim());
+    if (storyWords.length && (by === "place" || by === "decade"))
+      throw new UsageError(`--by ${by} groups facts: with --story, --by takes generation, kin, surname`, { hint: `strom query --story ${shellArg(storyWords[0]!)} --by generation` });
     const occupations = listOpt(opts.occupation);
     const values = [...occupations, ...listOpt(opts.value)];
     let kinds = csvOpt(opts.kind);
     const unknown = kinds.find((k) => !eventKind(k.trim()));
     if (unknown !== undefined)
       throw new UsageError(`unknown --kind "${unknown}": --kind takes ${Object.keys(EVENT_KINDS).join(", ")} (or the English name: occupation, residence …)`, {
-        hint: "strom facts --kind OCCU",
+        hint: "strom query --kind OCCU",
       });
     if (occupations.length) {
       if (kinds.length && !kinds.some((k) => k.toUpperCase() === "OCCU" || k.toLowerCase() === "occupation"))
-        throw new UsageError("--occupation is a fact of the kind OCCU: no other --kind beside it", { hint: `strom facts --kind ${kinds[0]} --value ${shellArg(occupations[0]!)}` });
+        throw new UsageError("--occupation is a fact of the kind OCCU: no other --kind beside it", { hint: `strom query --kind ${kinds[0]} --value ${shellArg(occupations[0]!)}` });
       kinds = ["OCCU"];
     }
     const statuses = listOpt(opts.status).flatMap((s) => s.split(",")).map((s) => oneOf(s, ASKED_STATUSES, "status")!) as Status[];
     const years = opts.years === undefined ? undefined : parseYears(String(opts.years));
-    if (opts.years !== undefined && !years) throw new UsageError(`--years takes 1750-1850 or one year, not "${opts.years}"`, { hint: "strom facts --years 1750-1850" });
+    if (opts.years !== undefined && !years) throw new UsageError(`--years takes 1750-1850 or one year, not "${opts.years}"`, { hint: "strom query --years 1750-1850" });
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
     const q: FactQuery = {
       of: of.id,
@@ -137,7 +148,9 @@ register({
       ...(str(opts.source) ? { source: str(opts.source)! } : {}),
       ...(statuses.length ? { statuses } : {}),
     };
-    const a = findFacts(tree, q);
+    // the stories holding a word (the other filters choose the people), else the facts
+    const st = storyWords.length ? findStories(tree, q, storyWords) : undefined;
+    const a = st ? undefined : findFacts(tree, q);
 
     // the command again (the next page, a wider set): its options as typed, plain words
     const typed: string[] = [];
@@ -147,64 +160,166 @@ register({
     if (opts.exact) typed.push("--exact");
     for (const k of ["place", "house", "years", "surname", "source"] as const) if (str(opts[k])) typed.push(`--${k}`, shellArg(str(opts[k])!));
     for (const s of statuses) typed.push("--status", s);
+    for (const x of storyWords) typed.push("--story", shellArg(x));
     if (typeof opts.of === "string" && opts.of.trim()) typed.push("--of", of.id);
-    const command = (more: string[]) => ["strom facts", ...typed, ...more].join(" ");
+    const command = (more: string[]) => ["strom query", ...typed, ...more].join(" ");
     const kinArg = kin === "blood" ? [] : ["--kin", kin];
 
     // the words: an agent's English, a person's language at a terminal; a relation always in the research's language
     const say = (key: UIKey, english: string, params: Record<string, string | number> = {}) => (w.lang ? ui(w.lang, key, params) : fillEn(english, params));
     const ofText = `${of.id} ${personLabel(of)}`;
-    const kinText = say(`ui.facts.kin.${kin}` as UIKey, KIN_EN[kin], { of: ofText });
+    const kinText = say(`ui.query.kin.${kin}` as UIKey, KIN_EN[kin], { of: ofText });
     const what = [
+      ...(st
+        ? [say("ui.query.story", "story {words}", { words: `${storyWords.join(" | ")}${st.known && st.variants.length > 1 ? ` (= ${st.variants.join(", ")})` : ""}` })]
+        : []),
       ...(kinds.length || values.length
         ? [
             [
               kinds.map((k) => (w.lang ? eventName(factKind(k), w.lang) : factKind(k))).join("/"),
-              values.length ? `${values.join(" | ")}${a.known && a.variants.length > 1 ? ` (= ${a.variants.join(", ")})` : ""}` : "",
+              values.length ? `${values.join(" | ")}${a?.known && a.variants.length > 1 ? ` (= ${a.variants.join(", ")})` : ""}` : "",
             ]
               .filter(Boolean)
               .join(" "),
           ]
         : []),
-      ...(q.place ? [say("ui.facts.place", "place {place}", { place: q.place })] : []),
-      ...(q.house ? [w.lang && houseHasWord(q.house) ? q.house : say("ui.facts.house", "house {house}", { house: q.house })] : []),
+      ...(q.place ? [say("ui.query.place", "place {place}", { place: q.place })] : []),
+      ...(q.house ? [w.lang && houseHasWord(q.house) ? q.house : say("ui.query.house", "house {house}", { house: q.house })] : []),
       ...(q.years ? [q.years.from === q.years.to ? String(q.years.from) : `${q.years.from}-${q.years.to}`] : []),
-      ...(q.surname ? [say("ui.facts.surname", "surname {surname}", { surname: q.surname })] : []),
-      ...(q.source ? [say("ui.facts.source", "source {source}", { source: q.source })] : []),
+      ...(q.surname ? [say("ui.query.surname", "surname {surname}", { surname: q.surname })] : []),
+      ...(q.source ? [say("ui.query.source", "source {source}", { source: q.source })] : []),
       ...(statuses.length ? [statuses.map((s) => (w.lang ? statusName(s, w.lang) : s)).join("/")] : []),
     ].join(" · ");
     const countText = (people: number, facts: number) =>
-      w.lang ? ui(w.lang, "ui.facts.count", { people, facts }) : `${counted(people, "person", "people")}, ${counted(facts, "fact")}`;
-    const head = `${what ? `${what} · ` : ""}${kinText}: ${countText(a.people, a.rows.length)}`;
+      w.lang ? ui(w.lang, "ui.query.count", { people, facts }) : `${counted(people, "person", "people")}, ${counted(facts, "fact")}`;
 
-    const selfTerm = ui(lang, "ui.facts.self");
-    const term = (r: FactRow): string | undefined => (r.self ? selfTerm : r.relation ? relationText(r.relation, lang) : undefined);
-    const generation = (r: FactRow): number | undefined => r.line ?? r.relation?.generation;
+    const selfTerm = ui(lang, "ui.query.self");
+    const term = (r: FactRow | StoryRow): string | undefined => (r.self ? selfTerm : r.relation ? relationText(r.relation, lang) : undefined);
+    const generation = (r: FactRow | StoryRow): number | undefined => r.line ?? r.relation?.generation;
     const open = openOf(ctx, tree);
     const groupLabel = (key: string, labels: Map<string, string>): string => {
-      if (key === "unknown") return say("ui.facts.unknown", "unknown");
-      if (by === "generation") return key === "side" ? say("ui.facts.side", "side branches") : key;
+      if (key === "unknown") return say("ui.query.unknown", "unknown");
+      if (by === "generation") return key === "side" ? say("ui.query.side", "side branches") : key;
       if (by === "decade") return `${key.slice(0, -1)}–${Number(key.slice(0, -1)) + 9}`;
       return labels.get(key) ?? key;
     };
 
+    const relationData = (r: FactRow | StoryRow) => {
+      const g = generation(r);
+      return r.self
+        ? { term: selfTerm, termEn: "self", generation: 1, path: [r.person.id] }
+        : r.relation
+          ? { term: r.relation.term[tl], termEn: r.relation.term.en, ...(r.relation.side ? { side: r.relation.side } : {}), ...(g !== undefined ? { generation: g } : {}), path: r.relation.path }
+          : null;
+    };
+    const whoText = (r: FactRow | StoryRow): string[] => {
+      const g = generation(r);
+      return [`${r.person.id} ${personLabel(r.person)}`, `${term(r) ?? say("ui.query.unrelated", "not related")}${g !== undefined ? ` (G${g})` : ""}`];
+    };
+    const sourcesText = (list: { id: string; title: string }[]): string => {
+      const shown = list.slice(0, 2).map((s) => `${s.id}${s.title ? ` ${truncate(s.title, 40)}` : ""}`);
+      return shown.length ? `${shown.join(", ")}${list.length > 2 ? ` +${list.length - 2}` : ""}` : "";
+    };
+    const pageOf = <R extends FactRow | StoryRow>(rows: R[], grouped: { groups: { key: string; rows: R[] }[] } | undefined, groups: { key: string; label: string; people: number; facts: number }[] | undefined, text: (r: R) => string, count: (people: number, n: number) => string) => {
+      const ordered = grouped ? grouped.groups.flatMap((g) => g.rows) : rows;
+      const page = paginate(ordered, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
+      const body: string[] = [];
+      if (grouped) {
+        const keyOf = new Map<R, string>();
+        for (const g of grouped.groups) for (const r of g.rows) keyOf.set(r, g.key);
+        let at: string | undefined;
+        for (const r of page.items) {
+          const k = keyOf.get(r)!;
+          if (k !== at) {
+            const g = groups!.find((x) => x.key === k)!;
+            body.push(`${g.label}: ${count(g.people, g.facts)}`);
+            at = k;
+          }
+          body.push(`  ${text(r)}`);
+        }
+      } else body.push(...page.items.map(text));
+      return { page, body };
+    };
+    const tries = (word: string | undefined) => [...(word ? [`strom find ${shellArg(word)}`] : []), ...(WIDER[kin] ? [command(["--kin", WIDER[kin]!])] : [])];
+    const elsewhereOf = (ids: string[], word: string | undefined) =>
+      ids.length
+        ? say("ui.query.elsewhere", "+{n} with the word only elsewhere (a name, a note, …): {command}", {
+            n: w.lang ? ids.length : counted(ids.length, "person", "people"),
+            command: `strom find ${shellArg(word!)}`,
+          })
+        : undefined;
+
+    if (st) {
+      const countStories = (people: number, stories: number) =>
+        w.lang ? ui(w.lang, "ui.query.count.stories", { people, stories }) : `${counted(people, "person", "people")}, ${counted(stories, "story", "stories")}`;
+      const storyText = (r: StoryRow): string =>
+        [
+          ...whoText(r),
+          `${r.owner.type === "family" ? `${r.owner.id} ` : ""}${say("ui.query.story.snippet", "story: “{text}”", { text: r.snippet })}`,
+          r.draft ? say("ui.query.story.draft", "draft") : "",
+          r.sources.length ? (r.basis === "story" ? say("ui.query.story.all", "the story's sources: {list}", { list: sourcesText(r.sources) }) : sourcesText(r.sources)) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      const storyData = (r: StoryRow) => {
+        const url = open(r.person.id);
+        return {
+          person: { id: r.person.id, name: displayName(r.person), lifespan: lifespan(r.person) },
+          relation: relationData(r),
+          story: { of: r.owner.id, draft: r.draft, snippet: r.snippet, sources: r.sources, basis: r.basis },
+          ...(url ? { open: url } : {}),
+        };
+      };
+      const word = storyWords[0];
+      const elsewhere = elsewhereOf(st.elsewhere, word);
+      const data = {
+        of: { id: of.id, name: personLabel(of) },
+        kin,
+        variants: st.variants,
+        total: { people: st.people, stories: st.rows.length },
+        elsewhere: { people: st.elsewhere.length, ...(st.elsewhere.length ? { ids: st.elsewhere, command: `strom find ${shellArg(word!)}` } : {}) },
+      };
+      if (!st.rows.length) {
+        const t = tries(word);
+        return {
+          text: lines(
+            say("ui.query.none", "nothing found: {query}", { query: `${what ? `${what} · ` : ""}${kinText}` }),
+            elsewhere,
+            t.length ? say("ui.query.try", "try: {commands}", { commands: t.join(" · ") }) : undefined,
+          ),
+          data: { ...data, rows: [] },
+        };
+      }
+      const head = `${what ? `${what} · ` : ""}${kinText}: ${countStories(st.people, st.rows.length)}`;
+      const grouped = by ? groupRows(st.rows, by, term) : undefined;
+      const groups = grouped?.groups.map((g) => ({ key: g.key, label: groupLabel(g.key, grouped.labels), people: g.people, facts: g.facts }));
+      const groupsData = groups?.map(({ facts, ...g }) => ({ ...g, stories: facts }));
+      if (opts.count)
+        return {
+          text: lines(head, ...(groups ?? []).map((g) => `  ${g.label}: ${countStories(g.people, g.facts)}`), elsewhere),
+          data: { ...data, ...(groupsData ? { groups: groupsData } : {}) },
+        };
+      const { page, body } = pageOf(st.rows, grouped, groups, storyText, countStories);
+      return {
+        text: lines(head, ...body, elsewhere, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
+        data: { ...data, ...(groupsData ? { groups: groupsData } : {}), page: page.page, pages: page.pages, rows: page.items.map(storyData) },
+      };
+    }
+    const fa = a!;
+    const head = `${what ? `${what} · ` : ""}${kinText}: ${countText(fa.people, fa.rows.length)}`;
+
     const rowText = (r: FactRow): string => {
       const e = r.fact;
-      const g = generation(r);
-      const rel = term(r) ?? say("ui.facts.unrelated", "not related");
       const kind = w.lang ? eventName(e.kind, w.lang, e.label) : `${e.kind}${e.label ? ` ${e.label}` : ""}`;
       const value = [e.value, e.cause].filter(Boolean).join(", ");
       const where = w.lang ? humanPlace(e.place, e.house, w.lang) : [e.place, e.house ? `house ${e.house}` : ""].filter(Boolean).join(", ");
-      const shown = r.sources.slice(0, 2).map((s) => `${s.id}${s.title ? ` ${truncate(s.title, 40)}` : ""}`);
-      const more = r.sources.length > 2 ? ` +${r.sources.length - 2}` : "";
       return [
-        `${r.person.id} ${personLabel(r.person)}`,
-        `${rel}${g !== undefined ? ` (G${g})` : ""}`,
+        ...whoText(r),
         `${e.id}${r.owner.type === "family" ? ` ${r.owner.id}` : ""} ${kind}${value ? ` ${value}` : ""}`,
         where,
         w.lang ? humanDate(e.date, w.lang) : (e.date ?? ""),
         w.lang ? statusName(e.status, w.lang) : e.status,
-        shown.length ? `${shown.join(", ")}${more}` : "",
+        sourcesText(r.sources),
       ]
         .filter(Boolean)
         .join(" · ");
@@ -212,14 +327,9 @@ register({
     const rowData = (r: FactRow) => {
       const e = r.fact;
       const url = open(r.person.id);
-      const g = generation(r);
       return {
         person: { id: r.person.id, name: displayName(r.person), lifespan: lifespan(r.person) },
-        relation: r.self
-          ? { term: selfTerm, termEn: "self", generation: 1, path: [r.person.id] }
-          : r.relation
-            ? { term: r.relation.term[tl], termEn: r.relation.term.en, ...(r.relation.side ? { side: r.relation.side } : {}), ...(g !== undefined ? { generation: g } : {}), path: r.relation.path }
-            : null,
+        relation: relationData(r),
         fact: {
           id: e.id,
           ...(r.owner.type === "family" ? { family: r.owner.id } : {}),
@@ -238,36 +348,28 @@ register({
     };
 
     const findWord = values[0];
-    const elsewhere = a.elsewhere.length
-      ? say("ui.facts.elsewhere", "+{n} with the word only elsewhere (a name, a note, …): {command}", {
-          n: w.lang ? a.elsewhere.length : counted(a.elsewhere.length, "person", "people"),
-          command: `strom find ${shellArg(findWord!)}`,
-        })
-      : undefined;
+    const elsewhere = elsewhereOf(fa.elsewhere, findWord);
     const data = {
       of: { id: of.id, name: personLabel(of) },
       kin,
-      variants: a.variants,
-      total: { people: a.people, facts: a.rows.length },
-      elsewhere: { people: a.elsewhere.length, ...(a.elsewhere.length ? { ids: a.elsewhere, command: `strom find ${shellArg(findWord!)}` } : {}) },
+      variants: fa.variants,
+      total: { people: fa.people, facts: fa.rows.length },
+      elsewhere: { people: fa.elsewhere.length, ...(fa.elsewhere.length ? { ids: fa.elsewhere, command: `strom find ${shellArg(findWord!)}` } : {}) },
     };
 
-    if (!a.rows.length) {
-      const tries = [
-        ...(findWord ? [`strom find ${shellArg(findWord)}`] : []),
-        ...(WIDER[kin] ? [command(["--kin", WIDER[kin]!])] : []),
-      ];
+    if (!fa.rows.length) {
+      const t = tries(findWord);
       return {
         text: lines(
-          say("ui.facts.none", "nothing found: {query}", { query: `${what ? `${what} · ` : ""}${kinText}` }),
+          say("ui.query.none", "nothing found: {query}", { query: `${what ? `${what} · ` : ""}${kinText}` }),
           elsewhere,
-          tries.length ? say("ui.facts.try", "try: {commands}", { commands: tries.join(" · ") }) : undefined,
+          t.length ? say("ui.query.try", "try: {commands}", { commands: t.join(" · ") }) : undefined,
         ),
         data: { ...data, rows: [] },
       };
     }
 
-    const grouped = by ? groupRows(a.rows, by, term) : undefined;
+    const grouped = by ? groupRows(fa.rows, by, term) : undefined;
     const groups = grouped?.groups.map((g) => ({ key: g.key, label: groupLabel(g.key, grouped.labels), people: g.people, facts: g.facts }));
     if (opts.count) {
       return {
@@ -277,23 +379,7 @@ register({
     }
 
     // the rows (by group: in the order of the groups), a page at a time
-    const ordered = grouped ? grouped.groups.flatMap((g) => g.rows) : a.rows;
-    const page = paginate(ordered, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
-    const body: string[] = [];
-    if (grouped) {
-      const keyOf = new Map<FactRow, string>();
-      for (const g of grouped.groups) for (const r of g.rows) keyOf.set(r, g.key);
-      let at: string | undefined;
-      for (const r of page.items) {
-        const k = keyOf.get(r)!;
-        if (k !== at) {
-          const g = groups!.find((x) => x.key === k)!;
-          body.push(`${g.label}: ${countText(g.people, g.facts)}`);
-          at = k;
-        }
-        body.push(`  ${rowText(r)}`);
-      }
-    } else body.push(...page.items.map(rowText));
+    const { page, body } = pageOf(fa.rows, grouped, groups, rowText, countText);
     return {
       text: lines(head, ...body, elsewhere, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
       data: { ...data, ...(groups ? { groups } : {}), page: page.page, pages: page.pages, rows: page.items.map(rowData) },

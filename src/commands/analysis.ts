@@ -1374,7 +1374,7 @@ register(
     tree: true,
     description:
       "Words in one argument must all be there. Several arguments are several searches in one go (e.g. old codes\nof a converted research) — each answered on its own.\n" +
-      "A word in any text (a name, a note); the facts recorded of people (how many millers, who lived at house 12,\nwho is related how): strom facts.",
+      "A word in any text (a name, a note); the facts recorded of people (how many millers, who lived at house 12,\nwho is related how): strom query.",
     args: [{ name: "text", description: "words to find (diacritics optional); several arguments = several searches", required: true, variadic: true }],
     options: [{ name: "type", type: "string", value: "<type>", description: `only one record type: ${Object.keys(RECORD_TYPES).join(", ")}`, aliases: ["kind"] }],
     examples: ['strom find "čp. 12"', "strom find mlynar --type source", "strom find \"č. 12\" \"č. 15\" mlynar"],

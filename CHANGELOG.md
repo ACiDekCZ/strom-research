@@ -7,9 +7,9 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.32.0
 
-*In preparation: the betas up to 1.32.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.32.0-beta.2. The section is complete with the release.*
 
-- **Questions over the family tree in one call: `strom facts`.** How many millers in the family, who lived at house 12,
+- **Questions over the family tree in one call: `strom query`.** How many millers in the family, who lived at house 12,
   who was born in Lhota in the 18th century: one row per fact of a person with its value, place, house, date, how sure
   it is and its sources. Filters by kind, occupation, value, place, house, years, surname (its other forms too), source
   and status; whose facts: the direct line, the blood relatives (the default, side branches too), with their partners,
@@ -19,8 +19,12 @@ The changes of each version in short. The full notes and the install lines are o
   father's, the mother's) and the generation, as the Strom app's relationship finder says it.
 - **Occupations in their Czech, German, Latin and Polish forms:** mlynar finds Müller and molitor too; people with the
   word only in a name or a note are counted apart, with the `strom find` that finds them.
-- **The agent answers questions over the tree with `strom facts`,** with the people's IDs, the relation and the
-  source, and says how sure each fact is: a lead or a probable one never as a fact.
+- **The stories too: `strom query --story <word>`** gives the people and couples whose story holds the word, each with
+  the sentence and the sources it rests on, with the same filters, counts and groups.
+- **The agent answers questions over the tree with `strom query`,** with each person's name and ID in brackets (to open
+  them in the Strom app), the relation whole and the source by its title, and says how sure each fact is: a lead or a
+  probable one never as a fact. A story only shows where to look; whose a record is, who a person is and verifying facts
+  go on as before, from the records.
 - **A house written with its own word** (č. 7, Nr. 7) no longer shows the word twice, on a person's card too.
 - **`strom app --person P…`** opens the Strom app on that person of the tree (an app before 3.21 opens the tree).
 

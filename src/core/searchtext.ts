@@ -1,4 +1,4 @@
-// The text of a record a full-text search reads (strom find; strom facts counts the people who have a word only there).
+// The text of a record a full-text search reads (strom find; strom query counts the people who have a word only there).
 
 import type { AnyRecord } from "./model.ts";
 

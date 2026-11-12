@@ -7,9 +7,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.32.0
 
-*W przygotowaniu: bety do 1.32.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.32.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
-- **Pytania o drzewo jednym wywołaniem: `strom facts`.** Ilu młynarzy jest w rodzie, kto mieszkał pod numerem 12, kto
+- **Pytania o drzewo jednym wywołaniem: `strom query`.** Ilu młynarzy jest w rodzie, kto mieszkał pod numerem 12, kto
   urodził się w Lhocie w XVIII wieku: wiersz na każdą daną osoby z wartością, miejscem, numerem domu, datą, pewnością
   i źródłami. Filtry według rodzaju, zawodu, wartości, miejsca, numeru domu, lat, nazwiska (także jego innych form),
   źródła i stanu; czyje dane: linia prosta, krewni (domyślnie, także linie boczne), z ich partnerami, albo całe drzewo.
@@ -19,8 +19,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   i pokoleniem, tak jak mówi kalkulator pokrewieństwa aplikacji Strom.
 - **Zawody także w formach czeskich, niemieckich, łacińskich i polskich:** mlynar znajduje też Müller i molitor; osoby
   ze słowem tylko w nazwisku lub notatce liczone są osobno, z `strom find`, który je znajduje.
-- **Agent odpowiada na pytania o drzewo poleceniem `strom facts`,** z ID osób, pokrewieństwem i źródłem, i mówi, jak
-  pewna jest każda dana: wskazówka ani dana prawdopodobna nigdy jako fakt.
+- **Także opowieści: `strom query --story <słowo>`** podaje osoby i pary, w których opowieści jest to słowo, każdą
+  ze zdaniem i źródłami, na których się opiera, z tymi samymi filtrami, liczeniem i grupami.
+- **Agent odpowiada na pytania o drzewo poleceniem `strom query`,** z imieniem i ID osoby w nawiasie (by otworzyć ją w
+  aplikacji Strom), pełnym pokrewieństwem i źródłem z jego tytułem, i mówi, jak pewna jest każda dana: wskazówka ani
+  dana prawdopodobna nigdy jako fakt. Opowieść pokazuje tylko, gdzie szukać; czyj jest zapis, kto jest kim i sprawdzanie
+  danych idą dalej jak dotąd, ze źródeł.
 - **Numer domu zapisany z własnym słowem** (č. 7, Nr. 7) nie ma już słowa dwa razy, także na karcie osoby.
 - **`strom app --person P…`** otwiera aplikację Strom na tej osobie drzewa (aplikacja przed 3.21 otwiera drzewo).
 
