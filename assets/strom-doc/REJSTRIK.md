@@ -51,7 +51,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | cs | Čeká na vyřízení (app, `research.waiting`) · Co čeká (terminal, `ui.menu.waitlist`) | Jeden seřazený seznam všeho, na co výzkum čeká od člověka: čekající úkoly, otázky archivů, nové verze vyprávění, otázky k místům a v terminálu i rozhodnutí, která jdou jen tam. |
 | en | Awaiting action (app) · What waits (terminal) | One ordered list of everything the research waits for from a person: waiting tasks, questions of archives, new versions of stories, questions about places, and in the terminal also the decisions made only there. |
 | de | Wartet auf Bearbeitung (app) · Was wartet (terminal) | Eine einzige geordnete Liste von allem, worauf die Forschung vom Menschen wartet: wartende Aufgaben, Fragen der Archive, neue Fassungen von Erzählungen, Fragen zu Orten und im Terminal auch Entscheidungen, die nur dort gehen. |
-| pl | Czeka na decyzję (app) · Co czeka (terminal) | Jedna uporządkowana lista wszystkiego, na co badanie czeka od człowieka: czekające zadania, pytania archiwów, nowe wersje opowieści, pytania o miejsca, a w terminalu także decyzje, które załatwia się tylko tam. |
+| pl | Czeka na załatwienie (app) · Co czeka (terminal) | Jedna uporządkowana lista wszystkiego, na co badanie czeka od człowieka: czekające zadania, pytania archiwów, nowe wersje opowieści, pytania o miejsca, a w terminalu także decyzje, które załatwia się tylko tam. |
 
 - **Čísla:** [R6.1](cs/R6-awaiting-action.md#R6.1), R6.1.1, R6.4, R6.5, S2.3
 
@@ -285,7 +285,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | cs | odložený (`ui.review.state.parked`) · Odložit (app) | Úkol stranou fronty i seznamu Čeká na vyřízení. S datem se vrátí sám v ten den, bez data až po probuzení. |
 | en | parked (terminal) · Park (app) | A task set aside from the queue and from the list Awaiting action. With a date it returns by itself on that day, without a date only when woken. |
 | de | zurückgestellt (terminal) · Zurückstellen (app) | Eine Aufgabe außerhalb der Warteschlange und der Liste Wartet auf Bearbeitung. Mit einem Datum kehrt sie an diesem Tag von selbst zurück, ohne Datum erst, wenn sie geweckt wird. |
-| pl | odłożone (terminal) · Odłóż (app) | Zadanie poza kolejką i poza listą Czeka na decyzję. Z datą wraca samo w tym dniu, bez daty dopiero po obudzeniu. |
+| pl | odłożone (terminal) · Odłóż (app) | Zadanie poza kolejką i poza listą Czeka na załatwienie. Z datą wraca samo w tym dniu, bez daty dopiero po obudzeniu. |
 
 - **Čísla:** [R6.7.2](cs/R6-awaiting-action.md#R6.7.2)
 
@@ -311,7 +311,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | de | Siegel · `strom verify`, `strom seal accept` | Eine Signatur mit dem Schlüssel dieses Computers, die strom auf jede seiner Änderungen einer Forschung setzt (eine Operation in der Geschichte und einen Commit). `strom verify` erkennt an den Siegeln, was außerhalb von strom geändert wurde. Ist die Geschichte verloren, kann ein Mensch die Forschung, wie sie ist, als neue Grundlage versiegeln (`strom seal accept`). |
 | pl | pieczęć · `strom verify`, `strom seal accept` | Podpis kluczem tego komputera, którym strom zamyka każdą swoją zmianę badania (operację w historii i commit). `strom verify` po pieczęciach poznaje, co zmieniono poza strom. Gdy historia zaginie, człowiek może zapieczętować badanie takie, jakie jest, jako nową podstawę (`strom seal accept`). |
 
-- **Čísla:** [R14.1](cs/R14-seal-and-integrity.md#R14.1), R14.2, R14.2.1, R14.2.2
+- **Čísla:** [R14.1](cs/R14-seal-and-integrity.md#R14.1), R14.1.1, R14.2, R14.2.1, R14.2.2, R14.3, R14.3.1
 
 <a id="input"></a>
 ### Podklad
@@ -443,7 +443,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | cs | poloha na mapě proti záznamům (terminal) · Rozpor polohy (app) | Otázka v Čeká na vyřízení: poloha na mapě nesouhlasí s tím, co říkají záznamy. Rozhodne člověk. |
 | en | Location conflict (app) | A question in Awaiting action: the position on the map disagrees with what the records say. A person decides. |
 | de | Widerspruch der Lage (app) | Eine Frage in Wartet auf Bearbeitung: die Lage auf der Karte stimmt nicht mit dem überein, was die Einträge sagen. Es entscheidet der Mensch. |
-| pl | Sprzeczne położenie (app) | Pytanie w Czeka na decyzję: położenie na mapie nie zgadza się z tym, co mówią akty. Rozstrzyga człowiek. |
+| pl | Sprzeczne położenie (app) | Pytanie w Czeka na załatwienie: położenie na mapie nie zgadza się z tym, co mówią akty. Rozstrzyga człowiek. |
 
 - **Čísla:** [R4.3](cs/R4-places.md#R4.3), R4.5
 
@@ -718,7 +718,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Hypothesen · Hypothesen zu entscheiden (terminal) | Eine Frage, die die Forschung zu einer Person oder Verbindung führt, mit Versionen der Antwort; sie ist offen, für eine Version entschieden oder verworfen. Entscheiden darf sie nur der Mensch; der Agent schlägt die Entscheidung vor. |
 | pl | Hipotezy · Hipotezy do rozstrzygnięcia (terminal) | Pytanie, które badanie prowadzi o osobie lub powiązaniu, z wersjami odpowiedzi; jest otwarte, rozstrzygnięte na rzecz jednej wersji albo anulowane. Rozstrzyga je tylko człowiek; agent proponuje rozstrzygnięcie. |
 
-- **Čísla:** [R10.3](cs/R10-people-and-hypotheses.md#R10.3), R10.3.1, R6.3.4, S3.5, S3.5.1
+- **Čísla:** [R10.3](cs/R10-people-and-hypotheses.md#R10.3), R10.3.1, R10.3.3, R6.3.4, S3.5, S3.5.1, S3.5.2
 
 <a id="pedigree-collapse"></a>
 ### Implex
@@ -743,6 +743,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Jak działa Strom (app) · `strom doc` (terminal) | Ta dokumentacja, dołączona do aplikacji i do badania: zasady według numeru, słowniczek pojęć i wyszukiwanie, także bez internetu. |
 
 - **Čísla:** [A1.7](cs/A1-the-app-in-brief.md#A1.7), R1.8
+
+<a id="to-check"></a>
+### K ověření
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | k ověření · neobvyklé (Tabulka) | Závažnost nálezu kontroly: neobvyklá hodnota, nepravděpodobná, ale možná, která stojí za ověření (do aplikace 3.27.0 „varování“). Nález označený Není chyba ukazuje pohled Tabulka jako neobvyklé. |
+| en | to check · unusual (Table) | The severity of a finding of the check: an unusual value, unlikely but possible, worth checking (called "warning" before app 3.27.0). The Table view shows a finding marked Not an error as unusual. |
+| de | zu prüfen · ungewöhnlich (Tabelle) | Die Schwere eines Befunds der Prüfung: ein ungewöhnlicher Wert, unwahrscheinlich, aber möglich, der eine Prüfung wert ist (vor App 3.27.0 „Warnung“). Die Ansicht Tabelle zeigt einen als Kein Fehler markierten Befund als ungewöhnlich. |
+| pl | do sprawdzenia · nietypowe (Tabela) | Waga wyniku kontroli: nietypowa wartość, mało prawdopodobna, ale możliwa, warta sprawdzenia (przed aplikacją 3.27.0 „ostrzeżenie”). Widok Tabela pokazuje wynik oznaczony To nie błąd jako nietypowy. |
+
+- **Čísla:** [A5.1](cs/A5-tree-check.md#A5.1), A5.3, A6.7.5, A6.7.13
 
 <a id="where-evidence-is-missing"></a>
 ### Kde chybí doklady
@@ -1021,16 +1033,16 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 - **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), A3.2, A3.2.1, A3.6
 
 <a id="problems-and-leads"></a>
-### Problémy a stopy
+### K ověření a stopy
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Problémy · Stopy | Problémy jsou chyby a varování kontroly. Stopy nejsou chyby: kmotr, který se opakuje, různé zápisy místa, možná duplicita, velký věkový rozdíl partnerů. |
-| en | Problems · Leads | Problems are the check's errors and warnings. Leads are not errors: a godparent who keeps turning up, different spellings of a place, a possible duplicate, a large age gap between partners. |
-| de | Probleme · Hinweise | Probleme sind Fehler und Warnungen der Prüfung. Hinweise sind keine Fehler: ein Pate, der immer wieder auftaucht, verschiedene Schreibweisen eines Ortes, eine mögliche doppelte Person, ein großer Altersunterschied der Partner. |
-| pl | Problemy · Wskazówki | Problemy to błędy i ostrzeżenia kontroli. Wskazówki nie są błędami: powtarzający się chrzestny, różne zapisy miejsca, możliwy duplikat, duża różnica wieku partnerów. |
+| cs | K ověření · Stopy | Oddíl K ověření (před aplikací 3.27.0 Problémy) má chyby a nálezy k ověření. Stopy nejsou chyby: kmotr, který se opakuje, různé zápisy místa, možná duplicita, velký věkový rozdíl partnerů. |
+| en | To check · Leads | The section To check (Problems before app 3.27.0) holds the check's errors and findings to check. Leads are not errors: a godparent who keeps turning up, different spellings of a place, a possible duplicate, a large age gap between partners. |
+| de | Zu prüfen · Hinweise | Der Abschnitt Zu prüfen (vor App 3.27.0 Probleme) enthält die Fehler und Befunde „zu prüfen“ der Prüfung. Hinweise sind keine Fehler: ein Pate, der immer wieder auftaucht, verschiedene Schreibweisen eines Ortes, eine mögliche doppelte Person, ein großer Altersunterschied der Partner. |
+| pl | Do sprawdzenia · Wskazówki | Sekcja Do sprawdzenia (przed aplikacją 3.27.0 Problemy) zawiera błędy i wyniki kontroli do sprawdzenia. Wskazówki nie są błędami: powtarzający się chrzestny, różne zapisy miejsca, możliwy duplikat, duża różnica wieku partnerów. |
 
-- **Čísla:** [A5.1](cs/A5-tree-check.md#A5.1), A5.5, A5.6, A5.8
+- **Čísla:** [A5.1](cs/A5-tree-check.md#A5.1), A5.5, A5.6, A5.8, A6.7.5
 
 <a id="searched"></a>
 ### Prohledáno
@@ -1073,12 +1085,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Přehled výzkumu (`live.overviewTitle`) | Velký pohled aplikace na sledovaný výzkum: co se teď děje, co čeká, linie, průběh, fronta a co výzkum ví. Jen čte. |
-| en | Research overview (`live.overviewTitle`) | The app's large view of the followed research: what is happening now, what waits, directions, progress, the queue and what the research knows. It only reads. |
-| de | Forschungsübersicht (`live.overviewTitle`) | Die große Ansicht der App auf die verfolgte Forschung: was gerade geschieht, was wartet, Linien, Verlauf, Warteschlange und was die Forschung weiß. Sie liest nur. |
-| pl | Przegląd badania (`live.overviewTitle`) | Duży widok aplikacji na śledzone badanie: co się teraz dzieje, co czeka, linie, przebieg, kolejka i co wie badanie. Tylko czyta. |
+| cs | Přehled výzkumu (`live.overviewTitle`) | Velký pohled aplikace na výzkum otevřeného stromu, sledovaný i bez sledování: co se teď děje, co čeká, linie, průběh, fronta a co výzkum ví. Jen čte. |
+| en | Research overview (`live.overviewTitle`) | The app's large view of the open tree's research, followed or not: what is happening now, what waits, directions, progress, the queue and what the research knows. It only reads. |
+| de | Forschungsübersicht (`live.overviewTitle`) | Die große Ansicht der App auf die Forschung des offenen Stammbaums, verfolgt oder nicht: was gerade geschieht, was wartet, Linien, Verlauf, Warteschlange und was die Forschung weiß. Sie liest nur. |
+| pl | Przegląd badania (`live.overviewTitle`) | Duży widok aplikacji na badanie otwartego drzewa, śledzone lub nie: co się teraz dzieje, co czeka, linie, przebieg, kolejka i co wie badanie. Tylko czyta. |
 
-- **Čísla:** [S4.1](cs/S4-research-from-the-app.md#S4.1), S4.1.2, S4.2, S4.3, S4.5.2
+- **Čísla:** [S4.1](cs/S4-research-from-the-app.md#S4.1), S4.1.2, S4.1.5, S4.2, S4.3, S4.5.2
 
 <a id="load-images-on-import"></a>
 ### Při importu načítat obrázky
@@ -1205,12 +1217,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Spolehlivost: Originál · Opis / index · Nejisté (app) | Hodnocení jednoho pramene uživatelem (GEDCOM QUAY 3/2/1). Není to stupeň jistoty údaje. |
-| en | Reliability: Original · Copy / index · Uncertain (app) | A user's rating of one source (GEDCOM QUAY 3/2/1). It is not the degree of certainty of a fact. |
-| de | Verlässlichkeit: Original · Abschrift / Index · Unsicher (app) | Die Bewertung einer Quelle durch den Nutzer (GEDCOM QUAY 3/2/1). Sie ist nicht der Grad der Sicherheit einer Angabe. |
-| pl | Wiarygodność: Oryginał · Odpis / indeks · Niepewne (app) | Ocena jednego źródła przez użytkownika (GEDCOM QUAY 3/2/1). Nie jest to stopień pewności danej. |
+| cs | Spolehlivost pramene: Originál · Opis / index · Nejisté (app) | Hodnocení pramene (GEDCOM QUAY 3/2/1). Od aplikace 3.27.0 je to výchozí spolehlivost jeho citací; citace může mít vlastní. Není to stupeň jistoty údaje. |
+| en | Source reliability: Original · Copy / index · Uncertain (app) | The rating of a source (GEDCOM QUAY 3/2/1). From app 3.27.0 it is the default reliability of its citations; a citation may have its own. It is not the degree of certainty of a fact. |
+| de | Zuverlässigkeit der Quelle: Original · Abschrift / Index · Unsicher (app) | Die Bewertung einer Quelle (GEDCOM QUAY 3/2/1). Ab App 3.27.0 ist sie die Standard-Zuverlässigkeit ihrer Zitationen; eine Zitation kann eine eigene haben. Sie ist nicht der Grad der Sicherheit einer Angabe. |
+| pl | Wiarygodność źródła: Oryginał · Odpis / indeks · Niepewne (app) | Ocena źródła (GEDCOM QUAY 3/2/1). Od aplikacji 3.27.0 to domyślna wiarygodność jego cytatów; cytat może mieć własną. Nie jest to stopień pewności danej. |
 
-- **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), [R3.2.1](cs/R3-verification-and-citation.md#R3.2.1)
+- **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), [A2.6.1](cs/A2-loading-a-family-tree.md#A2.6.1), [R3.2.1](cs/R3-verification-and-citation.md#R3.2.1)
 
 <a id="same-id-in-the-file"></a>
 ### Stejné ID v souboru
@@ -1247,6 +1259,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Badanie (w przełączniku drzew) | Drzewo w aplikacji połączone z badaniem na tym komputerze; nosi numer badania i wersję, z której powstało. |
 
 - **Čísla:** [S1.3](cs/S1-connecting-app-and-research.md#S1.3), S1.7
+
+<a id="spacing"></a>
+### Rozestupy
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Rozestupy · Normální · Husté | Volba zařízení pro mezery mezi kartami a generacemi v pohledech Rodina a Potomci; Husté je zmenší, takže se na obrazovku vejde víc osob. Export plakátu má vlastní volbu. |
+| en | Spacing · Normal · Dense | A setting of the device for the gaps between cards and generations in the Family and Descendants views; Dense makes them smaller, so more people fit on the screen. The poster export has its own setting. |
+| de | Abstände · Normal · Dicht | Eine Einstellung des Geräts für die Abstände zwischen Karten und Generationen in den Ansichten Familie und Nachkommen; Dicht verkleinert sie, sodass mehr Personen auf den Bildschirm passen. Der Posterexport hat eine eigene Einstellung. |
+| pl | Odstępy · Normalne · Gęste | Ustawienie urządzenia dla odstępów między kartami i pokoleniami w widokach Rodzina i Potomkowie; Gęste je zmniejsza, więc na ekranie mieści się więcej osób. Eksport plakatu ma własne ustawienie. |
+
+- **Čísla:** [A6.1.2](cs/A6-views.md#A6.1.2)
+
+<a id="table-view"></a>
+### Tabulka
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Tabulka (pohled) · Osoby · Svazky · Události · Prameny (řádky) | Pohled aplikace na celý strom po řádcích osob, svazků, událostí nebo pramenů: údaje, dopočty, úplnost, citace a nálezy kontroly ve sloupcích, s filtrem, řazením, uloženými pohledy a exportem CSV a XLSX. |
+| en | Table (view) · People · Unions · Events · Sources (rows) | The app's view of the whole tree in rows of people, unions, events or sources: facts, computed values, completeness, citations and the check's findings in columns, with a filter, sorting, saved views and a CSV and XLSX export. |
+| de | Tabelle (Ansicht) · Personen · Verbindungen · Ereignisse · Quellen (Zeilen) | Die Ansicht der App auf den ganzen Stammbaum in Zeilen von Personen, Verbindungen, Ereignissen oder Quellen: Angaben, berechnete Werte, Vollständigkeit, Quellenangaben und Befunde der Prüfung in Spalten, mit Filter, Sortierung, gespeicherten Ansichten und CSV- und XLSX-Export. |
+| pl | Tabela (widok) · Osoby · Związki · Wydarzenia · Źródła (wiersze) | Widok aplikacji na całe drzewo w wierszach osób, związków, wydarzeń lub źródeł: dane, wartości obliczone, kompletność, cytowania i wyniki kontroli w kolumnach, z filtrem, sortowaniem, zapisanymi widokami i eksportem CSV i XLSX. |
+
+- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15
 
 <a id="surname-spellings"></a>
 ### Tvary příjmení

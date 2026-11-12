@@ -12,9 +12,13 @@ przy tym chroni osoby żyjące. Opisuje aplikację 3.21.2.
 | **Aplikacja z danymi (HTML)** | samodzielny plik z aplikacją i drzewem ([A7.7](#A7.7)) |
 | **Wyślij rodzinie** | jeden plik e-mailem do otwarcia, uzupełnienia i odesłania |
 | **Plakat** | bieżący widok jako SVG, PNG lub wielostronicowy PDF |
-| **Kopia zapasowa danych (JSON)**, **GEDCOM**, **Tabela osób (CSV)** | dane do przywrócenia i dla innych programów ([A2](A2-loading-a-family-tree.md)) |
+| **Kopia zapasowa danych (JSON)**, **GEDCOM**, **Tabela osób (CSV)** | dane do przywrócenia i dla innych programów ([A2](A2-loading-a-family-tree.md)); własne kolumny, filtr i sortowanie: eksport z widoku Tabela ([A6.7.9](A6-views.md#A6.7.9)) |
 
-<!-- zdroj: app:strings.ts importExport.app, importExport.share, importExport.poster, importExport.book, importExport.backup, importExport.gedcom, importExport.csv · src/ui/import-export.ts -->
+- Kopię zapasową i aplikację z danymi można zaszyfrować hasłem (**Zaszyfruj hasłem**); GEDCOM nie. Szyfrowanie działa
+  tylko pod bezpiecznym adresem: przez https, na `localhost` lub `127.0.0.1` i w pliku otwartym z dysku; pod adresem
+  `http://` w sieci nie, a okno hasła to mówi ([A1.1](A1-the-app-in-brief.md#A1.1)).
+
+<!-- zdroj: app:strings.ts importExport.app, importExport.share, importExport.poster, importExport.book, importExport.backup, importExport.gedcom, importExport.csv · src/ui/import-export.ts (exportTargetTreeJSON, exportTargetTreeApp s heslem; GEDCOM bez hesla) · šifrování jen na zabezpečené adrese: src/crypto.ts isCryptoAvailable, src/crypto-errors.ts resetPasswordError, strings.ts encryptToggle, insecureContext, commit 266d6a76, dirigent:prace/1110-app-github-11-13 -->
 
 <a id="A7.1"></a>
 ## A7.1 Kto jest osobą żyjącą

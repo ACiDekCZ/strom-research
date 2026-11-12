@@ -5,9 +5,19 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.31.1
+
+*Připravuje se: bety do 1.31.1-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Nastavení pro prohlížeče archivů, které prohlížeč vykresluje pomalu.** Kde prohlížeč vykreslí kartu jen zhruba
+  jednou za sekundu (kreslení bez grafické karty, vzdálená plocha), potřebuje prohlížeč snímků archivu (ACTA PUBLICA)
+  na jeden snímek minuty a ukládání vzdalo po 30 s se zprávou, že dlaždice nedorazily všechny. Ta zpráva teď jmenuje,
+  co pomůže: `strom config set browser.tileWait 180` (60–600 s) — skript pak čeká, dokud dlaždice ještě přicházejí,
+  a agentovi odpovídá „strom-wait“, dokud není hotovo. Bez nastavení se nemění nic.
+
 ## 1.31.0
 
-*Připravuje se: bety do 1.31.0-beta.7. Oddíl bude úplný s vydáním.*
+*12. 11. 2026 · patří k aplikaci Strom 3.27.0.*
 
 - **`strom repair` už neodstraní práci, kterou poškozená historie skrývá.** Když se dá historie gitu výzkumu číst, ale
   je starší než jeho záznamy (cloudový disk vrátil starší `.git`, vedle něj kopie iCloudu jako `index 2`), `strom

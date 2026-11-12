@@ -5,9 +5,20 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.31.1
+
+*W przygotowaniu: bety do 1.31.1-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Ustawienie dla przeglądarek archiwów, które przeglądarka rysuje powoli.** Gdy przeglądarka rysuje kartę tylko mniej
+  więcej raz na sekundę (rysowanie bez karty graficznej, zdalny pulpit), przeglądarka skanów archiwum (ACTA PUBLICA)
+  potrzebuje na jeden skan kilku minut, a zapis poddawał się po 30 s z komunikatem, że nie dotarły wszystkie kafelki.
+  Ten komunikat podaje teraz, co pomaga: `strom config set browser.tileWait 180` (60–600 s) — skrypt czeka wtedy,
+  dopóki kafelki jeszcze przychodzą, i odpowiada agentowi „strom-wait”, aż skończy. Bez tego ustawienia nic się nie
+  zmienia.
+
 ## 1.31.0
 
-*W przygotowaniu: bety do 1.31.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*12.11.2026 · współpracuje z aplikacją Strom 3.27.0.*
 
 - **`strom repair` nie usuwa już pracy ukrytej przez uszkodzoną historię.** Gdy historię gita badania da się odczytać,
   ale jest starsza niż jego rekordy (dysk w chmurze przywrócił starszy `.git`, obok kopie iCloud takie jak `index 2`),

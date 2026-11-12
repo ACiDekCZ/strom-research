@@ -5,9 +5,20 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.31.1
+
+*In Vorbereitung: die Betas bis 1.31.1-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Eine Einstellung für Archiv-Viewer, die ein Browser langsam zeichnet.** Wo der Browser einen Tab nur etwa einmal
+  pro Sekunde zeichnet (Zeichnen ohne Grafikkarte, ein Remote-Desktop), braucht der Viewer des Archivs (ACTA PUBLICA)
+  für ein Bild Minuten, und das Speichern gab nach 30 s mit „die Kacheln des Viewers kamen nicht alle“ auf. Diese
+  Meldung nennt jetzt, was hilft: `strom config set browser.tileWait 180` (60–600 s) — das Skript wartet dann, solange
+  die Kacheln noch kommen, und antwortet dem Agenten „strom-wait“, bis es fertig ist. Ohne die Einstellung ändert sich
+  nichts.
+
 ## 1.31.0
 
-*In Vorbereitung: die Betas bis 1.31.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*12.11.2026 · gehört zur Strom-App 3.27.0.*
 
 - **`strom repair` entfernt keine Arbeit mehr, die eine beschädigte Historie verbirgt.** Ist die Git-Historie einer
   Forschung lesbar, aber älter als ihre Datensätze (ein Cloud-Laufwerk hat ein älteres `.git` zurückgelegt, daneben

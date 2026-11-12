@@ -5,9 +5,19 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.31.1
+
+*In preparation: the betas up to 1.31.1-beta.1. The section is complete with the release.*
+
+- **A setting for archive viewers a browser draws slowly.** Where the browser draws a tab only about once a second
+  (drawing without the graphics card, a remote desktop), the archive's viewer (ACTA PUBLICA) needs minutes for one
+  image and saving gave up after 30 s with "the viewer's tiles did not all come". That message now names what helps:
+  `strom config set browser.tileWait 180` (60–600 s) — the script then waits while the tiles still come and answers
+  the agent "strom-wait" until it is done. Without the setting nothing changes.
+
 ## 1.31.0
 
-*In preparation: the betas up to 1.31.0-beta.7. The section is complete with the release.*
+*2026-11-12 · goes with the Strom app 3.27.0.*
 
 - **`strom repair` no longer removes work a damaged history hides.** When a research's git history is readable but
   older than its records (a cloud drive put back an older `.git`, iCloud's copies such as `index 2` beside it), `strom

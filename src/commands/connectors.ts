@@ -3140,7 +3140,9 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     else removePlan(tree.root, old.id);
   }
   savePlan(tree.root, plan);
-  const script = viewer ? viewerScript(plan) : planScript(plan);
+  // browser.tileWait: the viewer's tiles waited for while they come, the script run again while it answers strom-wait
+  const tileWait = viewer ? ctx.settings.tileWaitMs() : undefined;
+  const script = viewer ? viewerScript(plan, tileWait ? { tileWaitMs: tileWait } : {}) : planScript(plan);
   const rest = asked.filter((n) => !items.some((i) => i.n === n));
   const secs = Math.max(1, Math.round((items.at(-1)!.at - now) / 1000));
   const take = `strom fetch ${c.name} --take --result "<the line it returned>"`;
@@ -3158,6 +3160,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
       "",
       script,
       "",
+      ...(tileWait ? [`   It answers "strom-wait …" while the viewer's tiles still come (browser.tileWait): run the same script again in the same tab, as often as it says so — it goes on where it is.`] : []),
       `3. Then: ${take}`,
       `The browser saves them into ${ctx.display(ctx.settings.downloads())} as ${shown} — strom takes them over; do not open, move or read them yourself.`,
       `The first time, Chrome asks whether ${first.hostname} may download several files: the user allows it once (at the right end of the address bar).`,
@@ -3170,6 +3173,12 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
 
 /** What the browser downloaded: taken over from the downloads folder, checked, registered (or put into the inbox). */
 async function takeOver(ctx: Context, c: Connector, result: string | undefined): Promise<Result> {
+  // the script still waits for a viewer's tiles (browser.tileWait): nothing taken yet — it is run again first
+  if (result !== undefined && /^\s*["']?\s*strom-wait\b/u.test(result))
+    return {
+      text: `the script has not ended: it still waits for the viewer's tiles (it answered strom-wait) — run the same script again in the same tab, as often as it answers so, then strom fetch ${c.name} --take --result "<its strom-result line>"`,
+      data: { taken: [], waiting: true },
+    };
   const tree = ctx.tree();
   const all = loadPlans(tree.root, c.name);
   const dir = ctx.settings.downloads();

@@ -12,7 +12,7 @@ gorsze niż żadne. Dlatego identyfikacja ma trzy stopnie, a współrzędne dost
 
 - **Pewne:** parafia, powiat i lata aktów zgadzają się z jedną miejscowością. Miejsce dostaje współrzędne, nazwy
   i przynależność.
-- **Prawdopodobne:** badanie proponuje od 1 do 3 kandydatów, a rozstrzyga człowiek w Czeka na decyzję (zob.
+- **Prawdopodobne:** badanie proponuje od 1 do 3 kandydatów, a rozstrzyga człowiek w Czeka na załatwienie (zob.
   [R4.5](#R4.5)).
 - **Nie można ustalić:** miejsce zostaje poza mapą. Badanie zapisuje, dlaczego się nie da i co by rozstrzygnęło.
 - **Granice:** najwyżej 3 kandydatów. Powód i „co by rozstrzygnęło” mają każde najwyżej 300 znaków. Badanie szuka od
@@ -79,7 +79,7 @@ W danej miejscem jest miejscowość. Ulica i numer domu należą do osobnego pol
 inaczej, badanie zmianę tylko proponuje, a człowiek potwierdza ją pytaniem **Propozycja zapisu**.
 
 - **Granice:** już zapisanego domu się nie nadpisuje. Transkrypcji źródła nie zmienia się w żadnym przypadku.
-- **Obsługa:** aplikacja: Czeka na decyzję, **Propozycja zapisu**, **Tak** / **Nie** · terminal: **Wprowadź dane
+- **Obsługa:** aplikacja: Czeka na załatwienie, **Propozycja zapisu**, **Tak** / **Nie** · terminal: **Wprowadź dane
   w ten sposób** / **Pozostaw dane bez zmian**; `strom place rewrite --propose`, `--house`
 - **Obowiązuje od:** badanie 1.25.0
 
@@ -89,7 +89,7 @@ inaczej, badanie zmianę tylko proponuje, a człowiek potwierdza ją pytaniem **
 ## R4.3 Położenia wprowadzonego przez człowieka badanie nie zmienia
 
 Położenie, które człowiek umieścił ręcznie, należy do człowieka. Badanie go nie przesuwa, nie usuwa ani nie oznacza
-jako nieodnalezione. Gdy akty mówią coś innego, pyta w Czeka na decyzję pytaniem **Sprzeczne położenie**.
+jako nieodnalezione. Gdy akty mówią coś innego, pyta w Czeka na załatwienie pytaniem **Sprzeczne położenie**.
 
 - **Granice:** położenie ręczne to każde położenie bez zapisu, kto je ustalił, i każde położenie z aplikacji. Badanie
   może przy nim tylko potwierdzić, że akty się zgadzają, albo zapisać, że nie da się tego rozstrzygnąć. Zapisuje przy
@@ -138,7 +138,7 @@ Aplikacja sama, bez badania, oznacza położenie, które nie pasuje do drzewa. N
 <!-- zdroj: app:src/place-check.ts:1–31 PLACE_FAR_KM=60, PLACE_YEARS=20 · app CHANGELOG.cs.md 3.21.1 -->
 
 <a id="R4.5"></a>
-## R4.5 Pytania o miejsca w Czeka na decyzję
+## R4.5 Pytania o miejsca w Czeka na załatwienie
 
 Na pytania o miejsca odpowiada tylko człowiek, w aplikacji lub w terminalu. Agent na nie nie odpowiada. Pytania są
 trzech rodzajów: **Gdzie jest** (kandydaci), **Sprzeczne położenie** (położenie na mapie wobec aktów) i **Propozycja
@@ -158,7 +158,7 @@ zapisu** (jak dane zapisują miejsce).
   wszystkie (n)** zachowuje położenie przy sprzecznościach. Zbiorcze załatwienie pomija położenia ręczne. Jeden krok
   **Cofnij** cofa całe zbiorcze załatwienie. Kolejność pytań wśród innych spraw w Czeka opisuje
   [R6](R6-awaiting-action.md).
-- **Obsługa:** aplikacja: okno **Czeka na decyzję · Miejsca**, grupa **Miejsca**, **Odpowiedz**, **Według obszarów:** ·
+- **Obsługa:** aplikacja: okno **Czeka na załatwienie · Miejsca**, grupa **Miejsca**, **Odpowiedz**, **Według obszarów:** ·
   terminal: **Co czeka → Miejsca do identyfikacji**; `strom place answer <L…> --take c1|c2|c3|keep|unknown|none|yes|no|first`
   z `--dry` i `--expect`
 - **Obowiązuje od:** badanie 1.25.0, aplikacja 3.21.0

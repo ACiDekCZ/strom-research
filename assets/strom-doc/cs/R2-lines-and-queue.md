@@ -115,8 +115,13 @@ Vyprávění jinak čeká, až výzkum nemá co dělat. Po 5 sezeních bez vypr�
 na řadu jako první (při samostatné práci agenta). Se strategií priority to neplatí.
 
 - **Platí od:** výzkum 1.1.0
+- **Od výzkumu 1.31.0:** při tahu vyprávění jde napřed jen první vyprávění v pořadí, ostatní zůstanou za výzkumem.
+  Pořadí, v jakém úkoly bere `strom run` (s tahem vyprávění a s úkoly dějin, když jsou na řadě), ukazuje i menu
+  před `strom run` („Na řadě jsou tyto úkoly, v pořadí, v jakém je agent vezme:“) a fronta v aplikaci Strom
+  ([S4.2](S4-research-from-the-app.md#S4.2)); fronta mostu nese u úkolu, jestli je to vyprávění, nebo dějiny.
+  `strom task next` a `strom task list` mají pořadí rozhovoru: bez tahu vyprávění.
 
-<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 -->
+<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 · 1.31.0: research 5f48cdaf src/core/queue.ts rankTasks (turnStory: jen první vyprávění tahu), RUN_TURNS, runOrder; src/cli/menu.ts (ui.run.next), src/core/live.ts (/status queue[], GET /queue, kind story|history), src/commands/tasks.ts CONVERSATION_ORDER (task next, task list) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R2.2.3"></a>
 ### R2.2.3 Úkoly, které čekají mimo frontu
@@ -143,8 +148,10 @@ Ve výzkumu s více liniemi je **práce mimo linie** úkol o lidech, kam žádn�
 který žádné linii nepomáhá. Taková práce jde **až po práci na liniích**.
 
 - **Hranice:** úkol linii pomáhá, a není tedy mimo linie, když jmenuje hypotézu nebo rozpor linie, připojuje lidi
-  ke stromu, nebo agent zapsal, jak linii pomáhá (sourozenec předka jako kmotr nebo svědek, stejný dům, příjmení
-  předka). Sourozencova vlastní rodina linii nepomáhá.
+  ke stromu přes člověka linie nebo jeho partnera, nebo agent zapsal, jak linii pomáhá (sourozenec předka jako kmotr
+  nebo svědek, stejný dům, příjmení předka). Sourozencova vlastní rodina linii nepomáhá: připojení lidí k vedlejší
+  větvi (třeba k sourozenci předka) patří do té větve a přijde na řadu podle její volby ([R2.3.1](#R2.3.1)).
+  Hypotéza linie a důvod zapsaný agentem platí dál.
 - **Volby:** **na konci, až po liniích** (výchozí) · **normálně, jako práce linií** · **nikdy** (úkoly se neberou, nic
   se nemaže).
 - **Ovládání:** terminál: **Nastavení → Samostatná práce agenta → Práce mimo linie**,
@@ -153,8 +160,13 @@ který žádné linii nepomáhá. Taková práce jde **až po práci na liniích
 - **Platí od:** výzkum 1.25.0
 - **Od výzkumu 1.26.0:** nová výchozí volba **občas, jednou za čas**: jeden úkol mimo linie za 10 sezení
   (`queue.offLineShare`), z nejbližší větve. Do práce mimo linie patří i manžel nebo manželka předka ([R2.1.3](#R2.1.3)).
+- **Od výzkumu 1.31.0:** linii pomáhá jen připojení lidí k člověku linie nebo k jeho partnerovi; dřív stačilo
+  připojení ke komukoli ze stromu, i k sourozenci předka. Most v `/status` říká u úkolu, na kterém se pracuje, jak
+  linii pomáhá (funkce `working.helps`). Aplikace 3.27.0 to ukáže v **Přehledu výzkumu** v řádku **Teď**
+  („pomáhá linii … · připojuje lidi ke stromu“, „mimo linie · větev …“, [S4.1](S4-research-from-the-app.md#S4.1))
+  a v úvodu volby práce mimo linie ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
 
-<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast -->
+<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast · výzkum 1.31.0: src/core/offline.ts (b: joins jen k osobě linie nebo partnerovi, jinak větev; a, c mají přednost), HelpsBy, /status working[].helps, branch · commity 576cf7e5, 2e54c8d5 · CHANGELOG.cs.md 1.31.0 „Připojení rodiny k vedlejší větvi je práce mimo linie“ · spec 036 K1.7 -->
 
 <a id="R2.3.1"></a>
 ### R2.3.1 Volba pro jednu větev a jeden úkol

@@ -453,11 +453,12 @@ test("for an app that decides them by a pick: who decided where, the decision be
     // where no agent works: no proposal, no agent
     const archive = exportGedcom(t, { ...base, hypothesisPick: { agent: false } } as never).text ?? "";
     assert.doesNotMatch(archive, /_PROP/u);
-    // the bridge's /tree.ged: the same for another copy of the app, nothing new for the production app
-    const ged = (url: string) => buildGed({ root: w.cwd, env: { ...w.env, STROM_APP_URL: url }, head: headOf(w.cwd) ?? "", version: "3.30.0", links: [], budgetMs: 0 }).bytes.toString("utf8");
+    // the bridge's /tree.ged: the same for another copy of the app and the production app from 3.27.0, nothing new for the production app before
+    const ged = (url: string, version = "3.30.0") => buildGed({ root: w.cwd, env: { ...w.env, STROM_APP_URL: url }, head: headOf(w.cwd) ?? "", version, links: [], budgetMs: 0 }).bytes.toString("utf8");
     assert.match(block(ged("https://beta.stromapp.info/run/"), "Kde se Josef narodil?"), /\n2 _PROP A\n/u);
     assert.match(block(ged("https://beta.stromapp.info/run/"), "Čí syn je Josef?"), /\n2 _PICK Y\n/u);
-    assert.doesNotMatch(ged("https://stromapp.info/run/"), /_PICK|_PROP|_PREV/u);
+    assert.match(block(ged("https://stromapp.info/run/"), "Čí syn je Josef?"), /\n2 _PICK Y\n/u, "the production app from 3.27.0");
+    assert.doesNotMatch(ged("https://stromapp.info/run/", "3.26.0"), /_PICK|_PROP|_PREV/u, "the production app before 3.27.0");
     // the decision on the tree at once (K1.5): Josef a child of F2 in the file and in the bridge's /tree.ged
     assert.match(file, /\n0 @F0002@ FAM\n(?:[1-9].*\n)*1 CHIL @P0001@\n/u);
     assert.match(ged("https://stromapp.info/run/"), /\n0 @F0002@ FAM\n(?:[1-9].*\n)*1 CHIL @P0001@\n/u);
@@ -480,14 +481,17 @@ test("for an app that decides them by a pick: who decided where, the decision be
     const open = waitingFor(Tree.open(w.cwd, w.env), { hypothesesApp: { open: true } }).filter((x) => x.item.kind === "hypothesis");
     assert.deepEqual(open.map((x) => [x.item.id, x.item.person, x.item.pick]), [["H0002", "P0001", true], ["H0003", "P0005", true]]);
     assert.deepEqual(waitingFor(Tree.open(w.cwd, w.env), {}).filter((x) => x.item.kind === "hypothesis"), [], "an older app: none");
-    // the features; the gate — another copy of the app from 3.27.0-beta.4, the production app not yet
+    // the features; the gate — another copy of the app from 3.27.0-beta.4, the production app from 3.27.0 (out 2026-11-12)
     assert.ok(BRIDGE_FEATURES.includes("hypothesis.decide.link") && BRIDGE_FEATURES.includes("hypotheses.accept.link"));
     const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
     const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
     assert.equal(APP_DECIDES_HYPOTHESES_BETA, "3.27.0-beta.4");
-    assert.equal(APP_DECIDES_HYPOTHESES, undefined, "the production app decides no hypothesis yet");
-    assert.equal(appDecidesHypotheses(prod, "3.40.0"), false);
-    assert.equal(appDecidesHypotheses(prod, "3.26.0"), false, "the production app today");
+    assert.equal(APP_DECIDES_HYPOTHESES, "3.27.0", "the app's 3.27.0 decides hypotheses (out 2026-11-12)");
+    assert.equal(appDecidesHypotheses(prod, "3.40.0"), true);
+    assert.equal(appDecidesHypotheses(prod, "3.27.0"), true);
+    assert.equal(appDecidesHypotheses(prod, "3.27.0-beta.6"), false, "a beta's version in production: not before the release");
+    assert.equal(appDecidesHypotheses(prod, "3.26.0"), false, "the production app before");
+    assert.equal(appDecidesHypotheses(prod, undefined), false, "an unknown version stays off");
     assert.equal(appDecidesHypotheses(beta, "3.27.0-beta.3"), false, "the beta before the one that decides");
     assert.equal(appDecidesHypotheses(beta, "3.27.0-beta.4"), true);
     assert.equal(appDecidesHypotheses(beta, undefined), false, "a beta copy of unknown version: nothing, as production");

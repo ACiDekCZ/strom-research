@@ -22,6 +22,7 @@ der Person; was den ganzen Stammbaum betrifft, steht in der Leiste und im Menü 
 | Quellen des Stammbaums | **Aktionen → Quellen** | [A3.1](A3-evidence-in-the-app.md#A3.1) |
 | eine Person bearbeiten | Menü der Person → **Bearbeiten** | [S2](S2-edits-from-the-app.md), beim Verfolgen [A9.3](#A9.3) |
 | Ansicht Karte und weitere Ansichten | Umschalter der Ansichten in der Leiste; im schmalen Fenster und auf dem Telefon **Mehr → Ansicht** | [A6](A6-views.md) |
+| der ganze Stammbaum in Zeilen, CSV- und XLSX-Export | **Tabelle** im Umschalter der Ansichten; im schmalen Fenster und auf dem Telefon **Mehr → Ansicht → Tabelle** | [A6.7](A6-views.md#A6.7) |
 | Kartenhintergrund | **Karte anzeigen** beim Hinweis, dass der Hintergrund von openstreetmap.org geladen wird | [A9.4](#A9.4) |
 | Orte ohne Karte | Statusleiste der Karte → **In der Forschung**; in der Forschung der Abschnitt **Wartet auf Bearbeitung** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | Arbeit der Forschung | Panel der Forschung, **⤢ Übersicht öffnen**; Menü **Forschung → Forschungsübersicht** | [S4.1](S4-research-from-the-app.md#S4.1) |

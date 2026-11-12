@@ -92,11 +92,15 @@ Der Bericht sagt, wo das Problem aufgetreten ist, und kann eine Beschreibung in 
     Menschen fragen und den Befehl erneut starten;
   - `--note "…"` ist die Beschreibung des Problems in den Worten des Menschen, höchstens 2000 Zeichen; Namen aus der
     Forschung werden darin maskiert.
+  - **Ab Forschung 1.31.0:** maskiert werden auch gebeugte Formen von Namen und Orten, die die Forschung kennt, bei
+    denen sich der letzte oder die letzten zwei Buchstaben ändern („z Brna“ zu Brno, „v Praze“ zu Praha). Der Stamm
+    hat mindestens 3 Buchstaben, und die Endung ist umso kürzer, je kürzer der Stamm ist; ein gewöhnliches Wort, das
+    nur gleich beginnt, bleibt lesbar. Der ganze Bericht wird ebenso maskiert.
 - **Bedienung:** `strom error --where app --about sync`, `strom error --since 2d --note "das Herunterladen hielt
   mittendrin an"`.
 - **Gilt seit:** Forschung 1.30.0
 
-<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) -->
+<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) · research:c5ee74ab src/core/redact.ts formOf (změněné poslední 1–2 písmeno, kmen ≥ 3, koncovka podle kmene; slovo ze 3 písmen jen o písmeno delší), byPrefix 3 písmena · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R13.5"></a>
 ## R13.5 Daten von Personen nur mit Zustimmung

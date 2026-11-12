@@ -13,30 +13,43 @@ Každý nález má závažnost:
 
 | Závažnost | Oddíl v dialogu | Význam |
 |---|---|---|
-| chyba | **Problémy** | data si odporují nebo jsou porušená ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
-| varování | **Problémy** | nepravděpodobné, ale možné |
+| chyba | **K ověření** | data si odporují nebo jsou porušená ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
+| k ověření | **K ověření** | neobvyklá hodnota, nepravděpodobná, ale možná; stojí za ověření |
 | info | **Stopy** | „Nejsou to chyby. Stopy, které mohou pomoct při pátrání.“ ([A5.5](#A5.5), [A5.6](#A5.6)) |
 
 - **Hranice:**
   - Nálezy stejného druhu tvoří skupinu, řazenou podle závažnosti, velikosti a názvu. Otevřená je jen skupina s
     chybou.
-    Nad 50 nálezů se další ukazují po 20. Na telefonu (do 640 px) jsou **Stopy** sbalené, jsou-li i **Problémy**.
+    Nad 50 nálezů se další ukazují po 20. Na telefonu (do 640 px) jsou **Stopy** sbalené, je-li i oddíl **K ověření**.
   - Zástupné osoby se nehlásí. Nález označený **Není chyba** ([A5.7](#A5.7)) se nepočítá ani neukazuje.
   - Strom jen ke čtení nálezy jen ukazuje. U jiného než otevřeného stromu oprava nebo značka nejdřív strom otevře.
+  - **Od aplikace 3.27.0:** závažnost, která se dřív jmenovala „varování“, se jmenuje **k ověření**, i v souhrnech
+    a počtech („2 chyby, 1 k ověření, 3 stopy.“). Pohled Tabulka ukazuje nálezy přímo v buňkách a nález označený
+    **Není chyba** jako **neobvyklé** ([A6.7.5](A6-views.md#A6.7.5)).
+  - **Od aplikace 3.27.0:** oddíl chyb a nálezů k ověření se jmenuje **K ověření** (dřív **Problémy**). Strom bez
+    nich má „Nic k ověření“, se stopami „Nic k ověření. 3 stopy.“
 - **Ovládání:** dialog **Validace stromu**: **Přehled stromu → Kvalita dat → Rychlé akce → Detaily validace**,
   řádek „n stop ›“ v **Konzistence** (otevře rovnou **Stopy**), karta s chybami v **Na co se zaměřit**.
-  Po importu GEDCOM se aplikace zeptá („Kontrola dat“), jen když najde chyby nebo varování
+  Od aplikace 3.27.0 i **Kvalita dat ›** v bublině nálezu v pohledu Tabulka: otevře dialog na skupině toho nálezu
+  (u nálezu označeného **Není chyba** na seznamu označených).
+  Po importu GEDCOM se aplikace zeptá („Kontrola dat“), jen když najde chyby nebo nálezy k ověření
   ([A2](A2-loading-a-family-tree.md)).
   Totéž po sloučení s jiným stromem, pro nové nálezy. Vlastní položku v menu kontrola nemá.
-- **Platí od:** aplikace 1.0.0; oddíly **Problémy** a **Stopy** aplikace 3.17.0
+- **Platí od:** aplikace 1.0.0; oddíly **Problémy** a **Stopy** aplikace 3.17.0; název **k ověření** a odkaz z pohledu
+  Tabulka aplikace 3.27.0; oddíl **K ověření** a „Nic k ověření“ aplikace 3.27.0
 
-<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck -->
+<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck · 3.27.0: app:59a8eed0 strings.ts treeManager.validationWarnings „k ověření“, summaryErrors, summaryNoErrors, treeOverview.countWarnings · src/ui/table-view/table-bubble.ts (Kvalita dat ›) → src/ui/tree-stats.ts showTreeValidationDialog focus · table.sev.* · commit e530019b · „K ověření“: strings.ts treeManager.valProblems, commit 79764eba; „Nic k ověření“: validationPassed, summaryLeadsOnly, commit b1cbe546 (T54 G15) -->
 
 <a id="A5.1.1"></a>
 ### A5.1.1 Oprava jedním klikem
 
-Některé nálezy mají tlačítko **Opravit** a skupina **Opravit vše (n)**. Oprava je jeden krok zpět
-(„oprava z validace“) a zapíše se do historie změn.
+Některé nálezy mají tlačítko **Opravit**; souhrn nad nálezy má **Opravit vše (n)** pro všechny opravitelné nálezy.
+Oprava je jeden krok zpět („oprava z validace“) a zapíše se do historie změn.
+
+- Pod **Opravit vše (n)** stojí, co se opraví, s počty, jen u druhů, které strom má: „Opraví se: poškozené vazby mezi
+  osobami a svazky (2); svazek osoby se sebou samou – smaže se (1); duplicitní svazek – sloučí se s prvním, děti
+  zůstanou (1); místo zapsané víckrát jinak – sjednotí se na nejčastější zápis (3). Ostatní nálezy zůstanou beze
+  změny.“ Ve stromu jen ke čtení tlačítko ani řádek nejsou.
 
 | Nález | Co oprava udělá |
 |---|---|
@@ -46,14 +59,14 @@ Některé nálezy mají tlačítko **Opravit** a skupina **Opravit vše (n)**. O
 | Duplicitní partnerství | ponechá první, děti převede na něj |
 | Jedno místo zapsané víckrát jinak | přepíše všechny zápisy na nejčastější |
 
-- **Platí od:** aplikace 1.1.0; oprava míst 1.10.0
+- **Platí od:** aplikace 1.1.0; oprava míst 1.10.0; řádek pod **Opravit vše (n)** aplikace 3.27.0
 
-<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll -->
+<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll · řádek: src/ui/tree-stats.ts fixAllNoteText (orphaned*/missing* → links, selfPartnership, duplicatePartnership, placeSpelling), strings.ts treeManager.valFixAllNote, jen bez ro, commit 79764eba (T54 G15) -->
 
 <a id="A5.2"></a>
 ## A5.2 Vazby v rodině
 
-Kontrola hledá vazby, které nemohou platit. Všechny jsou chyby, kromě duplicitního partnerství (varování).
+Kontrola hledá vazby, které nemohou platit. Všechny jsou chyby, kromě duplicitního partnerství (k ověření).
 
 | Nález v aplikaci | Kdy |
 |---|---|
@@ -75,39 +88,57 @@ Kontrola hledá vazby, které nemohou platit. Všechny jsou chyby, kromě duplic
 
 Kontrola hlásí jen to, co jistě neplatí. Neúplné nebo přibližné datum počítá v celém možném rozsahu:
 bez měsíce leden až prosinec, „asi“ ± 2 roky, „před“ až 20 let dřív, „po“ až 20 let později, rozsah do svého konce.
-Teprve když porušení platí v celém rozsahu, je to nález.
+Teprve když porušení platí v celém rozsahu, je to nález. Výjimkou jsou mírnější meze k ověření z aplikace 3.27.0
+(níže): tam stačí, když mez překročí jeden konec možného věku.
 
 | Nález v aplikaci | Závažnost | Kdy |
 |---|---|---|
 | **Datum úmrtí je před narozením** | chyba | |
-| **Nepravděpodobně dlouhý život** | varování | víc než 115 let |
+| **Nepravděpodobně dlouhý život** | k ověření | víc než 115 let |
 | **Rodič mladší než dítě** | chyba | podle data narození |
-| **Rodič velmi mladý / velmi starý při narození** | varování | méně než 12 / víc než 80 let; jen data narození |
-| **Událost datovaná před narozením** | varování | |
-| **Událost datovaná po úmrtí** | varování | kromě: Pohřeb, Kremace, Závěť, Pozůstalostní řízení |
+| **Rodič velmi mladý / velmi starý při narození** | k ověření | méně než 12 / víc než 80 let; jen data narození |
+| **Matka při narození dítěte mladší 16 let** / **… starší 45 let** | k ověření | od aplikace 3.27.0, viz níže |
+| **Otec při narození dítěte mladší 18 let** / **… starší 60 let** | k ověření | od aplikace 3.27.0, viz níže |
+| **Událost datovaná před narozením** | k ověření | |
+| **Událost datovaná po úmrtí** | k ověření | kromě: Pohřeb, Kremace, Závěť, Pozůstalostní řízení |
 | **Dítě narozené po smrti matky** | chyba | víc než 1 měsíc po smrti; jen vlastní rodiče |
-| **Dítě narozené dlouho po smrti otce** (… **rodiče**, pohlaví neznámé) | varování | víc než 10 měsíců |
+| **Dítě narozené dlouho po smrti otce** (… **rodiče**, pohlaví neznámé) | k ověření | víc než 10 měsíců |
 | **Svatba datovaná před narozením partnera** | chyba | |
-| **Svatba datovaná po úmrtí partnera** | varování | |
-| **Sňatek v dětském věku** | varování | méně než 14 let |
+| **Svatba datovaná po úmrtí partnera** | k ověření | |
+| **Sňatek v dětském věku** | k ověření | méně než 14 let |
+| **Sňatek ve věku pod 16 let** | k ověření | od aplikace 3.27.0, viz níže |
+| **Zapsaný věk se liší o víc než 2 roky** | k ověření | od aplikace 3.27.0, viz níže |
 | **Extrémní věkový rozdíl partnerů** | info (**Stopy**) | 40 let a víc |
 | **Narození/úmrtí zadané jako životní událost** | chyba | narození nebo úmrtí v seznamu událostí |
-| **Vlastní událost nemá název** / **Událost má neplatné datum** | varování | |
+| **Vlastní událost nemá název** / **Událost má neplatné datum** | k ověření | |
 
 - **Hranice:** stejné výjimky po úmrtí má `strom check` výzkumu. Rodič bez typu vztahu se počítá jako vlastní.
+- **Od aplikace 3.27.0:** mírnější meze k ověření:
+  - **matka** mladší 16 nebo starší 45 let a **otec** mladší 18 nebo starší 60 let při narození dítěte. Jen
+    vlastní rodič se známým pohlavím, věk z obou dat narození;
+  - **sňatek** ve věku pod 16 let;
+  - stačí, když mez překročí jeden konec možného věku (věk „15–16“ je pod 16). Datum s **cca** se počítá jako
+    odhad věku; datum s **před** nebo **po** se neporovnává;
+  - hlásí se jen přísnější nález: kde už platí **Rodič mladší než dítě**, **Rodič velmi mladý / velmi starý** nebo
+    **Sňatek v dětském věku**, mírnější nález není;
+  - **zapsaný věk** (u sňatku věk každého z dvojice, u úmrtí, u narození) se porovná s věkem z data narození a data
+    události. Nález je, když je mimo možný rozsah o víc než 2 roky. Věk zapsaný slovem nebo s cca, před, po se
+    neporovnává, ani když je některé z dat jen odhad;
+  - řádek nálezu ukazuje data a věk („* 1850 → * 1866: 15–16“, „⚭ 1872: 30 ≠ 26–27“).
 - **Platí od:** aplikace 1.0.0 (věk rodičů); 1.4.0 (události); 1.7.0 (data a úmrtí); dítě po smrti rodiče
-  neznámého pohlaví 3.10.0; čtyři výjimky po úmrtí 3.17.0 (dřív jen pohřeb)
+  neznámého pohlaví 3.10.0; čtyři výjimky po úmrtí 3.17.0 (dřív jen pohřeb); mírnější meze věku rodičů a sňatku
+  a zapsaný věk 3.27.0
 
-<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* -->
+<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* · 3.27.0: app:59a8eed0 src/validation.ts MOTHER_MIN_AGE 16, MOTHER_MAX_AGE 45, FATHER_MIN_AGE 18, FATHER_MAX_AGE 60, checkParentAgeLimits (gender female/male, parentRelTypes biological, jen když není parentYoungerThanChild/parentTooYoung/parentTooOld), ageSpan (< > → null; ~ approxAgeBetween), spanText, MARRIAGE_MIN_YEARS 16 (else za childMarriage), checkRecordedAges SLACK_YEARS 2 (Partnership.ages, deathAge, birthAge), src/dates.ts recordedAgeGap, ageRangeBetween · strings.ts treeManager.valMotherTooYoung16, valMotherTooOld45, valFatherTooYoung18, valFatherTooOld60, valMarriageUnder16, valRecordedAgeMismatch, validationWarnings, countWarnings, summaryErrors · spec 073 §7.6 · CHANGELOG.cs.md 3.27.0 -->
 
 <a id="A5.4"></a>
 ## A5.4 Prameny, přílohy a sloučení při importu
 
 | Nález v aplikaci | Závažnost | Kdy |
 |---|---|---|
-| **Citace odkazuje na neexistující pramen** | varování | citace u osoby, události, partnerství nebo přílohy |
-| **Příloha nemá použitelná data** | varování | data nejsou obrázek ani PDF (příloha jen s originálem se nehlásí) |
-| **Fotka není podporovaný obrázek** | varování | jiný formát než JPEG, PNG, WebP, GIF |
+| **Citace odkazuje na neexistující pramen** | k ověření | citace u osoby, události, partnerství nebo přílohy |
+| **Příloha nemá použitelná data** | k ověření | data nejsou obrázek ani PDF (příloha jen s originálem se nehlásí) |
+| **Fotka není podporovaný obrázek** | k ověření | jiný formát než JPEG, PNG, WebP, GIF |
 | Nejspíš dvě osoby sloučené do jedné při importu souboru GEDCOM (Strom 3.8.1 a starší) … | chyba | viz níže |
 
 Starší verze mohly při importu dát dvěma osobám stejné ID. Kontrola to hlásí při jasném znaku (víc než 2 rodiče,
@@ -224,6 +255,9 @@ osoby**.
   - Značka u místa nemá osoby, proto se výzkumu neposílá. Při oddělení části stromu zůstanou jen značky,
     jejichž osoby všechny zůstanou.
   - Značku zapsanou ve výzkumu zná aplikace jen u otevřeného stromu z výzkumu, když výzkum běží.
+  - **Od aplikace 3.27.0:** předmět u **Sňatek ve věku pod 16 let** je rok sňatku, u **Zapsaný věk se liší o víc
+    než 2 roky** údaj (narození, sňatek, úmrtí) a u sňatku jeho rok. Označený nález ukazuje pohled Tabulka jako
+    **neobvyklé** a odtud jde označit i vrátit ([A6.7.5](A6-views.md#A6.7.5)).
 - **Ovládání:** v řádku nálezu **Není chyba** / **Jsou to dvě osoby**, 6 s nabídka **Vrátit**. Seznam
   **Označeno jako není chyba: n** pod nálezy, u každé značky datum nebo **Označeno ve výzkumu**, tlačítko **Vrátit**
   · terminál: `strom quality list`, `strom quality dismiss possibleDuplicate P… P…`,
@@ -231,7 +265,7 @@ osoby**.
   agent.
 - **Platí od:** aplikace 3.17.0 (výzkum 1.22.0)
 
-<!-- zdroj: app:src/validation.ts:1415 qualityFinding · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
+<!-- zdroj: app:src/validation.ts:1415 qualityFinding (3.27.0: marriageUnder16 rok, recordedAgeMismatch field + rok) · src/ui/table-view/table-bubble.ts · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
 
 <a id="A5.8"></a>
 ## A5.8 Přehled stromu → Kvalita dat
@@ -241,19 +275,19 @@ rozlišil.
 
 | Blok | Co ukazuje |
 |---|---|
-| **Konzistence** | souhrn („2 chyby, 1 varování, 3 stopy.“), 5 nejzávažnějších **Problémů**, „a dalších n…“, řádek „n stop ›“ |
+| **Konzistence** | souhrn („2 chyby, 1 k ověření, 3 stopy.“), 5 nejzávažnějších chyb a nálezů k ověření, „a dalších n…“, řádek „n stop ›“ |
 | **Úplnost dat** | podíl osob s **Datum narození**, **Datum úmrtí (u zemřelých)**, **Místo narození**, **Fotografie**; pod 50 % zvýrazněno; „Obsah stromu:“ (fotky, události, prameny, přílohy) |
 | **Jistota údajů z výzkumu**, **Kde chybí doklady** | doložení, viz [R3.8](R3-verification-and-citation.md#R3.8) a [A3](A3-evidence-in-the-app.md) |
 | **Struktura** | počet svazků; nespojené části, nebo „Všechny osoby jsou propojeny do jedné rodiny.“ |
 | **Rychlé akce** | **Detaily validace**, **Vyčistit osiřelá místa (n)**, **Rozdělit na rodiny** |
 
 - **Hranice:**
-  - Nad 10 MB fotek a příloh přibude varování. Osiřelé místo je místo, na které nic neodkazuje.
+  - Nad 10 MB fotek a příloh přibude upozornění („Média mají přes 10 MB. Soubor stromu se pomaleji ukládá a sdílí.“). Osiřelé místo je místo, na které nic neodkazuje.
   - Nespojená část nemá cestu k hlavní rodině; jde ji oddělit (**Oddělit nespojené části**).
   - Karta v **Na co se zaměřit** ukazuje počet chyb a nejčastější druh. Má tlačítko **Opravit** (otevřený strom)
     nebo **Detaily validace**; obě otevřou dialog.
 - **Ovládání:** **Přehled stromu → Kvalita dat**; v nabídce stromu i přímo **Kvalita dat**.
   Akce, které mění data, jdou jen v otevřeném stromu.
-- **Platí od:** aplikace 3.13.0; stopy a značky 3.17.0
+- **Platí od:** aplikace 3.13.0; stopy a značky 3.17.0; „k ověření“ místo „varování“ 3.27.0
 
 <!-- zdroj: app:src/ui/tree-overview.ts:101 TOP_ISSUES, :108 LOW_SHARE, :1882 treeOverviewQualityHtml, :925 selectFocusCards · src/ui/tree-actions.ts:191 overview-quality · strings.ts treeOverview.consistencyTitle, completenessTitle, field*, contentLabel, mediaWarning, structureTitle, allConnected, quickActions, actValidation, actCleanPlaces, actSplitFamilies, cardValidation -->

@@ -69,7 +69,7 @@ i porównanie dowodów, rozwiązywanie sprzeczności i spisany wniosek, który z
 <a id="R1.5"></a>
 ## R1.5 Co rozstrzyga człowiek
 
-Niektóre decyzje należą tylko do człowieka. Badanie pyta o nie w **Czeka na decyzję**, a agent nie odpowiada za
+Niektóre decyzje należą tylko do człowieka. Badanie pyta o nie w **Czeka na załatwienie**, a agent nie odpowiada za
 człowieka.
 
 - Co czeka na człowieka (listy, skany do pobrania, pytania o miejsca, sprzeczności, hipotezy, opowieści do

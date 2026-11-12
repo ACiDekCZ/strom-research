@@ -24,8 +24,8 @@ Seznam se pokaždé spočítá z výzkumu, nic se do něj nezapisuje.
 - Řádek **Čeká: N (z toho X jen tady v terminálu, Y čeká na odpověď)** dělí počet jako aplikace. Číslo aplikace je
   N bez položek jen pro terminál a bez odeslaných dotazů.
 - Jen v terminálu jsou stromy poslané z aplikace (**Aplikace Strom**), otázky ke čtení snímků (**Čtení snímků**),
-  rozpory (**K rozhodnutí – rozpory**, viz [R5](R5-conflicts.md)), hypotézy k rozhodnutí (od výzkumu 1.28.0) a mírnější
-  podmínky archivu. V přehledu **Co čeká** jdou napřed pod
+  rozpory (**K rozhodnutí – rozpory**, viz [R5](R5-conflicts.md)), hypotézy k rozhodnutí (od výzkumu 1.28.0; od 1.31.0
+  je dostane i aplikace Strom, která je umí rozhodnout, [R6.3.4](#R6.3.4)) a mírnější podmínky archivu. V přehledu **Co čeká** jdou napřed pod
   nadpisem **Jen tady v terminálu (v aplikaci Strom nejsou)**, za nimi **I v aplikaci Strom**.
 - Stránka pro telefon jen čte: bez položek jen pro terminál, s vyprávěním, napřed 20 položek, nejvýš 200 najednou.
   Píše **Rozhodnout jde na počítači v Přehledu výzkumu.**
@@ -140,8 +140,9 @@ z aplikace, čtení snímků a návrh znění přepisu (skupina **K rozhodnutí 
   rozhoduje AI, [R10.3.2](R10-people-and-hypotheses.md#R10.3.2)); rozhoduje jen člověk ([R6.6](#R6.6)). Čeká-li
   10 a více otevřených hypotéz, aplikace v **Co ví výzkum** nabídne přepnutí na **Rozhoduje AI** (potvrdí se ve
   výzkumu). Při **Rozhoduje AI** agent
-  rozhodne sám, co citovaný záznam dokládá, a čekají jen jeho návrhy (rozhodnutí, které sám udělat nesmí). Skupina je
-  jen v terminálu, aplikace Strom ji neukazuje ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
+  rozhodne sám, co citovaný záznam dokládá, a čekají jen jeho návrhy (rozhodnutí, které sám udělat nesmí). Aplikace
+  Strom, která hypotézy umí rozhodnout, skupinu ukáže taky ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)); starší
+  aplikace ji nedostane ([R6.1.1](#R6.1.1)). V Archivu Stromu skupina není.
 - **Ovládání:** terminál: **Co čeká** → položka, `strom hypothesis decide H… --proposed | --keep-open`. Tytéž volby
   jsou v revizi osoby: **Rozšířit výzkum** → **Revize osoby** → **Hypotézy o osobě (n)**.
 - **Platí od:** výzkum 1.28.0

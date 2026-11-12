@@ -24,7 +24,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [R11 Podklady od uživatele](R11-material-from-the-user.md): soubory a texty od uživatele, doklad a vodítko, převzatý rodokmen, dávka z aplikace
 - [R12 Kde agent pracuje a co strom hlídá](R12-where-the-agent-works.md): terminál, aplikace Claude, ChatGPT (Codex) a OpenCode, Antigravity a Grok Build, samostatný běh: co strom kde hlídá a co udělá člověk
 - [R13 Nahlásit problém: `strom error`](R13-reporting-a-problem.md): jeden soubor ZIP k odeslání, co v něm je a co ne, který problém a jaký příkaz, údaje osob jen se souhlasem, agent a nahlášení problému
-- [R14 Pečeť a celistvost výzkumu](R14-seal-and-integrity.md): co nesedí s pečetí a cesty dál (`strom repair`, `strom seal adopt`, `strom seal accept`), přijetí výzkumu tak, jak je, když se ztratila jeho historie
+- [R14 Pečeť a celistvost výzkumu](R14-seal-and-integrity.md): co nesedí s pečetí a cesty dál (`strom repair`, `strom seal adopt`, `strom seal accept`), přijetí výzkumu tak, jak je, když se ztratila jeho historie, historie starší než výzkum, `strom repair` se ptá člověka a `strom repair undo`
 
 ## A Aplikace Strom
 
@@ -33,7 +33,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [A3 Doložení v aplikaci](A3-evidence-in-the-app.md): prameny, citace, výřezy, přílohy, materiály a kde chybí doklady
 - [A4 Rody a příjmení](A4-surnames-and-families.md): rod a zakladatel, přivdaní, ženské tvary příjmení, hledání jmen
 - [A5 Kontrola stromu](A5-tree-check.md): co aplikace ve stromu hlídá, s jakými prahy, a Není chyba
-- [A6 Pohledy a výběr osob](A6-views.md): Rodina, Potomci, Časová osa, Vějíř, Mapa a rod v pohledu
+- [A6 Pohledy a výběr osob](A6-views.md): Rodina, Potomci, Časová osa, Vějíř, Mapa, rod v pohledu a Tabulka
 - [A7 Kniha, stránky a export](A7-book-pages-and-export.md): kdo je žijící, ochrana žijících, kniha rodu, stránky, uložené HTML
 - [A8 Sloučení stromů](A8-merging-trees.md): sloučení souboru, stromu nebo pohledu do nového stromu, párování osob
 - [A9 Ovládání aplikace](A9-using-the-app.md): kde co je, čitelné názvy prvků, úpravy při sledování výzkumu, agent v aplikaci

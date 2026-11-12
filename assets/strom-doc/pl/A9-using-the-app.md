@@ -22,10 +22,11 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 | źródła drzewa | **Akcje → Źródła** | [A3.1](A3-evidence-in-the-app.md#A3.1) |
 | edytować osobę | menu osoby → **Edytuj** | [S2](S2-edits-from-the-app.md), przy śledzeniu [A9.3](#A9.3) |
 | widok Mapa i inne widoki | przełącznik widoków na pasku narzędzi; w wąskim oknie i na telefonie **Więcej → Widok** | [A6](A6-views.md) |
+| całe drzewo w wierszach, eksport CSV i XLSX | **Tabela** w przełączniku widoków; w wąskim oknie i na telefonie **Więcej → Widok → Tabela** | [A6.7](A6-views.md#A6.7) |
 | podkład mapy | **Pokaż mapę** przy powiadomieniu, że podkład wczytuje się z openstreetmap.org | [A9.4](#A9.4) |
-| miejsca poza mapą | pasek stanu mapy → **W badaniu**; w badaniu sekcja **Czeka na decyzję** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
+| miejsca poza mapą | pasek stanu mapy → **W badaniu**; w badaniu sekcja **Czeka na załatwienie** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | praca badania | panel badania, **⤢ Otwórz przegląd**; menu **Badanie → Przegląd badania** | [S4.1](S4-research-from-the-app.md#S4.1) |
-| co czeka na człowieka | panel, sekcja **Czeka na decyzję**; menu **Badanie → Czeka na decyzję** | [S4.4](S4-research-from-the-app.md#S4.4) |
+| co czeka na człowieka | panel, sekcja **Czeka na załatwienie**; menu **Badanie → Czeka na załatwienie** | [S4.4](S4-research-from-the-app.md#S4.4) |
 | śledzenie badania | **Śledź na żywo**; koniec **Zakończ śledzenie** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
 | wysyłanie zmian do badania | **Badanie → Więcej → Badanie dla tego drzewa… → Wysyłanie zmian** | [S2.2](S2-edits-from-the-app.md#S2.2) |
 | zasady i pojęcia | **Akcje → Jak działa Strom** | [A1.7](A1-the-app-in-brief.md#A1.7) |

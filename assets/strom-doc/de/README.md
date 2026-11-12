@@ -25,7 +25,7 @@ dauerhaft.
 - [R11 Unterlagen vom Benutzer](R11-material-from-the-user.md): Dateien und Texte vom Benutzer, Urkunde und Hinweis, ein übernommener Stammbaum, ein Stapel aus der App
 - [R12 Wo der Agent arbeitet und was strom überwacht](R12-where-the-agent-works.md): Terminal, die Apps Claude, ChatGPT (Codex) und OpenCode, Antigravity und Grok Build, selbstständiger Lauf: was strom wo überwacht und was der Mensch tut
 - [R13 Ein Problem melden: `strom error`](R13-reporting-a-problem.md): eine ZIP-Datei zum Versenden, was darin ist und was nicht, welches Problem und welcher Befehl, Daten von Personen nur mit Zustimmung, der Agent und das Melden eines Problems
-- [R14 Siegel und Unversehrtheit der Forschung](R14-seal-and-integrity.md): was nicht zu seinem Siegel passt, und die Wege weiter (`strom repair`, `strom seal adopt`, `strom seal accept`), die Forschung annehmen, wie sie ist, wenn ihre Geschichte verloren ist
+- [R14 Siegel und Unversehrtheit der Forschung](R14-seal-and-integrity.md): was nicht zu seinem Siegel passt, und die Wege weiter (`strom repair`, `strom seal adopt`, `strom seal accept`), die Forschung annehmen, wie sie ist, wenn ihre Geschichte verloren ist, eine Geschichte, älter als die Forschung, `strom repair` fragt den Menschen und `strom repair undo`
 
 ## A Die Strom-App
 
@@ -34,7 +34,7 @@ dauerhaft.
 - [A3 Belege in der App](A3-evidence-in-the-app.md): Quellen, Zitationen, Ausschnitte, Anhänge, Materialien und wo Belege fehlen
 - [A4 Stammlinien und Nachnamen](A4-surnames-and-families.md): Stammlinie und Stammvater, Eingeheiratete, weibliche Formen von Nachnamen, Namenssuche
 - [A5 Prüfung des Stammbaums](A5-tree-check.md): was die App im Stammbaum überwacht, mit welchen Schwellen, und Kein Fehler
-- [A6 Ansichten und Auswahl der Personen](A6-views.md): Familie, Nachkommen, Zeitleiste, Fächer, Karte und die Stammlinie in der Ansicht
+- [A6 Ansichten und Auswahl der Personen](A6-views.md): Familie, Nachkommen, Zeitleiste, Fächer, Karte, die Stammlinie in der Ansicht und Tabelle
 - [A7 Buch, Seiten und Export](A7-book-pages-and-export.md): wer lebend ist, Schutz lebender Personen, Familienbuch, Seiten, gespeichertes HTML
 - [A8 Zusammenführen von Stammbäumen](A8-merging-trees.md): Zusammenführen einer Datei, eines Stammbaums oder einer Ansicht in einen neuen Stammbaum, Abgleich der Personen
 - [A9 Bedienung der App](A9-using-the-app.md): wo was ist, lesbare Namen der Bedienelemente, Bearbeiten beim Verfolgen der Forschung, der Agent in der App

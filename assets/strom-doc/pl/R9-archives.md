@@ -23,15 +23,17 @@ Przebieg w skrócie:
 
 > **Uwaga: gdzie dokładnie obowiązuje przeglądarka agenta.** Przeglądarki agenta strom pilnuje przy **Claude Code**
 > z rozszerzeniem **Claude in Chrome**, we wbudowanej przeglądarce aplikacji Claude
-> ([R12.2](R12-where-the-agent-works.md#R12.2)) i w przeglądarce Codexu według adresów w jej kodzie, gdy człowiek
-> potwierdził hook stroma ([R12.5](R12-where-the-agent-works.md#R12.5)). Przeglądarki innego agenta (Antigravity
+> ([R12.2](R12-where-the-agent-works.md#R12.2)) i w przeglądarce Codexu w terminalu według adresów w jej kodzie, gdy
+> człowiek potwierdził hook stroma ([R12.5](R12-where-the-agent-works.md#R12.5)). Przeglądarka aplikacji ChatGPT
+> (Codex) działa przez chmurę ChatGPT i strom jej nie pilnuje ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)).
+> Przeglądarki innego agenta (Antigravity
 > i inne) ani sterowania komputerem żadnego agenta strom pilnować nie potrafi: agent nie wchodzi z nimi sam do
 > archiwum, do którego wolno tylko przeglądarce człowieka, a skany zapisuje człowiek. Wbudowanych przeglądarek i sterowania komputerem
 > aplikacji desktopowych agentów strom nie poleca; agent używa ich tylko na wyraźną prośbę człowieka
 > ([R9.4.2](#R9.4.2)). Gdzie rozmawia się z agentem i czego strom gdzie pilnuje, podsumowuje
 > [R12](R12-where-the-agent-works.md).
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0, 1.30.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST, codexInChatgptApp (v1.30.0, 33ac2e38) · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Rodzaje archiwów
@@ -78,7 +80,7 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
   przeglądarkę, idzie najwyżej przeglądarka, za zgodą człowieka i w jego tempie; to, co lista archiwów zostawia
   ręce człowieka, zapisuje człowiek.
 - **Obsługa:** terminal: `strom net web --check <adresa>` (co strom zrobiłby z adresem), menu archiwów, `strom
-  allow archive` (tylko człowiek). Aplikacja: Czeka na decyzję.
+  allow archive` (tylko człowiek). Aplikacja: Czeka na załatwienie.
 - **Obowiązuje od:** badanie 1.14.0. Kolejne archiwa Czech, Niemiec i Polski oraz serwer obrazów od 1.27.0.
 
 <!-- zdroj: research:src/core/terms.ts:566-680 archiveLevel (robots "Disallow: /" → browserOnly, restricted; robotsYield: openByTerms + robotsNamesAi false), :789-803 allows (browserOnly + manual → nothing) · assets/archives.json (level, browserOnly, pace, disallow, imagesFrom, quote, quoteFrom, checked; metrikai.lt, lagis, gov, online-ofb restricted + browserOnly; ebadatelna.soapraha.cz manual) · src/core/knownterms.ts imagesFrom · test/unit/known-terms.test.ts (imagesFrom closed whole ⇒ manual) · src/core/browserhelp.ts browserHelps (disallow "/") · CHANGELOG.cs.md 1.26.0, 1.27.0 (c3ee4422) -->
@@ -217,9 +219,11 @@ człowieka. Tak samo pilnuje wbudowanej przeglądarki aplikacji Claude
 ### R9.4.2 Wbudowane przeglądarki i sterowanie komputerem: niepolecane
 
 - W badaniu nic z aplikacji desktopowych agentów się nie wyłącza. Wbudowanej przeglądarki aplikacji Claude (także jej
-  podglądu) strom pilnuje jak Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), przeglądarki aplikacji
-  ChatGPT (Codex) według adresów w jej kodzie, gdy człowiek potwierdzi hook stroma
-  ([R12.5](R12-where-the-agent-works.md#R12.5)). Sterowania komputerem aplikacji Claude ani aplikacji ChatGPT strom
+  podglądu) strom pilnuje jak Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Przeglądarka aplikacji
+  ChatGPT (Codex) działa przez chmurę ChatGPT i strom jej nie pilnuje, niezależnie od tego, czy hook stroma jest
+  w Codexie potwierdzony; o stronach decyduje okno dialogowe ChatGPT
+  ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)). Przeglądarki Codexu w terminalu strom pilnuje według adresów
+  w jej kodzie, gdy człowiek potwierdzi hook stroma ([R12.5](R12-where-the-agent-works.md#R12.5)). Sterowania komputerem aplikacji Claude ani aplikacji ChatGPT strom
   nie pilnuje ([R12.10](R12-where-the-agent-works.md#R12.10)). Żadnego z nich strom nie poleca.
 - **Tylko metodyka:** agent nie używa ich sam z siebie: nie wchodzi z nimi do archiwum, do którego wolno tylko
   przeglądarce człowieka, a skany zapisuje człowiek ([R9.6](#R9.6)). Gdy człowiek wyraźnie o nie poprosi, to wybór
@@ -230,9 +234,10 @@ człowieka. Tak samo pilnuje wbudowanej przeglądarki aplikacji Claude
   pobierający archiwum, pobieranie stron witryny i przeglądarka agenta w Chrome zawsze kierują się zasadami archiwów
   ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Obsługa:** terminal: `strom doctor`, wiersz **przeglądarka aplikacji desktopowych**.
-- **Obowiązuje od:** badanie 1.27.0; 1.29.0: wbudowana przeglądarka aplikacji Claude i przeglądarka Codexu pilnowane
+- **Obowiązuje od:** badanie 1.27.0; 1.29.0: wbudowana przeglądarka aplikacji Claude i przeglądarka Codexu pilnowane;
+  1.30.0: przeglądarki aplikacji ChatGPT strom nie pilnuje
 
-<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
+<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept; assets/lang/pl.json ui.doc.desktop.codex; CHANGELOG.pl.md 1.30.0 · dirigent:test/vysledek-062-u4-codex.md · 1.29.0 (53dba68d; dev 6968ab72): agent řekne, zda strom cestu hlídá -->
 
 <a id="R9.4.3"></a>
 ### R9.4.3 Stan przeglądarki w strom doctor i w aplikacji
@@ -255,7 +260,7 @@ badanie pracuje:
   przeglądarkę zapisuje człowiek.** albo przy innym agencie **przeglądarki tego agenta Strom nie śledzi**. Przy
   pozycji, która czeka na skany takiego archiwum, stoi ta sama rada jako notatka. Badanie, które służy jako archiwum,
   tego wiersza nie ma.
-- **Obsługa:** terminal: `strom doctor`. Aplikacja: okno **Badanie dla drzewa**, Czeka na decyzję.
+- **Obsługa:** terminal: `strom doctor`. Aplikacja: okno **Badanie dla drzewa**, Czeka na załatwienie.
 - **Obowiązuje od:** badanie 1.27.0
 
 <!-- zdroj: research:src/commands/setup.ts:490-516 · src/core/browserhelp.ts browserState, agentBrowserAdvice, personBrowserNote · assets/lang/cs.json ui.doc.browser.archives.* · app:src/research-browser.ts:75-98 browserRow, :170-201 browserNote · src/ui/research-browser-ui.ts:96-144 · src/strings.ts research.browser -->
@@ -273,6 +278,11 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
   - zapisuje się tylko skan, który karta pokazuje pod swoim własnym adresem. Przeglądarka przesunięta na inny skan
     zostaje odrzucona i nic się nie zapisuje. Nigdy więcej, niż daje przeglądarka archiwum, nigdy większy niż
     oryginał;
+  - zapisywanie czeka, aż przeglądarka archiwum pokaże cały skan, najwyżej 30 s. Od badania 1.31.0 liczy się tylko
+    czas, gdy przeglądarka rysuje kartę (nie rysuje karty za inną kartą ani w zakrytym lub zminimalizowanym oknie).
+    Karta nierysowana przez 30 s zostaje zgłoszona jako taka („the browser did not draw the tab with the viewer for
+    30 s …”: karta na wierzch, okno odkryte, potem skrypt jeszcze raz); przeglądarka archiwum, która w tym czasie
+    przejdzie na inny skan, nie zapisuje nic;
   - polecenie ustawia zadanie na oczekiwanie na ten skan. Plik zapisuje się do folderu pobranych plików
     (`strom-T…-<číslo>.jpg`), a `strom media add --inbox --waiting` przenosi go do folderu zadania pod numerem skanu
     ([R9.6](#R9.6)).
@@ -287,9 +297,9 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
 - **Dlaczego:** zgoda „przez przeglądarkę” pozwala na to, co zrobiłby człowiek w swojej przeglądarce, w jego tempie.
 - **Obsługa:** terminal (agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, potem
   `strom media add --inbox --waiting`.
-- **Obowiązuje od:** badanie 1.27.0. Wstrzymany skan jest zgłaszany od badania 1.30.0.
+- **Obowiązuje od:** badanie 1.27.0. Wstrzymany skan jest zgłaszany od badania 1.30.0, nierysowana karta od 1.31.0.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Oczekiwanie na skany i powrót zadania
@@ -328,7 +338,7 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
   człowiek, przechodzi tylko człowiek.
 - **Dlaczego:** skany to to, na co zadanie czekało; część skanów zadania nie kończy.
 - **Obsługa:** terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, w Co czeka
-  **Otwórz folder (zapisano M/N)**. Aplikacja: Czeka na decyzję, przy pozycji w tej kolejności **Dodaj
+  **Otwórz folder (zapisano M/N)**. Aplikacja: Czeka na załatwienie, przy pozycji w tej kolejności **Dodaj
   skany**, **Otwórz stronę ↗**, **Odpowiedz**, **Omów z agentem**, **Otwórz folder** (dwa ostatnie otwierają badanie
   w terminalu). Stan skanów pokazuje „1 z 2 skanów”, a przy księdze chipy **zapisany** / **brak**. Witryny jednego
   archiwum czekają w jednej grupie **Archiwum** pod nazwą archiwum, z odnośnikiem **Strona archiwum ↗** i liczbą
@@ -415,7 +425,7 @@ mówi „Claude + Chrome”, chodzi o Claude Code z rozszerzeniem Claude in Chro
 
 Kroki przy zadaniu, które czeka na skany archiwum, do którego agentowi nie wolno:
 
-1. **Znaleźć:** aplikacja: **Czeka na decyzję** (grupa według archiwum). Terminal: menu **Co czeka (n)** lub wiersz
+1. **Znaleźć:** aplikacja: **Czeka na załatwienie** (grupa według archiwum). Terminal: menu **Co czeka (n)** lub wiersz
    stanu **Czeka: N**. Pozycja podaje księgę, numery skanów i czego do tego brakuje.
 2. **Wybrać drogę:**
    - z Claude Code i rozszerzeniem Claude in Chrome można dać archiwum zgodę **przez przeglądarkę** (aplikacja:
@@ -435,7 +445,7 @@ Kroki przy zadaniu, które czeka na skany archiwum, do którego agentowi nie wol
 
 - **Granice:** zgoda, odpowiedź i zapisanie skanów należą tylko do człowieka; agent nie zrobi ich za człowieka
   ([R6.6](R6-awaiting-action.md#R6.6)).
-- **Obsługa:** aplikacja: Czeka na decyzję. Terminal: Co czeka, `strom allow archive`, `strom media add --inbox
+- **Obsługa:** aplikacja: Czeka na załatwienie. Terminal: Co czeka, `strom allow archive`, `strom media add --inbox
   --waiting`.
 - **Obowiązuje od:** badanie 1.27.0, aplikacja Strom 3.23.0
 

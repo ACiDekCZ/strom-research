@@ -69,6 +69,31 @@ with new coordinates and surname variants. Each group has its own section. After
 
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
+<a id="S2.2.2"></a>
+### S2.2.2 Folio, image and call number from the app
+
+An app that keeps the source's fields ([A3.9](A3-evidence-in-the-app.md#A3.9)) sends the research the call number,
+folio, image and other location by fields. The research compares them by fields and writes an edit as an edit of the
+source's page.
+
+- **Deletion:** a folio, image or call number a person deletes in the app is deleted by the research too. Undoing the
+  send ([S2.7](#S2.7)) brings them back.
+- **Limits:**
+  - an older app that does not know the fields deletes nothing. An edit of the whole page from an older app replaces
+    the locator and deletes the folio and image entered (undoing brings them back);
+  - a value that the app's file still names is not deleted: a folio or image in the page (`PAGE`), a call number as
+    the whole page or on its own line of the source's note ("Call number: …", in any language). It is better that it
+    stays than that something the app did not see as a field is deleted;
+  - the call number of the book and the image number from registered scans are not fields of the source: a deletion
+    in the app does not change them;
+  - for a source read by the research, neither an edit nor a deletion is written into the source; a note is written
+    beside it ("folio: removed in the Strom app (was fol. 12v)").
+- **In the list What will be sent** ([S2.2.1](#S2.2.1)) a changed call number, folio or image is a change of the
+  source's page.
+- **Since:** app 3.27.0 with research 1.31.0
+
+<!-- zdroj: research:337787ff, 87785596 src/core/sync.ts:3534 SOURCE_EDITS, SOURCE_FIELDS, :3551 removedFields (fieldsKept, entryWords, locatorOverlap, isValue, noteCallNumbers, CALL_NUMBER_LABELS), removedLine (sync.reading.removed) · 4de28f00 (úprava celé PAGE ze starší aplikace nahradí locator a smaže folio/snímek, undo vrátí) · app:c3278633 src/research-changes.ts (změna signatury, folia, snímku jako strana), src/ged-exporter.ts sourceFields · CHANGELOG.cs.md 1.31.0 · dirigent:prace/1111-vyzkum-citace-most-n1, prace/1111-vyzkum-citace-pole · spec 075 U1c B -->
+
 <a id="S2.3"></a>
 ## S2.3 What the research does with sent edits
 

@@ -16,35 +16,50 @@ Jeder Befund hat einen Schweregrad:
 
 | Schweregrad | Abschnitt im Dialog | Bedeutung |
 |---|---|---|
-| Fehler | **Probleme** | die Daten widersprechen sich oder sind beschädigt ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
-| Warnung | **Probleme** | unwahrscheinlich, aber möglich |
+| Fehler | **Zu prüfen** | die Daten widersprechen sich oder sind beschädigt ([A5.2](#A5.2), [A5.3](#A5.3), [A5.4](#A5.4)) |
+| zu prüfen | **Zu prüfen** | ein ungewöhnlicher Wert, unwahrscheinlich, aber möglich; eine Prüfung wert |
 | Info | **Hinweise** | „Keine Fehler. Hinweise, die bei der Forschung helfen können.“ ([A5.5](#A5.5), [A5.6](#A5.6)) |
 
 - **Grenzen:**
   - Befunde derselben Art bilden eine Gruppe, geordnet nach Schweregrad, Größe und Name. Offen ist nur eine Gruppe
     mit einem Fehler.
     Über 50 Befunden werden weitere in Schritten von 20 gezeigt. Auf dem Telefon (bis 640 px) sind die **Hinweise**
-    zugeklappt, wenn es auch **Probleme** gibt.
+    zugeklappt, wenn es auch den Abschnitt **Zu prüfen** gibt.
   - Platzhalterpersonen werden nicht gemeldet. Ein als **Kein Fehler** markierter Befund ([A5.7](#A5.7)) wird weder
     gezählt noch gezeigt.
   - Ein schreibgeschützter Stammbaum zeigt Befunde nur an. Bei einem anderen als dem geöffneten Stammbaum öffnet eine
     Behebung oder Markierung zuerst den Stammbaum.
+  - **Ab App 3.27.0:** der Schweregrad, der früher „Warnung“ hieß, heißt **zu prüfen**, auch in Zusammenfassungen
+    und Zählungen („2 Fehler, 1 zu prüfen, 3 Hinweise.“). Die Ansicht Tabelle zeigt Befunde direkt in den Zellen und
+    einen als **Kein Fehler** markierten Befund als **ungewöhnlich** ([A6.7.5](A6-views.md#A6.7.5)).
+  - **Ab App 3.27.0:** der Abschnitt der Fehler und Befunde zu prüfen heißt **Zu prüfen** (früher **Probleme**). Ein
+    Stammbaum ohne sie hat „Nichts zu prüfen“, mit Hinweisen „Nichts zu prüfen. 3 Hinweise.“
 - **Bedienung:** Dialog **Stammbaum-Prüfung**: **Stammbaum-Überblick → Datenqualität → Schnellaktionen →
   Validierungsdetails**, die Zeile „n Hinweise ›“ in **Konsistenz** (öffnet direkt **Hinweise**), die Karte mit
   Fehlern in **Worauf achten**.
-  Nach einem GEDCOM-Import fragt die App („Datenprüfung“) nur, wenn sie Fehler oder Warnungen findet
+  Ab App 3.27.0 auch **Datenqualität ›** in der Blase eines Befunds in der Ansicht Tabelle: öffnet den Dialog bei der
+  Gruppe dieses Befunds (bei einem als **Kein Fehler** markierten Befund bei der Liste der markierten).
+  Nach einem GEDCOM-Import fragt die App („Datenprüfung“) nur, wenn sie Fehler oder Befunde zu prüfen findet
   ([A2](A2-loading-a-family-tree.md)).
   Dasselbe nach dem Zusammenführen mit einem anderen Stammbaum, für neue Befunde. Einen eigenen Menüpunkt hat die
   Prüfung nicht.
-- **Gilt seit:** App 1.0.0; Abschnitte **Probleme** und **Hinweise** App 3.17.0
+- **Gilt seit:** App 1.0.0; Abschnitte **Probleme** und **Hinweise** App 3.17.0; Bezeichnung **zu prüfen** und
+  Verweis aus der Ansicht Tabelle App 3.27.0; Abschnitt **Zu prüfen** und „Nichts zu prüfen“ App 3.27.0
 
-<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck -->
+<!-- zdroj: app:src/validation.ts:83 validateTreeData, :1370 groupValidationIssues · src/ui/tree-stats.ts:101 LONG_GROUP, :148 showTreeValidationDialog · src/ui/import-export.ts:1341 offerPostImportValidation · src/ui/merge/ui.ts:1515 · strings.ts treeManager.validationTitle, valProblems, valLeads, leadsIntro, valReadOnly, valShowMore, postImportCheck · 3.27.0: app:59a8eed0 strings.ts treeManager.validationWarnings „k ověření“, summaryErrors, summaryNoErrors, treeOverview.countWarnings · src/ui/table-view/table-bubble.ts (Kvalita dat ›) → src/ui/tree-stats.ts showTreeValidationDialog focus · table.sev.* · commit e530019b · „K ověření“: strings.ts treeManager.valProblems, commit 79764eba; „Nic k ověření“: validationPassed, summaryLeadsOnly, commit b1cbe546 (T54 G15) -->
 
 <a id="A5.1.1"></a>
 ### A5.1.1 Behebung mit einem Klick
 
-Manche Befunde haben die Schaltfläche **Beheben** und die Gruppe **Alle beheben (n)**. Eine Behebung ist ein
-Schritt zurück („eine Prüfungsreparatur“) und wird im Änderungsverlauf erfasst.
+Manche Befunde haben die Schaltfläche **Beheben**; die Zusammenfassung über den Befunden hat **Alle beheben (n)** für
+alle Befunde, die sich beheben lassen. Eine Behebung ist ein Schritt zurück („eine Prüfungsreparatur“) und wird im
+Änderungsverlauf erfasst.
+
+- Unter **Alle beheben (n)** steht, was behoben wird, mit Anzahlen, nur für die Arten, die der Stammbaum hat:
+  „Behoben wird: beschädigte Verknüpfungen zwischen Personen und Partnerschaften (2); Partnerschaft einer Person mit
+  sich selbst – wird gelöscht (1); doppelte Partnerschaft – wird mit der ersten zusammengeführt, Kinder bleiben (1);
+  ein Ort, verschieden geschrieben – wird auf die häufigste Schreibweise vereinheitlicht (3). Andere Befunde bleiben
+  unverändert.“ In einem schreibgeschützten Stammbaum gibt es weder die Schaltfläche noch die Zeile.
 
 | Befund | Was die Behebung tut |
 |---|---|
@@ -54,15 +69,15 @@ Schritt zurück („eine Prüfungsreparatur“) und wird im Änderungsverlauf er
 | Doppelte Partnerschaft | behält die erste, überträgt die Kinder auf sie |
 | Ein Ort auf mehrere Arten geschrieben | schreibt alle Schreibungen auf die häufigste um |
 
-- **Gilt seit:** App 1.1.0; Behebung von Orten 1.10.0
+- **Gilt seit:** App 1.1.0; Behebung von Orten 1.10.0; die Zeile unter **Alle beheben (n)** App 3.27.0
 
-<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll -->
+<!-- zdroj: app:src/data.ts:4071 FIXABLE_TYPES, :4097 repairValidationIssue · strings.ts treeManager.valFix, valFixAll · řádek: src/ui/tree-stats.ts fixAllNoteText (orphaned*/missing* → links, selfPartnership, duplicatePartnership, placeSpelling), strings.ts treeManager.valFixAllNote, jen bez ro, commit 79764eba (T54 G15) -->
 
 <a id="A5.2"></a>
 ## A5.2 Verbindungen in der Familie
 
 Die Prüfung sucht Verbindungen, die nicht gelten können. Alle sind Fehler, außer der doppelten Partnerschaft
-(Warnung).
+(zu prüfen).
 
 | Befund in der App | Wann |
 |---|---|
@@ -84,40 +99,60 @@ Die Prüfung sucht Verbindungen, die nicht gelten können. Alle sind Fehler, au�
 
 Die Prüfung meldet nur, was sicher nicht gilt. Ein unvollständiges oder ungefähres Datum rechnet sie im ganzen
 möglichen Bereich: ohne Monat Januar bis Dezember, „um“ ± 2 Jahre, „vor“ bis 20 Jahre früher, „nach“ bis 20 Jahre
-später, ein Zeitraum bis zu seinem Ende. Erst wenn der Verstoß im ganzen Bereich gilt, ist es ein Befund.
+später, ein Zeitraum bis zu seinem Ende. Erst wenn der Verstoß im ganzen Bereich gilt, ist es ein Befund. Eine
+Ausnahme sind die milderen Grenzen zu prüfen ab App 3.27.0 (unten): dort genügt es, wenn ein Ende des möglichen Alters
+die Grenze überschreitet.
 
 | Befund in der App | Schweregrad | Wann |
 |---|---|---|
 | **Sterbedatum liegt vor dem Geburtsdatum** | Fehler | |
-| **Unplausibel lange Lebensdauer** | Warnung | mehr als 115 Jahre |
+| **Unplausibel lange Lebensdauer** | zu prüfen | mehr als 115 Jahre |
 | **Elternteil jünger als Kind** | Fehler | nach dem Geburtsdatum |
-| **Elternteil bei Geburt sehr jung / sehr alt** | Warnung | unter 12 / über 80 Jahre; nur Geburtsdaten |
-| **Ereignis vor der Geburt datiert** | Warnung | |
-| **Ereignis nach dem Tod datiert** | Warnung | außer: Beerdigung, Einäscherung, Testament, Nachlassverfahren |
+| **Elternteil bei Geburt sehr jung / sehr alt** | zu prüfen | unter 12 / über 80 Jahre; nur Geburtsdaten |
+| **Mutter bei der Geburt unter 16** / **… über 45** | zu prüfen | ab App 3.27.0, siehe unten |
+| **Vater bei der Geburt unter 18** / **… über 60** | zu prüfen | ab App 3.27.0, siehe unten |
+| **Ereignis vor der Geburt datiert** | zu prüfen | |
+| **Ereignis nach dem Tod datiert** | zu prüfen | außer: Beerdigung, Einäscherung, Testament, Nachlassverfahren |
 | **Kind nach dem Tod der Mutter geboren** | Fehler | mehr als 1 Monat nach dem Tod; nur leibliche Eltern |
-| **Kind lange nach dem Tod des Vaters geboren** (… **eines Elternteils**, Geschlecht unbekannt) | Warnung | mehr als 10 Monate |
+| **Kind lange nach dem Tod des Vaters geboren** (… **eines Elternteils**, Geschlecht unbekannt) | zu prüfen | mehr als 10 Monate |
 | **Hochzeit vor der Geburt eines Partners datiert** | Fehler | |
-| **Hochzeit nach dem Tod eines Partners datiert** | Warnung | |
-| **Als Kind verheiratet** | Warnung | unter 14 Jahren |
+| **Hochzeit nach dem Tod eines Partners datiert** | zu prüfen | |
+| **Als Kind verheiratet** | zu prüfen | unter 14 Jahren |
+| **Heirat unter 16 Jahren** | zu prüfen | ab App 3.27.0, siehe unten |
+| **Eingetragenes Alter weicht um mehr als 2 Jahre ab** | zu prüfen | ab App 3.27.0, siehe unten |
 | **Extremer Altersunterschied zwischen Partnern** | Info (**Hinweise**) | 40 Jahre und mehr |
 | **Geburt/Tod als Lebensereignis erfasst** | Fehler | Geburt oder Tod in der Liste der Ereignisse |
-| **Eigenes Ereignis hat keine Bezeichnung** / **Ereignis hat ein ungültiges Datum** | Warnung | |
+| **Eigenes Ereignis hat keine Bezeichnung** / **Ereignis hat ein ungültiges Datum** | zu prüfen | |
 
 - **Grenzen:** dieselben Ausnahmen nach dem Tod hat `strom check` der Forschung. Ein Elternteil ohne Art der
   Beziehung zählt als leiblich.
+- **Ab App 3.27.0:** mildere Grenzen zu prüfen:
+  - **Mutter** jünger als 16 oder älter als 45 und **Vater** jünger als 18 oder älter als 60 Jahre bei der Geburt
+    des Kindes. Nur ein leiblicher Elternteil mit bekanntem Geschlecht, das Alter aus beiden Geburtsdaten;
+  - **Heirat** im Alter unter 16 Jahren;
+  - es genügt, wenn ein Ende des möglichen Alters die Grenze überschreitet (ein Alter „15–16“ liegt unter 16). Ein
+    Datum mit **um** zählt als Schätzung des Alters; ein Datum mit **vor** oder **nach** wird nicht verglichen;
+  - gemeldet wird nur der strengere Befund: wo schon **Elternteil jünger als Kind**, **Elternteil bei Geburt sehr
+    jung / sehr alt** oder **Als Kind verheiratet** gilt, gibt es den milderen Befund nicht;
+  - das **eingetragene Alter** (bei der Heirat das Alter jedes der beiden, beim Tod, bei der Geburt) wird mit dem Alter
+    aus dem Geburtsdatum und dem Datum des Ereignisses verglichen. Ein Befund ist es, wenn es um mehr als 2 Jahre
+    außerhalb des möglichen Bereichs liegt. Ein in Worten oder mit um, vor, nach eingetragenes Alter wird nicht
+    verglichen, auch nicht, wenn eines der Daten nur eine Schätzung ist;
+  - die Zeile des Befunds zeigt Daten und Alter („* 1850 → * 1866: 15–16“, „⚭ 1872: 30 ≠ 26–27“).
 - **Gilt seit:** App 1.0.0 (Alter der Eltern); 1.4.0 (Ereignisse); 1.7.0 (Daten und Tod); Kind nach dem Tod eines
-  Elternteils unbekannten Geschlechts 3.10.0; vier Ausnahmen nach dem Tod 3.17.0 (vorher nur Beerdigung)
+  Elternteils unbekannten Geschlechts 3.10.0; vier Ausnahmen nach dem Tod 3.17.0 (vorher nur Beerdigung); mildere
+  Grenzen für das Alter der Eltern und bei der Heirat und das eingetragene Alter 3.27.0
 
-<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* -->
+<!-- zdroj: app:src/validation.ts:493 checkAgePlausibility MIN_PARENT_AGE MAX_PARENT_AGE, :863 checkDateConsistency MAX_LIFESPAN_YEARS CHILD_MARRIAGE_YEARS PARTNER_AGE_GAP_YEARS POSTHUMOUS_FATHER_MONTHS AFTER_DEATH_EVENT_TYPES, :120 checkLifeEvents · monthRange, certainlyBefore · research:src/core/afterdeath.ts AFTER_BY_NATURE · strings.ts treeManager.val* · 3.27.0: app:59a8eed0 src/validation.ts MOTHER_MIN_AGE 16, MOTHER_MAX_AGE 45, FATHER_MIN_AGE 18, FATHER_MAX_AGE 60, checkParentAgeLimits (gender female/male, parentRelTypes biological, jen když není parentYoungerThanChild/parentTooYoung/parentTooOld), ageSpan (< > → null; ~ approxAgeBetween), spanText, MARRIAGE_MIN_YEARS 16 (else za childMarriage), checkRecordedAges SLACK_YEARS 2 (Partnership.ages, deathAge, birthAge), src/dates.ts recordedAgeGap, ageRangeBetween · strings.ts treeManager.valMotherTooYoung16, valMotherTooOld45, valFatherTooYoung18, valFatherTooOld60, valMarriageUnder16, valRecordedAgeMismatch, validationWarnings, countWarnings, summaryErrors · spec 073 §7.6 · CHANGELOG.cs.md 3.27.0 -->
 
 <a id="A5.4"></a>
 ## A5.4 Quellen, Anhänge und Verschmelzung beim Import
 
 | Befund in der App | Schweregrad | Wann |
 |---|---|---|
-| **Zitat verweist auf eine fehlende Quelle** | Warnung | Zitation bei einer Person, einem Ereignis, einer Partnerschaft oder einem Anhang |
-| **Anhang hat keine verwendbaren Daten** | Warnung | die Daten sind weder Bild noch PDF (ein Anhang nur mit Original wird nicht gemeldet) |
-| **Foto ist kein unterstütztes Bild** | Warnung | ein anderes Format als JPEG, PNG, WebP, GIF |
+| **Zitat verweist auf eine fehlende Quelle** | zu prüfen | Zitation bei einer Person, einem Ereignis, einer Partnerschaft oder einem Anhang |
+| **Anhang hat keine verwendbaren Daten** | zu prüfen | die Daten sind weder Bild noch PDF (ein Anhang nur mit Original wird nicht gemeldet) |
+| **Foto ist kein unterstütztes Bild** | zu prüfen | ein anderes Format als JPEG, PNG, WebP, GIF |
 | Wahrscheinlich zwei Personen, die beim Import einer GEDCOM-Datei zu einer verschmolzen sind (Strom 3.8.1 und älter) … | Fehler | siehe unten |
 
 Ältere Versionen konnten beim Import zwei Personen dieselbe ID geben. Die Prüfung meldet das bei einem klaren
@@ -254,6 +289,10 @@ Bei einer möglichen doppelten Person heißt die Schaltfläche **Zwei verschiede
     eines Teils des Stammbaums bleiben nur Markierungen, deren Personen alle bleiben.
   - Eine in der Forschung erfasste Markierung kennt die App nur beim geöffneten Stammbaum aus der Forschung, wenn die
     Forschung läuft.
+  - **Ab App 3.27.0:** Gegenstand ist bei **Heirat unter 16 Jahren** das Jahr der Heirat, bei **Eingetragenes Alter
+    weicht um mehr als 2 Jahre ab** die Angabe (Geburt, Heirat, Tod) und bei einer Heirat ihr Jahr. Einen markierten
+    Befund zeigt die Ansicht Tabelle als **ungewöhnlich**, und von dort lässt er sich auch markieren und
+    wiederherstellen ([A6.7.5](A6-views.md#A6.7.5)).
 - **Bedienung:** in der Zeile des Befunds **Kein Fehler** / **Zwei verschiedene Personen**, 6 s lang das Angebot
   **Rückgängig**. Die Liste **Als kein Fehler markiert: n** unter den Befunden, bei jeder Markierung das Datum oder
   **In der Forschung markiert**, Schaltfläche **Wiederherstellen** · Terminal: `strom quality list`,
@@ -261,7 +300,7 @@ Bei einer möglichen doppelten Person heißt die Schaltfläche **Zwei verschiede
   `strom quality undo …`. Die Markierung setzt nur der Mensch, nie der Agent.
 - **Gilt seit:** App 3.17.0 (Forschung 1.22.0)
 
-<!-- zdroj: app:src/validation.ts:1415 qualityFinding · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
+<!-- zdroj: app:src/validation.ts:1415 qualityFinding (3.27.0: marriageUnder16 rok, recordedAgeMismatch field + rok) · src/ui/table-view/table-bubble.ts · src/quality-dismiss.ts:47 sanitizeQualityDismissed, :152 dismissalFor, :186 dismissBody, mergeResearchMarks, carryOverTreeDecisions, dismissalsWithin · src/quality-bridge.ts:74 dismissReply · src/ui/quality-ui.ts:155 flushQuality, :257 readQualityMarks · src/data.ts:1674 dismissQualityFinding · src/ui/tree-stats.ts:104 DISMISS_TOAST_MS · strings.ts treeManager.notAnError, twoPeople, dismissedRow, sentToResearch, waitingForResearch, appOnly, markedInResearch · research:src/commands/quality.ts PERSON · src/core/afterdeath.ts -->
 
 <a id="A5.8"></a>
 ## A5.8 Stammbaum-Überblick → Datenqualität
@@ -271,14 +310,15 @@ markierte Befunde und ohne Paare, die die Forschung unterschieden hat.
 
 | Block | Was er zeigt |
 |---|---|
-| **Konsistenz** | Zusammenfassung („2 Fehler, 1 Warnung, 3 Hinweise.“), die 5 schwersten **Probleme**, „und n weitere…“, die Zeile „n Hinweise ›“ |
+| **Konsistenz** | Zusammenfassung („2 Fehler, 1 zu prüfen, 3 Hinweise.“), die 5 schwersten Fehler und Befunde zu prüfen, „und n weitere…“, die Zeile „n Hinweise ›“ |
 | **Vollständigkeit** | Anteil der Personen mit **Geburtsdatum**, **Sterbedatum (Verstorbene)**, **Geburtsort**, **Foto**; unter 50 % hervorgehoben; „Inhalt:“ (Fotos, Ereignisse, Quellen, Anhänge) |
 | **Sicherheit der Forschungsangaben**, **Wo Belege fehlen** | Belege, siehe [R3.8](R3-verification-and-citation.md#R3.8) und [A3](A3-evidence-in-the-app.md) |
 | **Struktur** | Zahl der Verbindungen; unverbundene Teile oder „Alle Personen sind zu einer Familie verbunden.“ |
 | **Schnellaktionen** | **Validierungsdetails**, **Verwaiste Orte bereinigen (n)**, **In Familien aufteilen** |
 
 - **Grenzen:**
-  - Über 10 MB an Fotos und Anhängen kommt eine Warnung hinzu. Ein verwaister Ort ist ein Ort, auf den nichts
+  - Über 10 MB an Fotos und Anhängen kommt ein Hinweis hinzu („Medien über 10 MB. Die Stammbaumdatei wird langsamer
+    gespeichert und geteilt.“). Ein verwaister Ort ist ein Ort, auf den nichts
     verweist.
   - Ein unverbundener Teil hat keinen Weg zur Hauptfamilie; er lässt sich abtrennen (**Nicht verbundene Teile
     trennen**).
@@ -286,6 +326,6 @@ markierte Befunde und ohne Paare, die die Forschung unterschieden hat.
     **Beheben** (geöffneter Stammbaum) oder **Validierungsdetails**; beide öffnen den Dialog.
 - **Bedienung:** **Stammbaum-Überblick → Datenqualität**; im Angebot des Stammbaums auch direkt **Datenqualität**.
   Aktionen, die Daten ändern, gehen nur im geöffneten Stammbaum.
-- **Gilt seit:** App 3.13.0; Hinweise und Markierungen 3.17.0
+- **Gilt seit:** App 3.13.0; Hinweise und Markierungen 3.17.0; „zu prüfen“ statt „Warnung“ 3.27.0
 
 <!-- zdroj: app:src/ui/tree-overview.ts:101 TOP_ISSUES, :108 LOW_SHARE, :1882 treeOverviewQualityHtml, :925 selectFocusCards · src/ui/tree-actions.ts:191 overview-quality · strings.ts treeOverview.consistencyTitle, completenessTitle, field*, contentLabel, mediaWarning, structureTitle, allConnected, quickActions, actValidation, actCleanPlaces, actSplitFamilies, cardValidation -->

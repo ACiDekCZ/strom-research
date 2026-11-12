@@ -12,22 +12,26 @@ v [A2](A2-loading-a-family-tree.md).
 Pramen je jeden konkrétní zápis: křest, sňatek, úmrtí. Strom má jeden seznam pramenů. Osoby a údaje na ně jen
 odkazují, takže jeden zápis může dokládat víc lidí i víc údajů.
 
-- Pole: **Název** (povinné), **Archiv / instituce**, **Signatura / strana**, **URL**, **Poznámka**. Pod
-  **Více: přepis, datum zápisu, spolehlivost** jsou **Přepis zápisu**, **Datum zápisu** a **Spolehlivost**. Sekce
-  je otevřená, když je některé z nich vyplněné.
+- Pole: **Název** (povinné), **Archiv**, **Signatura**, **Folium/strana**, **Snímek**, **Další umístění**, **URL**,
+  **Poznámka**. Kde zápis v knize stojí, popisuje [A3.9](#A3.9). Pod **Více: přepis, datum zápisu, spolehlivost** jsou
+  **Přepis zápisu**, **Datum zápisu** a **Spolehlivost pramene**. Sekce je otevřená, když je některé z nich vyplněné.
 - **Datum zápisu** říká, kdy byl zápis pořízen. Může se lišit od data události, např. křest zapsaný dodatečně.
-- **Spolehlivost** má tři stupně: **Originál**, **Opis / index**, **Nejisté**. Druhé klepnutí na zvolený stupeň ho
-  zruší. Hodnotí jeden pramen, ne údaj. Jak ji bere výzkum, popisuje
-  [R3.2.1](R3-verification-and-citation.md#R3.2.1).
+- **Spolehlivost pramene** má tři stupně: **Originál**, **Opis / index**, **Nejisté**. Druhé klepnutí na zvolený stupeň
+  ho zruší. Jak ji bere výzkum, popisuje [R3.2.1](R3-verification-and-citation.md#R3.2.1).
 - **Hranice:** bez názvu pramen nejde uložit („Chybí název pramene“). Neplatné **Datum zápisu** se neuloží.
   Hodnota spolehlivosti 0 z importu GEDCOM se ukazuje jako **Nejisté** a zůstane, dokud se nevybere jiný stupeň.
   Smazání pramene odebere všechny jeho citace; aplikace se předem zeptá a řekne, na kolika místech je citován.
 - **Ovládání:** **Akce → Prameny** (seznam pramenů stromu s počtem citací „n×“, hledání od 11 pramenů, řazení podle
   názvu); **Upravit pramen**, **Přidat pramen**. Položka **Prameny** v menu **Akce** je jen u stromu, který jde
   upravovat, a jen když už nějaký pramen existuje nebo je zapnuté **Nastavení → Karta osoby → Pokročilá pole**.
-- **Platí od:** aplikace 1.4.0; **Spolehlivost** a **Datum zápisu** 3.1.0
+- **Platí od:** aplikace 1.4.0; **Spolehlivost pramene** a **Datum zápisu** 3.1.0; **Signatura**, **Folium/strana**,
+  **Snímek** a **Další umístění** 3.27.0 (dřív **Archiv / instituce** a **Signatura / strana**)
+- **Od aplikace 3.27.0:** **Spolehlivost pramene** je výchozí spolehlivost jeho citací. Citace, která má vlastní
+  spolehlivost (z importu GEDCOM, [A2.6.1](A2-loading-a-family-tree.md#A2.6.1)), si ji nechá, i když se výchozí
+  změní; ostatní citace se změnou řídí. Údaj ukazuje spolehlivost své citace ([A3.6](#A3.6),
+  [S7.1](S7-reliability-and-verification.md#S7.1)). Dřív spolehlivost hodnotila jen celý pramen.
 
-<!-- zdroj: app:src/types.ts Source · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/fieldQuality/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel -->
+<!-- zdroj: app:src/types.ts Source · od 3.27.0: app:9732853b strings.ts sources.fieldRepository/fieldCallNumber/fieldFolio/fieldImage/fieldReference · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/reliabilityLabel (index.html source-quality-label)/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel · 3.27.0 výchozí spolehlivost: app:dde0151a src/citation-quality.ts setCitationQuality, citation-quality-shown.test.ts (formulář = výchozí) -->
 
 <a id="A3.1.1"></a>
 ### A3.1.1 Přepis a Přepis ověřen
@@ -92,8 +96,12 @@ ke sňatku a ke společné události páru. Z citací aplikace počítá úrove�
   kontrole. Otevřený ze štítku citace se rovnou ocituje tam.
 - **Platí od:** aplikace 3.1.0 (**Naposledy použité**, **Další zápis ze stejné knihy**); **Jiná stránka** 3.9.0;
   3.25.0: **Další zápis ze stejné knihy** bez čísla a data zápisu
+- **Od aplikace 3.27.0:** hledá se i v signatuře, foliu a snímku. U pramene s poli ([A3.9](#A3.9)) **Další zápis ze
+  stejné knihy** převezme archiv, signaturu a odkaz; **Folium/strana**, **Snímek** a **Další umístění** zůstanou
+  prázdné a kurzor stojí ve **Folium/strana**. **Jiná stránka** u pramene s poli převezme i signaturu. Starší pramen
+  (umístění jedním textem) se chová jako dřív.
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
 <a id="A3.3"></a>
 ## A3.3 Výřez zápisu
@@ -190,6 +198,8 @@ Menu osoby **Prameny** ukáže všechny prameny osoby na jednom místě, bez ote
 k narození a úmrtí, k událostem, ke sňatkům a ke společným událostem párů.
 
 - Jeden řádek na pramen, pod ním co dokládá: „Osoba“, „Narození 1865“, „Sňatek 1890“… Řádek ukazuje i spolehlivost.
+  Od aplikace 3.27.0 je to spolehlivost citací: když se citace pramene ve spolehlivosti shodnou, je u řádku jednou;
+  když se liší, stojí za každým údajem jeho vlastní („Narození 1865 Opis / index · Povolání Originál“).
 - Pořadí: podle nejstaršího roku toho, co pramen dokládá, jinak podle **Datum zápisu**; bez data na konci, pak
   podle názvu.
 - **Citovat pramen** otevře výběr s **Dokládá** ([A3.2](#A3.2)).
@@ -212,7 +222,7 @@ k narození a úmrtí, k událostem, ke sňatkům a ke společným událostem p�
   pramenů. Jak výzkum prameny vyprávění drží: [R3.9](R3-verification-and-citation.md#R3.9).
 - **Platí od:** aplikace 3.3.0; **Najít pramen ve výzkumu** 3.19.0; **Z čeho text vychází** 3.22.0
 
-<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 -->
+<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 · 3.27.0: app:dde0151a src/person-sources.ts rowQuality, PersonSourceCite.quality, src/ui/person-sources-ui.ts source-quality-tag · app:66fc3f7f (údaj a štítek se nezalomí) -->
 
 <a id="A3.7"></a>
 ## A3.7 Kde chybí doklady
@@ -277,3 +287,84 @@ Pramen v aplikaci je i bez něj; obraz se ukáže po načtení z výzkumu, kter�
   filtrem říká, kde obrazy jsou, a **?** otevře toto pravidlo.
 
 <!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->
+
+<a id="A3.9"></a>
+## A3.9 Kde zápis v knize stojí
+
+Kde zápis stojí, se u pramene píše po polích. Podle archivu, signatury, folia a snímku se zápis najde znovu i tehdy,
+když archiv změní adresy snímků nebo kniha nemá čísla stran.
+
+- **Pole:**
+  - **Archiv**: archiv, fara, knihovna;
+  - **Signatura**: signatura knihy, inventární číslo;
+  - **Folium/strana**: folium nebo strana, jak knihu čísluje, i se slovem („fol. 12v“, „pag. 112“);
+  - **Snímek**: číslo snímku v prohlížeči archivu. **?** vedle pole řekne proč: „Číslo snímku v prohlížeči archivu.
+    Podle archivu, signatury, folia a snímku se zápis najde i po změně adresy.“;
+  - **Další umístění**: zbytek, např. číslo zápisu, sloupec, svazek.
+- **Starší pramen** má, kde zápis stojí, jedním textem v **Další umístění** a nová pole prázdná. Když jsou
+  **Folium/strana** i **Snímek** prázdné a text jmenuje folium nebo snímek, editor pod poli navrhne „Z umístění:
+  fol. 31 recto · snímek 3 · zbytek „č. 2““. **Převzít** vyplní tři pole („Převzato z umístění „…“. Uloží se
+  s Uložit.“), **Vrátit** je vrátí. Nic se neuloží samo: převzatá pole se uloží až s **Uložit**, jedním krokem zpět.
+  Rozpoznání je kód aplikace, stejné jako ve výzkumu ([R3.4.3](R3-verification-and-citation.md#R3.4.3)).
+- **Rozpor:** když **Další umístění** jmenuje jiný snímek nebo folium než pole, editor to řekne („Umístění jmenuje
+  snímek 35, pole Snímek říká 34. Do GED jde pole.“) a nabídne **Upravit umístění na „…“** (nebo **Smazat rozpornou
+  část**). Uložit jde i s rozporem; do GEDCOM jde pole.
+- **Kde je vidět:**
+  - prohlížeč pramene pod výřezy: **Kniha** (archiv · signatura) a **Zápis** (folium · snímek · další umístění),
+    u staršího pramene **Umístění** celé; pod nimi odkaz na stranu v archivu, bez odkazu „Odkaz chybí. Zápis se
+    najde podle knihy a zápisu.“;
+  - **Akce → Prameny** a výběr pramene: archiv · signatura · folium · snímek zkráceně („sn. 34“);
+  - štítek citace: bublina má tři řádky (název, kniha, zápis);
+  - stránka osoby, kniha rodu a rodinné stránky uvedou i signaturu, folium a snímek;
+  - Tabulka: sloupce v [A6.7.11](A6-views.md#A6.7.11) a [A6.7.12](A6-views.md#A6.7.12).
+  Pramen bez nových polí vypadá všude jako dřív.
+- **Hranice:**
+  - vymazané pole se z pramene odebere. U stromu výzkumu se vymazání propíše i do výzkumu
+    ([S2.2.2](S2-edits-from-the-app.md#S2.2.2));
+  - **Další zápis ze stejné knihy** a **Jiná stránka** s poli popisuje [A3.2.1](#A3.2.1);
+  - GEDCOM: kniha jako `REPO` s `CALN`, jedna čitelná `PAGE` a vlastní značky Stromu ([A2.6](A2-loading-a-family-tree.md#A2.6),
+    [A2.7](A2-loading-a-family-tree.md#A2.7));
+  - pag. a fol. a líc a rub (r/v) se nerozlišují zvlášť: jsou součástí textu **Folium/strana**.
+- **Ovládání:** editor pramene (**Upravit pramen**, **Přidat pramen**): **Archiv**, **Signatura**, **Folium/strana**,
+  **Snímek**, **Další umístění**, **URL**; návrh **Z umístění:** s **Převzít** a **Vrátit**.
+- **Platí od:** aplikace 3.27.0
+
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+
+<a id="A3.9.1"></a>
+### A3.9.1 Rozdělit umístění podle návrhu
+
+Starší umístění všech pramenů jde rozdělit do polí najednou: folium/strana a snímek přejdou do vlastních polí,
+zbytek zůstane v **Další umístění**. Rozdělí to kód, bez agenta, a jedním krokem se to i vrátí.
+
+- **Nabídka:** v **Akce → Prameny** a nad Tabulkou › Prameny řádek „Umístění 12 pramenů jde rozdělit do polí.“
+  s **Rozdělit podle návrhu…**. Okno **Rozdělit umístění do polí** ukáže náhled: **Pramen**, **Umístění dříve**,
+  **Folium/strana**, **Snímek**, **Další umístění**; nejdřív 6 pramenů, **Zobrazit všechny (n)** načte další při
+  posunu. Kolik umístění se nerozpoznalo („… zůstanou beze změny“), stojí pod náhledem, a pod tím až tři příklady
+  („Např. „Kniha N 7, zápis bez čísla“.“), každý jednou a nejvýš 60 znaků („…“).
+- **Pravidlo:** „Pole, které už je vyplněné, se nepřepíše. Část, kterou pole říká jinak, v umístění zůstane.“ Hodnota,
+  která zůstává, má v náhledu „· beze změny“. Řádek poznámky „Signatura: …“ z dřívějšího importu GEDCOM se přesune
+  do prázdného pole **Signatura** (sloupec **Signatura** s „· z poznámky“).
+- **Rozdělit (n)** změní všech n pramenů jedním krokem, i ty, které náhled zatím neukázal. Upozornění „Rozděleno n umístění.“ nabízí 8 sekund
+  **Zpět**; vrátit jde i Ctrl+Z (na Macu ⌘Z). Dokud je rozdělení posledním krokem, **Prameny** říkají „Umístění
+  rozdělena … (n pramenů).“ s **Vrátit…** a okno se otevře s řádkem **Vrátit rozdělení z …**. Když už nic
+  k rozdělení není: „Jiná umístění k rozdělení teď nejsou.“
+- **Strom výzkumu:** rozděluje výzkum, jen když běží a rozdělení umí ([R3.4.4](R3-verification-and-citation.md#R3.4.4)).
+  Náhled je výzkumu; **Rozdělit** ho požádá o rozdělení přesně toho, co náhled ukázal, a průběh zůstane na tlačítku,
+  dokud výzkum nezapíše. Aplikace pak novou verzi výzkumu převezme sama, když se liší jen umístění pramenů a nic
+  nečeká na poslání. **Zpět** vrací rozdělení přes výzkum.
+- **Hranice:**
+  - strom výzkumu bez běžícího výzkumu: v **Prameny** jen věta „Rozdělení umístění jde, když výzkum běží.“, v Tabulce
+    nic. Archiv Stromu, strom jen pro čtení a zamčený strom rozdělení nenabízejí;
+  - prameny změněné mezitím: „Prameny se mezitím změnily. Náhled ukazuje, jak jsou teď.“; výzkum zaneprázdněný jinou
+    úlohou: „Výzkum teď pracuje na jiné úloze. Rozdělení jde za chvíli.“ se **Zkusit znovu**;
+  - vrácení odmítne celé, když se pramen po rozdělení změnil: řekne kolik a první tři, nevrátí se nic. V aplikaci
+    bez výzkumu po pozdější změně stromu „Vrátit už nejde: strom se od rozdělení změnil.“;
+  - nerozpoznané umístění zůstane, jak je. Pramen, který už má folium nebo snímek v poli, se mezi nerozpoznané
+    nepočítá: zbytek jeho umístění („č. 5“) není co rozdělit. Ve stromu výzkumu dává příklady nerozpoznaných výzkum;
+    když je nepošle, náhled ukáže jen počet.
+- **Ovládání:** **Akce → Prameny → Rozdělit podle návrhu…**; Tabulka › Prameny, řádek nad tabulkou; **Rozdělit (n)**,
+  **Zpět**, **Vrátit…**. Výzkum v terminálu: `strom source split` ([R3.4.4](R3-verification-and-citation.md#R3.4.4)).
+- **Platí od:** aplikace 3.27.0; strom výzkumu s výzkumem 1.31.0
+
+<!-- zdroj: app:8dd21adf src/source-split.ts SplitSourceKind (local/bridge/needsResearch/archive/none), localSplitPlan (řádek poznámky „Signatura:“ v každém jazyce importu), splitOffer (needsResearch jen v Prameny) · src/ui/source-split-ui.ts:37 TOAST_MS 8000, sourceSplitKind (read-only/zamčený → none, archiv → archive, most + feature sources.split → bridge) · 5a59f01d src/source-split-bridge.ts (GET/POST sources/split, undo), příklady nerozpoznaných přes most (unrecognizedExamples, výzkum ff760309) a lokální plán jako výzkum (zbytek u pole folia/snímku = nic, NFC, bez duplicit, nejvýš 3, ořez 60 znaků po grafémech): app:34cb5996 src/source-split.ts localSplitPlan, SPLIT_UNRECOGNIZED_EXAMPLES, src/source-split-bridge.ts examplesOf, src/ui/source-split-ui.ts:614, strings.ts sources.split.unrecEx · src/ui/misc.ts:1352 Ctrl/⌘+Z · strings.ts sources.split.* (offer, open, needsResearch, doneLine, undoOpen, title, lead, rule, sigNote, col*, kept, fromNote, all, shown, unrec, go, progress, toast, undo, undoRow, nothingLeft, errPlan, errBusy, retry, errUndoLater, errUndo) · spec 075 K4.2 · research:c4fe4fac -->

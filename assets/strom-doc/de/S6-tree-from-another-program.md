@@ -195,8 +195,11 @@ Zustand vor dem Import lässt sich so zurückkehren.
 - **Bedienung:** App: Angebot des Stammbaums → **Sicherungen** → Fenster **Sicherungsverlauf**: **Jetzt Sicherung
   erstellen**, **Wiederherstellen**, **Herunterladen**; der Schalter **Automatische Sicherungen dieses Stammbaums**.
 - **Gilt seit:** App 3.26.0 (Sicherung vor **In Stammbaum einfügen**)
+- **Ab App 3.27.0:** Die Sicherung **Vor der Anpassung der Daten an eine neue Version** entsteht, bevor die App beim
+  Öffnen einen mit einer älteren Version gespeicherten Stammbaum anpasst; derzeit nur, um Quellen zusammenzuführen,
+  die sich nur in der Zuverlässigkeit unterschieden ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
 
-<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download -->
+<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration -->
 
 <a id="S6.6"></a>
 ## S6.6 Export zurück ins Programm oder zum Teilen
@@ -229,6 +232,9 @@ Programm**) oder **Zum Teilen mit anderen**. Danach schützt er lebende Personen
 - **Bedienung:** **Export → GEDCOM exportieren → Wofür die Datei ist**; aus der Karte **Wie weiter** der Link
   **Zurück zu {program}: Export mit Quellen…** (öffnet den Export mit der Wahl zurück).
 - **Gilt seit:** App 3.26.0
+- **Ab App 3.27.0:** ein Foto der Familie aus der Datei eines anderen Programms geht bei **Zurück zu {program}**
+  so bei der Familie zurück, wie die Datei es geschrieben hat; ein Verweis auf einen Medieneintrag geht als Foto
+  zurück, das direkt bei der Familie steht ([A2.2](A2-loading-a-family-tree.md#A2.2)).
 
 <!-- zdroj: app:7cf409bd src/ged-exporter.ts backSourceRecordCount (sourceGroups: jeden záznam za skupinu) · src/ui/export-gedcom-ui.ts backSources → exportGed.sumSources · e2e/export-gedcom-back.spec.ts · app:1c9b2392 src/ged-exporter.ts backToXrefs (původní xref, ID řádky úrovně 1, REFN + TYPE {prog} xref, _XXX téhož programu, jinak _STROM_IMPORT / _STROM_XID) · src/ui/import-export.ts:267 keepDeceasedSources: true (jen GEDCOM) · strings.ts exportGed.* -->
 
@@ -260,16 +266,22 @@ der Programm-ID. Eine Person, die dieselbe ID hat, aber sonst nicht übereinstim
   **Schwiegerverwandte einer abgeglichenen Person**); Wert 50, immer nur zur Kontrolle. Nicht gepaart wird, wenn der
   Verwandte zwei gleichnamige Personen hat, das Geschlecht abweicht oder die Daten von Geburt oder Tod abweichen.
 - **Grenzen:**
-  - Familien werden nicht nach der ID gepaart. Das manuelle Zusammenführen zweier Personen verbindet die Notizen nicht;
+  - Familien werden nicht nach der ID gepaart;
+  - eine ID, die im Stammbaum mehr als eine Person trägt, begründet allein keine Übereinstimmung, sie bietet sie nur
+    an ([A8.2](A8-merging-trees.md#A8.2));
   - die Marken **Aus dem Stammbaum** ergänzt das Zusammenführen eines Stammbaums aus einer älteren Version nicht: seine
     Werte bleiben Angaben des Menschen. Die Marken gibt ein neuer Import der Datei;
   - Doppelgänger aus einem früheren Zusammenführen entfernt das Zusammenführen nicht; sie werden von Hand gelöscht.
+- **Manuelles Zusammenführen zweier Personen** (Fenster **Personen zusammenführen**) verbindet die Notizen beider
+  Personen und beider verbundenen Familien, jeden Teil einmal.
 - **Bedienung:** **Import → GEDCOM importieren → Mit Vorhandenem zusammenführen** ([A8](A8-merging-trees.md)).
-- **Gilt seit:** App 3.26.0
+- **Gilt seit:** App 3.26.0; 3.27.0: eine ID mehrerer Personen im Stammbaum wird nur angeboten; manuelles
+  Zusammenführen von Personen verbindet die Notizen (vorher nicht)
 
 <!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek -->
 
 <!-- zdroj: app:1c9b2392 src/merge/matching.ts ID_MATCH_SCORE 100, ID_CANDIDATE_SCORE 60, ID_MAX_YEAR_GAP 3, WEAK_ID_BONUS 25, offerOnlyCap · src/merge/executor.ts:82 AUTO_CONFIRM_SCORE = 80 · src/merge/notes.ts · strings.ts merge reason id „Stejné ID v souboru“ · dirigent:prace/1108-app-066-u8/karta.md Výsledek (FAM se podle ID nepárují; mergePersons neslučuje poznámky) -->
+<!-- zdroj: 3.27.0: app:ffe1da9f src/data.ts mergePersons (notes: mergeNoteText keep+remove; partnership note: mergeNoteText) · app:b5595ca1 src/merge/matching.ts idNamesSeveral, findDirectMatches · app:a5fc9656 src/ged-parser.ts keptMedia, extras OBJE (export zpět jako ostatní _XXX rodiny) · strings.ts personMerge.title „Sloučit osoby“ · CHANGELOG.cs.md 3.27.0 · dirigent:test/vysledek-1109-app-drobnosti-ged.md P1 (dialog poznámku jako konflikt nenabízí: detectFieldConflicts jen jméno, příjmení, narození, úmrtí) -->
 
 <a id="S6.8"></a>
 ## S6.8 Ein Stammbaum in der Forschung

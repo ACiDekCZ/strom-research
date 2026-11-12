@@ -85,11 +85,14 @@ Zpráva říká, kde se problém stal, a může nést popis slovy člověka.
   - spuštěno agentem bez `--where`: místo zůstane „nevím“ a strom agentovi řekne, ať se člověka zeptá a příkaz spustí
     znovu;
   - `--note "…"` je popis problému slovy člověka, nejvýš 2000 znaků; jména z výzkumu se v něm maskují.
+  - **Od výzkumu 1.31.0:** maskují se i skloňované tvary jmen a míst, které výzkum zná, u kterých se změní poslední
+    jedno nebo dvě písmena („z Brna“ u Brno, „v Praze“ u Praha). Kmen má aspoň 3 písmena a koncovka je tím kratší,
+    čím kratší je kmen; běžné slovo, které jen začíná stejně, zůstane čitelné. Stejně se maskuje celá zpráva.
 - **Ovládání:** `strom error --where app --about sync`, `strom error --since 2d --note "stahování se zastavilo
   v půlce"`.
 - **Platí od:** výzkum 1.30.0
 
-<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) -->
+<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) · research:c5ee74ab src/core/redact.ts formOf (změněné poslední 1–2 písmeno, kmen ≥ 3, koncovka podle kmene; slovo ze 3 písmen jen o písmeno delší), byPrefix 3 písmena · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R13.5"></a>
 ## R13.5 Údaje osob jen se souhlasem

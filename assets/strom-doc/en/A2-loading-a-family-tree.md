@@ -96,8 +96,13 @@ UTF-8.
     in the row **Text encoding**;
   - standalone media records `0 @O1@ OBJE` are read through the references to them; a family photo referenced this
     way is only counted.
+- **From app 3.27.0:** a family's photo (`1 OBJE` at a family, written in place or as a reference `@O1@`) is not
+  shown in the app, but is kept as the file wrote it for the export **Back to {program}**
+  ([S6.6](S6-tree-from-another-program.md#S6.6)). A media record the family refers to goes back as a photo written
+  directly at the family. The import summary lists it in the row “Kept for the export “Back to {program}”…”, not in
+  **Unsupported**. Not for a research file.
 
-<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
+<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 -->
 
 <a id="A2.3"></a>
 ## A2.3 Given names and surnames
@@ -128,15 +133,64 @@ What does not fit the form stays in the person's note; nothing is thrown away.
 
 - **Limits:** a double year (1699/00) keeps the first year. A calendar other than the Gregorian is removed and the
   note says "Date in the Julian calendar: …" (also Hebrew, French revolutionary, Roman). Text in brackets is kept as
-  "Date in the record: …". An unknown month leaves only the year, with a note. Words in Czech, Slovak, Polish, German,
+  "Date as written: …". An unknown month leaves only the year, with a note. Words in Czech, Slovak, Polish, German,
   Russian and Ukrainian ("po", "před", "kolem", "mezi … a", "nach", "około") are read as tags only when a valid date
   follows them; "po válce" stays text. The age at an event (`AGE`) is written as "61 years", `INFANT` as "infant". A
   form of date that the app would write differently (e.g. `EST` or `CAL`) is remembered at the person and the
   relationship. The export returns it in its original form as long as the date does not change.
 - **Controls:** none.
 - **Since:** app 3.0.0 (notes on dates), 3.7.0 (words of languages), 3.17.0 (kept forms).
+- **From app 3.27.0:** a month and year in figures (`07/1987`, `7/1987`, `07.1987`, `7.1987`) are read as that
+  month, also with a mark or a word before them (`ABT`, “cca”, “kolem”, “před”, “po”). Only a month 1–12 counts:
+  `13/1987` is not read as a month. A double year (1699/00) and a date with a day (12.03.1919) are not read this way.
+  Dates written the way people write them (`cca 1850`, `14/6/1850`, `mezi 1850-1852`) are read as in [A2.4.1](#A2.4.1).
 
-<!-- zdroj: app:src/gedcom-date-read.ts:22 parseGedcomDate, :33 gedcomDatePhrase, :55 readGedcomDate · app:src/date-words.ts · app:src/ged-parser.ts:702 kalendář, :1157 gedcomDates · app:src/gedcom-date-form.ts · strings.ts gedcomNotes.datePhrase -->
+<!-- zdroj: app:src/gedcom-date-read.ts:22 parseGedcomDate, :33 gedcomDatePhrase, :55 readGedcomDate · app:src/date-words.ts · app:src/ged-parser.ts:702 kalendář, :1157 gedcomDates · app:src/gedcom-date-form.ts · strings.ts gedcomNotes.datePhrase · 3.27.0: app:655212fd src/gedcom-date-read.ts readGedcomDate numericMonth (/^(\d{1,2})[./](\d{3,4})$/, měsíc 1–12), bareDate · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-tester-vlna1 (T42) -->
+
+<a id="A2.4.1"></a>
+### A2.4.1 Dates written the way people write them
+
+A date written the way people write it, and not in GEDCOM words, is read as a date. This holds alike for the date
+fields (person, event, union), for the GEDCOM import and for text that is already in the tree's data (e.g. from a JSON
+edited by hand).
+
+| Written (example) | Read as |
+|---|---|
+| `cca 1850`, `asi 1850`, `okolo 1850`, `kolem 1850`, `ca 1850`; also with a month or a day | about (`ABT`) |
+| `před 1850`, `před 14.6.1850` | before (`BEF`) |
+| `po 1850`, `po roce 1850`, `po 6/1850` | after (`AFT`) |
+| `14/6/1850`, `cca 14/6/1850` | day, month and year |
+| `1850-1852`, `mezi 1850-1852`, `mezi 1850 - 1852` | a range (`BET … AND`) |
+| `mezi 1850-11/1851` | a range from 1850 to November 1851 (`BET 1850 AND NOV 1851`) |
+| `1850-11/1851`; in the date field also `1850/1851` | a period from–to (`FROM … TO`): from November 1850 to 1851, from 1850 to 1851 |
+| `5-7/1850`, `14-15/6/1850` | a range within a year (May to July 1850) or within a month (14 to 15 June 1850) |
+| `cca 1850-1852`, `asi 1850-1852` | a range; the range itself says “some time between”, “cca” is left out |
+
+- The words are read in Czech and also in English, German and Polish (“about”, “um”, “około”, “zwischen”,
+  “między” …).
+- **A day and month that can be swapped** (`7/8/1850`: both up to 12 and different) are read by the language of the
+  app: in Czech, German and Polish the day first, in English the month first. The same GEDCOM file loaded in another
+  language of the app thus gives a different date. An unambiguous date (`25/3/1919`, `3/3/1919`) is read the same
+  everywhere.
+- **The GEDCOM import**, for a day and month that can be swapped and for “cca” before a range, leaves a note next to
+  the date with the original notation (“Date as written: Cca 1850-1852”). `Mezi 1850 - 1852` is read as the range
+  1850–1852.
+- **Text in the data** is shown, sorted, ages are counted from it and it goes to GEDCOM as a date (`ABT`, `BEF`,
+  `AFT`, `BET … AND`). The text itself does not change; saving the form of the person, event or union writes it in the
+  app's notation.
+- **Limits:**
+  - a slash between two years (`1850/1851`) is read by the date field as a period from 1850 to 1851; the GEDCOM
+    import leaves it as text (two years as an alternative);
+  - text remains: a question mark (`1850?`), unknown digits (`18XX`), a quarter (`Q4/1850`), a season, “nebo”,
+    “cca po” and “cca před” and values in words. The date field refuses them as an invalid date; the import leaves them in the note “Date as written: …” (it reads `Cca po 1850`
+    and `Cca podzim 1850` as “about 1850” with a note);
+  - a date that does not exist (`31/4/1850`), a year with five digits and a range whose start is after its end also
+    remain text;
+  - trees imported earlier are not corrected by themselves; a new GEDCOM import corrects them.
+- **Controls:** the date field in the form; the GEDCOM import ([A2.1](#A2.1)).
+- **Since:** app 3.27.0
+
+<!-- zdroj: app:src/dates.ts normalizeDateInput → normalizeDateForm ?? readWrittenForms (readDateWords, readHyphenRange: slovo „mezi“, „cca“ před rozsahem → rozmezí, začátek po konci → null), readWrittenDate (lomítkové datum, zaměnitelné ≤ 12 a různé → assumed), parseFlexDate → parseCanonical ?? readStoredText (text v datech čten v jazyce UI, nemění se), canonicalDate · src/date-words.ts isAboutWord, isBetweenWord · src/gedcom-date-read.ts readGedcomDate (readWrittenDate, lossy → poznámka gedcomDatePhrase) · src/ged-exporter.ts canonicalDate · strings.ts gedcomNotes.datePhrase · commit 7ed8123c · ověřeno voláním normalizeDateInput a parseGedcomDate v cs a en (10. 11.); lomítko: normalizeDateInput('1850/1851') · dirigent:prace/1110-app-tabulka-opravy/t42-tabulka.md (Pravidla opravy, Bez opravy, Rizika); vzory smyšlené -->
 
 <a id="A2.5"></a>
 ## A2.5 Relationships and the status of a couple
@@ -171,8 +225,8 @@ index**, 1 and 0 **Uncertain**.
 
 - **Limits:** without `TITL` the abbreviation `ABBR` is taken, otherwise "?". Publisher, author and the call number in
   the archive go into the source's note. A citation with a page (`PAGE`) other than the source's creates a derived
-  source for that page with the same title and archive; transcription and excerpts do not pass to it. The record's
-  `QUAY` takes precedence over the citation's `QUAY`, and for each source the first citation holds. `DATA` and `TEXT`
+  source for that page with the same title and archive; transcription and excerpts do not pass to it. From app 3.26.0 a citation of the same page with another record date (`DATA` › `DATE`) does the same. The
+  reliability belongs to the citation ([A2.6.1](#A2.6.1)). `DATA` and `TEXT`
   inside a citation are not read. Every image at a source is an excerpt. The app does not change certainty from
   another program. How the research takes `QUAY` over as the form and information of a source is said by
   [R3.2.1](R3-verification-and-citation.md#R3.2.1); when a fact is proven, by
@@ -180,8 +234,46 @@ index**, 1 and 0 **Uncertain**.
 - **Controls:** **Source reliability** in the source's detail (**Original**, **Copy / index**, **Uncertain**).
 - **Since:** app 1.9.4 (`QUAY`), 3.9.0 (derived source for a page).
 - **From app 3.22.0:** the person's story (`_STORY`) also reads and exports references to sources.
+- **From app 3.27.0:** the call number from `REPO` › `CALN` goes into the field **Call number** (the first `CALN`), not into
+  the note; the publisher and the author stay in the note. The export writes the book as
+  `1 REPO` with `2 CALN` and one readable `PAGE` composed of the fields: folio, other location, image ("fol. 12v,
+  no. 5, image 34"; the word for the image in the app's language). A number the other location already names is not
+  repeated. A source without a folio and an image is exported exactly as before. The source's fields are described in
+  [A3.9](A3-evidence-in-the-app.md#A3.9).
 
-<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE -->
+<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 -->
+
+<a id="A2.6.1"></a>
+### A2.6.1 Reliability at the citation
+
+The same entry is often an original for one fact and secondary information for another: a census gives the
+occupation first hand, the age second hand. So `QUAY` belongs to the citation, not to the source. A source has a
+default reliability, and a citation with another value keeps its own.
+
+- **Enforced by the code:**
+  - citations of the same entry with the same page, the same record date and the same other lines of the citation
+    that differ only in `QUAY` are citations of one source. The source is in **Sources** once, with its images
+    (`OBJE`);
+  - another page or another record date still makes a source of its own for that entry ([A2.6](#A2.6));
+  - the source's default reliability is the `QUAY` of its first citation (a citation without `QUAY` takes the
+    record's `QUAY` when it has one); a citation with another `QUAY` keeps it, a citation without `QUAY` at a source
+    with a default reliability stays without one;
+  - the export (to the research, **Back to {program}** and **To share with others**) writes each citation's `QUAY`:
+    its own, otherwise the source's default. A tree without citations with their own reliability is exported exactly
+    as before. Loading and exporting again therefore changes the `QUAY` of no citation.
+- **A tree saved by an older version:** on opening, the sources that loading in app 3.26.0 made only for another
+  `QUAY` of the same page are joined back into their source. Their citations are moved to that source and the
+  reliability passes to the citation. Before that the app saves the backup **Before the data update of a new
+  version** ([S6.5](S6-tree-from-another-program.md#S6.5)). Only a source that differs from its own only in
+  reliability is joined; a source with its own note, transcript, excerpt or other text stays. The research the tree
+  is connected to gets no change from this (the source and the page are the same), and the tag **Image only in the
+  research** at the joined source disappears ([A3.8](A3-evidence-in-the-app.md#A3.8)).
+- **Limits:** the reliability of a single citation is only shown in the app ([A3.6](A3-evidence-in-the-app.md#A3.6),
+  [S7.1](S7-reliability-and-verification.md#S7.1)); only the default **Source reliability** can be changed, in the
+  source editor ([A3.1](A3-evidence-in-the-app.md#A3.1)).
+- **Since:** app 3.27.0 (in 3.26.0 a citation with another `QUAY` made a second source without images)
+
+<!-- zdroj: dirigent:spec/077-spolehlivost-u-citace/spec.md K1.1–K1.7 · app:5721b016 src/ged-parser.ts pageSources (klíč bez quay), citedQuay, citationQuay (null = citace bez QUAY), src/citation-quality.ts citationQuality, setCitationQuality, qualityOnlySources (DERIVED_FIELDS, entryKey), joinQualityOnlySources, src/ged-exporter.ts pushCitation(cited), src/data.ts v19, src/tree-manager.ts joinQualityOnlySourcesOf (createSnapshot pre-migration, fingerprint, rebaseResearchCopies), strings.ts snapshots pre-migration · app:dde0151a src/research-changes.ts citedKey · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (import 1 pramen s obrázkem, round trip QUAY 2/3, migrace v18) -->
 
 <a id="A2.7"></a>
 ## A2.7 Strom's own tags and what comes back
@@ -204,8 +296,12 @@ new load. The header `1 SOUR STROM` says that Strom wrote the file.
 - **From app 3.26.0:** program IDs come back under `_STROM_IMPORT` and `_STROM_XID`; on a new load the file is paired
   by them ([S6.7](S6-tree-from-another-program.md#S6.7)). A file with Strom's header is not a family tree from another
   program: it has no mark **From family tree** and no card **What next**.
+- **From app 3.27.0:** a source's folio, image and other location come back under `_STROM_FOLIO`, `_STROM_IMAGE`
+  and `_STROM_LOCATOR` beside the composed `PAGE`; with the tags the fields hold, not `PAGE`. The export **Back to
+  {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)) for the program the tree came from does not write them.
+  The app sends them to the research only when the research says it reads them.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) -->
 
 <a id="A2.8"></a>
 ## A2.8 Repeated import and merging

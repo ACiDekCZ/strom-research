@@ -698,11 +698,11 @@ export function appShowsVerify(settings: Settings, version?: string, gate: strin
  * lines (2 _VIA with 3 TYPE, 2 _NEAREST, 2 _DIRECTION, 2 _MODE); under each person 1 _STROM_DIRECTION per place among
  * the lines (2 TYPE line|partner|branch|island, 2 _BRANCH), 1 _STROM_WAIT per waiting task about them (2 TYPE, 2 TITL,
  * 2 _GROUP with 3 TYPE and 3 _KEY, 2 STAT, 2 _SENT, 2 _PRIO) and 1 _STROM_ADDED <when> on a person the research added
- * — in the Strom file and the bridge's /tree.ged. Production: from the app's version set here (none yet); another copy
+ * — in the Strom file and the bridge's /tree.ged. Production: from the app's version set here (3.27.0, out 2026-11-12); another copy
  * of the app (its beta, its development) from APP_SHOWS_RESEARCH_TABLE_BETA (3.27.0-beta.4); an app of unknown version
  * stays off (today's file), in production and in another copy alike.
  */
-export const APP_SHOWS_RESEARCH_TABLE: string | undefined = undefined;
+export const APP_SHOWS_RESEARCH_TABLE: string | undefined = "3.27.0";
 
 /** The first beta of the app that shows the research in its table (another copy of the app gets the tags from it). */
 export const APP_SHOWS_RESEARCH_TABLE_BETA: string | undefined = "3.27.0-beta.4";
@@ -719,10 +719,10 @@ export function appShowsResearchTable(settings: Settings, version?: string, gate
  * back: 3 TYPE tree — an agent recorded its links —, or work — other work stands on what the decision wrote —, 3 _COUNT, 3 _STAYS <label>: each variant a pick of which changes nothing on the tree, the old link staying and its own not written), 2 _PROP B|none (the agent's proposal, 3 DECI, 3 _AT; never in an archive), 2 _LEFT
  * (left open), under each 2 _VAR 3 _AGAINST (4 SOUR) and 3 _PEOPLE (people off the tree it joins); in /status the
  * features hypothesis.decide.link, hypotheses.accept.link and the hypotheses that wait. Production: from the app's
- * version set here (none yet); another copy of the app (its beta, its development) from APP_DECIDES_HYPOTHESES_BETA
+ * version set here (3.27.0, out 2026-11-12); another copy of the app (its beta, its development) from APP_DECIDES_HYPOTHESES_BETA
  * (3.27.0-beta.4); an app of unknown version stays off (today's file), in production and in another copy alike.
  */
-export const APP_DECIDES_HYPOTHESES: string | undefined = undefined;
+export const APP_DECIDES_HYPOTHESES: string | undefined = "3.27.0";
 
 /** The first beta of the app that decides a hypothesis by a pick (another copy of the app gets it from it). */
 export const APP_DECIDES_HYPOTHESES_BETA: string | undefined = "3.27.0-beta.4";
@@ -737,11 +737,11 @@ export function appDecidesHypotheses(settings: Settings, version?: string, gate:
  * ZADANI_VYZKUM_citace-pole.md): on each source after its PAGE (composed of them, as every app gets it) 1 _STROM_FOLIO,
  * 1 _STROM_IMAGE (also one only the registered images give) and 1 _STROM_LOCATOR (the rest of the location) — in the
  * Strom file and the bridge's /tree.ged. An older app leaves them out of the research's file and counts them as tags it
- * left out. Production: from the app's version set here (none yet); another copy of the app (its beta, its development)
+ * left out. Production: from the app's version set here (3.27.0, out 2026-11-12); another copy of the app (its beta, its development)
  * from APP_READS_SOURCE_FIELDS_BETA (3.27.0-beta.5); an app of unknown version stays off (today's file), in
  * production and in another copy alike.
  */
-export const APP_READS_SOURCE_FIELDS: string | undefined = undefined;
+export const APP_READS_SOURCE_FIELDS: string | undefined = "3.27.0";
 
 /** The first beta of the app that reads a source's location field by field (another copy of the app gets them from it). */
 export const APP_READS_SOURCE_FIELDS_BETA: string | undefined = "3.27.0-beta.5";

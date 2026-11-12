@@ -182,8 +182,11 @@ thus be restored.
 - **Controls:** app: the tree menu → **Backups** → the window **Backup history**: **Create backup now**, **Restore**,
   **Download**; the switch **Automatic backups of this tree**.
 - **Since:** app 3.26.0 (the backup before **Insert into tree**)
+- **From app 3.27.0:** the backup **Before the data update of a new version** is made before the app, on opening,
+  adjusts a tree saved by an older version; today only to join sources that differed only in reliability
+  ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
 
-<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download -->
+<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration -->
 
 <a id="S6.6"></a>
 ## S6.6 Export back to the program, or to share
@@ -215,6 +218,9 @@ share with others**. By that it protects living people and returns program IDs.
 - **Controls:** **Export → Export GEDCOM → What the file is for**; from the card **What next** the link **Back to
   {program}: export with sources…** (opens the export with the choice back).
 - **Since:** app 3.26.0
+- **From app 3.27.0:** a family's photo from another program's file goes back at the family in **Back to
+  {program}** as the file wrote it; a reference to a media record goes back as a photo written directly at the family
+  ([A2.2](A2-loading-a-family-tree.md#A2.2)).
 
 <!-- zdroj: app:7cf409bd src/ged-exporter.ts backSourceRecordCount (sourceGroups: jeden záznam za skupinu) · src/ui/export-gedcom-ui.ts backSources → exportGed.sumSources · e2e/export-gedcom-back.spec.ts · app:1c9b2392 src/ged-exporter.ts backToXrefs (původní xref, ID řádky úrovně 1, REFN + TYPE {prog} xref, _XXX téhož programu, jinak _STROM_IMPORT / _STROM_XID) · src/ui/import-export.ts:267 keepDeceasedSources: true (jen GEDCOM) · strings.ts exportGed.* -->
 
@@ -243,15 +249,21 @@ has the same ID but otherwise does not match is only offered.
   person**, **In-law of matched person**); score 50, always only for review. No pairing when the relative has two
   people of that name, the sex differs or the dates of birth or death differ.
 - **Limits:**
-  - families are not paired by ID. A manual merge of two people does not join notes;
+  - families are not paired by ID;
+  - an ID that more than one person in the tree carries does not make a match by itself, it only offers it
+    ([A8.2](A8-merging-trees.md#A8.2));
   - the marks **From family tree** are not added by merging into a tree from an older version: its values stay a
     person's facts. A new import of the file gives the marks;
   - doubles from an earlier merge are not removed by merging; they are deleted by hand.
+- **A manual merge of two people** (the window **Merge people**) joins the notes of both people and of both
+  joined families, each part once.
 - **Controls:** **Import → Import GEDCOM → Merge with existing** ([A8](A8-merging-trees.md)).
-- **Since:** app 3.26.0
+- **Since:** app 3.26.0; 3.27.0: an ID of more people in the tree only offers; a manual merge of people joins
+  notes (before it did not)
 
 <!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek -->
 <!-- zdroj: app:1c9b2392 src/merge/matching.ts ID_MATCH_SCORE 100, ID_CANDIDATE_SCORE 60, ID_MAX_YEAR_GAP 3, WEAK_ID_BONUS 25, offerOnlyCap · src/merge/executor.ts:82 AUTO_CONFIRM_SCORE = 80 · src/merge/notes.ts · strings.ts merge reason id „Stejné ID v souboru“ · dirigent:prace/1108-app-066-u8/karta.md Výsledek (FAM se podle ID nepárují; mergePersons neslučuje poznámky) -->
+<!-- zdroj: 3.27.0: app:ffe1da9f src/data.ts mergePersons (notes: mergeNoteText keep+remove; partnership note: mergeNoteText) · app:b5595ca1 src/merge/matching.ts idNamesSeveral, findDirectMatches · app:a5fc9656 src/ged-parser.ts keptMedia, extras OBJE (export zpět jako ostatní _XXX rodiny) · strings.ts personMerge.title „Sloučit osoby“ · CHANGELOG.cs.md 3.27.0 · dirigent:test/vysledek-1109-app-drobnosti-ged.md P1 (dialog poznámku jako konflikt nenabízí: detectFieldConflicts jen jméno, příjmení, narození, úmrtí) -->
 
 <a id="S6.8"></a>
 ## S6.8 A family tree in the research

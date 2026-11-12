@@ -12,13 +12,14 @@ wird, beschreibt [R3.8](R3-verification-and-citation.md#R3.8); der Import von Qu
 Eine Quelle ist ein konkreter Eintrag: Taufe, Heirat, Tod. Der Stammbaum hat eine einzige Liste von Quellen.
 Personen und Angaben verweisen nur auf sie, sodass ein Eintrag mehrere Menschen und mehrere Angaben belegen kann.
 
-- Felder: **Titel** (Pflicht), **Archiv / Einrichtung**, **Signatur / Fundstelle**, **URL**, **Notiz**. Unter
-  **Mehr: Transkription, Eintragsdatum, Verlässlichkeit** liegen **Transkription des Eintrags**, **Eintragsdatum**
-  und **Verlässlichkeit**. Der Abschnitt ist offen, wenn eines davon ausgefüllt ist.
+- Felder: **Titel** (Pflicht), **Archiv**, **Signatur**, **Folio/Seite**, **Bild**, **Weitere Fundstelle**, **URL**,
+  **Notiz**. Wo der Eintrag im Buch steht, beschreibt [A3.9](#A3.9). Unter **Mehr: Transkription, Eintragsdatum,
+  Verlässlichkeit** liegen **Transkription des Eintrags**, **Eintragsdatum** und **Zuverlässigkeit der Quelle**. Der Abschnitt
+  ist offen, wenn eines davon ausgefüllt ist.
 - **Eintragsdatum** sagt, wann der Eintrag angelegt wurde. Es kann vom Datum des Ereignisses abweichen, z. B. eine
   nachträglich eingetragene Taufe.
-- **Verlässlichkeit** hat drei Stufen: **Original**, **Abschrift / Index**, **Unsicher**. Ein zweites Tippen auf die
-  gewählte Stufe hebt sie auf. Sie bewertet eine Quelle, nicht eine Angabe. Wie die Forschung sie nimmt, beschreibt
+- **Zuverlässigkeit der Quelle** hat drei Stufen: **Original**, **Abschrift / Index**, **Unsicher**. Ein zweites
+  Tippen auf die gewählte Stufe hebt sie auf. Wie die Forschung sie nimmt, beschreibt
   [R3.2.1](R3-verification-and-citation.md#R3.2.1).
 - **Grenzen:** ohne Titel lässt sich eine Quelle nicht speichern („Quellentitel eingeben“). Ein ungültiges
   **Eintragsdatum** wird nicht gespeichert. Der Wert 0 der Verlässlichkeit aus einem GEDCOM-Import erscheint als
@@ -28,9 +29,15 @@ Personen und Angaben verweisen nur auf sie, sodass ein Eintrag mehrere Menschen 
   11 Quellen, Sortierung nach Titel); **Quelle bearbeiten**, **Quelle hinzufügen**. Den Punkt **Quellen** im Menü
   **Aktionen** gibt es nur bei einem bearbeitbaren Stammbaum und nur, wenn schon eine Quelle existiert oder
   **Einstellungen → Personenkarte → Erweiterte Felder** eingeschaltet ist.
-- **Gilt seit:** App 1.4.0; **Verlässlichkeit** und **Eintragsdatum** 3.1.0
+- **Gilt seit:** App 1.4.0; **Zuverlässigkeit der Quelle** und **Eintragsdatum** 3.1.0; **Signatur**, **Folio/Seite**, **Bild**
+  und **Weitere Fundstelle** 3.27.0 (früher **Archiv / Einrichtung** und **Signatur / Fundstelle**)
+- **Ab App 3.27.0:** **Zuverlässigkeit der Quelle** ist die Standard-Zuverlässigkeit ihrer Zitationen. Eine Zitation
+  mit eigener Zuverlässigkeit (aus einem GEDCOM-Import, [A2.6.1](A2-loading-a-family-tree.md#A2.6.1)) behält sie, auch
+  wenn sich der Standard ändert; die übrigen Zitationen folgen der Änderung. Eine Angabe zeigt die Zuverlässigkeit
+  ihrer Zitation ([A3.6](#A3.6), [S7.1](S7-reliability-and-verification.md#S7.1)). Früher bewertete die
+  Zuverlässigkeit nur die ganze Quelle.
 
-<!-- zdroj: app:src/types.ts Source · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/fieldQuality/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel -->
+<!-- zdroj: app:src/types.ts Source · od 3.27.0: app:9732853b strings.ts sources.fieldRepository/fieldCallNumber/fieldFolio/fieldImage/fieldReference · src/ui/sources.ts:214 renderSourcesList, :327 deleteSource, :531 fillSourceEditor, :576 wireSourceEditor, :667 renderQualityControl, :733 saveSourceFromModal · src/ui/tree-management.ts:675 isSourcesMenuOffered · src/settings.ts:320 isAdvancedFields · strings.ts sources.titleHint/fieldTitle/fieldRepository/fieldReference/fieldUrl/fieldNote/more/fieldTranscript/fieldRecordDate/recordDateHint/reliabilityLabel (index.html source-quality-label)/quality1-3/titleRequired/citations/deleteConfirm, advanced.settingLabel · 3.27.0 výchozí spolehlivost: app:dde0151a src/citation-quality.ts setCitationQuality, citation-quality-shown.test.ts (formulář = výchozí) -->
 
 <a id="A3.1.1"></a>
 ### A3.1.1 Transkription und Abschrift geprüft
@@ -106,8 +113,12 @@ berechnet die App die Belegstufe der Person ([R3.8.1](R3-verification-and-citati
   zitiert.
 - **Gilt seit:** App 3.1.0 (**Zuletzt verwendet**, **Weiterer Eintrag aus demselben Buch**); **Andere Seite** 3.9.0;
   3.25.0: **Weiterer Eintrag aus demselben Buch** ohne Nummer und Datum des Eintrags
+- **Ab App 3.27.0:** gesucht wird auch in Signatur, Folio und Bild. Bei einer Quelle mit Feldern ([A3.9](#A3.9))
+  übernimmt **Weiterer Eintrag aus demselben Buch** Archiv, Signatur und Link; **Folio/Seite**, **Bild** und **Weitere
+  Fundstelle** bleiben leer, und der Cursor steht in **Folio/Seite**. **Andere Seite** übernimmt bei einer Quelle mit
+  Feldern auch die Signatur. Eine ältere Quelle (die Fundstelle als ein Text) verhält sich wie bisher.
 
-<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md -->
+<!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
 <a id="A3.3"></a>
 ## A3.3 Ausschnitt des Eintrags
@@ -221,6 +232,9 @@ zur Person, zu Geburt und Tod, zu Ereignissen, zu Heiraten und zu gemeinsamen Er
 
 - Eine Zeile je Quelle, darunter, was sie belegt: „Person“, „Geburt 1865“, „Trauung 1890“… Die Zeile zeigt auch
   die Verlässlichkeit.
+  Ab App 3.27.0 ist es die Zuverlässigkeit der Zitationen: Stimmen die Zitationen der Quelle in der Zuverlässigkeit
+  überein, steht sie einmal an der Zeile; unterscheiden sie sich, folgt jeder Angabe ihre eigene („Geburt 1865
+  Abschrift / Index · Beruf Original“).
 - Reihenfolge: nach dem ältesten Jahr dessen, was die Quelle belegt, sonst nach **Eintragsdatum**; ohne Datum am
   Ende, dann nach Titel.
 - **Quelle zitieren** öffnet die Auswahl mit **Belegt** ([A3.2](#A3.2)).
@@ -246,7 +260,7 @@ zur Person, zu Geburt und Tod, zu Ereignissen, zu Heiraten und zu gemeinsamen Er
   [R3.9](R3-verification-and-citation.md#R3.9).
 - **Gilt seit:** App 3.3.0; **Quelle in der Forschung finden** 3.19.0; **Grundlage des Textes** 3.22.0
 
-<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 -->
+<!-- zdroj: app:src/person-sources.ts:54 personSourceRows · src/ui/person-sources-ui.ts:114 canCiteOnPerson, :120 showPersonSourcesDialog, :187 find hidden · src/ui/context-menu.ts:191-203 readItems · src/ui/research-actions-ui.ts:1173 personFindSourceUrl · strings.ts personSources.*, research.findSource · src/story-sources.ts storyBasisSourceIds, storyFactText, storyBasisDetailsHtml · src/ui/person-page.ts:1738 storyBasisHtml · strings.ts storyBasis, basisSources, basisFacts, authorNote · CHANGELOG.cs.md 3.22.0 · 3.27.0: app:dde0151a src/person-sources.ts rowQuality, PersonSourceCite.quality, src/ui/person-sources-ui.ts source-quality-tag · app:66fc3f7f (údaj a štítek se nezalomí) -->
 
 <a id="A3.7"></a>
 ## A3.7 Wo Belege fehlen
@@ -317,3 +331,97 @@ Laden aus der Forschung, die auf diesem Computer läuft.
   Zeile unter dem Filter sagt, wo die Bilder sind, und **?** öffnet diese Regel.
 
 <!-- zdroj: app:src/strings.ts researchImages.* (held.scope/limit/later, heldTag, filter, bulkLine, bulkLoad, bulkSummary, bulkReady, bulkSpace, bulkCanClose, bulkLeft, menuRow, removeFromApp(Note), heldBridgeOff, heldDevice, settings.section/auto/autoDesc/remove/loadAll/removeKeep, export.legend/none/app/all/allOff) · src/help/topics.ts imagesHeld · CHANGELOG.cs.md 3.14.0, 3.25.0 · commit 68b31a48 -->
+
+<a id="A3.9"></a>
+## A3.9 Wo der Eintrag im Buch steht
+
+Wo der Eintrag steht, wird bei einer Quelle in Feldern geschrieben. Über Archiv, Signatur, Folio und Bild findet sich
+der Eintrag wieder, auch wenn das Archiv die Adressen der Bilder ändert oder das Buch keine Seitenzahlen hat.
+
+- **Felder:**
+  - **Archiv**: Archiv, Pfarramt, Bibliothek;
+  - **Signatur**: die Signatur des Buches, eine Inventarnummer;
+  - **Folio/Seite**: Folio oder Seite, wie das Buch zählt, auch mit dem Wort („fol. 12v“, „pag. 112“);
+  - **Bild**: die Bildnummer im Viewer des Archivs. **?** neben dem Feld sagt, wozu: „Bildnummer im Viewer des
+    Archivs. Mit Archiv, Signatur, Folio und Bild findet sich der Eintrag auch nach einer Adressänderung wieder.“;
+  - **Weitere Fundstelle**: der Rest, z. B. die Nummer des Eintrags, Spalte, Band.
+- **Eine ältere Quelle** hat, wo der Eintrag steht, als einen Text in **Weitere Fundstelle** und die neuen Felder
+  leer. Sind **Folio/Seite** und **Bild** leer und nennt der Text ein Folio oder ein Bild, schlägt der Editor unter
+  den Feldern vor: „Aus der Fundstelle: fol. 31 recto · Bild 3 · Rest „Nr. 2““. **Übernehmen** füllt die drei Felder
+  („Aus der Fundstelle „…“ übernommen. Gesichert wird mit Speichern.“), **Zurück** nimmt das zurück. Nichts wird von
+  selbst gespeichert: die übernommenen Felder werden erst mit **Speichern** gespeichert, als ein Schritt zurück. Das
+  Erkennen ist Code der App, derselbe wie in der Forschung ([R3.4.3](R3-verification-and-citation.md#R3.4.3)).
+- **Widerspruch:** nennt **Weitere Fundstelle** ein anderes Bild oder Folio als das Feld, sagt der Editor das („Die
+  Fundstelle nennt Bild 35, das Feld Bild sagt 34. In GED gilt das Feld.“) und bietet **Fundstelle zu „…“ ändern**
+  (oder **Widersprüchlichen Teil entfernen**) an. Speichern geht auch mit dem Widerspruch; in GEDCOM geht das Feld.
+- **Wo es zu sehen ist:**
+  - im Quellenbetrachter unter den Ausschnitten: **Buch** (Archiv · Signatur) und **Eintrag** (Folio · Bild · weitere
+    Fundstelle), bei einer älteren Quelle die ganze **Fundstelle**; darunter der Link zur Seite im Archiv, ohne Link
+    „Kein Link. Der Eintrag findet sich über Buch und Eintrag.“;
+  - **Aktionen → Quellen** und die Auswahl der Quelle: Archiv · Signatur · Folio · Bild kurz („Bild 34“);
+  - das Etikett einer Zitation: die Blase hat drei Zeilen (Titel, Buch, Eintrag);
+  - die Personenseite, das Familienbuch und die Familienseiten nennen auch Signatur, Folio und Bild;
+  - die Tabelle: die Spalten in [A6.7.11](A6-views.md#A6.7.11) und [A6.7.12](A6-views.md#A6.7.12).
+  Eine Quelle ohne die neuen Felder sieht überall aus wie bisher.
+- **Grenzen:**
+  - ein geleertes Feld wird aus der Quelle entfernt. In einem Stammbaum aus der Forschung geht das Leeren auch in die
+    Forschung ([S2.2.2](S2-edits-from-the-app.md#S2.2.2));
+  - **Weiterer Eintrag aus demselben Buch** und **Andere Seite** mit Feldern beschreibt [A3.2.1](#A3.2.1);
+  - GEDCOM: das Buch als `REPO` mit `CALN`, eine lesbare `PAGE` und eigene Tags von Strom ([A2.6](A2-loading-a-family-tree.md#A2.6),
+    [A2.7](A2-loading-a-family-tree.md#A2.7));
+  - pag. und fol. sowie Vorder- und Rückseite (r/v) werden nicht eigens unterschieden: sie sind Teil des Textes
+    **Folio/Seite**.
+- **Bedienung:** der Editor der Quelle (**Quelle bearbeiten**, **Quelle hinzufügen**): **Archiv**, **Signatur**,
+  **Folio/Seite**, **Bild**, **Weitere Fundstelle**, **URL**; der Vorschlag **Aus der Fundstelle:** mit **Übernehmen**
+  und **Zurück**.
+- **Gilt seit:** App 3.27.0
+
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+
+<a id="A3.9.1"></a>
+### A3.9.1 Nach Vorschlag aufteilen
+
+Die älteren Fundstellen aller Quellen lassen sich auf einmal in Felder aufteilen: Folio/Seite und Bild kommen in
+eigene Felder, der Rest bleibt in **Weitere Fundstelle**. Aufgeteilt wird durch Code, ohne Agenten, und mit einem
+Schritt lässt es sich auch zurücknehmen.
+
+- **Angebot:** in **Aktionen → Quellen** und über Tabelle › Quellen die Zeile „Die Fundstellen von 12 Quellen lassen
+  sich in Felder aufteilen.“ mit **Nach Vorschlag aufteilen…**. Das Fenster **Fundstellen in Felder aufteilen** zeigt
+  eine Vorschau: **Quelle**, **Fundstelle bisher**, **Folio/Seite**, **Bild**, **Weitere Fundstelle**; zuerst
+  6 Quellen, **Alle anzeigen (n)** lädt beim Scrollen weitere. Wie viele Fundstellen nicht erkannt wurden („…
+  bleiben unverändert“), steht unter der Vorschau, darunter bis zu drei Beispiele („Z. B. „Buch N 7, Eintrag ohne
+  Nummer“.“), jedes einmal und höchstens 60 Zeichen lang („…“).
+- **Regel:** „Ein bereits ausgefülltes Feld wird nicht überschrieben. Ein Teil, den das Feld anders angibt, bleibt in
+  der Fundstelle.“ Ein Wert, der bleibt, hat in der Vorschau „· unverändert“. Die Notizzeile „Signatur: …“ aus einem
+  früheren GEDCOM-Import kommt ins leere Feld **Signatur** (Spalte **Signatur** mit „· aus Notiz“).
+- **Aufteilen (n)** ändert alle n Quellen in einem Schritt, auch die, die die Vorschau noch nicht gezeigt hat. Die
+  Meldung „n Fundstellen aufgeteilt.“ bietet 8 Sekunden lang **Rückgängig**; zurücknehmen geht auch mit Strg+Z (auf
+  dem Mac ⌘Z). Solange die Aufteilung der letzte Schritt ist, sagen die **Quellen** „Fundstellen am … aufgeteilt
+  (n Quellen).“ mit **Zurücknehmen…**, und das Fenster öffnet sich mit der Zeile **Aufteilung vom … zurücknehmen**.
+  Gibt es nichts mehr aufzuteilen: „Weitere Fundstellen zum Aufteilen gibt es gerade nicht.“
+- **Stammbaum aus der Forschung:** aufgeteilt wird von der Forschung, nur wenn sie läuft und das Aufteilen kann
+  ([R3.4.4](R3-verification-and-citation.md#R3.4.4)). Die Vorschau ist die der Forschung; **Aufteilen** bittet sie,
+  genau das aufzuteilen, was die Vorschau gezeigt hat, und der Fortschritt bleibt an der Schaltfläche, bis die
+  Forschung schreibt. Die App übernimmt danach die neue Version der Forschung von selbst, wenn sich nur die
+  Fundstellen der Quellen unterscheiden und nichts auf das Senden wartet. **Rückgängig** nimmt die Aufteilung über die
+  Forschung zurück.
+- **Grenzen:**
+  - ein Stammbaum aus der Forschung ohne laufende Forschung: in **Quellen** nur der Satz „Fundstellen aufteilen geht,
+    solange die Forschung läuft.“, in der Tabelle nichts. Das Strom-Archiv, ein schreibgeschützter und ein gesperrter
+    Stammbaum bieten das Aufteilen nicht an;
+  - inzwischen geänderte Quellen: „Die Quellen haben sich inzwischen geändert. Die Vorschau zeigt den jetzigen
+    Stand.“; die Forschung mit einer anderen Aufgabe beschäftigt: „Die Forschung arbeitet gerade an einer anderen
+    Aufgabe. Aufteilen geht gleich wieder.“ mit **Erneut versuchen**;
+  - das Zurücknehmen wird ganz abgelehnt, wenn sich eine Quelle nach der Aufteilung geändert hat: es sagt, wie viele,
+    und die ersten drei, zurückgenommen wird nichts. In der App ohne Forschung nach einer späteren Änderung des
+    Stammbaums: „Zurücknehmen geht nicht mehr: der Stammbaum hat sich seit der Aufteilung geändert.“;
+  - eine nicht erkannte Fundstelle bleibt, wie sie ist. Eine Quelle, die schon ein Folio oder ein Bild im Feld hat,
+    zählt nicht zu den nicht erkannten: der Rest ihrer Fundstelle („Nr. 5“) ist nichts zum Aufteilen. In einem
+    Stammbaum der Forschung liefert die Beispiele nicht erkannter die Forschung; schickt sie keine, zeigt die Vorschau
+    nur die Anzahl.
+- **Bedienung:** **Aktionen → Quellen → Nach Vorschlag aufteilen…**; Tabelle › Quellen, die Zeile über der Tabelle;
+  **Aufteilen (n)**, **Rückgängig**, **Zurücknehmen…**. Die Forschung im Terminal: `strom source split`
+  ([R3.4.4](R3-verification-and-citation.md#R3.4.4)).
+- **Gilt seit:** App 3.27.0; Stammbaum aus der Forschung mit Forschung 1.31.0
+
+<!-- zdroj: app:8dd21adf src/source-split.ts SplitSourceKind (local/bridge/needsResearch/archive/none), localSplitPlan (řádek poznámky „Signatura:“ v každém jazyce importu), splitOffer (needsResearch jen v Prameny) · src/ui/source-split-ui.ts:37 TOAST_MS 8000, sourceSplitKind (read-only/zamčený → none, archiv → archive, most + feature sources.split → bridge) · 5a59f01d src/source-split-bridge.ts (GET/POST sources/split, undo), příklady nerozpoznaných přes most (unrecognizedExamples, výzkum ff760309) a lokální plán jako výzkum (zbytek u pole folia/snímku = nic, NFC, bez duplicit, nejvýš 3, ořez 60 znaků po grafémech): app:34cb5996 src/source-split.ts localSplitPlan, SPLIT_UNRECOGNIZED_EXAMPLES, src/source-split-bridge.ts examplesOf, src/ui/source-split-ui.ts:614, strings.ts sources.split.unrecEx · src/ui/misc.ts:1352 Ctrl/⌘+Z · strings.ts sources.split.* (offer, open, needsResearch, doneLine, undoOpen, title, lead, rule, sigNote, col*, kept, fromNote, all, shown, unrec, go, progress, toast, undo, undoRow, nothingLeft, errPlan, errBusy, retry, errUndoLater, errUndo) · spec 075 K4.2 · research:c4fe4fac -->

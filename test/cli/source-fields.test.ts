@@ -179,17 +179,19 @@ test("N1-a: show proposes what the edit does — the locator emptied when nothin
   }
 });
 
-test("the gate: production from its version once set (none yet), a copy of the app from 3.27.0-beta.5, an unknown version never — an older beta's file as before", () => {
+test("the gate: production from its version (3.27.0, out 2026-11-12), a copy of the app from 3.27.0-beta.5, an unknown version never — an older beta's file as before", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_READS_SOURCE_FIELDS, undefined);
+  assert.equal(APP_READS_SOURCE_FIELDS, "3.27.0");
   assert.equal(APP_READS_SOURCE_FIELDS_BETA, "3.27.0-beta.5");
   assert.equal(appReadsSourceFields(beta, "3.27.0-beta.4"), false, "the beta before: the file as before");
   assert.equal(appReadsSourceFields(beta, "3.27.0-beta.5"), true);
   assert.equal(appReadsSourceFields(beta, "3.27.0"), true);
-  assert.equal(appReadsSourceFields(prod, "3.27.0"), false, "production: not before its own gate");
-  assert.equal(appReadsSourceFields(prod, "9.0.0"), false);
-  assert.equal(appReadsSourceFields(prod, undefined), false);
+  assert.equal(appReadsSourceFields(prod, "3.27.0"), true, "the app's 3.27.0 reads the fields (out 2026-11-12)");
+  assert.equal(appReadsSourceFields(prod, "3.27.0-beta.6"), false, "a beta's version in production: not before the release");
+  assert.equal(appReadsSourceFields(prod, "3.26.0"), false);
+  assert.equal(appReadsSourceFields(prod, "9.0.0"), true);
+  assert.equal(appReadsSourceFields(prod, undefined), false, "an unknown version stays off");
   assert.equal(appReadsSourceFields(prod, "3.28.0", "3.28.0"), true);
   assert.equal(appReadsSourceFields(prod, "3.27.9", "3.28.0"), false);
   assert.equal(appReadsSourceFields(beta, undefined), false, "a copy of unknown version: nothing");

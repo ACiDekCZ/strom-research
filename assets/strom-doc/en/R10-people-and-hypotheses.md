@@ -83,8 +83,8 @@ A, B, C… with what speaks for each and what against.
 
 A hypothesis is decided for one version, or abandoned when none can be decided. Who decides it is a choice of the
 research ([R10.3.2](#R10.3.2)): **The AI decides** (the agent decides itself, only by a cited record; the default
-when no choice is saved), or **The user decides** (the agent only proposes the decision). The app does not let a
-hypothesis be decided; it points to the research.
+when no choice is saved), or **The user decides** (the agent only proposes the decision). A person decides in the
+terminal, or in the Strom app by choosing a version that the research terminal confirms ([R10.3.3](#R10.3.3)).
 
 - **Enforced by the code:**
   - with **The user decides**, a decision is a person's step. When the agent runs `strom hypothesis decide` (also
@@ -94,17 +94,19 @@ hypothesis be decided; it points to the research.
   - the proposal waits in **What waits** in the group **Hypotheses to decide** ([R6.3.4](R6-awaiting-action.md#R6.3.4)):
     a person decides as proposed, otherwise (another version or none, with a reason), or leaves the hypothesis as it
     is. A proposal not taken stays in a note of the hypothesis;
-  - with **The user decides**, an open hypothesis without a proposal waits in the same group too: a person decides it
-    (a version or none, with the text of the decision), or leaves it open. A hypothesis left open shows up in What
-    waits again once the agent proposes how to decide it;
+  - with **The user decides**, an open hypothesis without a proposal waits in the same group too, in the terminal and
+    in the Strom app that decides hypotheses ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)): a person decides it (a
+    version or none), or leaves it open. A hypothesis left open shows up in What waits again once the agent proposes
+    how to decide it;
   - a decision and a proposal need the text of the decision (`--decision`); abandoning is `--abandon`;
   - a hypothesis whose versions say what they would connect is decided and proposed only with the version named
     (`--variant B`). Without it strom refuses and writes nothing;
   - deciding again (and proposing again) is possible only with a reason (`--reason`). The previous decision stays in
     a note of the hypothesis, also with the fact that the agent decided it. A decided or abandoned hypothesis offers
     **Change the decision** in the menu;
-  - what a person's decision connects, and the sources the hypothesis names that no fact of its persons cites, the
-    agent gets at the start of its next work as the first task to record on the tree.
+  - what a person's decision connects (a child of a family, a couple) strom writes at once, in the same step
+    ([R10.3.3](#R10.3.3)). What could not be written, and the sources of the chosen version that no fact of its
+    persons cites, the agent gets at the start of its next work as the first task.
 - **Method only:** the agent proposes a decision when the records point to one version, and tells the person in one
   sentence. A decided hypothesis that a new record overturns the agent proposes again, with a reason. What the agent
   held back while the person was only a hypothesis it records at the person once the hypothesis is decided.
@@ -116,7 +118,8 @@ hypothesis be decided; it points to the research.
   same screen is in the person review: **Add to the research** → **Review one person** → **Hypotheses about the person
   (n)**. By command `strom hypothesis decide H… --proposed`, `--keep-open`, or `--variant B --decision "…"` (again
   with `--reason "…"`). The agent: `strom hypothesis propose H… --variant B --decision "…"`. App: **What the research
-  knows** → the hypothesis → **Decide in the research**, at a decided one **Change in the research**
+  knows** → the hypothesis → **Choose** at a version ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)); with an older
+  research **Decide in the research**, at a decided one **Change in the research**
   ([S3.5](S3-what-the-research-knows.md#S3.5)).
 - **Since:** research 1.0.0; the list of sources not recorded 1.12.0
 - **From research 1.28.0:** only a person decides, the agent proposes; the code enforces the named version (formerly
@@ -128,8 +131,10 @@ hypothesis be decided; it points to the research.
   decide`.
 - **From app 3.25.0:** **Decide in the research** and **Change in the research** in **What the research knows**, where
   the research on this computer offers them.
+- **From research 1.31.0:** strom writes the links of a person's decision at once; before, the agent wrote them in its
+  next work. A hypothesis can also be decided in the Strom app 3.27.0 ([R10.3.3](#R10.3.3)).
 
-<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, agentMay, --proposed, --keep-open bez návrhu → leftOpen, againNeedsReason, decidedVariant, "earlier … by the agent") · src/cli/main.ts:288 def.person && isAgent && !def.agentMay · src/commands/batch.ts (def.agentMay) · src/core/waiting.ts (hypotheses, hypothesesOpen, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided: ui.wait.hypothesis.change) · src/cli/menu-research.ts:532 ui.review.hypotheses · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.*, ui.review.hypotheses · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0, 1.29.0 · research 1.28.0 = commit 94a593db · app:src/strings.ts research.decideInResearch, research.hypoChange · CHANGELOG.cs.md 3.25.0 -->
+<!-- zdroj: research:src/commands/analysis.ts hypothesis propose, hypothesis decide (person: …, agentMay, --proposed, --keep-open bez návrhu → leftOpen, againNeedsReason, decidedVariant, "earlier … by the agent") · src/cli/main.ts:288 def.person && isAgent && !def.agentMay · src/commands/batch.ts (def.agentMay) · src/core/waiting.ts (hypotheses, hypothesesOpen, TERMINAL_ONLY) · src/cli/menu-waiting.ts decideHypothesis (proposed / open / decided: ui.wait.hypothesis.change) · src/cli/menu-research.ts:532 ui.review.hypotheses · src/core/hypolinks.ts decidedToRecord, sourcesNotOnPeople · src/brief/brief.ts "Decided by the user — record it on the tree first" · assets/lang/cs.json wait.group.hypotheses, ui.wait.hypothesis.*, ui.review.hypotheses · research:assets/method/core.md "The user decides a hypothesis" · assets/method/recording.md "is proposed again" · CHANGELOG.cs.md 1.28.0, 1.29.0 · research 1.28.0 = commit 94a593db · app:src/strings.ts research.decideInResearch, research.hypoChange · CHANGELOG.cs.md 3.25.0 · výzkum 1.31.0: src/core/hypolinks.ts writeDecision (vazby child/partners zvolené verze hned), decidedToRecord (zbytek agentovi), sourcesNotOnPeople (jen zvolená verze) · src/core/waiting.ts hypothesesApp (i aplikaci, priority -1 bez návrhu, !leftOpen) · commity 7a8f4b53, 8e27fa5c, 06cca755 · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R10.3.2"></a>
 ### R10.3.2 Who decides the hypotheses: the user or the AI
@@ -188,6 +193,63 @@ the user deciding: `strom config set hypotheses.decide person`.
 - **Since:** research 1.29.0, app 3.25.0
 
 <!-- zdroj: research:src/core/config.ts:301 hypotheses.decide (choices person|agent, tree: true), hypothesesDecide · src/commands/setup.ts:1203 requireHuman (ui.consent.hypotheses.agent), :1686 help config set · src/cli/wizard.ts 5c (ctx.interactive && !isAgent) · src/cli/menu-settings.ts:87 hypothesesStep · src/commands/analysis.ts agentMayDecide (hypothesis.user, hypothesis.evidence, hypothesis.branch), citedInSupport · src/core/kin.ts BIG_BRANCH=10, branchJoined · src/core/model.ts:730 decidedByAgent, decidedAt · src/core/changelog.ts:360 · src/core/live.ts:2039 /status.hypotheses, :4647 POST /hypotheses (person hned, agent 403 hypotheses.link) · src/core/links.ts:112 · assets/lang/cs.json ui.setup.hypotheses, ui.hypotheses.decide.*, ui.settings.hypotheses, ui.consent.hypotheses.agent, ui.wait.hypothesis.byAgent, log.hypothesis.decide.agent, log.hypothesis.abandon.agent · CHANGELOG.cs.md 1.29.0 · app:src/strings.ts research.hypoDecideTitle/Person/Agent, hypoDecideConfirm(Link), hypoByAgent, hypoReason, research.treeSettings · src/ui/research-tree-settings-ui.ts · CHANGELOG.cs.md 3.25.0 · spec 060 K1.1–K1.5, K2.1 · výchozí AI (výzkum 1.29.0): research:src/core/config.ts hypothesesDecide (=== person ? person : agent), getDefault hypotheses.decide agent · src/commands/setup.ts syncDecisions/layerChange (agent nebo unset tam, kde je person → requireHuman) · src/cli/wizard.ts 5c (was = stored === person ? 0 : 1; druhé ano jen při uloženém person; person uloženo; ui.setup.model.recommended, ui.setup.hypotheses.recommended) · src/cli/menu-settings.ts hypothesesStep (bez doporučení) · CHANGELOG.cs.md 1.29.0 „Kde nic zvoleno není, rozhoduje AI“ · spec 060 K1.9 · nabídka: app:src/ui/person-research-ui.ts HYPOTHESES_OFFER_MIN = 10, researchHypothesesOffer (HYPOTHESES_DECIDE_FEATURE, hypothesesDecide === person, isOpenHypothesis celého stromu, activeResearchLink hypotheses decide=agent), hideHypothesesOffer (localStorage na výzkum) · strings.ts research.hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · spec 060 K1.6–K1.8 -->
+
+<a id="R10.3.3"></a>
+### R10.3.3 A hypothesis decided in the Strom app
+
+A hypothesis whose versions connect only a child to a family or two people as a couple, or connect no one to the
+tree (where a person came from, say), can also be decided in the Strom app
+([S3.5.2](S3-what-the-research-knows.md#S3.5.2)). The app itself writes nothing: the choice opens the
+research terminal, which asks in one sentence and writes the decision as a person's decision. The links of the chosen
+version are on the tree at once.
+
+- **Enforced by the code:**
+  - the link from the app carries only the number of the hypothesis, what is to happen (decide for a version, no
+    version holds, leave open, reopen, accept proposals) and the letter of the version, no text. The terminal asks
+    "The Strom app asks for: decide hypothesis H0001: variant B holds — …" and "Go on?" (Enter = yes), then for the
+    reason: "Why? (Enter = “decided in the Strom app: variant B”, 0 = nothing changed)";
+  - the decision is a person's decision with the note "decided in the Strom app" and the day; the agent cannot make it
+    from the app. A hypothesis already decided the terminal names ("H0001 is decided: variant A holds …") and asks
+    about the change;
+  - the links of the chosen version strom writes in the same step, citing the first source that supports the
+    version: "On the tree now: …". What the tree does not take it says as "Not written on the tree: …" with the reason
+    (has birth parents in the family …; the earlier link stays, other work stands on it; it would make a circle among
+    the ancestors) and "What is not on the tree, the agent writes in its next work." The same holds for a decision in
+    the terminal and in What waits;
+  - a version that connects no one writes only the decision; the confirmation says so first ("The tree does not
+    change."). The terminal leaves the sentence out when the choice would take a link of an earlier decision off the
+    tree;
+  - a **change** to another version and **no version holds** at a decided hypothesis remove what the previous
+    decision wrote; **reopen** (`--reopen`) removes the record and opens the hypothesis ("Taken off the tree: …");
+  - **other work** on a link is a change of the link's family after it was written (a child, a fact, a citation, the
+    partners), a merge of the link's family or persons and a new family with the link's persons; the persons' own
+    facts, names and citations are not work. A decision whose record other work stands on cannot be reopened: "Other
+    work stands on what the decision of hypothesis H0001 wrote on the tree (links: 2); a link cannot take it back.
+    Another variant picked changes it." On a change such a link stays and the new one is not written; the terminal
+    says so first ("The earlier link stays on the tree, other work stands on it: …; the new one is not written: …")
+    and the default answer is no;
+  - nor can a decision be reopened whose links the tree has but this decision did not write (the agent wrote them,
+    say): "The decision of hypothesis H0001 is on the tree already (links: 2); a link cannot take it back. Another
+    variant picked changes it." In place of **Reopen** the app says "Cannot be reopened: the link is already written
+    in the research tree (2 links). Change is possible.";
+  - two records of one person (`same`) and siblings without parents (`siblings`) are not decided from the app, even
+    when only one version of the hypothesis is such: "H0001 cannot be decided by a pick in the app; it is decided here,
+    on its whole screen.";
+  - a version that joins 50 or more people to the tree says the number in the confirmation ("This joins 214 people to
+    the tree.");
+  - the agent's proposals can be accepted at once, at most 50 hypotheses with one confirmation: the terminal lists them
+    ("The agent's proposals to take:"), names those left out ("Left aside:": no proposal any more, decided here) and
+    says "✓ Decided as proposed: n."
+- **Limits:** the app offers the choice only with a research that can do it (the features `hypothesis.decide.link`
+  and `hypotheses.accept.link` in the bridge's `/status`); otherwise **Decide in the research** stays. Who decides the
+  hypotheses is still a choice of the research ([R10.3.2](#R10.3.2)). strom writes the links of a person's decision at
+  once in a Strom archive too.
+- **Controls:** app: **What the research knows** → **Hypotheses** and **Awaiting action** → **Hypotheses to decide**
+  ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)). Terminal: the link `strom-research://hypothesis?…` opens the
+  research with the question; `strom hypothesis decide H… --reopen --reason "…"` returns the decision to open.
+- **Since:** research 1.31.0 with app 3.27.0
+
+<!-- zdroj: research:src/core/links.ts (hypothesis do=decide|abandon|keep-open|reopen, variant; hypotheses do=accept, ids ≤ 50) · assets/lang/cs.json ui.link.asks, ui.link.what.hypothesis.pick/repick, ui.link.hypothesis.why, pick.default, repick.default, isDecided, notInApp, joins, recorded, work, treeSame, ui.hypothesis.tree.now/off/notNow/stays, ui.hypothesis.why.parents/kept/ancestor/merge/siblings, ui.hypothesis.decided.links, ui.link.accept.list/skipped/skip.*/done · src/core/hypolinks.ts writeDecision, undoDecision, workOnLink (rodina vazby po zápisu, sloučení, nová rodina; ne vlastní údaje osob), reopenBlock (tree: vazby zvolené verze ve stromu, které rozhodnutí nezapsalo; work), changeKeeps, pickableInApp (každá vazba každé verze child nebo partners, i verze bez vazby; c769f2eb, spec 074 K1.6) · src/cli/menu-links.ts (treeSame: verze bez vazby a nic z dřívějšího zápisu ve stromu; menu-links.ts:784 recorded) · src/gedcom/export.ts (rozhodnuté a zrušené pickableInApp pro aplikaci s hypothesisPick) · app:strings.ts research.hypoCannotReopenTree · src/commands/analysis.ts hypothesis decide --from-app (rozhodnutí člověka, ne agenta), --reopen, decidedIn app · ui.link.go · src/core/live.ts /status features hypothesis.decide.link, hypotheses.accept.link · src/core/stromapp.ts APP_DECIDES_HYPOTHESES · assets/method/core.md (rozhodnutí člověka je ve stromu hned) · commity 7a8f4b53, 8e27fa5c, 06cca755, d4c6da07 · CHANGELOG.cs.md 1.31.0 „Hypotéza rozhodnutá v aplikaci Strom“ · spec 074 K1.5 -->
 
 <a id="R10.4"></a>
 ## R10.4 A family outside the tree waits for a proven link

@@ -25,15 +25,17 @@ Der Ablauf in Kürze:
 
 > **Hinweis: wo genau der Browser des Agenten gilt.** Den Browser des Agenten überwacht strom bei **Claude Code**
 > mit der Erweiterung **Claude in Chrome**, im eingebauten Browser der App Claude
-> ([R12.2](R12-where-the-agent-works.md#R12.2)) und im Browser von Codex nach den Adressen in seinem Code, wenn der
-> Mensch den Hook von strom bestätigt hat ([R12.5](R12-where-the-agent-works.md#R12.5)). Den Browser eines anderen
+> ([R12.2](R12-where-the-agent-works.md#R12.2)) und im Browser von Codex im Terminal nach den Adressen in seinem
+> Code, wenn der Mensch den Hook von strom bestätigt hat ([R12.5](R12-where-the-agent-works.md#R12.5)). Der Browser
+> der App ChatGPT (Codex) läuft über die Cloud von ChatGPT, und strom überwacht ihn nicht
+> ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)). Den Browser eines anderen
 > Agenten (Antigravity und andere) und die Computersteuerung keines Agenten kann strom überwachen: der Agent geht damit
 > nicht von sich aus in ein Archiv, das nur der Browser eines Menschen betreten darf, und die Bilder speichert der
 > Mensch. Eingebaute Browser und Computersteuerung der Desktop-Apps der Agenten empfiehlt strom nicht; der Agent nutzt sie nur auf ausdrückliche
 > Bitte eines Menschen ([R9.4.2](#R9.4.2)). Wo mit dem Agenten gesprochen wird und was strom wo überwacht, fasst
 > [R12](R12-where-the-agent-works.md) zusammen.
 
-<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
+<!-- zdroj: research:CHANGELOG.cs.md 1.27.0, 1.29.0, 1.30.0 · src/core/browserhelp.ts GUARDED_BROWSER_AGENTS, ON_REQUEST, codexInChatgptApp (v1.30.0, 33ac2e38) · src/core/chromehook.ts:1-25 · src/core/codexhook.ts · app:CHANGELOG.cs.md 3.23.0 -->
 
 <a id="R9.1"></a>
 ## R9.1 Arten von Archiven
@@ -229,8 +231,11 @@ Menschen. Genauso überwacht es den eingebauten Browser der App Claude
 ### R9.4.2 Eingebaute Browser und Computersteuerung: nicht empfohlen
 
 - In der Forschung wird an den Desktop-Apps der Agenten nichts abgeschaltet. Den eingebauten Browser der App Claude
-  (auch ihre Vorschau) überwacht strom wie Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)), den
-  Browser der App ChatGPT (Codex) nach den Adressen in seinem Code, sobald der Mensch den Hook von strom bestätigt
+  (auch ihre Vorschau) überwacht strom wie Claude in Chrome ([R12.2](R12-where-the-agent-works.md#R12.2)). Der
+  Browser der App ChatGPT (Codex) läuft über die Cloud von ChatGPT, und strom überwacht ihn nicht, ob der Hook von
+  strom in Codex bestätigt ist oder nicht; über Websites entscheidet der Dialog von ChatGPT
+  ([R12.5.1](R12-where-the-agent-works.md#R12.5.1)). Den Browser von Codex im Terminal überwacht strom nach den
+  Adressen in seinem Code, sobald der Mensch den Hook von strom bestätigt
   ([R12.5](R12-where-the-agent-works.md#R12.5)). Die Computersteuerung der App Claude und der App ChatGPT überwacht
   strom nicht ([R12.10](R12-where-the-agent-works.md#R12.10)). Keinen davon empfiehlt strom.
 - **Nur Methodik:** der Agent nutzt sie nicht von sich aus: in ein Archiv, das nur der Browser eines Menschen betreten
@@ -244,8 +249,10 @@ Menschen. Genauso überwacht es den eingebauten Browser der App Claude
   Downloader des Archivs, der Webabruf von Seiten und der Browser des Agenten in Chrome halten sich immer an die
   Regeln der Archive ([R9.3](#R9.3), [R9.4](#R9.4)).
 - **Bedienung:** Terminal: `strom doctor`, Zeile **Browser der Desktop-Apps**.
-- **Gilt seit:** Forschung 1.27.0; 1.29.0: eingebauter Browser der App Claude und Browser von Codex überwacht
-<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · commit 6968ab72 (agent řekne, zda strom cestu hlídá) -->
+- **Gilt seit:** Forschung 1.27.0; 1.29.0: eingebauter Browser der App Claude und Browser von Codex überwacht;
+  1.30.0: den Browser der App ChatGPT überwacht strom nicht
+
+<!-- zdroj: research:src/core/browserhelp.ts ON_REQUEST, browserKept · src/core/browser.ts CODEX_BROWSER_SERVERS, Claude_Browser matcher · src/brief/brief.ts · src/commands/guide.ts · src/commands/setup.ts:527 desktop · assets/lang/cs.json ui.doc.desktop.unwatched · CHANGELOG.cs.md 1.27.0, 1.29.0 · research:v1.30.0 (33ac2e38) src/core/browserhelp.ts codexInChatgptApp, browserKept; assets/lang/de.json ui.doc.desktop.codex; CHANGELOG.de.md 1.30.0 · dirigent:test/vysledek-062-u4-codex.md · 1.29.0 (53dba68d; dev 6968ab72): agent řekne, zda strom cestu hlídá -->
 
 <a id="R9.4.3"></a>
 ### R9.4.3 Zustand des Browsers in strom doctor und in der App
@@ -287,6 +294,11 @@ Archivs zeigt.
   - gespeichert wird nur ein Bild, das der Tab unter seiner eigenen Adresse zeigt. Ein auf ein anderes Bild
     weitergeschalteter Betrachter wird abgelehnt, und nichts wird gespeichert. Nie mehr, als der Betrachter des
     Archivs gibt, nie größer als das Original;
+  - das Speichern wartet, bis der Betrachter des Archivs das ganze Bild zeigt, höchstens 30 s. Seit Forschung 1.31.0
+    zählt nur die Zeit, in der der Browser den Tab zeichnet (er zeichnet keinen Tab hinter einem anderen Tab und
+    keinen in einem verdeckten oder minimierten Fenster). Ein 30 s nicht gezeichneter Tab wird als solcher gemeldet
+    („the browser did not draw the tab with the viewer for 30 s …“: Tab nach vorn, Fenster frei, dann das Skript
+    erneut); ein Betrachter, der inzwischen auf ein anderes Bild weiterblättert, speichert nichts;
   - der Befehl setzt die Aufgabe auf Warten auf dieses Bild. Die Datei wird in den Ordner der Downloads gespeichert
     (`strom-T…-<číslo>.jpg`), und `strom media add --inbox --waiting` verschiebt sie unter der Nummer des Bildes in
     den Ordner der Aufgabe ([R9.6](#R9.6)).
@@ -301,9 +313,10 @@ Archivs zeigt.
 - **Warum:** die Erlaubnis „über den Browser“ erlaubt, was ein Mensch in seinem Browser tun würde, in seinem Tempo.
 - **Bedienung:** Terminal (Agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, danach
   `strom media add --inbox --waiting`.
-- **Gilt seit:** Forschung 1.27.0. Eine zurückgehaltene Aufnahme wird seit Forschung 1.30.0 gemeldet.
+- **Gilt seit:** Forschung 1.27.0. Eine zurückgehaltene Aufnahme wird seit Forschung 1.30.0 gemeldet, ein nicht
+  gezeichneter Tab seit 1.31.0.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Warten auf Bilder und Rückkehr der Aufgabe

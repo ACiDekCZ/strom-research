@@ -79,8 +79,12 @@ Stupeň nesmí tvrdit víc, než dávají citace údaje. Kód to kontroluje při
 - Aplikace: **Spolehlivost** pramene přijde do výzkumu jako **Originál** = originál s primární informací,
   **Opis / index** = originál se sekundární informací, **Nejisté** = opis s neznámou informací.
 - **Platí od:** výzkum 1.0.0; Spolehlivost z aplikace výzkum 1.12.0
+- **Od aplikace 3.27.0:** aplikace drží spolehlivost i u jednotlivé citace a do souboru pro výzkum ji píše jako `QUAY`
+  té citace ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Výzkum z ní bere jen formu a informaci nového pramene
+  (výchozí spolehlivost pramene, jinak `QUAY` jeho první citace); `QUAY` citace, kterou zapsal výzkum sám, se cestou
+  přes aplikaci nemění.
 
-<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 -->
+<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
 
 <a id="R3.3"></a>
 ## R3.3 Pramen, nebo vodítko
@@ -126,6 +130,8 @@ Citace říká, kde přesně v prameni údaj stojí. Pramen je jeden zápis; ví
 - **Platí od:** výzkum 1.1.0 (výřez, `strom clips`, `strom transcripts`); přepis 1.0.0
 - **Od výzkumu 1.26.0:** nápověda volby `--clip` říká „další na každý zlom stránky, nejvýš 3“ (v 1.25.2 „druhý“).
   Pravidlo se nemění.
+- **Od výzkumu 1.31.0:** místo zápisu v knize se píše po polích `--folio`, `--image`, `--call-number`; `--locator` drží
+  zbytek ([R3.4.3](#R3.4.3)).
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
@@ -184,6 +190,66 @@ Dva výřezy téhož obrázku, které se hodně překrývají, jsou jeden zápis
 - **Platí od:** výzkum 1.29.0
 
 <!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
+<a id="R3.4.3"></a>
+### R3.4.3 Kde zápis stojí: folio, snímek, signatura
+
+Kde zápis v knize stojí, si výzkum drží po polích, aby zápis našel znovu i tehdy, když se odkaz na snímek přestane
+otevírat.
+
+- **Pole pramene:** `--folio` (strana nebo folio, jak knihu čísluje, i se slovem: „pag. 112“, „fol. 12v“), `--image`
+  (číslo snímku na portálu archivu), `--call-number` (signatura knihy u zápisu mimo evidované knihy výzkumu) a vedle
+  nich `--locator` pro zbytek (číslo zápisu, sloupec).
+- **Jen metodika:** agent pole vyplňuje při zápisu. Folium vždy, snímek jen u zápisu bez evidovaného skenu (ten číslo
+  snímku dává výřez), signaturu jen mimo evidovanou knihu. Odkaz, který už zápis neotevře, agent dohledá podle
+  archivu, signatury, folia a snímku z `strom source show` (číslo snímku se může o pár posunout, folio ne), jen přes
+  strom, a opraví ho `strom source edit S… --url … [--image …] --reason "…"`.
+- **Hlídá kód:**
+  - `strom source show` má řádek `find` s archivem, signaturou, foliem a snímkem pohromadě (snímek i z evidovaných
+    skenů). U staršího pramene, jehož umístění jmenuje folio nebo snímek, navrhne „from its locator: --folio …
+    --image … --locator …“; sám nic nezapíše;
+  - doplnění prázdného pole důvod nepotřebuje, změna vyplněného pole ano (`--reason`). `--locator ""` (s důvodem)
+    umístění vyprázdní, když v něm nic jiného než folio a snímek z polí nezbylo; `source show` to tehdy navrhne;
+  - GEDCOM: jedna čitelná `PAGE` složená z polí („pag. 112, č. 3, snímek 57“, v jazyce výzkumu) pro aplikaci Strom
+    i jiné programy, signatura jako `CALN`. Samotná pole (`_STROM_FOLIO`, `_STROM_IMAGE`, `_STROM_LOCATOR`) dostane jen
+    aplikace Strom, která je čte. Pramen bez těchto polí se exportuje přesně jako dřív;
+  - `PAGE` nikdy neřekne dvě čísla snímku ani folia. Jmenuje-li umístění jiné číslo než pole, platí v `PAGE` pole,
+    umístění samo zůstane a `source add|edit|show` upozorní a navrhne zbytek umístění (`--locator "<zbytek>"`).
+- **Hranice:** rozpoznání folia a snímku je kód stromu, bez agenta, stejné jako v aplikaci
+  ([A3.9](A3-evidence-in-the-app.md#A3.9)). Dvě folia nebo dva snímky v jednom umístění se nerozpoznají. Stávající
+  prameny zůstávají, jak jsou, dokud je člověk nerozdělí ([R3.4.4](#R3.4.4)). Úpravy polí z aplikace a jejich smazání:
+  [S2.2.2](S2-edits-from-the-app.md#S2.2.2).
+- **Ovládání:** terminál: `strom source add "…" --folio "pag. 112" --image 57 --locator "č. 3"`, `strom source edit S…
+  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <text>` hledá
+  i ve foliu a snímku.
+- **Platí od:** výzkum 1.31.0
+
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+
+<a id="R3.4.4"></a>
+### R3.4.4 Rozdělení starých umístění: náhled, zapíše člověk
+
+Starší prameny mají umístění jedním textem („fol. 12, snímek 3“). Příkaz `strom source split` je rozdělí do polí
+najednou: kód, bez agenta a zdarma.
+
+- **Hlídá kód:**
+  - bez přepínače je to jen **náhled**: kolik pramenů by se rozdělilo, prvních 10 „před → po“ (`--all` všechny),
+    kolik se nerozpoznalo, s až třemi příklady, jak jsou zapsané. Nic se nezapíše. Náhled smí spustit i agent;
+  - `--apply` zapíše rozdělení jedním krokem a vypíše `undo: strom source split --undo <id>`; `--undo <id>` vrátí
+    všechny prameny, jak byly. Obojí jen člověk ve svém terminálu, agentovi to strom odmítne;
+  - vyplněné folio nebo snímek zůstane. Snímek, který dávají evidované skeny, se nebere. Část, kterou pole říká
+    jinak, zůstane v umístění. Umístění, ve kterém se nic nerozpozná, zůstane, jak je. Pramen, který už má folio nebo
+    snímek, se mezi nerozpoznané nepočítá: zbytek jeho umístění není co rozdělit;
+  - vrátit jde posledních 5 rozdělení, každé svým id. Pramen změněný po rozdělení vrácení odmítne celé.
+- **Jen metodika:** agent rozdělení člověku nabídne, nikdy ho sám nepotvrdí.
+- **Z aplikace Strom:** výzkum nabízí stejné rozdělení i aplikaci, když běží: náhled s počtem, rozdělení na kliknutí
+  člověka jedním krokem podle toho náhledu, vrácení celé ([A3.9.1](A3-evidence-in-the-app.md#A3.9.1)). Prameny změněné
+  mezitím náhled odmítne a ukáže znovu. V Archivu Stromu rozdělení není.
+- **Ovládání:** terminál: `strom source split`, `strom source split --all`, `strom source split --apply`, `strom source
+  split --undo <id>` (náhled vypisuje id k vrácení).
+- **Platí od:** výzkum 1.31.0
+
+<!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
 <a id="R3.5"></a>
 ## R3.5 Slepé druhé čtení

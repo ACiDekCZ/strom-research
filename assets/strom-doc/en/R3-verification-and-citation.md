@@ -87,8 +87,12 @@ A degree must not claim more than the fact's citations give. The code checks thi
   information, **Copy / index** = an original with secondary information, **Uncertain** = a copy with unknown
   information.
 - **Since:** research 1.0.0; Reliability from the app research 1.12.0
+- **From app 3.27.0:** the app keeps the reliability at each citation too and writes it into the file for the research
+  as that citation's `QUAY` ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). The research takes from it only the form
+  and information of a new source (the source's default reliability, otherwise the `QUAY` of its first citation); the
+  `QUAY` of a citation the research wrote itself does not change on the way through the app.
 
-<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 -->
+<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
 
 <a id="R3.3"></a>
 ## R3.3 A source, or a lead
@@ -136,6 +140,8 @@ several sources.
 - **Since:** research 1.1.0 (clip, `strom clips`, `strom transcripts`); transcription 1.0.0
 - **From research 1.26.0:** the help of the `--clip` option says “another for each page break, at most 3” (in 1.25.2
   “a second”). The rule does not change.
+- **From research 1.31.0:** the place of the entry in the book is written by the fields `--folio`, `--image`,
+  `--call-number`; `--locator` holds the rest ([R3.4.3](#R3.4.3)).
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b -->
 
@@ -199,6 +205,70 @@ Two clips of the same image that overlap a lot are one entry clipped twice. The 
 - **Since:** research 1.29.0
 
 <!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
+<a id="R3.4.3"></a>
+### R3.4.3 Where the entry stands: folio, image, call number
+
+The research keeps where the entry stands in the book by fields, so that it finds the entry again even when the link
+to the image stops opening.
+
+- **Source fields:** `--folio` (the page or folio as the book numbers it, with the word too: "pag. 112", "fol. 12v"),
+  `--image` (the image number on the archive's portal), `--call-number` (the call number of the book, for an entry
+  outside the research's registered books) and beside them `--locator` for the rest (the entry number, column).
+- **Method only:** the agent fills the fields when entering. The folio always, the image only for an entry without a
+  registered scan (there the clip gives the image number), the call number only outside a registered book. A link
+  that no longer opens the entry the agent looks up by the archive, call number, folio and image from
+  `strom source show` (the image number can shift by a few, the folio not), only via strom, and corrects it with
+  `strom source edit S… --url … [--image …] --reason "…"`.
+- **Enforced by the code:**
+  - `strom source show` has a line `find` with the archive, call number, folio and image together (the image also
+    from registered scans). For an older source whose locator names a folio or an image it proposes "from its
+    locator: --folio … --image … --locator …"; it writes nothing itself;
+  - filling an empty field needs no reason, changing a filled one does (`--reason`). `--locator ""` (with a reason)
+    empties the locator when nothing but the folio and image from the fields is left in it; `source show` then
+    proposes that;
+  - GEDCOM: one readable `PAGE` composed of the fields ("pag. 112, no. 3, image 57", in the language of the research)
+    for the Strom app and other programs, the call number as `CALN`. The fields themselves (`_STROM_FOLIO`,
+    `_STROM_IMAGE`, `_STROM_LOCATOR`) go only to a Strom app that reads them. A source without these fields is
+    exported exactly as before;
+  - `PAGE` never states two image numbers or two folios. When the locator names another number than the field, the
+    field holds in `PAGE`, the locator itself stays, and `source add|edit|show` warns and proposes the rest of the
+    locator (`--locator "<rest>"`).
+- **Limits:** recognising the folio and image is strom's code, without an agent, the same as in the app
+  ([A3.9](A3-evidence-in-the-app.md#A3.9)). Two folios or two images in one locator are not recognised. Existing
+  sources stay as they are until a person splits them ([R3.4.4](#R3.4.4)). Edits of the fields from the app and their
+  deletion: [S2.2.2](S2-edits-from-the-app.md#S2.2.2).
+- **Controls:** terminal: `strom source add "…" --folio "pag. 112" --image 57 --locator "no. 3"`, `strom source edit S…
+  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <text>` also
+  searches in the folio and image.
+- **Since:** research 1.31.0
+
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+
+<a id="R3.4.4"></a>
+### R3.4.4 Splitting older locators: a preview, the person writes it
+
+Older sources have the locator as one text ("fol. 12, image 3"). The command `strom source split` splits them into
+fields at once: code, without an agent and free of charge.
+
+- **Enforced by the code:**
+  - without an option it is only a **preview**: how many sources would be split, the first 10 "before → after"
+    (`--all` all of them), how many were not recognised, with up to three examples as they are written. Nothing is written. The agent may run the preview too;
+  - `--apply` writes the split in one step and prints `undo: strom source split --undo <id>`; `--undo <id>` returns
+    all the sources as they were. Both only by a person in their own terminal; strom refuses them to the agent;
+  - a filled folio or image stays. An image given by registered scans is not taken. A part the field states
+    differently stays in the locator. A locator in which nothing is recognised stays as it is. A source that already
+    has a folio or an image is not counted among the unrecognised: the rest of its locator is nothing to split;
+  - the last 5 splits can be undone, each by its id. A source changed after the split makes the undo refuse whole.
+- **Method only:** the agent offers the split to the person and never confirms it itself.
+- **From the Strom app:** the research offers the same split to the app too, while it runs: a preview with the count,
+  the split on the person's click in one step by that preview, undo whole ([A3.9.1](A3-evidence-in-the-app.md#A3.9.1)).
+  Sources changed in the meantime the preview refuses and shows again. In the Strom archive there is no split.
+- **Controls:** terminal: `strom source split`, `strom source split --all`, `strom source split --apply`, `strom source
+  split --undo <id>` (the preview prints the id for undoing).
+- **Since:** research 1.31.0
+
+<!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
 <a id="R3.5"></a>
 ## R3.5 A blind second reading

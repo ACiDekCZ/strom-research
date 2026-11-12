@@ -22,6 +22,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 | the tree's sources | **Actions → Sources** | [A3.1](A3-evidence-in-the-app.md#A3.1) |
 | edit a person | person menu → **Edit** | [S2](S2-edits-from-the-app.md), while following [A9.3](#A9.3) |
 | the Map view and other views | the view switch in the bar; in a narrow window and on a phone **More → View** | [A6](A6-views.md) |
+| the whole tree in rows, CSV and XLSX export | **Table** in the view switch; in a narrow window and on a phone **More → View → Table** | [A6.7](A6-views.md#A6.7) |
 | the map's base layer | **Show the map** at the notice that the base layer loads from openstreetmap.org | [A9.4](#A9.4) |
 | places off the map | the map's status bar → **In the research**; in the research the section **Awaiting action** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | the research's work | the research panel, **⤢ Open overview**; menu **Research → Research overview** | [S4.1](S4-research-from-the-app.md#S4.1) |

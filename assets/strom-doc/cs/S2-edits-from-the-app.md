@@ -64,6 +64,28 @@ s oddíly **Zapsáno** a **Nezapsáno**.
 
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
+<a id="S2.2.2"></a>
+### S2.2.2 Folium, snímek a signatura z aplikace
+
+Aplikace, která pole pramene uchovává ([A3.9](A3-evidence-in-the-app.md#A3.9)), posílá výzkumu signaturu, folium,
+snímek a další umístění po polích. Výzkum je porovná po polích a úpravu zapíše jako úpravu strany pramene.
+
+- **Smazání:** folium, snímek nebo signatura, které člověk v aplikaci smaže, smaže i výzkum. Vrátí je vrácení
+  synchronizace ([S2.7](#S2.7)).
+- **Hranice:**
+  - starší aplikace, která pole nezná, nesmaže nic. Úprava celé strany ze starší aplikace nahradí umístění a smaže
+    zadané folium a snímek (vrácení je vrátí);
+  - nesmaže se hodnota, kterou soubor aplikace ještě jmenuje: folium nebo snímek ve straně (`PAGE`), signatura jako
+    celá strana nebo na vlastním řádku poznámky pramene („Signatura: …“, v jakémkoli jazyce). Raději zůstane, než aby
+    se smazalo, co aplikace jako pole neviděla;
+  - signatura knihy a číslo snímku z evidovaných skenů nejsou pole pramene: smazání v aplikaci je nemění;
+  - u pramene, který přečetl výzkum, se úprava ani smazání nezapíše do pramene; zapíše se poznámka vedle
+    („folio/strana: odstraněno v aplikaci Strom (bylo fol. 12v)“).
+- **V seznamu Co se pošle** ([S2.2.1](#S2.2.1)) je změněná signatura, folium nebo snímek jako změna strany pramene.
+- **Platí od:** aplikace 3.27.0 s výzkumem 1.31.0
+
+<!-- zdroj: research:337787ff, 87785596 src/core/sync.ts:3534 SOURCE_EDITS, SOURCE_FIELDS, :3551 removedFields (fieldsKept, entryWords, locatorOverlap, isValue, noteCallNumbers, CALL_NUMBER_LABELS), removedLine (sync.reading.removed) · 4de28f00 (úprava celé PAGE ze starší aplikace nahradí locator a smaže folio/snímek, undo vrátí) · app:c3278633 src/research-changes.ts (změna signatury, folia, snímku jako strana), src/ged-exporter.ts sourceFields · CHANGELOG.cs.md 1.31.0 · dirigent:prace/1111-vyzkum-citace-most-n1, prace/1111-vyzkum-citace-pole · spec 075 U1c B -->
+
 <a id="S2.3"></a>
 ## S2.3 Co výzkum s poslanými úpravami udělá
 

@@ -74,6 +74,31 @@ Schreiben zeigt sie auf dieselbe Weise **Was geschrieben wurde** mit den Abschni
 
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
+<a id="S2.2.2"></a>
+### S2.2.2 Folio, Bild und Signatur aus der App
+
+Eine App, die die Felder der Quelle hält ([A3.9](A3-evidence-in-the-app.md#A3.9)), schickt der Forschung Signatur,
+Folio, Bild und weitere Fundstelle in Feldern. Die Forschung vergleicht sie Feld für Feld und schreibt eine Änderung
+als Änderung der Seite der Quelle.
+
+- **Löschen:** Folio, Bild oder Signatur, die der Mensch in der App löscht, löscht auch die Forschung. Zurück bringt
+  sie das Zurücknehmen des Sendens ([S2.7](#S2.7)).
+- **Grenzen:**
+  - eine ältere App, die die Felder nicht kennt, löscht nichts. Eine Änderung der ganzen Seite aus einer älteren App
+    ersetzt die Fundstelle und löscht eingetragenes Folio und Bild (das Zurücknehmen bringt sie zurück);
+  - nicht gelöscht wird ein Wert, den die Datei der App noch nennt: Folio oder Bild in der Seite (`PAGE`), eine
+    Signatur als ganze Seite oder auf einer eigenen Zeile der Notiz der Quelle („Signatur: …“, in jeder Sprache).
+    Lieber bleibt er, als dass gelöscht wird, was die App nicht als Feld gesehen hat;
+  - die Signatur des Buches und die Bildnummer aus registrierten Scans sind keine Felder der Quelle: ein Löschen in der
+    App ändert sie nicht;
+  - bei einer Quelle, die die Forschung gelesen hat, wird weder eine Änderung noch ein Löschen in die Quelle
+    geschrieben; geschrieben wird eine Notiz daneben („Folio/Seite: in der Strom-App entfernt (war fol. 12v)“).
+- **In der Liste Was gesendet wird** ([S2.2.1](#S2.2.1)) ist eine geänderte Signatur, ein geändertes Folio oder Bild
+  eine Änderung der Seite der Quelle.
+- **Gilt seit:** App 3.27.0 mit Forschung 1.31.0
+
+<!-- zdroj: research:337787ff, 87785596 src/core/sync.ts:3534 SOURCE_EDITS, SOURCE_FIELDS, :3551 removedFields (fieldsKept, entryWords, locatorOverlap, isValue, noteCallNumbers, CALL_NUMBER_LABELS), removedLine (sync.reading.removed) · 4de28f00 (úprava celé PAGE ze starší aplikace nahradí locator a smaže folio/snímek, undo vrátí) · app:c3278633 src/research-changes.ts (změna signatury, folia, snímku jako strana), src/ged-exporter.ts sourceFields · CHANGELOG.cs.md 1.31.0 · dirigent:prace/1111-vyzkum-citace-most-n1, prace/1111-vyzkum-citace-pole · spec 075 U1c B -->
+
 <a id="S2.3"></a>
 ## S2.3 Was die Forschung mit gesendeten Änderungen tut
 

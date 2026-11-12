@@ -31,8 +31,26 @@ through the bridge.
 - **Since:** app 3.5.0
 - **From app 3.22.0:** each section can be expanded, collapsed or hidden, and the choice holds for the panel and the
   overview ([S4.1.2](#S4.1.2)). **Awaiting action** does not expand by itself, not even with a new item.
+- **From app 3.27.0:** with research 1.31.0 the row in **Now** shows, at a task of no direction, why it is being
+  worked on: at a task that only helps a direction, which one and how ("helps the direction Ancestors: Jan Horák ·
+  connects people to the tree"; also "a question of the direction", "as the agent says", "spouse of an ancestor",
+  "branch …"), at a task outside the directions its branch ("outside the directions · branch Josef Horák", under the
+  heading **Outside the directions** only "branch Josef Horák"). What helps a direction is in
+  [R2.3](R2-lines-and-queue.md#R2.3). The rows **At work** in the small panel say it the same way; under a
+  direction's heading only how, without its name.
+- **From app 3.27.0:** the **Research overview** opens also without following ([S4.1.5](#S4.1.5)): in the menu
+  **Research** it is always first, second is **Follow live**, while following **Stop following** in its place; in
+  the Strom archive there is no **Follow live**. From the **Tree overview** it is opened by **Research ›** in the
+  heading of **Where to focus**. The button **⤢ Open overview** in the small panel is there only while following.
+  - The summary shows only the parts switched on ([S4.1.2](#S4.1.2)): **Last 24 h** people and sources, **This
+    month** the number of sessions. The cost (the amount and the readers of scans) shows only once switched on,
+    otherwise not even in the hover text. Under the small panel stands "Agent this month: 4 sessions", the amount,
+    both, or nothing.
+  - In a direction's row in the section **Directions**, the work shows only as "being worked on" when the section
+    **Now** is visible (expanded or collapsed); the whole "Now: …" is in the hover text. With **Now** hidden, the
+    row says the whole "Now: …".
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Follow the agent in the tree
@@ -77,8 +95,28 @@ the panel and the overview.
   press on a section's heading (also the Menu key or Shift+F10); **Settings → Following research**. On a phone as a
   sheet from below.
 - **Since:** app 3.22.0
+- **From app 3.27.0:** **Customize panel** has two cards, the same in the window, in the sheet on a phone (closed by
+  **Done**) and in **Settings → Following research**:
+  - **Sections and order:** all six sections in one list and in one order for the panel and the overview (the panel
+    leaves out **Directions** and **What the research knows**). Each row has the choice **Expanded** / **Collapsed**
+    / **Hidden** (a hidden row "hidden"). A row moves with the arrows ↑ ↓ (not past the ends), Alt+↑ / Alt+↓, by
+    dragging the ⠿ grip (Esc cancels the drag; on a phone there is no grip) or in the section's menu **Move up** /
+    **Move down**. A screen reader says the new place ("… moved to position 2 of 6."). Default order: **At work**
+    (**Now**), **Awaiting action**, **Directions**, **Latest changes** (**Progress**), **Up next** (**Queue**),
+    **What the research knows**. When the panel does not fit, it folds sections from the bottom of this order;
+  - **At the top:** **State** is always shown ("always shown"). **Last 24 h** (parts **people**, **sources**) and
+    **This month** (parts **sessions**, **cost**) each have a switch and their parts; a tile with both parts off
+    disappears. **Cost** is off by default ("Cost shows only when switched on."). On a phone **This month** is grey
+    ("Not shown on the phone."). **Follow in** can be hidden ("Only while following live."); following then runs in
+    the view chosen earlier;
+  - the foot: **Restore defaults** restores the sections' states, the order and **At the top** (cost hidden again),
+    without a question, with the notice "Defaults restored" and **Undo** for 8 s; **All following settings ›** opens
+    Settings. Hiding a section right in the **Customize panel** window is not announced, hiding it from the
+    section's menu is ("Section hidden", **Undo**);
+  - the choices hold on this device for all trees, for the panel and the Research overview, with following and
+    without. Choices saved earlier stay.
 
-<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 · 3.27.0: app 28bbebeb src/ui/live-section-prefs.ts DEFAULT_ORDER, TOP_KEYS, TOP_DEFAULTS (záznam v2: pořadí, nahoře; v1 se čte beze změny) · 0b090a80 src/ui/live-section-edit-ui.ts (Sekce a pořadí / Nahoře, ⠿ ne v listu, Alt+↑↓, Escape tažení, Hotovo) · src/ui/research-ui.ts resetLiveSections (RESTORED_TOAST_MS 8000, live.undo), hideLiveSection (hiddenToast, undo.undo) · strings.ts live.groupSections, groupTop, alwaysShown, topDay, partPersons, partSources, topMonth, partSessions, partPrice, priceHelp, monthPhoneNote, topFollowIn, followInHelp, moveUp, moveDown, movedSr, allFollowSettings, settingsNote, restoredToast, hiddenToast, done · spec 057 K1.1–K1.7, K2.1 -->
 
 <a id="S4.1.3"></a>
 ### S4.1.3 Following in the fan and on the map
@@ -146,6 +184,40 @@ place; what was added, removed or changed shows briefly with motion.
 
 <!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
+<a id="S4.1.5"></a>
+### S4.1.5 The Research overview without following
+
+The **Research overview** can be opened for every tree from a research also without following. The tree then does
+not switch to the research version, does not lock and can still be edited. What the overview shows depends on
+whether the research bridge answers.
+
+- **The bridge answers** (the research runs on this computer): the overview shows the same as while following (the
+  tiles and all sections) from a regular ask of the bridge; under **State** "refreshed …". **Awaiting action** and
+  managing the directions work through the bridge. Under the heading stands "The tree switches to the research
+  version and cannot be edited." with the button **Follow live**. When the agent starts working meanwhile, above it
+  stands "The agent started" and the button is more prominent; nothing switches by itself. In the Strom archive
+  this strip is not there.
+- **The bridge does not answer:**
+  - **State** "The research is not running" with **Turn on** (where the research cannot be turned on from the app,
+    it says how to start it);
+  - **Awaiting action** as the research last said it on this device, with "as of …"; older than 7 days it is not
+    shown;
+  - **Directions** from the tree's file: the name and the number of people, nothing about the work on them; **What
+    the research knows** and in the foot **Missing evidence: N people ›**;
+  - **Now**, **Progress** and **Queue** are not there; one line names them, e.g. "Now, Progress and Queue: once the
+    research is on." (it leaves out hidden sections; when all three are hidden, there is no line). As soon as the
+    bridge answers, the overview redraws by itself.
+- **A phone** does not ask the bridge: **State** "From the tree only" and "The agent's work is visible on the
+  computer with the research." Sideways the state stays at the top and the sections scroll below it.
+- **Elsewhere in the app:** without following, the Table view also shows the agent's work and the queue when the
+  bridge answers ([A6.7.14](A6-views.md#A6.7.14)).
+- **Controls:** app: **Research → Research overview**; **Tree overview → Where to focus → Research ›** (for a tree
+  without people in the dialog's heading); on a phone and a tablet in the tree's actions, group **Research**; in the
+  overview **Follow live**.
+- **Since:** app 3.27.0
+
+<!-- zdroj: app:f05fff8e, 48573de6 src/ui/research-overview-ui.ts renderResearchOverview (source live | bridge | tree; fromTree vynechá working, changes, queue), appendOverviewStateOff (notRunning, turnOn / researchLiveStartHow; telefon phoneTreeOnly, phoneWhy), overviewFollowStrip (activeResearchAgentless → bez pruhu; agentStarted, followNote), appendOverviewWaitingAsOf (asOf), appendOverviewSkeletonLines, appendOverviewFoot (missingLink) · src/research-overview-source.ts BRIDGE_ONLY_SECTIONS, afterTurnOnKeys, skeletonLines (_STROM_DIRECTION, místa osob) · src/research-device.ts WAITING_MAX_AGE_MS = 7 dní · src/ui/research-ui.ts OverviewViewing (refreshedAt, agentStarted, waitingAt) · src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (sekce focus, bez osob v záhlaví) · strings.ts live.followNote, agentStarted, notRunning, turnOn, afterTurnOn, refreshedAgo, asOf, phoneTreeOnly, phoneWhy, researchLink, missingLink, treeOverview focus · CHANGELOG.cs.md 3.27.0 · spec 057 K1.8–K1.12 -->
+
 <a id="S4.2"></a>
 ## S4.2 The queue in the app
 
@@ -172,8 +244,14 @@ The app shows the beginning of the research's queue in the order in which the ag
   the rest.
   The branch chip (**Branch … K**) narrows the whole queue to the branch's tasks; **Show the whole queue**
   cancels it.
+- **From app 3.27.0:** with research 1.31.0 the queue in the app is in the same order in which `strom run` takes the
+  tasks and in which the research menu shows them before it ([R2.2](R2-lines-and-queue.md#R2.2)): in a story turn
+  one story is at the top, and the queue also holds history tasks. A task carries a quiet tag **story** or
+  **history** after its text (in **Up next**, in the **Queue**, at set-aside tasks and in a branch's tasks); a task
+  without it looks as before. Without following, the overview ([S4.1.5](#S4.1.5)) and the Table show the queue when
+  the bridge answers.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history -->
 
 <a id="S4.3"></a>
 ## S4.3 Directions in the app
@@ -259,12 +337,15 @@ With two or more directions, the overview shows the work outside the directions 
     do not research. Without an answer the branch goes on being taken as before.
   - The window **Research for this tree…**, the group **Work outside the directions**: the choice for the whole
     research (**Now and then**: “About 1 task outside the directions per K tasks of the directions.”), **Suggest
-    directions for growing branches**, **Branches with their own choice** and tasks with a manual order.
+    directions for growing branches**, **Branches with their own choice** and tasks with a manual order. From app
+    3.27.0 the group's introduction says what helps a direction and always goes with it: "a question of the
+    direction, connecting people to someone in it or to their spouse, a reason the agent gives"
+    ([R2.3](R2-lines-and-queue.md#R2.3)).
 - **Controls:** app: **Research overview**, the section of work outside the directions, at a branch **⋯** (**Branch
   options**); **Research for this tree…**.
 - **Since:** app 3.22.0 (research 1.26.0)
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
 
 <a id="S4.4"></a>
 ## S4.4 Awaiting action in the app
@@ -288,12 +369,51 @@ with in the app and what only in the research is said in [R6.5](R6-awaiting-acti
   - a new version of a story opens the comparison;
   - on a touch device the person's menu has the item **Waiting · N ›** instead of **Answer · N waiting**: it
     highlights the person's items, and they are answered from their rows.
+  - when the card has two or three marks, a click offers what to open ([S4.4.1](#S4.4.1)).
+- **Hypotheses:** with a research that can decide them in the app, hypotheses to decide are in the group
+  **Hypotheses to decide** (chip **Decisions**), also with accepting the agent's proposals at once ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)).
 - **Controls:** app: the panel, section **Awaiting action**; menu **Research → Awaiting action**; the mark **!** on
   the card and **Answer · N waiting** in the person's menu.
 - **Since:** app 3.4.0. Questions about places from research 1.25.0. The mark **!** and **Answer · N waiting** work
-  this way since app 3.26.0.
+  this way since app 3.26.0. Hypotheses from app 3.27.0 with research 1.31.0. Several marks on a card from app 3.27.0
+  ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
+
+<a id="S4.4.1"></a>
+### S4.4.1 Several marks on a person card
+
+A person card has in the corner of the portrait (the photo or the initials) at most one research mark of each kind:
+**!** (something waits, [S4.4](#S4.4)), **≠** (conflicting sources, [R5](R5-conflicts.md)) and **?** (an open
+question). With one mark the card behaves as before. Two or three marks stand stacked as one button.
+
+- **Limits:**
+  - order of the marks: waiting › conflict › question; in front, where a single mark stands, is the most urgent one,
+    the ones behind have no sign. Only the kinds switched on in **Settings → Person card → Show on card** show
+    (**Awaiting action**, **Conflicting sources**, **Open questions**);
+  - the hover bubble has a row for each mark (what waits with the text of the first task, conflicts and hypotheses,
+    the question) and under them "Click: choose what to open". A screen reader hears what waits ("3 waiting, 2
+    conflicts, 1 hypothesis, 1 question");
+  - a click opens by the marks a small window with the person's name and years (screen reader: "{name}: what
+    waits") and the choices: **Answer · N waiting** with the text of the first task (on a touch device **Waiting · N
+    ›**), **Compare** (a new version of a story), **What the research knows · … ›** (conflicts, hypotheses and the
+    question as one choice), **Follow the research ›** (the agent is working on the person). The choices stay in
+    the app, none has the research mark ([S4.5.1](#S4.5.1));
+  - only a conflict and a question give a single choice: a click opens **What the research knows** straight away
+    ("Click: what the research knows");
+  - the window stands below the marks, at the right or bottom edge of the window the other way round, where it fits
+    nowhere at the top, and it scrolls. It is closed by a click beside it (which does nothing else), a second click
+    on the marks, Esc, a choice, scrolling or zooming the tree, resizing the window and redrawing the tree. On a
+    phone (up to 640 px) it is a sheet from below with rows of 48 px, closed by a tap beside it or dragging down; on
+    a tablet and a phone sideways a window with rows of 44 px;
+  - keyboard: Enter, space or down arrow on the marks opens the window on the first choice, the arrows go round,
+    Home and End, Enter chooses, Esc returns to the marks, Tab goes on;
+  - a card without a portrait (**Card detail → Compact**) has two dots instead of the marks. With the tree zoomed out
+    below 0.55 every card, in every **Card detail**, has one dot instead of the marks. A printed tree has no marks.
+- **Controls:** app: a click on the marks in the corner of the portrait; **Settings → Person card → Show on card**.
+- **Since:** app 3.27.0
+
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
 
 <a id="S4.5"></a>
 ## S4.5 Actions that open the research

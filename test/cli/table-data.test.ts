@@ -151,7 +151,7 @@ test("one line: no branches — the people off it are outside (nothing written),
   }
 });
 
-test("the gate: a beta copy of the app from 3.27.0-beta.4, the production app only from its version (none yet), an unknown version never; the standard file never", () => {
+test("the gate: a beta copy of the app from 3.27.0-beta.4, the production app from its version (3.27.0, out 2026-11-12), an unknown version never; the standard file never", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
   assert.equal(APP_SHOWS_RESEARCH_TABLE_BETA, "3.27.0-beta.4");
@@ -161,13 +161,15 @@ test("the gate: a beta copy of the app from 3.27.0-beta.4, the production app on
   assert.equal(appShowsResearchTable(beta, undefined), false, "a beta copy of unknown version: nothing, as production");
   assert.equal(appShowsResearchTable(beta, "nonsense"), false);
   assert.equal(appShowsResearchTable(prod, "3.26.0"), false, "the production app today");
-  assert.equal(appShowsResearchTable(prod, "9.0.0"), false, "no production gate yet");
-  assert.equal(appShowsResearchTable(prod, undefined), false);
+  assert.equal(appShowsResearchTable(prod, "3.27.0-beta.6"), false, "a beta's version in production: not before the release");
+  assert.equal(appShowsResearchTable(prod, "3.27.0"), true, "the app's 3.27.0 shows it (out 2026-11-12)");
+  assert.equal(appShowsResearchTable(prod, "9.0.0"), true);
+  assert.equal(appShowsResearchTable(prod, undefined), false, "an unknown version stays off");
   // a production gate, once set
   assert.equal(appShowsResearchTable(prod, "3.27.0", "3.27.0"), true);
   assert.equal(appShowsResearchTable(prod, "3.26.9", "3.27.0"), false);
   assert.equal(appShowsResearchTable(prod, undefined, "3.27.0"), false);
-  assert.equal(APP_SHOWS_RESEARCH_TABLE, undefined, "the production app shows no research table yet");
+  assert.equal(APP_SHOWS_RESEARCH_TABLE, "3.27.0", "the app's 3.27.0 shows the research table (out 2026-11-12)");
 });
 
 test("the Strom file: the lines and branches in the header, each person's places as the queue's, a letter waiting, who the research added; validated; sent back unedited it brings nothing", opts, async () => {
@@ -181,9 +183,11 @@ test("the Strom file: the lines and branches in the header, each person's places
     await w.ok(["task", "wait", "T2", "--kind", "family", "--to", "teta Lhotská", "--on", "odpověď tety na dotaz"]);
 
     // before the gate (the production app, an unknown one): none of it
-    for (const env of [{ STROM_APP_VERSION: "9.0.0" }, {}] as Record<string, string>[])
+    for (const env of [{ STROM_APP_VERSION: "3.26.0" }, {}] as Record<string, string>[])
       assert.doesNotMatch(await stromFile(w, env), /_STROM_DIRECTION|_STROM_BRANCH|_STROM_WAIT|_STROM_ADDED/u, JSON.stringify(env));
 
+    // the production app from 3.27.0 (out 2026-11-12): the same file as the beta's
+    assert.match(await stromFile(w, { STROM_APP_VERSION: "3.27.0" }), /\n1 _STROM_DIRECTIONS Y\n/u, "the production app's 3.27.0");
     const text = await stromFile(w, BETA_APP);
     assert.deepEqual(validateGedcom(text), []);
     assert.match(text, /\n1 _STROM_DIRECTIONS Y\n1 _STROM_DIRECTION G0001\n2 NAME Předci Jana\n2 TYPE ancestors\n2 _FOCUS P0001\n2 STAT active\n1 _STROM_DIRECTION G0002\n2 NAME Předci Marie\n2 TYPE ancestors\n2 _FOCUS P0003\n2 STAT active\n1 _STROM_BRANCH B-P0004\n2 _VIA P0002\n3 TYPE sibling\n2 _NEAREST G0001\n/u);

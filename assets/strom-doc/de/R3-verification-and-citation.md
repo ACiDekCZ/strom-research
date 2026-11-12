@@ -90,8 +90,13 @@ eines Grades: `event add`, `cite`, `event edit` und auch bei Angaben, die aus de
   Primärinformation, **Abschrift / Index** = Originalquelle mit Sekundärinformation, **Unsicher** = Kopie mit
   unbekannter Information.
 - **Gilt seit:** Forschung 1.0.0; Verlässlichkeit aus der App Forschung 1.12.0
+- **Ab App 3.27.0:** Die App hält die Zuverlässigkeit auch bei jeder einzelnen Zitation und schreibt sie in die Datei
+  für die Forschung als `QUAY` dieser Zitation ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)). Die Forschung nimmt
+  daraus nur Form und Information einer neuen Quelle (die Standard-Zuverlässigkeit der Quelle, sonst das `QUAY` ihrer
+  ersten Zitation); das `QUAY` einer Zitation, die die Forschung selbst geschrieben hat, ändert sich auf dem Weg durch
+  die App nicht.
 
-<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 -->
+<!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
 
 <a id="R3.3"></a>
 ## R3.3 Quelle oder Hinweis
@@ -142,6 +147,8 @@ Seite sind mehrere Quellen.
 - **Gilt seit:** Forschung 1.1.0 (Ausschnitt, `strom clips`, `strom transcripts`); Abschrift 1.0.0
 - **Ab Forschung 1.26.0:** die Hilfe der Option `--clip` sagt „ein weiterer bei jedem Seitenumbruch, höchstens 3“ (in 1.25.2
   „ein zweiter“). Die Regel ändert sich nicht.
+- **Ab Forschung 1.31.0:** wo der Eintrag im Buch steht, wird in den Feldern `--folio`, `--image`, `--call-number`
+  geschrieben; `--locator` hält den Rest ([R3.4.3](#R3.4.3)).
 
 <!-- zdroj: research:assets/method/recording.md:19-27, :55-62 · src/core/media.ts:285 MAX_CLIPS, :481 transcriptNote, :492 clipNote · src/commands/sources.ts:183, :214, :250, :893 · src/commands/tasks.ts:366-369 finishTask · src/commands/clips.ts · src/commands/transcripts.ts · HEAD commit 6bc7430b · překlad: assets/method/recording.md "--translation", link.md krok 7, src/brief/brief.ts (Research language), src/commands/sources.ts:196 translation, src/gedcom/export.ts:557 (oddíl poznámky pramene „Překlad:“), commit a1ccd24e -->
 
@@ -213,6 +220,76 @@ fügt sie zu einem zusammen.
 - **Gilt seit:** Forschung 1.29.0
 
 <!-- zdroj: research:c2a690ea src/core/clipmerge.ts (hlavička, CLIP_OVERLAP = 0.3, CLIP_NESTED = 0.9, cutTwice, mergeOverlappingClips, handClipped, agentClipped, settleClips, CLIPS_SETTLED) · commity 599f9681, 326bae02 · CHANGELOG.cs.md 1.29.0 · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 6) -->
+
+<a id="R3.4.3"></a>
+### R3.4.3 Wo der Eintrag steht: Folio, Bild, Signatur
+
+Wo der Eintrag im Buch steht, hält die Forschung in Feldern fest, damit sie den Eintrag wiederfindet, auch wenn sich
+der Link zum Bild nicht mehr öffnet.
+
+- **Felder der Quelle:** `--folio` (Seite oder Folio, wie das Buch zählt, auch mit dem Wort: „pag. 112“,
+  „fol. 12v“), `--image` (die Bildnummer auf dem Portal des Archivs), `--call-number` (die Signatur des Buches bei
+  einem Eintrag außerhalb der registrierten Bücher der Forschung) und daneben `--locator` für den Rest (Nummer des
+  Eintrags, Spalte).
+- **Nur Methodik:** der Agent füllt die Felder beim Erfassen. Das Folio immer, das Bild nur bei einem Eintrag ohne
+  registrierten Scan (dort gibt der Ausschnitt die Bildnummer), die Signatur nur außerhalb eines registrierten
+  Buches. Einen Link, der den Eintrag nicht mehr öffnet, sucht der Agent nach Archiv, Signatur, Folio und Bild aus
+  `strom source show` (die Bildnummer kann sich um ein paar verschieben, das Folio nicht), nur über strom, und
+  korrigiert ihn mit `strom source edit S… --url … [--image …] --reason "…"`.
+- **Prüft der Code:**
+  - `strom source show` hat eine Zeile `find` mit Archiv, Signatur, Folio und Bild beisammen (das Bild auch aus
+    registrierten Scans). Bei einer älteren Quelle, deren Fundstelle ein Folio oder ein Bild nennt, schlägt es „from
+    its locator: --folio … --image … --locator …“ vor; selbst schreibt es nichts;
+  - das Ergänzen eines leeren Feldes braucht keinen Grund, das Ändern eines ausgefüllten schon (`--reason`).
+    `--locator ""` (mit Grund) leert die Fundstelle, wenn darin nichts anderes als Folio und Bild aus den Feldern
+    übrig ist; `source show` schlägt das dann vor;
+  - GEDCOM: eine lesbare `PAGE`, zusammengesetzt aus den Feldern („pag. 112, Nr. 3, Bild 57“, in der Sprache der
+    Forschung), für die Strom-App und andere Programme, die Signatur als `CALN`. Die Felder selbst (`_STROM_FOLIO`,
+    `_STROM_IMAGE`, `_STROM_LOCATOR`) bekommt nur eine Strom-App, die sie liest. Eine Quelle ohne diese Felder wird
+    genau wie bisher exportiert;
+  - `PAGE` nennt nie zwei Bildnummern oder zwei Folios. Nennt die Fundstelle eine andere Nummer als das Feld, gilt in
+    `PAGE` das Feld, die Fundstelle selbst bleibt, und `source add|edit|show` warnt und schlägt den Rest der
+    Fundstelle vor (`--locator "<Rest>"`).
+- **Grenzen:** das Erkennen von Folio und Bild ist Code von strom, ohne Agenten, derselbe wie in der App
+  ([A3.9](A3-evidence-in-the-app.md#A3.9)). Zwei Folios oder zwei Bilder in einer Fundstelle werden nicht erkannt.
+  Bestehende Quellen bleiben, wie sie sind, bis der Mensch sie aufteilt ([R3.4.4](#R3.4.4)). Änderungen der Felder
+  aus der App und ihr Löschen: [S2.2.2](S2-edits-from-the-app.md#S2.2.2).
+- **Bedienung:** Terminal: `strom source add "…" --folio "pag. 112" --image 57 --locator "Nr. 3"`, `strom source edit S…
+  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <Text>` sucht auch
+  in Folio und Bild.
+- **Gilt seit:** Forschung 1.31.0
+
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+
+<a id="R3.4.4"></a>
+### R3.4.4 Ältere Fundstellen aufteilen: Vorschau, der Mensch schreibt
+
+Ältere Quellen haben die Fundstelle als einen Text („fol. 12, Bild 3“). Der Befehl `strom source split` teilt sie auf
+einmal in Felder auf: Code, ohne Agenten und kostenlos.
+
+- **Prüft der Code:**
+  - ohne Schalter ist es nur eine **Vorschau**: wie viele Quellen aufgeteilt würden, die ersten 10 „vorher →
+    nachher“ (`--all` alle), wie viele nicht erkannt wurden, mit bis zu drei Beispielen, wie sie geschrieben sind. Nichts wird geschrieben. Die Vorschau darf auch der
+    Agent starten;
+  - `--apply` schreibt die Aufteilung in einem Schritt und gibt `undo: strom source split --undo <id>` aus;
+    `--undo <id>` stellt alle Quellen wieder her, wie sie waren. Beides nur der Mensch in seinem Terminal, dem
+    Agenten verweigert strom es;
+  - ein ausgefülltes Folio oder Bild bleibt. Ein Bild, das registrierte Scans liefern, wird nicht genommen. Ein Teil,
+    den das Feld anders angibt, bleibt in der Fundstelle. Eine Fundstelle, in der nichts erkannt wird, bleibt, wie sie
+    ist. Eine Quelle, die schon ein Folio oder ein Bild hat, zählt nicht zu den nicht erkannten: der Rest ihrer
+    Fundstelle ist nichts zum Aufteilen;
+  - zurücknehmen lassen sich die letzten 5 Aufteilungen, jede über ihre id. Eine nach der Aufteilung geänderte Quelle
+    lässt das ganze Zurücknehmen scheitern.
+- **Nur Methodik:** der Agent bietet dem Menschen die Aufteilung an und bestätigt sie nie selbst.
+- **Aus der Strom-App:** die Forschung bietet dieselbe Aufteilung auch der App an, solange sie läuft: Vorschau mit der
+  Anzahl, Aufteilung auf Klick des Menschen in einem Schritt nach dieser Vorschau, Zurücknehmen als Ganzes
+  ([A3.9.1](A3-evidence-in-the-app.md#A3.9.1)). Inzwischen geänderte Quellen lehnt die Vorschau ab und zeigt sie neu.
+  Im Strom-Archiv gibt es keine Aufteilung.
+- **Bedienung:** Terminal: `strom source split`, `strom source split --all`, `strom source split --apply`, `strom source
+  split --undo <id>` (die Vorschau gibt die id zum Zurücknehmen aus).
+- **Gilt seit:** Forschung 1.31.0
+
+<!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
 <a id="R3.5"></a>
 ## R3.5 Blinde zweite Lesung

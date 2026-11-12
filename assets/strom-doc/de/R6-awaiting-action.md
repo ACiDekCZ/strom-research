@@ -26,7 +26,8 @@ nur dort erledigt wird. Die Liste wird jedes Mal aus der Forschung berechnet, in
   der App ist N ohne die Einträge nur für das Terminal und ohne gesendete Anfragen.
 - Nur im Terminal sind Stammbäume, die aus der App gesendet wurden (**Die Strom-App**), Fragen zum Lesen der Scans
   (**Das Lesen der Scans**), Widersprüche (**Widersprüche zu entscheiden**, siehe [R5](R5-conflicts.md)), Hypothesen zu
-  entscheiden (ab Forschung 1.28.0) und mildere Bedingungen eines Archivs. In der Übersicht **Was wartet** kommen sie
+  entscheiden (ab Forschung 1.28.0; ab 1.31.0 bekommt sie auch die Strom-App, die sie entscheiden kann,
+  [R6.3.4](#R6.3.4)) und mildere Bedingungen eines Archivs. In der Übersicht **Was wartet** kommen sie
   zuerst unter
   der Überschrift **Nur hier im Terminal (nicht in der Strom-App)**, danach **Auch in der Strom-App**.
 - Die Seite für das Telefon liest nur: ohne die Einträge nur für das Terminal, mit Erzählungen, zuerst 20 Einträge,
@@ -156,8 +157,9 @@ zu entscheiden**, siehe [R3.4.1](R3-verification-and-citation.md#R3.4.1)). Entsc
   Mensch ([R6.6](#R6.6)). Warten 10 oder mehr offene Hypothesen, bietet die App in **Was die Forschung weiß** das
   Umstellen auf **Die KI entscheidet** an (bestätigt in der Forschung). Bei **Die KI
   entscheidet** entscheidet der Agent selbst, was ein zitierter Eintrag belegt, und es warten nur seine Vorschläge
-  (Entscheidungen, die er nicht selbst treffen darf). Die Gruppe ist nur im Terminal, die Strom-App zeigt sie nicht
-  ([R6.1.1](#R6.1.1)). Im Strom-Archiv gibt es die Gruppe nicht.
+  (Entscheidungen, die er nicht selbst treffen darf). Die Strom-App, die Hypothesen entscheiden kann, zeigt die Gruppe
+  auch ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)); eine ältere App bekommt sie nicht ([R6.1.1](#R6.1.1)). Im
+  Strom-Archiv gibt es die Gruppe nicht.
 - **Bedienung:** Terminal: **Was wartet** → Eintrag, `strom hypothesis decide H… --proposed | --keep-open`. Dieselbe
   Wahl gibt es in der Durchsicht einer Person: **Die Forschung erweitern** → **Eine Person durchsehen** → **Hypothesen
   zur Person (n)**.

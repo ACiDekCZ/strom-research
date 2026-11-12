@@ -29,8 +29,23 @@ Research** a z něj větší **Přehled výzkumu**. Oba jen čtou. Co ukazují, 
 - **Platí od:** aplikace 3.5.0
 - **Od aplikace 3.22.0:** každý oddíl jde rozbalit, sbalit nebo skrýt a volba platí pro panel i Přehled
   ([S4.1.2](#S4.1.2)). **Čeká na vyřízení** se sám nerozbalí ani při nové položce.
+- **Od aplikace 3.27.0:** s výzkumem 1.31.0 řádek v **Teď** ukáže u úkolu, který nepatří žádné linii, proč se na
+  něm pracuje: u úkolu, který linii jen pomáhá, kterou linii a jak („pomáhá linii Předci: Jan Horák · připojuje lidi
+  ke stromu“; dál „otázka linie“, „jak uvádí agent“, „manžel nebo manželka předka“, „větev …“), u úkolu mimo linie
+  jeho větev („mimo linie · větev Josef Horák“, pod nadpisem **Mimo linie** jen „větev Josef Horák“). Co linii
+  pomáhá, říká [R2.3](R2-lines-and-queue.md#R2.3). Řádky **Pracuje se** v malém panelu to říkají stejně; pod
+  nadpisem linie jen jak, bez jejího jména.
+- **Od aplikace 3.27.0:** **Přehled výzkumu** se otevře i bez sledování ([S4.1.5](#S4.1.5)): v nabídce **Výzkum** je
+  vždy první, druhé je **Sledovat živě**, při sledování na jeho místě **Ukončit sledování**; v Archivu Stromu
+  **Sledovat živě** není. Z **Přehledu stromu** ho otevře **Výzkum ›** v záhlaví **Na co se zaměřit**. Tlačítko
+  **⤢ Otevřít přehled** v malém panelu je jen při sledování.
+  - Souhrn ukazuje jen zapnuté části ([S4.1.2](#S4.1.2)): **Posledních 24 h** osoby a prameny, **Tento měsíc**
+    počet sezení. Cenu (částku a čtenáře skenů) ukáže až po zapnutí, jinak ani v textu při najetí. Pod malým
+    panelem stojí „Agent tento měsíc: 4 sezení“, částka, obojí, nebo nic.
+  - V řádku linie v oddílu **Linie** stojí u práce jen „pracuje se“, když je oddíl **Teď** vidět (rozbalený i
+    sbalený); celé „Teď: …“ je v textu při najetí. Při skrytém **Teď** řádek říká „Teď: …“ celé.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Sledovat agenta ve stromu
@@ -71,8 +86,27 @@ i Přehled.
 - **Ovládání:** aplikace: **⋯ → Upravit panel…** v hlavičce panelu i Přehledu; pravé tlačítko nebo dlouhý stisk na
   nadpisu oddílu (i klávesa Menu nebo Shift+F10); **Nastavení → Sledování výzkumu**. Na telefonu jako list zdola.
 - **Platí od:** aplikace 3.22.0
+- **Od aplikace 3.27.0:** **Upravit panel** má dvě karty, stejné v okně, v listu na telefonu (zavírá ho **Hotovo**)
+  i v **Nastavení → Sledování výzkumu**:
+  - **Sekce a pořadí:** všech šest oddílů v jednom seznamu a v jednom pořadí pro panel i Přehled (panel vynechá
+    **Linie** a **Co ví výzkum**). Každý řádek má volbu **Rozbalená** / **Sbalená** / **Skrytá** (skrytý řádek
+    „skrytá“). Řádek se posouvá šipkami ↑ ↓ (na krajích nejdou), Alt+↑ / Alt+↓, tažením za ⠿ (Esc tažení zruší;
+    na telefonu úchyt není) nebo v menu oddílu **Posunout nahoru** / **Posunout dolů**. Čtečka obrazovky řekne nové
+    místo („… přesunuto na 2. místo z 6.“). Výchozí pořadí: **Pracuje se** (**Teď**), **Čeká na vyřízení**,
+    **Linie**, **Poslední změny** (**Průběh**), **Na řadě** (**Fronta**), **Co ví výzkum**. Když se panel nevejde,
+    sbaluje oddíly odspodu tohoto pořadí;
+  - **Nahoře:** **Stav** je vždy vidět („vždy vidět“). **Posledních 24 h** (části **osoby**, **prameny**) a **Tento
+    měsíc** (části **sezení**, **cena**) mají každý vypínač a své části; dlaždice s oběma vypnutými částmi zmizí.
+    **Cena** je výchozí vypnutá („Cena se ukazuje jen po zapnutí.“). Na telefonu je **Tento měsíc** šedý („Na
+    telefonu se neukazuje.“). **Sledovat v** jde skrýt („Jen při živém sledování.“), sledování pak běží v pohledu
+    zvoleném dřív;
+  - patička: **Vrátit výchozí** vrátí stavy oddílů, pořadí i **Nahoře** (cena znovu skrytá), bez otázky, s
+    oznámením „Výchozí obnoveno“ a **Zpět** na 8 s; **Všechna nastavení sledování ›** otevře Nastavení. Skrytí
+    oddílu přímo v okně **Upravit panel** se neoznamuje, skrytí z menu oddílu ano („Sekce je skrytá“, **Vrátit**);
+  - volby platí na tomto zařízení pro všechny stromy, pro panel i Přehled výzkumu, se sledováním i bez něj.
+    Dřívější uložené volby zůstanou.
 
-<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 · 3.27.0: app 28bbebeb src/ui/live-section-prefs.ts DEFAULT_ORDER, TOP_KEYS, TOP_DEFAULTS (záznam v2: pořadí, nahoře; v1 se čte beze změny) · 0b090a80 src/ui/live-section-edit-ui.ts (Sekce a pořadí / Nahoře, ⠿ ne v listu, Alt+↑↓, Escape tažení, Hotovo) · src/ui/research-ui.ts resetLiveSections (RESTORED_TOAST_MS 8000, live.undo), hideLiveSection (hiddenToast, undo.undo) · strings.ts live.groupSections, groupTop, alwaysShown, topDay, partPersons, partSources, topMonth, partSessions, partPrice, priceHelp, monthPhoneNote, topFollowIn, followInHelp, moveUp, moveDown, movedSr, allFollowSettings, settingsNote, restoredToast, hiddenToast, done · spec 057 K1.1–K1.7, K2.1 -->
 
 <a id="S4.1.3"></a>
 ### S4.1.3 Sledovat ve vějíři a na mapě
@@ -136,6 +170,37 @@ co přibylo, ubylo nebo se změnilo, se krátce ukáže pohybem.
 
 <!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
+<a id="S4.1.5"></a>
+### S4.1.5 Přehled výzkumu bez sledování
+
+**Přehled výzkumu** jde otevřít u každého stromu z výzkumu i bez sledování. Strom se přitom nepřepne na verzi
+výzkumu, nezamkne se a dá se dál upravovat. Co Přehled ukáže, záleží na tom, jestli most výzkumu odpovídá.
+
+- **Most odpovídá** (výzkum na tomto počítači běží): Přehled ukáže totéž co při sledování (dlaždice i všechny
+  oddíly) z pravidelného dotazu na most; pod **Stav** „obnoveno …“. **Čeká na vyřízení** a správa linií fungují
+  přes most. Pod záhlavím stojí „Strom se přepne na verzi výzkumu a nejde upravovat.“ s tlačítkem **Sledovat
+  živě**. Když agent mezitím začne pracovat, nad tím stojí „Agent začal“ a tlačítko je výraznější; samo se nic
+  nepřepne. V Archivu Stromu tento pruh není.
+- **Most neodpovídá:**
+  - **Stav** „Výzkum neběží“ s **Zapnout** (kde výzkum z aplikace zapnout nejde, stojí tam, jak ho spustit);
+  - **Čeká na vyřízení** tak, jak ho výzkum naposled řekl na tomto zařízení, se „stav k …“; starší než 7 dní se
+    neukáže;
+  - **Linie** ze souboru stromu: název a počet osob, nic o práci na nich; **Co ví výzkum** a v patičce **Kde
+    chybí doklady: N osob ›**;
+  - **Teď**, **Průběh** a **Fronta** nejsou; jeden řádek je jmenuje, např. „Teď, Průběh a Fronta: po zapnutí
+    výzkumu.“ (skryté oddíly vynechá; když jsou skryté všechny tři, řádek není). Jakmile most odpoví, Přehled se
+    překreslí sám.
+- **Telefon** se mostu neptá: **Stav** „Jen ze stromu“ a „Práce agenta je vidět na počítači s výzkumem.“ Na šířku
+  zůstane stav nahoře a oddíly se posouvají pod ním.
+- **Jinde v aplikaci:** bez sledování ukáže práci agenta a frontu, když most odpovídá, i pohled Tabulka
+  ([A6.7.14](A6-views.md#A6.7.14)).
+- **Ovládání:** aplikace: **Výzkum → Přehled výzkumu**; **Přehled stromu → Na co se zaměřit → Výzkum ›** (u stromu
+  bez osob v záhlaví dialogu); na telefonu a tabletu v akcích stromu, skupina **Výzkum**; v Přehledu **Sledovat
+  živě**.
+- **Platí od:** aplikace 3.27.0
+
+<!-- zdroj: app:f05fff8e, 48573de6 src/ui/research-overview-ui.ts renderResearchOverview (source live | bridge | tree; fromTree vynechá working, changes, queue), appendOverviewStateOff (notRunning, turnOn / researchLiveStartHow; telefon phoneTreeOnly, phoneWhy), overviewFollowStrip (activeResearchAgentless → bez pruhu; agentStarted, followNote), appendOverviewWaitingAsOf (asOf), appendOverviewSkeletonLines, appendOverviewFoot (missingLink) · src/research-overview-source.ts BRIDGE_ONLY_SECTIONS, afterTurnOnKeys, skeletonLines (_STROM_DIRECTION, místa osob) · src/research-device.ts WAITING_MAX_AGE_MS = 7 dní · src/ui/research-ui.ts OverviewViewing (refreshedAt, agentStarted, waitingAt) · src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (sekce focus, bez osob v záhlaví) · strings.ts live.followNote, agentStarted, notRunning, turnOn, afterTurnOn, refreshedAgo, asOf, phoneTreeOnly, phoneWhy, researchLink, missingLink, treeOverview focus · CHANGELOG.cs.md 3.27.0 · spec 057 K1.8–K1.12 -->
+
 <a id="S4.2"></a>
 ## S4.2 Fronta v aplikaci
 
@@ -159,8 +224,13 @@ fronta zůstává ve výzkumu.
   ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); u úkolu, na kterém agent pracuje, to nejde. Fronta se čte po stránkách:
   **Načíst další** přidá 50 úkolů, seznam drží nejvýš 300, zbytek zúží filtr linie nebo větve.
   Štítek větve (**Větev … K**) zúží celou frontu na úkoly větve; **Ukázat celou frontu** ho zruší.
+- **Od aplikace 3.27.0:** s výzkumem 1.31.0 je fronta v aplikaci ve stejném pořadí, v jakém úkoly bere `strom run`
+  a jak je ukáže menu výzkumu před ním ([R2.2](R2-lines-and-queue.md#R2.2)): při tahu vyprávění je nahoře jedno
+  vyprávění a ve frontě jsou i úkoly dějin. Úkol za textem nese tichý štítek **příběh** nebo **dějiny** (v **Na
+  řadě**, ve **Frontě**, u odložených úkolů a v úkolech větve); úkol bez něj vypadá jako dřív. Bez sledování ukáže
+  frontu Přehled ([S4.1.5](#S4.1.5)) i Tabulka, když most odpovídá.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie v aplikaci
@@ -234,12 +304,14 @@ Při dvou a více liniích ukazuje přehled práci mimo linie po větvích. Volb
     odpovědi se větev bere dál jako dosud.
   - Okno **Výzkum u tohoto stromu…**, skupina **Práce mimo linie**: volba pro celý výzkum (**Občas**: „Zhruba 1 úkol
     mimo linie na K úkolů linií.“), **Navrhovat linie u rostoucích větví**, **Větve s vlastní volbou**
-    a úkoly s ručním pořadím.
+    a úkoly s ručním pořadím. Od aplikace 3.27.0 úvod skupiny řekne, co linii pomáhá a jde s ní vždy: „otázka
+    linie, připojení lidí k člověku linie nebo k jeho partnerovi, důvod uvedený agentem“
+    ([R2.3](R2-lines-and-queue.md#R2.3)).
 - **Ovládání:** aplikace: **Přehled výzkumu**, oddíl práce mimo linie, u větve **⋯** (**Možnosti větve**);
   **Výzkum u tohoto stromu…**.
 - **Platí od:** aplikace 3.22.0 (výzkum 1.26.0)
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
 
 <a id="S4.4"></a>
 ## S4.4 Čeká na vyřízení v aplikaci
@@ -261,12 +333,47 @@ a co jen ve výzkumu, říká [R6.5](R6-awaiting-action.md#R6.5).
   - nová verze vyprávění otevře porovnání;
   - na dotykovém zařízení je v nabídce osoby místo **Odpovědět · N čeká** položka **Čeká na vyřízení · N ›**: zvýrazní
     položky osoby a odpovídá se z jejich řádků.
+  - má-li kartička dvě nebo tři značky, klik nabídne, co otevřít ([S4.4.1](#S4.4.1)).
+- **Hypotézy:** s výzkumem, který je umí rozhodnout v aplikaci, jsou hypotézy k rozhodnutí ve skupině **Hypotézy k rozhodnutí** (čip **Rozhodnutí**),
+  i s přijetím návrhů agenta najednou ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)).
 - **Ovládání:** aplikace: panel, oddíl **Čeká na vyřízení**; menu **Výzkum → Čeká na vyřízení**; značka **!** na
   kartičce a **Odpovědět · N čeká** v nabídce osoby.
 - **Platí od:** aplikace 3.4.0. Otázky k místům od výzkumu 1.25.0. Značka **!** a **Odpovědět · N čeká** takto od
-  aplikace 3.26.0.
+  aplikace 3.26.0. Hypotézy od aplikace 3.27.0 s výzkumem 1.31.0. Více značek na kartičce od aplikace 3.27.0
+  ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
+
+<a id="S4.4.1"></a>
+### S4.4.1 Více značek na kartě osoby
+
+Kartička osoby má v rohu portrétu (fotky nebo iniciál) nejvýš jednu značku výzkumu na každý druh: **!** (něco čeká, [S4.4](#S4.4)), **≠** (rozpor
+pramenů, [R5](R5-conflicts.md)) a **?** (otevřená otázka). S jednou značkou se karta chová jako dřív. Dvě nebo tři
+značky stojí v zákrytu jako jedno tlačítko.
+
+- **Hranice:**
+  - pořadí značek: čeká › rozpor › otázka; vpředu, kde stojí jediná značka, je nejnaléhavější, zadní jsou bez znaku.
+    Ukážou se jen druhy zapnuté v **Nastavení → Karta osoby → Na kartě ukázat** (**Čeká na vyřízení**, **Rozpory
+    v pramenech**, **Otevřené otázky**);
+  - bublina při najetí má řádek na každou značku (co čeká s textem prvního úkolu, rozpory a hypotézy, otázka) a pod
+    nimi „Klik: vybrat, co otevřít“. Čtečka obrazovky slyší, co čeká („Čeká 3, 2 rozpory, 1 hypotéza, 1 otázka“);
+  - klik otevře u značek malé okno se jménem a roky osoby (čtečka obrazovky: „{jméno}: co čeká“) a volbami:
+    **Odpovědět · N čeká** s textem prvního úkolu (na dotykovém zařízení **Čeká na vyřízení · N ›**), **Porovnat** (nová verze vyprávění),
+    **Co ví výzkum · … ›** (rozpory, hypotézy a otázka jako jedna volba), **Sledovat výzkum ›** (agent na osobě
+    pracuje). Volby zůstávají v aplikaci, žádná nemá značku výzkumu ([S4.5.1](#S4.5.1));
+  - jen rozpor a otázka dávají jedinou volbu: klik rovnou otevře **Co ví výzkum** („Klik: co ví výzkum“);
+  - okno stojí pod značkami, u pravého nebo dolního okraje okna obráceně, kde se nevejde nikam, nahoře a posouvá
+    se. Zavře ho klik vedle (nic dalšího neudělá), druhý klik na značky, Esc, volba, posun nebo přiblížení stromu,
+    změna velikosti okna a překreslení stromu. Na telefonu (do 640 px) je to list zdola s řádky 48 px, zavře ho
+    klepnutí vedle nebo tažení dolů; na tabletu a telefonu na šířku okno s řádky 44 px;
+  - klávesnice: Enter, mezerník nebo šipka dolů na značkách okno otevře na první volbě, šipky jdou dokola, Home
+    a End, Enter vybere, Esc vrátí na značky, Tab jde dál;
+  - kartička bez portrétu (**Detail karet → Kompaktní**) má místo značek dvě tečky. Při oddálení stromu pod 0,55 má
+    každá kartička, v každém **Detailu karet**, místo značek jednu tečku. Tisk stromu značky nemá.
+- **Ovládání:** aplikace: klik na značky v rohu portrétu; **Nastavení → Karta osoby → Na kartě ukázat**.
+- **Platí od:** aplikace 3.27.0
+
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
 
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum

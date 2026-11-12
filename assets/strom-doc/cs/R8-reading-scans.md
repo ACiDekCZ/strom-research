@@ -122,6 +122,11 @@ nestahuje: ani příkazem, skriptem, ani svým prohlížečem.
 - **Od výzkumu 1.30.0:** `strom connector test --fetch` upozorní, když jeden snímek stojí víc než 10 žádostí (nejspíš
   dlaždice), řekne, jak dlouho v tempu archivu potrvá snímek a kniha, a agenta pošle nejdřív hledat odkaz portálu na
   celý snímek, stažení celé knihy nebo celý snímek přes IIIF; dlaždice až nakonec.
+- **Od výzkumu 1.31.0:** totéž řekne jednou za běh i `strom fetch`, i se stahovačem postaveným dřív: podle vlastního
+  počítání stahování (archiv se kvůli tomu na nic dalšího neptá) hlásí, kolik žádostí stojí jeden snímek, jak dlouho
+  v tempu archivu potrvá snímek a kniha (její počet snímků, jinak kniha o 200 snímcích), že stahování jde tím tempem
+  dál, u stahování na pozadí jak ho zastavit (`strom fetch --stop B…`), a co hledat nejdřív. Hlášku ukáže i výstup
+  `--json`, `strom fetch --status` a brief.
 - Snímky, které archiv nedovolí stáhnout automaticky, uloží člověk do připravené složky
   ([R6.2.1](R6-awaiting-action.md#R6.2.1)); svolení archivu: [R6.3.1](R6-awaiting-action.md#R6.3.1).
   Archivy jen přes prohlížeč, prohlížeč agenta a celý průběh: [R9](R9-archives.md).
@@ -130,9 +135,10 @@ nestahuje: ani příkazem, skriptem, ani svým prohlížečem.
   potřebuje.
 - **Ovládání:** terminál: `strom fetch <stahovač> … --images 40-69 --recordset B…`, `strom allow archive` (jen
   člověk). Aplikace: Čeká na vyřízení.
-- **Platí od:** výzkum 1.0.0 (stahování jen přes strom); úrovně podmínek a tempo člověka 1.14.0
+- **Platí od:** výzkum 1.0.0 (stahování jen přes strom); úrovně podmínek a tempo člověka 1.14.0; snímek z dlaždic
+  hlásí `strom connector test` od 1.30.0, `strom fetch` od 1.31.0
 
-<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 · research:773c475a src/commands/connectors.ts HEAVY_IMAGE = 10 -->
+<!-- zdroj: research:src/core/terms.ts:1-30 (úrovně), :52-59 LEVELS, WAYS · src/core/net.ts:39 DEFAULT_PACE, :45 HUMAN_PACE · assets/method/reading.md:44-49, :89-104 · assets/method/locate.md:15-21 · cs.json ui.archive.level.* · CHANGELOG.cs.md 1.14.0, 1.15.0 · research:773c475a src/commands/connectors.ts HEAVY_IMAGE = 10 · research:a7a9e196 src/commands/connectors.ts heavyFetch (jednou za běh, od 2. snímku, „this fetch goes on at that pace“, --stop B… na pozadí), src/core/fetching.ts HEAVY_IMAGE, BOOK_GUESS = 200, heavySaid (--status, brief), data heavy v --json · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R8.3"></a>
 ## R8.3 Čtenáři: kdo snímky čte
@@ -453,8 +459,11 @@ nic nezapíše bez potvrzení.
 - **Platí od:** aplikace 3.14.0, výzkum 1.18.0
 - **Od aplikace 3.25.0 a výzkumu 1.29.0:** volba čtenářů (**Upřesnit čtení**, [R8.8.1](#R8.8.1)), kdo četl,
   **Přečíst znovu…** u pramene ([R8.8.2](#R8.8.2)) a nastavení **Úkol z nového čtení** ([R8.8.3](#R8.8.3)).
+- **Od aplikace 3.27.0:** v okně **Navrhnout do stromu** je osoba, jejíž shoda s osobou stromu stojí jen na jménu
+  nebo příjmení přečteném nejistě (označeném „?“), předvybraná na **Ne**; **Spojit** zůstává na výběr. Shoda, kterou
+  nese i datum, rodiče, partner nebo dítě, a osoba zapsaná dřív z téhož zápisu zůstávají na **Spojit**.
 
-<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 · 3.25.0/1.29.0: spec 059 K2.1, K3.1, K6, K7; app:6bd8609e strings.ts read.refine, read.sourceAgain · research:c2a690ea CHANGELOG.cs.md 1.29.0 -->
+<!-- zdroj: app:src/ui/read-document-ui.ts · strings.ts read.* (menu, menuPerson, r1/r1Sub, r2/r2Sub, agree, differ, oneReader, variantNote, scanHint, whyText, advice, cancelled, closeNote, limit, propose, historyRow) · research:src/core/document.ts DOC_PAGES=10, SMALL_PX=800 · src/core/live-read.ts READ_MAX_BYTES=50 MB, READ_QUEUE_MAX=3, read.app (20/h, 60/den) · src/commands/document.ts:463 · config model.vision · spec 059 K1.1 · 3.25.0/1.29.0: spec 059 K2.1, K3.1, K6, K7; app:6bd8609e strings.ts read.refine, read.sourceAgain · research:c2a690ea CHANGELOG.cs.md 1.29.0 · 3.27.0: app:2f3cc0c4 src/read-propose.ts matchRestsOnUncertain (reasons jen name, uncertain given/surname, ne fromEntry), initialPropose (skip) · strings.ts read.proposeTitle, choiceLink, choiceSkip · CHANGELOG.cs.md 3.27.0 · dirigent:prace/_drobnosti/app.md ř. 73 -->
 
 <a id="R8.8.1"></a>
 ### R8.8.1 Čtenáři: program, model a důkladnost

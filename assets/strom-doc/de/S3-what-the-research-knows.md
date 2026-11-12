@@ -169,24 +169,28 @@ B*, *verworfen*, die Zahl der Versionen und eine Notiz. Offene sind aufgeklappt.
   darstellbar.“, „keine Verbindung zu Personen im Baum“, bei einer entschiedenen *gewählt*, „Jetzt wirklich
   verbunden“, „Nicht mehr gültig: …“.
 - **Welche Hypothesen die Forschung sendet:** offene; entschiedene und verworfene nur die, deren Versionen
-  Verbindungen tragen. Zurückgezogene nie.
+  Verbindungen tragen, und einer App, die Hypothesen entscheidet ([S3.5.2](#S3.5.2)), auch die, die sich in der App
+  entscheiden lassen, auch ohne Verbindung (damit sie sich ändern und wieder öffnen lassen). Zurückgezogene nie.
 - **Wer entschieden hat:** eine Hypothese, die der Agent entschieden hat ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)),
   trägt *vom Agenten entschieden* mit dem Tag und **Begründung** (der Text der Entscheidung in der Sprache der
   Forschung; ein langer klappt auf).
-- **Grenzen:** eine Hypothese lässt sich aus der App nicht entscheiden; entschieden wird in der Forschung, im Terminal
+- **Grenzen:** eine Hypothese lässt sich aus der App durch die Wahl einer Version entscheiden, die das Terminal der
+  Forschung bestätigt ([S3.5.2](#S3.5.2)); sonst wird in der Forschung entschieden
   ([R10.3.1](R10-people-and-hypotheses.md#R10.3.1)). Wer entscheidet, der Mensch oder der Agent, ist eine Wahl der
   Forschung ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
 - **Angebot Die KI entscheidet:** bei gespeichertem **Der Mensch entscheidet** und 10 oder mehr offenen Hypothesen
   im Stammbaum steht über den Hypothesen der Satz „N offene Hypothesen warten auf die Entscheidung eines Menschen;
   mit „Die KI entscheidet“ entscheidet der Agent sie selbst, jede mit Begründung.“ Das Umstellen wird in der
   Forschung bestätigt, in der App wird die KI nicht eingeschaltet ([R10.3.2](R10-people-and-hypotheses.md#R10.3.2)).
-- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)); **In der Forschung entscheiden**, bei
-  einer entschiedenen **In der Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer; **Auf
-  „Die KI entscheidet“ umstellen** öffnet die Forschung im Terminal, **Ausblenden** blendet das Angebot für diese
-  Forschung aus.
+- **Bedienung:** App: Schalter **Zeigen** bei der Version ([S3.5.1](#S3.5.1)); **Wählen** bei der Version und die
+  weiteren Wahlmöglichkeiten ([S3.5.2](#S3.5.2)); **In der Forschung entscheiden**, bei einer entschiedenen **In der
+  Forschung ändern**, öffnet die Hypothese in der Forschung auf diesem Computer; **Auf „Die KI entscheidet“ umstellen**
+  öffnet die Forschung im Terminal, **Ausblenden** blendet das Angebot für diese Forschung aus.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0 (Versionen, Stand, **Zeigen**); Liste der Hypothesen seit App 3.4.0
 - **Ab App 3.25.0:** *vom Agenten entschieden* mit Begründung (mit Forschung 1.29.0), **In der Forschung
   entscheiden**, **In der Forschung ändern** und das Angebot **Die KI entscheidet**.
+- **Ab App 3.27.0:** mit Forschung 1.31.0 die Entscheidung durch die Wahl einer Version direkt auf der Karte
+  ([S3.5.2](#S3.5.2)).
 
 <!-- zdroj: app:src/ui/person-research-ui.ts researchHypothesesHtml · strings.ts research.hypo*, hypoByAgent, hypoReason, hypoChange, decideInResearch, viewLinks.*, hypoOfferAgent, hypoOfferSwitch, hypoOfferHide · person-research-ui.ts researchHypothesesOffer (HYPOTHESES_OFFER_MIN = 10) · research:src/gedcom/export.ts:309-325 hypothesisPeople, _BY agent / DECI / _AT (brána APP_SHOWS_HYPOTHESIS_DECIDER) · CHANGELOG 3.11.0, 3.25.0 -->
 
@@ -208,6 +212,70 @@ höchstens eine sein oder keine.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0
 
 <!-- zdroj: app:src/view-links.ts strom-view-links:{treeId}, strom-view-links-master:{treeId}, viewLinksAvailable (HYPOTHESIS_LINKS) · src/ui/view-links-ui.ts:326 · strings.ts viewLinks.state -->
+
+<a id="S3.5.2"></a>
+### S3.5.2 Eine Hypothese in der App entscheiden
+
+Die Karte einer Hypothese in **Was die Forschung weiß** lässt die Hypothese entscheiden: bei jeder Version steht
+**Wählen**. Jede Wahl öffnet das Terminal der Forschung, wo sie bestätigt wird
+([R10.3.3](R10-people-and-hypotheses.md#R10.3.3)); bis zur Bestätigung ändert sich in der App nichts.
+
+- **Karte:** Versionen mit **Dafür:** und **Dagegen:** und **Quellen (n)** (die Quellen, die die Version nennt); der
+  Vorschlag des Agenten („vom Agenten vorgeschlagen: B“) mit **Vorschlag B annehmen**, beim Verwerfen **Annehmen:
+  keine Version trifft zu**; unter den Versionen **Keine Version trifft zu** und **Offen lassen**. Eine Version, die
+  50 und mehr Personen verbindet, hat ein Etikett („verbindet 214 Personen“). Bei einer Version kann stehen, was sie
+  mit dem Stammbaum tut: bei einer Version, die niemanden verbindet, „Der Stammbaum ändert sich nicht, nur die
+  Entscheidung wird eingetragen.“ (derselbe Satz wie beim Warten und in **Wartet auf Bearbeitung**; beim Wechsel von
+  einer Version mit Verknüpfung erscheint er nicht, die Verknüpfung verschwindet aus dem Stammbaum), bei einer Version,
+  deren Verknüpfungen der Stammbaum schon hat, „Der Stammbaum bleibt, wie er ist; die Forschung trägt nur die
+  Entscheidung ein.“ und bei einer Version, bei der die alte Verknüpfung bleibt, „Der Stammbaum ändert sich nicht: Die
+  alte Verknüpfung bleibt, auf ihr baut weitere Arbeit auf.“
+- **Hypothese ohne Verbindung:** eine Hypothese, deren Versionen niemanden mit dem Stammbaum verbinden (etwa woher
+  eine Person kam), wird genauso entschieden. Der Stammbaum ändert sich nicht, die Forschung trägt nur die
+  Entscheidung ein.
+- **Warten:** „Wartet auf Bestätigung in der Forschung“ und „Im Terminal der Forschung zu bestätigen (Enter = ja):
+  H0001 für Version B entscheiden. Danach fragt das Terminal optional nach einer Begründung. Bis zur Bestätigung
+  ändert sich hier nichts.“ Bei einer Version, die niemanden verbindet und keine Verbindung einer früheren
+  Entscheidung aus dem Stammbaum nimmt, kommt hinzu: „Der Stammbaum ändert sich nicht, nur die Entscheidung wird
+  eingetragen.“ Nach 10 Minuten „Von der Forschung noch nicht bestätigt“: „Seit über 10 Minuten keine
+  Bestätigung. Das Terminal ist womöglich geschlossen geblieben; „Erneut öffnen“ fragt noch einmal.“ mit **Erneut
+  öffnen** und **Warten beenden**. Hat die Forschung inzwischen anders entschieden: „In der Forschung bereits
+  entschieden: A“.
+- **Nach der Bestätigung** lädt die App die neue Version der Forschung (die Verbindungen hat die Forschung
+  geschrieben), und der Stammbaum wird aktualisiert; die Meldung „Hypothese H0001 entschieden: B“, auf der Karte „in
+  der App entschieden“. Hat die Version der Forschung auch andere Änderungen, fragt die App (**Laden** oder
+  **Später**: „der Stammbaum bleibt vorerst unverändert“); vor dem Laden legt sie eine Sicherung an. Nach einer
+  Entscheidung schaltet die App **Zeigen** ([S3.5.1](#S3.5.1)) bei den anderen Hypothesen derselben Person aus; nach
+  der Wahl einer Version, die niemanden verbindet, bleiben sie gezeigt.
+- **Entschiedene Hypothese:** „Gilt seit {Tag}: B“ und frühere Entscheidungen („vorher: A, …“). **Ändern** zeigt die
+  Versionen wieder mit **Wählen** (**Änderung abbrechen**; nach der Begründung der Änderung fragt das Terminal).
+  **Wieder öffnen** sagt, was sich im Stammbaum ändert („Die Verbindung von 2 Personen verschwindet aus dem
+  Stammbaum.“, „Im Stammbaum ändert sich nichts.“). Wo sich nicht wieder öffnen lässt, steht statt der Schaltfläche der
+  Grund („Wieder öffnen geht nicht: Auf der Verbindung, die die Entscheidung eingetragen hat, baut weitere Arbeit auf
+  (2 Verknüpfungen). Ändern ist möglich.“) und der Link **In der Forschung entscheiden**.
+- **Wartet auf Bearbeitung:** Hypothesen zu entscheiden stehen in der Gruppe **Hypothesen zu entscheiden**
+  (Chip **Entscheidungen**, [S4.4](S4-research-from-the-app.md#S4.4)): „H0022 · Frage“, der Vorschlag des Agenten mit **Vorschlag B annehmen**
+  und **Offen lassen** oder die Versionen mit **Wählen**; **Mehr ›** öffnet die Karte bei der Person. Mit einer
+  Forschung, die Vorschläge auf einmal annimmt: ein Kästchen bei einer Hypothese mit Vorschlag, **Alle mit Vorschlag
+  auswählen**, „n ausgewählt.“ (bei einer großen Verbindung „Große Verbindung: H0001 → B verbindet 214 Personen.“) und **Vorschläge annehmen (n)**, höchstens 50 auf einmal
+  („Höchstens 50 auf einmal.“). Das Terminal bestätigt einmal; die Meldung sagt, wie viele Vorschläge angenommen
+  wurden. Bei einer Hypothese, die sich hier nicht entscheiden lässt: „Hier entscheidet nur die Forschung.“ Ändert
+  keine Wahl einer Zeile den Stammbaum, steht darunter einmal „Der Stammbaum ändert sich nicht, nur die Entscheidung
+  wird eingetragen.“; lassen nur manche Versionen ihn unverändert, steht es bei jeder von ihnen.
+- **Rand des Stammbaums:** die Blase „?“ an einem Rand mit Hypothese hat bei den Versionen ebenfalls **Wählen**.
+- **Grenzen:**
+  - die Wahlmöglichkeiten gibt es nur mit einer Forschung auf diesem Computer, die sie kann; auf Telefon, Tablet und im
+    Browser anderswo liest die Karte nur („Entschieden wird auf dem Computer mit der Forschung.“), eine
+    schreibgeschützte Kopie ebenso;
+  - eine Version, die Personen zusammenführt oder Geschwister macht: „Über das Zusammenführen von Personen wird in der
+    Forschung entschieden.“;
+  - mit einer älteren Forschung bleibt die Karte wie bisher, mit **In der Forschung entscheiden** ([S3.5](#S3.5)).
+- **Bedienung:** **Was die Forschung weiß** → **Hypothesen**: **Wählen**, **Vorschlag … annehmen**, **Keine Version
+  trifft zu**, **Offen lassen**, **Ändern**, **Wieder öffnen**; **Wartet auf Bearbeitung** → **Hypothesen zu entscheiden**.
+  Wahlmöglichkeiten, die das Terminal öffnen, tragen seine Marke ([S4.5.1](S4-research-from-the-app.md#S4.5.1)).
+- **Gilt seit:** App 3.27.0 mit Forschung 1.31.0
+
+<!-- zdroj: app:src/research-hypothesis-pick.ts hypothesisPickable (pick | old | remote | readonly | merge; HYPOTHESIS_DECIDE_LINK_FEATURE), HYPOTHESIS_BIG_JOIN = 50, hypothesisLinkUrl, hypothesesAcceptUrl, hypothesisChoiceStays, hypothesisCannotReopen · src/ui/person-research-ui.ts (verze s Vybrat, Pro/Proti, Zdroje, návrh, Žádná verze neplatí, Nechat otevřenou, Změnit, Zrušit změnu, Vrátit na otevřenou, nejde vrátit → Rozhodnout ve výzkumu, hypoRemote, hypoMerge) · src/ui/hypothesis-wait-ui.ts, src/research-hypothesis-wait.ts (čekání, 10 min, Otevřít znovu, Zrušit čekání; Načíst / Později se zálohou) · src/ui/hypothesis-waiting-ui.ts (Co čeká: Rozhodnout, Přijmout návrh, Nechat otevřenou, Vybrat, Víc ›, Vybrat vše s návrhem, Přijmout návrhy (n), ≤ 50, Tady rozhoduje jen výzkum.) · src/ui/research-edge-ui.ts (bublina kraje, Vybrat) · strings.ts research.hypoPick, hypoPickAria, hypoNone, hypoLeave, hypoProposal, hypoAccept, hypoAcceptNone, hypoFor, hypoAgainst, hypoSources, hypoWait, hypoWaitAsk, hypoWaitLong, hypoWaitLongText, hypoWaitAgain, hypoWaitStop, hypoChangeReason, hypoDecidedToast, hypoElsewhere, hypoByApp, hypoLoadLater, hypoLoad, hypoChangeHere, hypoChangeCancel, hypoHoldsSince, hypoBefore, hypoReopen, hypoReopenLoss, hypoReopenNone, hypoCannotReopenWork, hypoStaysNote, hypoBig, hypoInTreeNote, hypoKeepsTree, hypoMerge, hypoRemote, hypoAcceptMany, hypoSelectAll, hypoOnlyResearch, hypoAcceptMax, hypoSelected, decide · commity b6cd39f2, 92383f57, 4ed3251a, 8d7f1597, 364df0cd · spec 074 · K1.6 (verze bez vazby): app 91b16655 research-hypothesis-pick.ts hypothesisVariantLinksNobody, hypothesisChoiceKeepsTree (otevřená, zrušená, dřív zvolená verze také bez vazby, _STAYS) · src/research-hypotheses.ts (čekací text + hypoKeepsTree) · src/research-hypothesis-waiting.ts plan.keepsTree, versions[].keepsTree · src/ui/hypothesis-waiting-ui.ts hwr-keeps, hwr-version-note · src/ui/hypothesis-wait-ui.ts researchHypothesisUnlinkOthers (ne u verze bez vazby) · research c769f2eb export.ts (rozhodnuté/zrušené pickableInApp s hypothesisPick) · karta: app 7a222325 src/research-hypothesis-card.ts variantNote (noLink jen když hypothesisChoiceKeepsTree → hypoKeepsTree; hypoNoLinkNote zrušen) · CHANGELOG.cs.md 3.27.0 -->
 
 <a id="S3.6"></a>
 ## S3.6 Durchsucht

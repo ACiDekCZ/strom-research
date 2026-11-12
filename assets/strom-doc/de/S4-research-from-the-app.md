@@ -35,8 +35,27 @@ zeigen, sendet die Forschung über die Brücke.
 - **Ab App 3.22.0:** jeder Abschnitt lässt sich aufklappen, zuklappen oder ausblenden, und die Wahl gilt für das Panel
   und die Übersicht ([S4.1.2](#S4.1.2)). **Wartet auf Bearbeitung** klappt sich auch bei einem neuen Eintrag nicht
   von selbst auf.
+- **Ab App 3.27.0:** mit Forschung 1.31.0 zeigt die Zeile in **Jetzt** bei einer Aufgabe, die zu keiner Richtung
+  gehört, warum an ihr gearbeitet wird: bei einer Aufgabe, die einer Richtung nur hilft, welcher und wie („hilft der
+  Richtung Vorfahren: Jan Horák · verbindet Personen mit dem Baum“; außerdem „eine Frage der Richtung“, „wie der
+  Agent angibt“, „Ehepartner eines Vorfahren“, „Zweig …“), bei einer Aufgabe außerhalb der Richtungen ihren Zweig
+  („außerhalb der Richtungen · Zweig Josef Horák“, unter der Überschrift **Außerhalb der Richtungen** nur „Zweig
+  Josef Horák“). Was einer Richtung hilft, steht in [R2.3](R2-lines-and-queue.md#R2.3). Die Zeilen **In Arbeit** im
+  kleinen Panel sagen es genauso; unter der Überschrift einer Richtung nur wie, ohne ihren Namen.
+- **Ab App 3.27.0:** die **Forschungsübersicht** öffnet sich auch ohne Verfolgen ([S4.1.5](#S4.1.5)): im Menü
+  **Forschung** steht sie immer an erster Stelle, an zweiter **Live verfolgen**, beim Verfolgen an seiner Stelle
+  **Verfolgung beenden**; im Strom-Archiv gibt es **Live verfolgen** nicht. Aus dem **Stammbaum-Überblick** öffnet sie
+  **Forschung ›** im Kopf von **Worauf achten**. Die Schaltfläche **⤢ Übersicht öffnen** im kleinen Panel gibt es nur
+  beim Verfolgen.
+  - Die Zusammenfassung zeigt nur eingeschaltete Teile ([S4.1.2](#S4.1.2)): **Letzte 24 Std.** Personen und Quellen,
+    **Diesen Monat** die Zahl der Sitzungen. Die Kosten (Betrag und Leser der Scans) zeigt sie erst nach dem
+    Einschalten, sonst auch nicht im Text beim Überfahren mit der Maus. Unter dem kleinen Panel steht „Agent diesen
+    Monat: 4 Sitzungen“, der Betrag, beides oder nichts.
+  - In der Zeile einer Richtung im Abschnitt **Richtungen** steht bei der Arbeit nur „wird bearbeitet“, wenn der
+    Abschnitt **Jetzt** sichtbar ist (aufgeklappt oder eingeklappt); das ganze „Jetzt: …“ steht im Text beim
+    Überfahren mit der Maus. Bei ausgeblendetem **Jetzt** sagt die Zeile „Jetzt: …“ ganz.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Agenten im Stammbaum folgen
@@ -83,8 +102,31 @@ Die Wahl gilt für das Panel und die Übersicht.
   Drücken auf die Überschrift eines Abschnitts (auch die Menütaste oder Umschalt+F10); **Einstellungen → Forschung
   verfolgen**. Auf dem Telefon als Blatt von unten.
 - **Gilt seit:** App 3.22.0
+- **Ab App 3.27.0:** **Panel anpassen** hat zwei Karten, gleich im Fenster, im Blatt auf dem Telefon (es schließt
+  **Fertig**) und in **Einstellungen → Forschung verfolgen**:
+  - **Bereiche und Reihenfolge:** alle sechs Abschnitte in einer Liste und in einer Reihenfolge für Panel und
+    Übersicht (das Panel lässt **Richtungen** und **Was die Forschung weiß** aus). Jede Zeile hat die Wahl
+    **Aufgeklappt** / **Eingeklappt** / **Ausgeblendet** (eine ausgeblendete Zeile „ausgeblendet“). Eine Zeile wird
+    mit den Pfeilen ↑ ↓ verschoben (an den Rändern nicht), mit Alt+↑ / Alt+↓, durch Ziehen an ⠿ (Esc bricht das
+    Ziehen ab; auf dem Telefon gibt es den Griff nicht) oder im Menü des Abschnitts **Nach oben** / **Nach unten**.
+    Ein Bildschirmleser sagt den neuen Platz („… an Position 2 von 6 verschoben.“). Standardreihenfolge: **In Arbeit**
+    (**Jetzt**), **Wartet auf Bearbeitung**, **Richtungen**, **Letzte Änderungen** (**Verlauf**), **Als Nächstes**
+    (**Warteschlange**), **Was die Forschung weiß**. Passt das Panel nicht, klappt es Abschnitte vom unteren Ende
+    dieser Reihenfolge her zu;
+  - **Oben:** **Status** ist immer sichtbar („immer sichtbar“). **Letzte 24 Std.** (Teile **Personen**, **Quellen**)
+    und **Diesen Monat** (Teile **Sitzungen**, **Kosten**) haben je einen Schalter und ihre Teile; eine Kachel mit
+    beiden Teilen ausgeschaltet verschwindet. **Kosten** ist standardmäßig aus („Kosten erscheinen erst nach dem
+    Einschalten.“). Auf dem Telefon ist **Diesen Monat** grau („Auf dem Telefon nicht angezeigt.“). **Folgen in** lässt
+    sich ausblenden („Nur beim Live-Folgen.“), das Folgen läuft dann in der zuvor gewählten Ansicht;
+  - Fußzeile: **Standard wiederherstellen** stellt die Zustände der Abschnitte, die Reihenfolge und **Oben** zurück
+    (Kosten wieder ausgeblendet), ohne Rückfrage, mit der Meldung „Standard wiederhergestellt“ und **Rückgängig** für
+    8 s; **Alle Einstellungen zum Folgen ›** öffnet die Einstellungen. Das Ausblenden eines Abschnitts direkt im
+    Fenster **Panel anpassen** wird nicht gemeldet, das Ausblenden aus dem Menü des Abschnitts schon („Bereich
+    ausgeblendet“, **Rückgängig**);
+  - die Wahl gilt auf diesem Gerät für alle Stammbäume, für das Panel und die Forschungsübersicht, mit und ohne
+    Verfolgen. Früher gespeicherte Wahlen bleiben.
 
-<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 -->
+<!-- zdroj: app:src/ui/live-section-prefs.ts SECTION_PREFS_KEY, PREF_KEYS, OVERVIEW_KEYS, OLD_PANEL_KEY · src/ui/live-section-edit.ts · src/ui/live-section-edit-ui.ts · src/ui/research-ui.ts:282 waitingHeadInfo, :312 waitingChip, :3180 toggle, :3215 resetLiveSections, :3225 hideLiveSection · src/ui/research-overview-ui.ts:376 shownOnce · strings.ts live.editPanel(Menu), sectionExpanded/Collapsed/Hidden/Default, resetDefaults, autoFoldedNote, allHidden, waitingShort, importantHint, shownOnce, settings groupResearchFollow · commity c4b1dcc, a56232a · spec 044 K1–K5 · 3.27.0: app 28bbebeb src/ui/live-section-prefs.ts DEFAULT_ORDER, TOP_KEYS, TOP_DEFAULTS (záznam v2: pořadí, nahoře; v1 se čte beze změny) · 0b090a80 src/ui/live-section-edit-ui.ts (Sekce a pořadí / Nahoře, ⠿ ne v listu, Alt+↑↓, Escape tažení, Hotovo) · src/ui/research-ui.ts resetLiveSections (RESTORED_TOAST_MS 8000, live.undo), hideLiveSection (hiddenToast, undo.undo) · strings.ts live.groupSections, groupTop, alwaysShown, topDay, partPersons, partSources, topMonth, partSessions, partPrice, priceHelp, monthPhoneNote, topFollowIn, followInHelp, moveUp, moveDown, movedSr, allFollowSettings, settingsNote, restoredToast, hiddenToast, done · spec 057 K1.1–K1.7, K2.1 -->
 
 <a id="S4.1.3"></a>
 ### S4.1.3 Folgen im Fächer und auf der Karte
@@ -156,6 +198,40 @@ die bleiben, behalten ihren Platz; was hinzukam, wegfiel oder sich änderte, zei
 
 <!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
 
+<a id="S4.1.5"></a>
+### S4.1.5 Forschungsübersicht ohne Folgen
+
+Die **Forschungsübersicht** lässt sich bei jedem Stammbaum aus der Forschung auch ohne Verfolgen öffnen. Der Stammbaum
+wechselt dabei nicht zur Forschungsversion, wird nicht gesperrt und lässt sich weiter bearbeiten. Was die Übersicht
+zeigt, hängt davon ab, ob die Brücke der Forschung antwortet.
+
+- **Die Brücke antwortet** (die Forschung läuft auf diesem Computer): die Übersicht zeigt dasselbe wie beim Verfolgen
+  (Kacheln und alle Abschnitte) aus der regelmäßigen Abfrage der Brücke; unter **Status** „aktualisiert …“. **Wartet
+  auf Bearbeitung** und die Verwaltung der Linien funktionieren über die Brücke. Unter dem Kopf steht „Der Stammbaum
+  wechselt zur Forschungsversion und ist nicht bearbeitbar.“ mit der Schaltfläche **Live verfolgen**. Beginnt der
+  Agent inzwischen zu arbeiten, steht darüber „Agent hat begonnen“, und die Schaltfläche ist stärker hervorgehoben;
+  von selbst wechselt nichts. Im Strom-Archiv gibt es diesen Streifen nicht.
+- **Die Brücke antwortet nicht:**
+  - **Status** „Forschung läuft nicht“ mit **Einschalten** (wo sich die Forschung aus der App nicht einschalten
+    lässt, steht dort, wie sie zu starten ist);
+  - **Wartet auf Bearbeitung** so, wie die Forschung es zuletzt auf diesem Gerät gesagt hat, mit „Stand …“; älter als
+    7 Tage erscheint es nicht;
+  - **Richtungen** aus der Datei des Stammbaums: Name und Zahl der Personen, nichts über die Arbeit an ihnen; **Was
+    die Forschung weiß** und in der Fußzeile **Fehlende Belege: N Personen ›**;
+  - **Jetzt**, **Verlauf** und **Warteschlange** gibt es nicht; eine Zeile nennt sie, z. B. „Jetzt, Verlauf und
+    Warteschlange: nach dem Einschalten der Forschung.“ (ausgeblendete Abschnitte lässt sie aus; sind alle drei
+    ausgeblendet, gibt es die Zeile nicht). Sobald die Brücke antwortet, zeichnet sich die Übersicht von selbst neu.
+- **Das Telefon** fragt die Brücke nicht: **Status** „Nur aus dem Stammbaum“ und „Die Arbeit des Agenten ist am
+  Computer mit der Forschung sichtbar.“ Quer gehalten bleibt der Status oben, und die Abschnitte scrollen darunter.
+- **Anderswo in der App:** ohne Verfolgen zeigt auch die Ansicht Tabelle die Arbeit des Agenten und die
+  Warteschlange, wenn die Brücke antwortet ([A6.7.14](A6-views.md#A6.7.14)).
+- **Bedienung:** App: **Forschung → Forschungsübersicht**; **Stammbaum-Überblick → Worauf achten → Forschung ›**
+  (bei einem Stammbaum ohne Personen im Kopf des Dialogs); auf Telefon und Tablet in den Aktionen des Stammbaums,
+  Gruppe **Forschung**; in der Übersicht **Live verfolgen**.
+- **Gilt seit:** App 3.27.0
+
+<!-- zdroj: app:f05fff8e, 48573de6 src/ui/research-overview-ui.ts renderResearchOverview (source live | bridge | tree; fromTree vynechá working, changes, queue), appendOverviewStateOff (notRunning, turnOn / researchLiveStartHow; telefon phoneTreeOnly, phoneWhy), overviewFollowStrip (activeResearchAgentless → bez pruhu; agentStarted, followNote), appendOverviewWaitingAsOf (asOf), appendOverviewSkeletonLines, appendOverviewFoot (missingLink) · src/research-overview-source.ts BRIDGE_ONLY_SECTIONS, afterTurnOnKeys, skeletonLines (_STROM_DIRECTION, místa osob) · src/research-device.ts WAITING_MAX_AGE_MS = 7 dní · src/ui/research-ui.ts OverviewViewing (refreshedAt, agentStarted, waitingAt) · src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (sekce focus, bez osob v záhlaví) · strings.ts live.followNote, agentStarted, notRunning, turnOn, afterTurnOn, refreshedAgo, asOf, phoneTreeOnly, phoneWhy, researchLink, missingLink, treeOverview focus · CHANGELOG.cs.md 3.27.0 · spec 057 K1.8–K1.12 -->
+
 <a id="S4.2"></a>
 ## S4.2 Warteschlange in der App
 
@@ -184,8 +260,15 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
   höchstens 300, den Rest grenzt der Filter einer Linie oder eines Zweigs ein.
   Die Marke des Zweigs (**Zweig … K**) grenzt die ganze Warteschlange auf die Aufgaben des Zweigs ein; **Ganze
   Warteschlange zeigen** hebt sie auf.
+- **Ab App 3.27.0:** mit Forschung 1.31.0 hat die Warteschlange in der App dieselbe Reihenfolge, in der `strom run`
+  die Aufgaben nimmt und in der das Menü der Forschung sie davor zeigt ([R2.2](R2-lines-and-queue.md#R2.2)): ist die
+  Erzählung an der Reihe, steht oben eine Erzählung, und in der Warteschlange sind auch Aufgaben der Ortsgeschichte.
+  Eine Aufgabe trägt hinter dem Text ein unauffälliges Etikett **Erzählung** oder **Zeitgeschehen** (in **Als
+  Nächstes**, in der **Warteschlange**, bei zurückgestellten Aufgaben und in den Aufgaben eines Zweigs); eine Aufgabe
+  ohne Etikett sieht aus wie bisher. Ohne Verfolgen zeigen die Warteschlange die Übersicht ([S4.1.5](#S4.1.5)) und die
+  Tabelle, wenn die Brücke antwortet.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history -->
 
 <a id="S4.3"></a>
 ## S4.3 Linien in der App
@@ -277,12 +360,14 @@ einstellen.
   - Fenster **Forschung für diesen Stammbaum…**, Gruppe **Arbeit außerhalb der Richtungen**: die Wahl für die ganze
     Forschung (**Ab und zu**: „Etwa 1 Aufgabe außerhalb der Richtungen auf K Aufgaben der Richtungen.“),
     **Richtungen für wachsende Zweige vorschlagen**, **Zweige mit eigener Wahl** und Aufgaben mit manueller
-    Reihenfolge.
+    Reihenfolge. Ab App 3.27.0 sagt die Einleitung der Gruppe, was einer Richtung hilft und immer mit ihr geht: „eine
+    Frage der Richtung, Personen an jemanden in ihr oder an dessen Partner anbinden, ein vom Agenten genannter
+    Grund“ ([R2.3](R2-lines-and-queue.md#R2.3)).
 - **Bedienung:** App: **Forschungsübersicht**, Abschnitt der Arbeit außerhalb der Linien, beim Zweig **⋯** (**Optionen
   des Zweigs**); **Forschung für diesen Stammbaum…**.
 - **Gilt seit:** App 3.22.0 (Forschung 1.26.0)
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
 
 <a id="S4.4"></a>
 ## S4.4 Wartet auf Bearbeitung in der App
@@ -295,7 +380,7 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
   **Fragen zu Orten werden hier beantwortet, die übrigen in der Forschung.** Einträge nur für das Terminal bekommt die
   App nicht ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
 - **Vom Stammbaum aus:** das Kärtchen einer Person, auf die etwas wartet, hat die Marke **!** (Popup: **Klick:
-  antworten**). Ein Klick darauf und der Eintrag **Antworten · N wartet** im Menü der Person tun dasselbe:
+  antworten**). Ein Klick darauf und der Eintrag **Antworten · N wartend** im Menü der Person tun dasselbe:
   - wartet auf die Person ein Eintrag, öffnet sich seine Antwort wie mit der Schaltfläche in seiner Zeile im Panel;
   - warten mehrere, öffnet sich das Panel im Abschnitt **Wartet auf Bearbeitung** mit den Einträgen der Person oben,
     hervorgehoben. Auf dem Telefon, bei eingeklapptem oder ausgeblendetem Abschnitt und bei geöffneter Übersicht
@@ -304,14 +389,57 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
     trotzdem, und unter jedem Eintrag steht **Hier ist keine Antwort möglich: Geantwortet wird in der Forschung, auf
     dem Computer, auf dem sie installiert ist.** Ein Klick bleibt nie ohne Reaktion;
   - eine neue Version einer Erzählung öffnet den Vergleich;
-  - auf einem Touch-Gerät hat das Menü der Person statt **Antworten · N wartet** den Eintrag **Wartet auf Erledigung
+  - auf einem Touch-Gerät hat das Menü der Person statt **Antworten · N wartend** den Eintrag **Wartet auf Erledigung
     · N ›**: er hebt die Einträge der Person hervor, geantwortet wird aus ihren Zeilen.
+  - hat das Kärtchen zwei oder drei Marken, bietet ein Klick an, was sich öffnen soll ([S4.4.1](#S4.4.1)).
+- **Hypothesen:** mit einer Forschung, die sie in der App entscheiden lässt, stehen Hypothesen zu entscheiden in
+  der Gruppe **Hypothesen zu entscheiden** (Chip **Entscheidungen**), auch mit dem Annehmen der Vorschläge des Agenten auf einmal
+  ([S3.5.2](S3-what-the-research-knows.md#S3.5.2)).
 - **Bedienung:** App: Panel, Abschnitt **Wartet auf Bearbeitung**; Menü **Forschung → Wartet auf Bearbeitung**; die
-  Marke **!** auf dem Kärtchen und **Antworten · N wartet** im Menü der Person.
-- **Gilt seit:** App 3.4.0. Fragen zu Orten seit Forschung 1.25.0. Die Marke **!** und **Antworten · N wartet** so
-  seit App 3.26.0.
+  Marke **!** auf dem Kärtchen und **Antworten · N wartend** im Menü der Person.
+- **Gilt seit:** App 3.4.0. Fragen zu Orten seit Forschung 1.25.0. Die Marke **!** und **Antworten · N wartend** so
+  seit App 3.26.0. Hypothesen seit App 3.27.0 mit Forschung 1.31.0. Mehrere Marken auf dem Kärtchen seit App 3.27.0
+  ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
+
+<a id="S4.4.1"></a>
+### S4.4.1 Mehrere Marken auf der Personenkarte
+
+Das Kärtchen einer Person hat in der Ecke des Porträts (Foto oder Initialen) höchstens eine Marke der Forschung je Art:
+**!** (etwas wartet, [S4.4](#S4.4)), **≠** (Widerspruch der Quellen, [R5](R5-conflicts.md)) und **?** (offene Frage).
+Mit einer Marke verhält sich die Karte wie bisher. Zwei oder drei Marken stehen hintereinander gestaffelt als eine
+Schaltfläche.
+
+- **Grenzen:**
+  - Reihenfolge der Marken: wartet › Widerspruch › Frage; vorn, wo eine einzelne Marke steht, ist die dringendste, die
+    hinteren sind ohne Zeichen. Es erscheinen nur die Arten, die in **Einstellungen → Personenkarte → Auf der Karte
+    zeigen** eingeschaltet sind (**Wartet auf Bearbeitung**, **Widersprüchliche Quellen**, **Offene Fragen**);
+  - das Popup beim Überfahren mit der Maus hat eine Zeile je Marke (was wartet, mit dem Text der ersten Aufgabe,
+    Widersprüche und Hypothesen, Frage) und darunter „Klick: auswählen, was sich öffnet“. Ein Bildschirmleser hört,
+    was wartet („3 wartend, 2 Widersprüche, 1 Hypothese, 1 Frage“);
+  - ein Klick öffnet bei den Marken ein kleines Fenster mit Namen und Jahren der Person (Bildschirmleser: „{Name}: was
+    wartet“) und den Wahlen: **Antworten · N wartend** mit dem Text der ersten Aufgabe (auf einem Touch-Gerät
+    **Wartet auf Erledigung · N ›**), **Vergleichen** (neue Version einer Erzählung), **Was die Forschung weiß · … ›**
+    (Widersprüche, Hypothesen und Frage als eine Wahl), **Forschung verfolgen ›** (der Agent arbeitet an der Person).
+    Die Wahlen bleiben in der App, keine hat eine Marke der Forschung ([S4.5.1](#S4.5.1));
+  - nur Widerspruch und Frage ergeben eine einzige Wahl: ein Klick öffnet direkt **Was die Forschung weiß** („Klick:
+    was die Forschung weiß“);
+  - das Fenster steht unter den Marken, am rechten oder unteren Rand des Fensters umgekehrt, wo es nirgends passt, oben
+    und scrollt. Es schließt ein Klick daneben (der sonst nichts tut), ein zweiter Klick auf die Marken, Esc, eine
+    Wahl, Verschieben oder Vergrößern des Stammbaums, eine Änderung der Fenstergröße und ein Neuzeichnen des
+    Stammbaums. Auf dem Telefon (bis 640 px) ist es ein Blatt von unten mit Zeilen von 48 px, es schließt ein Tippen
+    daneben oder Ziehen nach unten; auf dem Tablet und dem quer gehaltenen Telefon ein Fenster mit Zeilen von 44 px;
+  - Tastatur: Enter, Leertaste oder Pfeil nach unten auf den Marken öffnet das Fenster auf der ersten Wahl, die Pfeile
+    laufen im Kreis, Pos1 und Ende, Enter wählt, Esc kehrt zu den Marken zurück, Tab geht weiter;
+  - ein Kärtchen ohne Porträt (**Kartendetail → Kompakt**) hat statt der Marken zwei Punkte. Ist der Stammbaum unter
+    0,55 verkleinert, hat jedes Kärtchen, in jedem **Kartendetail**, statt der Marken einen Punkt. Der Druck des
+    Stammbaums hat keine Marken.
+- **Bedienung:** App: Klick auf die Marken in der Ecke des Porträts; **Einstellungen → Personenkarte → Auf der Karte
+  zeigen**.
+- **Gilt seit:** App 3.27.0
+
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
 
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen

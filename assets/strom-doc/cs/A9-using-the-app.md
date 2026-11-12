@@ -21,6 +21,7 @@ co se týká celého stromu, je v liště a v menu **Akce**.
 | prameny stromu | **Akce → Prameny** | [A3.1](A3-evidence-in-the-app.md#A3.1) |
 | upravit osobu | nabídka osoby → **Upravit** | [S2](S2-edits-from-the-app.md), při sledování [A9.3](#A9.3) |
 | pohled Mapa a další pohledy | přepínač pohledů v liště; v úzkém okně a na telefonu **Více → Pohled** | [A6](A6-views.md) |
+| celý strom v řádcích, export CSV a XLSX | **Tabulka** v přepínači pohledů; v úzkém okně a na telefonu **Více → Pohled → Tabulka** | [A6.7](A6-views.md#A6.7) |
 | podklad mapy | **Zobrazit mapu** u upozornění, že se podklad načítá z openstreetmap.org | [A9.4](#A9.4) |
 | místa mimo mapu | stavový pruh mapy → **Ve výzkumu**; ve výzkumu oddíl **Čeká na vyřízení** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | práce výzkumu | panel výzkumu, **⤢ Otevřít přehled**; menu **Výzkum → Přehled výzkumu** | [S4.1](S4-research-from-the-app.md#S4.1) |

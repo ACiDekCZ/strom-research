@@ -1704,9 +1704,11 @@ register(
     summary: "Show every setting, its value and where it comes from (flag, env, tree, config, default)",
     group: "setup",
     run(ctx) {
-      const rows = SETTINGS.map((def) => {
+      // a setting not listed: only once it is set
+      const rows = SETTINGS.flatMap((def) => {
         const r = effective(ctx, def);
-        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: settingDescription(def, ctx.env), ...(r.invalid ? { invalid: true } : {}) };
+        if (def.hidden && r.value === undefined) return [];
+        return [{ key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: settingDescription(def, ctx.env), ...(r.invalid ? { invalid: true } : {}) }];
       });
       const invalid = rows.filter((r) => r.invalid).map((r) => r.key);
       const text = lines(
@@ -1728,7 +1730,7 @@ register(
     path: ["config", "get"],
     summary: "Print one setting (as it applies here)",
     group: "setup",
-    args: [{ name: "key", description: `one of ${SETTINGS.map((s) => s.key).join(", ")}`, required: true }],
+    args: [{ name: "key", description: `one of ${SETTINGS.filter((s) => !s.hidden).map((s) => s.key).join(", ")}`, required: true }],
     options: [{ name: "recordset", type: "string", value: "<B…>", description: "views.size of one book: bigger where strom tuned it (a book read worse than the others)" }],
     examples: ["strom config get lang", "strom config get views.size --recordset B0003", "strom config get reading.batch"],
     run(ctx, { args, opts }) {
@@ -1746,7 +1748,7 @@ register(
     summary: "Change a setting for you, or for the current tree only (--for-tree)",
     group: "setup",
     args: [
-      { name: "key", description: SETTINGS.map((s) => s.key).join(", "), required: true },
+      { name: "key", description: SETTINGS.filter((s) => !s.hidden).map((s) => s.key).join(", "), required: true },
       { name: "value", description: "a folder, a language code, an agent, a model name or a number", required: true },
     ],
     description: [
@@ -1825,7 +1827,7 @@ register(
     path: ["config", "unset"],
     summary: "Remove a setting (back to the next source: the user config, then the default)",
     group: "setup",
-    args: [{ name: "key", description: SETTINGS.map((s) => s.key).join(", "), required: true }],
+    args: [{ name: "key", description: SETTINGS.filter((s) => !s.hidden).map((s) => s.key).join(", "), required: true }],
     options: [{ name: "for-tree", type: "boolean", description: "remove the tree's own value" }],
     examples: ["strom config unset shared", "strom config unset agent --for-tree"],
     async run(ctx, { args, opts }) {

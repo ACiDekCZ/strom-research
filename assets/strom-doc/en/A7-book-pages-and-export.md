@@ -12,9 +12,13 @@ it protects living people in them. Describes the app 3.21.2.
 | **App with data (HTML)** | a standalone file with the app and the tree ([A7.7](#A7.7)) |
 | **Send to a relative** | one file by e-mail to open, complete and send back |
 | **Poster** | the current view as SVG, PNG or a multi-page PDF |
-| **Data backup (JSON)**, **GEDCOM**, **Person table (CSV)** | data for restoring and for other programs ([A2](A2-loading-a-family-tree.md)) |
+| **Data backup (JSON)**, **GEDCOM**, **Person table (CSV)** | data for restoring and for other programs ([A2](A2-loading-a-family-tree.md)); custom columns, filter and sort: the export from the Table view ([A6.7.9](A6-views.md#A6.7.9)) |
 
-<!-- zdroj: app:strings.ts importExport.app, importExport.share, importExport.poster, importExport.book, importExport.backup, importExport.gedcom, importExport.csv · src/ui/import-export.ts -->
+- The backup and the app with data can be encrypted with a password (**Encrypt with a password**); GEDCOM cannot.
+  Encryption works only at a secure address: over https, on `localhost` or `127.0.0.1` and in a file opened from the
+  disk; not at an `http://` address in a network, and the password dialog says so ([A1.1](A1-the-app-in-brief.md#A1.1)).
+
+<!-- zdroj: app:strings.ts importExport.app, importExport.share, importExport.poster, importExport.book, importExport.backup, importExport.gedcom, importExport.csv · src/ui/import-export.ts (exportTargetTreeJSON, exportTargetTreeApp s heslem; GEDCOM bez hesla) · šifrování jen na zabezpečené adrese: src/crypto.ts isCryptoAvailable, src/crypto-errors.ts resetPasswordError, strings.ts encryptToggle, insecureContext, commit 266d6a76, dirigent:prace/1110-app-github-11-13 -->
 
 <a id="A7.1"></a>
 ## A7.1 Who is a living person

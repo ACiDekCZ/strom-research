@@ -89,11 +89,15 @@ The report says where the problem happened and can carry a description in the pe
     the command again;
   - `--note "…"` is the description of the problem in the person's words, at most 2000 characters; names from the
     research are masked in it.
+  - **From research 1.31.0:** declined forms of names and places the research knows are masked too, where the last
+    one or two letters change (“z Brna” of Brno, “v Praze” of Praha). The stem has at least 3 letters, and the
+    shorter the stem, the shorter the ending; a common word that only begins alike stays readable. The whole report
+    is masked the same way.
 - **Controls:** `strom error --where app --about sync`, `strom error --since 2d --note "the download stopped
   halfway"`.
 - **Since:** research 1.30.0
 
-<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) -->
+<!-- zdroj: research:6c6e7c3b src/commands/error.ts (otázka jen interaktivně; pod agentem where unknown) · cs.json ui.report.where.q, .chat, .terminal, .app, .unknown · strom help error --note (≤2000 characters, masked) · research:c5ee74ab src/core/redact.ts formOf (změněné poslední 1–2 písmeno, kmen ≥ 3, koncovka podle kmene; slovo ze 3 písmen jen o písmeno delší), byPrefix 3 písmena · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R13.5"></a>
 ## R13.5 Data of people only with consent

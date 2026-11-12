@@ -105,8 +105,13 @@ Die App liest GEDCOM 5.5.1 und GEDCOM 7 und erkennt die Kodierung selbst. Sie ex
     Kodierung passt. **Bedienung:** die Wahl in der Zeile **Textkodierung**;
   - eigenständige Mediendatensätze `0 @O1@ OBJE` werden über die Verweise auf sie gelesen; ein so verwiesenes Foto
     einer Familie wird nur gezählt.
+- **Ab App 3.27.0:** ein Foto der Familie (`1 OBJE` bei einer Familie, an Ort und Stelle geschrieben oder als
+  Verweis `@O1@`) wird in der App nicht gezeigt, aber so aufbewahrt, wie die Datei es geschrieben hat, für den Export
+  **Zurück zu {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)). Ein Medieneintrag, auf den die Familie
+  verweist, geht als Foto zurück, das direkt bei der Familie steht. Die Importübersicht nennt es in der Zeile „Für den
+  Export „Zurück zu {program}“ aufbewahrt…“, nicht in **Nicht unterstützt**. Gilt nicht für eine Datei der Forschung.
 
-<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" -->
+<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 -->
 
 <a id="A2.3"></a>
 ## A2.3 Vornamen und Nachnamen
@@ -145,8 +150,60 @@ ein Jahr. Eine Schätzung (`ABT`, `EST`, `CAL`, `INT`) ist „ungefähr“, `BEF
   Beziehung gemerkt. Der Export gibt sie in der ursprünglichen Gestalt zurück, solange sich das Datum nicht ändert.
 - **Bedienung:** Keine.
 - **Gilt seit:** App 3.0.0 (Notizen zu Daten), 3.7.0 (Wörter der Sprachen), 3.17.0 (erhaltene Formen).
+- **Ab App 3.27.0:** Monat und Jahr in Ziffern (`07/1987`, `7/1987`, `07.1987`, `7.1987`) werden als dieser
+  Monat gelesen, auch mit einer Marke oder einem Wort davor (`ABT`, „cca“, „kolem“, „před“, „po“). Es zählt nur ein
+  Monat 1–12: `13/1987` wird nicht als Monat gelesen. Ein Doppeljahr (1699/00) und ein Datum mit Tag (12.03.1919)
+  werden so nicht gelesen.
+  Daten, wie Menschen sie schreiben (`cca 1850`, `14/6/1850`, `mezi 1850-1852`), werden nach [A2.4.1](#A2.4.1)
+  gelesen.
 
-<!-- zdroj: app:src/gedcom-date-read.ts:22 parseGedcomDate, :33 gedcomDatePhrase, :55 readGedcomDate · app:src/date-words.ts · app:src/ged-parser.ts:702 kalendář, :1157 gedcomDates · app:src/gedcom-date-form.ts · strings.ts gedcomNotes.datePhrase -->
+<!-- zdroj: app:src/gedcom-date-read.ts:22 parseGedcomDate, :33 gedcomDatePhrase, :55 readGedcomDate · app:src/date-words.ts · app:src/ged-parser.ts:702 kalendář, :1157 gedcomDates · app:src/gedcom-date-form.ts · strings.ts gedcomNotes.datePhrase · 3.27.0: app:655212fd src/gedcom-date-read.ts readGedcomDate numericMonth (/^(\d{1,2})[./](\d{3,4})$/, měsíc 1–12), bareDate · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-tester-vlna1 (T42) -->
+
+<a id="A2.4.1"></a>
+### A2.4.1 Daten, wie Menschen sie schreiben
+
+Ein Datum, das so geschrieben ist, wie Menschen es schreiben, und nicht mit den Wörtern von GEDCOM, wird als Datum
+gelesen. Das gilt gleichermaßen für die Datumsfelder (Person, Ereignis, Verbindung), für den GEDCOM-Import und für
+Text, der schon in den Daten des Stammbaums steht (z. B. aus einem von Hand bearbeiteten JSON).
+
+| Schreibweise (Beispiel) | Gelesen als |
+|---|---|
+| `cca 1850`, `asi 1850`, `okolo 1850`, `kolem 1850`, `ca 1850`; auch mit Monat oder Tag | ungefähr (`ABT`) |
+| `před 1850`, `před 14.6.1850` | vor (`BEF`) |
+| `po 1850`, `po roce 1850`, `po 6/1850` | nach (`AFT`) |
+| `14/6/1850`, `cca 14/6/1850` | Tag, Monat und Jahr |
+| `1850-1852`, `mezi 1850-1852`, `mezi 1850 - 1852` | Zeitraum (`BET … AND`) |
+| `mezi 1850-11/1851` | Zeitraum von 1850 bis November 1851 (`BET 1850 AND NOV 1851`) |
+| `1850-11/1851`; im Datumsfeld auch `1850/1851` | Zeitspanne von–bis (`FROM … TO`): von November 1850 bis 1851, von 1850 bis 1851 |
+| `5-7/1850`, `14-15/6/1850` | Zeitraum innerhalb eines Jahres (Mai bis Juli 1850) oder eines Monats (14. bis 15.6.1850) |
+| `cca 1850-1852`, `asi 1850-1852` | Zeitraum; der Zeitraum sagt selbst „irgendwann zwischen“, „cca“ entfällt |
+
+- Die Wörter werden auf Tschechisch und auch auf Englisch, Deutsch und Polnisch gelesen („about“, „um“, „około“,
+  „zwischen“, „między“ …).
+- **Tag und Monat, die sich vertauschen lassen** (`7/8/1850`: beide bis 12 und verschieden), werden nach der Sprache
+  der App gelesen: auf Tschechisch, Deutsch und Polnisch der Tag zuerst, auf Englisch der Monat zuerst. Dieselbe
+  GEDCOM-Datei ergibt, in einer anderen Sprache der App eingelesen, also ein anderes Datum. Ein eindeutiges Datum
+  (`25/3/1919`, `3/3/1919`) wird überall gleich gelesen.
+- **Der GEDCOM-Import** lässt bei vertauschbarem Tag und Monat und bei „cca“ vor einem Zeitraum neben dem Datum eine
+  Notiz mit der ursprünglichen Schreibweise („Datum laut Eintrag: Cca 1850-1852“). `Mezi 1850 - 1852` wird als
+  Zeitraum 1850–1852 gelesen.
+- **Text in den Daten** wird angezeigt, sortiert, aus ihm wird das Alter berechnet, und in GEDCOM geht er als Datum
+  (`ABT`, `BEF`, `AFT`, `BET … AND`). Der Text selbst ändert sich nicht; das Speichern des Formulars der Person, des
+  Ereignisses oder der Verbindung schreibt ihn in der Schreibweise der App.
+- **Grenzen:**
+  - einen Schrägstrich zwischen zwei Jahren (`1850/1851`) liest das Datumsfeld als Zeitspanne von 1850 bis 1851; der
+    GEDCOM-Import lässt ihn als Text (zwei Jahre als Alternative);
+  - Text bleiben: ein Fragezeichen (`1850?`), unbekannte Ziffern (`18XX`), ein Quartal (`Q4/1850`), eine Jahreszeit,
+    „nebo“, „cca po“ und „cca před“ und Werte in Worten. Das Datumsfeld lehnt sie als ungültiges Datum ab; der Import
+    lässt sie in der Notiz „Datum laut Eintrag: …“ (`Cca po 1850` und `Cca podzim 1850` liest er als „ungefähr 1850“
+    mit Notiz);
+  - Text bleiben auch ein Datum, das es nicht gibt (`31/4/1850`), ein Jahr mit fünf Ziffern und ein Zeitraum, dessen
+    Anfang nach dem Ende liegt;
+  - früher importierte Stammbäume werden nicht von selbst korrigiert; ein neuer GEDCOM-Import korrigiert sie.
+- **Bedienung:** das Datumsfeld im Formular; der GEDCOM-Import ([A2.1](#A2.1)).
+- **Gilt seit:** App 3.27.0
+
+<!-- zdroj: app:src/dates.ts normalizeDateInput → normalizeDateForm ?? readWrittenForms (readDateWords, readHyphenRange: slovo „mezi“, „cca“ před rozsahem → rozmezí, začátek po konci → null), readWrittenDate (lomítkové datum, zaměnitelné ≤ 12 a různé → assumed), parseFlexDate → parseCanonical ?? readStoredText (text v datech čten v jazyce UI, nemění se), canonicalDate · src/date-words.ts isAboutWord, isBetweenWord · src/gedcom-date-read.ts readGedcomDate (readWrittenDate, lossy → poznámka gedcomDatePhrase) · src/ged-exporter.ts canonicalDate · strings.ts gedcomNotes.datePhrase · commit 7ed8123c · ověřeno voláním normalizeDateInput a parseGedcomDate v cs a en (10. 11.); lomítko: normalizeDateInput('1850/1851') → FROM 1850 TO 1851, '1850-11/1851' → FROM NOV 1850 TO 1851, 'mezi 1850-11/1851' → BET 1850 AND NOV 1851, parseGedcomDate('1850/1851') → text (dirigent:test/vysledek-1110-doc-tabulka-p2.md nález 1, sonda 10. 11. na app f34d41e1) · dirigent:prace/1110-app-tabulka-opravy/t42-tabulka.md (Pravidla opravy, Bez opravy, Rizika); vzory smyšlené -->
 
 <a id="A2.5"></a>
 ## A2.5 Beziehungen und Stand des Paares
@@ -183,8 +240,8 @@ ist **Original**, 2 **Abschrift / Index**, 1 und 0 **Unsicher**.
 
 - **Grenzen:** Ohne `TITL` wird die Abkürzung `ABBR` genommen, sonst „?“. Verlag, Autor und Signatur im Archiv kommen
   in die Notiz der Quelle. Eine Zitation mit einer anderen Seite (`PAGE`) als bei der Quelle erzeugt eine abgeleitete
-  Quelle für diese Seite mit demselben Titel und Archiv; Abschrift und Ausschnitte gehen nicht auf sie über. `QUAY`
-  des Datensatzes hat Vorrang vor `QUAY` der Zitation, und bei jeder Quelle gilt die erste Zitation. `DATA` und
+  Quelle für diese Seite mit demselben Titel und Archiv; Abschrift und Ausschnitte gehen nicht auf sie über. Ab App 3.26.0 tut eine Zitation derselben Seite mit einem anderen Eintragsdatum (`DATA` › `DATE`) dasselbe. Die
+  Zuverlässigkeit gehört der Zitation ([A2.6.1](#A2.6.1)). `DATA` und
   `TEXT` innerhalb einer Zitation werden nicht gelesen. Jedes Bild bei einer Quelle ist ein Ausschnitt. Die
   Sicherheit aus einem fremden Programm ändert die App nicht. Wie die Forschung `QUAY` als Form und Information der
   Quelle übernimmt, sagt [R3.2.1](R3-verification-and-citation.md#R3.2.1); wann eine Angabe belegt ist,
@@ -193,8 +250,49 @@ ist **Original**, 2 **Abschrift / Index**, 1 und 0 **Unsicher**.
   **Unsicher**).
 - **Gilt seit:** App 1.9.4 (`QUAY`), 3.9.0 (abgeleitete Quelle für eine Seite).
 - **Ab App 3.22.0:** Die Geschichte der Person (`_STORY`) liest und exportiert auch Verweise auf Quellen.
+- **Ab App 3.27.0:** Die Signatur aus `REPO` › `CALN` kommt ins Feld **Signatur** (das erste `CALN`), nicht in
+  die Notiz; Verlag und Autor bleiben in der Notiz. Der Export schreibt das Buch als `1 REPO` mit
+  `2 CALN` und eine lesbare `PAGE`, zusammengesetzt aus den Feldern: Folio, weitere Fundstelle, Bild („fol. 12v,
+  Nr. 5, Bild 34“; das Wort für das Bild in der Sprache der App). Eine Nummer, die die weitere Fundstelle schon nennt,
+  wird nicht wiederholt. Eine Quelle ohne Folio und Bild wird genau wie bisher exportiert. Die Felder der Quelle
+  beschreibt [A3.9](A3-evidence-in-the-app.md#A3.9).
 
-<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE -->
+<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 -->
+
+<a id="A2.6.1"></a>
+### A2.6.1 Zuverlässigkeit bei der Zitation
+
+Derselbe Eintrag ist für eine Angabe oft ein Original und für eine andere eine Sekundärinformation: eine
+Volkszählung nennt den Beruf aus erster Hand, das Alter aus zweiter. Deshalb gehört `QUAY` der Zitation, nicht der
+Quelle. Eine Quelle hat eine Standard-Zuverlässigkeit, und eine Zitation mit einem anderen Wert behält ihren eigenen.
+
+- **Prüft der Code:**
+  - Zitationen desselben Eintrags mit derselben Seite, demselben Eintragsdatum und denselben weiteren Zeilen der
+    Zitation, die sich nur in `QUAY` unterscheiden, sind Zitationen einer Quelle. Die Quelle steht in **Quellen**
+    einmal, mit ihren Bildern (`OBJE`);
+  - eine andere Seite oder ein anderes Eintragsdatum ergibt weiter eine eigene Quelle für diesen Eintrag
+    ([A2.6](#A2.6));
+  - die Standard-Zuverlässigkeit der Quelle ist das `QUAY` ihrer ersten Zitation (eine Zitation ohne `QUAY` nimmt das
+    `QUAY` des Datensatzes, wenn er eines hat); eine Zitation mit einem anderen `QUAY` behält es, eine Zitation ohne
+    `QUAY` bei einer Quelle mit Standard-Zuverlässigkeit bleibt ohne;
+  - der Export (in die Forschung, **Zurück zu {program}** und **Zum Teilen mit anderen**) schreibt bei jeder Zitation
+    ihr `QUAY`: das eigene, sonst das Standard-`QUAY` der Quelle. Ein Stammbaum ohne Zitationen mit eigener
+    Zuverlässigkeit wird genau wie bisher exportiert. Laden und erneuter Export ändern daher das `QUAY` keiner
+    Zitation.
+- **Ein mit einer älteren Version gespeicherter Stammbaum:** Beim Öffnen werden die Quellen, die das Laden in App
+  3.26.0 nur wegen eines anderen `QUAY` derselben Seite angelegt hat, wieder in ihre Quelle zusammengeführt. Die
+  Zitationen der zusammengeführten Quellen gehen auf diese Quelle über, und die Zuverlässigkeit geht auf die Zitation über. Vorher speichert die App
+  die Sicherung **Vor der Anpassung der Daten an eine neue Version** ([S6.5](S6-tree-from-another-program.md#S6.5)).
+  Zusammengeführt wird nur eine Quelle, die sich von ihrer allein in der Zuverlässigkeit unterscheidet; eine Quelle
+  mit eigener Notiz, Transkription, eigenem Ausschnitt oder anderem Text bleibt. Die Forschung, mit der der Stammbaum
+  verbunden ist, bekommt dadurch keine Änderung (Quelle und Seite sind dieselben), und das Etikett **Bild nur in der
+  Forschung** an der zusammengeführten Quelle verschwindet ([A3.8](A3-evidence-in-the-app.md#A3.8)).
+- **Grenzen:** Die Zuverlässigkeit einer einzelnen Zitation wird in der App nur gezeigt
+  ([A3.6](A3-evidence-in-the-app.md#A3.6), [S7.1](S7-reliability-and-verification.md#S7.1)); ändern lässt sich nur die
+  Standard-**Zuverlässigkeit der Quelle** im Editor der Quelle ([A3.1](A3-evidence-in-the-app.md#A3.1)).
+- **Gilt seit:** App 3.27.0 (in 3.26.0 machte eine Zitation mit einem anderen `QUAY` eine zweite Quelle ohne Bilder)
+
+<!-- zdroj: dirigent:spec/077-spolehlivost-u-citace/spec.md K1.1–K1.7 · app:5721b016 src/ged-parser.ts pageSources (klíč bez quay), citedQuay, citationQuay (null = citace bez QUAY), src/citation-quality.ts citationQuality, setCitationQuality, qualityOnlySources (DERIVED_FIELDS, entryKey), joinQualityOnlySources, src/ged-exporter.ts pushCitation(cited), src/data.ts v19, src/tree-manager.ts joinQualityOnlySourcesOf (createSnapshot pre-migration, fingerprint, rebaseResearchCopies), strings.ts snapshots pre-migration · app:dde0151a src/research-changes.ts citedKey · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (import 1 pramen s obrázkem, round trip QUAY 2/3, migrace v18) -->
 
 <a id="A2.7"></a>
 ## A2.7 Eigene Tags von Strom und was zurückkommt
@@ -217,8 +315,12 @@ GEDCOM 5.5.1 nicht kann. Der Kopf `1 SOUR STROM` sagt, dass Strom die Datei gesc
 - **Ab App 3.26.0:** Programm-IDs kommen unter `_STROM_IMPORT` und `_STROM_XID` zurück; beim erneuten Einlesen wird
   die Datei danach gepaart ([S6.7](S6-tree-from-another-program.md#S6.7)). Eine Datei mit dem Kopf von Strom ist kein
   Stammbaum aus einem anderen Programm: sie hat weder die Marke **Aus dem Stammbaum** noch die Karte **Wie weiter**.
+- **Ab App 3.27.0:** Folio, Bild und weitere Fundstelle einer Quelle kommen unter `_STROM_FOLIO`, `_STROM_IMAGE` und
+  `_STROM_LOCATOR` neben der zusammengesetzten `PAGE` zurück; mit den Tags gelten die Felder, nicht `PAGE`. Der Export
+  **Zurück zu {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)) für das Programm, aus dem der Stammbaum kam,
+  schreibt sie nicht. Der Forschung schickt die App sie nur, wenn die Forschung sagt, dass sie sie liest.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) -->
 
 <a id="A2.8"></a>
 ## A2.8 Wiederholter Import und Zusammenführen

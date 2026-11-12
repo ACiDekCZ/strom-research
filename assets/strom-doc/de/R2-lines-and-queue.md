@@ -129,8 +129,15 @@ wartende Erzählung als erste an die Reihe (wenn der Agent allein arbeitet). Mit
 nicht.
 
 - **Gilt seit:** Forschung 1.1.0
+- **Ab Forschung 1.31.0:** ist die Erzählung an der Reihe, geht nur die erste Erzählung der Reihenfolge voran, die
+  übrigen bleiben hinter der Forschung. Die Reihenfolge, in der `strom run` die Aufgaben nimmt (mit der Erzählung an
+  der Reihe und mit Aufgaben der Ortsgeschichte, wenn sie an der Reihe sind), zeigt auch das Menü vor `strom run`
+  („Als Nächstes in der Warteschlange, in der Reihenfolge, in der der Agent sie nimmt:“) und die Warteschlange in der
+  Strom-App ([S4.2](S4-research-from-the-app.md#S4.2)); die Warteschlange der Brücke gibt bei einer Aufgabe an, ob es
+  eine Erzählung oder Geschichte ist. `strom task next` und `strom task list` haben die Reihenfolge des Gesprächs:
+  ohne die Erzählung an der Reihe.
 
-<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 -->
+<!-- zdroj: research:src/core/queue.ts STORY_EVERY=5 :61 · 1.31.0: research 5f48cdaf src/core/queue.ts rankTasks (turnStory: jen první vyprávění tahu), RUN_TURNS, runOrder; src/cli/menu.ts (ui.run.next), src/core/live.ts (/status queue[], GET /queue, kind story|history), src/commands/tasks.ts CONVERSATION_ORDER (task next, task list) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="R2.2.3"></a>
 ### R2.2.3 Aufgaben, die außerhalb der Warteschlange warten
@@ -160,9 +167,12 @@ Linie erreicht (die Schwester eines Vorfahren und ihre Familie), und die keiner 
 **erst nach der Arbeit an den Linien**.
 
 - **Grenzen:** eine Aufgabe hilft einer Linie und liegt also nicht außerhalb der Linien, wenn sie eine Hypothese oder
-  einen Widerspruch der Linie nennt, Personen mit dem Stammbaum verbindet oder der Agent erfasst hat, wie sie der
-  Linie hilft (ein Geschwister eines Vorfahren als Pate oder Zeuge, dasselbe Haus, der Familienname eines Vorfahren).
-  Die eigene Familie des Geschwisters hilft der Linie nicht.
+  einen Widerspruch der Linie nennt, Personen über eine Person der Linie oder deren Partner mit dem Stammbaum verbindet
+  oder der Agent erfasst hat, wie sie der Linie hilft (ein Geschwister eines Vorfahren als Pate oder Zeuge, dasselbe
+  Haus, der Familienname eines Vorfahren). Die eigene Familie des Geschwisters hilft der Linie nicht: das Verbinden von
+  Personen mit einem Nebenzweig (etwa mit einem Geschwister eines Vorfahren) gehört zu diesem Zweig und kommt nach
+  dessen Wahl an die Reihe ([R2.3.1](#R2.3.1)). Eine Hypothese der Linie und ein vom Agenten erfasster Grund gelten
+  weiter.
 - **Optionen:** **am Ende, nach den Linien** (Standard) · **wie die Arbeit der Linien** · **nie** (die Aufgaben werden
   nicht genommen, nichts wird gelöscht).
 - **Bedienung:** Terminal: **Einstellungen → Der Agent allein → Arbeit außerhalb der Linien**,
@@ -172,8 +182,14 @@ Linie erreicht (die Schwester eines Vorfahren und ihre Familie), und die keiner 
 - **Ab Forschung 1.26.0:** neue Standardwahl **gelegentlich, ab und zu eine**: eine Aufgabe außerhalb der Linien auf 10
   Sitzungen (`queue.offLineShare`), aus dem nächsten Zweig. Zur Arbeit außerhalb der Linien gehört auch Ehemann oder
   Ehefrau eines Vorfahren ([R2.1.3](#R2.1.3)).
+- **Ab Forschung 1.31.0:** der Linie hilft nur das Verbinden von Personen mit einer Person der Linie oder mit deren
+  Partner; früher genügte das Verbinden mit irgendwem im Stammbaum, auch mit einem Geschwister eines Vorfahren. Die
+  Brücke sagt in `/status` bei der Aufgabe, an der gearbeitet wird, wie sie der Linie hilft (Funktion `working.helps`).
+  Die App 3.27.0 zeigt es in der **Forschungsübersicht** in der Zeile **Jetzt** („hilft der Richtung … · verbindet
+  Personen mit dem Baum“, „außerhalb der Richtungen · Zweig …“, [S4.1](S4-research-from-the-app.md#S4.1)) und in der
+  Einleitung der Wahl der Arbeit außerhalb der Richtungen ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
 
-<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast -->
+<!-- zdroj: research:v1.25.2 src/core/config.ts:278 queue.offLine (popis), :715 výchozí last · HEAD model.ts OFF_LINE_CHOICES, config.ts OFF_LINE_SHARE=10 · assets/method/core.md „The lines first“ · app:strings.ts research.queueOffLast · výzkum 1.31.0: src/core/offline.ts (b: joins jen k osobě linie nebo partnerovi, jinak větev; a, c mají přednost), HelpsBy, /status working[].helps, branch · commity 576cf7e5, 2e54c8d5 · CHANGELOG.cs.md 1.31.0 „Připojení rodiny k vedlejší větvi je práce mimo linie“ · spec 036 K1.7 -->
 
 <a id="R2.3.1"></a>
 ### R2.3.1 Wahl für einen Zweig und eine Aufgabe
