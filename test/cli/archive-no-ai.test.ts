@@ -94,6 +94,8 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
   try {
     const status = (await fetch(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.json())) as Record<string, unknown>;
     assert.deepEqual([status.queue, status.queueMore, status.spend, status.agent], [[], 0, undefined, undefined]);
+    // nothing of the agent working alone (the link work): no gate, no session's time
+    assert.equal(status.work, undefined);
   } finally {
     await w.ok(["live", "stop"]);
   }

@@ -145,7 +145,7 @@ test("the task's turn: next before everything once (gone after a session on it),
   assert.deepEqual(next.reason, { kind: "own", do: "next" });
   assert.equal(next.place, 1);
   await w.ok(["task", "order", "T2", "--next"]);
-  assert.deepEqual(await order(w), ["T0003", "T0002", "T0001"], "two next in the order given");
+  assert.deepEqual(await order(w), ["T0002", "T0003", "T0001"], "two next: the last chosen first");
   // a session on it ends: the choice is used up
   await w.ok(["session", "start", "T3"]);
   await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);

@@ -54,9 +54,11 @@ const LINKS = (id: string) => [
   `strom-research://review?tree=${id}&person=P0001&scope=family`,
   `strom-research://research?tree=${id}&person=P0001&direction=ancestors`,
   `strom-research://conflict?tree=${id}&id=X0001&do=agent`,
+  `strom-research://work?tree=${id}&do=tasks&n=5`,
+  `strom-research://work?tree=${id}&do=loop`,
 ];
 
-test("K4.1 the app's links that ask an agent (chat, review, research, conflict&do=agent): refused at once in one sentence — in a terminal and with none — nothing asked, no task, no commit", opts, async () => {
+test("K4.1 the app's links that ask an agent (chat, review, research, conflict&do=agent, work): refused at once in one sentence — in a terminal and with none — nothing asked, no task, no commit", opts, async () => {
   const { archive, waiting } = await trees();
   for (const [w, label, sentence] of [
     [archive, "archive", /^Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m],

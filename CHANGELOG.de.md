@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.32.0
 
-*In Vorbereitung: die Betas bis 1.32.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.32.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Fragen an den Stammbaum mit einem Aufruf: `strom query`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
   wohnte, wer im 18. Jahrhundert in Lhota geboren wurde: eine Zeile je Angabe einer Person mit Wert, Ort, Hausnummer,
@@ -28,6 +28,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   wem ein Eintrag gehört, wer wer ist und das Prüfen der Angaben geht weiter wie bisher, aus den Quellen.
 - **Eine Hausnummer mit eigenem Wort** (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
 - **`strom app --person P…`** öffnet die Strom-App bei dieser Person des Baums (eine App vor 3.21 öffnet den Baum).
+- **Die Warteschlange aus der Strom-App:** Suche in der ganzen Warteschlange (Nummer einer Aufgabe oder Person, Name,
+  Wörter der Aufgabe, ihr Buch, Archiv oder Ort, ohne Rücksicht auf diakritische Zeichen; der gesuchte Text wird nirgends
+  gespeichert); „Als Nächstes“ setzt die zuletzt gewählte Aufgabe an die Spitze und lässt sich genau zurücksetzen; Arbeit
+  an der Warteschlange öffnet ein Terminal, das zeigt, was startet, und es erst nach einem Ja startet – eine Anzahl
+  Aufgaben (`strom run --tasks N`, endet nach N erledigten) oder selbstständige Arbeit nur unter einer Bedingung.
 
 ## 1.31.1
 

@@ -139,6 +139,7 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "research" ||
     link.action === "history" ||
     link.action === "places" ||
+    link.action === "work" ||
     (link.action === "conflict" && link.do === "agent") ||
     // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
     (link.action === "hypotheses" && "decide" in link && link.decide === "agent") ||
@@ -316,6 +317,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       const { placesRun } = await import("../cli/menu-links.ts");
       return end(await placesRun(ctx, run, treeLang, root, link.place));
     }
+    case "work": {
+      // the agent working on the queue alone: what starts shown here, started in this terminal only on the person's yes
+      const { workRun } = await import("../cli/menu-links.ts");
+      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n)));
+    }
     case "fixes": {
       // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
       const { fixesDo } = await import("../cli/menu-links.ts");
@@ -492,6 +498,10 @@ register(
       "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
       "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +
       "  estimate, run one after another (the bridge never starts it).\n" +
+      "strom-research://work?tree=<id>&do=loop|tasks[&n=5] — the agent working on the queue alone: n tasks settled (1–100,\n" +
+      "  default 5; strom run --tasks n) or for as long as there is work (strom run --loop, only under a gate — none set: n\n" +
+      "  tasks or the gate offered instead); the first tasks, the session's time and the gate shown, started in the terminal\n" +
+      "  only on the person's yes (no by default; the bridge never starts it). Refused where nobody researches.\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +

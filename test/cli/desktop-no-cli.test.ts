@@ -178,6 +178,24 @@ test("a link of the Strom app that starts strom run: the CLI said before the est
   w.cleanup();
 });
 
+test("the Strom app's link to work on the queue: the CLI missing said first, no tasks shown, nothing asked of the run, nothing started", unix, async () => {
+  const w = new World();
+  claudeApp(w);
+  await w.ok(["setup", "--yes", "--lang", "cs"]);
+  await w.ok(["init", "Lhotákovi"]);
+  w.cwd = w.treeDir("Lhotákovi");
+  await w.ok(["research", "new", "Předci Jana Lhotáka", "--new-person", "Jan /Lhoták/", "--sex", "M"]);
+  await w.ok(["task", "add", "Křest Jana v Lhotě", "--level", "locate", "--where", "Lhota", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+  const id = readJsonFile(path.join(w.cwd, "strom.json")).id;
+  for (const link of [`strom-research://work?tree=${id}&do=tasks&n=3`, `strom-research://work?tree=${id}&do=loop`]) {
+    const r = await w.run(["link", "open", link], { tty: true, answers: ["0", "", ""] });
+    assert.match(r.out, LINE, r.out + r.err);
+    assert.doesNotMatch(r.out, /Na řadě jsou|Skončí po vyřízení|Automatická práce|Pokračovat\?/u, "nothing of the run before the CLI");
+  }
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions")) || fs.readdirSync(path.join(w.cwd, "data", "sessions")).length === 0);
+  w.cleanup();
+});
+
 test("the menu: working alone says what it needs and offers only what strom can — Claude Code, the conversation in the app, not now", unix, async () => {
   const w = new World();
   claudeApp(w);

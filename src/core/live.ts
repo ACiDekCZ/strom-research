@@ -21,6 +21,12 @@
 //                          queue does (helps: question | joins | agent | partner | branch, with research the line it
 //                          helps); one off the lines or added to a line says its branch (branch B-P…) — feature
 //                          working.helps.
+//                          work {gate, minutes} (features work.link, run.tasks; none in an archive or a research
+//                          waiting for its agent): before the Strom app's link work (strom-research://work?tree=…&do=loop|
+//                          tasks[&n=1..100], taken in the terminal on the person's yes — the bridge never starts an agent)
+//                          the gate the agent works alone under as the settings name it (title and what it is given),
+//                          null with none set (the loop is not started then, n tasks are), and a session's minutes
+//                          (run.minutes). busy {sessions, runs} sees a run from its start, while it waits for its gate too.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -395,7 +401,14 @@
 //                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked — {items (as /status
 //                          queue[], with pos), total (what the filter leaves), from, next? (from of the next page), head};
 //                          in the order of the queue, those put aside after it without pos; an archive: none. 400
-//                          queue.query, 503 research.busy (+ Retry-After)
+//                          queue.query, 503 research.busy (+ Retry-After). &q=<1…100 characters> (feature queue.search):
+//                          only the tasks the filters leave that hold every word of it, with any accent or none — in
+//                          the task's text, its people's names, its record sets (title, call number, archive, places),
+//                          its ID and its people's; never its line or branch — still in the order of the queue, then
+//                          paged; + q (as searched, trimmed), match? {T…: id|person} (the rows of the page found by
+//                          their number alone), elsewhere? {id, state} (a task number out of the queue: done, waiting…).
+//                          A task number (T0123, t123, 123): that task first, then the texts holding the number; a
+//                          person's (P12): the tasks about them. What was searched is never written (live.log: q=…)
 //   POST <token>/offline/<B-…>  {mode: occasional|last|normal|never|default} | {mode: "line", line: G…}: strom offline
 //                          set (for the branch's new tasks too) — {branch, head, parent}; 400 offline.body, 404
 //                          offline.none, 404 directions.none (the line)
@@ -409,7 +422,10 @@
 //                          queue.offLine … / queue.suggestLines yes|no --for-tree (default: config unset) — {offLine
 //                          (without branches), head, parent}; 400 offline.body
 //   POST <token>/queue/<T…>  {do: next|last|default}: strom task order --next|--last|--default (any open task; next
-//                          once) — {task (as queue[]), head, parent}; 400 queue.body, 404 queue.none, 409 queue.doing
+//                          once, the last chosen first) — {task (as queue[]), was ({} or {own: next|last, at}: its turn
+//                          before), head, parent}; {do: restore, was: {} | {own, at}}: the turn put back exactly as it
+//                          was (strom task order --default | --restore <own>@<at>; at not later than now, at most 30
+//                          days ago) — feature queue.next; 400 queue.body, 404 queue.none, 409 queue.doing
 //   POST <token>/waiting/W-B-…  {do: line|keep|never, line?: G…}: strom offline answer (a new line for it: POST
 //                          /directions with branch) — {branch, answer, head, parent}; 400 offline.body, 404 waiting.none
 //                          (it waits no more), offline.none, directions.none. Every write off the lines: 409
@@ -523,8 +539,9 @@ import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./w
 import { widgetWriter } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { busyIn } from "./busy.ts";
-import { effectiveState, runOrder, type Ranked } from "./queue.ts";
+import { effectiveState, restoredTurn, runOrder, turnWas, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
+import { foldText } from "./text.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
@@ -534,7 +551,8 @@ import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appDecidesHypotheses, appOpens
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { configFile, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
+import { configFile, DEFAULT_RUN_MINUTES, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
+import { gateLabel } from "./gate.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
@@ -543,7 +561,7 @@ import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { watchInbox } from "./inboxwatch.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
 import { splitMark, splitPlan, splitUndos } from "./sourcesplit.ts";
-import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
+import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Place, type RecordSet, type Repository, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
 import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
@@ -1417,9 +1435,10 @@ function foreignOrigin(origin: string | undefined, env: Env): boolean {
   return true;
 }
 
-/** An address as the log says it: never its secret (one replaced meanwhile neither). */
-function masked(url: string | undefined): string {
-  return String(url ?? "").replace(/\/[0-9a-f]{32}(?=[/?]|$)/, "/…");
+/** An address as the log says it: never its secret (one replaced meanwhile neither), never what the queue was searched for. */
+export function masked(url: string | undefined): string {
+  // the bridge's secret, and what the person searched for in the queue (GET /queue?q=): never in the log
+  return String(url ?? "").replace(/\/[0-9a-f]{32}(?=[/?]|$)/, "/…").replace(/([?&])q=[^&#]*/gu, "$1q=…");
 }
 
 /** live.json written whole: a strom reading it meanwhile never takes a half for no bridge. */
@@ -1544,7 +1563,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -1553,6 +1572,12 @@ export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBac
  */
 export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
   return appShowsOrigin(settings, version, gate, beta) ? BRIDGE_FEATURES : BRIDGE_FEATURES.filter((f) => f !== "origin.ids");
+}
+
+/** /status work: the gate the agent works alone under (its title and what it is given), none set null; a session's minutes. */
+function workOf(tree: Tree, settings: Settings): { gate: string | null; minutes: number } {
+  const spec = settings.runGate();
+  return { gate: spec ? gateLabel(settings.shared()?.value, spec) : null, minutes: settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES) };
 }
 
 /** /status busy: how many sessions and runs work now. */
@@ -2127,7 +2152,7 @@ function parkedTasks(tree: Tree): Task[] {
  * rev: the fingerprint of the queue's order and of the research (the app keeps its pages while it stays).
  */
 const rankedCache = new Map<string, { at: number; key: string; ranked: Ranked[]; parked: Task[]; rev: string }>();
-function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[]; parked: Task[]; rev: string } {
+function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[]; parked: Task[]; rev: string; key: string } {
   const mtime = (file: string) => {
     try {
       return String(fs.statSync(file).mtimeMs);
@@ -2182,12 +2207,17 @@ export interface QueueAsk {
   branch?: string;
   research?: string;
   state?: "next" | "parked";
+  /** What to find among them (feature queue.search): trimmed, 1…QUERY_MAX characters. */
+  q?: string;
 }
+
+/** At most so many characters of what GET /queue?q= searches for. */
+export const QUERY_MAX = 100;
 
 /** The query of GET /queue read, or why it is none (400 queue.query). */
 export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
-  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked (each optional)`;
-  const known = new Set(["from", "count", "branch", "research", "state", "app", "poll"]);
+  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&q=<1…${QUERY_MAX} characters> (each optional)`;
+  const known = new Set(["from", "count", "branch", "research", "state", "q", "app", "poll"]);
   for (const k of q.keys()) if (!known.has(k)) return { bad: `unknown ${k}: ${shape}` };
   const int = (k: string, dflt: number, min: number, max: number): number | undefined => {
     const v = q.get(k);
@@ -2217,6 +2247,13 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
     if (st !== "next" && st !== "parked") return { bad: `state=next|parked: ${shape}` };
     ask.state = st;
   }
+  // what to find: never said back in a refusal (nor in the log — masked)
+  const find = q.get("q");
+  if (find !== null) {
+    const text = find.trim();
+    if (!text || [...text].length > QUERY_MAX) return { bad: `q=<1…${QUERY_MAX} characters, not only spaces>: ${shape}` };
+    ask.q = text;
+  }
   return ask;
 }
 
@@ -2227,8 +2264,13 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
  * as /status (runOrder), nothing ranked again for the filter. An archive (and a research waiting for its agent): no
  * queue.
  */
-export function queuePage(tree: Tree, settings: Settings, ask: QueueAsk, h: string): { items: QueueItem[]; total: number; from: number; next?: number; rev?: string } {
-  if (actsAsArchive(tree)) return { items: [], total: 0, from: ask.from };
+export function queuePage(
+  tree: Tree,
+  settings: Settings,
+  ask: QueueAsk,
+  h: string,
+): { items: QueueItem[]; total: number; from: number; next?: number; rev?: string; q?: string; match?: Record<string, "id" | "person">; elsewhere?: { id: string; state: Task["state"] } } {
+  if (actsAsArchive(tree)) return { items: [], total: 0, from: ask.from, ...(ask.q !== undefined ? { q: ask.q } : {}) };
   const all = scopes(tree);
   const place = placer(tree, all);
   const offLine = settings.offLine(tree.config);
@@ -2240,10 +2282,124 @@ export function queuePage(tree: Tree, settings: Settings, ask: QueueAsk, h: stri
   for (const [i, r] of ranked.entries()) entries.push({ t: r.task, r, pos: i + 1, where: whereInQueue(place, offLine, file, r.task, r) });
   if (ask.state !== "next") for (const t of order.parked) entries.push({ t, where: whereInQueue(place, offLine, file, t) });
   const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research));
-  const page = left.slice(ask.from, ask.from + ask.count);
+  // what the person searches for: among what the filters leave, in the order of the queue, then paged
+  const found = ask.q === undefined ? undefined : searchQueue(tree, order, left, ask.q);
+  const rows = found ? found.rows : left;
+  const page = rows.slice(ask.from, ask.from + ask.count);
   const items = page.map((e) => queueItem(tree, place, offLine, file, e.r ? "next" : "parked", e.t, e.r, e.pos));
   const end = ask.from + page.length;
-  return { items, total: left.length, from: ask.from, ...(end < left.length ? { next: end } : {}), rev: order.rev };
+  const answer = { items, total: rows.length, from: ask.from, ...(end < rows.length ? { next: end } : {}), rev: order.rev };
+  if (!found) return answer;
+  const match = Object.fromEntries(page.flatMap((e) => (found.match.has(e.t.id) ? [[e.t.id, found.match.get(e.t.id)!]] : [])));
+  return { ...answer, q: ask.q, ...(Object.keys(match).length ? { match } : {}), ...(found.elsewhere ? { elsewhere: found.elsewhere } : {}) };
+}
+
+/** A task number as the person types it (T0123, t123, 123): the whole query, nothing else. */
+const TASK_NUMBER = /^[Tt]?0*(\d{1,9})$/u;
+/** A person's number (P12, p0012): the whole query. */
+const PERSON_NUMBER = /^[Pp]0*(\d{1,9})$/u;
+
+/**
+ * Text folded for searching the queue: foldText (case, the marks of any accent, ß, ł, đ, ø, æ, œ) — any mark left,
+ * and the dotless ı, too.
+ */
+function searchFold(s: string): string {
+  return foldText(s).replace(/\p{M}/gu, "").replace(/ı/gu, "i");
+}
+
+/**
+ * What the queue's search reads of a task, folded (each field apart: a word is found within one): the task's text as the
+ * app shows it and as written, every name of its people (birth and later surnames, the forms the tree knows; a
+ * couple's two), its record sets (title, call number, the archive's name, their places) and what else it says where
+ * to look — and apart, its ID and its people's IDs. Not its line or branch: the app's chips filter by those.
+ */
+interface TaskHay {
+  text: string;
+  ids: string;
+}
+
+function taskHay(tree: Tree, t: Task): TaskHay {
+  const fields: string[] = [humanTask(tree, t.what, tree.lang), t.what];
+  const ids: string[] = [t.id];
+  const person = (p: Person) => {
+    for (const n of p.names) fields.push(`${n.given} ${n.surname}`);
+  };
+  const place = (ref: string) => {
+    const l = /^L\d+$/u.test(ref) ? tree.get<Place>(ref) : undefined;
+    if (l?.type === "place") for (const n of l.names) fields.push(n.name);
+    else fields.push(ref);
+  };
+  for (const id of t.subject) {
+    const r = tree.get<Person | Family>(id);
+    if (r?.type === "person") {
+      ids.push(r.id);
+      person(r);
+    } else if (r?.type === "family")
+      for (const x of r.partners) {
+        const p = tree.get<Person>(x);
+        if (p?.type === "person") person(p);
+      }
+  }
+  for (const w of t.where) {
+    const r = /^[BRL]\d+$/u.test(w) ? tree.get<RecordSet | Repository | Place>(w) : undefined;
+    if (r?.type === "recordset") {
+      fields.push(r.title, r.callNumber ?? "");
+      const repo = r.repository ? tree.get<Repository>(r.repository) : undefined;
+      if (repo?.type === "repository") fields.push(repo.name);
+      for (const p of r.places) place(p);
+    } else if (r?.type === "repository") fields.push(r.name);
+    else if (r?.type === "place") place(r.id);
+    else fields.push(w);
+  }
+  return { text: fields.filter(Boolean).map(searchFold).join("\u0001"), ids: ids.map(searchFold).join("\u0001") };
+}
+
+/**
+ * What the queue's search read of each task, kept for a state of the research — the same key the queue's order is
+ * kept by (rankedNow: a new commit, a new day, the settings): a search asked again, or the next page, reads no task.
+ */
+const hayCache = new Map<string, { key: string; hay: Map<string, TaskHay> }>();
+function haysOf(tree: Tree, key: string): (t: Task) => TaskHay {
+  let kept = hayCache.get(tree.root);
+  if (!kept || kept.key !== key) hayCache.set(tree.root, (kept = { key, hay: new Map() }));
+  const hay = kept.hay;
+  return (t) => {
+    let h = hay.get(t.id);
+    if (!h) hay.set(t.id, (h = taskHay(tree, t)));
+    return h;
+  };
+}
+
+/**
+ * GET /queue?q= (feature queue.search): the tasks the filters left that hold every word of q (each within one field:
+ * the task's text, its people's names, its record sets, archives and places, its ID and its people's), in the order of
+ * the queue — nothing ranked by the match. A task number (T0123, t123, 123): that task first (match "id"), then those
+ * whose text holds the number; one out of the queue (done, dropped, waiting…) is said apart (elsewhere), one that is
+ * not, nothing. A person's number (P12): the tasks about that person (match "person"), never by their text.
+ */
+function searchQueue<E extends { t: Task }>(tree: Tree, order: { ranked: Ranked[]; parked: Task[]; key: string }, left: E[], q: string): { rows: E[]; match: Map<string, "id" | "person">; elsewhere?: { id: string; state: Task["state"] } } {
+  const match = new Map<string, "id" | "person">();
+  const hay = haysOf(tree, order.key);
+  const person = PERSON_NUMBER.exec(q);
+  if (person) {
+    const id = `P${String(Number(person[1])).padStart(4, "0")}`;
+    const rows = left.filter((e) => e.t.subject.includes(id));
+    for (const e of rows) match.set(e.t.id, "person");
+    return { rows, match };
+  }
+  const words = searchFold(q).split(" ").filter(Boolean);
+  const holds = (field: string) => words.length > 0 && words.every((w) => field.includes(w));
+  const task = TASK_NUMBER.exec(q);
+  if (!task) return { rows: left.filter((e) => holds(`${hay(e.t).text}\u0001${hay(e.t).ids}`)), match };
+  const id = `T${String(Number(task[1])).padStart(4, "0")}`;
+  const exact = left.find((e) => e.t.id === id);
+  if (exact) match.set(id, "id");
+  // the number in the text of others (an ID of one task is no text of another: T1234 is not found for 123)
+  const rows = [...(exact ? [exact] : []), ...left.filter((e) => e.t.id !== id && holds(hay(e.t).text))];
+  const inQueue = order.ranked.some((r) => r.task.id === id) || order.parked.some((t) => t.id === id);
+  const t = inQueue ? undefined : tree.get<Task>(id);
+  const elsewhere = t?.type === "task" && !t.retracted ? { id, state: effectiveState(t, now().slice(0, 10)) } : undefined;
+  return { rows, match, ...(elsewhere ? { elsewhere } : {}) };
 }
 
 /**
@@ -2449,6 +2605,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // what works now, for the app to say a new version waits for it (spec 037 K2.2): the sessions open with their agent
     // still at work, the runs — an update goes on without stopping them, what starts after them runs the new version
     ...(archive ? {} : { busy: busyOf(tree) }),
+    // before the agent works on the queue alone (the link work): the person's gate (run.gate, as the settings name it;
+    // none: the loop is not started, n tasks are) and a session's time — none in an archive or a research waiting for its agent
+    ...(archive ? {} : { work: workOf(tree, settings) }),
     // what waits for the person, ordered and grouped by the place where it is dealt with (core/waiting.ts): the tasks,
     // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
     // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a
@@ -5411,27 +5570,47 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
 
   /**
    * A task's own turn (POST /queue/<T…> {"do": "next"|"last"|"default"}): strom task order T… --next|--last|--default —
-   * next once, before everything but the work at hand; last after everything; default back to the queue's order. Any
-   * open task. {task (as queue[] has it now), head, parent}; 404 queue.none (no open task), 409 queue.doing (at work).
+   * next once, before everything but the work at hand (the last chosen first); last after everything; default back to
+   * the queue's order. {"do": "restore", "was": {} | {"own": "next"|"last", "at": "<ISO>"}}: the turn put back exactly as
+   * it was (strom task order --default | --restore <own>@<at>: at not later than now, at most 30 days ago) — feature
+   * queue.next. Any open task. {task (as queue[] has it now), was (its turn before: {} or {own, at}), head, parent};
+   * 400 queue.body, 404 queue.none (no open task), 409 queue.doing (at work).
    */
   const queueWrite = (raw: string): AppWrite => {
     const id = /^[Tt]\d{1,9}$/.test(raw) ? normId(raw) : raw.slice(0, 32);
     let before = "";
+    let was: Record<string, unknown> = {};
+    const shape = `the body: {"do": "next"|"last"|"default"} | {"do": "restore", "was": {} | {"own": "next"|"last", "at": "<ISO time>"}}`;
     return {
       what: `the turn of ${id}`,
       codes: { badBody: "queue.body", busy: "research.busy", failed: "queue.failed" },
       busyStatus: 503,
       ask(tree, body) {
-        if (Object.keys(body).some((k) => k !== "do") || !["next", "last", "default"].includes(body.do as string)) return { code: 400, body: refusal(`the body: {"do": "next"|"last"|"default"}`, "queue.body") };
+        const restore = body.do === "restore";
+        if (Object.keys(body).some((k) => k !== "do" && !(restore && k === "was")) || !["next", "last", "default", "restore"].includes(body.do as string)) return { code: 400, body: refusal(shape, "queue.body") };
+        let args = [`--${body.do as string}`];
+        if (restore) {
+          const w = body.was;
+          if (!w || typeof w !== "object" || Array.isArray(w) || Object.keys(w).some((k) => k !== "own" && k !== "at")) return { code: 400, body: refusal(shape, "queue.body") };
+          const turn = w as Record<string, unknown>;
+          if (!Object.keys(turn).length) args = ["--default"];
+          else {
+            const r = restoredTurn(turn.own, turn.at);
+            if ("bad" in r) return { code: 400, body: refusal(`${r.bad} — ${shape}`, "queue.body") };
+            args = ["--restore", `${r.do}@${r.at}`];
+          }
+        }
         if (actsAsArchive(tree)) return directionsArchive(tree);
         const t = /^T\d+$/.test(id) ? tree.get<Task>(id) : undefined;
         if (!t || t.type !== "task" || t.retracted || (t.state !== "open" && t.state !== "doing")) return { code: 404, body: refusal(`${id} is no open task`, "queue.none", { task: id }) };
         if (t.state === "doing") return { code: 409, body: refusal(`${id} is in progress: its turn is now`, "queue.doing", { task: id }) };
         before = head(root);
-        return { args: ["task", "order", id, `--${body.do as string}`] };
+        // its turn before the write, for the app to put it back exactly (restore)
+        was = turnWas(t, tree.list<Session>("session").filter((s) => s.state !== "open" && s.task));
+        return { args: ["task", "order", id, ...args] };
       },
       done(tree, _data, h) {
-        return { task: queueTask(tree, new Settings(env, {}), id) ?? null, head: h, parent: before };
+        return { task: queueTask(tree, new Settings(env, {}), id) ?? null, was, head: h, parent: before };
       },
       refused: (_tree, code, why, data) => offlineRefused(code, why, data),
     };

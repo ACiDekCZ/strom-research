@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.32.0
 
-*W przygotowaniu: bety do 1.32.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.32.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Pytania o drzewo jednym wywołaniem: `strom query`.** Ilu młynarzy jest w rodzie, kto mieszkał pod numerem 12, kto
   urodził się w Lhocie w XVIII wieku: wiersz na każdą daną osoby z wartością, miejscem, numerem domu, datą, pewnością
@@ -27,6 +27,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   danych idą dalej jak dotąd, ze źródeł.
 - **Numer domu zapisany z własnym słowem** (č. 7, Nr. 7) nie ma już słowa dwa razy, także na karcie osoby.
 - **`strom app --person P…`** otwiera aplikację Strom na tej osobie drzewa (aplikacja przed 3.21 otwiera drzewo).
+- **Kolejka z aplikacji Strom:** wyszukiwanie w całej kolejce (numer zadania lub osoby, imię i nazwisko, słowa zadania,
+  jego księga, archiwum lub miejsce, bez względu na znaki diakrytyczne; szukany tekst nie jest nigdzie zapisywany);
+  „jako następne” stawia ostatnio wybrane zadanie na początku i daje się dokładnie cofnąć; praca nad kolejką otwiera
+  terminal, który pokazuje, co się uruchomi, i uruchamia to dopiero po „tak” – określoną liczbę zadań (`strom run
+  --tasks N`, kończy się po N załatwionych) albo samodzielną pracę tylko pod warunkiem.
 
 ## 1.31.1
 

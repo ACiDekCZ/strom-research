@@ -29,7 +29,14 @@ import { changeLines } from "../core/changelog.ts";
 import { startLive } from "../core/live.ts";
 import { adoptAppUrl, appTreeNameFromInstall, defaultAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { stromReadsTags } from "../gedcom/export.ts";
-import { appMarkFromInstall } from "../core/links.ts";
+import { appMarkFromInstall, LINK_WORK_DEFAULT, LINK_WORK_MAX, type LINK_WORK_DOS } from "../core/links.ts";
+import { taskQueue } from "../commands/tasks.ts";
+import { lacksImages, RUN_TURNS } from "../core/queue.ts";
+import { forHistory } from "../core/pastevents.ts";
+import { othersAtWork } from "../core/session.ts";
+import { forStory } from "../core/stories.ts";
+import { busyIn } from "../core/busy.ts";
+import { gateLabel } from "../core/gate.ts";
 import { settleFromApp } from "./wizard.ts";
 import { isValidLang } from "../core/lang.ts";
 import { agentsHere, hasDesktopApp, suggestedWay, waysHere, type Where } from "../core/apps.ts";
@@ -463,6 +470,72 @@ export async function placesRun(ctx: Context, run: Run, lang: string, root: stri
   if (count === 1) return (await run(["run", "--task", task.id])) === 0;
   out(ctx, t("ui.link.places.stop"));
   return (await run(["run", "--places", "--max", String(count)])) === 0;
+}
+
+/** How many tasks of the queue a link to work on it shows before the question. */
+const WORK_LIST = 5;
+
+/**
+ * The agent working on the queue alone, asked for from the Strom app (strom-research://work?…&do=tasks[&n=…] or
+ * do=loop): the agent's CLI not here said first; anything at work in the research already (a run, a session) said and
+ * nothing started; then what would start — the first tasks in the order strom run takes them (the one put next first),
+ * n tasks or for as long as there is work, the time of a session, the gate (asked once for n tasks, before each
+ * session of the loop) — and on the person's yes (no by default) strom run --tasks n or strom run --loop in this
+ * terminal (Ctrl-C asks the session at work to finish and stops). The loop goes only under a gate: none set, it is not
+ * started — n tasks instead or the gate picked as in the settings, or nothing. The bridge never starts it.
+ */
+export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  // its sessions are strom run's: the agent's CLI not here said before anything else
+  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
+  // a run or a session at work already (the app's state may be older than the click): nothing more started
+  const busy = busyIn(tree);
+  if (busy.runs || busy.sessions.length) return stop(ctx, t("ui.link.work.busy", { runs: busy.runs, sessions: busy.sessions.length }));
+  // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what others hold
+  const held = othersAtWork(tree, tree.env).tasks;
+  const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
+  if (!queue.length) return stop(ctx, t("ui.link.work.empty"));
+  let tasks = what === "tasks" ? (n ?? LINK_WORK_DEFAULT) : undefined;
+  if (what === "loop" && !ctx.settings.runGate()) {
+    // automatic work only under a gate of the person's: none set, not started — n tasks, the gate as in the settings, or nothing
+    out(ctx, t("ui.link.work.nogate"));
+    const i = await ctx.choose(t("ui.link.work.instead"), [{ label: t("ui.link.work.instead.tasks") }, { label: t("ui.link.work.instead.gate") }], 2, { back: t("ui.link.work.instead.none") });
+    if (i === undefined) return false;
+    if (i === 0) {
+      let k = -1;
+      while (!(Number.isInteger(k) && k >= 0 && k <= LINK_WORK_MAX)) {
+        if (outOfAnswers(ctx)) return false;
+        const a = (await ctx.ask(t("ui.link.work.how"), String(LINK_WORK_DEFAULT))).trim();
+        k = /^\d{1,3}$/.test(a) ? Number(a) : -1;
+      }
+      if (k === 0) return false;
+      tasks = k;
+    } else {
+      const { chooseGate } = await import("./menu-settings.ts");
+      await chooseGate(ctx, run, lang, root);
+      ctx.settings.reload();
+      if (!ctx.settings.runGate()) return stop(ctx, t("ui.link.work.gate.still"));
+    }
+  }
+  const fresh = Tree.open(root, ctx.env);
+  const shown = queue.slice(0, WORK_LIST);
+  const minutes = ctx.settings.number("run.minutes", fresh.config, DEFAULT_RUN_MINUTES);
+  const spec = ctx.settings.runGate();
+  const gate = spec ? gateLabel(ctx.settings.shared()?.value, spec) : undefined;
+  const note = lines(
+    t("ui.run.next"),
+    ...shown.map((x, k) => `  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : forHistory(x) ? t("ui.run.ofhistory") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`),
+    queue.length > shown.length ? `      ${t("ui.plan.more", { n: queue.length - shown.length })}` : undefined,
+    tasks !== undefined ? t("ui.link.work.tasks", { n: tasks, max: 2 * tasks }) : t("ui.link.work.loop"),
+    t("ui.run.limit", { minutes }),
+    gate ? t(tasks !== undefined ? "ui.link.work.gate.once" : "ui.link.work.gate.each", { gate }) : t("ui.link.work.gate.none"),
+    t("ui.link.cost"),
+  );
+  const said = tasks !== undefined ? t("ui.link.what.work.tasks", { n: tasks }) : t("ui.link.what.work.loop");
+  if (!(await asks(ctx, lang, root, said, note, false))) return false;
+  out(ctx, t("ui.link.work.stop"));
+  return (await run(tasks !== undefined ? ["run", "--tasks", String(tasks)] : ["run", "--loop"])) === 0;
 }
 
 /**

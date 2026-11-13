@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.32.0
 
-*In preparation: the betas up to 1.32.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.32.0-beta.3. The section is complete with the release.*
 
 - **Questions over the family tree in one call: `strom query`.** How many millers in the family, who lived at house 12,
   who was born in Lhota in the 18th century: one row per fact of a person with its value, place, house, date, how sure
@@ -27,6 +27,10 @@ The changes of each version in short. The full notes and the install lines are o
   go on as before, from the records.
 - **A house written with its own word** (č. 7, Nr. 7) no longer shows the word twice, on a person's card too.
 - **`strom app --person P…`** opens the Strom app on that person of the tree (an app before 3.21 opens the tree).
+- **The queue from the Strom app:** a search in the whole queue (a task's or a person's number, a name, words of the task,
+  its book, archive or place, without regard to accents; the searched words kept nowhere); "next" puts the last chosen
+  first and can be put back exactly; work on the queue opens a terminal that shows what will start and starts it only
+  on a yes — a number of tasks (`strom run --tasks N`, ends after N settled), or work on its own only under a gate.
 
 ## 1.31.1
 

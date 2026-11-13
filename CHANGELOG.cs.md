@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.32.0
 
-*Připravuje se: bety do 1.32.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.32.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Otázky nad rodokmenem jedním voláním: `strom query`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
   narodil ve Lhotě v 18. století: řádek za každý údaj osoby s hodnotou, místem, číslem popisným, datem, jistotou
@@ -27,6 +27,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   pramenů.
 - **Číslo domu zapsané i se slovem** (č. 7, Nr. 7) už nemá slovo dvakrát, ani na kartě osoby.
 - **`strom app --person P…`** otevře aplikaci Strom na této osobě stromu (aplikace před 3.21 otevře strom).
+- **Fronta z aplikace Strom:** hledání v celé frontě (číslo úkolu nebo osoby, jméno, slova úkolu, jeho kniha, archiv nebo
+  místo, bez ohledu na diakritiku; hledaný text se nikam neukládá); „jako další“ dá naposledy zvolený úkol první a jde
+  přesně vrátit; práce na frontě otevře terminál, který ukáže, co se pustí, a spustí to až po „ano“ – určitý počet úkolů
+  (`strom run --tasks N`, skončí po N vyřízených), nebo samostatnou práci jen pod podmínkou.
 
 ## 1.31.1
 

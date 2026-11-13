@@ -35,6 +35,11 @@ test("the bridge's /status says what works in the research: the sessions open an
     const idle = await getJson(`${info.url}/status`);
     assert.ok(idle.features.includes("status.busy"));
     assert.deepEqual(idle.busy, { sessions: 0, runs: 0 });
+    // before the link work: no gate set (null: the loop not started, n tasks are), a session's minutes as set
+    assert.ok(idle.features.includes("work.link") && idle.features.includes("run.tasks"));
+    assert.deepEqual(idle.work, { gate: null, minutes: 60 });
+    await w.ok(["config", "set", "run.minutes", "25"]);
+    assert.deepEqual((await getJson(`${info.url}/status`)).work, { gate: null, minutes: 25 });
     await w.ok(["session", "start"]);
     const leave = enterWorker(w.cwd, "run-1", "strom run", VERSION);
     try {

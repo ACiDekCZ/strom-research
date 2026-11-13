@@ -4,7 +4,7 @@
 import { GROUPS, GROUP_ALIASES, GLOBAL_OPTIONS, WRITE_OPTIONS, aliasGroup, commands, descriptionOf, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
 import { table } from "./format.ts";
 import type { ShownAppUrl } from "../core/stromapp.ts";
-import { suggest } from "./execute.ts";
+import { RENAMED, suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { docLangOf } from "../core/doc.ts";
 import { REPORT_TABLE_ARCHIVE } from "../core/report.ts";
@@ -210,6 +210,11 @@ export function overview(archive = false): string {
   return out.join("\n");
 }
 
+/** A command strom renamed, named in help by its old name alone (strom help facts): the old name and the new one. */
+function renamedHelp(words: string[]): { old: string; now: string } | undefined {
+  return words.length === 1 && Object.hasOwn(RENAMED, words[0]!) ? { old: words[0]!, now: RENAMED[words[0]!]! } : undefined;
+}
+
 export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false): string {
   // "strom help 'research new'" — one quoted argument with several words.
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
@@ -219,6 +224,9 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive, waiting);
   const real = aliasGroup(words);
   if (real) return groupHelp(real, archive, waiting);
+  // a command strom renamed (strom help facts): said as running it says it, then the help of its new name
+  const renamed = renamedHelp(words);
+  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return `unknown command "${words.join(" ")}"${near.length ? ` — similar command: ${near.map((c) => `strom help ${c}`).join(" · ")}` : ""}\nall commands: strom help`;
@@ -328,6 +336,8 @@ export function helpAs(input: string[], as: HelpAs): string {
   if (subcommandsOf(words).length > 0) return humanGroup(words, as);
   const real = aliasGroup(words);
   if (real) return humanGroup(real, as);
+  const renamed = renamedHelp(words);
+  if (renamed) return `${ui(as.lang, "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now} --human\n\n${helpAs([renamed.now], as)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return [ui(as.lang, "ui.help.unknown", { cmd: words.join(" ") }), ...near.map((c) => `  strom help ${c} --human`)].join("\n");

@@ -21,7 +21,7 @@ import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
 import { humanTask } from "./human.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
-import { askGate, capProblem, ensureGatesDir, listGates, loadGate, pointsProblem } from "../core/gate.ts";
+import { askGate, capProblem, ensureGatesDir, gateLabel, listGates, loadGate, pointsProblem } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
@@ -99,7 +99,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             return true;
           },
         },
-        ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateName(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
+        ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateLabel(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
         {
           key: "3",
           label: t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }),
@@ -316,15 +316,51 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
   );
 }
 
-/** A gate as the user reads it: its title and what it is given ("Claude usage 10"). */
-function gateName(shared: string | undefined, spec: string): string {
-  if (!shared) return spec;
-  try {
-    const g = loadGate(shared, spec);
-    return [g.manifest.title ?? g.name, ...g.args].join(" ");
-  } catch {
-    return spec;
+/**
+ * The condition the agent works alone under (run.gate), picked by the person: the gates there are (strom's claude-usage
+ * only where Claude Code is), what each is given, none — set through strom config (the person's yes). The settings'
+ * item, and the Strom app's link to work on the queue where none is set.
+ */
+export async function chooseGate(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<void> {
+  const t = translator(lang);
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  ctx.settings.reload();
+  const shared = ctx.settings.shared()?.value;
+  if (!shared) return;
+  const tree = root ? Tree.open(root, ctx.env).config : undefined;
+  const set = ctx.settings.runGate();
+  ensureGatesDir(shared);
+  // strom's claude-usage asks Claude Code: offered only where it is
+  const claude = claudeHere(ctx, tree);
+  const gates = listGates(shared).filter((g) => g.name !== "claude-usage" || claude || loadGateName(set ?? "") === g.name);
+  out(t("ui.alone.gate.about"));
+  const current = set ? gates.findIndex((g) => g.name === loadGateName(set)) : gates.length;
+  const i = await ctx.choose(
+    t("ui.alone.gate.pick"),
+    [...gates.map((g) => ({ label: g.manifest.title ?? g.name })), { label: t("ui.settings.gate.none") }],
+    current >= 0 ? current : gates.length + 1,
+    {
+      back: t("ui.browse.back"),
+    },
+  );
+  if (i === undefined) return;
+  if (i === gates.length) {
+    if (set) await run(["config", "unset", "run.gate"], true);
+    return;
   }
+  const g = gates[i]!;
+  const had = set && loadGateName(set) === g.name ? set.trim().split(/\s+/u).slice(1).join(" ") : undefined;
+  let given = "";
+  for (;;) {
+    given = (await ctx.ask(t(g.name === "claude-usage" ? "ui.alone.gate.claude" : "ui.alone.gate.args"), had ?? (g.name === "claude-usage" ? "10" : ""))).trim();
+    // claude-usage takes a whole number of points (0–99), as the gate reads it; anything else would stop every run
+    if (pointsProblem(g.name, given.split(/\s+/u).filter(Boolean)) === undefined && capProblem(given.split(/\s+/u).filter(Boolean)) === undefined) break;
+    out(t("ui.alone.gate.bad"));
+    if (ctx.io.answers !== undefined && ctx.io.answers.length === 0) return;
+  }
+  if (given === "0" && g.name !== "claude-usage") return;
+  const spec = [g.name, given].filter(Boolean).join(" ");
+  if (spec !== set) await run(["config", "set", "run.gate", spec], true);
 }
 
 /** The agent working alone: how long one session may take, and the condition it works on under (run.gate). */
@@ -358,41 +394,8 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
     if (shared)
       items.push({
         key: "2",
-        label: t("ui.alone.gate", { gate: set ? gateName(shared, set) : t("ui.settings.gate.none") }),
-        act: async () => {
-          ensureGatesDir(shared);
-          // strom's claude-usage asks Claude Code: offered only where it is
-          const claude = claudeHere(ctx, tree);
-          const gates = listGates(shared).filter((g) => g.name !== "claude-usage" || claude || loadGateName(set ?? "") === g.name);
-          out(t("ui.alone.gate.about"));
-          const current = set ? gates.findIndex((g) => g.name === loadGateName(set)) : gates.length;
-          const i = await ctx.choose(
-            t("ui.alone.gate.pick"),
-            [...gates.map((g) => ({ label: g.manifest.title ?? g.name })), { label: t("ui.settings.gate.none") }],
-            current >= 0 ? current : gates.length + 1,
-            {
-              back: t("ui.browse.back"),
-            },
-          );
-          if (i === undefined) return;
-          if (i === gates.length) {
-            if (set) await run(["config", "unset", "run.gate"], true);
-            return;
-          }
-          const g = gates[i]!;
-          const had = set && loadGateName(set) === g.name ? set.trim().split(/\s+/u).slice(1).join(" ") : undefined;
-          let given = "";
-          for (;;) {
-            given = (await ctx.ask(t(g.name === "claude-usage" ? "ui.alone.gate.claude" : "ui.alone.gate.args"), had ?? (g.name === "claude-usage" ? "10" : ""))).trim();
-            // claude-usage takes a whole number of points (0–99), as the gate reads it; anything else would stop every run
-            if (pointsProblem(g.name, given.split(/\s+/u).filter(Boolean)) === undefined && capProblem(given.split(/\s+/u).filter(Boolean)) === undefined) break;
-            out(t("ui.alone.gate.bad"));
-            if (ctx.io.answers !== undefined && ctx.io.answers.length === 0) return;
-          }
-          if (given === "0" && g.name !== "claude-usage") return;
-          const spec = [g.name, given].filter(Boolean).join(" ");
-          if (spec !== set) await run(["config", "set", "run.gate", spec], true);
-        },
+        label: t("ui.alone.gate", { gate: set ? gateLabel(shared, set) : t("ui.settings.gate.none") }),
+        act: () => chooseGate(ctx, run, lang, root),
       });
     // Without the person's own add-ons (skills, plugins, MCP servers) — only for an agent that has the switches (nearly
     // always here: before the test of a gate, which shows only with one set); a tree with a value of its own: the

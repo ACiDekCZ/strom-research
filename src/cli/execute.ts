@@ -118,7 +118,7 @@ export function resolveCommand(argv: string[]): Resolved {
 }
 
 /** Commands strom renamed: the old name → the new one, which takes the same options. */
-const RENAMED: Record<string, string> = { facts: "query" };
+export const RENAMED: Record<string, string> = { facts: "query" };
 
 /** A renamed command called by its old name: the same call under the new name, to run as it is. */
 function renamedCommand(argv: string[], old: string): UsageError {

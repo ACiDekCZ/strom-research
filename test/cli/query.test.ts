@@ -366,3 +366,25 @@ test("strom facts, the old name: the same call as strom query to run, nothing ru
     w.cleanup();
   }
 });
+
+test("strom help facts, the old name: the rename said as running it says it, then the help of strom query — never an unknown command", async () => {
+  const w = new World();
+  try {
+    for (const args of [["help", "facts"], ["facts", "--help"]]) {
+      const r = await w.run(args, { env: { CLAUDECODE: "1" } });
+      const said = r.out + r.err;
+      assert.match(said, /"strom facts" is now "strom query" \(the same options\)/u, args.join(" "));
+      assert.doesNotMatch(said, /unknown command/u, args.join(" "));
+    }
+    const help = (await w.ok(["help", "facts"], { env: { CLAUDECODE: "1" } })).out;
+    assert.match(help, /→ strom help query\n\nstrom query \[options\]/u);
+    assert.match(JSON.parse((await w.ok(["help", "facts", "--json"], { env: { CLAUDECODE: "1" } })).out).help, /^"strom facts" is now "strom query"/u);
+    // a person's help: in their language
+    const human = (await w.ok(["help", "facts", "--human", "--lang", "cs"])).out;
+    assert.match(human, /„strom facts“ je teď „strom query“ \(stejné přepínače\)\n→ strom help query --human/u);
+    // another unknown name: as before
+    assert.match((await w.ok(["help", "factz"], { env: { CLAUDECODE: "1" } })).out, /unknown command "factz"/u);
+  } finally {
+    w.cleanup();
+  }
+});
