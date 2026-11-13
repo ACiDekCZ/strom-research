@@ -245,6 +245,29 @@ test("the bridge: one place's requests sent at once — A sent before, B and C m
   }
 });
 
+test("the bridge: a write whose strom is ended by a signal (killed, the system short of memory) answered 500 waiting.failed and said in its log — never a request left without an answer (it hung the suite)", bridged, async () => {
+  const w = await world();
+  // the strom the bridge runs to mark a task sent killed as it starts; the bridge itself (live serve) left alone
+  const kill = path.join(w.dir, "kill-task.cjs");
+  fs.writeFileSync(kill, `if (process.argv.includes("task") && process.argv.includes("sent")) process.kill(process.pid, "SIGKILL");\n`);
+  w.env.NODE_OPTIONS = `${w.env.NODE_OPTIONS ?? ""} --require=${JSON.stringify(kill)}`.trim();
+  const info = (await w.ok(["live", "start", "--json"])).json;
+  try {
+    const before = state(w);
+    const r = await post(`${info.url}/waiting/T0004`, JSON.stringify({ do: "sent" }), app);
+    assert.equal(r.status, 500, r.body);
+    assert.equal(JSON.parse(r.body).code, "waiting.failed");
+    assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8"), /was not written: its strom ended \(SIGKILL\)/u);
+    assert.equal(state(w), before, "nothing marked");
+    // the bridge free for the next write: refused the same way, never busy
+    const again = await post(`${info.url}/group/${encodeURIComponent("to:matricni urad lhota")}`, JSON.stringify({ do: "sent" }), app);
+    assert.deepEqual([again.status, JSON.parse(again.body).code], [500, "waiting.failed"]);
+  } finally {
+    await w.ok(["live", "stop"]);
+    w.cleanup();
+  }
+});
+
 test("the bridge: a file for a task (X-Strom-Task) — an input of the task's people handed to it, the task back in the queue, no intake task; a task that waits no more refused before anything is kept", bridged, async () => {
   const w = await world();
   const info = (await w.ok(["live", "start", "--json"])).json;

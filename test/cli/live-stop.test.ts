@@ -125,7 +125,7 @@ const KILLED = process.platform === "win32" ? "exit 1" : "SIGKILL";
  * endBridge in a process of its own (as strom live stop runs it), told it runs on another system — never waited for
  * synchronously here: this process reaps its children (a bridge that ended is otherwise still there, as on Windows it is not)
  */
-function endBridgeAs(platform: string, pid: number, root: string, more: { writeMs?: number } = {}): Promise<string> {
+function endBridgeAs(platform: string, pid: number, root: string, more: { writeMs?: number; askMs?: number } = {}): Promise<string> {
   const code = "const m = await import(process.argv[1]); process.stdout.write(m.endBridge(Number(process.argv[2]), process.argv[3], { platform: process.argv[4], askMs: 600, waitMs: 1500, ...JSON.parse(process.argv[5]) }))";
   const c = spawn(process.execPath, ["--input-type=module", "-e", code, LIVE, String(pid), root, platform, JSON.stringify(more)], { stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
@@ -141,10 +141,11 @@ test("endBridge on Windows: a bridge that hears its stop file ends as it should;
   const file = path.join(root, ".strom", "live-stop.json");
 
   try {
-    // hears it: takes the ask meant for it and ends by itself
+    // hears it: takes the ask meant for it and ends by itself — given as long as a busy computer takes to let it look
+    // (over as soon as it took it: found under the whole suite, 600 ms were not enough for a process looking every 50 ms)
     const hears = `const f=${JSON.stringify(file)},fs=require("fs");setInterval(()=>{try{if(JSON.parse(fs.readFileSync(f,"utf8")).pid===process.pid){fs.rmSync(f);process.exit(0)}}catch{}},50)`;
     const good = await standIn(root, hears);
-    assert.equal(await endBridgeAs("win32", good.pid!, root), "stopped");
+    assert.equal(await endBridgeAs("win32", good.pid!, root, { askMs: 60_000 }), "stopped");
     assert.equal(await exited(good), "exit 0", "it ended by itself");
     // does not hear it (a bridge of an older strom): on Windows a signal ends it at once, unheard — "killed", said so
     const deaf = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)", "live", "serve"], { cwd: root, stdio: "ignore" });

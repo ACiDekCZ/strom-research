@@ -9,17 +9,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { netFile, opts, robotsReadToday, world } from "./connectors.helpers.ts";
 import { until } from "../helpers.ts";
+import { FETCH, Started } from "../bridges.ts";
 import { clockUp } from "../../src/core/net.ts";
 
-const started = new Set<number>();
-after(() => {
-  for (const pid of started)
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // ended already
-    }
-});
+// the fetches in the background the tests started, each ended only while it is the one started (test/bridges.ts)
+const started = new Started();
+after(() => started.end());
 
 /** The host left alone after a silence, until `ms` from now — as the limiter writes it. */
 function silentUntil(w: Parameters<typeof netFile>[0], ms: number): number {
@@ -74,7 +69,7 @@ test("fetch --background: an archive left alone longer than its wait — nothing
   assert.ok(at >= soon);
   const bg = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1", "--background"]);
   const pid = Number(/pid (\d+)/.exec(bg.out)?.[1]);
-  started.add(pid);
+  started.add(pid, FETCH, w.dirs());
   assert.match(bg.out, /fetching 2 images of B0001 \(images 1–2\) in the background/);
   assert.ok(bg.out.includes(`127.0.0.1 is left alone until ${clockUp(at)} (it went silent, or asked to slow down): the fetch waits for it, then goes on by itself`), bg.out);
   await until("the fetch in the background waits for the archive", async () => /waits for the archive until (\d{4}-\d\d-\d\d )?\d\d:\d\d, then goes on by itself/.test((await w.ok(["fetch", "--status"])).out), { ms: 30_000 });

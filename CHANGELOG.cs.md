@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.32.0
 
-*Připravuje se: bety do 1.32.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.32.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Otázky nad rodokmenem jedním voláním: `strom query`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
   narodil ve Lhotě v 18. století: řádek za každý údaj osoby s hodnotou, místem, číslem popisným, datem, jistotou
@@ -19,18 +19,30 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jak to říká kalkulačka vztahů aplikace Strom.
 - **Povolání i v českých, německých, latinských a polských tvarech:** mlynar najde i Müller a molitor; osoby se slovem
   jen ve jméně nebo poznámce se počítají zvlášť, se `strom find`, který je najde.
+  **Vlastní tvary výzkumu: `strom occupation add|list|remove`.** Tvar, který seznam nemá (jiný jazyk, starý
+  pravopis, povolání, které nezná), se přidá ručně, bez agenta — `strom occupation add olejník de:Ölschläger` — a zůstane
+  u výzkumu; agent stejně přidá, co najde v pramenech, a řekne to, ručně přidané nikdy nemění. `strom query` řekne,
+  když slovo není v žádném seznamu (hledá se jen tento tvar), i jak jeho tvary přidat. Vestavěný seznam zná o 40 řemesel
+  a stavů z matrik víc (kostelník, hrobník, koželuh, lazebník, zvonař …).
 - **I vyprávění: `strom query --story <slovo>`** vypíše osoby a páry, v jejichž vyprávění slovo je, každou s větou
   a prameny, o které se opírá, se stejnými filtry, počty i skupinami.
 - **Agent odpovídá na otázky nad rodokmenem příkazem `strom query`,** se jménem a ID osoby v závorce (aby šla otevřít v
-  aplikaci Strom), celým vztahem a pramenem jeho názvem, a říká, jak jistý je každý údaj: vodítko ani pravděpodobný údaj
+  aplikaci Strom: `strom app --person P…`; aplikace před 3.21 otevře strom), celým vztahem a pramenem jeho názvem, a říká, jak jistý je každý údaj: vodítko ani pravděpodobný údaj
   nikdy jako fakt. Vyprávění jen ukazuje, kde hledat; čí je zápis, kdo je kdo a ověřování údajů jde dál jako dosud, z
   pramenů.
 - **Číslo domu zapsané i se slovem** (č. 7, Nr. 7) už nemá slovo dvakrát, ani na kartě osoby.
-- **`strom app --person P…`** otevře aplikaci Strom na této osobě stromu (aplikace před 3.21 otevře strom).
+- **Události sdílené v aplikaci Strom** (sčítání domácnosti, stěhování) a vlastní událost kmotra nebo svědka na svatbě
+  s rolí u cizí události se čtou z jejího GEDCOM i JSON, drží se u každého údaje a vracejí se, jak přišly; od aplikace
+  3.28 se o tom, kdo událost sdílí, rozhoduje v aplikaci a synchronizace bere její změnu jako změnu uživatele. `ROLE`
+  účastníka z GEDCOM 7 se čte i v souboru jiného programu. Sčítání osoby v JSON aplikace se už nevynechá. Výzkum založený ze stromu aplikace Strom převezme z jejího JSON vše, co dává její GEDCOM: sdílené události a role,
+  kmotry, svědky a všechny účastníky události, příčinu úmrtí, věk a čísla domů, rozvod s datem, vztah každého dítěte
+  ke každému rodiči, jméno po sňatku. Vlastní dlouhé poznámky uživatele zůstávají celé, už se nezkracují na 500 znaků.
+  Výzkum založený ze stromu aplikace s dlouhou poznámkou s emoji mohl osobu nebo rodinu vynechat; další synchronizace
+  ji doplní.
 - **Fronta z aplikace Strom:** hledání v celé frontě (číslo úkolu nebo osoby, jméno, slova úkolu, jeho kniha, archiv nebo
   místo, bez ohledu na diakritiku; hledaný text se nikam neukládá); „jako další“ dá naposledy zvolený úkol první a jde
   přesně vrátit; práce na frontě otevře terminál, který ukáže, co se pustí, a spustí to až po „ano“ – určitý počet úkolů
-  (`strom run --tasks N`, skončí po N vyřízených), nebo samostatnou práci jen pod podmínkou.
+  (`strom run --tasks N`, skončí po N vyřízených), nebo samostatnou práci jen pod podmínkou. Most k aplikaci ve velkém výzkumu mnohem méně pracuje, když se nic nemění.
 
 ## 1.31.1
 

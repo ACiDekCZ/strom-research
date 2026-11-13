@@ -39,6 +39,18 @@ export function edited(ged: string, out: string): string {
   return out;
 }
 
+/**
+ * How long a request to a bridge may go without its answer: a budget far above any answer (a write under the load of the
+ * whole suite takes seconds), so a lost answer fails the test with the request named — never a test file that hangs
+ * for good (its bridge and its socket kept the process alive past the test's own time limit).
+ */
+export const ANSWER_BUDGET_MS = 120_000;
+
+function answered(req: http.ClientRequest, what: string, reject: (e: Error) => void): void {
+  req.setTimeout(ANSWER_BUDGET_MS, () => req.destroy(new Error(`no answer in ${ANSWER_BUDGET_MS / 1000} s: ${what}`)));
+  req.on("error", reject);
+}
+
 export function post(url: string, body: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(url, { method: "POST", headers: { "Content-Type": "text/plain; charset=utf-8", ...headers } }, (res) => {
@@ -46,20 +58,19 @@ export function post(url: string, body: string, headers: Record<string, string> 
       res.on("data", (d) => (b += d));
       res.on("end", () => resolve({ status: res.statusCode ?? 0, body: b }));
     });
-    req.on("error", reject);
+    answered(req, `POST ${url}`, reject);
     req.end(body);
   });
 }
 
 export function get(url: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    http
-      .get(url, (res) => {
-        let b = "";
-        res.on("data", (d) => (b += d));
-        res.on("end", () => resolve({ status: res.statusCode ?? 0, body: b }));
-      })
-      .on("error", reject);
+    const req = http.get(url, (res) => {
+      let b = "";
+      res.on("data", (d) => (b += d));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: b }));
+    });
+    answered(req, `GET ${url}`, reject);
   });
 }
 

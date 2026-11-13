@@ -196,6 +196,11 @@ ${hypotheses}
   whose a record is, who a person is, verifying and writing facts go as ever
   (\`strom person show\`, the sources, the method) — a row of it is not
   enough for that.
+  An occupation \`strom query\` says is in no list (found only as
+  written), or a form of one the records name that the list lacks (another
+  language, an old spelling): add it with its other forms — \`strom
+  occupation add <form> <form> [de:<form> la:<form>] --source S…\` — and
+  tell the user you did; what the user added is theirs, never changed.
 - **Their edits in the Strom app** ("I fixed grandma's birthday in the
   app", a .ged or .json they exported): \`strom sync <file>\` shows what it
   would take — tell them, write it on their yes (\`--apply\`); a sync is

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.32.0
 
-*In Vorbereitung: die Betas bis 1.32.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.32.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Fragen an den Stammbaum mit einem Aufruf: `strom query`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
   wohnte, wer im 18. Jahrhundert in Lhota geboren wurde: eine Zeile je Angabe einer Person mit Wert, Ort, Hausnummer,
@@ -20,19 +20,35 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Berufe auch in ihren tschechischen, deutschen, lateinischen und polnischen Formen:** mlynar findet auch Müller und
   molitor; Personen mit dem Wort nur im Namen oder in einer Notiz werden getrennt gezählt, mit dem `strom find`, das sie
   findet.
+  **Eigene Formen der Forschung: `strom occupation add|list|remove`.** Eine Form, die die Liste nicht hat (eine
+  andere Sprache, eine alte Schreibung, ein Beruf, den sie nicht kennt), wird von Hand hinzugefügt, ohne Agent —
+  `strom occupation add olejník de:Ölschläger` — und bleibt bei der Forschung; der Agent fügt ebenso hinzu, was die
+  Quellen nennen, und sagt es, von Hand Hinzugefügtes ändert er nie. `strom query` sagt, wenn ein Wort in keiner Liste
+  steht (nur diese Form gesucht), und wie seine Formen hinzukommen. Die eingebaute Liste kennt 40 weitere Handwerke und
+  Stände der Matriken (Messner, Totengräber, Gerber, Bader, Glockengießer …).
 - **Auch die Erzählungen: `strom query --story <Wort>`** nennt die Personen und Paare, in deren Erzählung das Wort
   steht, jede mit dem Satz und den Quellen, auf die er sich stützt, mit denselben Filtern, Zählungen und Gruppen.
 - **Der Agent beantwortet Fragen an den Stammbaum mit `strom query`,** mit dem Namen und der ID jeder Person in Klammern
-  (zum Öffnen in der Strom-App), der ganzen Verwandtschaft und der Quelle mit ihrem Titel, und sagt, wie sicher jede
+  (zum Öffnen in der Strom-App: `strom app --person P…`; eine App vor 3.21 öffnet den Baum), der ganzen Verwandtschaft und der Quelle mit ihrem Titel, und sagt, wie sicher jede
   Angabe ist: ein Hinweis oder eine wahrscheinliche Angabe nie als Tatsache. Eine Erzählung zeigt nur, wo zu suchen ist;
   wem ein Eintrag gehört, wer wer ist und das Prüfen der Angaben geht weiter wie bisher, aus den Quellen.
 - **Eine Hausnummer mit eigenem Wort** (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
-- **`strom app --person P…`** öffnet die Strom-App bei dieser Person des Baums (eine App vor 3.21 öffnet den Baum).
+- **In der Strom-App geteilte Ereignisse** (eine Volkszählung eines Haushalts, ein Umzug) und das eigene Ereignis eines
+  Paten oder Trauzeugen mit einer Rolle beim Ereignis einer anderen Person werden aus ihrem GEDCOM und JSON gelesen,
+  bei jeder Angabe gehalten und so zurückgegeben, wie sie kamen; ab der App 3.28 wird in der App entschieden, wer ein
+  Ereignis teilt, und ein Abgleich nimmt ihre Änderung als die des Benutzers. `ROLE` eines Beteiligten aus GEDCOM 7
+  wird auch in der Datei eines anderen Programms gelesen. Eine Volkszählung einer Person im JSON der App fällt nicht
+  mehr weg. Eine Forschung, die aus dem Baum der Strom-App angelegt wird, übernimmt aus ihrem JSON alles, was ihr GEDCOM gibt:
+  geteilte Ereignisse und Rollen, Paten, Zeugen und alle Beteiligten eines Ereignisses, die Todesursache, Alter und
+  Hausnummern, eine Scheidung mit Datum, die Beziehung jedes Kindes zu jedem Elternteil, den Namen nach der Heirat. Die
+  eigenen langen Notizen des Benutzers bleiben ganz und werden nicht mehr auf 500 Zeichen gekürzt. Eine aus dem Baum der
+  App angelegte Forschung mit einer langen Notiz mit Emoji konnte eine Person oder Familie auslassen; der nächste Abgleich
+  ergänzt sie.
 - **Die Warteschlange aus der Strom-App:** Suche in der ganzen Warteschlange (Nummer einer Aufgabe oder Person, Name,
   Wörter der Aufgabe, ihr Buch, Archiv oder Ort, ohne Rücksicht auf diakritische Zeichen; der gesuchte Text wird nirgends
   gespeichert); „Als Nächstes“ setzt die zuletzt gewählte Aufgabe an die Spitze und lässt sich genau zurücksetzen; Arbeit
   an der Warteschlange öffnet ein Terminal, das zeigt, was startet, und es erst nach einem Ja startet – eine Anzahl
-  Aufgaben (`strom run --tasks N`, endet nach N erledigten) oder selbstständige Arbeit nur unter einer Bedingung.
+  Aufgaben (`strom run --tasks N`, endet nach N erledigten) oder selbstständige Arbeit nur unter einer Bedingung. Die Brücke zur App arbeitet in einer großen Forschung viel weniger, solange sich nichts ändert.
 
 ## 1.31.1
 

@@ -11,16 +11,11 @@ import os from "node:os";
 import path from "node:path";
 import { opts, tiled, world } from "./connectors.helpers.ts";
 import { until } from "../helpers.ts";
+import { FETCH, Started } from "../bridges.ts";
 
-const started = new Set<number>();
-after(() => {
-  for (const pid of started)
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // ended already
-    }
-});
+// the fetches in the background the tests started, each ended only while it is the one started (test/bridges.ts)
+const started = new Started();
+after(() => started.end());
 
 const WARNING = /⚠ connector zkusebni: one image costs 12 requests \(tiles, most likely\) — at its pace \(at least 2 s apart, no hourly cap\) about 24 s an image, 80 min for a book of 200 images/g;
 
@@ -70,7 +65,7 @@ test("fetch --background: the cost of an image of many requests kept on its mark
     const bg = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1", "--background", "--json"]);
     const pid = bg.json.pid as number;
     assert.ok(pid > 0, bg.out);
-    started.add(pid);
+    started.add(pid, FETCH, w.dirs());
     type Ended = { pid: number; heavy?: { perImage: number; bookMs: number; bookImages?: number } };
     const ended = async () => ((await w.ok(["fetch", "--status", "--json"])).json.ended as Ended[]).find((e) => e.pid === pid);
     await until("the fetch in the background ended", async () => !!(await ended()), { ms: 60_000 });

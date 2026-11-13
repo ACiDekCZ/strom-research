@@ -22,7 +22,7 @@ import { STATUSES, eventKind } from "./model.ts";
 import { ancestorGenerations, displayName, familiesAsPartner, lifespan, primaryName } from "./people.ts";
 import { familyForms, isWomansForm, surnameFormOf } from "./surnames.ts";
 import { surnameForms } from "./people.ts";
-import { occupationMatcher, type OccupationMatcher } from "./occupations.ts";
+import { occupationMatcher, occupationsOf, type OccupationMatcher } from "./occupations.ts";
 import { relationsFrom, type Relation, type RelationTerm } from "./relation.ts";
 import { recordIndex } from "./placeid.ts";
 import { dateYears } from "./gdate.ts";
@@ -83,6 +83,10 @@ export interface FactAnswer {
   variants: string[];
   /** Whether some word asked for is an occupation of the list (its forms in other languages found too). */
   known: boolean;
+  /** The words asked for that are no occupation of the list (built in or the research's own): each found only as typed. */
+  unknown: string[];
+  /** Why the research's own list of occupations could not be read (the built-in list alone then). */
+  listError?: string;
   rows: FactRow[];
   /** The people of the rows. */
   people: number;
@@ -144,7 +148,8 @@ export function findFacts(tree: Tree, q: FactQuery): FactAnswer {
   const { people, line } = kinSet(tree, of.id, q.kin);
   const kinds = q.kinds?.length ? new Set(q.kinds.map(factKind)) : undefined;
   const statuses = new Set<string>(q.statuses?.length ? q.statuses : SHOWN_STATUSES);
-  const matchers: OccupationMatcher[] = (q.values ?? []).map((v) => occupationMatcher(v, { exact: !!q.exact })).filter((m) => m.word);
+  const list = occupationsOf(tree);
+  const matchers: OccupationMatcher[] = (q.values ?? []).map((v) => occupationMatcher(v, { exact: !!q.exact, list })).filter((m) => m.word);
   const valueOf = (e: Event) => !matchers.length || matchers.some((m) => m.matches(e.value) || m.matches(e.label) || m.matches(e.cause));
   const placeAsked = q.place ? tokens(q.place) : [];
   const placeRecord = placeAsked.length ? recordIndex(tree) : undefined;
@@ -223,7 +228,7 @@ export function findFacts(tree: Tree, q: FactQuery): FactAnswer {
     }
   }
   const variants = [...new Set(matchers.flatMap((m) => m.variants))];
-  return { of, kin: q.kin, variants, known: matchers.some((m) => m.known), rows, people: new Set(rows.map((r) => r.person.id)).size, elsewhere };
+  return { of, kin: q.kin, variants, known: matchers.some((m) => m.known), unknown: matchers.filter((m) => !m.known).map((m) => m.word), ...(list.error ? { listError: list.error } : {}), rows, people: new Set(rows.map((r) => r.person.id)).size, elsewhere };
 }
 
 // ── stories ─────────────────────────────────────────────────────────────────
@@ -254,6 +259,8 @@ export interface StoryAnswer {
   kin: KinSet;
   variants: string[];
   known: boolean;
+  unknown: string[];
+  listError?: string;
   rows: StoryRow[];
   people: number;
   /** People of the set without the word in a story, but with it elsewhere in their record (a note): what strom find finds. */
@@ -261,6 +268,15 @@ export interface StoryAnswer {
 }
 
 const SNIPPET = 160;
+
+/** A word of at most four letters with a dot: before a number an abbreviation ("čp.", "č.", "fol.", "Nr."). */
+const ABBREV = String.raw`(?<![\p{L}\p{M}\p{N}])\p{L}[\p{L}\p{M}]{0,3}\.`;
+
+/**
+ * Where a sentence ends: after . ! ? … before a capital, a number or a quote — never between a short abbreviation and
+ * a number ("z čp. 12", "fol. 23", "Nr. 7").
+ */
+const SENTENCE_END = new RegExp(String.raw`(?<=[.!?…])(?<!${ABBREV})\s+(?=[\p{Lu}\p{N}„"“«‚(])|(?<=${ABBREV})\s+(?=[\p{Lu}„"“«‚(])`, "u");
 
 /** A story's text as sentences: its paragraphs and sentences, without the marks the app shows (## , - , **). */
 function sentences(text: string): string[] {
@@ -273,7 +289,7 @@ function sentences(text: string): string[] {
         .map((l) => l.replace(/^\s*(?:#{1,6}\s+|[-*]\s+)/u, ""))
         .join(" ")
         .replace(/\*\*|(?<![\p{L}\p{N}])\*|\*(?![\p{L}\p{N}])/gu, "")
-        .split(/(?<=[.!?…])\s+(?=[\p{Lu}\p{N}„"“«‚(])/u),
+        .split(SENTENCE_END),
     )
     .map((x) => x.replace(/\s+/gu, " ").trim())
     .filter(Boolean);
@@ -306,7 +322,8 @@ export function findStories(tree: Tree, q: FactQuery, words: string[]): StoryAns
   const withFacts = asksFacts(q) ? new Set(findFacts(tree, q).rows.map((r) => r.person.id)) : undefined;
   const people = [...set].filter((id) => surnameOf(tree.get<Person>(id)!) && (!withFacts || withFacts.has(id)));
 
-  const matchers = words.map((v) => occupationMatcher(v, { exact: !!q.exact })).filter((m) => m.word);
+  const list = occupationsOf(tree);
+  const matchers = words.map((v) => occupationMatcher(v, { exact: !!q.exact, list })).filter((m) => m.word);
   const sources = new Map(tree.list<Source>("source").map((s) => [s.id, s]));
   const events = new Map<string, Event>();
   for (const t of ["person", "family"] as const) for (const r of tree.list<Person | Family>(t)) for (const e of r.events) events.set(e.id, e);
@@ -369,7 +386,7 @@ export function findStories(tree: Tree, q: FactQuery, words: string[]): StoryAns
     return folded.some((w) => hay.includes(w));
   });
   const variants = [...new Set(matchers.flatMap((m) => m.variants))];
-  return { of, kin: q.kin, variants, known: matchers.some((m) => m.known), rows, people: new Set(rows.map((r) => r.person.id)).size, elsewhere };
+  return { of, kin: q.kin, variants, known: matchers.some((m) => m.known), unknown: matchers.filter((m) => !m.known).map((m) => m.word), ...(list.error ? { listError: list.error } : {}), rows, people: new Set(rows.map((r) => r.person.id)).size, elsewhere };
 }
 
 /** The line first by generation (the person, the parents, …), then the others by generation, each person's facts by date. */
@@ -439,7 +456,7 @@ export function groupKey<R extends GroupedRow>(r: R, by: FactGroup, term: (r: R)
   }
 }
 
-/** The rows by group: in order of the line (generation), of the years (decade), else the most first; "unknown" last. */
+/** The rows by group: in order of the line (generation), of the generation (kin), of the years (decade), else the most first; "unknown" last. */
 export function groupRows<R extends GroupedRow>(rows: R[], by: FactGroup, term: (r: R) => string | undefined): { groups: FactGroupCount<R>[]; labels: Map<string, string> } {
   const map = new Map<string, R[]>();
   const labels = new Map<string, string>();
@@ -457,6 +474,14 @@ export function groupRows<R extends GroupedRow>(rows: R[], by: FactGroup, term: 
     if (g.key === "unknown") return Infinity;
     if (by === "generation") return g.key === "side" ? 1e6 : Number(g.key.slice(1));
     if (by === "decade") return Number(g.key.slice(0, -1));
+    // kin by the generation (the person, the parents, the grandparents … then the children, the grandchildren), the
+    // most first within one; a relation of no generation after them
+    if (by === "kin") {
+      const gens = g.rows.map((r) => r.relation?.generation).filter((x): x is number => x !== undefined);
+      if (!gens.length) return 1e7 - g.facts;
+      const gen = (x: number) => (x >= 1 ? x : 1000 + (1 - x));
+      return Math.min(...gens.map(gen)) * 1e4 - g.facts;
+    }
     return -g.facts;
   };
   groups.sort((a, b) => rank(a) - rank(b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));

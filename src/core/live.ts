@@ -64,7 +64,11 @@
 //                          (.strom/cache/live-images: those the kept files name and those of the last hour, the rest
 //                          go); X-Strom-Images: ref | data says which file came (another value asked: data, as always);
 //                          packed (Content-Encoding: gzip, once for each file) for an app that takes it (Accept-Encoding),
-//                          the file with its images in it never (an older app gets it as always)
+//                          the file with its images in it never (an older app gets it as always).
+//                          Under a person's fact its copy of an event the app shares among people (2 _STROM_SHARE <id>,
+//                          3 _ROLE the person's role as written), under a fact of a person or a family a role at
+//                          another's event (2 _STROM_ROLE <role>, 3 _STROM_AT @…@ only of this file, 4 TYPE its tag) —
+//                          feature event.share: read by strom intake and strom sync, kept and given back as they came
 //   GET <token>/image/<sha256>   one image the file names by reference: the JPEG, Cache-Control private, a year, immutable,
 //                          ETag its hash (If-None-Match: 304); never made because it is asked for — 404 image.unknown
 //                          (the app takes the file with its images in it), 400 image.sha
@@ -480,6 +484,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { configDir, userHome, type Env } from "./paths.ts";
+import { noteTestProcess } from "./testnote.ts";
 import { newerTree, now, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
@@ -536,7 +541,7 @@ const EXCERPT_MS = 20_000;
 /** A source with more excerpts than this is answered without the pictures: the app asks for each (?clip=). */
 const EXCERPTS_AT_ONCE = 12;
 import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./workers.ts";
-import { widgetWriter } from "./widget.ts";
+import { widgetTree, widgetWriter, type WidgetTree } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { busyIn } from "./busy.ts";
 import { effectiveState, restoredTurn, runOrder, turnWas, type Ranked } from "./queue.ts";
@@ -848,6 +853,19 @@ function writeLast(root: string, last: LiveLast): void {
   }
 }
 
+/**
+ * How the bridge works the widget's overview out: on a thread of its own, or here (STROM_LIVE_STATUS_THREAD=0) — one that
+ * fails said either way (`said`: into live.log while the bridge runs), and looked at again at the next check.
+ */
+export function widgetMaker(root: string, env: Env, said: (text: string) => void): (now: number) => Promise<WidgetTree | undefined> {
+  const make = env.STROM_LIVE_STATUS_THREAD === "0" ? async (now: number) => widgetTree(root, env, { running: true, now }) : (now: number) => widgetOnThread({ root, env, now });
+  return (now) =>
+    make(now).catch((e: unknown) => {
+      said(`the widget failed (tried again): ${errorText(e)}`);
+      throw e;
+    });
+}
+
 /** One line (or an error with its stack) into the bridge's log; never fails, never grows past its size. */
 export function noteLive(root: string, text: string): void {
   try {
@@ -1033,20 +1051,6 @@ function endStarter(root: string, env: Env, holder: number): void {
   if (liveRunning(root)?.pid === starter) return;
   const how = endBridge(starter, root, { why: `another bridge of this tree runs (${holder}): the bridge of strom ${env.STROM_LIVE_RENEWED ?? VERSION} it started ended for it`, back: false, askOnly: process.platform === "win32" });
   if (how === "stopped" || how === "killed") noteLive(root, `the bridge ${starter} that started this one (${process.pid}) ended too: another bridge of this tree runs (${holder})`);
-}
-
-/**
- * Tests only: the folder where a run of the tests keeps a note of each bridge (STROM_TEST_BRIDGES; test/setup.ts), so
- * none outlives its test — ended with its world, and the run fails when one is left.
- */
-function noteTestBridge(root: string, env: Env): void {
-  const dir = env.STROM_TEST_BRIDGES;
-  if (!dir) return;
-  try {
-    fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, root, at: new Date().toISOString() }));
-  } catch {
-    // a run whose folder is gone: nothing to keep
-  }
 }
 
 function sleep(ms: number): void {
@@ -1563,7 +1567,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2732,7 +2736,7 @@ function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
 
 /** Run the bridge of the tree here, until idle or stopped. */
 export function serveLive(root: string, env: Env): Promise<number | undefined> {
-  noteTestBridge(root, env);
+  noteTestProcess(root, env, "live");
   // the tree's bridge runs already, or another one claimed the tree a moment before (a newer strom's bridge taking over
   // while a strom starts one): this one is not needed — it ends before it writes or takes anything, and so does the
   // bridge that started it to take over (none of the tree's either). What it ended for: the bridge that holds the tree
@@ -4027,15 +4031,19 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       noteAdoptFailed(root, "other", why);
       if (!answered) reply(full ? 507 : 500, full ? { ...diskFullSaid(lang, root), reason: why } : { ...said(lang, "ui.sync.bridge.adopt"), reason: why });
     };
+    let gone = false;
     child.on("error", (e) => {
       clearTimeout(timer);
       adopting = false;
+      gone = true;
       failed(errorText(e));
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       clearTimeout(timer);
       adopting = false;
-      if (code === null) return; // the error said it
+      if (gone) return; // the error said it
+      // ended by a signal (killed, the system short of memory): said, never left without a word
+      if (code === null) return failed(`its strom ended (${signal ?? "a signal"})`);
       let data: { input?: string | null; message?: string; code?: string; applied?: { do: string; id: string; before?: string }[] } = {};
       try {
         data = JSON.parse(out) as typeof data;
@@ -4400,9 +4408,16 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           personWriting = undefined;
           reply(500, refusal(errorText(e), codes.failed));
         });
-        child.on("close", (code) => {
+        child.on("close", (code, signal) => {
           personWriting = undefined;
-          if (code === null) return;
+          // ended by a signal (killed, the system short of memory): the app answered, never left waiting for good (a
+          // request without an answer hung the app's write and the test suite); an error before it answered already
+          if (code === null) {
+            if (res.headersSent) return;
+            const why = `its strom ended (${signal ?? "a signal"})`;
+            noteLive(root, `${how.what} was not written: ${why}`);
+            return reply(500, refusal(why, codes.failed));
+          }
           let data: Record<string, unknown> = {};
           try {
             data = JSON.parse(out) as Record<string, unknown>;
@@ -6604,20 +6619,18 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       // the research on the desktop (the Strom Widget of a Mac, the widget of Windows 11): the tree's overview written
       // while the bridge runs (core/widget.ts; none but on macOS and Windows) — the first a moment after the start, never in its way
       // (worked out on a thread of its own: a second and more on a large research, every check; off: here, as before —
-      // the thread ended with the bridge says nothing)
+      // the thread ended with the bridge says nothing) — and only when the state of the research /status is kept by
+      // changed, else once a minute (the same research, nothing new to work out)
       let widgetEnds = false;
       const widget = widgetWriter(
         root,
         env,
         process.platform,
         Date.now,
-        env.STROM_LIVE_STATUS_THREAD === "0"
-          ? undefined
-          : (now) =>
-              widgetOnThread({ root, env, now }).catch((e) => {
-                if (!widgetEnds) noteLive(root, `the widget failed (tried again): ${errorText(e)}`);
-                throw e;
-              }),
+        widgetMaker(root, env, (text) => {
+          if (!widgetEnds) noteLive(root, text);
+        }),
+        () => keeper.keyNow(),
       );
       if (widget) setTimeout(() => safe("the widget", () => widget.tick(true)), 1000).unref?.();
       const send = (event: string, data: unknown) => {
@@ -6793,12 +6806,19 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           let err = "";
           child.stdout?.on("data", (d: Buffer) => (out += d.toString("utf8")));
           child.stderr?.on("data", (d: Buffer) => (err += d.toString("utf8")));
+          let gone = false;
           child.on("error", (e) => {
+            gone = true;
             noteLive(root, `images saved for waiting tasks not taken now: ${errorText(e)}`);
             done(false);
           });
-          child.on("close", (code) => {
-            if (code === null) return;
+          child.on("close", (code, signal) => {
+            if (gone) return;
+            // ended by a signal: said, and the inbox free to take them at its next look
+            if (code === null) {
+              noteLive(root, `images saved for waiting tasks not taken now: its strom ended (${signal ?? "a signal"})`);
+              return done(false);
+            }
             if (code !== 0) {
               noteLive(root, `images saved for waiting tasks not taken now: ${err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`}`);
               return done(false);

@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
+import { Started } from "../bridges.ts";
 import { learnedReaderMinutes, READER_LEARN_RECENT, readerMinutes, READER_MINUTES_CEILING, READER_MINUTES_FLOOR } from "../../src/core/reader.ts";
 import { isHalted, readerLimit } from "../../src/core/readstats.ts";
 
@@ -71,12 +72,10 @@ test("strom read: a reader stuck on one crop is stopped at its limit and strom r
     assert.match(crop.out, /^read 1 image in /m);
     assert.match(two.out, /^read 2 images in /m);
   } finally {
-    for (const pid of fs.existsSync(pids) ? fs.readFileSync(pids, "utf8").trim().split("\n") : [])
-      try {
-        process.kill(Number(pid), "SIGKILL");
-      } catch {
-        // gone
-      }
+    // the helpers the stuck reader left, each ended only while it is the one it started (test/bridges.ts)
+    const helpers = new Started();
+    for (const pid of fs.existsSync(pids) ? fs.readFileSync(pids, "utf8").trim().split("\n") : []) helpers.add(Number(pid), /\bsetTimeout\(/u, w.dirs());
+    helpers.end();
     w.cleanup();
   }
 });

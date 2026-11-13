@@ -247,7 +247,7 @@ export const HUMAN_COMMANDS = [
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
   "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "fixes review", "media calibrate",
-  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "quality dismiss", "quality undo", "place answer", "place undo", "source split",
+  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "occupation add", "occupation list", "occupation remove", "quality dismiss", "quality undo", "place answer", "place undo", "source split",
   "config get", "config set", "login", "connector add", "connector remove", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 

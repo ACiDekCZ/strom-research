@@ -14,6 +14,7 @@ import { World, hasGit, until } from "../helpers.ts";
 import { treeOverview } from "../../src/core/phone-watch.ts";
 import { treeFinds } from "../../src/core/phone-finds.ts";
 import { foldText } from "../../src/core/text.ts";
+import { widgetMaker } from "../../src/core/live.ts";
 import { Tree, VERSION } from "../../src/core/tree.ts";
 import { uninstallPlan } from "../../src/core/uninstall.ts";
 import type { Task } from "../../src/core/model.ts";
@@ -321,6 +322,85 @@ test("the widget's files: written whole (renamed over), index.json of the trees 
   }
 });
 
+test("the bridge's writer works the overview out only when the research's state changed (its commit, who is at work, the settings, the day — as /status is kept by), else once a minute: the same research looked at every 15 s is no work", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-state-"));
+  try {
+    const env = { HOME: dir, STROM_WIDGET_DIR: path.join(dir, "widget") };
+    const now = { ms: Date.UTC(2026, 10, 13, 10, 15, 30) };
+    let state = "c1\n[]\n2026-11-13";
+    let made = 0;
+    const tree = (at: number): WidgetTree => ({
+      schemaVersion: WIDGET_SCHEMA,
+      treeKey: "0b6f1a52-6d3e-4b8a-9a43-2f0d5d1c7e11",
+      treeName: "Lhotákovi ze Lhoty",
+      lang: "cs",
+      generatedAt: isoSecond(at),
+      running: true,
+      lastActiveAt: isoSecond(at),
+      openUrl: "https://example.org/?tree=lhotakovi",
+      now: { lines: [] },
+      findings: { windowStart: isoSecond(at - 86_400_000), items: [] },
+      pending: { count: made, items: [], openUrl: "https://example.org/?tree=lhotakovi&show=waiting" },
+    });
+    const writer = widgetWriter(dir, env, "darwin", () => now.ms, async (at) => {
+      made++;
+      return tree(at);
+    }, async () => state)!;
+    const settled = async () => {
+      for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    };
+    const file = path.join(env.STROM_WIDGET_DIR, "0b6f1a52-6d3e-4b8a-9a43-2f0d5d1c7e11.json");
+    writer.tick(true);
+    await settled();
+    assert.equal(made, 1, "the first: worked out");
+    assert.ok(fs.existsSync(file));
+    // the same state, look after look within the minute: nothing worked out, nothing written
+    const was = fs.statSync(file).mtimeMs;
+    for (let i = 0; i < 3; i++) {
+      now.ms += 16_000;
+      writer.tick();
+      await settled();
+    }
+    assert.equal(made, 1, "the same research: no work at each look");
+    assert.equal(fs.statSync(file).mtimeMs, was);
+    // a new commit (or who is at work, a setting, the day): worked out at the next look
+    state = "c2\n[]\n2026-11-13";
+    now.ms += 16_000;
+    writer.tick();
+    await settled();
+    assert.equal(made, 2, "a new state: worked out");
+    assert.equal((JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree).pending.count, 2, "and written (it says something new)");
+    // the same state for a minute: worked out all the same (the 24 hours move, the widget sees the bridge alive)
+    for (let i = 0; i < 3; i++) {
+      now.ms += 16_000;
+      writer.tick();
+      await settled();
+    }
+    assert.equal(made, 2);
+    now.ms += 16_000;
+    writer.tick();
+    await settled();
+    assert.equal(made, 3, "a minute on: worked out again");
+    assert.equal((JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree).generatedAt, isoSecond(now.ms), "written: the heartbeat");
+    // a state that cannot be told (git failed): worked out as before, at each look
+    const blind = widgetWriter(dir, env, "darwin", () => now.ms, async (at) => {
+      made++;
+      return tree(at);
+    }, () => Promise.reject(new Error("no git")))!;
+    const before = made;
+    blind.tick(true);
+    await settled();
+    now.ms += 16_000;
+    blind.tick();
+    await settled();
+    assert.equal(made - before, 2, "no state known: no look skipped");
+    writer.end(false);
+    blind.end(false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("only on macOS and Windows, never the person's own ~/Library or profile from a test: the HOME strom runs with, on Windows the profile's own folder, an isolated installation its own settings folder", () => {
   const home = path.join(os.tmpdir(), "strom-widget-home");
   const env = { HOME: home, STROM_CONFIG_DIR: path.join(home, "config") };
@@ -624,5 +704,27 @@ test("the bridge writes the widget's file while it runs and running: false when 
     assert.ok(!fs.existsSync(path.join(real, `${id}.json`)));
   } finally {
     w.cleanup();
+  }
+});
+
+test("the bridge's overview that fails is said in live.log and looked at again — worked out on a thread of its own or here (STROM_LIVE_STATUS_THREAD=0) alike", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom test widget ěš "));
+  try {
+    // a research the overview cannot be worked out of (gone meanwhile)
+    const root = path.join(dir, "Lhotákovi");
+    for (const thread of [{}, { STROM_LIVE_STATUS_THREAD: "0" }]) {
+      const env = { HOME: dir, STROM_CONFIG_DIR: path.join(dir, "config"), STROM_WIDGET_DIR: path.join(dir, "widget"), ...thread };
+      const said: string[] = [];
+      const writer = widgetWriter(root, env, "darwin", Date.now, widgetMaker(root, env, (t) => said.push(t)), async () => "the same state")!;
+      writer.tick(true);
+      await until("the failure said", () => said.length === 1, { ms: 30_000 });
+      assert.match(said[0]!, /^the widget failed \(tried again\): \S/u, JSON.stringify(thread));
+      // looked at again at the next check: said again
+      writer.tick(true);
+      await until("said again", () => said.length === 2, { ms: 30_000 });
+      writer.end(false);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

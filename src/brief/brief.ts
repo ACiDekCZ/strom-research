@@ -5,6 +5,7 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
+import { noteWhole } from "../core/model.ts";
 import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -172,7 +173,7 @@ function citesOf(citations: Citation[] | undefined): string {
 function notesShort(p: Person): string[] {
   const last = p.notes.at(-1);
   if (!last) return [];
-  return [`    note: ${noteStart(last.text, NOTE_LINE)}${p.notes.length > 1 ? ` (${p.notes.length} notes: strom person show ${p.id})` : [...last.text.replace(/\s+/gu, " ").trim()].length > NOTE_LINE ? ` (strom person show ${p.id})` : ""}`];
+  return [`    note: ${noteStart(noteWhole(last), NOTE_LINE)}${p.notes.length > 1 ? ` (${p.notes.length} notes: strom person show ${p.id})` : [...noteWhole(last).replace(/\s+/gu, " ").trim()].length > NOTE_LINE ? ` (strom person show ${p.id})` : ""}`];
 }
 
 /** Whom the task is about: every fact with its sources, other names, parents, families, the story — and the last notes (in short: the start of the last one). */
@@ -193,7 +194,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
     }
   if (p.story) out.push(`    story: ${p.story.status}${p.story.title ? ` "${p.story.title}"` : ""}, ${p.story.text.split(/\s+/).length} words (strom story show ${p.id})`);
   if (short) return [...out, ...notesShort(p)];
-  for (const n of p.notes.slice(-3)) out.push(`    note: ${n.text}`);
+  for (const n of p.notes.slice(-3)) out.push(`    note: ${noteWhole(n)}`);
   if (p.notes.length > 3) out.push(`    (${p.notes.length - 3} older note${p.notes.length > 4 ? "s" : ""}: strom person show ${p.id})`);
   return out;
 }
@@ -278,7 +279,7 @@ function relativeBlock(tree: Tree, p: Person, role: string, short = false): stri
   const parents = parentsOf(tree, p.id);
   out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}`);
   if (short) return [...out, ...notesShort(p)];
-  for (const n of p.notes.slice(-2)) out.push(`    note: ${[...n.text].length > NOTE_SHOWN ? `${[...n.text].slice(0, NOTE_SHOWN).join("")}…` : n.text}`);
+  for (const n of p.notes.slice(-2)) out.push(`    note: ${[...noteWhole(n)].length > NOTE_SHOWN ? `${[...noteWhole(n)].slice(0, NOTE_SHOWN).join("")}…` : noteWhole(n)}`);
   if (p.notes.length > 2) out.push(`    (${p.notes.length - 2} older note${p.notes.length > 3 ? "s" : ""}: strom person show ${p.id})`);
   return out;
 }
@@ -319,7 +320,7 @@ function relativeLine(tree: Tree, p: Person, role: string, withParents: boolean)
     houses.length ? `lived: ${houses.join("; ")}` : "",
     work.length ? `occupation: ${work.join("; ")}` : "",
     parents.length ? `parents: ${parents.map((x) => x.id).join(" & ")}` : "",
-    note ? `note: ${noteStart(note.text, NOTE_LINE)}` : "",
+    note ? `note: ${noteStart(noteWhole(note), NOTE_LINE)}` : "",
   ].filter(Boolean).join(" · ")}`;
 }
 
@@ -348,7 +349,7 @@ function identityBlock(tree: Tree, p: Person, role: string): string[] {
     const kids = f.children.map((c) => tree.get<Person>(c.person)).filter(Boolean).map((x) => label(x!));
     out.push(`    ${f.id} with ${partner.join(", ") || "?"}${kids.length ? ` · children: ${kids.join(", ")}` : ""}`);
   }
-  if (note) out.push(`    note: ${noteStart(note.text, NOTE_LINE)}`);
+  if (note) out.push(`    note: ${noteStart(noteWhole(note), NOTE_LINE)}`);
   return out;
 }
 
@@ -358,7 +359,7 @@ function familyBlock(tree: Tree, f: Family, short = false): string[] {
   const out = [`  ${f.id} family of ${partners.join(" & ") || "?"}${f.union ? ` [${f.union}]` : ""}${f.children.length ? ` · ${f.children.length} child${f.children.length > 1 ? "ren" : ""}` : ""}`];
   for (const e of f.events.filter((x) => !x.retracted)) out.push(eventLine(e));
   if (f.citations?.length) out.push(`    sources: ${citesOf(f.citations)}`);
-  for (const n of f.notes.slice(short ? -1 : -3)) out.push(`    note: ${noteStart(n.text, short ? NOTE_LINE : NOTE_SHOWN)}`);
+  for (const n of f.notes.slice(short ? -1 : -3)) out.push(`    note: ${noteStart(noteWhole(n), short ? NOTE_LINE : NOTE_SHOWN)}`);
   return out;
 }
 

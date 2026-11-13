@@ -11,6 +11,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
 import { rankTasks } from "../../src/core/queue.ts";
 import { imagesIndex, indexFile, mediaRecords, recordsFile, sharperCopies } from "../../src/core/mediaindex.ts";
+import { registeredImages } from "../../src/core/inboxwait.ts";
 import { treeStats } from "../../src/core/overview.ts";
 import type { Media, Task } from "../../src/core/model.ts";
 
@@ -213,5 +214,43 @@ test("image records from one file (the tree for the app): exactly the records, k
   assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
   fs.writeFileSync(file, "{");
   assert.deepEqual(byId(mediaRecords(Tree.open(w.cwd, w.env))), records());
+  w.cleanup();
+});
+
+test("registered images of a book (what a task waiting for images has): exactly what the image records say — a part counts, one taken back not, the same image twice once — and never every image record read (the budget: none, once the index is kept)", opts, async () => {
+  const w = await world();
+  // a part of an image of B2 (a book without whole images): asked for too, so registered
+  const tree0 = Tree.open(w.cwd, w.env);
+  tree0.withTreeLock(() => {
+    const at = now();
+    const id = tree0.allocate("M");
+    const m: Media = { id, type: "media", created: at, updated: at, sha: id.padEnd(64, "0"), file: `media/${id}.jpg`, mime: "image/jpeg", size: 1, recordset: "B0002", image: 12, part: { x: 0.1, y: 0.2, w: 0.5, h: 0.4 }, notes: [] };
+    tree0.put(m, { op: "media.add", targets: [id], summary: `image ${id}` });
+  });
+  tree0.commit("a part");
+  // as the records say it (the way before: every image record read for each book)
+  const plain = (rs: string) => {
+    const tree = Tree.open(w.cwd, w.env);
+    return [...new Set(tree.list<Media>("media").filter((m) => !m.retracted && m.recordset === rs && m.image !== undefined).map((m) => m.image!))].sort((a, b) => a - b);
+  };
+  const books = ["B0001", "B0002", "B0003", "B0004", "B0005", "B0006", "B0099"];
+  settle(w.cwd);
+  imagesIndex(Tree.open(w.cwd, w.env));
+  assert.ok(fs.existsSync(indexFile(Tree.open(w.cwd, w.env))), "the index kept");
+  const tree = Tree.open(w.cwd, w.env);
+  for (const rs of books) assert.deepEqual([...registeredImages(tree, rs)].sort((a, b) => a - b), plain(rs), rs);
+  assert.deepEqual([...registeredImages(tree, "B0002")], [12], "a part counts");
+  assert.deepEqual([...registeredImages(tree, "B0006")], [], "an image taken back does not");
+  // every book asked, many times over (a bridge's look at each task waiting for images): no image record read at all
+  for (let i = 0; i < 50; i++) for (const rs of books) registeredImages(tree, rs);
+  assert.equal(tree.loaded("media"), false, "the image records never read whole");
+  // an image registered in this process: what it holds counts at once
+  tree.withTreeLock(() => {
+    const at = now();
+    const id = tree.allocate("M");
+    tree.put({ id, type: "media", created: at, updated: at, sha: id.padEnd(64, "0"), file: `media/${id}.jpg`, mime: "image/jpeg", size: 1, recordset: "B0004", image: 3, notes: [] } as Media, { op: "media.add", targets: [id], summary: `image ${id}` });
+  });
+  assert.deepEqual([...registeredImages(tree, "B0004")], [3]);
+  tree.commit("one more");
   w.cleanup();
 });

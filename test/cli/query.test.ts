@@ -135,7 +135,7 @@ test("counted and grouped: by generation, kin, place, decade, surname; rows unde
     const gen = await w.ok(["query", "--occupation", "mlynar", "--count", "--by", "generation"]);
     assert.equal(gen.out.trim().split("\n").slice(1).join("\n"), "  G3: 2 people, 2 facts\n  G4: 1 person, 1 fact\n  side branches: 1 person, 1 fact\n+1 person with the word only elsewhere (a name, a note, …): strom find mlynar");
     const groups = async (by: string, ...more: string[]) => (await w.ok(["query", "--occupation", "mlynar", "--count", "--by", by, "--json", ...more])).json.groups.map((g: { key: string; label: string; facts: number }) => `${g.label}=${g.facts}`);
-    assert.equal((await groups("kin")).length, 4);
+    assert.deepEqual(await groups("kin"), ["děd, z matčiny strany=1", "děd, z otcovy strany=1", "prastrýc, z otcovy strany=1", "praděd, z otcovy strany=1"], "by the generation (G3 before G4), never by the count or the words");
     assert.deepEqual(await groups("place"), ["Lhota=2", "Horní Lhota=1", "unknown=1"], "the most facts first, unknown last");
     assert.deepEqual(await groups("decade"), ["1920–1929=1", "1930–1939=1", "1950–1959=2"]);
     assert.deepEqual(await groups("surname", "--kin", "family"), ["Lhoták=5"], "Lhotáková is a form of Lhoták");
@@ -233,7 +233,7 @@ test("--story: the stories holding a word, with the sentence and the sources it 
   const { w, e } = await family();
   try {
     // Josef's story names the year of his fact: the sentence rests on that fact's source; approved by the user
-    await w.ok(["story", "set", "P0004", "--text", "Josef se narodil v Lhotě.\n\nRoku 1955 převzal **mlýn** po otci.", "--fact", e.josef!]);
+    await w.ok(["story", "set", "P0004", "--text", "Josef se narodil v Lhotě.\n\nRoku 1955 převzal **mlýn** v čp. 12 po otci.", "--fact", e.josef!]);
     await w.ok(["story", "approve", "P0004"]);
     // Václav's long story, typed decomposed: the sentence cut around the word; no year of a fact, so the story's sources
     const long = `${"Dlouho se o něm nevědělo nic, jen to, co si lidé v Lhotě vyprávěli při práci na polích a v lese, ".repeat(2)}až se ukázalo, že vedl Mlýn u potoka a živil celou rodinu.`;
@@ -250,7 +250,7 @@ test("--story: the stories holding a word, with the sentence and the sources it 
     const rows = j.rows as { person: { id: string }; relation: { term: string } | null; story: { of: string; draft: boolean; snippet: string; sources: { id: string }[]; basis: string } }[];
     assert.deepEqual(rows.map((r) => `${r.person.id} ${r.story.of}`), ["P0004 P0004", "P0006 P0006", "P0007 F0005"]);
     const [josef, vaclav, antonin] = rows;
-    assert.deepEqual([josef!.story.snippet, josef!.story.draft, josef!.story.basis, josef!.story.sources.map((x) => x.id)], ["Roku 1955 převzal mlýn po otci.", false, "sentence", ["S0001"]]);
+    assert.deepEqual([josef!.story.snippet, josef!.story.draft, josef!.story.basis, josef!.story.sources.map((x) => x.id)], ["Roku 1955 převzal mlýn v čp. 12 po otci.", false, "sentence", ["S0001"]]);
     assert.equal(josef!.relation!.term, "děd");
     assert.match(vaclav!.story.snippet, /^…[^\n]{0,160}vedl Mlýn u potoka a živil celou rodinu\.$/u);
     assert.ok(vaclav!.story.snippet.length <= 162 && vaclav!.story.snippet === vaclav!.story.snippet.normalize("NFC"), vaclav!.story.snippet);
@@ -267,7 +267,7 @@ test("--story: the stories holding a word, with the sentence and the sources it 
     // the agent's text: the row, the draft, the story's sources said as such, the note pointed to strom find
     const out = (await w.ok(["query", "--story", "mlyn"])).out;
     assert.match(out, /^story mlyn · blood relatives of P0001 Eva Lhotáková \(\*1990\): 3 people, 3 stories\n/u);
-    assert.match(out, /\nP0004 Josef Lhoták \(\*1930\) · děd, z otcovy strany \(G3\) · story: “Roku 1955 převzal mlýn po otci\.” · S0001 Křty Lhota 1955\n/u);
+    assert.match(out, /\nP0004 Josef Lhoták \(\*1930\) · děd, z otcovy strany \(G3\) · story: “Roku 1955 převzal mlýn v čp\. 12 po otci\.” · S0001 Křty Lhota 1955\n/u);
     assert.match(out, /\nP0006 [^\n]* · story: “…[^\n]*” · draft · the story's sources: S0002 Sčítání Horní Lhota 1950\n/u);
     assert.match(out, /\nP0007 [^\n]* · F0005 story: “Žili spolu ve mlýnici u Lhoty, jak píše S0001\.” · draft · S0001 /u);
     assert.match(out, /\n\+3 people with the word only elsewhere \(a name, a note, …\): strom find mlyn$/mu);

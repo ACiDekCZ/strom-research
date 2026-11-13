@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bridgeRuns, bridgesFolder, endBridges, notedBridges } from "./bridges.ts";
+import { bridgesFolder, endOurs, notedBridges, ourNoted, ours } from "./bridges.ts";
 
 interface Print {
   names: string[];
@@ -101,27 +101,28 @@ export function globalSetup(): void {
 }
 
 /**
- * The bridges of this run still running after its last test (test/bridges.ts) — each ended here, and the run fails: a
- * test left one (its world never cleaned up, a tree of its own never stopped), or one whose research is gone did not end
- * by itself. One whose research is gone is waited for a while first: it ends by itself (STROM_LIVE_GONE_MS, then up to 3 s).
+ * The bridges and phone's servers of this run still running after its last test (test/bridges.ts) — each ended here, and
+ * the run fails: a test left one (its world never cleaned up, a tree of its own never stopped), or one whose research is
+ * gone did not end by itself. One whose research is gone is waited for a while first: it ends by itself
+ * (STROM_LIVE_GONE_MS, then up to 3 s; the phone's server when its settings are gone, within a second).
  */
 function bridgesLeft(waitMs = Number(process.env.STROM_TEST_BRIDGES_WAIT_MS ?? 20_000)): string[] {
-  const running = () => notedBridges().filter((b) => bridgeRuns(b.pid));
+  const running = () => notedBridges().filter((b) => ours(ourNoted(b)));
   let left = running();
   for (let t = 0; t < waitMs && left.some((b) => !fs.existsSync(b.root)); t += 250) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
     left = running();
   }
   if (!left.length) return [];
-  const stuck = new Set(endBridges(left.map((b) => b.pid)));
-  return left.map((b) => `a bridge left running: ${b.pid} of ${b.root}${fs.existsSync(b.root) ? "" : " (its research gone)"}${stuck.has(b.pid) ? " — could not be ended" : " — ended now"}`);
+  const stuck = new Set(endOurs(left.map(ourNoted)));
+  return left.map((b) => `${b.kind === "phone" ? "a phone's server" : "a bridge"} left running: ${b.pid} of ${b.root}${fs.existsSync(b.root) ? "" : ` (its ${b.kind === "phone" ? "settings" : "research"} gone)`}${stuck.has(b.pid) ? " — could not be ended" : " — ended now"}`);
 }
 
 export function globalTeardown(): void {
   const after = fingerprint();
   const left = bridgesLeft();
   if (left.length) {
-    process.stderr.write(`\nThe tests left bridges running (each test ends its own: World.cleanup, strom live stop):\n  ${left.join("\n  ")}\n`);
+    process.stderr.write(`\nThe tests left servers running (each test ends its own: World.cleanup, strom live stop, strom phone off):\n  ${left.join("\n  ")}\n`);
     process.exitCode = 1;
   }
   const found: string[] = [];

@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { occupationMatcher } from "../../src/core/occupations.ts";
+import { mergeOccupations, occupationGroup, occupationMatcher } from "../../src/core/occupations.ts";
+import type { OwnOccupation } from "../../src/core/occupations.ts";
 import { assetPath } from "../../src/core/assets.ts";
 
 test("a miller in any language of the list, by the start of a word, with or without accents", () => {
@@ -107,4 +108,39 @@ test("the list: about, groups of one word per form, no form in two groups, every
       }
     }
   });
+});
+
+test("the trades and ranks of the registers added: each found from its other languages", () => {
+  for (const [asked, value] of [
+    ["kostelník", "Messner"],
+    ["aedituus", "kostelníka"],
+    ["koželuh", "Weißgerber"],
+    ["bečvář", "Fassbinder"],
+    ["hospodář", "colonus"],
+    ["hospodský", "Gastwirt"],
+    ["lazebník", "chirurgus"],
+    ["hrobník", "Totengraeber"],
+    ["zvonař", "Glockengiesser"],
+    ["tovaryš", "czeladnik"],
+  ] as const)
+    assert.ok(occupationMatcher(asked).matches(value), `${asked} finds ${value}`);
+});
+
+test("a research's own list: a group joins every group it shares a form with, built in or its own", () => {
+  const own: OwnOccupation[] = [
+    { forms: { cs: ["olejník"], de: ["Ölschläger"] }, by: "human" as const, at: "2026-01-01" },
+    { forms: { cs: ["mlynář"], la: ["olearius"] }, by: "agent" as const, at: "2026-01-01" },
+    { forms: { ru: ["мельник"], cs: ["mlynář"] }, by: "agent" as const, at: "2026-01-01" },
+  ];
+  const list = { entries: mergeOccupations(own) };
+  const m = occupationMatcher("molitor", { list });
+  assert.ok(m.matches("olearius") && m.matches("Мельник") && m.matches("Müller"), "the miller with its own forms");
+  assert.equal(m.matches("Ölschläger"), false, "the person's olejník is an occupation of its own");
+  assert.equal(occupationMatcher("olejník", { list }).known, true);
+  assert.equal(occupationMatcher("olejník").known, false, "the built-in list alone without the research's");
+  assert.deepEqual(occupationGroup("OLEJNIK", list), { forms: ["olejník", "Ölschläger"], own: ["olejník", "Ölschläger"] });
+  // a form of each of two built-in groups makes them one (the person's word for it)
+  const bridged = { entries: mergeOccupations([{ forms: { cs: ["kovář", "zámečník"] }, by: "human", at: "" }]) };
+  assert.ok(occupationMatcher("Schmied", { list: bridged }).matches("Schlosser"));
+  assert.equal(mergeOccupations([]).length, mergeOccupations([{ forms: { cs: ["olejník", "olejníkův"] }, by: "human", at: "" }]).length - 1);
 });

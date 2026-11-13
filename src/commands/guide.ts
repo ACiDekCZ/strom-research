@@ -295,6 +295,9 @@ FINDING YOUR WAY
   story only shows where to look. query answers the user and shows where to look; whose a record is,
   who a person is, verifying and writing facts go as ever (strom person show, the sources, the method)
   — a row of query is not enough for it.
+  An occupation query says is in no list, or a form of one the records name that the list lacks:
+  strom occupation add <form> de:<form> la:<form> --source S0001 (its other forms with it), and
+  tell the user; strom occupation list <word>: its forms. What the user added is theirs, never changed.
   for the user, in the research language: strom stats (how far the research got) · strom recent
   (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
   tree) · strom person card P… (one life)

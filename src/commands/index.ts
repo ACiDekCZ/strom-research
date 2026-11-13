@@ -31,6 +31,7 @@ import "./clips.ts";
 import "./transcripts.ts";
 import "./analysis.ts";
 import "./query.ts";
+import "./occupation.ts";
 import "./grep.ts";
 import "./show.ts";
 import "./browse.ts";

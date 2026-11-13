@@ -11,6 +11,7 @@ import {
   FAMILY_EVENT_KINDS,
   NOTE_MAX,
   STATUSES,
+  treeNoteText,
   type ChildRelation,
   type Citation,
   type Direction,
@@ -54,6 +55,13 @@ export function makeNote(tree: Tree, text: string): Note {
       hint: "keep notes short; longer reasoning belongs in a conflict or hypothesis, the words of a record in the source transcript",
     });
   return { text: t, at: now(), by: tree.actor };
+}
+
+/** A note of the user's own family tree (its intake, the Strom app's): whole however long — its beginning `text`, the whole `whole`. */
+export function treeNote(tree: Tree, text: string): Note {
+  const t = treeNoteText(text);
+  if (!t.text) throw new UsageError("the note is empty");
+  return { ...t, at: now(), by: tree.actor };
 }
 
 /** Where a text of at most `max` characters (UTF-16, as the limits count) is best cut: after a sentence, else a word. */
@@ -152,6 +160,10 @@ export interface EventInput {
   note?: string | undefined;
   /** Where the fact comes from (core/origin.ts): the person's own — origin user. */
   origin?: Event["origin"] | undefined;
+  /** The Strom app's mark of one event shared among people (spec 085): a person's fact only. */
+  share?: Event["share"] | undefined;
+  /** A role at another's event (spec 085). */
+  roleAt?: Event["roleAt"] | undefined;
 }
 
 /** An age as the record gives it → GEDCOM form, or a clear error. */
@@ -233,6 +245,8 @@ export function makeEvent(tree: Tree, input: EventInput, forFamily = false): Eve
   if (input.participants?.length) ev.participants = input.participants;
   if (input.note?.trim()) ev.note = makeNote(tree, input.note).text;
   if (input.origin) ev.origin = input.origin;
+  if (input.share && !forFamily) ev.share = input.share;
+  if (input.roleAt) ev.roleAt = input.roleAt;
   return ev;
 }
 
@@ -553,11 +567,12 @@ export function addEvent(tree: Tree, ownerId: string, input: EventInput): { owne
   });
 }
 
-export function addNote(tree: Tree, id: string, text: string, opts: { whole?: boolean } = {}): Note {
+export function addNote(tree: Tree, id: string, text: string, opts: { whole?: boolean; tree?: boolean } = {}): Note {
   const type = typeOfId(id);
   if (!type) throw new UsageError(`unknown ID ${id}`);
-  // whole: a long note kept as several (strom note add); the app's notes stay one each (they go back to it so)
-  const notes = opts.whole ? makeNotes(tree, text) : [makeNote(tree, text)];
+  // whole: a long note kept as several (strom note add); the app's notes stay one each (they go back to it so) — tree:
+  // the user's own note of the app, however long (its beginning and the whole, treeNote)
+  const notes = opts.tree ? [treeNote(tree, text)] : opts.whole ? makeNotes(tree, text) : [makeNote(tree, text)];
   const note = notes[0]!;
   tree.withTreeLock(() => {
     const rec = tree.get<Person | Family | Research>(id);
@@ -1008,8 +1023,9 @@ function replaceId(value: unknown, from: string, to: string): unknown {
     const keyed = entries.some(([k]) => k === to);
     // the IDs a record had in a family tree (spec 066 K3.2) and its references to other files (refs: a REFN, a file's
     // xref) are that file's words, never the research's references (an xref P0003 of another file is no person of
-    // ours): kept as they are — only a person or a family is merged
-    return Object.fromEntries(entries.filter(([k]) => !(k === from && keyed)).map(([k, v]) => [k === from ? to : k, k === "originalIds" || k === "refs" ? v : replaceId(v, from, to)]));
+    // ours): kept as they are — only a person or a family is merged; so is the Strom app's ID of a shared event (its
+    // own letters and digits, which may look like one of ours)
+    return Object.fromEntries(entries.filter(([k]) => !(k === from && keyed)).map(([k, v]) => [k === from ? to : k, k === "originalIds" || k === "refs" || k === "share" ? v : replaceId(v, from, to)]));
   }
   return value;
 }

@@ -173,7 +173,10 @@ test("?poll=1 keeps no bridge running: the app asking now and then lets it end w
     // asked every 300 ms with ?poll=1, it still ends when idle — waited for, never a fixed time a loaded computer outruns
     const log = () => (fs.existsSync(path.join(w.cwd, ".strom", "live.log")) ? fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8") : "");
     await until("the bridge ended though the app kept asking with ?poll=1", () => get(`${info.url}/status?poll=1`).then(() => false, () => true), { ms: 60_000, every: 300, state: () => log().slice(-600) });
-    assert.match(log(), /idle: nobody asked for a while/u, "it ended as idle");
+    // the bridge closes its port first and says why it ended last (after giving up its claim, under a lock): waited for
+    // its word too — read at once, a loaded computer found the log without it
+    await until("the bridge said why it ended", () => /\] ended: /u.test(log()), { ms: 60_000, state: () => log().slice(-600) });
+    assert.match(log(), /ended: idle: nobody asked for a while/u, "it ended as idle");
   } finally {
     await w.run(["live", "stop"]);
     w.cleanup();

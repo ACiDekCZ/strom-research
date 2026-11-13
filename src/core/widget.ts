@@ -508,7 +508,11 @@ export interface WidgetWriter {
 /**
  * The writer of a tree's bridge; none but on macOS and Windows. `make`: the overview worked out elsewhere (the bridge: on
  * a thread of its own — it reads every task, person and finding: a second and more on a large research, every
- * WIDGET_CHECK_MS, the bridge answering nothing meanwhile; found 2026-11-04); without it, here.
+ * WIDGET_CHECK_MS, the bridge answering nothing meanwhile; found 2026-11-04); without it, here. `stateKey`: the state of
+ * the research (the bridge's: its commit, who is at work, the tree's and this computer's settings, the day — as its
+ * /status is kept by): the same as at the last overview worked out less than WIDGET_HEARTBEAT_MS ago, nothing it says can
+ * be new and none is worked out (a bridge of a large research at ~40 % of a CPU for hours with nothing changing, found
+ * 2026-11-13) — what changes beside the state (the clock's 24 hours, a question of an archive's) at most a minute late.
  */
 export function widgetWriter(
   root: string,
@@ -516,6 +520,7 @@ export function widgetWriter(
   platform: NodeJS.Platform = process.platform,
   clock: () => number = Date.now,
   make?: (now: number) => Promise<WidgetTree | undefined>,
+  stateKey?: () => Promise<string>,
 ): WidgetWriter | undefined {
   const dir = widgetDir(env, platform);
   if (!dir) return undefined;
@@ -558,6 +563,29 @@ export function widgetWriter(
     if (c === said && now - written < beatMs && !held) return;
     write(t, c, now);
   };
+  // the state the last overview was worked out in (stateKey), and when
+  let madeKey: string | undefined;
+  let madeAt = -Infinity;
+  const work = (now: number, k: string | undefined) => {
+    if (!make) {
+      take(widgetTree(root, env, { running: true, now }), now);
+      madeKey = k;
+      madeAt = now;
+      return;
+    }
+    making = true;
+    make(now).then(
+      (t) => {
+        making = false;
+        if (ended) return;
+        take(t, clock());
+        madeKey = k;
+        madeAt = now;
+      },
+      // (said by `make`): looked at again at the next check
+      () => (making = false),
+    );
+  };
   return {
     tick(force = false) {
       const now = clock();
@@ -565,21 +593,21 @@ export function widgetWriter(
         if (held) write({ ...held.t, generatedAt: isoSecond(now), lastActiveAt: isoSecond(now) }, held.c, now);
         return;
       }
-      if (!make) {
-        checked = now;
-        return take(widgetTree(root, env, { running: true, now }), now);
-      }
       if (making) return;
       checked = now;
+      if (!stateKey) return work(now, undefined);
       making = true;
-      make(now).then(
-        (t) => {
+      stateKey()
+        .catch(() => undefined)
+        .then((k) => {
           making = false;
-          if (!ended) take(t, clock());
-        },
-        // (said by `make`): looked at again at the next check
-        () => (making = false),
-      );
+          if (ended) return;
+          // the research as it was at the last overview, made less than a minute ago: nothing to work out
+          if (!force && k !== undefined && k === madeKey && clock() - madeAt < beatMs) return;
+          work(now, k);
+        })
+        // the overview worked out here that failed: looked at again at the next check (never a rejection unheard)
+        .catch(() => (making = false));
     },
     end(gone) {
       ended = true;

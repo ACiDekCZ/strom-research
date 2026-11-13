@@ -45,6 +45,12 @@ export interface Note {
   by: string;
   /** The texts it had before it was corrected (strom note edit), oldest first. */
   edits?: NoteEdit[];
+  /**
+   * The whole text of a note of the user's own family tree when it is longer than `text` holds (500 characters: an
+   * older strom's limit); `text` is its beginning. Optional, a field of its own — an older strom keeps it and shows the
+   * beginning. Read the note's text through `noteWhole`.
+   */
+  whole?: string;
 }
 
 /** A text a note (or a fact's note) had before it was corrected: when it was replaced, by whom and why. */
@@ -131,6 +137,34 @@ export interface Event {
   confirmed?: FactConfirmed;
   /** The last verification of the fact against its originals by an agent (spec 065, `strom verify done`). */
   verified?: FactVerified;
+  /**
+   * One copy of an event the Strom app shares among people (spec 085: a census of a household, a move) — a person's
+   * fact only (`_STROM_SHARE`). Read, kept and given back; no command of the research changes it. Optional: no
+   * SCHEMA_VERSION raised.
+   */
+  share?: EventShare;
+  /**
+   * The person's (or the couple's) own event of a role at another's (spec 085 K2.2: a godparent's own "godparenthood",
+   * `_STROM_ROLE`): never the baptism or marriage itself. Read, kept and given back. Optional: no SCHEMA_VERSION raised.
+   */
+  roleAt?: EventRoleAt;
+}
+
+/** The app's ID of a shared event as the research takes it: opaque, 1–64 letters and digits (an app's own ID, never text of a person). */
+export const SHARE_ID = /^[A-Za-z0-9]{1,64}$/;
+
+/** The mark of a shared event: the app's ID of it (opaque, letters and digits) and the person's role in it, as written. */
+export interface EventShare {
+  id: string;
+  /** The person's role as the user wrote it ("maid"); none: a member of the household. */
+  role?: string;
+}
+
+/** Whose event a role was at: our person (P…) or family (F…), and the GEDCOM tag of that event (BAPM, MARR…). */
+export interface EventRoleAt {
+  role: ParticipantRole;
+  at?: string;
+  kind?: string;
 }
 
 /** A fact confirmed by the person (spec 065). */
@@ -1243,6 +1277,34 @@ export const EXCERPTS_MAX_MB = 200;
 export const SCHEMA_VERSION = 2;
 
 export const NOTE_MAX = 500;
+
+/**
+ * A note's whole text: the user's own long note whole (`whole`) while its text is still that whole's beginning ("…" at
+ * its end, the rest the whole begins with), else its text — an older strom corrects a note's text (strom note edit) and
+ * keeps a `whole` it does not know of: the correction is the note now (N2).
+ */
+export function noteWhole(n: { text: string; whole?: string | undefined }): string {
+  if (n.whole === undefined) return n.text;
+  const text = n.text.normalize("NFC").trimEnd();
+  if (!text.endsWith("…")) return n.text;
+  return n.whole.normalize("NFC").startsWith(text.slice(0, -1).trimEnd()) ? n.whole : n.text;
+}
+
+/**
+ * A note of the user's own family tree, however long (a note of one's own is no limit of theirs): NFC, no spaces at the
+ * end of a line, trimmed; longer than a note holds (NOTE_MAX, UTF-16 as the limit counts), its beginning as `text`
+ * (ended by "…", never between the two halves of one character) and the whole as `whole`.
+ */
+export function treeNoteText(text: string): { text: string; whole?: string } {
+  const whole = text.normalize("NFC").replace(/\s+\n/g, "\n").trim();
+  if (whole.length <= NOTE_MAX) return { text: whole };
+  let head = "";
+  for (const ch of whole) {
+    if (head.length + ch.length > NOTE_MAX - 1) break;
+    head += ch;
+  }
+  return { text: `${head.trimEnd()}…`, whole };
+}
 
 /** Event tags accepted by `event add`, with friendly aliases. */
 export const EVENT_KINDS: Record<string, string> = {

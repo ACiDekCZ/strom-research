@@ -397,6 +397,8 @@ export const PHRASES = {
   "log.surname.reject": "Surname forms of no one family: {forms}",
   "log.surname.unreject": "Surname forms may be suggested again: {forms}",
   "log.surname.undo": "Surname forms put back as they were",
+  "log.occupation.add": "Occupation forms added: {forms}",
+  "log.occupation.remove": "Occupation forms taken out: {forms}",
   "log.lineage.founder": "Begins a lineage of their own: {who}",
   "log.lineage.nocarry": "Carries no lineage: {who}",
   "log.lineage.none": "Lineage as computed again: {who}",
@@ -451,6 +453,20 @@ export const PHRASES = {
   "proposal.read.confirm": "confirmed in the Strom app",
   "proposal.read.earlier": "read before",
   "wait.group.transcripts": "Transcripts to decide",
+  // the roles of GEDCOM 7 (ROLE under an ASSO) the research has none of: a participant "other", said so in its note
+  "role.child": "child",
+  "role.father": "father",
+  "role.friend": "friend",
+  "role.husband": "husband",
+  "role.mother": "mother",
+  "role.multiple": "several roles",
+  "role.neighbour": "neighbour",
+  "role.parent": "parent",
+  "role.spouse": "spouse",
+  "role.wife": "wife",
+  // a person's own event of a role at another's (the Strom app's "godparent", "weddingWitness"): its name
+  "event.godparent": "Godparent",
+  "event.weddingWitness": "Wedding witness",
 } as const;
 
 export type PhraseKey = keyof typeof PHRASES;

@@ -5,7 +5,7 @@
 
 import { UsageError } from "./errors.ts";
 import { findEventOwner, makeNote } from "./actions.ts";
-import { EMBEDDED_PREFIXES, type AnyRecord, type Event, type Family, type Name, type Note, type NoteEdit, type Person, type RetractedName, type RetractedNote, type Retraction } from "./model.ts";
+import { EMBEDDED_PREFIXES, NOTE_MAX, noteWhole, treeNoteText, type AnyRecord, type Event, type Family, type Name, type Note, type NoteEdit, type Person, type RetractedName, type RetractedNote, type Retraction } from "./model.ts";
 import { currentName, gedcomName, parseName, primaryName, sameName, withoutMark } from "./people.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 
@@ -89,7 +89,7 @@ export function isRetractedName(p: Person, name: Name): boolean {
 /** The texts of a record's notes that were taken back or corrected since: words the research said, no new note of the app's. */
 export function earlierNoteTexts(rec: { notes?: Note[]; retractedNotes?: RetractedNote[] } | undefined): string[] {
   if (!rec) return [];
-  return [...(rec.retractedNotes ?? []), ...(rec.notes ?? [])].flatMap((n) => [...((n as RetractedNote).retracted ? [n.text] : []), ...(n.edits ?? []).map((e) => e.text)]);
+  return [...(rec.retractedNotes ?? []), ...(rec.notes ?? [])].flatMap((n) => [...((n as RetractedNote).retracted ? [noteWhole(n)] : []), ...(n.edits ?? []).map((e) => e.text)]);
 }
 
 type WithNotes = AnyRecord & { notes: Note[]; retractedNotes?: RetractedNote[] };
@@ -142,8 +142,10 @@ export function editNote(tree: Tree, id: string, n: number, text: string, reason
     const at = now();
     if (h.kind === "record") {
       const note = pick(h.rec.notes, n, id, "note", listHint(id));
-      if (note.text === fresh.text) throw new UsageError(`note ${n} of ${id} says that already`);
-      const next: Note = { ...note, text: fresh.text, edits: [...(note.edits ?? []), { text: note.text, at, by: tree.actor, reason: why }] };
+      if (noteWhole(note) === fresh.text) throw new UsageError(`note ${n} of ${id} says that already`);
+      // a long note of the user's tree corrected: the new text alone, the whole of the old one among its edits
+      const { whole: _whole, ...kept } = note;
+      const next: Note = { ...kept, text: fresh.text, edits: [...(note.edits ?? []), { text: noteWhole(note), at, by: tree.actor, reason: why }] };
       putHolder(tree, h, { ...h.rec, notes: h.rec.notes.map((x) => (x === note ? next : x)) } as AnyRecord, { op: "note.edit", summary: `${id} note ${n} corrected`, reason: why });
       return next;
     }
@@ -174,8 +176,8 @@ export function retractNote(tree: Tree, id: string, n: number, reason: string | 
     const e = h.event;
     if (!e.note || n !== 1) throw new UsageError(e.note ? `a fact has one note: ${id} 1` : `${id} has no note`, { code: "note.none" });
     const r = retraction(tree, why);
-    // a fact's note has no time of its own: the time it was taken back
-    const gone: RetractedNote = { text: e.note, at: r.at, by: r.by, ...(e.noteEdits?.length ? { edits: e.noteEdits } : {}), retracted: r };
+    // a fact's note has no time of its own: the time it was taken back; the user's long note whole (its beginning the text)
+    const gone: RetractedNote = { ...(e.note.length <= NOTE_MAX ? { text: e.note } : { text: treeNoteText(e.note).text, whole: e.note }), at: r.at, by: r.by, ...(e.noteEdits?.length ? { edits: e.noteEdits } : {}), retracted: r };
     const { note: _note, noteEdits: _edits, ...rest } = e;
     putHolder(tree, h, { ...rest, retractedNotes: [...(e.retractedNotes ?? []), gone] } as Event, { op: "note.retract", summary: `${id} note retracted`, reason: why });
     return gone;
@@ -204,7 +206,7 @@ export function restoreNote(tree: Tree, id: string, n: number, reason: string | 
     if (e.note) throw new UsageError(`${id} has a note again: a fact has one`, { hint: `correct it instead: strom note edit ${id} 1 "<text>" --reason "…"` });
     const rest = list.filter((x) => x !== gone);
     const { retractedNotes: _all, ...base } = e;
-    putHolder(tree, h, { ...base, note: gone.text, ...(gone.edits?.length ? { noteEdits: gone.edits } : {}), ...(rest.length ? { retractedNotes: rest } : {}) } as Event, { ...op, summary: `${id} note restored` });
-    return { text: gone.text, at: gone.at, by: gone.by };
+    putHolder(tree, h, { ...base, note: noteWhole(gone), ...(gone.edits?.length ? { noteEdits: gone.edits } : {}), ...(rest.length ? { retractedNotes: rest } : {}) } as Event, { ...op, summary: `${id} note restored` });
+    return { text: gone.text, ...(gone.whole !== undefined && noteWhole(gone) === gone.whole ? { whole: gone.whole } : {}), at: gone.at, by: gone.by };
   });
 }

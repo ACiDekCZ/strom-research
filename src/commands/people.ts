@@ -11,7 +11,7 @@ import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
-import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Task } from "../core/model.ts";
+import { EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Task } from "../core/model.ts";
 import {
   ancestorGenerations,
   currentName,
@@ -191,7 +191,7 @@ function historyOf(p: Person): HistoryItem[] {
   for (const n of p.retractedNames ?? []) out.push({ kind: "name", on: p.id, text: titledName(n), ...(n.kind ? { nameKind: n.kind } : {}), ...n.retracted });
   const notes = (on: string, list: Note[], gone: RetractedNote[]) => {
     for (const n of [...list, ...gone]) for (const e of n.edits ?? []) out.push({ kind: "edit", on, ...e });
-    for (const n of gone) out.push({ kind: "note", on, text: n.text, ...n.retracted });
+    for (const n of gone) out.push({ kind: "note", on, text: noteWhole(n), ...n.retracted });
   };
   notes(p.id, p.notes, p.retractedNotes ?? []);
   for (const e of p.events) {
@@ -392,7 +392,7 @@ register(
         }
       }
       if (researches.length) out.push("", `${w.say("ui.show.research", "in research")}  ${researches.map((r) => `${r.id} ${r.name}`).join(" · ")}`);
-      if (p.notes.length) out.push("", w.say("ui.show.notes", "notes"), ...p.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`));
+      if (p.notes.length) out.push("", w.say("ui.show.notes", "notes"), ...p.notes.map((n) => `  ${n.at.slice(0, 10)} ${noteWhole(n)}`));
       const history = historyOf(p);
       if (opts.history) out.push("", w.say("ui.show.history", "history"), ...(history.length ? history.map((h) => `  ${historyLine(h, w)}`) : [`  ${w.say("ui.show.history.none", "nothing retracted or corrected")}`]));
       else if (history.length) out.push("", w.say("ui.show.history.more", `retracted or corrected: ${history.length} — strom person show ${p.id} --history`, { n: history.length, id: p.id }));
@@ -720,7 +720,7 @@ register(
               return `  ${child ? who(child) : c.person}${c.relation !== "birth" || own.length ? ` [${[c.relation !== "birth" ? w.word("rel", c.relation) : "", ...own].filter(Boolean).join(", ")}]` : ""}`;
             })
           : [none]),
-        ...(f.notes.length ? ["", w.say("ui.show.notes", "notes"), ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`)] : []),
+        ...(f.notes.length ? ["", w.say("ui.show.notes", "notes"), ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${noteWhole(n)}`)] : []),
       ];
       return { text: lines(...out), data: { family: f, retractedPeople: [...shown].filter((x) => x.retracted).map((x) => x.id) } };
     },
@@ -902,10 +902,10 @@ register(
       const was = (n: Note) => (opts.history ? (n.edits ?? []).map((e) => `     before ${e.at.slice(0, 10)} (${e.by}): ${e.reason} — ${truncate(e.text, 160)}`) : []);
       const out: (string | undefined)[] = [
         notes.length ? `${id} notes` : `${id} has no notes`,
-        ...notes.flatMap((n, i) => [`  ${i + 1}  ${[n.at.slice(0, 10), n.by].filter(Boolean).join(" ")}  ${n.text}`, ...was(n)]),
+        ...notes.flatMap((n, i) => [`  ${i + 1}  ${[n.at.slice(0, 10), n.by].filter(Boolean).join(" ")}  ${noteWhole(n)}`, ...was(n)]),
       ];
       if (opts.history && retracted.length)
-        out.push("retracted", ...retracted.flatMap((n, i) => [`  ${i + 1}  ${n.at.slice(0, 10)} ${n.by}  ${n.text}`, `     retracted ${n.retracted.at.slice(0, 10)} (${n.retracted.by}): ${n.retracted.reason}`, ...was(n)]));
+        out.push("retracted", ...retracted.flatMap((n, i) => [`  ${i + 1}  ${n.at.slice(0, 10)} ${n.by}  ${noteWhole(n)}`, `     retracted ${n.retracted.at.slice(0, 10)} (${n.retracted.by}): ${n.retracted.reason}`, ...was(n)]));
       else if (retracted.length) out.push(`retracted: ${retracted.length} — strom note list ${id} --history`);
       return {
         text: lines(...out),

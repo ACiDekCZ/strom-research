@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.32.0
 
-*In preparation: the betas up to 1.32.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.32.0-beta.4. The section is complete with the release.*
 
 - **Questions over the family tree in one call: `strom query`.** How many millers in the family, who lived at house 12,
   who was born in Lhota in the 18th century: one row per fact of a person with its value, place, house, date, how sure
@@ -19,18 +19,31 @@ The changes of each version in short. The full notes and the install lines are o
   father's, the mother's) and the generation, as the Strom app's relationship finder says it.
 - **Occupations in their Czech, German, Latin and Polish forms:** mlynar finds Müller and molitor too; people with the
   word only in a name or a note are counted apart, with the `strom find` that finds them.
+  **The research's own forms: `strom occupation add|list|remove`.** A form the list lacks (another
+  language, an old spelling, an occupation it does not know) is added by hand, without an agent —
+  `strom occupation add olejník de:Ölschläger` — and kept with the research; the agent adds what the records name the
+  same way and says so, never changing what was added by hand. `strom query` says when a word is in no list (found only
+  as written) and how to add its forms. The built-in list knows 40 more trades and ranks of the registers (sexton,
+  gravedigger, tanner, barber-surgeon, bell founder …).
 - **The stories too: `strom query --story <word>`** gives the people and couples whose story holds the word, each with
   the sentence and the sources it rests on, with the same filters, counts and groups.
 - **The agent answers questions over the tree with `strom query`,** with each person's name and ID in brackets (to open
-  them in the Strom app), the relation whole and the source by its title, and says how sure each fact is: a lead or a
+  them in the Strom app: `strom app --person P…`; an app before 3.21 opens the tree), the relation whole and the source by its title, and says how sure each fact is: a lead or a
   probable one never as a fact. A story only shows where to look; whose a record is, who a person is and verifying facts
   go on as before, from the records.
 - **A house written with its own word** (č. 7, Nr. 7) no longer shows the word twice, on a person's card too.
-- **`strom app --person P…`** opens the Strom app on that person of the tree (an app before 3.21 opens the tree).
+- **Events shared in the Strom app** (a census of a household, a move) and a godparent's or a wedding witness's own
+  event of a role at another's are read from its GEDCOM and its JSON, kept with each fact and given back as they came;
+  from the app's 3.28 who shares an event is decided in the app, a sync taking its change as the user's. GEDCOM 7's
+  `ROLE` of a participant is read in another program's file. A person's census in the app's JSON is no longer left out. A research started from the Strom app's tree takes in from its JSON all its GEDCOM gives: shared events and
+  roles, the godparents, witnesses and everyone at an event, a death's cause, ages and houses, a divorce with its date,
+  each child's tie to each parent, the name after the marriage. The user's own long notes are kept whole, no longer cut
+  at 500 characters. A research started from the app's tree with a long note holding an emoji could leave out a person
+  or a family; the next sync adds it.
 - **The queue from the Strom app:** a search in the whole queue (a task's or a person's number, a name, words of the task,
   its book, archive or place, without regard to accents; the searched words kept nowhere); "next" puts the last chosen
   first and can be put back exactly; work on the queue opens a terminal that shows what will start and starts it only
-  on a yes — a number of tasks (`strom run --tasks N`, ends after N settled), or work on its own only under a gate.
+  on a yes — a number of tasks (`strom run --tasks N`, ends after N settled), or work on its own only under a gate. The bridge to the app works far less in a large research while nothing changes.
 
 ## 1.31.1
 

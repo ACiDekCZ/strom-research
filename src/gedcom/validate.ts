@@ -14,7 +14,7 @@ export interface GedFinding {
 
 const LINE = /^(\d{1,2}) (?:(@[^@ ]+@) )?([A-Za-z0-9_]+)(?: (.*))?$/;
 
-const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED"];
+const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_STROM_SHARE", "_STROM_ROLE"];
 const INDI_EVENTS = [
   "BIRT", "DEAT", "BAPM", "CHR", "CHRA", "CONF", "FCOM", "BARM", "BASM", "ORDN", "EDUC", "GRAD", "OCCU", "RESI", "EMIG", "IMMI",
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",
@@ -75,6 +75,10 @@ const CHILDREN: Record<string, string[]> = {
   // the mark of what the fact says (POST /facts/confirm gives it back)
   _STROM_EID: ["_TXT"],
   _STROM_CHECKED: ["DATE", "_WHY", "_READERS"],
+  // a person's copy of a shared event and the role in it; a role at another's event, whose and its tag (spec 085)
+  _STROM_SHARE: ["_ROLE"],
+  _STROM_ROLE: ["_STROM_AT"],
+  "_STROM_ROLE._STROM_AT": ["TYPE"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],
   "FAM.CHIL": ["_FREL", "_MREL"],
@@ -155,6 +159,8 @@ const EXTENSIONS = new Set([
   "_STROM_XID", "_XREF", "_UID", "_FSFTID",
   // the verification of a fact against its originals: its ID, the user's confirmation, how it waits, the last result
   "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_WHY", "_READERS",
+  // a shared event of the Strom app: a person's copy of it and the role in it, a role at another's event (spec 085)
+  "_STROM_SHARE", "_ROLE", "_STROM_ROLE",
   // the research in the app's table: its lines, the branches off them, each person's places, what waits outside, who it added
   "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH", "_FOCUS", "_VIA", "_NEAREST", "_DIRECTION", "_MODE", "_BRANCH",
   "_STROM_WAIT", "_ON", "_GROUP", "_KEY", "_SENT", "_PRIO", "_STROM_ADDED",
@@ -181,7 +187,8 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_STROM_WAS") return "_STROM_WAS";
   if (parent === "_VIA" && anc[1] === "_STROM_BRANCH" && depth === 3) return "_STROM_BRANCH._VIA";
   if (parent === "_GROUP" && anc[1] === "_STROM_WAIT" && depth === 3) return "_STROM_WAIT._GROUP";
-  if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED") && depth === 3) return parent;
+  if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED" || parent === "_STROM_SHARE" || parent === "_STROM_ROLE") && depth === 3) return parent;
+  if (parent === "_STROM_AT" && anc[2] === "_STROM_ROLE" && depth === 4) return "_STROM_ROLE._STROM_AT";
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {
     if (record === "INDI" && INDI_EVENTS.includes(parent)) return "EVENT";

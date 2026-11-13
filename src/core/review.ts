@@ -7,6 +7,7 @@
 // Each kind is at most one task per person at a time, and what a task of that
 // kind took up is never proposed again.
 
+import { noteWhole } from "./model.ts";
 import type { Conflict, Event, Family, Hypothesis, Lesson, Person, RecordSet, Research, Search, Session, Source, Task } from "./model.ts";
 import { dateYears } from "./gdate.ts";
 import { hypothesisPeople } from "./directions.ts";
@@ -190,7 +191,8 @@ export function sameModel(a: string, b: string): boolean {
 function mentionsOf(tree: Tree, p: Person, cited: Set<string>): string[] {
   const phrases = names(p);
   if (!phrases.length) return [];
-  const noted = (notes: { text: string }[] | undefined) => (notes ?? []).some((n) => mentions(n.text, phrases));
+  // a long note of the user's own tree by its whole text
+  const noted = (notes: { text: string; whole?: string }[] | undefined) => (notes ?? []).some((n) => mentions(noteWhole(n), phrases));
   const hits: string[] = [];
   for (const s of tree.list<Source>("source"))
     if (!s.retracted && !cited.has(s.id) && (mentions(s.transcript, phrases) || mentions(s.translation, phrases) || mentions(s.title, phrases) || noted(s.notes))) hits.push(s.id);
@@ -402,7 +404,7 @@ export function reviewItems(tree: Tree, task: Task): string[] {
   const phrases = p ? names(p) : [];
   const surnames = p ? p.names.map((n) => n.surname).filter(Boolean) : [];
   const said = (text: string | undefined) => lineNaming(text, phrases, surnames);
-  const notesLine = (notes: { text: string }[] | undefined) => (notes ?? []).map((n) => said(n.text)).find(Boolean);
+  const notesLine = (notes: { text: string; whole?: string }[] | undefined) => (notes ?? []).map((n) => said(noteWhole(n))).find(Boolean);
   return task.where.map((id) => {
     const r = tree.get(id) as (Source | Person | Family | Search | Session | Lesson | Conflict | Hypothesis | undefined);
     if (/^E\d+$/.test(id)) {

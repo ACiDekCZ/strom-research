@@ -11,6 +11,7 @@ import { eventName, humanDate, humanPlace, statusName } from "../cli/human.ts";
 import { UsageError } from "../core/errors.ts";
 import { ASKED_STATUSES, FACT_GROUPS, KIN_SETS, factKind, findFacts, findStories, groupRows, parseYears, personLabel, termLang, type FactGroup, type FactQuery, type FactRow, type KinSet, type StoryRow } from "../core/query.ts";
 import { houseHasWord } from "../core/house.ts";
+import { OCCUPATIONS_FILE } from "../core/occupations.ts";
 import { mainPerson } from "../core/kin.ts";
 import { displayName, lifespan, resolvePerson } from "../core/people.ts";
 import { csvOpt, listOpt } from "../core/records.ts";
@@ -249,6 +250,21 @@ register({
           })
         : undefined;
 
+    // an occupation asked for that no list knows (found only as typed), and the research's own list unreadable
+    const ans = st ?? a!;
+    const asked = new Set(occupations.map((o) => o.normalize("NFC").trim()));
+    const notInList = st ? [] : ans.unknown.filter((x) => asked.has(x));
+    const occNote = notInList.length
+      ? say("ui.query.occupation.unknown", "{words}: not in the list of occupations, found only as written; its other forms: strom occupation add {word} <form> [la:<form> …]", {
+          words: notInList.join(", "),
+          word: shellArg(notInList[0]!),
+        })
+      : undefined;
+    const listNote = ans.listError
+      ? say("ui.occupation.unreadable", `the research's own list of occupations (${OCCUPATIONS_FILE}) cannot be read: the built-in list only — strom repair`, { file: OCCUPATIONS_FILE })
+      : undefined;
+    const known = { known: ans.known, ...(asked.size ? { unknown: notInList } : {}), ...(ans.listError ? { listError: ans.listError } : {}) };
+
     if (st) {
       const countStories = (people: number, stories: number) =>
         w.lang ? ui(w.lang, "ui.query.count.stories", { people, stories }) : `${counted(people, "person", "people")}, ${counted(stories, "story", "stories")}`;
@@ -276,6 +292,7 @@ register({
         of: { id: of.id, name: personLabel(of) },
         kin,
         variants: st.variants,
+        ...known,
         total: { people: st.people, stories: st.rows.length },
         elsewhere: { people: st.elsewhere.length, ...(st.elsewhere.length ? { ids: st.elsewhere, command: `strom find ${shellArg(word!)}` } : {}) },
       };
@@ -284,6 +301,7 @@ register({
         return {
           text: lines(
             say("ui.query.none", "nothing found: {query}", { query: `${what ? `${what} · ` : ""}${kinText}` }),
+            listNote,
             elsewhere,
             t.length ? say("ui.query.try", "try: {commands}", { commands: t.join(" · ") }) : undefined,
           ),
@@ -296,12 +314,12 @@ register({
       const groupsData = groups?.map(({ facts, ...g }) => ({ ...g, stories: facts }));
       if (opts.count)
         return {
-          text: lines(head, ...(groups ?? []).map((g) => `  ${g.label}: ${countStories(g.people, g.facts)}`), elsewhere),
+          text: lines(head, ...(groups ?? []).map((g) => `  ${g.label}: ${countStories(g.people, g.facts)}`), elsewhere, listNote),
           data: { ...data, ...(groupsData ? { groups: groupsData } : {}) },
         };
       const { page, body } = pageOf(st.rows, grouped, groups, storyText, countStories);
       return {
-        text: lines(head, ...body, elsewhere, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
+        text: lines(head, ...body, elsewhere, listNote, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
         data: { ...data, ...(groupsData ? { groups: groupsData } : {}), page: page.page, pages: page.pages, rows: page.items.map(storyData) },
       };
     }
@@ -353,6 +371,7 @@ register({
       of: { id: of.id, name: personLabel(of) },
       kin,
       variants: fa.variants,
+      ...known,
       total: { people: fa.people, facts: fa.rows.length },
       elsewhere: { people: fa.elsewhere.length, ...(fa.elsewhere.length ? { ids: fa.elsewhere, command: `strom find ${shellArg(findWord!)}` } : {}) },
     };
@@ -362,6 +381,8 @@ register({
       return {
         text: lines(
           say("ui.query.none", "nothing found: {query}", { query: `${what ? `${what} · ` : ""}${kinText}` }),
+          occNote,
+          listNote,
           elsewhere,
           t.length ? say("ui.query.try", "try: {commands}", { commands: t.join(" · ") }) : undefined,
         ),
@@ -373,7 +394,7 @@ register({
     const groups = grouped?.groups.map((g) => ({ key: g.key, label: groupLabel(g.key, grouped.labels), people: g.people, facts: g.facts }));
     if (opts.count) {
       return {
-        text: lines(head, ...(groups ?? []).map((g) => `  ${g.label}: ${countText(g.people, g.facts)}`), elsewhere),
+        text: lines(head, ...(groups ?? []).map((g) => `  ${g.label}: ${countText(g.people, g.facts)}`), elsewhere, occNote, listNote),
         data: { ...data, ...(groups ? { groups } : {}) },
       };
     }
@@ -381,7 +402,7 @@ register({
     // the rows (by group: in the order of the groups), a page at a time
     const { page, body } = pageOf(fa.rows, grouped, groups, rowText, countText);
     return {
-      text: lines(head, ...body, elsewhere, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
+      text: lines(head, ...body, elsewhere, occNote, listNote, moreLine(page, command(kinArg.concat(by ? ["--by", by] : [])), w.lang)),
       data: { ...data, ...(groups ? { groups } : {}), page: page.page, pages: page.pages, rows: page.items.map(rowData) },
     };
   },

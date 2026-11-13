@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { main } from "../src/cli/main.ts";
 import type { ChoiceText } from "../src/core/dialog.ts";
-import { bridgesFolder, endBridges, notedBridges, within } from "./bridges.ts";
+import { BRIDGE, bridgesFolder, endOurs, notedBridges, ourNoted, PHONE, within, type Ours } from "./bridges.ts";
 
 /** The answer of a window with choices: the key chosen, none (null: later, Esc, no answer in time) — or one given by what it says. */
 export type Choice = string | null | ((text: ChoiceText) => string | null);
@@ -180,25 +180,28 @@ export class World {
 
   cleanup(): void {
     worlds.delete(this);
-    // every bridge of this world a test left running (one that failed before strom live stop; one that came up after a
-    // live start gave up, named in no live.json) ended — and waited for — before its folder goes: those that noted
-    // themselves (test/bridges.ts), and any a tree's live.json names (one started with an environment of its own)
-    const pids = new Set(notedBridges(this.env.STROM_TEST_BRIDGES).filter((b) => within(b.root, this.dirs())).map((b) => b.pid));
+    // every bridge and phone's server of this world a test left running (one that failed before strom live stop; one that
+    // came up after a live start gave up, named in no live.json) ended — and waited for — before its folder goes: those
+    // that noted themselves (test/bridges.ts), any a tree's live.json names (one started with an environment of its own)
+    // and the phone's server phone-run.json names — each only while it is the one started here (its command, its folder)
+    const dirs = this.dirs();
+    const left = new Map<number, Ours>(notedBridges(this.env.STROM_TEST_BRIDGES).filter((b) => within(b.root, dirs)).map((b) => [b.pid, ourNoted(b)]));
     const trees = path.join(this.env.HOME!, "Documents", "Strom");
     for (const t of fs.existsSync(trees) ? fs.readdirSync(trees) : []) {
       try {
-        pids.add((JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid);
+        const pid = (JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid;
+        if (!left.has(pid)) left.set(pid, { pid, command: BRIDGE, dirs });
       } catch {
         // none running
       }
     }
-    if (pids.size) endBridges([...pids]);
-    // the phone's server a test left running
     try {
-      process.kill((JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid, "SIGTERM");
+      const pid = (JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid;
+      if (!left.has(pid)) left.set(pid, { pid, command: PHONE, dirs });
     } catch {
       // none running
     }
+    if (left.size) endOurs([...left.values()]);
     // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
     fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

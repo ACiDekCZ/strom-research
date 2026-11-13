@@ -71,31 +71,37 @@ test("a newer strom on disk: the address answers through the hand-over — the o
     fs.writeFileSync(path.join(w.dir, "slow.cjs"), `if ((process.argv.includes('serve') && process.env.STROM_LIVE_STATUS_FOR !== undefined) || process.argv.includes('--version')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${START_MS});\n`);
     w.env.NODE_OPTIONS = `${w.env.NODE_OPTIONS ?? ""} --require=${JSON.stringify(path.join(w.dir, "slow.cjs"))}`.trim();
   });
-  try {
-    // measured from the first answer on: the bridge's first /status (made cold) is no hand-over
-    let last = 0;
-    let gap = 0;
-    let done = false;
-    const watch = (async () => {
-      while (!done) {
-        const ok = await fetch(`${b.info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" }, signal: AbortSignal.timeout(1000) }).then((r) => r.ok, () => false);
-        const now = Date.now();
-        if (ok) {
-          if (last) gap = Math.max(gap, now - last);
-          last = now;
-        }
-        await new Promise((r) => setTimeout(r, 50));
+  // measured from the first answer on: the bridge's first /status (made cold) is no hand-over
+  let last = 0;
+  let gap = 0;
+  let done = false;
+  const watch = (async () => {
+    while (!done) {
+      const ok = await fetch(`${b.info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" }, signal: AbortSignal.timeout(1000) }).then((r) => r.ok, () => false);
+      const now = Date.now();
+      if (ok) {
+        if (last) gap = Math.max(gap, now - last);
+        last = now;
       }
-    })();
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  })();
+  try {
     await until("the first answer", () => last > 0);
     b.update();
-    await until("the new bridge", () => /handed over/.test(b.log()) && fs.existsSync(path.join(b.w.cwd, ".strom", "live.json")) && b.live().pid !== b.info.pid);
+    // the new strom sleeps START_MS twice on purpose (its --version, then its bridge's start): the wait is a budget on
+    // top of that, room for two cold starts of node on a computer under load (20 s in all left ~10 s for them: too
+    // little in the whole suite)
+    await until("the new bridge", () => /handed over/.test(b.log()) && fs.existsSync(path.join(b.w.cwd, ".strom", "live.json")) && b.live().pid !== b.info.pid, 2 * START_MS + 50_000);
     await new Promise((r) => setTimeout(r, 500));
     done = true;
     await watch;
     assert.ok(gap < BUDGET_MS, `the longest time without an answer: ${gap} ms`);
     assert.equal(b.live().token, b.info.token);
   } finally {
+    // the watch ends whatever failed: left asking, it kept the test file's process alive for good (it hung the suite)
+    done = true;
+    await watch;
     await b.w.ok(["live", "stop"]);
     b.w.cleanup();
   }
