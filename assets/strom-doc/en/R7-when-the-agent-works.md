@@ -22,8 +22,14 @@ session is one task. A run starts one or more sessions in a row; between them it
   set); the command `strom run`. The Strom app 3.21.2 does not set up working alone; it shows the state of the run
   ([R7.4](#R7.4)), and a session can be finished from it ([R7.3](#R7.3)).
 - **Since:** research 1.0.0 (`--max`, `--until`, `--task`), `--loop` from 1.2.0
+- **From research 1.32.0:** `--tasks <n>` (1–100) ends after n tasks dealt with: done, waiting for a person, parked or
+  dropped after their session (also a task the run parked because it got stuck on it). An unfinished task that goes
+  back to the queue (the agent did not finish it, the time limit, an interruption) does not count. At most 2×n
+  sessions. `--tasks` does not go with `--max`, `--loop`, `--task`, `--until` or any other choice of the tasks. The
+  condition is asked once, as with `--max` ([R7.4.1](#R7.4.1)). Work on the queue from a Strom app link:
+  [R7.1.2](#R7.1.2).
 
-<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how -->
+<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how · 1.32.0: src/commands/session.ts TASKS_MAX=100, SETTLED (done, waiting, parked, dropped), --tasks (max = 2×n, odmítnutí s --max, --loop, --task, --until a dalšími volbami výběru), popis run · CHANGELOG.cs.md 1.32.0 · spec 052 K6.3 -->
 
 <a id="R7.1.1"></a>
 ### R7.1.1 Why a run ends
@@ -34,8 +40,37 @@ session is one task. A run starts one or more sessions in a row; between them it
 - When the remaining tasks need an archive that does not answer, a run with `--loop` and `--until` waits
   (**⏸ waiting until …**); any other run ends.
 - **Since:** research 1.0.0; waiting for an archive that does not answer from 1.22.0
+- **From research 1.32.0:** a run with `--tasks` ends with **N tasks dealt with**, or after 2×n sessions with
+  **sessions: … (the most for the tasks asked) — tasks dealt with: …**.
 
-<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
+<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
+
+<a id="R7.1.2"></a>
+### R7.1.2 Work on the queue from a Strom app link
+
+- With the link `strom-research://work` the Strom app can ask for the agent's work alone on the queue: a number of
+  tasks, or work for as long as there is something to do. The link opens the research's terminal
+  ([S4.5](S4-research-from-the-app.md#S4.5)). The terminal shows what would start and starts it only on a yes; the
+  default answer is no.
+- **Limits:**
+  - the terminal shows the first 5 tasks in the order `strom run` takes them (a task chosen **Do next** first), how
+    many more there are, when the run ends, the session's time limit and the condition ([R7.4](#R7.4));
+  - the number of tasks is 1–100, 5 when none is given. It starts `strom run --tasks N` ([R7.1](#R7.1)); the
+    condition is asked once, before the first session;
+  - work for as long as there is something to do runs only under a condition and starts `strom run --loop`. With no
+    condition set nothing starts: instead the terminal offers a number of tasks, setting a condition, or nothing (the
+    default);
+  - when a run or a session is already at work on the research, nothing more starts. Nor with an empty queue. When
+    the agent's terminal program is missing on the computer, the terminal says so before it asks anything;
+  - the run goes on in the same terminal window. Ctrl-C asks the session at work to finish and stops the run
+    ([R7.3](#R7.3)); the rest stays in the queue;
+  - the bridge does not start the agent's work, only the terminal after the yes.
+- **Controls:** a link from the Strom app (`strom-research://work` with `do=tasks` and `n`, or `do=loop`), in the app
+  3.28.0 **Work on the queue…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); terminal:
+  `strom link open "<link>"`.
+- **Since:** research 1.32.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Each session has a time limit

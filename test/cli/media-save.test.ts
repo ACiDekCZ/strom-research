@@ -1,6 +1,6 @@
 // One image a waiting task asks for, saved through the agent's browser at an archive only a person's browser goes to
 // (no connector of it): strom media save gives the script for the agent's tab on that one page, the browser saves what
-// it shows into the downloads folder (strom-T0001-0009.jpg), and strom media add --inbox --waiting moves it into the
+// it shows into the downloads folder (strom-<the research's mark>-T0001-0009.jpg), and strom media add --inbox --waiting moves it into the
 // task's folder as image 9 and takes it — only with the person's permission "through the browser", only for an agent
 // whose browser strom keeps, never where strom's list or robots.txt keeps automated tools off.
 
@@ -11,6 +11,7 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { inboxFolderFor } from "../../src/core/media.ts";
 import { SETTLE_MS } from "../../src/core/inboxwait.ts";
+import { waitFileBase } from "../../src/core/browser.ts";
 
 const opts = { skip: !hasGit };
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
@@ -18,6 +19,11 @@ const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
 // single scans for their own research; the page of one scan in its viewer (made up)
 const PAGE = "https://genbaza.pl/skan/4711?n=9";
 const CLAUDE = { CLAUDECODE: "1" };
+
+/** The name strom media save gives an image of a task of the world's research (its mark first). */
+function named(w: World, task: string, n: number): string {
+  return waitFileBase((JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")) as { id: string }).id, task, n);
+}
 
 /** A file the browser finished saving a while ago. */
 function settled(file: string, from = "grey.jpg"): void {
@@ -88,7 +94,8 @@ test("one image through the agent's browser: the script for the one page, the do
 
     // the script for the one page: only there, and it asks the archive nothing
     const r = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE, "--json"], { env: CLAUDE });
-    assert.equal(r.json.file, "strom-T0001-0009");
+    assert.equal(r.json.file, named(w, "T0001", 9));
+    assert.match(r.json.file, /^strom-[0-9a-f]{8}-T0001-0009$/u);
     assert.equal(r.json.then, "strom media add --inbox --waiting");
     // Chrome saves one file of a page by itself: the second waits for the user's yes in Chrome — said, never the agent's
     const told = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE], { env: CLAUDE });
@@ -118,28 +125,28 @@ test("one image through the agent's browser: the script for the one page, the do
     assert.deepEqual(fs.readdirSync(downloads), [], "nothing saved");
     const line = await tab(r.json.script, PAGE, downloads);
     assert.match(line, /^strom-result 9:200:\d+$/);
-    assert.deepEqual(fs.readdirSync(downloads), ["strom-T0001-0009.jpg"]);
+    assert.deepEqual(fs.readdirSync(downloads), [`${named(w, "T0001", 9)}.jpg`]);
 
     // image 10 saved twice by the browser (… (1).jpg), one still downloading, another task's, another file of the person
-    settled(path.join(downloads, "strom-T0001-0010.jpg"));
-    settled(path.join(downloads, "strom-T0001-0010 (1).jpg"), "base444.jpg");
-    settled(path.join(downloads, "strom-T0002-0009.jpg"));
+    settled(path.join(downloads, `${named(w, "T0001", 10)}.jpg`));
+    settled(path.join(downloads, `${named(w, "T0001", 10)} (1).jpg`), "base444.jpg");
+    settled(path.join(downloads, `${named(w, "T0002", 9)}.jpg`));
     settled(path.join(downloads, "Snímek obrazovky.png".normalize("NFD")), "png-bw.png");
-    fs.writeFileSync(path.join(downloads, "strom-T0001-0009.jpg.crdownload"), "…");
+    fs.writeFileSync(path.join(downloads, `${named(w, "T0001", 9)}.jpg.crdownload`), "…");
     // the file the script saved just now: still settling — the next look takes it
     const first = await w.ok(["media", "add", "--inbox", "--waiting"]);
     assert.match(first.out, /images 10 of B0001 registered — T0001 still waits for images 9/);
     const dir = path.join(shared, "inbox", inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" }));
     assert.deepEqual(fs.readdirSync(dir), [], "taken into the store");
     const past = new Date(Date.now() - 2 * SETTLE_MS);
-    fs.utimesSync(path.join(downloads, "strom-T0001-0009.jpg"), past, past);
+    fs.utimesSync(path.join(downloads, `${named(w, "T0001", 9)}.jpg`), past, past);
     const taken = await w.ok(["media", "add", "--inbox", "--waiting"]);
     assert.match(taken.out, /images 9 of B0001 registered — back in the queue: T0001/);
     const media = (await w.ok(["media", "list", "--json"])).json;
     assert.deepEqual(JSON.stringify(media).match(/"image":\d+/gu)?.sort(), ['"image":10', '"image":9']);
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
     // what is not the task's stays where it is
-    assert.deepEqual(fs.readdirSync(downloads).map((f) => f.normalize("NFC")).sort(), ["Snímek obrazovky.png", "strom-T0001-0009.jpg.crdownload", "strom-T0002-0009.jpg"]);
+    assert.deepEqual(fs.readdirSync(downloads).map((f) => f.normalize("NFC")).sort(), ["Snímek obrazovky.png", `${named(w, "T0001", 9)}.jpg.crdownload`, `${named(w, "T0002", 9)}.jpg`]);
   } finally {
     w.cleanup();
   }
@@ -227,12 +234,13 @@ test("the second image held back by the browser: said to the agent and in the ta
     // the first image comes: taken, nothing said of it afterwards
     const r9 = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE, "--json"], { env: CLAUDE });
     assert.match(await tab(r9.json.script, PAGE, downloads), /^strom-result 9:200:\d+$/);
-    settled(path.join(downloads, "strom-T0001-0009.jpg"));
+    settled(path.join(downloads, `${named(w, "T0001", 9)}.jpg`));
     aged();
     const took = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
     assert.deepEqual(took.json.held, []);
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
-    assert.ok(!fs.existsSync(records), "nothing left to look for");
+    // nothing left to look for: its record kept only as taken (a late copy of its file is strom's own to tidy)
+    assert.ok((JSON.parse(fs.readFileSync(records, "utf8")) as { taken?: number }[]).every((r) => typeof r.taken === "number"), "nothing left to look for");
 
     // the second: the script says saved, the browser holds the file back
     const page10 = PAGE.replace("n=9", "n=10");
@@ -249,7 +257,7 @@ test("the second image held back by the browser: said to the agent and in the ta
     // the person reads it in the task's wait, impersonal, in the research language
     const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
     assert.equal(t.state, "waiting");
-    assert.equal(t.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10} — prohlížeč snímek 10 zadržel: povolit webu genbaza.pl stahování více souborů, jednou (ikona vpravo v adresním řádku prohlížeče)`);
+    assert.equal(t.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10} — prohlížeč snímek 10 zadržel: povolit webu genbaza.pl stahování více souborů v profilu prohlížeče, ve kterém agent pracuje, jednou (ikona vpravo v adresním řádku prohlížeče)`);
     // said again to the agent on the next look
     const again = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
     assert.deepEqual(again.json.held.map((h: { image: number; host: string }) => [h.image, h.host]), [[10, "genbaza.pl"]]);
@@ -257,11 +265,11 @@ test("the second image held back by the browser: said to the agent and in the ta
     // the person allowed it: the script given again, the wait as before; the file comes and is taken
     await w.ok(["media", "save", "T1", "--image", "10", "--at", page10], { env: CLAUDE });
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10}`);
-    settled(path.join(downloads, "strom-T0001-0010.jpg"), "base444.jpg");
+    settled(path.join(downloads, `${named(w, "T0001", 10)}.jpg`), "base444.jpg");
     const last = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
     assert.deepEqual(last.json.held, []);
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
-    assert.ok(!fs.existsSync(records));
+    assert.ok((JSON.parse(fs.readFileSync(records, "utf8")) as { taken?: number }[]).every((r) => typeof r.taken === "number"), "only as taken");
   } finally {
     w.cleanup();
   }

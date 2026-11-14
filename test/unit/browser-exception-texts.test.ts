@@ -28,5 +28,5 @@ test("agent texts: a ban on the browser at an archive's images names the strom m
   const waiting = texts["method/waiting.md"]!;
   const section = waiting.slice(waiting.indexOf("## Images saved by hand"), waiting.indexOf("## A letter or the family"));
   assert.match(section, /not through a browser either\.[\s\S]*The one exception[\s\S]*strom media save T… --image <n> --at\s+<its page>/u);
-  assert.match(section, /a check whether a\s+person is there is the person's to pass/u);
+  assert.match(section, /a check whether a\s+person is there is\s+the\s+person's\s+to\s+pass/u);
 });

@@ -34,6 +34,9 @@ Jeder Befund hat einen Schweregrad:
     einen als **Kein Fehler** markierten Befund als **ungewöhnlich** ([A6.7.5](A6-views.md#A6.7.5)).
   - **Ab App 3.27.0:** der Abschnitt der Fehler und Befunde zu prüfen heißt **Zu prüfen** (früher **Probleme**). Ein
     Stammbaum ohne sie hat „Nichts zu prüfen“, mit Hinweisen „Nichts zu prüfen. 3 Hinweise.“
+  - **Ab App 3.28.0:** in **Zu prüfen** steht die Gruppe **Gemeinsame Ereignisse**: Kopien eines gemeinsamen
+    Ereignisses, deren gemeinsame Angaben abweichen, mit **Angleichen…** und **Abweichende Kopie abtrennen**
+    ([A10.3](A10-shared-events.md#A10.3)).
 - **Bedienung:** Dialog **Stammbaum-Prüfung**: **Stammbaum-Überblick → Datenqualität → Schnellaktionen →
   Validierungsdetails**, die Zeile „n Hinweise ›“ in **Konsistenz** (öffnet direkt **Hinweise**), die Karte mit
   Fehlern in **Worauf achten**.
@@ -181,6 +184,11 @@ erneut als neuen Stammbaum importieren.
   Beteiligte an Ereignissen der Person, Trauzeugen und Beteiligte an gemeinsamen Ereignissen des Paares. In den
   **Hinweisen** steht auch der Altersunterschied der Partner ([A5.3](#A5.3)).
 - **Gilt seit:** App 1.10.0 (Orte); 1.16.0 (Paten); Geschwistergruppen und Amtspersonen 3.17.0
+- **Ab App 3.28.0:** in den **Hinweisen** stehen noch:
+  - dasselbe Ereignis, bei mehreren Personen getrennt eingetragen, mit **Zu einem Ereignis verbinden** oder
+    **Einzeln durchgehen** ([A10.4](A10-shared-events.md#A10.4));
+  - namentlich eingetragene Paten und Zeugen, denen eine Person im Stammbaum entspricht, mit **Einzeln durchgehen**
+    ([A10.5.2](A10-shared-events.md#A10.5.2)).
 
 <!-- zdroj: app:src/godparents.ts:42 RECURRING_THRESHOLD, :188 recurringParticipants, :270 siblingGroupCount, :300 godparentLeads · src/validation.ts:1034 checkPlaceSpellings, checkRecurringGodparents · strings.ts treeManager.valRecurringGodparent, valRecurringGodparentDetail, valPlaceSpelling, leadsSkipped -->
 

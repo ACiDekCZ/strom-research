@@ -25,8 +25,14 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
   allein nicht ein; sie zeigt den Zustand des Laufs ([R7.4](#R7.4)), und eine Sitzung lässt sich aus ihr abschließen
   ([R7.3](#R7.3)).
 - **Gilt seit:** Forschung 1.0.0 (`--max`, `--until`, `--task`), `--loop` seit 1.2.0
+- **Ab Forschung 1.32.0:** `--tasks <n>` (1–100) endet nach n erledigten Aufgaben: fertig, wartend auf den Menschen,
+  zurückgestellt oder aufgegeben nach ihrer Sitzung (auch eine Aufgabe, die der Lauf zurückstellte, weil er an ihr
+  hängen blieb). Eine unfertige Aufgabe, die in die Warteschlange zurückgeht (der Agent hat sie nicht beendet, das
+  Zeitlimit, eine Unterbrechung), zählt nicht. Höchstens 2×n Sitzungen. `--tasks` geht nicht mit `--max`, `--loop`,
+  `--task`, `--until` noch mit einer anderen Wahl der Aufgaben. Die Bedingung wird einmal gefragt, wie bei `--max`
+  ([R7.4.1](#R7.4.1)). Arbeit an der Warteschlange über einen Link der Strom-App: [R7.1.2](#R7.1.2).
 
-<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how -->
+<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how · 1.32.0: src/commands/session.ts TASKS_MAX=100, SETTLED (done, waiting, parked, dropped), --tasks (max = 2×n, odmítnutí s --max, --loop, --task, --until a dalšími volbami výběru), popis run · CHANGELOG.cs.md 1.32.0 · spec 052 K6.3 -->
 
 <a id="R7.1.1"></a>
 ### R7.1.1 Warum ein Lauf endet
@@ -38,8 +44,37 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
 - Wenn die übrigen Aufgaben ein Archiv brauchen, das nicht antwortet, wartet ein Lauf mit `--loop` und `--until`
   (**⏸ warte bis …**), ein anderer endet.
 - **Gilt seit:** Forschung 1.0.0; das Warten auf ein Archiv, das nicht antwortet, seit 1.22.0
+- **Ab Forschung 1.32.0:** ein Lauf mit `--tasks` endet mit **N Aufgaben erledigt**, oder nach 2×n Sitzungen mit
+  **Sitzungen: … (höchstens so viele für die gewünschten Aufgaben) – erledigte Aufgaben: …**.
 
-<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
+<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
+
+<a id="R7.1.2"></a>
+### R7.1.2 Arbeit an der Warteschlange über einen Link der Strom-App
+
+- Mit dem Link `strom-research://work` kann die Strom-App um die Arbeit des Agenten allein an der Warteschlange bitten:
+  eine bestimmte Anzahl Aufgaben, oder Arbeit, solange es etwas zu tun gibt. Der Link öffnet das Terminal der
+  Forschung ([S4.5](S4-research-from-the-app.md#S4.5)). Es zeigt, was starten würde, und startet es erst auf ein Ja;
+  die Standardantwort ist Nein.
+- **Grenzen:**
+  - das Terminal zeigt die ersten 5 Aufgaben in der Reihenfolge, in der `strom run` sie nimmt (eine Aufgabe mit
+    **sofort** zuerst), wie viele es noch gibt, wann der Lauf endet, das Zeitlimit der Sitzung und die Bedingung
+    ([R7.4](#R7.4));
+  - die Anzahl der Aufgaben ist 1–100, ohne Angabe 5. Gestartet wird `strom run --tasks N` ([R7.1](#R7.1)); die
+    Bedingung wird einmal gefragt, vor der ersten Sitzung;
+  - Arbeit, solange es etwas zu tun gibt, läuft nur unter einer Bedingung und startet `strom run --loop`. Ohne
+    gesetzte Bedingung startet nichts: das Terminal bietet stattdessen eine Anzahl Aufgaben, das Einstellen einer
+    Bedingung oder nichts (Standard) an;
+  - wenn an der Forschung schon ein Lauf oder eine Sitzung arbeitet, startet nichts weiter. Bei leerer Warteschlange
+    auch nicht. Fehlt auf dem Computer das Terminalprogramm des Agenten, sagt das Terminal das, bevor es etwas fragt;
+  - der Lauf geht im selben Terminalfenster. Strg-C bittet die laufende Sitzung um Abschluss und hält den Lauf an
+    ([R7.3](#R7.3)); der Rest bleibt in der Warteschlange;
+  - die Brücke startet die Arbeit des Agenten nicht, nur das Terminal nach dem Ja.
+- **Bedienung:** ein Link aus der Strom-App (`strom-research://work` mit `do=tasks` und `n`, oder `do=loop`), in der
+  App 3.28.0 **An der Warteschlange arbeiten…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); Terminal: `strom link open "<Link>"`.
+- **Gilt seit:** Forschung 1.32.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Jede Sitzung hat ein Zeitlimit

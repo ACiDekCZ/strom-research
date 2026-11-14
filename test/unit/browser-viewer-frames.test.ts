@@ -41,7 +41,16 @@ async function tab(o: {
   tileWaitMs?: number;
   /** After the first strom-wait: another script of strom in the same tab (image 8), not this one again. */
   other?: boolean;
-}): Promise<Run> {
+  /** The page's address (default URL0). */
+  url?: string;
+  /**
+   * The viewer bundled with the page's own code (no global OpenSeadragon): held by the page's React — 16 in a
+   * useState, 18 in a useRef — reached from its container's element; "none": its container there, the viewer held
+   * nowhere strom looks. With `global`: the page's global viewer beside another held by React.
+   */
+  held?: "react16" | "react18" | "none";
+  global?: boolean;
+}): Promise<Run & { used: string[] }> {
   const start = Date.parse("2026-11-10T09:30:00Z");
   let clock = start;
   const now = () => clock - start;
@@ -118,7 +127,10 @@ async function tab(o: {
       },
     },
   };
+  const used: string[] = [];
   class OSDViewer {
+    name = "global";
+    container: unknown = undefined;
     element = element;
     drawer = { canvas };
     imageLoader = imageLoader;
@@ -136,10 +148,34 @@ async function tab(o: {
       goHome: () => undefined,
     };
     currentPage = () => page;
-    addHandler = (name: string, h: () => void) => void (handlers.get(name) ?? handlers.set(name, new Set()).get(name)!).add(h);
+    addHandler = (name: string, h: () => void) => {
+      if (!used.includes(this.name)) used.push(this.name);
+      (handlers.get(name) ?? handlers.set(name, new Set()).get(name)!).add(h);
+    };
     removeHandler = (name: string, h: () => void) => void handlers.get(name)?.delete(h);
   }
   const viewer = new OSDViewer();
+  // the page's framework holding the viewer: OpenSeadragon's container inside the viewer's element, React's fiber of
+  // that element (its key on it), up through the components to the one whose hooks hold the viewer
+  const box = { className: "openseadragon-container", parentNode: element as unknown };
+  const body = { parentNode: undefined };
+  const held = o.held ? (o.global ? Object.assign(new OSDViewer(), { name: "held" }) : viewer) : undefined;
+  if (o.held && held) {
+    held.container = box;
+    Object.assign(element, { parentNode: body });
+    const hooks =
+      o.held === "react16"
+        ? { memoizedState: "lhota-0007", next: { memoizedState: false, next: { memoizedState: held, next: null } } }
+        : o.held === "react18"
+          ? { memoizedState: ["Lhota", []], next: { memoizedState: { current: held }, next: { memoizedState: 7, next: null } } }
+          : { memoizedState: { current: null }, next: { memoizedState: "lhota-0007", next: null } };
+    const root = { memoizedState: { element: {} }, stateNode: {}, memoizedProps: null, return: null };
+    const component = { memoizedState: hooks, stateNode: null, memoizedProps: { pages: ["/tiles/1.dzi"] }, return: root };
+    // React 18: a forwardRef between the element and the component holding it
+    const wrapper = { memoizedState: null, stateNode: null, memoizedProps: { children: {} }, return: component };
+    const host = { memoizedState: null, stateNode: element, memoizedProps: { className: "viewer" }, return: o.held === "react18" ? wrapper : component };
+    Object.assign(element, { [o.held === "react16" ? "__reactInternalInstance$x1lhota" : "__reactFiber$y2lhota"]: host });
+  }
 
   const FRAME = 16;
   // a frame, if the browser draws now: the viewer draws (its own loop draws at every frame), then what the page asked of it
@@ -205,6 +241,7 @@ async function tab(o: {
     },
     body: { appendChild: () => undefined },
     images: [],
+    querySelectorAll: (sel: string) => (o.held && sel === ".openseadragon-container" ? [box] : []),
     createElement: (kind: string) => {
       if (kind === "canvas") {
         const c = { width: 0, height: 0, getContext: () => ({ drawImage: () => undefined }), toBlob: (cb: (b: Blob) => void) => cb(new Blob([new Uint8Array(c.width * 3)], { type: "image/jpeg" })) };
@@ -215,14 +252,15 @@ async function tab(o: {
     },
   };
   const URLs = { createObjectURL: (b: Blob) => (blobs.set(`blob:${blobs.size}`, b), `blob:${blobs.size - 1}`), revokeObjectURL: () => undefined };
-  const u = new URL(URL0);
+  const href = o.url ?? URL0;
+  const u = new URL(href);
   const opts = o.tileWaitMs !== undefined ? { tileWaitMs: o.tileWaitMs } : {};
-  const script = saveScript({ url: URL0, file: "strom-T0007-0007", n: 7, until: start + 3_600_000 }, opts);
+  const script = saveScript({ url: href, file: "strom-T0007-0007", n: 7, task: "T0007", until: start + 3_600_000 }, opts);
   const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor;
-  const window = { OpenSeadragon: { Viewer: OSDViewer, version: { versionStr: "2.4.2" } }, viewer, devicePixelRatio: 1 };
+  const window = o.held && !o.global ? { devicePixelRatio: 1 } : { OpenSeadragon: { Viewer: OSDViewer, version: { versionStr: "2.4.2" } }, viewer, devicePixelRatio: 1 };
   const call = (text: string) =>
     new AsyncFunction("location", "document", "URL", "setTimeout", "window", "requestAnimationFrame", "Date", `return ${text}`)(
-      { origin: u.origin, pathname: u.pathname, search: u.search, hash: u.hash, href: URL0 },
+      { origin: u.origin, pathname: u.pathname, search: u.search, hash: u.hash, href },
       document,
       URLs,
       setTimeout,
@@ -238,9 +276,9 @@ async function tab(o: {
     lines.push(await call(next));
     ends.push(now());
     if (!lines.at(-1)!.startsWith("strom-wait")) break;
-    if (o.other && i === 0) next = saveScript({ url: URL0, file: "strom-T0007-0008", n: 8, until: start + 3_600_000 }, opts);
+    if (o.other && i === 0) next = saveScript({ url: href, file: "strom-T0007-0008", n: 8, until: start + 3_600_000 }, opts);
   }
-  return { line: lines.at(-1)!, lines, ends, saved, style, took: now() };
+  return { line: lines.at(-1)!, lines, ends, saved, style, took: now(), used };
 }
 
 test("a viewer's image in a tab the browser draws: saved once the viewer says every tile is there", async () => {
@@ -385,4 +423,47 @@ test("a browser drawing a frame every 4 s while the tiles come: unset, said as n
   assert.match(r.lines[0]!, /^strom-wait/, r.lines[0]);
   assert.match(r.line, /^strom-result 7:200:\d+$/, r.lines.join("\n"));
   assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
+});
+
+// A viewer bundled with the page's own code (OpenSeadragon as a module of it): no global of it on the page's window, the
+// instance held only by the page's framework (React). Found from its container's element, by its shape — the same
+// mechanism saves from it; nothing asked of the archive. Two made-up archives of that kind.
+
+const HELD_A = "https://archive.example/lhota/apu/4f1c/dao/9a2e/file/7b3d";
+const HELD_B = "https://records.example/viewer/lhota-0007";
+
+test("a viewer held by the page's React (16, in a component's state): found from its container and saved as from a global one", async () => {
+  const r = await tab({ draws: () => true, held: "react16", url: HELD_A });
+  assert.match(r.line, /^strom-result 7:200:\d+$/, r.line);
+  assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
+  assert.equal(r.style, "width:100%;height:560px", "the viewer's element as it was");
+});
+
+test("a viewer held by the page's React (18, in a ref of a component behind a forwardRef): found and saved, tiles waited for as ever", async () => {
+  const r = await tab({ draws: () => true, held: "react18", url: HELD_B });
+  assert.match(r.line, /^strom-result 7:200:\d+$/, r.line);
+  assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
+  const stuck = await tab({ draws: () => true, held: "react18", url: HELD_B, stuck: true });
+  assert.match(stuck.line, /^strom-result 7:failed — the viewer's tiles did not all come in 30 s/, stuck.line);
+});
+
+test("an OpenSeadragon viewer on the page that strom cannot reach: said so, with what the person does instead — nothing saved", async () => {
+  for (const url of [HELD_A, HELD_B]) {
+    const r = await tab({ draws: () => true, held: "none", url });
+    assert.equal(
+      r.line,
+      `strom: an OpenSeadragon viewer is on this page, but strom cannot reach it (not on the page's window, not held where strom looks) — nothing saved. T0007 waits for image 7 already: tell the user, in one sentence in the research language, which image of which book is needed and its link (${url}); the person saves it in their own browser — the viewer's own download button if it has one, else a screenshot of the image — into the task's folder of the inbox (strom task show T0007 names it). Never fetch the image's file yourself, never another image of the book; go on with other work — strom media add --inbox --waiting takes it once it is there`,
+    );
+    assert.deepEqual(r.saved, []);
+    assert.deepEqual(r.used, []);
+  }
+});
+
+test("a global viewer beside one the page's React holds: the global one, as before", async () => {
+  const r = await tab({ draws: () => true, held: "react16", global: true, url: HELD_A });
+  assert.match(r.line, /^strom-result 7:200:\d+$/, r.line);
+  assert.deepEqual(r.used, ["global"]);
+  const plain = await tab({ draws: () => true });
+  assert.deepEqual(plain.used, ["global"]);
+  assert.deepEqual(plain.saved, ["strom-T0007-0007.jpg"]);
 });

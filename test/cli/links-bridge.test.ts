@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { World, hasGit, readJsonFile } from "../helpers.ts";
+import { World, hasGit, keptPortUnlessTaken, readJsonFile } from "../helpers.ts";
 import { decodeImage, encodeImage, imageSize } from "../../src/image/index.ts";
 import { resize } from "../../src/image/image.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
@@ -233,18 +233,22 @@ test("the research opened from the Strom app (open link) brings its bridge up at
     await w.ok([], { tty: true, answers: ["0"] });
     assert.equal((await status()).running, false, "the menu brings back only a bridge that ended without a word");
     // … the app's "Start research" brings it up, at its port — with a new secret: stopped for good, the old one is dead
+    // (at another port only when another program took that one meanwhile: the bridges of tests running beside this one)
+    const opened = Date.now();
     await w.ok(["link", "open", `strom-research://open?tree=${id}`], { tty: true, answers: ["0", ""] });
     const back = await status();
     assert.equal(back.running, true);
-    assert.equal(back.port, first.port);
+    keptPortUnlessTaken(w.cwd, opened, first.port, back.port);
     assert.notEqual(back.token, first.token);
     assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8"), /the research opened from the Strom app/);
     // an archive: no sessions, but the app follows its bridge too
     await w.ok(["mode", "archive"], { tty: true });
     await w.ok(["live", "stop"]);
+    const reopened = Date.now();
     await w.ok(["link", "open", `strom-research://open?tree=${id}`], { tty: true, answers: ["0", ""] });
-    assert.equal((await status()).running, true);
-    assert.equal((await status()).port, first.port);
+    const archived = await status();
+    assert.equal(archived.running, true);
+    keptPortUnlessTaken(w.cwd, reopened, back.port, archived.port);
   } finally {
     await w.run(["live", "stop"]);
   }

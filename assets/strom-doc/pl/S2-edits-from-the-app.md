@@ -111,8 +111,24 @@ w [R3.5.1](R3-verification-and-citation.md#R3.5.1).
   ([R5.2.1](R5-conflicts.md#R5.2.1)). Aplikacja: okno **Badanie dla drzewa** pokazuje, co opcja znaczy
   („Zmiany są zapisywane w badaniu dopiero po potwierdzeniu.”).
 - **Obowiązuje od:** badanie 1.5.0; `sync.review` od 1.12.0
+- **Od badania 1.32.0:** `strom sync` drzewa z aplikacji (JSON i GEDCOM) zachowuje wspólne wydarzenia, role, własne
+  wydarzenia **Chrzestny** i **Świadek ślubu** oraz uczestników wydarzeń ([A10](A10-shared-events.md)), jak przy
+  przejęciu drzewa genealogicznego ([R11.3](R11-material-from-the-user.md#R11.3)). Badanie, które przejęło drzewo
+  z aplikacji wcześniej, samo się nie poprawi; kolejny `strom sync` z aplikacji uzupełni, czego brakuje:
+  - notatkę osoby lub rodziny, którą wcześniejsze przejęcie skróciło do 500 znaków, do pełnej (można cofnąć);
+  - brakujące własne wydarzenia chrzestnego i świadka jako nowe dane oraz brakujących uczestników wydarzeń;
+  - osobę lub rodzinę, którą przejęcie GEDCOM w badaniu 1.31 pominęło z powodu długiej notatki ze znakiem spoza
+    podstawowego zestawu (emoji), zaproponuje jako nową.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview -->
+  Notatek wydarzeń i notatek uczestników `strom sync` nie porównuje, więc ich nie uzupełni; aplikacja trzyma je
+  w całości.
+- **Od aplikacji 3.28.0:** badanie starsze niż 1.32.0 nie zwraca wspólnych wydarzeń ani własnych wydarzeń
+  chrzestnego i świadka. Aplikacja przy wczytaniu nowej wersji takiego badania przejmuje je z poprzedniego stanu
+  drzewa: osobę rozpoznaje po numerze w badaniu, wydarzenie po typie, dacie, miejscu i wartości, tylko gdy zgodność
+  jest jedna. Wydarzenie, które badanie zmieniło, jest zwykłym wydarzeniem swojej osoby; pozostałe kopie zostają
+  połączone.
+
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiwum Strom i badanie bez agenta

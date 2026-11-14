@@ -125,14 +125,21 @@ export interface SheetConnector {
   name: string;
   archive?: string;
   serves: boolean;
+  /** Its archive only a person's browser goes to: strom fetch refuses it whole, finding books too (core/byhand.ts). */
+  browserOnly?: boolean;
 }
 
 /** The connectors, in a line after fetch: those of the task's places first, the others by name. */
 function connectorLine(list: SheetConnector[]): string {
-  const serving = list.filter((c) => c.serves);
-  const others = list.filter((c) => !c.serves);
-  if (!list.length) return "  connectors: none installed — an archive's own: strom connector new <name> --url <portal>";
-  return `  connectors${serving.length ? ` of these places: ${serving.map((c) => `${c.name}${c.archive ? ` = ${c.archive}` : ""}`).join(", ")}${others.length ? ` · others: ${others.map((c) => c.name).join(", ")}` : ""}` : `: ${others.map((c) => c.name).join(", ")}`} — books of a place: strom fetch <connector> --find "<place>" --years <from-to>`;
+  const serving = list.filter((c) => c.serves && !c.browserOnly);
+  const others = list.filter((c) => !c.serves && !c.browserOnly);
+  const shut = list.filter((c) => c.browserOnly);
+  // never a way to find books where strom fetch is refused: the archive's own site, through the agent's browser or the person's
+  const closed = shut.length
+    ? `${shut.map((c) => `${c.name}${c.archive ? ` = ${c.archive}` : ""}`).join(", ")}: only a person's browser goes to ${shut.length > 1 ? "their archives" : "its archive"} — refused there by strom fetch, --find too; its books on the archive's own site (your browser where the brief allows it, else the person)`
+    : "";
+  if (!serving.length && !others.length) return closed ? `  connectors: ${closed}` : "  connectors: none installed — an archive's own: strom connector new <name> --url <portal>";
+  return `  connectors${serving.length ? ` of these places: ${serving.map((c) => `${c.name}${c.archive ? ` = ${c.archive}` : ""}`).join(", ")}${others.length ? ` · others: ${others.map((c) => c.name).join(", ")}` : ""}` : `: ${others.map((c) => c.name).join(", ")}`} — books of a place: strom fetch <connector> --find "<place>" --years <from-to>${closed ? ` · ${closed}` : ""}`;
 }
 
 /** The section of the brief: the commands of this level, or nothing (no level, or no registry — a unit test). */
@@ -144,6 +151,7 @@ export function commandSheet(level: string | undefined, extra: { connectors?: Sh
   const defs = names.map((n) => commands().find((c) => c.path.join(" ") === n)).filter((d): d is CommandDef => !!d);
   if (!defs.length) return "";
   const cite = citeLine(defs);
+  const shutOnly = !!extra.connectors?.length && extra.connectors.every((c) => c.browserOnly);
   return [
     "## Commands for this task (≤n: at most n characters; … repeatable — all options: strom help <command>)",
     // the mistakes that cost a turn most (N0180–N0188): words of one value not quoted, several values after one
@@ -152,6 +160,11 @@ export function commandSheet(level: string | undefined, extra: { connectors?: Sh
     // a status asked of a name or a family, proven with no primary information (N0190, N0191): refused, a turn lost
     ...(RECORDS.has(level!) ? ["  --status is a fact's (E…) only, never a name's or a family's; proven only with a record of the time read directly (--information primary), else probable"] : []),
     ...(cite ? [cite] : []),
-    ...defs.flatMap((d) => [`  ${synopsis(d, true, d.path[1] === "edit" ? defs.find((x) => x.path[0] === d.path[0] && x.path[1] === "add") : undefined)}${d.sheet ? ` — ${d.sheet}` : ""}`, ...(d.path.join(" ") === "fetch" && extra.connectors ? [connectorLine(extra.connectors)] : [])]),
+    ...defs.flatMap((d) =>
+      // every connector of the task's archives one strom fetch refuses whole: no fetch line to try, only why
+      d.path.join(" ") === "fetch" && shutOnly
+        ? [connectorLine(extra.connectors!)]
+        : [`  ${synopsis(d, true, d.path[1] === "edit" ? defs.find((x) => x.path[0] === d.path[0] && x.path[1] === "add") : undefined)}${d.sheet ? ` — ${d.sheet}` : ""}`, ...(d.path.join(" ") === "fetch" && extra.connectors ? [connectorLine(extra.connectors)] : [])],
+    ),
   ].join("\n");
 }

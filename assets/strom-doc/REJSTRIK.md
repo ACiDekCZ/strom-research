@@ -792,6 +792,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A5.5](cs/A5-tree-check.md#A5.5), A5.5.1
 
+<a id="godparent-event"></a>
+### Kmotrovství · Svědek při sňatku
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Kmotrovství · Svědek při sňatku | Vlastní událost osoby, která byla kmotrem u křtu nebo svědkem u sňatku jiné osoby. Odkazuje na ten křest nebo sňatek; není jeho kopií. |
+| en | Godparent · Wedding witness | A person's own event of having been a godparent at another person's baptism or a witness at their wedding. It points at that baptism or wedding; it is not a copy of it. |
+| de | Patenschaft · Trauzeuge | Ein eigenes Ereignis einer Person, die bei der Taufe einer anderen Person Pate oder bei ihrer Trauung Zeuge war. Es verweist auf diese Taufe oder Trauung und ist keine Kopie davon. |
+| pl | Chrzestny · Świadek ślubu | Własne wydarzenie osoby, która była chrzestnym przy chrzcie innej osoby lub świadkiem na jej ślubie. Wskazuje na ten chrzest lub ślub; nie jest jego kopią. |
+
+- **Čísla:** [A10.5.1](cs/A10-shared-events.md#A10.5.1), A10.5, A2.7
+
 <a id="family-book"></a>
 ### Kniha rodu
 
@@ -1164,6 +1176,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4
 
+<a id="make-copies-match"></a>
+### Sjednotit kopie
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Sjednotit kopie · Oddělit rozdílnou kopii | Dialog pro společnou událost, jejíž kopie se liší ve společných údajích: u každého pole se vybere platná hodnota pro všechny kopie. Věk a vlastní údaje osob se nesjednocují. |
+| en | Make copies match · Separate the differing copy | A dialog for a shared event whose copies differ in the common details: the valid value is picked for each field, for all copies. Age and each person's own details are not matched. |
+| de | Kopien angleichen · Abweichende Kopie abtrennen | Ein Dialog für ein gemeinsames Ereignis, dessen Kopien sich in den gemeinsamen Angaben unterscheiden: Für jedes Feld wird der gültige Wert für alle Kopien gewählt. Alter und eigene Angaben der Personen werden nicht angeglichen. |
+| pl | Ujednolić kopie · Odłącz różniącą się kopię | Okno dla wspólnego wydarzenia, którego kopie różnią się we wspólnych danych: dla każdego pola wybiera się obowiązującą wartość dla wszystkich kopii. Wiek i własne dane osób nie są ujednolicane. |
+
+- **Čísla:** [A10.3](cs/A10-shared-events.md#A10.3), A5.1
+
 <a id="follow-the-agent"></a>
 ### Sledovat agenta ve stromu
 
@@ -1212,6 +1236,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S5.2](cs/S5-phone.md#S5.2), S5.6
 
+<a id="join-into-one-event"></a>
+### Spojit do jedné události
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Spojit do jedné události · Projít po jedné | Stopa v Kvalitě dat: stejná událost zapsaná zvlášť u více osob se po potvrzení spojí do jedné společné události. Nic se nespojí samo. |
+| en | Join into one event · Review one by one | A lead in Data quality: the same event recorded separately for several people becomes one shared event once confirmed. Nothing is joined automatically. |
+| de | Zu einem Ereignis verbinden · Einzeln durchgehen | Ein Hinweis in der Datenqualität: Dasselbe Ereignis, das bei mehreren Personen getrennt eingetragen ist, wird nach Bestätigung zu einem gemeinsamen Ereignis. Nichts wird automatisch verbunden. |
+| pl | Połącz w jedno wydarzenie · Przejrzyj po kolei | Wskazówka w Jakości danych: to samo wydarzenie zapisane osobno u kilku osób po potwierdzeniu staje się jednym wspólnym wydarzeniem. Nic nie łączy się samo. |
+
+- **Čísla:** [A10.4](cs/A10-shared-events.md#A10.4), A5.5
+
 <a id="source-reliability"></a>
 ### Spolehlivost pramene
 
@@ -1223,6 +1259,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Wiarygodność źródła: Oryginał · Odpis / indeks · Niepewne (app) | Ocena źródła (GEDCOM QUAY 3/2/1). Od aplikacji 3.27.0 to domyślna wiarygodność jego cytatów; cytat może mieć własną. Nie jest to stopień pewności danej. |
 
 - **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), [A2.6.1](cs/A2-loading-a-family-tree.md#A2.6.1), [R3.2.1](cs/R3-verification-and-citation.md#R3.2.1)
+
+<a id="shared-event"></a>
+### Spolu s · společná událost
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Spolu s · společná událost | Událost více osob (sčítání lidu, bydliště, vystěhování…) zapsaná jednou: každá osoba má kopii se stejným datem, místem, domem, poznámkou a prameny a s vlastním věkem a rolí. Úprava platí pro všechny kopie. |
+| en | Shared with · shared event | An event of several people (census, residence, emigration…) recorded once: each person has a copy with the same date, place, house, note and sources, and with an age and role of their own. An edit applies to all copies. |
+| de | Gemeinsam mit · gemeinsames Ereignis | Ein Ereignis mehrerer Personen (Volkszählung, Wohnort, Auswanderung…), einmal eingetragen: Jede Person hat eine Kopie mit demselben Datum, Ort, Haus, derselben Notiz und denselben Quellen und mit eigenem Alter und eigener Rolle. Eine Änderung gilt für alle Kopien. |
+| pl | Razem z · wspólne wydarzenie | Wydarzenie kilku osób (spis ludności, miejsce zamieszkania, emigracja…) zapisane raz: każda osoba ma kopię z tą samą datą, miejscem, domem, notatką i źródłami oraz z własnym wiekiem i rolą. Zmiana dotyczy wszystkich kopii. |
+
+- **Čísla:** [A10.1](cs/A10-shared-events.md#A10.1), A10.1.1, A10.2, A10.6, A10.7, A2.1, A2.7, A6.7.10, A8.4, R11.3, S2.3
 
 <a id="same-id-in-the-file"></a>
 ### Stejné ID v souboru

@@ -21,8 +21,13 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
   Strom 3.21.2 samostatnou práci nenastavuje; ukazuje stav běhu ([R7.4](#R7.4)) a sezení z ní jde dokončit
   ([R7.3](#R7.3)).
 - **Platí od:** výzkum 1.0.0 (`--max`, `--until`, `--task`), `--loop` od 1.2.0
+- **Od výzkumu 1.32.0:** `--tasks <n>` (1–100) skončí po n vyřízených úkolech: hotových, čekajících na člověka,
+  odložených nebo vzdaných po svém sezení (i úkolu, který běh odložil, protože na něm uvízl). Nedokončený
+  úkol, který se vrátí do fronty (agent ho nedokončil, časový limit, přerušení), se nepočítá. Nejvýš 2×n sezení.
+  `--tasks` nejde s `--max`, `--loop`, `--task`, `--until` ani s jinou volbou výběru úkolů. Podmínka se zeptá jednou,
+  jako u `--max` ([R7.4.1](#R7.4.1)). Práce na frontě z odkazu aplikace Strom: [R7.1.2](#R7.1.2).
 
-<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how -->
+<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how · 1.32.0: src/commands/session.ts TASKS_MAX=100, SETTLED (done, waiting, parked, dropped), --tasks (max = 2×n, odmítnutí s --max, --loop, --task, --until a dalšími volbami výběru), popis run · CHANGELOG.cs.md 1.32.0 · spec 052 K6.3 -->
 
 <a id="R7.1.1"></a>
 ### R7.1.1 Proč běh skončí
@@ -33,8 +38,35 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
 - Když zbylé úkoly potřebují archiv, který neodpovídá, běh s `--loop` a `--until` počká (**⏸ čekám do …**), jiný
   skončí.
 - **Platí od:** výzkum 1.0.0; čekání na archiv, který neodpovídá, od 1.22.0
+- **Od výzkumu 1.32.0:** běh s `--tasks` skončí **vyřízené úkoly: N**, nebo po 2×n sezeních **sezení: … (nejvíc pro
+  žádaný počet úkolů) – vyřízené úkoly: …**.
 
-<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
+<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
+
+<a id="R7.1.2"></a>
+### R7.1.2 Práce na frontě z odkazu aplikace Strom
+
+- Aplikace Strom může odkazem `strom-research://work` požádat o samostatnou práci agenta na frontě: určitý počet
+  úkolů, nebo práci, dokud je co dělat. Odkaz otevře terminál výzkumu ([S4.5](S4-research-from-the-app.md#S4.5)).
+  Ten ukáže, co se pustí, a spustí to až na **ano**; výchozí odpověď je ne.
+- **Hranice:**
+  - terminál ukáže prvních 5 úkolů v pořadí, v jakém je bere `strom run` (úkol zvolený **hned** první), kolik je
+    dalších, kdy běh skončí, časový limit sezení a podmínku ([R7.4](#R7.4));
+  - počet úkolů 1–100, bez zadaného počtu 5. Spustí se `strom run --tasks N` ([R7.1](#R7.1)); podmínka se zeptá
+    jednou, před prvním sezením;
+  - práce, dokud je co dělat, běží jen pod podmínkou a spustí `strom run --loop`. Bez nastavené podmínky se nic
+    nespustí: terminál nabídne místo toho určitý počet úkolů, nastavení podmínky, nebo nic (výchozí);
+  - když na výzkumu už běží běh nebo sezení, nic dalšího se nespustí. S prázdnou frontou také ne. Když na počítači
+    chybí program agenta pro terminál, terminál to řekne dřív, než se na cokoli zeptá;
+  - běh jde v tomtéž okně terminálu. Ctrl-C požádá rozpracované sezení o dokončení a běh zastaví
+    ([R7.3](#R7.3)); zbytek zůstane ve frontě;
+  - most práci agenta nespouští, jen terminál po potvrzení.
+- **Ovládání:** odkaz z aplikace Strom (`strom-research://work` s `do=tasks` a `n`, nebo `do=loop`), v aplikaci
+  3.28.0 **Pracovat na frontě…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); terminál:
+  `strom link open "<odkaz>"`.
+- **Platí od:** výzkum 1.32.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Každé sezení má časový limit

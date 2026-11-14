@@ -26,6 +26,9 @@ Każdy wynik ma wagę:
     sekcja **Do sprawdzenia**.
   - **Od aplikacji 3.27.0:** sekcja błędów i wyników do sprawdzenia nazywa się **Do sprawdzenia** (wcześniej
     **Problemy**). Drzewo bez nich ma „Nic do sprawdzenia”, ze wskazówkami „Nic do sprawdzenia. 3 wskazówki.”
+  - **Od aplikacji 3.28.0:** w **Do sprawdzenia** jest grupa **Wspólne wydarzenia**: kopie jednego wspólnego
+    wydarzenia, których wspólne dane się różnią, z **Ujednolić…** i **Odłącz różniącą się kopię**
+    ([A10.3](A10-shared-events.md#A10.3)).
   - Osób zastępczych się nie zgłasza. Wynik oznaczony **To nie błąd** ([A5.7](#A5.7)) nie jest liczony ani
     pokazywany.
   - Drzewo tylko do odczytu wyniki tylko pokazuje. Przy innym niż otwarte drzewie naprawa lub oznaczenie najpierw
@@ -175,6 +178,11 @@ Rozwiązanie jest w tekście wyniku: pierwotny plik zaimportować ponownie jako 
   osoby, świadkowie ślubu i uczestnicy wspólnych zdarzeń pary. We **Wskazówkach** jest też różnica wieku partnerów
   ([A5.3](#A5.3)).
 - **Obowiązuje od:** aplikacja 1.10.0 (miejsca); 1.16.0 (chrzestni); grupy rodzeństwa i osoby urzędowe 3.17.0
+- **Od aplikacji 3.28.0:** we **Wskazówkach** są jeszcze:
+  - to samo wydarzenie zapisane osobno u kilku osób, z **Połącz w jedno wydarzenie** lub **Przejrzyj po kolei**
+    ([A10.4](A10-shared-events.md#A10.4));
+  - chrzestni i świadkowie zapisani z nazwiska, którym odpowiada osoba w drzewie, z **Przejrzyj po kolei**
+    ([A10.5.2](A10-shared-events.md#A10.5.2)).
 
 <!-- zdroj: app:src/godparents.ts:42 RECURRING_THRESHOLD, :188 recurringParticipants, :270 siblingGroupCount, :300 godparentLeads · src/validation.ts:1034 checkPlaceSpellings, checkRecurringGodparents · strings.ts treeManager.valRecurringGodparent, valRecurringGodparentDetail, valPlaceSpelling, leadsSkipped -->
 

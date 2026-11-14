@@ -30,6 +30,9 @@ Each finding has a severity:
     **Not an error** as **unusual** ([A6.7.5](A6-views.md#A6.7.5)).
   - **From app 3.27.0:** the section of errors and findings to check is called **To check** (formerly **Problems**).
     A tree without them has "Nothing to check", with leads "Nothing to check. 3 leads."
+  - **From app 3.28.0:** **To check** holds the group **Shared events**: copies of one shared event whose common
+    details differ, with **Make all match…** and **Separate the differing copy**
+    ([A10.3](A10-shared-events.md#A10.3)).
 - **Controls:** the dialog **Tree validation**: **Tree overview → Data quality → Quick actions → Validation details**,
   the row "n leads ›" in **Consistency** (opens **Leads** directly), the card with errors in **Where to focus**.
   From app 3.27.0 also **Data quality ›** in a finding's bubble in the Table view: it opens the dialog at that
@@ -170,6 +173,11 @@ remedy is in the text of the finding: import the original file again as a new tr
   participants of a person's events, marriage witnesses and the participants of a couple's shared events. **Leads**
   also hold the age difference of partners ([A5.3](#A5.3)).
 - **Since:** app 1.10.0 (places); 1.16.0 (godparents); groups of siblings and officials 3.17.0
+- **From app 3.28.0:** **Leads** also hold:
+  - the same event recorded separately for several people, with **Join into one event** or **Review one by one**
+    ([A10.4](A10-shared-events.md#A10.4));
+  - godparents and witnesses recorded by name who match a person in the tree, with **Review one by one**
+    ([A10.5.2](A10-shared-events.md#A10.5.2)).
 
 <!-- zdroj: app:src/godparents.ts:42 RECURRING_THRESHOLD, :188 recurringParticipants, :270 siblingGroupCount, :300 godparentLeads · src/validation.ts:1034 checkPlaceSpellings, checkRecurringGodparents · strings.ts treeManager.valRecurringGodparent, valRecurringGodparentDetail, valPlaceSpelling, leadsSkipped -->
 

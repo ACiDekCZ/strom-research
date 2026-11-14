@@ -11,8 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
 import { inboxState, inboxWaits } from "../core/inboxwait.ts";
-import { browserOnlyArchive } from "../core/byhand.ts";
-import { browserAdviceFor } from "../core/browserhelp.ts";
+import { browserOnlyArchive, browserOnlyShut } from "../core/byhand.ts";
+import { bookBrowserArchive, browserAdviceFor, browserState } from "../core/browserhelp.ts";
 import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lifespan, likelyDuplicates, parentsOf, primaryName, sameFamilyName, surnameForms } from "../core/people.ts";
 import { settledClaim } from "../core/labels.ts";
 import { parseYears } from "../core/years.ts";
@@ -30,7 +30,7 @@ import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
 import { runs, runsArg, shellArg } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
-import { commandSheet } from "./sheet.ts";
+import { commandSheet, type SheetConnector } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { decodeGedcom } from "../gedcom/encoding.ts";
 import { subjectPeople } from "../core/records.ts";
@@ -642,8 +642,9 @@ function readyFor(tree: Tree, shared: string | undefined, installed: Ready): Rea
     const host = url && URL.canParse(url) ? new URL(url).hostname : undefined;
     if (!host) return [];
     if (!byHost.has(host)) {
-      const direct = readyConnectors(tree.env, shared, url!);
-      const browser = installed(url).filter((c) => !direct.some((d) => d.name === c.name) && viaBrowser(tree, c) && !byHandOnly(c) && !missingConsents(tree.env, c).code && !missingConsents(tree.env, c).hosts.length);
+      // never one strom fetch refuses whole: an archive only a person's browser goes to (core/byhand.ts)
+      const direct = readyConnectors(tree.env, shared, url!).filter((c) => !browserOnlyShut(tree, c, shared));
+      const browser = installed(url).filter((c) => !direct.some((d) => d.name === c.name) && viaBrowser(tree, c) && !byHandOnly(c) && !missingConsents(tree.env, c).code && !missingConsents(tree.env, c).hosts.length && !browserOnlyShut(tree, c, shared));
       byHost.set(host, [...direct, ...browser]);
     }
     return byHost.get(host)!;
@@ -665,17 +666,21 @@ function installedFor(shared: string | undefined): Ready {
 /**
  * The connector of a record set's archive that gets none of its images now — said as what it is, never as none (an
  * agent told "no connector" builds a second one): it only finds books (`search`), the archive's terms allow no
- * automation (`manual`), or it gets them once the user allows it (`consent`: strom fetch asks them).
+ * automation (`manual`), or it gets them once the user allows it (`consent`: strom fetch asks them), or only a person's
+ * browser goes to its archive (`browser`: strom fetch refuses it whole, its catalogue too — core/byhand.ts).
  */
 interface Finder {
   connector: string;
-  why: "search" | "manual" | "consent";
+  why: "search" | "manual" | "consent" | "browser";
+  /** browser: the command that saves one image through the agent's browser, where it may (strom media save). */
+  save?: string;
 }
 
-function bookFinder(tree: Tree, b: RecordSet, installed: Ready): Finder | undefined {
+function bookFinder(tree: Tree, b: RecordSet, installed: Ready, shared: string | undefined, save?: string): Finder | undefined {
   const all = installed(b.url);
   const c = all.find((x) => x.manifest.can.includes("fetch") || viaBrowser(tree, x)) ?? all[0];
   if (!c) return undefined;
+  if (!byHandOnly(c) && browserOnlyShut(tree, c, shared)) return { connector: c.name, why: "browser", ...(save ? { save } : {}) };
   const why = byHandOnly(c) ? "manual" : c.manifest.can.includes("fetch") || viaBrowser(tree, c) ? "consent" : "search";
   return { connector: c.name, why };
 }
@@ -687,6 +692,10 @@ function byHandAsk(b: RecordSet, whole: boolean): string {
 
 /** What a finder of a record set means for its images. */
 function finderText(f: Finder, b: RecordSet): string {
+  if (f.why === "browser")
+    return `only a person's browser goes to this archive: its connector ${f.connector} is refused there by strom fetch, finding its books (--find) too — ${
+      f.save ? `its images one at a time through your browser: ${f.save} (then strom media add --inbox --waiting); else the person saves them by hand` : "the person saves the images by hand"
+    }`;
   if (f.why === "consent") return `its connector ${f.connector} fetches them once the user allows it — one strom fetch ${f.connector} <book> --images <from-to> --recordset ${b.id} asks them; once the question waits, never again until they decide`;
   const what = f.why === "manual" ? `the archive's terms allow no automation: its connector ${f.connector} finds books and gives their links` : `its connector ${f.connector} only finds books and fetches no images`;
   return `${what} — the user saves the images by hand`;
@@ -846,7 +855,9 @@ function repoHint(tree: Tree): string {
  * sets, of the other record sets of those places and of the archives the places' jurisdictions name — each with its
  * archive; the others installed by name only.
  */
-function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, keys: (x: string) => string[], ready: Ready, installed: Ready, all: Connector[]): { name: string; archive?: string; serves: boolean }[] {
+function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, keys: (x: string) => string[], ready: Ready, installed: Ready, all: Connector[], shared: string | undefined): SheetConnector[] {
+  // one strom fetch refuses whole (an archive only a person's browser goes to): named as that, never as a way to find books
+  const shut = new Set(all.filter((c) => !byHandOnly(c) && browserOnlyShut(tree, c, shared)).map((c) => c.name));
   const urls: { url: string | undefined; archive?: string }[] = [];
   const repoOf = (id: string | undefined) => (id ? tree.get<Repository>(id) : undefined);
   const books = [...sets, ...tree.list<RecordSet>("recordset").filter((b) => !sets.includes(b) && (b.places ?? []).flatMap(keys).some((k) => places.has(k)))];
@@ -864,8 +875,8 @@ function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, key
   const serving = new Map<string, string | undefined>();
   for (const u of urls) for (const c of [...ready(u.url), ...installed(u.url).filter((x) => x.manifest.can.includes("find"))].slice(0, 1)) if (!serving.has(c.name) || !serving.get(c.name)) serving.set(c.name, u.archive);
   // the others that find or fetch, by name: an archive of another place is a command away
-  const others = all.filter((c) => !serving.has(c.name) && (c.manifest.can.includes("find") || c.manifest.can.includes("fetch"))).map((c) => ({ name: c.name, serves: false }));
-  return [...[...serving].map(([name, archive]) => ({ name, ...(archive ? { archive } : {}), serves: true })), ...others];
+  const others = all.filter((c) => !serving.has(c.name) && (c.manifest.can.includes("find") || c.manifest.can.includes("fetch"))).map((c) => ({ name: c.name, serves: false, ...(shut.has(c.name) ? { browserOnly: true } : {}) }));
+  return [...[...serving].map(([name, archive]) => ({ name, ...(archive ? { archive } : {}), serves: true, ...(shut.has(name) ? { browserOnly: true } : {}) })), ...others];
 }
 
 /**
@@ -939,11 +950,19 @@ function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, sha
     parts.push(
       a.permission
         ? `the person's permission: ${a.permission === "slow" ? "images slowly" : a.permission === "browser" ? "through the browser" : "by hand only"}`
-        : ((q) => (q ? `the person's decision on its images waits since ${q.at.slice(0, 10)}` : "no decision of the person's yet: a fetch of its images asks them once, and the question then waits — never fetch there again until they decide"))(qs.find((x) => onHost(a.host, x.host!))),
+        : ((q) =>
+            q
+              ? `the person's decision on its images waits since ${q.at.slice(0, 10)}`
+              : // an archive only a person's browser goes to: no fetch there at all, so none asks — the way is the person's
+                a.browserOnly
+                ? `no decision of the person's yet: its images through your browser only once they allow it (strom allow archive ${a.host} --way browser — the person's, never yours), else the person saves them by hand`
+                : "no decision of the person's yet: a fetch of its images asks them once, and the question then waits — never fetch there again until they decide")(qs.find((x) => onHost(a.host, x.host!))),
     );
   else if (a.permission === "manual") parts.push("the person: images by hand only");
   // a restricted archive's images, allowed slowly or through the browser: sparing (the method's "Fetch only what you read")
-  if ((a.level === "restricted" || a.level === "unknown") && (a.permission === "slow" || a.permission === "browser")) parts.push("fetch sparingly: an index by halving, a page to its image by 1–2 images, an entry ±1");
+  if ((a.level === "restricted" || a.level === "unknown") && (a.permission === "slow" || a.permission === "browser")) parts.push(
+      `${a.browserOnly || a.permission === "browser" ? "images sparingly through your browser" : "fetch sparingly"}: an index by halving, a page to its image by 1–2 images, an entry ±1`,
+    );
   if (a.refused) parts.push(`${a.refused.host} refused strom's client — left alone ${a.refused.until && a.refused.until < REFUSED_FOREVER ? `until ${clock(a.refused.until)}` : "until the person lifts it"}; not through your web tools or a browser either`);
   else if (net) {
     try {
@@ -1408,7 +1427,14 @@ export function buildBrief(
   const installed = installedFor(opts.shared);
   const ready = readyFor(tree, opts.shared, installed);
   const routes = new Map(sets.map((b) => [b.id, bookRoute(tree, b, ready)]));
-  const finders = new Map(sets.map((b) => [b.id, routes.get(b.id) ? undefined : bookFinder(tree, b, installed)]));
+  // an archive only a person's browser goes to, allowed "through the browser": the agent's browser saves its images one
+  // at a time where strom keeps that browser (strom media save) — never strom fetch there
+  const saveFor = (b: RecordSet) => {
+    const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+    const a = bookBrowserArchive(tree, [b.url, repo?.url].find((x) => !!x && URL.canParse(x)), opts.shared);
+    return a?.permitted && browserState(tree.env, tuneAgent, tree.root).state === "ready" ? `strom media save ${task?.id ?? "T…"} --image <n> --at <the archive's page of that image>` : undefined;
+  };
+  const finders = new Map(sets.map((b) => [b.id, routes.get(b.id) ? undefined : bookFinder(tree, b, installed, opts.shared, saveFor(b))]));
   const shapeFor = sets.find((b) => routes.get(b.id))?.id;
   if (sets.length)
     sections.push({
@@ -1576,7 +1602,7 @@ export function buildBrief(
   // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each —
   // and the connectors of the task's places, so that fetching needs no lookup
   // (the others installed only where none serves them, or the task is to find where the records are)
-  const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared));
+  const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared), opts.shared);
   const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves), ...(sandbox || noCli ? { without: ["read"] } : {}), ...(agentDecides ? { decides: true } : {}) });
   if (sheet) sections.push({ name: "commands", first: true, pointer: "strom help <command>", text: sheet });
 

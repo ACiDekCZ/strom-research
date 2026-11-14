@@ -131,6 +131,36 @@ test("a decided hypothesis is decided again only with a reason, and the earlier 
   w.cleanup();
 });
 
+test("search edit: a source found attached by mistake is taken off, never leaving a found search with none (1114 C9)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["source", "add", "Křest Jana Lhotáka", "--kind", "baptism"]); // S1
+  await w.ok(["source", "add", "Pohřeb Anny Lhotákové", "--kind", "burial"]); // S2
+  await w.ok(["search", "add", "Křty Lhoták 1880–1885", "--method", "index", "--result", "found", "--found", "S1", "--found", "S2"]); // Q1
+  const findings = async () => (await w.ok(["search", "show", "Q1", "--json"])).json.search.findings;
+  // --found "" was "nothing to change": now it says how a source is taken off
+  const empty = await w.run(["search", "edit", "Q1", "--found", ""]);
+  assert.equal(empty.code, 2);
+  assert.match(empty.err, /--found names no source\n→ a source attached by mistake: strom search edit Q0001 --drop-found <S…> --reason "…" \(every one: --no-found\)/);
+  // one taken off, with a reason (a search is evidence)
+  assert.match((await w.run(["search", "edit", "Q1", "--drop-found", "S2"])).err, /changing findings of Q0001 needs --reason/);
+  assert.match((await w.run(["search", "edit", "Q1", "--drop-found", "S9", "--reason", "omylem"])).err, /Q0001 has no source found S0009\n→ its sources found: S0001 S0002/);
+  await w.ok(["search", "edit", "Q1", "--drop-found", "s2", "--reason", "pohřeb patří k jinému hledání"]);
+  assert.deepEqual(await findings(), ["S0001"]);
+  // the last one: a found search with nothing left says what it is now, in the same command
+  const last = await w.run(["search", "edit", "Q1", "--no-found", "--reason", "omylem"]);
+  assert.equal(last.code, 2);
+  assert.match(last.err, /Q0001 would be found with no source left: say what it is now\n→ strom search edit Q0001 --no-found --result negative\|partial\|inconclusive --reason "…"/);
+  assert.match((await w.run(["search", "edit", "Q1", "--drop-found", "S1", "--reason", "omylem"])).err, /→ strom search edit Q0001 --drop-found S0001 --result negative/);
+  assert.deepEqual(await findings(), ["S0001"], "nothing taken off");
+  assert.equal((await w.run(["search", "edit", "Q1", "--no-found", "--found", "S1"])).code, 2, "one of them");
+  await w.ok(["search", "edit", "Q1", "--no-found", "--result", "inconclusive", "--reason", "křest patří jinému Janovi"]);
+  const q = (await w.ok(["search", "show", "Q1", "--json"])).json.search;
+  assert.deepEqual([q.result, q.findings], ["inconclusive", []]);
+  assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
 test("search edit: fill in freely, change where it looked or what came out only with a reason", opts, async () => {
   const w = await world();
   await w.ok(["recordset", "add", "Sloup 783", "--kinds", "baptism"]); // B2

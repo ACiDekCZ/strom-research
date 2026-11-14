@@ -15,7 +15,9 @@ Before a story (the task says so), look where the registers do not:
 newspapers, directories, school and society reports, military, land, court
 and notarial records, graves, the history of the place — first which exist
 for that country and time, and where they are digitised. Every search is
-recorded, also in vain (`strom search add … --method web|catalog|full-text`).
+recorded, also in vain (`strom search add … --method web|catalog|full-text`);
+what it found after its source: `strom source add …` →
+`strom search add … --result found --found <S…>`.
 
 - **Within the brief's budget of pages** fetched or read; then record what
   was searched and close. Printed pages go to the user's model for print

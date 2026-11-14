@@ -28,6 +28,8 @@ Každý nález má závažnost:
     **Není chyba** jako **neobvyklé** ([A6.7.5](A6-views.md#A6.7.5)).
   - **Od aplikace 3.27.0:** oddíl chyb a nálezů k ověření se jmenuje **K ověření** (dřív **Problémy**). Strom bez
     nich má „Nic k ověření“, se stopami „Nic k ověření. 3 stopy.“
+  - **Od aplikace 3.28.0:** v **K ověření** je skupina **Společné události**: kopie jedné společné události, jejichž
+    společné údaje se liší, s **Sjednotit…** a **Oddělit rozdílnou kopii** ([A10.3](A10-shared-events.md#A10.3)).
 - **Ovládání:** dialog **Validace stromu**: **Přehled stromu → Kvalita dat → Rychlé akce → Detaily validace**,
   řádek „n stop ›“ v **Konzistence** (otevře rovnou **Stopy**), karta s chybami v **Na co se zaměřit**.
   Od aplikace 3.27.0 i **Kvalita dat ›** v bublině nálezu v pohledu Tabulka: otevře dialog na skupině toho nálezu
@@ -163,6 +165,11 @@ původní soubor importovat znovu jako nový strom.
 - **Hranice:** příbuzní jsou osoby nejvýš 3 kroky přes rodiče, děti a partnery. Počítají se účastníci událostí
   osoby, svědci sňatku a účastníci společných událostí páru. Ve **Stopy** je i věkový rozdíl partnerů ([A5.3](#A5.3)).
 - **Platí od:** aplikace 1.10.0 (místa); 1.16.0 (kmotři); sourozenecké skupiny a úřední osoby 3.17.0
+- **Od aplikace 3.28.0:** ve **Stopy** jsou ještě:
+  - stejná událost zapsaná zvlášť u více osob, s **Spojit do jedné události** nebo **Projít po jedné**
+    ([A10.4](A10-shared-events.md#A10.4));
+  - kmotři a svědci zapsaní jménem, kterým odpovídá osoba stromu, s **Projít po jednom**
+    ([A10.5.2](A10-shared-events.md#A10.5.2)).
 
 <!-- zdroj: app:src/godparents.ts:42 RECURRING_THRESHOLD, :188 recurringParticipants, :270 siblingGroupCount, :300 godparentLeads · src/validation.ts:1034 checkPlaceSpellings, checkRecurringGodparents · strings.ts treeManager.valRecurringGodparent, valRecurringGodparentDetail, valPlaceSpelling, leadsSkipped -->
 

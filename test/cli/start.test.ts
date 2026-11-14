@@ -9,9 +9,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
-import net from "node:net";
 import { VERSION, type Tree } from "../../src/core/tree.ts";
-import { World, hasGit, readJsonFile } from "../helpers.ts";
+import { World, bridgeLogSince, hasGit, keptPortUnlessTaken, readJsonFile } from "../helpers.ts";
 import { conversationArgs } from "../../src/agents/launch.ts";
 import { detectAgent, withoutAgentMarks } from "../../src/core/which.ts";
 import { BYPASS_DENY, codexRules } from "../../src/agents/files.ts";
@@ -1067,11 +1066,13 @@ test("the live bridge does not end because of one error, says what happened in i
     // live stop waits until the bridge has ended
     await w.ok(["live", "stop"]);
     assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: strom live stop\n.*its secret dropped \(strom live stop\)/);
+    // (at another port only when another program took that one meanwhile: the bridges of tests running beside this one)
+    const restarted = Date.now();
     const again = (await w.ok(["live", "start", "--json"])).json;
-    assert.equal(again.port, first.port);
+    const kept = keptPortUnlessTaken(w.cwd, restarted, first.port, again.port) === "kept";
     assert.notEqual(again.token, first.token);
     assert.equal(again.moved, true, "the app needs the new address: said");
-    assert.match(fs.readFileSync(log, "utf8"), /the port of the last bridge, a new secret/);
+    assert.match(bridgeLogSince(w.cwd, restarted).join("\n"), kept ? /the port of the last bridge, a new secret/ : /started: .*a new address/);
     // Ended without a word (killed): the next session brings it back, on its address; one stopped stays stopped.
     process.kill(again.pid, "SIGKILL");
     // gone (its parent, this test, has heard it ended: no process of that number left)
@@ -1103,55 +1104,69 @@ test("the live bridge does not end because of one error, says what happened in i
     await w.ok(["session", "close", "--continue", "--summary", "nothing yet", "--next", "the same again"]);
     await w.ok(["session", "start"]);
     assert.equal((await w.ok(["live", "--json"])).json.running, false, "stopped by the user: not brought back");
-    // Its port taken meanwhile: another one.
+    // Its port taken meanwhile: another one. (The port of the last bridge: the one again came up at.)
     const blocker = http.createServer();
-    await new Promise<void>((r) => blocker.listen(first.port, "127.0.0.1", r));
+    await new Promise<void>((resolve, reject) => {
+      blocker.once("error", reject);
+      blocker.listen(again.port, "127.0.0.1", resolve);
+    });
+    let movedPid = 0;
     try {
       const moved = (await w.ok(["live", "start", "--json"])).json;
-      assert.notEqual(moved.port, first.port);
+      movedPid = moved.pid;
+      assert.notEqual(moved.port, again.port);
       assert.equal(moved.moved, true, "the app needs the new address: said");
-      assert.match(fs.readFileSync(log, "utf8"), new RegExp(`port ${first.port} is taken: another one`));
+      assert.match(fs.readFileSync(log, "utf8"), new RegExp(`port ${again.port} is taken: another one`));
     } finally {
       blocker.close();
     }
-    // (the address of a bridge that ran: a stuck one below pretends to be it)
-    const last = readJsonFile(path.join(w.cwd, ".strom", "live-last.json"));
+    // (the address of a bridge that ran: the stuck ones below pretend to be it) — read once that bridge has written it:
+    // live start answers when live.json says the bridge, which writes live-last.json a moment after; read before, it
+    // is the note of the bridge stopped for good, without its secret (found under the whole suite: the stuck bridge
+    // below then named no secret, and the one taking its port again got a new one — "moved")
+    const lastFile = path.join(w.cwd, ".strom", "live-last.json");
+    await until("the bridge wrote its address", () => readJsonFile(lastFile).pid === movedPid, 60_000);
+    const last = readJsonFile(lastFile);
+    assert.ok(last.token, "its secret");
     await w.ok(["live", "stop"]);
     // A bridge stuck on something (it does not end when asked) still holding its port: live stop ends it for good,
     // and the next bridge takes its port again — the app following it goes on
     // (a bridge runs in its tree's folder: one of another folder is never ended for this tree)
-    const stuckCode = `process.on("SIGTERM",()=>{});const s=require("http").createServer(()=>{});s.listen(${last.port},"127.0.0.1");setInterval(()=>{},1000)`;
-    // up: it holds the port (its SIGTERM handler set before)
-    const holding = async () => {
-      for (let i = 0; i < 100; i++) {
-        const up = await new Promise<boolean>((r) => {
-          const c = net.connect(last.port, "127.0.0.1", () => (c.destroy(), r(true)));
-          c.on("error", () => r(false));
-        });
-        if (up) return;
-        await new Promise((r) => setTimeout(r, 100));
-      }
-      throw new Error("the stuck bridge did not come up");
+    // Its port one the system gives it, said once it listens (its SIGTERM handler set before): a port a bridge freed may
+    // be another test's by now (bridges of tests in parallel take ports the system picks).
+    let stand = 0;
+    const stuckIn = async (): Promise<{ child: ReturnType<typeof spawn>; port: number }> => {
+      const ready = path.join(w.dir, `stuck-${++stand}`);
+      const code = `process.on("SIGTERM",()=>{});const s=require("http").createServer(()=>{});s.listen(0,"127.0.0.1",()=>require("fs").writeFileSync(${JSON.stringify(ready)},String(s.address().port)));setInterval(()=>{},1000)`;
+      const child = spawn(process.execPath, ["-e", code, "live", "serve"], { stdio: "ignore", detached: true, cwd: w.cwd });
+      child.unref();
+      await until("the stuck bridge holds its port", () => fs.existsSync(ready) && fs.readFileSync(ready, "utf8") !== "", 60_000);
+      return { child, port: Number(fs.readFileSync(ready, "utf8")) };
     };
-    const stuck = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true, cwd: w.cwd });
-    stuck.unref();
-    await holding();
-    fs.writeFileSync(path.join(w.cwd, ".strom", "live-last.json"), JSON.stringify({ ...last, pid: stuck.pid, ended: undefined }));
-    fs.writeFileSync(path.join(w.cwd, ".strom", "live.json"), JSON.stringify({ port: last.port, token: last.token, pid: stuck.pid, url: `http://127.0.0.1:${last.port}/${last.token}`, started: new Date().toISOString() }));
+    const stuck = await stuckIn();
+    fs.writeFileSync(lastFile, JSON.stringify({ ...last, port: stuck.port, pid: stuck.child.pid, ended: undefined }));
+    fs.writeFileSync(path.join(w.cwd, ".strom", "live.json"), JSON.stringify({ port: stuck.port, token: last.token, pid: stuck.child.pid, url: `http://127.0.0.1:${stuck.port}/${last.token}`, started: new Date().toISOString() }));
     const ended = await w.ok(["live", "stop", "--json"]);
     assert.equal(ended.json.how, "killed");
     const exited = (c: ReturnType<typeof spawn>) => new Promise((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
-    assert.equal(await exited(stuck), "SIGKILL", "the process is gone");
+    assert.equal(await exited(stuck.child), "SIGKILL", "the process is gone");
     // …and one that still holds the port when a new bridge starts (its note gone): ended, its port taken again
-    const stuck2 = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true, cwd: w.cwd });
-    stuck2.unref();
-    await holding();
-    fs.writeFileSync(path.join(w.cwd, ".strom", "live-last.json"), JSON.stringify({ ...last, pid: stuck2.pid }));
-    const retaken = (await w.ok(["live", "start", "--json"])).json;
-    assert.equal(retaken.port, last.port);
-    assert.equal(retaken.moved, undefined);
-    assert.equal(await exited(stuck2), "SIGKILL");
-    assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge before \\(${stuck2.pid}\\) still held port ${last.port}: ended`));
+    const stuck2 = await stuckIn();
+    fs.writeFileSync(lastFile, JSON.stringify({ ...last, port: stuck2.port, pid: stuck2.child.pid }));
+    const retaking = Date.now();
+    const retaken = await w.run(["live", "start", "--json"]);
+    // The new bridge ends the stuck one first (its ask unheard, a signal unheard: seconds, by design) — under the load of
+    // the whole suite more than live start waits for a bridge (10 s, the same as for the person: not this test's to
+    // change). Then live start says it did not come up, and the bridge comes up a while later all the same: waited for.
+    if (retaken.code !== 0) assert.equal(retaken.json?.code, "live.not-started", retaken.out + retaken.err);
+    await until("the bridge came up", () => bridgeLogSince(w.cwd, retaking).some((l) => /^started: /u.test(l)), 120_000);
+    const now = (await w.ok(["live", "--json"])).json;
+    assert.equal(now.port, stuck2.port);
+    assert.equal(now.url, `http://127.0.0.1:${stuck2.port}/${last.token}`, "its secret kept: the app following it goes on");
+    if (retaken.code === 0) assert.equal(retaken.json.moved, undefined);
+    assert.match(bridgeLogSince(w.cwd, retaking).join("\n"), new RegExp(`started: .*port ${stuck2.port}, the address of the last bridge`));
+    assert.equal(await exited(stuck2.child), "SIGKILL");
+    assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge before \\(${stuck2.child.pid}\\) still held port ${stuck2.port}: ended`));
   } finally {
     following?.destroy();
     await w.run(["live", "stop"]);

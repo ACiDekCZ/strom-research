@@ -71,6 +71,22 @@ test("a found search names its sources: in a batch --found @label of a source of
   assert.match(r.err, /the source add line first, ending #s, then search add … --found @s/);
 });
 
+test("a found search without --found: the order said, and the command itself again with --found (1114 C10)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["recordset", "add", "Lhota 3", "--kinds", "baptism"]); // B0001
+  const r = await w.run(["search", "add", "Křty Lhoták 1880–1885", "--recordset", "B1", "--years", "1880-1885", "--surname", "Lhoták", "--method", "page-by-page", "--result", "found"], AGENT);
+  assert.equal(r.code, 2);
+  assert.match(r.err, /result found needs --found <S…>: the source it found is recorded first/);
+  assert.match(r.err, /→ 1\. strom source add "…" --kind … --recordset … --locator …/);
+  assert.match(r.err, /→ 2\. strom search add "Křty Lhoták 1880–1885" --recordset B1 --years 1880-1885 --surname Lhoták --method page-by-page --result found --found <S…>/u);
+  assert.equal((await w.ok(["search", "list", "--json"])).json.total, 0, "nothing written");
+  // the help says the order, both commands in its examples
+  const help = (await w.ok(["help", "search", "add"])).out;
+  assert.match(help, /1\. strom source add .*\n {2}2\. strom search add .*--result found --found <S…>/u);
+  assert.match(help, /strom source add "[^"]+" --kind baptism[^\n]*\n {2}strom search add [^\n]*--result found --found S0001/u);
+});
+
 test("an ID of another kind where one kind is asked for: what it is and strom show for it", opts, async () => {
   const w = new World();
   await w.withTree();

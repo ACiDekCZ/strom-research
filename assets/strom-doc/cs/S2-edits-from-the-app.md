@@ -103,8 +103,22 @@ v [R5.2](R5-conflicts.md#R5.2); přepisy pramenů z aplikace v [R3.5.1](R3-verif
   ([R5.2.1](R5-conflicts.md#R5.2.1)). Aplikace: okno **Výzkum u stromu** ukáže, co volba znamená
   („Úpravy se ve výzkumu zapíšou až po potvrzení.“).
 - **Platí od:** výzkum 1.5.0; `sync.review` od 1.12.0
+- **Od výzkumu 1.32.0:** `strom sync` stromu z aplikace (JSON i GEDCOM) drží společné události, role, vlastní
+  události **Kmotrovství** a **Svědek při sňatku** a účastníky událostí ([A10](A10-shared-events.md)), jako převzetí
+  rodokmenu ([R11.3](R11-material-from-the-user.md#R11.3)). Výzkum, který strom z aplikace převzal dřív, se sám
+  neopraví; další `strom sync` z aplikace doplní, co chybí:
+  - poznámku osoby nebo rodiny, kterou dřívější převzetí zkrátilo na 500 znaků, na celou (jde vrátit);
+  - chybějící vlastní události kmotrovství a svědka jako nové údaje a chybějící účastníky událostí;
+  - osobu nebo rodinu, kterou převzetí GEDCOM ve výzkumu 1.31 vynechalo kvůli dlouhé poznámce se znakem mimo
+    základní sadu (emoji), nabídne jako novou.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview -->
+  Poznámky událostí a poznámky účastníků `strom sync` neporovnává, a tak je nedoplní; aplikace je drží celé.
+- **Od aplikace 3.28.0:** výzkum starší než 1.32.0 společné události a vlastní události kmotrovství a svědka
+  nevrací. Aplikace je při načtení nové verze takového výzkumu převezme z předchozího stavu stromu: osobu pozná podle
+  čísla ve výzkumu, událost podle typu, data, místa a hodnoty, jen když je shoda jediná. Událost, kterou výzkum
+  změnil, je obyčejná událost své osoby; ostatní kopie zůstanou spojené.
+
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiv Stromu a výzkum bez agenta

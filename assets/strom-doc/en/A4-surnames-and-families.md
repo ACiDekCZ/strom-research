@@ -258,3 +258,41 @@ of the name.
 - **Since:** app 3.0.0 (married surname in search 3.13.0)
 
 <!-- zdroj: app:src/name-search.ts:26 searchableSurnames · :82 surnameMatchesQuery · src/merge/matching.ts:38 normalizeName · src/person-picker.ts:18 sortByName · :28 calculateMatchScore · :98 hiddenSurnameMatchHtml · src/search-filter.ts:95 · src/given-names.ts -->
+
+<a id="A4.8.1"></a>
+### A4.8.1 Same names in a person list
+
+When the same name repeats in a search result, each such row has a second, grey line under the name with the shortest
+detail that tells it apart from the others with the same name. A row with a unique name looks as before.
+
+- **When:** what counts as the same is what the row shows: the name with titles and the note of the birth or earlier
+  surname, and the year of birth when the list writes it after the name. It is compared as in search, ignoring upper
+  and lower case and diacritics. It is counted in the whole result, also in the rows past the first 50.
+- **Order of details:**
+  1. years: "* 1820 – † 1866", only the known parts and only the year. A year of birth that the list writes after the
+     name is not repeated;
+  2. partner: "⚭ name"; with several marriages the first partner the other rows do not have;
+  3. parents: "daughter of father and mother" ("son of" for a man, "child of" without a sex), only known parents;
+  4. place: "born in …", without it "lived in …" (the latest residence with a place).
+- **Limits:**
+  - the details are taken in this order until the combination matches no other row of the group. Of them, only what
+    is known and what not all other rows of the group have the same is shown, joined by " · ". Sisters with the same
+    parents are so told apart by the birthplace, not the parents; two "Radegunda Pokusná" born 1900 have
+    "⚭ Bohuchval Zkoušek" and "⚭ Sudivoj Pokus", not "* 1900 · ⚭ …". A detail that only some rows have the same is
+    shown;
+  - when only a detail not known for the row tells it apart, its first known detail that not all others have the
+    same is shown, and when there is none, "no other details". A row that nothing tells apart from another shows all
+    its known details;
+  - a person found by a detail (married surname, cause of death, house, [A4.8](#A4.8)) has one line: the
+    distinction and, after " · ", the find. A year the find already says ("† 1866 …") is not repeated in the
+    distinction;
+  - the distinction line does not widen the list: a longer end is shortened with "…". The whole text is in the row's
+    tooltip and a screen reader reads the row as "name, distinction";
+  - on a phone the list is as wide as the screen.
+- **Where:** every choice of a person from a field: the search in the toolbar, adding a relation, finding a
+  relationship, reading a document, the default person of the tree and others. The choice of a person for the
+  ancestors' path on the map ([A6.5.4](A6-views.md#A6.5.4)) has its own list and no distinction.
+- **Controls:** none: it applies by itself. Keys and loading by 50 rows are unchanged.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->

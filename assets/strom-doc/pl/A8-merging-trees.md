@@ -99,5 +99,8 @@ Poza osobami i relacjami scala się też listy, które należą do całego drzew
   się kopia zapasowa drzewa ([S6.5](S6-tree-from-another-program.md#S6.5)). Po scaleniu pliku innego programu aplikacja
   pokazuje kartę **Co dalej** ([S6.4](S6-tree-from-another-program.md#S6.4)). Ręczne scalenie dwóch osób
   ([A5.6](A5-tree-check.md#A5.6)) notatek nie łączy.
+- **Od aplikacji 3.28.0:** wspólne wydarzenia ([A10.1](A10-shared-events.md#A10.1)) się nie podwajają: parują się
+  z wydarzeniami drzewa docelowego i przejmują jego wspólne wydarzenie; własne wydarzenie „Census” paruje się ze
+  spisem ludności. Podsumowanie „Wspólne wydarzenia: n połączono” ([A10.6](A10-shared-events.md#A10.6)).
 
-<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations -->
+<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations · 3.28.0: app:80c2ffb9 src/merge/* (shareId, Census ↔ census), strings.ts merge.sharedJoined -->

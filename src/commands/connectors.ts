@@ -1455,6 +1455,9 @@ register(
       "downloads folder, and --take, which takes them over from there, checked and registered.\n" +
       "A connector whose portal answers a real browser only (browser.pages: a bot check) has every page read\n" +
       "there too: each run plans the page it needs next, --take gives it to the connector and goes on.\n" +
+      "An archive only a person's browser goes to (strom's list, its robots.txt) takes no other connector's request,\n" +
+      "--find and --list neither: its books are found on its own site (your browser strom keeps, with the person's\n" +
+      "permission \"through the browser\", else the person), its images saved one at a time with strom media save.\n" +
       "--background (with --recordset, in a session) fetches by a strom of its own while you work on — the images\n" +
       "this session reads (never for a later one): strom read of the book reads them as they come. It belongs to\n" +
       "your session and the task it is for (--task T…; without it the one task this session worked on that names\n" +

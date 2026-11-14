@@ -400,7 +400,7 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
  * permission stays as given, the direct way is never taken. Its ways for the agent, in words and in --json (details):
  * the person's permission "through the browser" where the agent's browser could help (one strom keeps), else by hand.
  */
-export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, images?: string, pages = false): UsageError {
+export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, images?: string, pages = false, catalogue = false): UsageError {
   const agent = detectAgent(ctx.env);
   // what the agent's own browser may do there (none for an agent whose browser strom does not keep)
   const root = ctx.hasTree() ? ctx.tree().root : undefined;
@@ -410,8 +410,17 @@ export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, 
   const allow = `strom allow archive ${a.host} --way browser`;
   const manual = byHand(ctx, images);
   const kept = a.permission === "slow" ? ` — the person's permission "slowly" from before is kept as given, and takes no direct request there` : "";
-  return new UsageError(`${a.title ?? a.host} lets automated tools in only through a person's browser (${browserWhy(a)}) — no direct request through ${c.name}, a probe or your web tools${kept}`, {
+  // finding a book (--find, --list): never through strom there — its catalogue on the archive's own site, page by page
+  // through the agent's browser strom keeps (the person allowed it "through the browser"), else the person's
+  const site = `https://${a.host}/`;
+  const find = !catalogue
+    ? ""
+    : agent && browserHelps(a) && a.permission === "browser" && browserKept(agent, root, ctx.env)
+      ? `find the book on the archive's own site through your browser instead (${site} — its catalogue page by page, at a person's pace), then record it: strom recordset add "<title>" --url <the book's page there> --places <place> --years <from-to> --kinds <kinds>; its images then one at a time: strom media save. `
+      : `the book is found on the archive's own site (${site}) by a person: strom task wait ${taskHere(ctx) ?? "T…"} --check ${site} --on "<which book: the place, the years, the kind — impersonal, in the research language>". `;
+  return new UsageError(`${a.title ?? a.host} lets automated tools in only through a person's browser (${browserWhy(a)}) — no direct request through ${c.name}, a probe or your web tools${catalogue ? ", finding its books neither" : ""}${kept}`, {
     hint:
+      find +
       `go on with another way to the same records (another archive, the parish, an index, a catalogue), or the user saves what the research needs by hand: ${manual}` +
       `${pages ? "" : " — only a connector whose pages come from the person's browser (browser.pages) goes there, with the person's permission"}` +
       `${advice ? `; ${advice}` : browser && a.permission !== "browser" ? `; its images through the agent's browser, one at a time, only with the person's permission "through the browser" (${allow} — the person's)` : ""}`,
@@ -425,6 +434,7 @@ export function browserOnlyRefusal(ctx: Context, c: Connector, a: ArchiveLevel, 
       ...(a.permission ? { permission: a.permission } : {}),
       ...(browser && a.permission !== "browser" ? { browser: allow } : {}),
       manual,
+      ...(find ? { find: find.trim() } : {}),
     },
   });
 }
@@ -470,7 +480,7 @@ export async function gateArchive(
   if (m) throw refuseManual(m);
   // only a person's browser goes there: nothing straight through strom — a connector without the browser's pages has no way
   const browserOnly = levels.find((a) => a.browserOnly && (!pages || !allows(a, activity, route).ok && (allows(a, activity, route) as { why: string }).why === "browser"));
-  if (browserOnly) throw browserOnlyRefusal(ctx, c, browserOnly, o.images, pages);
+  if (browserOnly) throw browserOnlyRefusal(ctx, c, browserOnly, o.images, pages, activity === "catalogue");
   if (o.closedOnly) return { levels, human: new Map() };
   const missing = levels.filter((a) => {
     const r = allows(a, activity, route);

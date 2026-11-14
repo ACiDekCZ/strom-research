@@ -33,10 +33,11 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [A3 Doložení v aplikaci](A3-evidence-in-the-app.md): prameny, citace, výřezy, přílohy, materiály a kde chybí doklady
 - [A4 Rody a příjmení](A4-surnames-and-families.md): rod a zakladatel, přivdaní, ženské tvary příjmení, hledání jmen
 - [A5 Kontrola stromu](A5-tree-check.md): co aplikace ve stromu hlídá, s jakými prahy, a Není chyba
-- [A6 Pohledy a výběr osob](A6-views.md): Rodina, Potomci, Časová osa, Vějíř, Mapa, rod v pohledu a Tabulka
+- [A6 Pohledy a výběr osob](A6-views.md): Rodina, Potomci, Časová osa, Vějíř, Mapa, rod v pohledu, Tabulka a pohled v samostatném okně
 - [A7 Kniha, stránky a export](A7-book-pages-and-export.md): kdo je žijící, ochrana žijících, kniha rodu, stránky, uložené HTML
 - [A8 Sloučení stromů](A8-merging-trees.md): sloučení souboru, stromu nebo pohledu do nového stromu, párování osob
-- [A9 Ovládání aplikace](A9-using-the-app.md): kde co je, čitelné názvy prvků, úpravy při sledování výzkumu, agent v aplikaci
+- [A9 Ovládání aplikace](A9-using-the-app.md): kde co je, čitelné názvy prvků, úpravy při sledování výzkumu, agent v aplikaci, dolní lišta na telefonu a tabletu
+- [A10 Jedna událost u více osob](A10-shared-events.md): společná událost domácnosti (Spolu s), Sjednotit, Spojit do jedné události, kmotři a svědci v životě osoby, sloučení a starší stromy
 
 ## S Aplikace a výzkum spolu
 

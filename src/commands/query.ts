@@ -44,9 +44,10 @@ function ofPerson(tree: Tree, ref: unknown): Person {
   if (!id)
     throw new UsageError("no main person to relate the facts to", {
       hint: "strom config set main.person P0001 (the person the tree is for), or strom query --of P0001",
+      code: "query.no-main",
     });
   const p = tree.get<Person>(id);
-  if (!p || p.retracted) throw new UsageError(`${id} is retracted: no facts are related to it`, { hint: "strom query --of P0001 (a person of the tree)" });
+  if (!p || p.retracted) throw new UsageError(`${id} is retracted: no facts are related to it`, { hint: "strom query --of P0001 (a person of the tree)", code: "query.retracted", params: { id } });
   return p;
 }
 

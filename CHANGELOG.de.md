@@ -5,18 +5,40 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.33.0
+
+*In Vorbereitung: die Betas bis 1.33.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Archive, die nur der Browser eines Menschen betreten darf:** Der Agent versucht dort weder den Downloader von strom
+  noch die Katalogsuche. Ihre Bilder kommen einzeln über den Browser des Agenten (`strom media save`), sobald der
+  Mensch „über den Browser“ erlaubt, sonst speichert der Mensch sie von Hand; Brief und Ablehnungen nennen diesen
+  nächsten Schritt sofort.
+- **Über den Browser gespeicherte Bilder:** Das Buch wird aus dem genommen, worauf die Aufgabe wartet, oder aus der
+  Seite des Archivs; die gespeicherte Datei trägt das Zeichen der Forschung, sodass nie eine Datei einer anderen
+  Forschung aus dem gemeinsamen Download-Ordner genommen wird. Auch Bildbetrachter im eigenen Code einer Seite (OpenSeadragon in React) werden gefunden; ein Betrachter,
+  den strom nicht erreicht, wird mit dem genannt, was der Mensch stattdessen tut.
+- **Suchen:** Eine Suche, die etwas gefunden hat, wird nach ihrer Quelle eingetragen und nennt ohne Quelle die
+  Reihenfolge; eine versehentlich gefundene Quelle wird mit `strom search edit --drop-found` entfernt.
+- **Verlauf:** `strom history hide|show` prüfen, was sie bekommen, bevor jemand gefragt wird; ein einzelnes Ereignis
+  liest `strom history list --event <id>`.
+- **Aus der Strom-App:** Eine Angabe, die in einer anderen Form derselben Art zurückkommt (ein Ereignis vom Typ Census
+  für eine Volkszählung), wird als dieselbe Angabe erkannt – keine Änderung, wenn sich nichts geändert hat, eine
+  Bearbeitung dieser Angabe, wenn sich ihr Datum geändert hat.
+
 ## 1.32.0
 
-*In Vorbereitung: die Betas bis 1.32.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*14.11.2026 · gehört zur Strom-App 3.28.0.*
 
 - **Fragen an den Stammbaum mit einem Aufruf: `strom query`.** Wie viele Müller es in der Familie gibt, wer im Haus 12
   wohnte, wer im 18. Jahrhundert in Lhota geboren wurde: eine Zeile je Angabe einer Person mit Wert, Ort, Hausnummer,
-  Datum, Sicherheit und Quellen. Filter nach Art, Beruf, Wert, Ort, Hausnummer, Jahren, Nachname (auch seinen anderen
-  Formen), Quelle und Status; wessen Angaben: die direkte Linie, die Blutsverwandten (Standard, auch Seitenlinien), mit
-  ihren Partnern, oder der ganze Baum. `--count` und `--by generation|kin|place|decade|surname` zählen sie. Widerrufene
-  Personen und Angaben nie, widerlegte nur auf Wunsch; ein unbekanntes `--kind` wird mit den gültigen Arten abgelehnt.
-- **Wie jede Person mit der Hauptperson verwandt ist, in Worten:** in der Sprache der Forschung, mit der Seite
-  (väterlich, mütterlich) und der Generation, wie es der Verwandtschaftsrechner der Strom-App sagt.
+  Datum, Sicherheit und Quellen und damit, wie die Person mit der Hauptperson verwandt ist, in Worten — in der Sprache
+  der Forschung, mit der Seite (väterlich, mütterlich) und der Generation, wie es der Verwandtschaftsrechner der
+  Strom-App sagt. Filter nach Art, Beruf, Wert, Ort, Hausnummer, Jahren, Nachname (auch seinen anderen Formen), Quelle
+  und Status; wessen Angaben: die direkte Linie, die Blutsverwandten (Standard, auch Seitenlinien), mit ihren Partnern,
+  oder der ganze Baum. `--count` und `--by generation|kin|place|decade|surname` zählen sie. Widerrufene Personen und
+  Angaben nie, widerlegte nur auf Wunsch. **Auch die Erzählungen: `strom query --story <Wort>`** nennt die Personen und
+  Paare, in deren Erzählung das Wort steht, jede mit dem Satz und den Quellen, auf die er sich stützt. Eine Hausnummer
+  mit eigenem Wort (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
 - **Berufe auch in ihren tschechischen, deutschen, lateinischen und polnischen Formen:** mlynar findet auch Müller und
   molitor; Personen mit dem Wort nur im Namen oder in einer Notiz werden getrennt gezählt, mit dem `strom find`, das sie
   findet.
@@ -26,13 +48,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Quellen nennen, und sagt es, von Hand Hinzugefügtes ändert er nie. `strom query` sagt, wenn ein Wort in keiner Liste
   steht (nur diese Form gesucht), und wie seine Formen hinzukommen. Die eingebaute Liste kennt 40 weitere Handwerke und
   Stände der Matriken (Messner, Totengräber, Gerber, Bader, Glockengießer …).
-- **Auch die Erzählungen: `strom query --story <Wort>`** nennt die Personen und Paare, in deren Erzählung das Wort
-  steht, jede mit dem Satz und den Quellen, auf die er sich stützt, mit denselben Filtern, Zählungen und Gruppen.
 - **Der Agent beantwortet Fragen an den Stammbaum mit `strom query`,** mit dem Namen und der ID jeder Person in Klammern
   (zum Öffnen in der Strom-App: `strom app --person P…`; eine App vor 3.21 öffnet den Baum), der ganzen Verwandtschaft und der Quelle mit ihrem Titel, und sagt, wie sicher jede
   Angabe ist: ein Hinweis oder eine wahrscheinliche Angabe nie als Tatsache. Eine Erzählung zeigt nur, wo zu suchen ist;
   wem ein Eintrag gehört, wer wer ist und das Prüfen der Angaben geht weiter wie bisher, aus den Quellen.
-- **Eine Hausnummer mit eigenem Wort** (č. 7, Nr. 7) zeigt das Wort nicht mehr doppelt, auch auf der Karte einer Person.
 - **In der Strom-App geteilte Ereignisse** (eine Volkszählung eines Haushalts, ein Umzug) und das eigene Ereignis eines
   Paten oder Trauzeugen mit einer Rolle beim Ereignis einer anderen Person werden aus ihrem GEDCOM und JSON gelesen,
   bei jeder Angabe gehalten und so zurückgegeben, wie sie kamen; ab der App 3.28 wird in der App entschieden, wer ein
@@ -49,38 +68,28 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   gespeichert); „Als Nächstes“ setzt die zuletzt gewählte Aufgabe an die Spitze und lässt sich genau zurücksetzen; Arbeit
   an der Warteschlange öffnet ein Terminal, das zeigt, was startet, und es erst nach einem Ja startet – eine Anzahl
   Aufgaben (`strom run --tasks N`, endet nach N erledigten) oder selbstständige Arbeit nur unter einer Bedingung. Die Brücke zur App arbeitet in einer großen Forschung viel weniger, solange sich nichts ändert.
-
-## 1.31.1
-
 - **Eine Einstellung für Archiv-Viewer, die ein Browser langsam zeichnet.** Wo der Browser einen Tab nur etwa einmal
   pro Sekunde zeichnet (Zeichnen ohne Grafikkarte, ein Remote-Desktop), braucht der Viewer des Archivs (ACTA PUBLICA)
   für ein Bild Minuten, und das Speichern gab nach 30 s mit „die Kacheln des Viewers kamen nicht alle“ auf. Diese
   Meldung nennt jetzt, was hilft: `strom config set browser.tileWait 180` (60–600 s) — das Skript wartet dann, solange
   die Kacheln noch kommen, und antwortet dem Agenten „strom-wait“, bis es fertig ist. Ohne die Einstellung ändert sich
   nichts.
-- **Die Vorschau von `strom source split` bei einer auf einem anderen Computer versiegelten Forschung.** Sie wurde
-  abgelehnt, bis die Forschung übernommen war (`strom seal adopt`), obwohl sie nur liest. Jetzt zeigt die Vorschau wie
-  jedes Lesen, was die Aufteilung täte; das Schreiben (`--apply`) und sein Rückgängigmachen warten weiter auf die
-  Übernahme der Forschung.
-- **Ebenso bei `strom sync <Datei>` und `strom input names`:** was ein Stammbaum brächte und welche Namen nach der
-  Heirat hinzukämen, wird auch bei einer auf einem anderen Computer versiegelten Forschung gezeigt; das Schreiben
-  (`--apply`, `strom sync --app`, `--undo`) wartet weiter auf die Übernahme der Forschung.
-- **`strom repair undo <Stempel> --json` ohne Terminal** antwortet jetzt wie `strom repair`: `status: "needs-consent"`
-  mit dem Befehl, der in einem Terminal auszuführen ist, nicht nur mit dem Exit-Code 4.
-- **Ein Agent, dessen Sandbox strom von den Einstellungen oder der Forschung fernhält** (Codex unter Windows), erfährt
-  jetzt genau das — mit dem Befehl, der außerhalb der Sandbox auszuführen ist — statt „die Geschichte ist für diese
-  Forschung aus, nur der Benutzer schaltet sie ein“, was ihn zu einer Einstellung schickte, die eingeschaltet war.
-- **Eine Aufgabe, bei der die Sandbox oder die Berechtigungen des Agenten strom dreimal hintereinander nicht an die
-  Forschung ließen,** wird zurückgestellt (nichts wurde erfasst): mit ihrem Grund und bei Codex mit dem, was hilft
-  (`strom task show`), und der Lauf geht mit der nächsten Aufgabe weiter, statt Lauf für Lauf dieselbe zu beginnen. Eine
-  wieder geweckte Aufgabe (`strom task wake`) zählt ab dann neu. So wird höchstens eine Aufgabe auf einmal
-  zurückgestellt — lehnt die Sandbox alles ab, endet der Lauf wie bisher. `strom error` zeigt, welche Befehle abgelehnt
-  wurden, gekürzt und maskiert.
-- **Codex unter Windows lässt strom nur als einfachen Befehl aus seiner Sandbox**: ohne `&`, Pipe oder `cd` davor, ohne
-  Gedankenstrich (–) und ohne Anführungszeichen innerhalb eines Textes in Anführungszeichen in den Argumenten. Der Agent
-  unter Windows erfährt das jetzt (AGENTS.md, `strom guide`, der Hinweis der Sandbox), mit dem Weg für einen längeren
-  Text: sein Befehl in einer Datei in `notes/`, ausgeführt mit `strom batch --file`. Die Beispiele von strom bieten
-  keinen Gedankenstrich zwischen Zahlen mehr an.
+- **Eine auf einem anderen Computer versiegelte Forschung lässt sich ohne Übernahme lesen:** die Vorschauen von
+  `strom source split`, `strom sync <Datei>` und `strom input names` (was die Aufteilung täte, was ein Stammbaum
+  brächte, welche Namen nach der Heirat hinzukämen) werden wie jedes Lesen gezeigt; das Schreiben (`--apply`, `strom
+  sync --app`, `--undo`) wartet weiter auf die Übernahme der Forschung (`strom seal adopt`). `strom repair undo
+  <Stempel> --json` ohne Terminal antwortet jetzt wie `strom repair`: `status: "needs-consent"` mit dem Befehl, der in
+  einem Terminal auszuführen ist, nicht nur mit dem Exit-Code 4.
+- **Codex unter Windows und seine Sandbox:** ein Agent, dessen Sandbox strom von den Einstellungen oder der Forschung
+  fernhält, erfährt genau das, mit dem Befehl, der außerhalb der Sandbox auszuführen ist, statt nach einer Einstellung
+  zu suchen, die eingeschaltet war. Codex lässt strom nur als einfachen Befehl aus seiner Sandbox — ohne `&`, Pipe oder
+  `cd` davor, ohne Gedankenstrich (–) und ohne Anführungszeichen innerhalb eines Textes in Anführungszeichen in den
+  Argumenten; der Agent erfährt das (AGENTS.md, `strom guide`, der Hinweis der Sandbox), mit dem Weg für einen längeren
+  Text: sein Befehl in einer Datei in `notes/`, ausgeführt mit `strom batch --file`. Eine Aufgabe, bei der die Sandbox
+  oder die Berechtigungen strom dreimal hintereinander nicht an die Forschung ließen (nichts wurde erfasst), wird mit
+  ihrem Grund und dem, was hilft (`strom task show`), zurückgestellt, und der Lauf geht mit der nächsten Aufgabe weiter;
+  höchstens eine auf einmal — lehnt die Sandbox alles ab, endet der Lauf wie bisher. `strom error` zeigt, welche Befehle
+  abgelehnt wurden, gekürzt und maskiert.
 
 ## 1.31.0
 

@@ -106,6 +106,7 @@ async function seeded(): Promise<World> {
   await w.ok(["search", "add", "Křty Novák 1903–1907", "--recordset", "B0001", "--years", "1903-1907", "--method", "page-by-page", "--result", "negative"]); // Q0001
   // a site that refused strom: the blocked way recorded in the session, then the person's check of it (task wait --check, task wake --check)
   await w.ok(["search", "add", "Kniha oddaných Týnec", "--method", "web", "--result", "inconclusive", "--note", "archive.example.org refused automated access; tried instead: the parish"]); // Q0002
+  await w.ok(["search", "add", "Křty Lhoták 1880–1885", "--recordset", "B0001", "--method", "page-by-page", "--result", "partial", "--found", "S0001", "--found", "S0002"]); // Q0003: a source taken off (search edit --drop-found)
   await w.ok(["task", "add", "Ověřit knihu oddaných", "--level", "locate", "--where", "archiv", "--why", "sňatek", "--done-when", "kniha ověřena"]); // T0004
   await w.ok(["task", "wait", "T0004", "--check", "https://archive.example.org/book/5359", "--on", "zda je kniha oddaných 1784–1820 vidět i se snímky"]);
   // a letter that waits for the registry office's reply, which came as a file (intake --answers)

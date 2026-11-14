@@ -77,8 +77,12 @@ nejslabší ze tří údajů kartičky: jméno, narození a úmrtí.
 - **Bublina u značky:** „Nejslabší údaj kartičky: …“ a slovy, co značka znamená.
 - **Ovládání:** **Nastavení → Karta osoby → Na kartě ukázat → Doložení a spolehlivost** (výchozí zapnuto).
 - **Platí od:** aplikace 3.26.0
+- **Od aplikace 3.28.0:** při oddálení stromu pod 0,55 je značka větší (asi 10 px na obrazovce), pod 0,3 se
+  nekreslí. Řádek kartičky (jméno, data) končí před zvětšenou značkou s „…“ jen tam, kam značka při daném
+  přiblížení dosáhne; řádky nad ní zůstanou celé a pod 0,3 jsou celé všechny. Jména se rozvrhují jako při 100 %,
+  takže po přiblížení zpět nezůstanou zúžená.
 
-<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · 3.27.0: app:dde0151a src/reliability.ts citesSourceRead (FactCitationRef, citationQuality; holé id = záznam změny výzkumu podle pramene), cardFactCitations, withChangeRecord · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) -->
+<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · 3.27.0: app:dde0151a src/reliability.ts citesSourceRead (FactCitationRef, citationQuality; holé id = záznam změny výzkumu podle pramene), cardFactCitations, withChangeRecord · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) · 3.28.0: app c0bc007f src/zoom.ts ZOOM_FAR 0.55, ZOOM_TINY 0.3 · index.html #tree-canvas.zoom-far .card-status-mark (scale 0.85 / zoom), .zoom-tiny skrytá, --mark-gap, --far-step (okraj jen u řádků, kam značka dosáhne), text-overflow ellipsis · src/renderer.ts fitCardNames (jako při 100 %), markGapRows · dirigent:prace/1113-app-drobnosti-1112 §5 -->
 
 <a id="S7.3"></a>
 ## S7.3 Ověřit u údaje

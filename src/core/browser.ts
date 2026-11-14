@@ -221,7 +221,10 @@ export function downloadsDir(env: Env, platform: NodeJS.Platform = process.platf
   return path.join(home, "Downloads");
 }
 
-/** The image viewers strom saves an image from (browser.viewer): OpenSeadragon (2.x–4.x, its canvas). */
+/**
+ * The image viewers strom saves an image from (browser.viewer): OpenSeadragon (2.x–4.x, its canvas) — as a global of
+ * the page, or held by the page's framework (React) when bundled with the page's own code.
+ */
 export const VIEWERS = ["openseadragon"] as const;
 export type Viewer = (typeof VIEWERS)[number];
 
@@ -390,7 +393,14 @@ export function findDownload(dir: string, base: string): { file?: string; others
     }
     if (!re.test(nfc)) continue;
     const file = path.join(dir, name);
-    found.push({ file, at: fs.statSync(file).mtimeMs });
+    // gone since the folder was read (the browser renaming its download, another strom taking it): not there
+    let at: number;
+    try {
+      at = fs.statSync(file).mtimeMs;
+    } catch {
+      continue;
+    }
+    found.push({ file, at });
   }
   found.sort((a, b) => b.at - a.at);
   const [best, ...rest] = found;
@@ -560,15 +570,83 @@ function captureJs(o: CaptureOptions = {}): string {
     });
     return drawn || until(() => drawn, 5000);
   };
+  // the viewer of the page: OpenSeadragon as a global of the page first (as ever), else one the page's framework holds
+  // (bundled with the page's own code, no global of it): only read of the page's objects, never a request
   const findViewer = () => {
     const OSD = window.OpenSeadragon;
-    if (!OSD || !OSD.Viewer) return undefined;
-    for (const k of Object.keys(window)) {
-      try {
-        if (window[k] instanceof OSD.Viewer) return window[k];
-      } catch (e) {}
+    if (OSD && OSD.Viewer) {
+      for (const k of Object.keys(window)) {
+        try {
+          if (window[k] instanceof OSD.Viewer) return window[k];
+        } catch (e) {}
+      }
+      if (OSD._viewers && OSD._viewers.values) for (const v of OSD._viewers.values()) return v;
     }
-    if (OSD._viewers && OSD._viewers.values) for (const v of OSD._viewers.values()) return v;
+    return heldViewer();
+  };
+  // the viewers' containers OpenSeadragon makes (its class in 2.x–5.x)
+  const osdBoxes = () => {
+    try {
+      return document.querySelectorAll ? [...document.querySelectorAll(".openseadragon-container")] : [];
+    } catch (e) {
+      return [];
+    }
+  };
+  // an OpenSeadragon viewer known by its shape (never by its class: the page's copy of it has none strom can see),
+  // and the viewer of this container
+  const viewerOf = (x, box) => {
+    try {
+      return !!x && typeof x === "object" && typeof x.addHandler === "function" && typeof x.removeHandler === "function" && !!x.viewport && typeof x.viewport.fitBounds === "function" && !!x.world && typeof x.world.getItemAt === "function" && !!x.drawer && !!x.element && (x.container === box || x.element === box.parentNode);
+    } catch (e) {
+      return false;
+    }
+  };
+  // a viewer the page's framework holds (React: its fibers on the elements, the component's state, refs, memos and
+  // props up from the viewer's element) — each container's own, found within a few steps, or none
+  const heldViewer = () => {
+    for (const box of osdBoxes()) {
+      let fiber;
+      let el = box;
+      for (let up = 0; el && up <= 10 && !fiber; up++, el = el.parentNode) {
+        try {
+          const k = Object.keys(el).find((x) => x.startsWith("__reactFiber$") || x.startsWith("__reactInternalInstance$"));
+          if (k) fiber = el[k];
+        } catch (e) {}
+      }
+      const seen = new Set();
+      const look = (x) => {
+        if (!x || typeof x !== "object" || seen.has(x)) return undefined;
+        seen.add(x);
+        if (viewerOf(x, box)) return x;
+        try {
+          if (viewerOf(x.current, box)) return x.current;
+          if (Array.isArray(x)) for (const y of x.slice(0, 4)) if (viewerOf(y, box)) return y;
+        } catch (e) {}
+        return undefined;
+      };
+      for (let f = fiber, up = 0; f && up < 40; f = f.return, up++) {
+        try {
+          // hooks: useState (the value), useRef (its current), useMemo ([value, deps])
+          let h = f.memoizedState;
+          for (let i = 0; h && typeof h === "object" && i < 60; i++, h = h.next) {
+            const v = look(h.memoizedState);
+            if (v) return v;
+            if (!("next" in h)) break;
+          }
+          // a class component's state and its own fields; the props
+          const s = f.stateNode;
+          if (s && typeof s === "object" && !s.nodeType) {
+            const v = look(s.state) || (s.state && typeof s.state === "object" ? Object.values(s.state).map(look).find(Boolean) : undefined) || Object.keys(s).slice(0, 60).map((k) => look(s[k])).find(Boolean);
+            if (v) return v;
+          }
+          const p = f.memoizedProps;
+          if (p && typeof p === "object") {
+            const v = Object.keys(p).slice(0, 60).map((k) => look(p[k])).find(Boolean);
+            if (v) return v;
+          }
+        } catch (e) {}
+      }
+    }
     return undefined;
   };
   const save = (blob, name) => {
@@ -769,7 +847,7 @@ export function viewerScript(plan: BrowserPlan, o: CaptureOptions = {}): string 
  * An image strom media save gave the agent's tab a script for: what takes the downloads over (strom media add --inbox
  * --waiting) looks for its file, and says when none came — Chrome saves one file of a site by itself and holds the
  * next back until the person allows the site to download several files. Kept in .strom (never data/), gone once the
- * image is registered or the task waits for it no more. `held`: said so already (the task's wait says it to the person).
+ * task waits for it no more, or a while after its image is registered (`taken`). `held`: said so already (the task's wait says it to the person).
  */
 export interface SaveRecord {
   task: string;
@@ -777,12 +855,20 @@ export interface SaveRecord {
   recordset: string;
   host: string;
   url: string;
-  /** The file's name without its extension (strom-T0007-0040). */
+  /** The file's name without its extension (strom-3f2a9c1b-T0007-0040; given before the research's mark: strom-T0007-0040). */
   file: string;
   /** When the script was given (ms). */
   at: number;
   held?: boolean;
+  /**
+   * When its image was found registered (ms): kept a while after, so a copy the browser saves late (a script run
+   * again, "… (1).jpg") is known as strom's own and tidied from the downloads folder (strom media add --inbox --waiting).
+   */
+  taken?: number;
 }
+
+/** How long a record of an image registered is kept for a late copy of its file to be tidied. */
+export const TAKEN_KEEP_MS = 14 * 24 * 3600_000;
 
 /** A file the browser has had this long to come before it counts as held back (the script runs after strom media save). */
 export const HELD_AFTER_MS = 5_000;
@@ -811,9 +897,23 @@ export function noteSave(root: string, rec: SaveRecord): void {
   storeSaves(root, [...loadSaves(root).filter((r) => r.task !== rec.task || r.n !== rec.n), rec]);
 }
 
-/** The name an image saved from the tab for a waiting task is saved under: strom-T0007-0040 (taken by strom media add --inbox --waiting). */
-export function waitFileBase(task: string, n: number): string {
-  return `strom-${safe(task)}-${String(n).padStart(4, "0")}`;
+/**
+ * A short mark of the research in the names of the files strom has the browser save: the downloads folder is every
+ * research's of this computer, and two of them may each have a task T0007 waiting for image 40. The first 8 hex digits
+ * of its id (strom.json, a random UUID), else 8 of the id's hash. Stable: the id never changes.
+ */
+export function researchMark(treeId: string): string {
+  const m = /^[0-9a-f]{8}/u.exec(treeId.trim().toLowerCase());
+  return m ? m[0] : crypto.createHash("sha256").update(treeId.normalize("NFC")).digest("hex").slice(0, 8);
+}
+
+/**
+ * The name an image saved from the tab for a waiting task is saved under: strom-3f2a9c1b-T0007-0040, the research's
+ * mark first (taken by strom media add --inbox --waiting). Before the mark: strom-T0007-0040 — a file of that name is
+ * taken only where a record of this research gives it (SaveRecord.file).
+ */
+export function waitFileBase(treeId: string, task: string, n: number): string {
+  return `strom-${researchMark(treeId)}-${safe(task)}-${String(n).padStart(4, "0")}`;
 }
 
 /**
@@ -822,10 +922,10 @@ export function waitFileBase(task: string, n: number): string {
  * site, path, parameters and anchor, so a viewer paged to another image is refused, nothing saved (`other`: that
  * said for the person, in the research language). It returns "strom-result 40:200:412918", or why not.
  */
-export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string }, c: CaptureOptions = {}): string {
+export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string; task?: string }, c: CaptureOptions = {}): string {
   const slow = c.tileWaitMs !== undefined;
   const u = new URL(o.url);
-  const data = { origin: u.origin, path: u.pathname, search: u.search, hash: u.hash, url: o.url, until: o.until, n: o.n, file: o.file, ...(o.other ? { other: o.other } : {}) };
+  const data = { origin: u.origin, path: u.pathname, search: u.search, hash: u.hash, url: o.url, until: o.until, n: o.n, file: o.file, ...(o.other ? { other: o.other } : {}), ...(o.task ? { task: o.task } : {}) };
   return `await (async () => {
   const plan = ${JSON.stringify(data)};${slow ? RESUME_HEAD : ""}
   if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on " + plan.url + " — that page was allowed, no other";
@@ -846,7 +946,12 @@ export function saveScript(o: { url: string; file: string; n: number; until: num
   // the largest image of the page, as the browser has it (an image opened on its own is one too)
   let best;
   for (const img of document.images) if (img.complete && img.naturalWidth && (!best || img.naturalWidth * img.naturalHeight > best.naturalWidth * best.naturalHeight)) best = img;
-  if (!best || Math.max(best.naturalWidth, best.naturalHeight) < 400) return "strom: no image of a page shown here (a viewer strom does not know, or it is still loading) — the person saves it by hand";
+  if (!best || Math.max(best.naturalWidth, best.naturalHeight) < 400) {
+    // an OpenSeadragon viewer is there, held where strom does not look: what the person does instead, said to the agent
+    if (osdBoxes().length)
+      return "strom: an OpenSeadragon viewer is on this page, but strom cannot reach it (not on the page's window, not held where strom looks) — nothing saved. " + (plan.task ? plan.task + " waits for image " + plan.n + " already" : "The task waits for image " + plan.n + " already") + ": tell the user, in one sentence in the research language, which image of which book is needed and its link (" + plan.url + "); the person saves it in their own browser — the viewer's own download button if it has one, else a screenshot of the image — into the task's folder of the inbox (" + (plan.task ? "strom task show " + plan.task : "strom task show") + " names it). Never fetch the image's file yourself, never another image of the book; go on with other work — strom media add --inbox --waiting takes it once it is there";
+    return "strom: no image of a page shown here (a viewer strom does not know, or it is still loading) — the person saves it by hand";
+  }
   let blob;
   try {
     const c = document.createElement("canvas");

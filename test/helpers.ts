@@ -242,6 +242,34 @@ export async function until(what: string, ok: () => boolean | Promise<boolean>, 
   throw new Error(`waited ${ms} ms in vain: ${what}${last}`);
 }
 
+/** The lines a bridge's log (.strom/live.log: "<ISO time> [pid] text") got from `since` (ms) on, their text only. */
+export function bridgeLogSince(root: string, since: number): string[] {
+  const file = path.join(root, ".strom", "live.log");
+  const text = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    const m = /^(\S+) \[\d+\] (.*)$/u.exec(line);
+    // (a log's clock in whole ms: a line of the very moment counts)
+    if (m && Date.parse(m[1]!) >= since - 1) out.push(m[2]!);
+  }
+  return out;
+}
+
+/**
+ * Where a bridge started again came up: at its last port (`was`) — "kept" — or at another one only when another
+ * program held that port at its start: the system refused it the port (its log says so since `since`) and not because a
+ * bridge of this tree still held it. Bridges of tests running in parallel take ports the system picks, so a port a
+ * stopped bridge freed may be another process's by the next start (found under the whole suite); any other move fails.
+ */
+export function keptPortUnlessTaken(root: string, since: number, was: number, port: number): "kept" | "taken" {
+  if (port === was) return "kept";
+  const said = bridgeLogSince(root, since).join("\n");
+  if (!said.includes(`port ${was} is taken: another one`) || /the bridge before \(\d+\) still held port/u.test(said)) {
+    throw new Error(`the bridge moved from port ${was} to ${port} with no other program holding it — its log since:\n${said}`);
+  }
+  return "taken";
+}
+
 export function readJsonFile(file: string): any {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }

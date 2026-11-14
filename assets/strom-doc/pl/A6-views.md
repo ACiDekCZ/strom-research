@@ -8,6 +8,7 @@ Widok to inne odczytanie **tego samego wyboru osób**. Wybór określa osoba w c
 i głębokość **Przodkowie** oraz **Potomkowie**. Rodzina, Potomkowie, Oś czasu i Mapa pokazują to samo otoczenie
 osoby w centrum. Wachlarz liczy przodków i potomków sam według liczby pokoleń ([A6.4](#A6.4)). Tabela pokazuje
 całe drzewo ([A6.7](#A6.7)).
+Na komputerze każdy widok można otworzyć także w osobnym oknie ([A6.8](#A6.8)).
 
 Widoki: **Rodzina**, **Potomkowie**, **Oś czasu**, **Wachlarz**, **Mapa**, **Tabela**.
 
@@ -84,6 +85,47 @@ je zmniejsza, aby na ekranie zmieściło się więcej osób. **Normalne** jest d
 
 <!-- zdroj: app:src/types.ts TreeSpacing, DEFAULT_LAYOUT_CONFIG (31/80/18), DENSE_LAYOUT_CONFIG (20/48/14), layoutConfigFor · src/settings.ts getTreeSpacing/setTreeSpacing (treeSpacing), getPosterSpacing/setPosterSpacing (posterSpacing), výchozí normal · src/renderer.ts:804 STANDALONE_VIEWS (timeline, fan, map, table), getPosterLayout({spacing}), kotva překreslení (ústřední karta celá v obraze, jinak nejbližší středu; i při změně typu karty) · src/marriage-order.ts (husté: „∞ N“ na okraji karty, bez místa se nekreslí) · src/ui/export-image-ui.ts (řádek za formátem a orientací, skrytý u vějíře a časové osy, sheetsCount) · strings.ts spacing.label, normal, dense, desc, scope, scopeExport, smallHint, marriageOrder.short, poster.menu, poster.sheetsCount, settings.groupCard, cardDensity.settingLabel · commity 68b9dde4, 03918007, 928db183, e2891a8a · spec 069 K1.1, K3.1 -->
 
+<a id="A6.1.3"></a>
+### A6.1.3 Dzieci i rodzeństwo naraz
+
+W widoku Rodzina jednym krokiem można pokazać na miejscu dzieci osoby oraz rodzeństwo osoby i jej przodków. Fokus,
+głębokość i powiększenie zostają, karta osoby stoi w tym samym miejscu ekranu.
+
+- **Kto dojdzie:**
+  - dzieci osoby (nie wnuki);
+  - rodzeństwo osoby i każdego jej przodka, który jest w widoku i którego rodzice są w widoku. Górny rząd głębokości
+    **Przodkowie** się nie rozwija (jego rodzeństwo przyniosłoby nowe pokolenie, to zadanie głębokości); przy nim
+    zostaje „▸ rodzice”;
+  - rodzeństwo to dzieci rodziców w widoku ze wszystkich małżeństw, tak samo jak przy pojedynczym „Pokaż rodzeństwo
+    tutaj”. Z dziećmi dochodzi ich drugi rodzic, partnerzy, których widok z nimi rysuje, i to, co pod nimi trzyma
+    głębokość **Potomkowie**.
+- **Liczba +n:** ile kart krok doda; liczy ją ten sam układ co widok, więc po kroku dochodzi dokładnie n kart. Liczy
+  się na nowo po każdym rysowaniu.
+- **Granice:**
+  - krok to jeden układ, jeden krok historii i jeden krok **Ukryj pokazane · n** (n + 1). Cofa go **Wstecz**
+    w historii, **Ukryj pokazane** (cofa wszystko pokazane) albo ponownie ta sama opcja („Zwiń dzieci
+    i rodzeństwo”);
+  - na dotkniętych kartach są zakładki „▾ dzieci” i „▾ rodzeństwo”, a pojedyncze rodziny można dalej zwijać po
+    jednej;
+  - nowa osoba w fokusie, inny widok lub drzewo krok anulują. Zmiana głębokości **Przodkowie** lub **Potomkowie**
+    kończy wszystkie kroki „naraz”: ich karty znikają, rodziny pokazane po jednej zostają, a opcja proponuje „+n”
+    nowej głębokości;
+  - powyżej 150 osób aplikacja najpierw pyta w dymku: „Dojdzie n osób”, „Drzewo poszerzy się do ok. k szerokości
+    ekranu. Powiększenie się nie zmienia.” (k z rzeczywistego układu przy obecnym powiększeniu, zaokrąglone w górę)
+    i przyciski **Rozwiń +n**, **Tylko 2 pokolenia przodków +m** (tylko rodzeństwo osoby, rodziców i dziadków; brak,
+    gdy m to n lub 0) i **Anuluj**. Esc, kliknięcie obok lub zmiana rozmiaru okna = Anuluj. Do 150 osób bez pytania.
+- **Obsługa:** aplikacja, widok Rodzina:
+  - pasek widoku, zaraz za opcjami **Przodkowie** i **Potomkowie**: **Dzieci i rodzeństwo +n** dla osoby w fokusie.
+    Włączony krok pokazuje ✓, a kliknięcie go cofa; gdy nie ma czego dodać, opcja jest wyciszona („Wszystkie dzieci
+    i rodzeństwo są już widoczne”). Na tablecie ikona i „+n”; gdy nie mieści się na pasku, ustępuje (menu osoby ma ją
+    nadal). Telefon nie ma opcji na pasku;
+  - menu osoby (na dotyku dolny panel osoby) pod wierszami, które pokazują na miejscu rodziców, rodzeństwo i dzieci:
+    **Rozwiń dzieci i rodzeństwo · +n** z podwierszem „dzieci osoby, rodzeństwo osoby i jej przodków”, tylko gdy jest
+    co dodać; gdy krok osoby stoi, **Zwiń dzieci i rodzeństwo**. U osoby w fokusie to ten sam krok co na pasku.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/bulk-family.ts collectBulkFamily (childrenOf osoba; siblingsOf osoba a předci v pohledu s rodiči v pohledu; maxGeneration), bulkParents, bulkNewIds (drawnPersonIds, kroky 1–5 pipeline), BULK_CONFIRM_ABOVE 150, BULK_TWO_GENERATIONS 2 · src/renderer.ts bulkFamilyPlan (jen family), bulkFamilyState (offer/on/none), bulkFamilyScreens (ceil šířka × zoom / plátno), showBulkFamily → showChildrenOf (jeden krok historie, zoom beze změny, kotva), undoBulkFamily, bulkStepOf (jen při stejné hloubce), forgetBulkSteps při změně hloubky, resetChildrenShown při změně fokusu, pohledu, stromu, hiddenShownCount (+1 za krok) · src/ui/bulk-family-ui.ts confirmBulkFamily (Esc, klik vedle, resize = zrušit; two jen m > 0 a m ≠ n), runBulkFamily, updateBulkFamilySwitches (title treeTip/menuOff/treeNone, aria-disabled) · src/ui/context-menu.ts bulkFamilyRows (offer: menu, +n, menuSub; on: menuOff) · src/ui/toolbar-fit.ts (tablet: přepínač ustoupí před hledáním, f5d56ed3) · index.html button.bulk-family (telefon skrytý) · strings.ts bulk.*, menu.showChildrenHere, showSiblingsHere, focusBar hideAllShown, history back · app 2eb013ba, cecea43f, 8dc34565, f5d56ed3 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §3 -->
+
 <a id="A6.2"></a>
 ## A6.2 Widok Potomkowie
 
@@ -156,6 +198,7 @@ Mapa pokazuje miejsca zdarzeń osób.
 - Miejsce ślubu pokazuje się, gdy w widoku jest co najmniej jedno z partnerów.
 - Miejsce pisze się w najczęstszym zapisie. Miejscowość to jeden punkt także z numerami domów; miejsce z własnymi
   dokładnymi współrzędnymi zostaje osobnym punktem.
+- **Migracja w czasie** pokazuje miejsca według lat i drogę przodków do jednej osoby ([A6.5.3](#A6.5.3)).
 - **Obowiązuje od:** mapa aplikacja 1.10.0; rodzaje zdarzeń i punkty miejscowości aplikacja 3.21.0
 
 <!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 -->
@@ -229,6 +272,158 @@ dopiero po **Dodaj do kolejki**.
 
 <!-- zdroj: app:src/ui/map-ui.ts (stavový pruh, lookResearch, lookable), src/ui/place-actions.ts, src/ui/places-research-ui.ts (bulkLook, bulkLookHead, bulkLookGo, nic dvakrát), src/ui/map-follow-ui.ts (noCoords + places.research.look, Undo) · strings.ts map.onMap.notFound, lookResearch, lookResearchShort, lookResearchTitle, confirm; places.dialog.elsewhere, phoneLine, oldResearch · CHANGELOG.cs.md 3.25.0 · commit 2246ca28 · spec 058 -->
 
+<a id="A6.5.3"></a>
+### A6.5.3 Migracja w czasie
+
+**Migracja w czasie** pokazuje miejsca według lat. Suwak na osi czasu pod mapą wyznacza rok, a mapa pokazuje miejsca,
+które do tego roku przybyły, i linie przeprowadzek rodu.
+
+- **Granice:**
+  - na osi czasu są tylko miejsca z rokiem i położeniem. Miejsca z położeniem, ale bez daty pasek stanu liczy („N miejsc
+    bez daty nie jest wyświetlanych na osi czasu.”);
+  - oś czasu biegnie od najstarszego do najmłodszego roku miejsc w zakresie (**Ten widok** / **Całe drzewo**)
+    i włączonych rodzajów ([A6.5](#A6.5)). Bez datowanych miejsc trybu nie można włączyć;
+  - punkt, w którym coś się stało w ostatnich dziesięciu latach przed wybranym rokiem, jest wyróżniony;
+  - linia prowadzi z miejsca urodzenia rodzica do miejsca urodzenia dziecka, gdy oba mają rok i położenie i się
+    różnią. Rodzeństwo z tą samą drogą ma jedną linię. Linia blednie z wiekiem dziecka, po 60 latach do 15 %. Rysowane
+    są tylko linie z końcem przy widocznym obszarze mapy, najwyżej 400. Bez rodzaju **Urodzenia** linie się nie
+    rysują („Droga rodu jest widoczna tylko z Urodzeniami.”);
+  - **Odtwórz** przesuwa rok mniej więcej co 120 ms aż do ostatniego roku. Na ostatnim roku **Odtwórz** zaczyna znowu
+    od początku.
+- **Od aplikacji 3.28.0:**
+  - przycisk **◷ W czasie** ma przy ikonie także tekst;
+  - mapa proponuje tryb raz: dopóki nie był włączony, a drzewo ma co najmniej dwa datowane miejsca z położeniem, przy
+    przycisku stoi karta **Migracja w czasie** („Odtwarza, jak rody się przemieszczały, i pokazuje drogę przodków do
+    jednej osoby.”). **Wypróbuj** włącza tryb, **Nie teraz** zamyka kartę. Po którymkolwiek z nich karta na tym
+    urządzeniu już się nie pokazuje;
+  - klawisze na suwaku: strzałki o rok, PageUp i PageDown o 10 lat, Home i End na początek i koniec. Spacja
+    w dowolnym miejscu mapy (poza polami i przyciskami) odtwarza lub wstrzymuje. Ręczne przesunięcie wstrzymuje
+    odtwarzanie;
+  - w trybie można wybrać osobę, do której prowadzi droga jej przodków ([A6.5.4](#A6.5.4));
+  - **Odtwórz** i **Wstrzymaj** mają tę samą szerokość (dłuższego z obu słów w danym języku), więc suwak, jego znaczniki
+    ani rok nie przesuwają się przy uruchomieniu i zatrzymaniu. Telefon ma tylko ikonę.
+- **Obsługa:** aplikacja: mapa → **◷ W czasie** (**Migracja w czasie**) → suwak, **Odtwórz** / **Wstrzymaj**.
+- **Obowiązuje od:** aplikacja 2.4.0; rodzaje miejsc 3.21.0; tekst przycisku, jednorazowa propozycja, klawisze i stała
+  szerokość **Odtwórz** 3.28.0
+
+<!-- zdroj: app:src/map-time.ts collectDatedPlacePoints (undatedPlaceCount, minYear/maxYear) · src/ui/map-ui.ts drawMapTimeLayer (fresh = posledních 10 let, slice(0, 400) s koncem u výřezu), mapMigrationSegments (místa narození rodič → dítě, opacity max(0.15, 1 − věk/60·0.85), bez Narození nic), toggleMapTimePlay (setInterval 120, na konci od začátku), renderMapTimeTip / dismissMapTimeTip (strom.map.timeTipSeen, ≥ 2 datovaná místa s polohou, podklad mapy potvrzený), klávesy na posuvníku a mezerník (setMapTimeYear pozastaví) · strings.ts map.timeMode, timeModeShort, timeModeEmpty, timePlay, timePause, timeUndated, noFamilyPath, timeTipTitle, timeTipText, timeTipTry, timeTipLater · Migrace v čase od v2.4.0 (app 44a903bc) · 3.28.0: app 34e82d43, cce82a89 (app:81f2adf0) · CHANGELOG.cs.md 3.21.0, 3.28.0 · spec 054 P2 · stálá šířka Přehrát/Pozastavit: app 35ed67f9 src/ui/map-ui.ts (obě slova v jedné buňce, map-time-play-word), index.html .map-time-play-text -->
+
+<a id="A6.5.4"></a>
+### A6.5.4 Droga przodków do osoby
+
+W Migracji w czasie można wybrać jedną osobę. Mapa pokazuje wtedy tylko jej bezpośrednich przodków, linie od
+każdego przodka do jego dziecka aż do wybranej osoby, a oś czasu kończy się na niej.
+
+- **Granice:**
+  - przodkowie to rodzice, ich rodzice i dalej, najwyżej 30 pokoleń. Rodziców bierze się jak w wachlarzu
+    ([A6.4](#A6.4)). Zastępczy drugi rodzic rodziny z jednym rodzicem przodkiem nie jest: jego gałąź jest nieznana;
+  - przodek, do którego prowadzi kilka dróg (implex), jest na mapie jednym punktem, ale liczy się w każdej gałęzi, do
+    której należy. W tej samej gałęzi jego przodkowie nie rozwijają się drugi raz;
+  - przodek stoi w miejscu urodzenia, bez niego w miejscu chrztu, bez niego w pierwszym datowanym miejscu
+    zamieszkania; zawsze tylko w miejscu z położeniem. Jego rok to rok urodzenia, bez niego rok chrztu, bez niego rok
+    tego miejsca. Przodka bez roku albo bez miejsca z położeniem na osi czasu nie ma: legenda go liczy, a **Lista ›**
+    wymienia go z tym, czego brakuje (**bez daty urodzenia**, **bez miejsca**, **bez daty i miejsca**), oraz
+    odnośnik **Strona osoby ›** ([A6.5.5](#A6.5.5));
+  - wybrana osoba stoi tak samo. Jest celem: kółko „◎ cel: imię”, na końcu osi czasu pełne kółko „◎ imię · rok” (przy
+    miejscu chrztu „· chrzest rok”, przy miejscu zamieszkania „· zamieszkanie rok”). Cel bez miejsca na mapie się
+    nie rysuje, a na końcu osi czasu stoi „… nie ma miejsca na mapie.”;
+  - oś czasu biegnie od roku najstarszego przodka na mapie do późniejszego z lat ostatniego przodka i celu;
+  - droga bierze przodków z całego drzewa: zamiast zakresu stoi chip z osobą, po usunięciu drogi zakres wraca.
+    Rodzaje miejsc drogi nie dotyczą. Punkt miejscowości zbiera także jej domy jak bez drogi;
+  - dymek miejsca pokazuje tylko ludzi drogi w tym miejscu, przodków do wybranego roku i cel, z etykietami ich rodów;
+  - po wybraniu osoby mapa raz się przesuwa i przybliża na całą drogę, potem sama się nie rusza (wyjątek na końcu
+    odtwarzania, [A6.5.6](#A6.5.6));
+  - linii jest najwyżej 400 jak bez drogi. Gdy jest ich więcej, pierwszeństwo mają: pień (rodzice i dziadkowie), linie
+    z ostatnich 10 lat, bliższe pokolenia, koniec w widocznym obszarze mapy, dłuższa linia. Legenda to mówi
+    („Pokazano N z M linii”, „Pierwszeństwo mają bliższe pokolenia i nowo dodane linie.”);
+  - wyłączenie **W czasie** drogę tylko ukrywa. Po włączeniu wraca i biegnie od pierwszego roku. Usuwa ją **×** na
+    chipie;
+  - nowe okno z mapą ([A6.8](#A6.8)) przejmuje osobę drogi, ćwiartki lub ósemki i kolory rodów.
+- **Wybór osoby:** **Droga do osoby** szuka w całym drzewie („Imię, nazwisko lub rok”), najwyżej 30 osób. Puste pole
+  pokazuje osobę centralną (**Ostatnio wybrana**). Przy każdej osobie stoi, ilu jej przodków jest na mapie; osoba bez
+  nich jest wyszarzona („przodkowie jeszcze bez miejsc na mapie”) i nie można jej wybrać. Na telefonie i ekranie
+  dotykowym wybór otwiera się jako panel wysuwany od dołu. Gdy żaden przodek nie jest na mapie, oś czasu mówi „Żaden
+  przodek nie ma jeszcze miejsca na mapie.” i oferuje **Wybierz inną osobę**.
+- **Obsługa:** aplikacja:
+  - mapa → **◷ W czasie** → na osi czasu **◎ Droga do osoby…** → osoba. Chip **◎ Droga do:** imię otwiera wybór
+    ponownie (**Zmień osobę**), **×** usuwa drogę (**Usuń drogę**);
+  - w dymku miejsca kliknięcie osoby → **◎ Droga do tej osoby** (obok **Strona osoby ›**), także bez wybranej osoby;
+  - na stronie osoby **◎ Droga przodków na mapie ›** ([A7.6](A7-book-pages-and-export.md#A7.6)): strona się zamyka,
+    mapa pokazuje drogę od pierwszego roku, a powiadomienie oferuje **‹ Wróć do strony osoby**. Odnośnik jest
+    w sekcji **Miejsca życia**. Osoba z najwyżej jednym własnym miejscem tej sekcji nie ma; gdy ma przodków na mapie,
+    odnośnik stoi we własnym wierszu tam, gdzie byłaby sekcja. Gdy osoba ma przodków, ale żaden nie jest na mapie,
+    odnośnik jest wyszarzony („Żaden przodek nie ma jeszcze miejsca na mapie.”) i tylko w sekcji **Miejsca życia**.
+    Bez przodków w drzewie odnośnika nie ma.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:src/map-lines.ts buildPathModel (maxGen 30, fatherMother přes parentSlots jako vějíř, isPlaceholder není předek, implex záznam na cestu, expanded podle osoby a větve), placeOf (narození → křest → první datované bydliště, jen s polohou; rok narození → křest → místa), missing (date/place/both), yearFrom/yearTo, links, pathSegments (PATH_LINE_CAP 400, pořadí kmen, fresh < 10 let, generace, výřez, délka) · src/ui/map-path-ui.ts (mapEffectiveScope celý strom, čip místo rozsahu, clearMapPath vrátí rozsah, jednorázový výřez framed, cíl čárkovaný → plný, pathTargetNoPlace, pathNoAncestors + pathOtherPerson) · src/person-picker.ts PathPersonPicker (limit 30, recentId = ústřední osoba, onMapCount 0 = aria-disabled, celý strom) · src/ui/map-lines-legend-ui.ts mapPathBubbleParts · src/ui/map-ui.ts showMapPathPlace, toggleMapTime (vypnutí skryje, zapnutí od začátku) · src/ui/person-page-ui.ts personPageMapPath (on/off/null), openPersonPageMapPath (toast map-path-back) · src/person-page-map.ts (pp-map-path, aria-disabled, jen v okně aplikace; mapPathRowHtml vlastní řádek bez oddílu Místa života jen pro mapPath on, app caea192a) · src/person-page.ts mapPathRow · src/windows/view-window-state.ts MapTimeState path, mode, colors · strings.ts map.pathPick, pathPickTitle, pathPickPlaceholder, pathPickRecent, pathPickOnMap, pathPickNone, pathChip, pathChange, pathClear, pathFromPage, pathThisPerson, pathBackToPage, pathGoal, pathGoalEnd, pathTargetNoPlace, pathNoAncestors, pathOtherPerson, linesCut, linesCutWhy, missingDate, missingPlace, missingBoth · app 388e5a87, b01693bc, 5853882e, 34e82d43 (app:81f2adf0) · dirigent:prace/1113-app-mapa-rody-v-case · ZADANI_UIX_mapa-rody-v-case D3, D4 (ponechat) · spec 054 K2.1, P2 · CHANGELOG.cs.md 3.28.0 -->
+
+<a id="A6.5.5"></a>
+### A6.5.5 Kolory rodów i legenda Rody
+
+Droga przodków jest kolorowa według rodów. Ród to tu gałąź jednego z dziadków (ćwiartka) lub jednego z pradziadków
+(ósemka) wybranej osoby, nazwana jego nazwiskiem rodowym. Nie jest to ród według nazwiska
+([A4](A4-surnames-and-families.md)).
+
+- **Granice:**
+  - ćwiartki to ojciec ojca, matka ojca, ojciec matki i matka matki, w tych samych odcieniach co kolory **Linie**
+    w wachlarzu ([A6.4](#A6.4)). Każda ćwiartka ma też własny wzór linii (pierwsza ciągłą), więc rody da się
+    rozróżnić także przy słabszym rozróżnianiu barw. Pary, które słabsze rozróżnianie czerwieni i zieleni zlewa,
+    różnią się jasnością i wzorem. Jasny i ciemny wygląd mają własne odcienie;
+  - ósemka ma kolor swojej ćwiartki, druga ósemka tej samej ćwiartki ciemniejszy odcień. Numer ósemki (1–8) stoi na
+    najdłuższej widocznej linii każdej ósemki;
+  - linie od rodziców i dziadków to pień: w kolorze tekstu i szersze. Punkty rodziców mają kolor pnia, punkty
+    dziadków kolor swojej ćwiartki. Punkt, w którym spotyka się kilka rodów, ma kolory wszystkich;
+  - linia z ostatnich 10 lat jest szersza. Starsze linie bledną, najwyżej do 55 %, aby na końcu była widoczna cała
+    droga;
+  - nazwisko rodu to nazwisko rodowe dziadka lub pradziadka; bez nazwiska jego imię.
+- **Legenda Rody** (po prawej pod sterowaniem mapy, gdy na mapie jest co najmniej jeden przodek):
+  - **Ćwiartki** · **Ósemki**. **Ósemki** można wybrać, gdy drzewo zna co najmniej dwie ósemki;
+  - wiersz rodu: wzór linii, nazwisko, relacja i liczba przodków na mapie („ojciec ojca · 12 przodków”). W ósemkach
+    wiersze stoją pod nagłówkiem swojej ćwiartki („1 · nazwisko”). Nieznany dziadek lub babcia ma wiersz bez koloru
+    („matka ojca – nieznana”). Ród, którego żaden przodek nie jest na osi czasu (wszyscy bez daty lub miejsca), ma
+    wiersz wyciszony jak nieznany, z pustym kreskowanym wzorem i „poza osią czasu” zamiast liczby („matka ojca · poza
+    osią czasu”); nie można go wyróżnić ani przypiąć. Ostatni wiersz to **Pień: rodzice i dziadkowie**;
+  - najechanie na wiersz na chwilę wyróżnia ród, kliknięcie go przypina i przyciemnia pozostałe rody. Esc albo drugie
+    kliknięcie przypięcie usuwa, przełączenie ćwiartek i ósemek też;
+  - pod wierszami stoją: pierwsza osoba w dwóch rodach („↻ imię (rok) jest w dwóch rodach: … i ….”), przycięcie
+    dużego drzewa ([A6.5.4](#A6.5.4)), przodkowie poza osią czasu („N przodków bez daty lub miejsca nie jest na osi
+    czasu.” i **Lista ›**, lista **Przodkowie poza osią czasu**) i **Bez kolorów rodów**;
+  - **Bez kolorów rodów** rysuje całą drogę jednym kolorem i ukrywa wiersze rodów. Pień zostaje szerszy, a osoba
+    zostaje wybrana;
+  - **▴** (**Zwiń**) składa legendę do chipu „Rody (N)” z kolorami rodów. Mapa się przy tym nie przesuwa.
+- **Telefon:** legenda otwiera się jako panel wysuwany od dołu z chipu **Rody (N)** nad osią czasu, **Lista ›** także.
+  Otwarty jest zawsze tylko jeden panel (legenda, lista, dymek lub wybór osoby). Telefon w poziomie ma chip w górnym
+  rzędzie.
+- **Obsługa:** aplikacja: mapa → **◷ W czasie** → droga do osoby ([A6.5.4](#A6.5.4)) → legenda **Rody**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:src/map-line-colors.ts (LINE_HUE z fan-colors.ts jako vějíř Linie, tabulka OKLCH světlý/tmavý, QUARTER_DASH, lineCap, LINE_WIDTH base 3 / fresh 4 / trunk 4.5, pathLineOpacity max(0.55, 1 − věk/60·0.45), LINE_FOCUS_DIM, pointFill, lineSwatch; hlavička: dvojice 50↔95 a 215↔320 se liší světlostí i vzorem) · src/map-lines.ts lineClassOf (gen ≤ 2 kmen), pointClassOf (rodiče kmen), branchSurname (rodné příjmení, jinak křestní), quarters/eighths · src/ui/map-path-ui.ts drawMapPathLayer (čísla osmin na nejdelší viditelné čáře, LEGEND_WIDTH) · src/ui/map-lines-legend-ui.ts mapLinesLegendHtml (eighthsOff < 2 známé osminy, řádky, neznámý, kmen, pata), mapLinesImplexText, toggleMapLineFocus, setMapLineHover, setMapLineMode (připnutí pryč), setMapLineColors, setMapLegendCollapsed, openMapLinesSheet / closeMapLinesSheets, mapLinesUndatedHtml, offTimeline (count 0: is-unknown, is-off-timeline, swatch is-empty, app caea192a) · strings.ts map.linesOffTimeline, map.linesTitle, linesChip, linesQuarters, linesEighths, linesCollapse, linesRow, linesUnknown, linesTrunk, linesOff, linesImplex, pathUndated, pathUndatedList, pathUndatedTitle, lineE8–lineE15; fan.lineFatherFather… · app 388e5a87, b01693bc, 5853882e, 8e27df4a, 34e82d43 (app:81f2adf0) · spec 054 K1.1, K1.2 · CHANGELOG.cs.md 3.28.0 -->
+
+<a id="A6.5.6"></a>
+### A6.5.6 Odtwarzanie drogi do osoby
+
+Z wybraną osobą **Odtwórz** przechodzi całą oś czasu w 24 sekundy, od najstarszego przodka do wybranej osoby.
+
+- **Granice:**
+  - rok po roku, żaden nie jest pomijany. Rok, w którym przybył przodek lub cel, trwa pięć razy dłużej niż rok bez
+    nich;
+  - odtwarzanie kończy się na celu. Kolejne **Odtwórz** zaczyna od początku;
+  - wstrzymuje je **Wstrzymaj**, suwak, klawisze ([A6.5.3](#A6.5.3)) i znacznik nad suwakiem;
+  - znaczniki nad suwakiem: każda znana ćwiartka w roku swojego najstarszego przodka na mapie, w kolorze rodu
+    („nazwisko: najstarszy przodek rok”), i cel na końcu. Kliknięcie znacznika przeskakuje na jego rok;
+  - wiersz pod suwakiem mówi, co ostatnio przybyło: „rok · imię · miejsce rodzica → miejsce” z próbką koloru rodu,
+    cel pogrubiony. Gdy w jednym roku przybyło kilka osób, pokazuje cel, w przeciwnym razie osobę z najbliższego
+    pokolenia. Czytnik ekranu odczytuje wiersz przy zmianie. Bez wybranej osoby wiersza nie ma, a zdanie o miejscach
+    bez daty zostaje na pasku stanu;
+  - mapa się przy odtwarzaniu nie rusza. Tylko gdy od wybrania osoby nikt jej nie przesunął ani nie przybliżył, a cel
+    jest na końcu poza widocznym obszarem, przesuwa się do niego raz;
+  - na telefonie **▶** jest bez tekstu, a oś czasu w jednym rzędzie.
+- **Obsługa:** aplikacja: mapa → **◷ W czasie** → droga do osoby ([A6.5.4](#A6.5.4)) → **Odtwórz**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:src/map-lines.ts pathPlaySchedule (PATH_PLAY_MS 24000, PATH_EVENT_WEIGHT 5, krok rok, součet 24 000), pathAddedIn (nejbližší generace, pak rel, cíl poslední), pathLastAdded · src/ui/map-path-ui.ts playMapPath (konec u cíle), panMapToPathEnd (framed, jednou), renderMapTimeMarks (čtvrtiny podle firstYear, cíl), renderMapTimeCaption (cíl, jinak items[0]; aria-live, aria-valuetext; bez cesty skryto) · src/ui/map-ui.ts toggleMapTimePlay (na konci od začátku), setMapTimeYear (pozastaví), značky → setMapTimeYear · strings.ts map.timeMarkTitle, pathGoalEnd · app cce82a89, 34e82d43 (app:81f2adf0) · ZADANI_UIX_mapa-rody-v-case D5 (ponechat) · spec 054 K2.2 · CHANGELOG.cs.md 3.28.0 -->
+
 <a id="A6.6"></a>
 ## A6.6 Ród w widoku
 
@@ -285,11 +480,11 @@ Widok Tabela opiera się na tabeli Ondřeja Chrpy.
     CSV i XLSX działają; widoku nie można zapisać, przemianować ani usunąć;
   - strzałek **↩ ↪** w lewym dolnym rogu (poprzednia i następna osoba centralna) ani Alt+← / Alt+→ w Tabeli nie ma:
     tabela nie pokazuje osoby centralnej i nie zmienia jej podczas pracy.
-- **Obsługa:** w przełączniku widoków **Tabela** (za **Mapa**); w wąskim oknie i na telefonie **Więcej → Widok →
-  Tabela**. Widok jest zapamiętywany jak pozostałe ([A6.1.1](#A6.1.1)).
+- **Obsługa:** w przełączniku widoków **Tabela** (za **Mapa**); na telefonie, tablecie i w oknie do 1024 px **Tabela**
+  na dolnym pasku ([A9.5](A9-using-the-app.md#A9.5); do aplikacji 3.27.0 **Więcej → Widok → Tabela**). Widok jest zapamiętywany jak pozostałe ([A6.1.1](#A6.1.1)).
 - **Obowiązuje od:** aplikacja 3.27.0
 
-<!-- zdroj: app:src/ui/table-view/table-model.ts ROW_TYPES, buildTableModel (isPlaceholder ven, svazek aspoň s jedním skutečným partnerem), bloodOf (předci hlavní osoby a všichni jejich potomci), makeContext (homeId, isLivingPerson) · table-columns.ts unionPartners (pokrevní partner jako Partner 1), gen (assignGenerations + 1), kin (findRelationship, kinSelf) · src/ui/table-view/table-ui.ts tableReadOnly (isReadOnly: viewMode, isLocked, isNewerData) · src/data.ts:655 isReadOnly · src/ui/bottom-sheet.ts:443 (Více → Pohled: Vějíř, Mapa, Tabulka) · table-bar.ts countText, sortText · perf-budget test 5 000 osob · strings.ts viewModeSwitch.table, table.rows, rowType, rowTypeNote, countOf, sortedBy, readOnly, readOnlyShort · commity c34c47ff, 1b72e6d8 · spec 073 U2 · Události a Prameny (spec 073 U3 P2, K5.1–K5.4): commity 8de751c2, 63ed9def, 1a3a49f1, 3cf69ffa, strings.ts table.rows.events, rows.sources, perf-budget 5 000 osob (Události) a 2 000 pramenů · poděkování: Milan 10. 11. (dirigent:prace/1110-doc-tabulka, bod 4) · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1110-app-tabulka-p1 · Žijící: strings.ts table.col.living, table.living (commit 7e648e24) · ústřední osoba mezi pohledy: commit 75de3a9b (T54 F1) · ↩ ↪ a Alt+šipky v Tabulce skryté: commity 79764eba, b1cbe546 (T54 G14) -->
+<!-- zdroj: app:src/ui/table-view/table-model.ts ROW_TYPES, buildTableModel (isPlaceholder ven, svazek aspoň s jedním skutečným partnerem), bloodOf (předci hlavní osoby a všichni jejich potomci), makeContext (homeId, isLivingPerson) · table-columns.ts unionPartners (pokrevní partner jako Partner 1), gen (assignGenerations + 1), kin (findRelationship, kinSelf) · src/ui/table-view/table-ui.ts tableReadOnly (isReadOnly: viewMode, isLocked, isNewerData) · src/data.ts:655 isReadOnly · src/ui/bottom-sheet.ts:443 (do 3.27.0 Více → Pohled: Vějíř, Mapa, Tabulka; od 3.28.0 app:4b1373a7 index.html bb-view-table, commit bb5e4d12) · table-bar.ts countText, sortText · perf-budget test 5 000 osob · strings.ts viewModeSwitch.table, table.rows, rowType, rowTypeNote, countOf, sortedBy, readOnly, readOnlyShort · commity c34c47ff, 1b72e6d8 · spec 073 U2 · Události a Prameny (spec 073 U3 P2, K5.1–K5.4): commity 8de751c2, 63ed9def, 1a3a49f1, 3cf69ffa, strings.ts table.rows.events, rows.sources, perf-budget 5 000 osob (Události) a 2 000 pramenů · poděkování: Milan 10. 11. (dirigent:prace/1110-doc-tabulka, bod 4) · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1110-app-tabulka-p1 · Žijící: strings.ts table.col.living, table.living (commit 7e648e24) · ústřední osoba mezi pohledy: commit 75de3a9b (T54 F1) · ↩ ↪ a Alt+šipky v Tabulce skryté: commity 79764eba, b1cbe546 (T54 G14) -->
 
 <a id="A6.7.1"></a>
 ### A6.7.1 Związki w tabeli osób
@@ -325,8 +520,8 @@ Kolumny są w grupach. Które są widoczne i w jakiej kolejności, jest części
 | **Osoby** | **Osoba** · **Urodzenie i chrzest** · **Rodzice** · **Związki** · **Rozwód** · **Zgon i pochówek** · **Wydarzenia** · **Źródła** · **Wiarygodność i badanie** · **Kontrole** |
 | **Związki** | **Para** · **Ślub** · **Rozwód** · **Dzieci i źródła** |
 
-- **Imię i nazwisko** (przy związkach **Partner 1**) jest przypięte po lewej i sortuje się według nazwiska, potem
-  imienia. Składa się z części imienia i nazwiska, dlatego jest osobna kolumna **Imię** (domyślnie ukryta), którą
+- **Imię i nazwisko** (przy związkach **Partner 1**) jest zawsze przypięte po lewej; nie da się go odpiąć ani ukryć.
+  Sortuje się według nazwiska, potem imienia. Składa się z części imienia i nazwiska, dlatego jest osobna kolumna **Imię** (domyślnie ukryta), którą
   można edytować w komórce ([A6.7.15](#A6.7.15)). **Nazwisko** to nazwisko po ślubie, w przeciwnym razie rodowe; **Nazwisko rodowe** to zapisane nazwisko.
 - **ID badania** pokazuje tylko numer osoby z badania (P…). **Nr ref.** to numer referencyjny osoby (REFN), tak jak
   przyniósł go plik GEDCOM (i jak wraca do niego); sortuje się i filtruje jako tekst.
@@ -348,7 +543,17 @@ Kolumny są w grupach. Które są widoczne i w jakiej kolejności, jest części
     **Filtr…**, **Przypnij do lewej** / **Odepnij**, **Przesuń w lewo** / **Przesuń w prawo**, **Ukryj kolumnę**,
     **Zwiń grupę …** / **Rozwiń grupę …**; przy kolumnie obliczonej „Obliczono z: …”;
   - szerokość kolumny przez przeciągnięcie krawędzi nagłówka.
+- **Kolejność kolumn:**
+  - w części przypiętej każdą przypiętą kolumnę można przesunąć na dowolne miejsce wśród przypiętych, także
+    **Imię i nazwisko** (nie musi być pierwsze);
+  - poza częścią przypiętą kolumna przesuwa się tylko w obrębie swojej grupy;
+  - przesunięcie, którego nie da się wykonać, nie jest oferowane: w menu nagłówka brakuje **Przesuń w lewo** albo
+    **Przesuń w prawo**, w panelu **Kolumny** strzałki ↑ albo ↓.
+- **Od aplikacji 3.28.0:** przypięte kolumny w dowolnej kolejności. Do 3.27.0 **Imię i nazwisko** było zawsze pierwsze
+  i nie dało się go przesunąć, przypięte kolumny przesuwały się tylko w obrębie swojej grupy, a przesunięcie, którego
+  nie dało się wykonać, było wyszarzone.
 
+<!-- zdroj: app:4b1373a7 src/ui/table-view/table-state.ts normalizeColumns (zamčený sloupec ukotvený, kdekoli v ukotvené části), columnRun (ukotvená část: [0, pinned − 1]; mimo ni skupina), canMoveColumn, moveColumnBy · table-headmenu.ts headMenuItems (moveLeft/moveRight jen canMove; Skrýt ne u zamčeného; Uvolnit ne u zamčeného) · table-colpanel.ts (šipka jen pro možný posun) · commit 19dbb595 (dřív columnRun locked = 1, disabled/aria-disabled) · dirigent:spec/082-tester-3.28 K2.1 -->
 <!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) -->
 
 <a id="A6.7.3"></a>
@@ -390,7 +595,8 @@ Kolumny **Kompletność …** mówią, ile śledzonych pól jest wypełnionych, 
 - Wartość zastępcza (chrzest, pochówek) pola nie wypełnia. Podpowiedź przy komórce wypisuje, czego brakuje („brak:
   miejsce urodzenia, źródło urodzenia”).
 - **Wiersz pokrycia** pod nagłówkiem pokazuje przy każdej kolumnie, ile procent wierszy ma wartość („wypełniono
-  64 %”, podpowiedź „77 z 120”). Przy kolumnach **Kompletność …** pokazuje średnią kompletność wierszy (podpowiedź
+  64 %”, podpowiedź „77 z 120”). Słowo „wypełniono” stoi w pierwszej kolumnie, jakakolwiek to jest (od aplikacji 3.28.0;
+  wcześniej w kolumnie imienia i nazwiska), także w eksporcie XLSX. Przy kolumnach **Kompletność …** pokazuje średnią kompletność wierszy (podpowiedź
   „średnia z 120”). Liczy tylko wiersze, które są właśnie widoczne (po filtrze i wyszukiwaniu). Komórek
   **Nie dotyczy** się nie liczy; przy kolumnach związku liczą się związki, które spełniają filtr. Poniżej 50 % liczba
   jest pogrubiona; bez komórki, której by dotyczyła, jest „–”.
@@ -400,7 +606,7 @@ Kolumny **Kompletność …** mówią, ile śledzonych pól jest wypełnionych, 
   (początek związku z formularza związku), pokazuje się jak dotąd.
 - **Obsługa:** **Wiersz pokrycia** w panelu **Kolumny** (na telefonie w **⋯**); zapisuje się z widokiem.
 
-<!-- zdroj: app:src/ui/table-view/table-columns.ts compCell, unionComp (pole a váhy, náhrada nevyplní) · table-coverage.ts cellFilled, columnCoverage, coverageCell, coverageLabel (LOW pod 50 %) · table-subrows.ts coverageUnionsOf · strings.ts table.compList.*, compField.*, missing, missingNone, compCounts, coverage, coverageOf · rozhodnutí Milan 10. 11. (spec 073, bod 5) · commit 8833da14 · průměr u sloupců úplnosti (kind percent): table-coverage.ts columnCoverage average, strings.ts table.coverageAverage, i XLSX, commit 56f3418c (T54 G12) · svazek bez sňatku: table-columns.ts unionWithoutWedding (partners, separated), weddingCell, oneUnionFields (jen partner), strings.ts table.naNoWedding, compList.unionNoWedding, commit 8fdf52ca (T54 G5, MILAN.md rozhodnutí 21) -->
+<!-- zdroj: app:src/ui/table-view/table-columns.ts compCell, unionComp (pole a váhy, náhrada nevyplní) · table-coverage.ts cellFilled, columnCoverage, coverageCell, coverageLabel (LOW pod 50 %) · table-subrows.ts coverageUnionsOf · strings.ts table.compList.*, compField.*, missing, missingNone, compCounts, coverage, coverageOf · rozhodnutí Milan 10. 11. (spec 073, bod 5) · commit 8833da14 · průměr u sloupců úplnosti (kind percent): table-coverage.ts columnCoverage average, strings.ts table.coverageAverage, i XLSX, commit 56f3418c (T54 G12) · „vyplněno“ v prvním sloupci: app:4b1373a7 table-ui.ts coverageOf (firstId), table-xlsx.ts labelAt, commit 19dbb595 · svazek bez sňatku: table-columns.ts unionWithoutWedding (partners, separated), weddingCell, oneUnionFields (jen partner), strings.ts table.naNoWedding, compList.unionNoWedding, commit 8fdf52ca (T54 G5, MILAN.md rozhodnutí 21) -->
 
 <a id="A6.7.5"></a>
 ### A6.7.5 Ustalenia kontroli w komórkach
@@ -527,10 +733,16 @@ anuluje.
   z badania zgłasza „Badanie zmieniło 3 dane: …”.
 - Jedną daną można edytować także bezpośrednio w komórce ([A6.7.15](#A6.7.15)).
 - **Granice:** w drzewie tylko do odczytu **Edytuj…** nie ma.
-- **Obsługa:** przyciski przy wybranym wierszu, menu wiersza (prawy przycisk; także rozwinięcie związków). Na
-  telefonie stuknięcie wiersza otwiera panel z akcjami i ze związkami („Związek 1: … · Edytuj ›”).
+- **Obsługa:** przyciski ⌖ ▤ ✎ na końcu wiersza, nad żadnym tekstem komórki: przy myszy pokażą się, gdy wskaźnik
+  był na wierszu poza nimi, przy wybranym wierszu także ze wskaźnikiem gdzie indziej; menu wiersza (prawy przycisk;
+  także rozwinięcie związków). Stuknięcie palcem w wiersz (telefon, wąskie okno, urządzenie obsługiwane głównie
+  dotykiem) otwiera panel z akcjami i ze związkami („Związek 1: … · Edytuj ›”).
+- **Od aplikacji 3.28.0:** kliknięcie myszą lub piórem tylko wybiera wiersz i komórkę na każdym urządzeniu, także na
+  laptopie z ekranem dotykowym, tablecie z myszą i w wąskim oknie; decyduje wskaźnik kliknięcia, nie urządzenie. Do
+  3.27.0 na urządzeniu dotykowym i w wąskim oknie każde kliknięcie otwierało panel wiersza. Akcje wiersza stoją na
+  jego końcu, więc kolumna osób ma na wybranym wierszu całą szerokość.
 
-<!-- zdroj: app:src/ui/table-view/table-ui.ts tableMethods (tableRowAction: tree → Rodina, focus, highlight; open; edit → dialog osoby / panel vztahů na svazku), personOfRow (Partner 1), keepWork · table-refresh.ts keepOrder, watchEdit, changedKeys, bridgeChanges, namesList · table-grid.ts FLASH_MS · strings.ts table.act.*, dblClickHint, actionsOf, unionWith, editMore, staleRow, savedToast, bridgeToast · commity da6b9786, de46ae30, e4a35406 -->
+<!-- zdroj: app:src/ui/table-view/table-ui.ts tableMethods (tableRowAction: tree → Rodina, focus, highlight; open; edit → dialog osoby / panel vztahů na svazku), personOfRow (Partner 1), keepWork · table-refresh.ts keepOrder, watchEdit, changedKeys, bridgeChanges, namesList · table-grid.ts FLASH_MS · strings.ts table.act.*, dblClickHint, actionsOf, unionWith, editMore, staleRow, savedToast, bridgeToast · commity da6b9786, de46ae30, e4a35406 · od 3.28.0: table-grid.ts clickPointerType, isMouseLikePointer, table-ui.ts onRowClick (panel jen klepnutí a isPhoneBar | isCoarsePointer), commit ee38c7a6; rowActions ⌖ ▤ ✎ v .tv-acts-dock, armRowActions (myš a pero), commit 80c2ffb9 -->
 
 <a id="A6.7.9"></a>
 ### A6.7.9 Eksport CSV i XLSX
@@ -584,10 +796,18 @@ Tabela wydarzeń ma wiersz dla każdego wydarzenia drzewa: kto, kiedy, gdzie, w 
     przyczyna lub wiek);
   - ślub związku: przy małżeństwie zawsze, przy innej relacji („Początek związku”) tylko z zapisaną daną; rozwód
     („Koniec związku”), gdy związek jest rozwiedziony albo zapisano jego koniec.
-- **Wspólne wydarzenie** (miejsce zamieszkania, służba wojskowa, emigracja, imigracja, naturalizacja, własne
+- **Wspólne wydarzenie** (miejsce zamieszkania, spis ludności, służba wojskowa, emigracja, imigracja, naturalizacja, własne
   wydarzenie) zapisane przy kilku osobach tak samo to jeden wiersz ze wszystkimi osobami. Tak samo znaczy: ten sam typ,
   data, miejsce, adres, notatka i źródła; data musi być zapisana, a do niej miejsce lub źródło. Chrzest, zawód lub
   tytuł należy zawsze tylko do jednej osoby.
+- **Od aplikacji 3.28.0:**
+  - wspólne wydarzenie ([A10.1](A10-shared-events.md#A10.1)) to jeden wiersz ze wszystkimi jego osobami, nawet gdy
+    jego kopie się różnią. Takie same kopie bez wspólnego wydarzenia (starsze dane) nadal łączą się w jeden wiersz
+    według danych; to tylko widok, zmiana trafia do jednej kopii;
+  - komórka osób ma liczbę („N osób”). Wiek pokazuje wiek każdej osoby („42 · 38”) z dymkiem „Wiek według zapisu ·
+    każdy własny”; gdy kopie się różnią, komórka ma „różni się u N” ([A10.3](A10-shared-events.md#A10.3));
+  - zmiana **Data** lub **Miejsce** bezpośrednio w komórce zmienia wszystkie kopie wspólnego wydarzenia („{Pole}:
+    zmieniono u N osób ({wydarzenie}).”), jeden krok **Cofnij**.
 - **Kolumny** w grupach **Wydarzenie** · **Uczestnicy** · **Źródło**:
   - **Typ**, **Osoba lub para** (przy parze najpierw krewny osoby głównej), **Data**, **Miejsce**;
   - **Wiek w chwili wydarzenia** jak gdzie indziej ([A6.7.3](#A6.7.3)); do jednego roku z dokładnych dat w dniach
@@ -607,9 +827,10 @@ Tabela wydarzeń ma wiersz dla każdego wydarzenia drzewa: kto, kiedy, gdzie, w 
   kopii), przy urodzeniu i zgonie edycję osoby, przy wydarzeniu pary jego okno, przy ślubie i rozwodzie relacje osoby
   w tym związku.
 - **Granice:** osoby zastępcze nie mają wierszy; urodzenie i zgon bez zapisanej danej nie mają wiersza.
-- **Obowiązuje od:** aplikacja 3.27.0
+- **Obowiązuje od:** aplikacja 3.27.0; 3.28.0: spis ludności przy osobie jest wspólnym wydarzeniem, wspólne
+  wydarzenie to jeden wiersz
 
-<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES, shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 -->
+<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES (od 3.28.0 i census, app:34b2174c), shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · 3.28.0: app:80c2ffb9 table-events.ts (shareId → jeden řádek, bez shareId odhad podle shareKey), strings.ts table agePerPerson, sharedDiffers, events.sharedCellChanged · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 -->
 
 <a id="A6.7.11"></a>
 ### A6.7.11 Źródła w wierszach
@@ -844,7 +1065,7 @@ komórkę można skopiować, filtrować według jej wartości i edytować daną 
 
 - **Kopiowanie:** Ctrl/Cmd+C bez zaznaczonego tekstu kopiuje tekst, który aktywna komórka pokazuje, bez oznaczeń,
   ikon i pigułek. Ręcznie zaznaczony tekst kopiuje się jak zwykle.
-- **Menu komórki:** menu wiersza (prawy przycisk, Shift+F10) i na telefonie panel wiersza (stuknięcie komórki)
+- **Menu komórki:** menu wiersza (prawy przycisk, Shift+F10) i panel wiersza (stuknięcie palcem w komórkę)
   zaczynają się od opcji komórki **Kopiuj**, **Tylko „{wartość}”** i **Bez „{wartość}”** (wartość skrócona do około
   24 znaków z „…”); pod nimi są akcje wiersza ([A6.7.8](#A6.7.8)). Menu otwiera się przy komórce, także gdy wybrany
   był inny wiersz.
@@ -870,7 +1091,9 @@ komórkę można skopiować, filtrować według jej wartości i edytować daną 
 
   **Imię i nazwisko** nie edytuje się w komórce (składa się z kilku części), tak samo jak komórki obliczone,
   kontrole, badanie, cytowania, liczby i relacje; dwuklik na nich otwiera **Edytuj…**.
-- **Pole** zakrywa komórkę. **Enter** zapisuje, **Esc** anuluje, **Tab** i **Shift+Tab** zapisują i przechodzą do
+- **Pole** stoi w komórce. Tylko w kolumnie węższej niż najmniejsza szerokość pola (tekst i data 100 px, miejsce
+  140 px, wybór 90 px) pole jest szersze i leży nad wierszem z cieniem (od aplikacji 3.28.0; wcześniej leżało na
+  sąsiedniej komórce). **Enter** zapisuje, **Esc** anuluje, **Tab** i **Shift+Tab** zapisują i przechodzą do
   następnej lub poprzedniej edytowalnej komórki wiersza, kliknięcie gdzie indziej zapisuje. W wyborze kliknięcie myszą
   zapisuje wartość od razu; po wyborze strzałkami zapisuje ją Enter, Tab lub kliknięcie gdzie indziej. Datę odczytuje
   się jak
@@ -886,4 +1109,113 @@ komórkę można skopiować, filtrować według jej wartości i edytować daną 
   ustalenia), w menu wiersza **Edytuj komórkę** (F2). Edytowalna komórka ma po najechaniu myszą kursor tekstowy.
 - **Obowiązuje od:** aplikacja 3.27.0
 
-<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) -->
+<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) · pole v buňce: table-grid.ts EDITOR_MIN_WIDTH (text 100, date 100, place 140, select 90), placeEditor, commit 80c2ffb9 · panel klepnutím: commit ee38c7a6 -->
+
+<a id="A6.8"></a>
+## A6.8 Widok w osobnym oknie
+
+Na komputerze każdy widok można otworzyć w osobnym oknie, na przykład na drugim monitorze, i to w dowolnej liczbie.
+Okno główne zostaje przy swoim widoku. Zapisuje tylko okno główne; pozostałe okna wysyłają mu swoje zmiany
+i dostają od niego drzewo.
+
+- **Gdzie to działa:** na komputerze (Windows, macOS, Linux, ChromeOS), także z ekranem dotykowym, w oknie szerszym
+  niż 640 px. Na telefonie i tablecie (Android, iOS, iPadOS) oraz w wyeksportowanej aplikacji (plik HTML) ⧉ się nie
+  pokazuje, a skróty niczego nie otwierają.
+- **Co okno przejmuje:** drzewo, osobę w centrum i to, co pokazuje widok: w Tabeli typ wierszy, filtry,
+  wyszukiwanie, zapisany widok, sortowanie i wybrany wiersz; w Rodzinie powiększenie, w Wachlarzu kręgi, na Mapie
+  miejsca i powiększenie. Potem okno ma własny stan. Odświeżenie okna (F5) zachowuje jego widok i osobę.
+- **Co okno ma:** zamiast paska aplikacji nagłówek: nazwę drzewa, przełącznik widoków (poniżej 960 px jako
+  „{widok} ▾”), **Śledź wybór** ([A6.8.1](#A6.8.1)), **Cofnij**, **Ponów** i ⧉ **Otwórz kolejne okno**. Przełącznika
+  drzew, menu **Badanie**, Ustawień ani małego panelu badania okno nie ma.
+- **Zmiany:** w oknie można edytować osobę (menu osoby, **Edytuj**) i komórkę Tabeli. Zapisuje je okno główne, można
+  je cofnąć jako jego kroki i od razu pokazują się we wszystkich oknach. **Cofnij** i **Ponów** w nagłówku okna cofają
+  i ponawiają kroki okna głównego. Gdy drzewo w międzyczasie zmieniło się w innym oknie, zmiana nie zostaje
+  zastosowana: „Drzewo zmieniło się w międzyczasie w innym oknie. Zmiany nie zastosowano, dane odświeżono.”
+  Rozpoczęta komórka Tabeli przy tym zostaje („Szkic zachowany · Enter zastosuje, Esc odrzuci”).
+- **Badanie:** połączenie z badaniem (most, śledzenie, wysyłanie zmian) obsługuje tylko okno główne. Pozycje badania
+  w menu osoby stoją w oknie pod nagłówkiem **Badanie · wykona okno główne** i wykonuje je okno główne. Podczas
+  śledzenia badania na żywo ([S1.4](S1-connecting-app-and-research.md#S1.4)) okna są tylko do odczytu jak okno
+  główne: „Tylko do odczytu · okno główne śledzi badanie” z **Przejdź do okna głównego**.
+- **Granice:**
+  - ⧉ w oknie głównym pokazuje liczbę innych okien („2 inne okna”, poniżej 1280 px tylko liczbę). Jego menu ma na
+    górze **Otwarte okna** (każde z **Przenieś na wierzch** i ×) oraz **Zamknij wszystkie**;
+  - od 5 otwartych okien aplikacja ostrzega, że każde kolejne okno wymaga pamięci; niczego nie zabrania;
+  - okno zablokowane przez przeglądarkę zostaje zgłoszone („Przeglądarka zablokowała nowe okno…”) ze **Spróbuj
+    ponownie**;
+  - tytuł okna podaje widok i drzewo („Tabela – Horákowie – Strom”), tytuł okna głównego drzewo („Horákowie –
+    Strom”).
+- **Obsługa:** aplikacja: ⧉ **Otwórz w nowym oknie** obok przełącznika widoków (menu sześciu widoków, przy drzewie
+  z badania także **Przegląd badania**, [S4.1.6](S4-research-from-the-app.md#S4.1.6)); ⧉ na pasku Tabeli za
+  **Eksport ▾**; na karcie widoku Ctrl+klik (macOS ⌘+klik), środkowy przycisk albo prawy klik (Shift+F10) →
+  **{widok} w nowym oknie**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
+
+<a id="A6.8.1"></a>
+### A6.8.1 Śledź wybór
+
+Wybrana osoba jest wspólna dla okien. Co wybór w innym oknie zrobi w tym oknie, określa przełącznik **Śledź wybór**
+w nagłówku okna.
+
+| Tryb | Co robi osoba wybrana w innym oknie | Domyślnie w widokach |
+|---|---|---|
+| **przełączaj** | staje się centrum okna jak po Ustaw w centrum: Potomkowie pokazuje jej potomków, Wachlarz przodków, Rodzina jej rodzinę | Rodzina, Potomkowie, Wachlarz |
+| **tylko zaznaczaj** | zostaje tylko zaznaczona: karta pierścieniem, w Wachlarzu wycinek, na Osi czasu wiersz, na Mapie jej miejsca, w Tabeli wiersz; centrum zostaje | Oś czasu, Mapa, Tabela |
+| **wyłączone** | nic; okno ma własny wybór osoby i swojego wyboru nie wysyła | – |
+
+- **Granice:**
+  - **przełączaj** jest tylko w Rodzinie, Potomkach i Wachlarzu; gdzie indziej są tylko **tylko zaznaczaj**
+    i **wyłączone**;
+  - własne kliknięcie w oknie zmienia centrum tylko w tym oknie; okno, które przełączyło się za innym oknem, nie
+    przekazuje wyboru dalej;
+  - okno główne śledzi wybór zawsze i przełącznika nie ma;
+  - wybór dotyczy jednego okna i przetrwa jego odświeżenie (F5). Wybrany tryb, który nie jest domyślny, obowiązuje
+    także po przełączeniu widoku w oknie (**przełączaj** tam, gdzie go nie ma, jak **tylko zaznaczaj**); inaczej
+    obowiązuje tryb domyślny nowego widoku.
+- **Obsługa:** aplikacja: w nagłówku okna **Śledź wybór: {tryb} ▾**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
+
+<a id="A6.8.2"></a>
+### A6.8.2 Gdy brakuje okna głównego
+
+Okno bez okna głównego nic nie traci i nic nie zamyka się samo. Zostaje tylko do odczytu z ostatnimi danymi.
+
+| Stan | Co okno pokazuje | Wybór |
+|---|---|---|
+| okno główne jest zamknięte (3 s bez wiadomości od niego) | pasek „Okno główne jest zamknięte · stan z {czas}, tylko do odczytu”; pozycji badania w menu osoby pod **Badanie · tylko z oknem głównym** nie da się użyć | **Otwórz Strom**, **Ustaw jako główne** |
+| drzewo zostało usunięte w oknie głównym | „Drzewo już nie istnieje” zamiast zawartości | **Zamknij okno** |
+| drzewo jest zablokowane | „Drzewo jest zablokowane · Hasło wpisuje się w oknie głównym.” | **Przejdź do okna głównego** |
+| okno główne przełączyło drzewo | okno przełącza się razem z nim, widok zostaje, wybór się kasuje („{drzewo} → {drzewo}”) | – |
+
+- **Granice:**
+  - **Otwórz Strom** otwiera nowe okno główne; okna łączą się z nim i pasek znika;
+  - **Ustaw jako główne** robi główne z tego okna: wczytuje drzewo z pamięci (dane w oknie mogły być starsze niż
+    zapisane), dostaje pasek aplikacji, a widok zostaje. Gdy w międzyczasie powstało inne okno główne, nic się nie
+    dzieje;
+  - odświeżenie okna głównego (F5) paska nie pokazuje.
+- **Obsługa:** aplikacja: przyciski na pasku i w miejscu zawartości okna.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/satellite.ts MAIN_SILENCE_MS 3000, lastHeardAt, treeGone · src/windows/sat-states.ts (closed strip mainClosed, treeGone, treeLocked, SWITCHED_TOAST_MS) · src/windows/become-main.ts (zámek ifAvailable, znovunačtení jako hlavní z IndexedDB) · src/windows/window-research-menu.ts researchMainOnly · strings.ts win.mainClosed, openStrom, makeMain, treeGone, treeGoneNote, treeLocked, treeLockedNote, closeWindow, goToMain, treeSwitched · spec 079 K1.5 · prace/1112-app-okna-zaklad (stavy 1–6) -->
+
+<a id="A6.8.3"></a>
+### A6.8.3 Druga karta aplikacji
+
+Aplikacja otwarta drugi raz w zwykłej karcie lub oknie przeglądarki nie wczytuje drugiej kopii drzewa. Pokazuje
+„Strom jest już otwarty w innym oknie” z wyjaśnieniem „Zapisuje tylko jedno okno, aby zmiany się nie nadpisywały.
+Kolejne okna łączą się z nim.”
+
+- **Granice:**
+  - **Przełącz tam** przenosi okno główne na wierzch. Gdy przeglądarka na to nie pozwala, karta to mówi i dodaje
+    „Tę kartę można zamknąć.”;
+  - **Otwórz jako kolejne okno** robi z karty okno jak w [A6.8](#A6.8), z Tabelą;
+  - link otwarty w drugiej karcie (osoba, wyszukiwanie, linki badania, plik otwarty przez zainstalowaną aplikację)
+    trafia do okna głównego dokładnie raz: „Link otworzył się w oknie głównym.”;
+  - druga karta nic nie zapisuje do listy drzew ani do Ustawień.
+- **Obsługa:** aplikacja: **Przełącz tam**, **Otwórz jako kolejne okno**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/window-role.ts (Web Lock strom-main ifAvailable → main, jinak second-tab) · src/windows/second-tab.ts (secondTabSatelliteKind table) · src/windows/window-link.ts (předání odkazu hlavnímu jednou) · src/windows/window-start.ts openLinkFromWindow · strings.ts win.alreadyOpen, alreadyOpenNote, switchThere, openAsWindow, switchFailed, tabCanClose, linkForwarded · CHANGELOG.cs.md 3.28.0 · spec 079 K1.6 · prace/1112-app-okna-zaklad (7d22e396) -->

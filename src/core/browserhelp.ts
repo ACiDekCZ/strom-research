@@ -138,8 +138,14 @@ export function agentBrowserAdvice(env: Env, agent: string | undefined, a: Brows
   if (!a.permitted)
     return `your browser goes there only with the person's permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours); until then the person saves the images by hand${wait}.`;
   const yours = agent === "claude" ? "Claude in Chrome" : `its address written out in your code, tab.goto("<the page>") — strom's hook sees only an address it can read`;
-  return `through your browser (${yours}), one image at a time at a person's pace: strom media save ${task} --image <n> --at <the archive's page of that image> gives the script that saves it in your tab, strom media add --inbox --waiting takes it; else the person saves them by hand${wait}.`;
+  return `through your browser (${yours}), one image at a time at a person's pace: strom media save ${task} --image <n> --at <the archive's page of that image> gives the script that saves it in your tab, then ${SAVED_TAKEN}; else the person saves them by hand${wait}.`;
 }
+
+/**
+ * What takes an image the agent's browser saved, and that it says what came: the agent never reads the downloads folder
+ * itself (its permissions refuse it — found 14 November 2026: a turn lost each time).
+ */
+export const SAVED_TAKEN = "strom media add --inbox --waiting — it takes the file and says what came; never read the downloads folder yourself";
 
 /**
  * A browser or computer use strom does not keep, at an archive only a person's browser goes to: never of the agent's own

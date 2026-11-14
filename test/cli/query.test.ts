@@ -122,7 +122,8 @@ test("whose facts: ancestors, blood (the default), family with the partners, all
     assert.deepEqual(ids(jan.rows), ["P0004", "P0006"]);
     assert.equal(jan.rows[0].relation.term, "otec");
     assert.equal(jan.rows[0].relation.generation, 2);
-    await assert.rejects(w.ok(["query", "--of", "P0010"]), /P0010 is retracted/u);
+    await assert.rejects(w.ok(["query", "--of", "P0010"], { env: { CLAUDECODE: "1" } }), /P0010 is retracted/u);
+    await assert.rejects(w.ok(["query", "--of", "P0010"]), /P0010 je odvolaná: žádné údaje se k ní nevztahují/u);
     await assert.rejects(w.ok(["query", "--kin", "cousins"]), /--kin takes ancestors, blood, family, all/u);
   } finally {
     w.cleanup();
@@ -220,9 +221,15 @@ test("nothing found says what and where to look further; no main person: how to 
       assert.doesNotMatch(out, new RegExp(`${word} č\\.`, "u"), lang);
     }
     await w.ok(["config", "unset", "main.person"]);
-    const missing = await w.run(["query"]);
+    // an agent reads it in English
+    const missing = await w.run(["query"], { env: { CLAUDECODE: "1" } });
     assert.notEqual(missing.code, 0);
     assert.match(missing.err, /no main person to relate the facts to\n→ strom config set main\.person P0001 \(the person the tree is for\), or strom query --of P0001/u);
+    // a person reads it in the research's language
+    const missingCs = await w.run(["query", "--occupation", "mlynar"], { tty: true });
+    assert.notEqual(missingCs.code, 0);
+    assert.match(missingCs.err, /chybí hlavní osoba, ke které se údaje vztahují\n→ strom config set main\.person P0001 \(osoba, pro kterou je rodokmen\), nebo strom query --of P0001/u);
+    assert.doesNotMatch(missingCs.err, /no main person/u);
     assert.equal((await w.ok(["query", "--of", "P0004", "--occupation", "mlynar", "--kin", "ancestors", "--json"])).json.rows[0].relation.term, "výchozí osoba");
   } finally {
     w.cleanup();

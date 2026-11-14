@@ -10,7 +10,7 @@ import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, runs, runsArg, shellArg, table, truncate } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
-import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
+import type { Input, Media, RecordSet, Region, Repository, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
 import { clipText, collectFiles, numberInName, coveringPart, inboxFolderFor, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperCover, storeShared, wholeSizeOf, type SharperCover } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
@@ -37,7 +37,7 @@ import { askedNow, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWait
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
-import { HELD_AFTER_MS, PLAN_TTL_MS, findDownload, loadSaves, noteSave, saveScript, storeSaves, waitFileBase, type SaveRecord } from "../core/browser.ts";
+import { HELD_AFTER_MS, PLAN_TTL_MS, TAKEN_KEEP_MS, findDownload, loadSaves, noteSave, saveScript, storeSaves, waitFileBase, type SaveRecord } from "../core/browser.ts";
 import { bookOn, browserGate, otherWay } from "../core/webgate.ts";
 import { allows } from "../core/terms.ts";
 import { phrase } from "../core/phrases.ts";
@@ -201,7 +201,7 @@ export interface TakenFolder {
 export function takeWaiting(tree: Tree, shared: string, o: { now?: number; folder?: string; downloads?: string } = {}): TakenFolder[] {
   const out: TakenFolder[] = [];
   const byFolder = new Map<string, InboxWait[]>();
-  if (o.downloads && !tree.dryRun) fromDownloads(shared, o.downloads, inboxWaits(tree));
+  if (o.downloads && !tree.dryRun) fromDownloads(tree, shared, o.downloads, inboxWaits(tree));
   for (const w of inboxWaits(tree)) {
     const key = w.folder.normalize("NFC");
     if (o.folder && key !== o.folder.normalize("NFC")) continue;
@@ -244,47 +244,77 @@ export function takeWaiting(tree: Tree, shared: string, o: { now?: number; folde
 }
 
 /**
- * What the agent's browser saved for waiting tasks (strom media save: strom-T0007-0040.jpg in the downloads folder):
- * each file moved into its task's folder of the shared inbox, named by its image number (40.jpg) — the folder is then
- * taken as the person's own. A copy the browser saved twice (… (1).jpg): the newest kept, the rest gone. A download
- * still running is left for the next look.
+ * What the agent's browser saved for waiting tasks (strom media save: strom-3f2a9c1b-T0007-0040.jpg in the downloads
+ * folder, this research's mark first): each file moved into its task's folder of the shared inbox, named by its image
+ * number (40.jpg) — the folder is then taken as the person's own. A name given before the mark (strom-T0007-0040.jpg)
+ * only where this research's record of the save gives it: the downloads folder is every research's, another one's file
+ * never taken. A copy the browser saved twice (… (1).jpg): the newest kept, the rest gone. A download still running is
+ * left for the next look.
  */
-function fromDownloads(shared: string, downloads: string, waits: InboxWait[]): void {
+function fromDownloads(tree: Tree, shared: string, downloads: string, waits: InboxWait[]): void {
   let names: string[];
   try {
     names = fs.readdirSync(downloads);
   } catch {
     return;
   }
+  const esc = (x: string) => x.normalize("NFC").replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const saves = loadSaves(tree.root);
   for (const w of waits) {
-    const base = waitFileBase(w.task, 0).slice(0, -4);
-    const esc = base.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-    const re = new RegExp(`^${esc}(\\p{Nd}{4,})(?: \\(\\p{Nd}+\\))?\\.([\\p{L}\\p{N}]{2,5})$`, "u");
+    const base = waitFileBase(tree.config.id, w.task, 0).slice(0, -4);
+    const re = new RegExp(`^${esc(base)}(\\p{Nd}{4,})(?: \\(\\p{Nd}+\\))?\\.([\\p{L}\\p{N}]{2,5})$`, "u");
+    // the names given before the research's mark, each of its image: only as this research's records give them
+    const given = saves
+      .filter((r) => r.task === w.task && !r.file.normalize("NFC").startsWith(base.normalize("NFC")))
+      .map((r) => ({ n: r.n, re: new RegExp(`^${esc(r.file)}(?: \\(\\p{Nd}+\\))?\\.([\\p{L}\\p{N}]{2,5})$`, "u") }));
+    const numberOf = (name: string): number | undefined => {
+      const m = re.exec(name);
+      if (m) return IMAGE_FILE_EXT.has(`.${m[2]!.toLowerCase()}`) ? Number(m[1]) : undefined;
+      for (const g of given) {
+        const o = g.re.exec(name);
+        if (o) return IMAGE_FILE_EXT.has(`.${o[1]!.toLowerCase()}`) ? g.n : undefined;
+      }
+      return undefined;
+    };
     const byNumber = new Map<number, string[]>();
     const still = new Set(unsettled(names.map((n) => path.join(downloads, n))));
     for (const name of names) {
       // a download still being written: the next look
       if (still.has(path.join(downloads, name))) continue;
-      const m = re.exec(name.normalize("NFC"));
-      if (!m || !IMAGE_FILE_EXT.has(`.${m[2]!.toLowerCase()}`)) continue;
-      const n = Number(m[1]);
+      const n = numberOf(name.normalize("NFC"));
+      if (n === undefined) continue;
       if (n < 1 || (w.want?.length && !w.want.includes(n))) continue;
       byNumber.set(n, [...(byNumber.get(n) ?? []), path.join(downloads, name)]);
     }
     if (!byNumber.size) continue;
     const dir = path.join(shared, "inbox", w.folder);
     fs.mkdirSync(dir, { recursive: true });
-    for (const [n, files] of byNumber) {
-      const [newest, ...rest] = files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    // a file gone since the folder was read (the browser renaming its download, another strom taking it): not there —
+    // never an error of the whole look
+    const mtime = (f: string) => {
+      try {
+        return fs.statSync(f).mtimeMs;
+      } catch {
+        return undefined;
+      }
+    };
+    for (const [n, all] of byNumber) {
+      const files = all.filter((f) => mtime(f) !== undefined);
+      if (!files.length) continue;
+      const [newest, ...rest] = files.sort((a, b) => (mtime(b) ?? 0) - (mtime(a) ?? 0));
       const to = path.join(dir, `${n}${path.extname(newest!).toLowerCase()}`);
       try {
         fs.renameSync(newest!, to);
       } catch {
         // another disk: copied as it was saved, then gone
-        const at = fs.statSync(newest!).mtime;
-        fs.copyFileSync(newest!, to);
-        fs.utimesSync(to, at, at);
-        fs.rmSync(newest!, { force: true });
+        try {
+          const at = fs.statSync(newest!).mtime;
+          fs.copyFileSync(newest!, to);
+          fs.utimesSync(to, at, at);
+          fs.rmSync(newest!, { force: true });
+        } catch {
+          continue; // gone meanwhile: the next look
+        }
       }
       for (const f of rest) fs.rmSync(f, { force: true });
     }
@@ -502,7 +532,7 @@ function stillWaiting(tree: Tree, recordset: string | undefined): string[] {
  * (nor still downloading), not in the task's folder, not registered, a while after the script was given: Chrome saves
  * one file of a site by itself and holds the next back until the person allows the site to download several files.
  * The first time an image is found so, its task's wait says it to the person (in the research language). Records of
- * images registered since, or of tasks that wait for them no more, go.
+ * tasks that wait for them no more go; of images registered since, a while later (`taken`: a late copy is tidied).
  */
 export function heldSaves(tree: Tree, shared: string, downloads: string, now = Date.now()): SaveRecord[] {
   const saves = loadSaves(tree.root);
@@ -510,9 +540,18 @@ export function heldSaves(tree: Tree, shared: string, downloads: string, now = D
   const keep: SaveRecord[] = [];
   const held: SaveRecord[] = [];
   for (const r of saves) {
+    if (r.taken !== undefined) {
+      if (now - r.taken < TAKEN_KEEP_MS) keep.push(r);
+      continue;
+    }
+    if (registeredImages(tree, r.recordset).has(r.n)) {
+      const { held: _h, ...was } = r;
+      keep.push({ ...was, taken: now });
+      continue;
+    }
     const t = tree.get<Task>(r.task);
     const want = t?.state === "waiting" && t.awaits?.recordset === r.recordset ? (parseImageList(t.awaits.images) ?? []) : [];
-    if (!want.includes(r.n) || registeredImages(tree, r.recordset).has(r.n)) continue;
+    if (!want.includes(r.n)) continue;
     keep.push(r);
     const dl = findDownload(downloads, r.file);
     const dir = path.join(shared, "inbox", t!.awaits!.folder);
@@ -537,12 +576,73 @@ export function heldSaves(tree: Tree, shared: string, downloads: string, now = D
   return held;
 }
 
+/**
+ * strom's own files in the downloads folder (strom-3f2a9c1b-T0007-0040.jpg, "… (1).jpg"; given before the research's
+ * mark, strom-T0007-0040.jpg: the name strom media save gave them, for this research — its records say so) whose image is registered already: a copy the browser saved late or twice,
+ * after the one taken. Gone, as the copies of one image are when it is taken (fromDownloads); a file still being
+ * written waits for the next look. Never a file strom did not name, never one of an image not registered.
+ */
+export function tidyDownloads(tree: Tree, downloads: string, now = Date.now()): string[] {
+  const done = loadSaves(tree.root).filter((r) => registeredImages(tree, r.recordset).has(r.n));
+  if (!done.length) return [];
+  let names: string[];
+  try {
+    names = fs.readdirSync(downloads);
+  } catch {
+    return [];
+  }
+  const gone: string[] = [];
+  for (const r of done) {
+    const esc = r.file.normalize("NFC").replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const re = new RegExp(`^${esc}(?: \\(\\p{Nd}+\\))?\\.([\\p{L}\\p{N}]{2,5})$`, "u");
+    for (const name of names) {
+      const m = re.exec(name.normalize("NFC"));
+      if (!m || !IMAGE_FILE_EXT.has(`.${m[1]!.toLowerCase()}`)) continue;
+      const f = path.join(downloads, name);
+      if (unsettled([f], now).length) continue;
+      if (!tree.dryRun) fs.rmSync(f, { force: true });
+      gone.push(name);
+    }
+  }
+  return gone;
+}
+
+/** The archive's host of an address, bare (no www.), or undefined. */
+function bareHost(url: string | undefined): string | undefined {
+  return url && URL.canParse(url) ? new URL(url).hostname.toLowerCase().replace(/^www\./u, "") : undefined;
+}
+
+/**
+ * The book an image saved through the agent's browser is of, when the agent names none: the one the task waits for
+ * (its wait, while it waits), else among its books and those its earlier saves were of the one on the archive of `at`
+ * (the host, or a site of it) — else, when several remain, those named for the agent to choose.
+ */
+export function saveBookOf(tree: Tree, t: Task, w: InboxWait | undefined, at: string): { book?: RecordSet; several?: RecordSet[] } {
+  const live = (id: string | undefined) => {
+    const b = id ? tree.get<RecordSet>(id) : undefined;
+    return b && b.type === "recordset" && !b.retracted && !b.mergedInto ? b : undefined;
+  };
+  const waited = live(w?.recordset) ?? live(t.awaits?.recordset);
+  if (waited) return { book: waited };
+  const ids = [...new Set([...t.where.filter((x) => /^B\p{N}{4,}$/u.test(x)), ...loadSaves(tree.root).filter((r) => r.task === t.id).map((r) => r.recordset)])];
+  const books = ids.map(live).filter((b): b is RecordSet => !!b);
+  if (books.length <= 1) return books.length ? { book: books[0]! } : {};
+  const host = bareHost(at);
+  const on = (b: RecordSet) => {
+    const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+    return [b.url, repo?.url].map(bareHost).some((h) => !!h && !!host && (h === host || h.endsWith(`.${host}`) || host.endsWith(`.${h}`)));
+  };
+  const there = host ? books.filter(on) : [];
+  return there.length === 1 ? { book: there[0]! } : { several: there.length ? there : books };
+}
+
 /** What the agent is told of an image its browser held back. */
 function heldLine(ctx: Context, h: SaveRecord, downloads: string): string {
   const since = new Date(h.at).toTimeString().slice(0, 8);
   return (
     `⚠ image ${h.n} of ${h.recordset} (${h.task}): nothing came into ${ctx.display(downloads)} since strom media save gave its script (${since}). ` +
     `The script answered "strom-result ${h.n}:200:…": the browser held the file back — Chrome saves one file of a site by itself and the next only once the person allows ${h.host} to download several files ` +
+    `in the browser profile your browser tool works in — each profile of a browser (and each browser) has its own permission, one given in another does not count ` +
     `(once: the icon at the right end of the address bar, or the site's settings → Automatic downloads). Tell the user exactly that; it is the person's permission — never change the browser's settings yourself, never save the image another way. ` +
     `${h.task} waits for it meanwhile and what waits says it to the person; go on with other work. Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
     `The script answered anything else: tell the user what it said. The browser saves elsewhere: strom config set browser.downloads <folder>.`
@@ -1126,9 +1226,53 @@ register(
         const woken = taken.flatMap((t) => t.woken);
         // what the agent's browser was to save and never saved: held back by the browser — said, to the person too
         const held = heldSaves(tree, shared, downloads);
+        // strom's own files of images registered already (a copy saved late or twice): never left in the downloads
+        const tidied = tidyDownloads(tree, downloads);
+        // what this session's task waits for first, the others in one line beside it
+        const mine = currentSession(tree, ctx.env)?.task;
+        const waits = inboxWaits(tree).filter((x) => x.by === "images");
+        const saves = loadSaves(tree.root);
+        const missingOf = (x: InboxWait) => {
+          const have = registeredImages(tree, x.recordset);
+          return (x.want ?? []).filter((n) => !have.has(n));
+        };
+        const own = waits.find((x) => x.task === mine);
+        const ownLines: string[] = [];
+        if (own && missingOf(own).length) {
+          const missing = missingOf(own);
+          const given = saves.filter((r) => r.task === own.task && r.taken === undefined && missing.includes(r.n) && !held.some((h) => h.task === r.task && h.n === r.n));
+          const last = given.length ? new Date(Math.max(...given.map((r) => r.at))).toTimeString().slice(0, 8) : undefined;
+          ownLines.push(
+            `${own.task} (this session's task) still waits for image${missing.length > 1 ? "s" : ""} ${runs(missing)} of ${own.recordset}: nothing of ${missing.length > 1 ? "them" : "it"} came yet — not in the downloads folder, not in its folder ${ctx.display(path.join(shared, "inbox", own.folder))}${
+              given.length ? ` (the script of ${runs(given.map((r) => r.n))} given at ${last}: the browser saves it within seconds — this command once more in a moment says whether it came)` : ""
+            }. Never look into the downloads folder yourself.`,
+          );
+        }
+        const heldMine = held.filter((h) => !mine || h.task === mine);
+        const heldOthers = held.filter((h) => mine && h.task !== mine);
+        const others = waits.filter((x) => x.task !== own?.task && missingOf(x).length);
+        const side = others.length
+          ? `${mine ? "other tasks wait as well (not this session's)" : "tasks waiting"}: ${others
+              .map((x) => `${x.task} images ${runs(missingOf(x))} of ${x.recordset}${heldOthers.some((h) => h.task === x.task) ? ` (the browser held back ${runs(heldOthers.filter((h) => h.task === x.task).map((h) => h.n))})` : ""}`)
+              .join(", ")}`
+          : undefined;
+        const nothing = !taken.length && !held.length && !ownLines.length && !side;
         return {
-          text: lines(taken.length || held.length ? undefined : "no task waits for images saved into the inbox, or none of their folders holds a file", ...takenLines(taken), ...held.map((h) => heldLine(ctx, h, downloads))),
-          data: { taken, woken, held: held.map((h) => ({ task: h.task, recordset: h.recordset, image: h.n, host: h.host, url: h.url, since: new Date(h.at).toISOString() })) },
+          text: lines(
+            nothing ? (waits.length ? "nothing came: no file in the downloads folder or the folders of the waiting tasks" : "no task waits for images saved into the inbox") : undefined,
+            ...takenLines(taken),
+            ...ownLines,
+            ...heldMine.map((h) => heldLine(ctx, h, downloads)),
+            side,
+            tidied.length ? `${counted(tidied.length, "file")} of strom's own in the downloads folder removed: ${tidied.slice(0, 5).join(", ")}${tidied.length > 5 ? " …" : ""} — copies of images registered already` : undefined,
+          ),
+          data: {
+            taken,
+            woken,
+            held: held.map((h) => ({ task: h.task, recordset: h.recordset, image: h.n, host: h.host, url: h.url, since: new Date(h.at).toISOString() })),
+            waits: waits.map((x) => ({ task: x.task, recordset: x.recordset, missing: missingOf(x), ...(x.task === mine ? { current: true } : {}) })).filter((x) => x.missing.length),
+            tidied,
+          },
         };
       }
       let paths: string[];
@@ -1268,16 +1412,17 @@ register(
       "browser\": the task waits for image n of its book (set so here, or already by strom task wait --images), you open\n" +
       "the archive's page of that one image in a tab of your own (strom's hook paces it) and run the script this prints\n" +
       "there — it saves what the page shows (the archive's viewer as it shows it, else its largest image) into the\n" +
-      "downloads folder as strom-T…-<n>.jpg. strom media add --inbox --waiting then moves it into the task's folder as\n" +
-      "image n and takes it; the task comes back once all it waits for are there. One image at a time, never a book;\n" +
-      "nothing is asked of the archive but the page you open. Refused where strom's list or the archive's robots.txt keeps\n" +
+      "downloads folder as strom-<research>-T…-<n>.jpg. strom media add --inbox --waiting then moves it into the task's folder as\n" +
+      "image n, takes it and says whether it came (never read the downloads folder yourself); the task comes back once all\n" +
+      "it waits for are there; a copy saved late or twice is tidied once the image is registered. One image at a time,\n" +
+      "never a book; nothing is asked of the archive but the page you open. Refused where strom's list or the archive's robots.txt keeps\n" +
       "automated tools off, without the person's permission, and for an agent whose browser strom does not keep — the\n" +
       "person saves it by hand then.",
     args: [{ name: "task", description: "the task the image is for (T…)", required: true }],
     options: [
       { name: "image", type: "string", value: "<n>", description: "the image number, as the archive's viewer counts it" },
       { name: "at", type: "string", value: "<url>", description: "the archive's page of that one image (as its viewer's address names it)" },
-      { name: "recordset", type: "string", value: "<B…>", description: "the book (else the one the task works in)" },
+      { name: "recordset", type: "string", value: "<B…>", description: "the book (else the one the task waits for, or the one of its books on the archive of --at)" },
     ],
     examples: ["strom media save T0007 --image 40 --at https://archive.example.org/viewer/book-17?image=40"],
     run(ctx, { args, opts }) {
@@ -1286,9 +1431,18 @@ register(
       const n = Number(String(opts.image ?? "").trim());
       if (!Number.isInteger(n) || n < 1) throw new UsageError("--image <n>: the image's number, as the archive's viewer counts it", { hint: `strom media save ${t.id} --image <n> --at <the archive's page of it>` });
       const w = inboxWaitOf(tree, t);
-      // the book: the one named, else the one the task waits for or works in
-      const b = opts.recordset ? requireRecord<RecordSet>(tree, normId(String(opts.recordset)), "recordset") : w ? tree.get<RecordSet>(w.recordset) : singleBook(tree, t);
-      if (!b) throw new UsageError(`which book image ${n} is of: --recordset B…`, { hint: `strom media save ${t.id} --image ${n} --recordset B… --at <the archive's page of it>` });
+      // the book: the one named, else the one the task waits for, else the one of its books on the archive of --at
+      const found = opts.recordset ? { book: requireRecord<RecordSet>(tree, normId(String(opts.recordset)), "recordset") } : saveBookOf(tree, t, w, String(opts.at ?? ""));
+      const b = found.book;
+      if (!b) {
+        const several = found.several ?? [];
+        throw new UsageError(
+          several.length
+            ? `which book image ${n} is of: ${t.id} works in ${several.map((x) => `${x.id} ${truncate(x.title, 60)}`).join(", ")} — --recordset names it`
+            : `which book image ${n} is of: --recordset B…`,
+          { hint: `strom media save ${t.id} --image ${n} --recordset ${several.length ? several.map((x) => x.id).join("|") : "B…"} --at <the archive's page of it>` },
+        );
+      }
       if (t.state === "done" || t.state === "parked" || (t.state === "waiting" && (!w || w.recordset !== b.id)))
         throw new UsageError(`${t.id} is ${t.state}${t.state === "waiting" ? ` — for ${waitKindOf(t) === "images" && w ? `images of ${w.recordset}` : "something else"}` : ""}: an image of ${b.id} is saved for a task that works in it`, { hint: `strom task show ${t.id}` });
       if (registeredImages(tree, b.id).has(n)) throw new UsageError(`image ${n} of ${b.id} is registered already`, { hint: `strom media show ${b.id}:${n}` });
@@ -1338,7 +1492,7 @@ register(
         }, { op: "task.wait", summary: `${t.id} wait: image ${n} of ${b.id} through the agent's browser` });
       const dir = path.join(shared, "inbox", inboxFolderFor(b));
       if (!tree.dryRun) fs.mkdirSync(dir, { recursive: true });
-      const file = waitFileBase(t.id, n);
+      const file = waitFileBase(tree.config.id, t.id, n);
       if (!tree.dryRun) {
         noteSave(tree.root, { task: t.id, n, recordset: b.id, host: u.hostname, url: u.href, file, at: Date.now() });
         // the task's other images held back before: asked of the person once more by this wait, so said anew
@@ -1346,7 +1500,7 @@ register(
       }
       // browser.tileWait: the viewer's tiles waited for while they come, the script run again while it answers strom-wait
       const tileWait = ctx.settings.tileWaitMs();
-      const script = saveScript({ url: u.href, file, n, until: Date.now() + PLAN_TTL_MS, other: phrase(lang, "browser.save.other", { n: String(n), url: u.href }) }, tileWait ? { tileWaitMs: tileWait } : {});
+      const script = saveScript({ url: u.href, file, n, task: t.id, until: Date.now() + PLAN_TTL_MS, other: phrase(lang, "browser.save.other", { n: String(n), url: u.href }) }, tileWait ? { tileWaitMs: tileWait } : {});
       const then = "strom media add --inbox --waiting";
       return {
         text: lines(
@@ -1356,8 +1510,8 @@ register(
           `2. Run this script in that tab with your browser's JavaScript tool; it answers "strom-result ${n}:200:<bytes>" (the file ${file}.jpg in the downloads folder):`,
           script,
           ...(tileWait ? [`   It answers "strom-wait …" while the viewer's tiles still come (browser.tileWait): run the same script again in the same tab, as often as it says so — it goes on where it is.`] : []),
-          `3. ${then} — moves it into the task's folder as image ${n} and takes it. Anything else the script answers: tell the user, never try another way.`,
-          `Chrome saves one file of a page by itself; one more from the same page waits until the user allows ${u.hostname} to download several files (once, at the right end of the address bar) — the script said saved and nothing came: tell the user, never change Chrome's settings yourself.`,
+          `3. ${then} — moves it into the task's folder as image ${n}, takes it and says whether it came and where it is now (or that nothing came yet); never look into the downloads folder yourself. Anything else the script answers: tell the user, never try another way.`,
+          `Chrome saves one file of a page by itself; one more from the same page waits until the user allows ${u.hostname} to download several files (once, at the right end of the address bar), in the browser profile your browser tool works in — a permission given in another profile does not count. The script said saved and nothing came: tell the user, never change Chrome's settings yourself.`,
         ),
         data: { task: t.id, recordset: b.id, image: n, waits: images, url: u.href, file, script, then },
       };

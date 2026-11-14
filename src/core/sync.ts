@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { isCompiled } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
@@ -38,9 +38,9 @@ import { decodeText, foldText, safeFolderName } from "./text.ts";
 import { decodeGedcom, decodingNote, looksLikeGedcom, saidEncoding, type DecodingNote, type GedcomDecoding } from "../gedcom/encoding.ts";
 import { hasHouseMark } from "./streets.ts";
 import { eventMarksOf, gedcomRole, participantRole, roleWord } from "./roles.ts";
-import { labels, type LabelKey } from "../gedcom/labels.ts";
+import { LABELS, labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate, humanDay } from "../cli/human.ts";
-import { ui } from "../cli/ui.ts";
+import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
@@ -90,8 +90,9 @@ export interface SFact {
   confirmed?: string;
   /**
    * The fact's ID in the research as the Strom app keeps it (`2 _STROM_EID E…`, given in the research's Strom file, spec
-   * 065): read where the confirmations are. Never used to pair facts — only a confirmation the file lacks of a fact that
-   * carries its ID (the app saw its state) is taken back (the app's "Dotazy 2", 4).
+   * 065): read where the confirmations are. A confirmation the file lacks of a fact that carries its ID (the app saw its
+   * state) is taken back (the app's "Dotazy 2", 4); a fact of it sent in another shape of the same kind is written in the
+   * research's shape (sameFactShapes) — never otherwise used to pair facts.
    */
   eid?: string;
   /** An applied `event.edit`'s before only: where the fact's values came from before (an undo puts it back). */
@@ -2563,6 +2564,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   // version the file does not say): the research's own form, never the user's edit (found on Mac: six conflicts and two
   // residences as leads from a send of surnames); an app that keeps them sends such a change only as the user's edit
   if (!appKeepsPeriods(incoming.appVersion)) appShapesKept(incoming, [base, ours], (key) => resolve(tree, key)?.id ?? key);
+  // a fact of the research's ID sent in another shape of the same kind (1 CENS as 1 EVEN + 2 TYPE Census): that fact
+  sameFactShapes(incoming, [base, ours]);
   // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
   // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
   for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
@@ -3962,6 +3965,58 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
       f.children = f.children.map((k) => (k === key ? hit.key : k));
     }
   }
+}
+
+/** The words a fact's label may name a kind of fact by (EVEN + TYPE): its tag, its name, the app's and strom's words for it. */
+let labelKinds: Map<string, string> | undefined;
+function kindOfLabel(label: string | undefined): string | undefined {
+  if (!labelKinds) {
+    const m = new Map<string, string>();
+    const set = (word: string, kind: string) => {
+      const k = fold(word);
+      if (k && !m.has(k)) m.set(k, kindOf(kind));
+    };
+    for (const [kind, name] of Object.entries(FACT_KINDS)) {
+      if (kind === "EVEN") continue;
+      set(kind, kind);
+      set(name, kind);
+      for (const lang of ["en", "cs", "de", "pl", "sk"]) {
+        if (`ui.ev.${kind}` in UI) set(ui(lang, `ui.ev.${kind}` as UIKey), kind);
+        if (kind in LABELS.en) set(labels(lang)(kind as LabelKey), kind);
+      }
+    }
+    labelKinds = m;
+  }
+  return label ? labelKinds.get(fold(label)) : undefined;
+}
+
+/** The kind a fact is of: its tag, or for an event of its own (EVEN) the kind its label names, if it names one. */
+const namedKind = (f: SFact): string | undefined => (f.kind === "EVEN" ? kindOfLabel(f.label) : kindOf(f.kind));
+
+/**
+ * A fact the file sends in another shape than the research gave it — `1 CENS` as `1 EVEN` + `2 TYPE Census`, or the
+ * other way round (1114 E13: taken as a new fact beside it, the old one gone) — known by the ID the app keeps
+ * (`2 _STROM_EID`): written in the research's shape, so that it pairs as that fact and only what it says is compared.
+ * Only a shape that names the same kind: another kind under the same ID is the user's edit.
+ */
+function sameFactShapes(incoming: Snapshot, known: (Snapshot | undefined)[]): void {
+  const factsOf = (s: Snapshot) => [...[...s.persons.values()].map((p) => p.facts), ...s.families.map((f) => f.facts)];
+  const byId = new Map<string, SFact>();
+  for (const s of known) if (s) for (const facts of factsOf(s)) for (const f of facts) if (f.id && !byId.has(f.id.toUpperCase())) byId.set(f.id.toUpperCase(), f);
+  for (const facts of factsOf(incoming))
+    for (const f of facts) {
+      const o = f.eid ? byId.get(f.eid) : undefined;
+      if (!o || (o.kind === f.kind && (f.kind !== "EVEN" || fold(o.label) === fold(f.label)))) continue;
+      const kind = namedKind(f);
+      if (!kind || kind !== namedKind(o)) continue;
+      // the value an event of its own carries only as its name (1 EVEN Census, no TYPE) goes with its shape
+      if (f.kind === "EVEN" && f.value !== undefined && fold(f.value) === fold(f.label)) delete f.value;
+      f.kind = o.kind;
+      if (o.kind === "EVEN") {
+        f.label = o.label;
+        if (f.value === undefined && o.value !== undefined && fold(o.value) === fold(o.label)) f.value = o.value;
+      } else delete f.label;
+    }
 }
 
 /**

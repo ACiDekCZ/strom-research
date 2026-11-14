@@ -93,5 +93,8 @@ Kromě osob a vztahů se sloučí i seznamy, které patří celému stromu.
   stromu ([S6.5](S6-tree-from-another-program.md#S6.5)). Po sloučení souboru jiného programu ukáže aplikace kartu
   **Co teď** ([S6.4](S6-tree-from-another-program.md#S6.4)). Ruční sloučení dvou osob
   ([A5.6](A5-tree-check.md#A5.6)) poznámky nespojuje.
+- **Od aplikace 3.28.0:** společné události ([A10.1](A10-shared-events.md#A10.1)) se nezdvojí: spárují se s událostmi
+  cílového stromu a převezmou jeho společnou událost; vlastní událost „Census“ se páruje se sčítáním lidu. Souhrn
+  „Sdílené události: n spojeno“ ([A10.6](A10-shared-events.md#A10.6)).
 
-<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations -->
+<!-- zdroj: app:src/merge/executor.ts:211 executeMerge (mergeSourceCatalogs, places, mergePlaceRecords, mergePlaceAliases, addSurnameGroup, delete defaultPersonId/defaultView) · src/merge/ui.ts countNewMergeIssues · strings.ts merge.preValidationWarning, merge.newIssues · git v1.19.0 (00e5d38) · 3.27.0: app:dde0151a src/merge/executor.ts sourceKey bez quality, takeCitationQuality, remapCitations; app:5721b016 unionCitations · 3.28.0: app:80c2ffb9 src/merge/* (shareId, Census ↔ census), strings.ts merge.sharedJoined -->

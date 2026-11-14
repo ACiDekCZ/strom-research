@@ -114,8 +114,26 @@ rules are in [R5.2](R5-conflicts.md#R5.2); transcriptions of sources from the ap
   ([R5.2.1](R5-conflicts.md#R5.2.1)). App: the window **Research for this tree** shows what the option means
   ("Changes are written in the research only after confirmation.").
 - **Since:** research 1.5.0; `sync.review` from 1.12.0
+- **From research 1.32.0:** `strom sync` of a tree from the app (JSON and GEDCOM) keeps shared events, roles, the
+  own events **Godparent** and **Wedding witness** and the participants of events
+  ([A10](A10-shared-events.md)), as when a family tree is taken over
+  ([R11.3](R11-material-from-the-user.md#R11.3)). Research that took over the tree from the app earlier is not
+  repaired by itself; the next `strom sync` from the app adds what is missing:
+  - a note of a person or family that the earlier taking over shortened to 500 characters, to the whole note (it can
+    be taken back);
+  - missing own events of a godparent and a witness as new facts, and missing participants of events;
+  - a person or family that the GEDCOM taking over in research 1.31 left out because of a long note with a character
+    outside the basic set (emoji) is offered as new.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview -->
+  The notes of events and of participants are not compared by `strom sync`, so it does not fill them in; the app
+  keeps them whole.
+- **From app 3.28.0:** research older than 1.32.0 does not give back shared events and the own events of a
+  godparent and a witness. The app takes them over from the previous state of the tree when it loads a new version
+  of such research: it knows a person by the number in the research, an event by type, date, place and value, only
+  when the match is the only one. An event the research changed is an ordinary event of its person; the other copies
+  stay joined.
+
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey -->
 
 <a id="S2.4"></a>
 ## S2.4 A Strom archive and a research without an agent

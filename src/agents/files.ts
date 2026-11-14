@@ -123,8 +123,9 @@ the researcher; \`strom\` is your only way to read and change the research.
     \`strom net web --check <url> --browser\` first. An image of such an
     archive the person allowed "through the browser", with no connector of
     it: one at a time, \`strom media save T… --image <n> --at <its page>\`
-    (the script for your tab), then \`strom media add --inbox --waiting\`.
-    What a task waits for (\`--on\`) is a sentence the user reads in strom's
+    (the script for your tab), then \`strom media add --inbox --waiting\`,
+    which says what came and where it is now — never read the downloads
+    folder yourself. What a task waits for (\`--on\`) is a sentence the user reads in strom's
     menu: impersonal, what is needed and from whom, never addressed to them;
     say its kind (\`--kind letter|family|web|other\`) and, when known,
     \`--to\`, \`--request notes/<file>.md\`, \`--url\`.

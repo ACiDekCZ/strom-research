@@ -76,11 +76,13 @@ test("strom live stop asks the bridge through its stop file: the end said on its
     assert.ok(((await status.json()) as { features: string[] }).features.includes("live.end"), "the app knows the bridge says its end");
     const stream = follow(info.url);
     await stream.hello;
-    const from = Date.now();
     const stopped = await w.ok(["live", "stop", "--json"]);
     assert.equal(stopped.json.how, "stopped", "it ended as it should, not killed");
-    await until("the stream closed", () => stream.ended(), 3000);
-    assert.ok(Date.now() - from < 3000, `ended within moments (${Date.now() - from} ms)`);
+    // At once: the bridge took the ask itself within the moment live stop gives it (else a signal follows — "ended:
+    // SIGTERM" in its log, checked below) and said the end before it closed the stream. No fixed milliseconds for the
+    // whole stop: under the load of the whole suite a bridge's ticks come later (found: 5486 ms with 3000 asked); the
+    // stream's end waited for as an event (the limit only ends a test that would never pass).
+    await until("the stream closed", () => stream.ended(), 60_000);
     const end = stream.end();
     assert.ok(end, "the end said on the stream");
     assert.equal(end.reason, "stopped");
@@ -100,7 +102,7 @@ test("strom live stop asks the bridge through its stop file: the end said on its
     await again.hello;
     const current = (await w.ok(["live", "start", "--current", "--json"])).json as Info;
     assert.equal(current.url, first.url, "its address kept");
-    await until("the stream closed", () => again.ended(), 3000);
+    await until("the stream closed", () => again.ended(), 60_000);
     assert.equal(again.end()?.reason, "restart");
     assert.equal(again.end()?.back, true);
   } finally {

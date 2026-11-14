@@ -96,7 +96,7 @@ import type { Tree } from "../core/tree.ts";
 import { moreLine, paginate } from "../cli/format.ts";
 import type { UIKey } from "../cli/ui.ts";
 import { displayName } from "../core/people.ts";
-import { historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
+import { eventExists, historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
 import { placeRecord } from "../core/placehistory.ts";
 import { foldText } from "../core/text.ts";
 import { addOtherNames, recordIndex, unlocatePlace } from "../core/placeid.ts";
@@ -956,15 +956,18 @@ register(
       { name: "region", type: "string" as const, value: "<id>", description: "everything of this region (no event)" },
     ],
     examples: [`strom history ${verb} cz-bohemia-0003 --place "Lhota"`, `strom history ${verb} cz-bohemia-0003 --tree`, `strom history ${verb} --region cz-bohemia`],
+    // what it is given is checked before the person is asked (1114 A3: strom history show <event> to read one event put
+    // the person's question first): a question whose yes is refused after it is never asked
+    refusesFirst(ctx: Context, { args, opts }: { args: string[]; opts: Record<string, unknown> }) {
+      hideAsked(ctx, verb, args, opts);
+    },
     run(ctx: Context, { args, opts }: { args: string[]; opts: Record<string, unknown> }) {
       const tree = ctx.tree();
       const place = str(opts.place);
       const who = str(opts.person);
       const region = str(opts.region)?.trim();
       const event = args[0]?.trim() || undefined;
-      const wheres = [place !== undefined, who !== undefined, !!opts.tree].filter(Boolean).length;
-      if (region !== undefined ? event !== undefined || wheres > 0 : event === undefined || wheres !== 1)
-        throw new UsageError("an event with --place, --person or --tree (one of them) — or --region alone", { code: "history.body" });
+      hideAsked(ctx, verb, args, opts);
       let person: string | undefined;
       if (who !== undefined) {
         try {
@@ -1100,6 +1103,34 @@ register(
   },
 );
 
+/**
+ * What strom history hide|show is given, checked before anything (the person's question too): an event and where it is
+ * hidden (one of --place, --person, --tree), or a region alone; an event that is there, a person that is. An event
+ * alone is what an agent types to read it: said how it is read (strom history list --event).
+ */
+function hideAsked(ctx: Context, verb: "hide" | "show", args: string[], opts: Record<string, unknown>): void {
+  const event = args[0]?.trim() || undefined;
+  const region = str(opts.region)?.trim();
+  const who = str(opts.person);
+  const wheres = [str(opts.place) !== undefined, who !== undefined, !!opts.tree].filter(Boolean).length;
+  const read = event ? `one event read: strom history list --event ${event} (--json)` : "the events, each with its ID: strom history list";
+  if (region !== undefined ? event !== undefined || wheres > 0 : event === undefined || wheres !== 1)
+    throw new UsageError(`strom history ${verb}: an event with --place, --person or --tree (one of them) — or --region alone`, {
+      code: "history.body",
+      hint: `${read} — hiding and showing again is the person's: strom history ${verb} <event> --place <place>|--person <P…>|--tree`,
+    });
+  if (event === undefined) return;
+  const tree = ctx.tree();
+  if (!eventExists(tree, ctx.settings.shared()?.value, event)) throw new UsageError(`there is no event ${event}`, { code: "history.event", params: { event }, hint: "strom history list: the events, each with its ID" });
+  if (who !== undefined) {
+    try {
+      resolvePerson(tree, who);
+    } catch {
+      throw new UsageError(`there is no person ${who}`, { code: "history.person", params: { person: who } });
+    }
+  }
+}
+
 // ── strom history list: the events the research shows, readable in the terminal ──
 
 const KIND_TEXT: Record<EventKind, UIKey> = {
@@ -1211,12 +1242,14 @@ register({
     "The events the Strom app shows (a region's by the years each place belonged to it, a place's own, the local ones read in\n" +
     "the research's sources), grouped by region and place, by year. Hidden by the person (at a place, a person, the whole tree,\n" +
     "everything of a region) and deleted ones marked. Read only; in an archive too, with the history off too (what was found\n" +
-    "stays). --place: the events at one place (its record L…, or the place as the facts write it); --region: one region's.",
+    "stays). --place: the events at one place (its record L…, or the place as the facts write it); --region: one region's;\n" +
+    "--event: one event (its ID).",
   options: [
+    { name: "event", type: "string", value: "<id>", description: "only this event, by its ID (cz-bohemia-0003, L0001)" },
     { name: "place", type: "string", value: "<L…|place>", description: "only the events at this place: its record (L…), or the place as the facts write it" },
     { name: "region", type: "string", value: "<id>", description: "only this region's events (strom history status lists the regions)" },
   ],
-  examples: ["strom history list", "strom history list --place L0003", "strom history list --region cz-bohemia --json"],
+  examples: ["strom history list", "strom history list --place L0003", "strom history list --region cz-bohemia --json", "strom history list --event cz-bohemia-0003 --json"],
   run(ctx, { opts }) {
     const tree = ctx.tree();
     const lang = tree.lang;
@@ -1256,6 +1289,17 @@ register({
         throw new UsageError(`no region ${region} at the places of the tree`, { code: "history.region.unknown", params: { region }, hint: "strom history status lists the regions of the tree" });
       events = events.filter((e) => e.scope === "region" && e.region?.id === region);
     }
+    // --event: that one event (1114 A3: what an agent typed strom history show for)
+    const one = str(opts.event)?.trim();
+    if (one !== undefined) {
+      events = events.filter((e) => e.id.toLowerCase() === one.toLowerCase());
+      if (!events.length)
+        throw new UsageError(`no event ${one} among the events the research shows${givenPlace || region !== undefined ? " there" : ""}`, {
+          code: "history.event",
+          params: { event: one },
+          hint: "strom history list: the events, each with its ID",
+        });
+    }
 
     const sorted = [...events].sort((a, b) => {
       const [ga, gb] = [groupOf(a), groupOf(b)];
@@ -1294,7 +1338,7 @@ register({
       rows.push([`  ${yearsOf(e)}`, ui(lang, KIND_TEXT[e.kind] ?? "ui.history.kind.other"), [`${e.text}${source ? ` — ${source}` : ""}`, e.id, ...marks.map((m) => `[${m}]`)].join(" · ")]);
     }
     flush();
-    const command = `strom history list${givenPlace ? ` --place ${/\s/u.test(givenPlace) ? `"${givenPlace}"` : givenPlace}` : ""}${region ? ` --region ${region}` : ""}`;
+    const command = `strom history list${givenPlace ? ` --place ${/\s/u.test(givenPlace) ? `"${givenPlace}"` : givenPlace}` : ""}${region ? ` --region ${region}` : ""}${one ? ` --event ${one}` : ""}`;
     return {
       text: lines(on ? undefined : ui(lang, "ui.history.list.off"), sorted.length ? lines(...out, moreLine(page, command, lang) || undefined) : ui(lang, "ui.history.list.none")),
       data: {

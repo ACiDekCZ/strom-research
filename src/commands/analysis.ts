@@ -4,7 +4,7 @@ import { actsAsArchive } from "../core/state.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import {
   LESSON_DETAIL_MAX,
@@ -291,14 +291,40 @@ function searchLine(s: Search): string[] {
 /** What a found search needs before it: the source it found (N0181, N0187: the search written first). */
 const FOUND_FIRST = "the source first, then the search: strom source add \"…\" … — in one batch the source add line first, ending #s, then search add … --found @s";
 
+/** The options of strom search add, in the order the hint retypes them. */
+const SEARCH_ADD_OPTS = ["recordset", "years", "surname", "place", "pages", "method", "result", "task", "by", "note"] as const;
+
+/**
+ * A found search typed without the source it found (1114 C10: four times in one session): the order, and this very
+ * command again with --found — the next thing to run, once the source is recorded.
+ */
+function foundFirst(question: string, opts: Record<string, unknown>): UsageError {
+  const said = SEARCH_ADD_OPTS.flatMap((o) => listOpt(opts[o]).flatMap((v) => [`--${o}`, shellArg(v)]));
+  return new UsageError("result found needs --found <S…>: the source it found is recorded first", {
+    code: "search.found.first",
+    hint: lines(
+      '1. strom source add "…" --kind … --recordset … --locator … (its answer names the source: S…)',
+      `2. strom search add ${[shellArg(question), ...said, "--found", "<S…>"].join(" ")}`,
+      "in one batch: the source add line first, ending #s, then search add … --found @s",
+    ),
+  });
+}
+
 register(
   {
     path: ["search", "add"],
     summary: "Record a search — ALSO when nothing was found (negative results are results)",
     group: "analysis",
-    sheet: "found: the source first (in a batch source add … #s, then --found @s)",
+    sheet: "found: in this order — strom source add … → strom search add … --result found --found <S…> (in a batch source add … #s, then --found @s)",
     tree: true,
     writes: true,
+    description:
+      "Every search is recorded, the one that found nothing too. A search that found something cites what it found, so\n" +
+      "the source comes first, in this order:\n" +
+      '  1. strom source add "…" --kind … --recordset … --locator …   (its answer names the source: S…)\n' +
+      "  2. strom search add \"…\" … --result found --found <S…>\n" +
+      "In one batch: the source add line first, ending #s, then search add … --found @s. A source found later is added\n" +
+      "with strom search edit <Q…> --found <S…>.",
     args: [{ name: "question", description: 'what was looked for: "Baptisms Novák 1903–1907"', required: true }],
     options: [
       { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable)", aliases: ["where"] },
@@ -313,7 +339,11 @@ register(
       { name: "by", type: "string", value: "<who>", description: "main (default), reader, user" },
       { name: "note", type: "string", value: "<text>", description: "what was illegible, what is left" },
     ],
-    examples: ['strom search add "Křty Novák 1903-1907" --recordset B0001 --years 1903-1907 --surname Novák --method page-by-page --result negative --task T0001'],
+    examples: [
+      'strom search add "Křty Novák 1903-1907" --recordset B0001 --years 1903-1907 --surname Novák --method page-by-page --result negative --task T0001',
+      'strom source add "Křest Jana Lhotáka 1905" --kind baptism --recordset B0001 --locator "fol. 12"',
+      'strom search add "Křty Lhoták 1903-1907" --recordset B0001 --years 1903-1907 --method page-by-page --result found --found S0001',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const recordsets = csvOpt(opts.recordset).map((b) => requireRecord<RecordSet>(tree, b, "recordset").id);
@@ -321,7 +351,7 @@ register(
       const years = yearsOption(opts.years, said);
       const findings = csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id);
       const result = oneOf(opts.result, SEARCH_RESULTS, "result");
-      if (result === "found" && findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: FOUND_FIRST });
+      if (result === "found" && findings.length === 0) throw foundFirst(args[0]!.trim(), opts);
       // A search made in a session served that session's task, unless it says otherwise.
       const session = currentSession(tree, ctx.env, ctx.refs);
       const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : session?.task;
@@ -397,7 +427,8 @@ register(
     description:
       "Only the options given change; lists (--recordset, --surname, --place, --found) replace the old ones; --note adds a note.\n" +
       "A search is evidence — a negative one above all: changing where it looked, how, or what came out needs --reason;\n" +
-      "filling in what was not recorded doesn't.",
+      "filling in what was not recorded doesn't. A source attached by mistake: --drop-found <S…> takes it off, --no-found\n" +
+      "takes off every one; a search found with no source left says what it is now (--result negative|partial|inconclusive).",
     args: [{ name: "search", description: "search ID (Q0001)", required: true }],
     options: [
       { name: "question", type: "string", value: "<text>", description: "what was looked for" },
@@ -410,14 +441,35 @@ register(
       { name: "method", type: "string", value: "<m>", description: SEARCH_METHODS.join(", ") },
       { name: "result", type: "string", value: "<r>", description: SEARCH_RESULTS.join(", ") },
       { name: "found", type: "string", multiple: true, value: "<S…>", description: "sources found (repeatable; replaces)" },
+      { name: "drop-found", type: "string", multiple: true, value: "<S…>", description: "take off a source attached by mistake (repeatable; with --reason)" },
+      { name: "no-found", type: "boolean", description: "take off every source found (with --reason)" },
       { name: "task", type: "string", value: "<T…>", description: "task this search served" },
       { name: "note", type: "string", value: "<text>", description: "add a note" },
     ],
-    examples: ['strom search edit Q0001 --recordset B0002 --reason "the index belongs to the other volume"', 'strom search edit Q0001 --pages 95-100 --note "images 101-104 unreadable"'],
+    examples: [
+      'strom search edit Q0001 --recordset B0002 --reason "the index belongs to the other volume"',
+      'strom search edit Q0001 --pages 95-100 --note "images 101-104 unreadable"',
+      'strom search edit Q0003 --drop-found S0002 --reason "attached to the wrong search"',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const id = requireRecord<Search>(tree, args[0]!, "search").id;
+      const was = requireRecord<Search>(tree, args[0]!, "search");
+      const id = was.id;
       if (opts["no-recordset"] && csvOpt(opts.recordset).length) throw new UsageError("--recordset or --no-recordset, not both");
+      // the sources found: replaced (--found), one taken off (--drop-found) or every one (--no-found) — 1114 C9: --found ""
+      // read as nothing to change
+      const given = { found: opts.found !== undefined, drop: csvOpt(opts["drop-found"]).length > 0, none: !!opts["no-found"] };
+      if ([given.found, given.drop, given.none].filter(Boolean).length > 1) throw new UsageError("--found, --drop-found or --no-found, one of them", { code: "search.found.which" });
+      if (given.found && !csvOpt(opts.found).length)
+        throw new UsageError("--found names no source", {
+          code: "search.found.empty",
+          hint: `a source attached by mistake: strom search edit ${id} --drop-found <S…> --reason "…" (every one: --no-found)`,
+        });
+      const dropped = csvOpt(opts["drop-found"]).map((s) => normId(s, "source"));
+      for (const s of dropped)
+        if (!was.findings.includes(s))
+          throw new UsageError(`${id} has no source found ${s}`, { code: "search.found.not", hint: was.findings.length ? `its sources found: ${was.findings.join(" ")}` : `strom search show ${id}` });
+      const findings = given.found ? csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id) : given.drop ? was.findings.filter((s) => !dropped.includes(s)) : given.none ? [] : undefined;
       const said: string[] = [];
       const years = yearsOption(opts.years, said);
       const scope: Search["scope"] = {
@@ -432,7 +484,7 @@ register(
         ...(opts["no-recordset"] ? { recordsets: [] } : {}),
         ...(opts.method !== undefined ? { method: oneOf(opts.method, SEARCH_METHODS, "method") } : {}),
         ...(opts.result !== undefined ? { result: oneOf(opts.result, SEARCH_RESULTS, "result") } : {}),
-        ...(csvOpt(opts.found).length ? { findings: csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id) } : {}),
+        ...(findings ? { findings } : {}),
         ...(opts.task ? { task: requireRecord(tree, String(opts.task), "task").id } : {}),
       };
       const note = typeof opts.note === "string" && opts.note.trim() ? makeNotes(tree, opts.note) : undefined;
@@ -444,6 +496,15 @@ register(
         id,
         "search",
         (cur) => {
+          // found with nothing left: what it is now is said in the same command (a found search cites what it found)
+          if ((given.drop || given.none) && (change.result ?? cur.result) === "found" && !change.findings!.length) {
+            const taken = given.none ? "--no-found" : dropped.map((s) => `--drop-found ${s}`).join(" ");
+            throw new UsageError(`${id} would be found with no source left: say what it is now`, {
+              code: "search.found.none",
+              params: { search: id },
+              hint: `strom search edit ${id} ${taken} --result negative|partial|inconclusive --reason "…" — or --found <S…>: the source it did find`,
+            });
+          }
           // What was recorded as searched is evidence: overwriting it needs a reason, filling it in doesn't.
           const was: Record<string, unknown> = { recordsets: cur.recordsets, method: cur.method, result: cur.result, findings: cur.findings, ...cur.scope };
           const now: Record<string, unknown> = { ...change, ...scope };

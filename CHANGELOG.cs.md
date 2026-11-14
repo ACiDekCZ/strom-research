@@ -5,18 +5,36 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.33.0
+
+*Připravuje se: bety do 1.33.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Archivy, kam smí jen prohlížeč člověka:** agent tam už nezkouší stahovač stromu ani hledání v katalogu. Jejich
+  snímky jdou po jednom přes prohlížeč agenta (`strom media save`), jakmile to člověk povolí „přes prohlížeč“, jinak je
+  člověk uloží ručně; brief i odmítnutí hned říkají tento další krok.
+- **Snímky ukládané přes prohlížeč:** kniha se vezme z toho, na co úkol čeká, nebo ze stránky archivu; uložený soubor
+  nese značku výzkumu, takže se nikdy nevezme soubor jiného výzkumu ze sdílené složky stažených souborů. Najdou se i prohlížeče snímků vestavěné do kódu stránky (OpenSeadragon
+  uvnitř Reactu); prohlížeč, ke kterému strom nedosáhne, je ohlášen spolu s tím, co místo toho udělá člověk.
+- **Hledání:** hledání, které něco našlo, se zapisuje až po svém zdroji a bez zdroje řekne pořadí; zdroj nalezený omylem
+  se odebere přes `strom search edit --drop-found`.
+- **Historie:** `strom history hide|show` zkontrolují, co dostaly, dřív než se na cokoli zeptají; jedna událost se čte
+  přes `strom history list --event <id>`.
+- **Z aplikace Strom:** údaj poslaný zpět v jiném tvaru téhož druhu (událost typu Census místo sčítání) se pozná jako
+  tentýž údaj – beze změny, když se nic nezměnilo, úprava toho údaje, když se změnilo datum.
+
 ## 1.32.0
 
-*Připravuje se: bety do 1.32.0-beta.4. Oddíl bude úplný s vydáním.*
+*14. 11. 2026 · patří k aplikaci Strom 3.28.0.*
 
 - **Otázky nad rodokmenem jedním voláním: `strom query`.** Kolik mlynářů je v rodu, kdo žil v čísle 12, kdo se
   narodil ve Lhotě v 18. století: řádek za každý údaj osoby s hodnotou, místem, číslem popisným, datem, jistotou
-  a prameny. Filtry podle druhu, povolání, hodnoty, místa, čísla, let, příjmení (i jeho dalších tvarů), pramene a stavu;
-  čí údaje: přímá linie, pokrevní příbuzní (výchozí, i boční větve), i s partnery, nebo celý strom. `--count`
-  a `--by generation|kin|place|decade|surname` je spočítají. Odvolané osoby a údaje nikdy, vyvrácené jen na požádání;
-  neznámý `--kind` odmítne se seznamem platných druhů.
-- **Jak je každá osoba příbuzná výchozí osobě, slovy:** v jazyce výzkumu, se stranou (otcova, matčina) a generací,
-  jak to říká kalkulačka vztahů aplikace Strom.
+  a prameny a s tím, jak je osoba příbuzná výchozí osobě, slovy — v jazyce výzkumu, se stranou (otcova, matčina)
+  a generací, jak to říká kalkulačka vztahů aplikace Strom. Filtry podle druhu, povolání, hodnoty, místa, čísla, let,
+  příjmení (i jeho dalších tvarů), pramene a stavu; čí údaje: přímá linie, pokrevní příbuzní (výchozí, i boční větve),
+  i s partnery, nebo celý strom. `--count` a `--by generation|kin|place|decade|surname` je spočítají. Odvolané osoby
+  a údaje nikdy, vyvrácené jen na požádání. **I vyprávění: `strom query --story <slovo>`** vypíše osoby a páry, v jejichž
+  vyprávění slovo je, každou s větou a prameny, o které se opírá. Číslo domu zapsané i se slovem (č. 7, Nr. 7) už nemá
+  slovo dvakrát, ani na kartě osoby.
 - **Povolání i v českých, německých, latinských a polských tvarech:** mlynar najde i Müller a molitor; osoby se slovem
   jen ve jméně nebo poznámce se počítají zvlášť, se `strom find`, který je najde.
   **Vlastní tvary výzkumu: `strom occupation add|list|remove`.** Tvar, který seznam nemá (jiný jazyk, starý
@@ -24,13 +42,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   u výzkumu; agent stejně přidá, co najde v pramenech, a řekne to, ručně přidané nikdy nemění. `strom query` řekne,
   když slovo není v žádném seznamu (hledá se jen tento tvar), i jak jeho tvary přidat. Vestavěný seznam zná o 40 řemesel
   a stavů z matrik víc (kostelník, hrobník, koželuh, lazebník, zvonař …).
-- **I vyprávění: `strom query --story <slovo>`** vypíše osoby a páry, v jejichž vyprávění slovo je, každou s větou
-  a prameny, o které se opírá, se stejnými filtry, počty i skupinami.
 - **Agent odpovídá na otázky nad rodokmenem příkazem `strom query`,** se jménem a ID osoby v závorce (aby šla otevřít v
   aplikaci Strom: `strom app --person P…`; aplikace před 3.21 otevře strom), celým vztahem a pramenem jeho názvem, a říká, jak jistý je každý údaj: vodítko ani pravděpodobný údaj
   nikdy jako fakt. Vyprávění jen ukazuje, kde hledat; čí je zápis, kdo je kdo a ověřování údajů jde dál jako dosud, z
   pramenů.
-- **Číslo domu zapsané i se slovem** (č. 7, Nr. 7) už nemá slovo dvakrát, ani na kartě osoby.
 - **Události sdílené v aplikaci Strom** (sčítání domácnosti, stěhování) a vlastní událost kmotra nebo svědka na svatbě
   s rolí u cizí události se čtou z jejího GEDCOM i JSON, drží se u každého údaje a vracejí se, jak přišly; od aplikace
   3.28 se o tom, kdo událost sdílí, rozhoduje v aplikaci a synchronizace bere její změnu jako změnu uživatele. `ROLE`
@@ -43,34 +58,24 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   místo, bez ohledu na diakritiku; hledaný text se nikam neukládá); „jako další“ dá naposledy zvolený úkol první a jde
   přesně vrátit; práce na frontě otevře terminál, který ukáže, co se pustí, a spustí to až po „ano“ – určitý počet úkolů
   (`strom run --tasks N`, skončí po N vyřízených), nebo samostatnou práci jen pod podmínkou. Most k aplikaci ve velkém výzkumu mnohem méně pracuje, když se nic nemění.
-
-## 1.31.1
-
 - **Nastavení pro prohlížeče archivů, které prohlížeč vykresluje pomalu.** Kde prohlížeč vykreslí kartu jen zhruba
   jednou za sekundu (kreslení bez grafické karty, vzdálená plocha), potřebuje prohlížeč snímků archivu (ACTA PUBLICA)
   na jeden snímek minuty a ukládání vzdalo po 30 s se zprávou, že dlaždice nedorazily všechny. Ta zpráva teď jmenuje,
   co pomůže: `strom config set browser.tileWait 180` (60–600 s) — skript pak čeká, dokud dlaždice ještě přicházejí,
   a agentovi odpovídá „strom-wait“, dokud není hotovo. Bez nastavení se nemění nic.
-- **Náhled `strom source split` na výzkumu zapečetěném na jiném počítači.** Dřív se odmítl, dokud výzkum nebyl
-  převzat (`strom seal adopt`), přestože jen čte. Teď náhled ukáže, co by rozdělení udělalo, jako každé čtení; zápis
-  (`--apply`) i jeho vrácení dál čekají na převzetí výzkumu.
-- **Totéž u `strom sync <soubor>` a `strom input names`:** co by rodokmen přinesl a která příjmení po sňatku by se
-  přidala, se ukáže i na výzkumu zapečetěném na jiném počítači; zápis (`--apply`, `strom sync --app`, `--undo`) dál
-  čeká na převzetí výzkumu.
-- **`strom repair undo <razítko> --json` bez terminálu** teď odpovídá jako `strom repair`: `status: "needs-consent"`
-  s příkazem ke spuštění v terminálu, ne jen kódem 4.
-- **Agent, kterému sandbox nedovolí číst nastavení nebo zapisovat do výzkumu** (Codex na Windows), se teď dozví
-  právě to — s příkazem ke spuštění mimo sandbox — místo „dějiny jsou pro tento výzkum vypnuté, zapíná je jen
-  uživatel“, které ho posílalo k nastavení, jež bylo zapnuté.
-- **Úkol, u kterého sandbox nebo oprávnění agenta třikrát za sebou nepustily strom k výzkumu** (nic se nezapsalo), se
-  odloží: s důvodem a u Codexu i s tím, co pomůže (`strom task show`), a běh pokračuje dalším úkolem, místo aby běh za
-  během začínal tentýž. Znovu probuzený úkol (`strom task wake`) se počítá od probuzení. Takto se odkládá vždy nejvýš
-  jeden úkol — když sandbox odmítá všechno, běh skončí jako dřív. `strom error` ukáže, které příkazy byly odmítnuty,
-  zkrácené a zamaskované.
-- **Codex na Windows pouští strom ze sandboxu jen jako holý příkaz**: bez `&`, roury nebo `cd` před ním, bez pomlčky (–)
-  a bez uvozovek uvnitř textu v uvozovkách v argumentech. Agent na Windows se to teď dozví (AGENTS.md, `strom guide`,
-  rada sandboxu), i s cestou pro delší text: jeho příkaz v souboru v `notes/`, spuštěný přes `strom batch --file`.
-  Příklady stromu už pomlčku mezi čísly nenabízejí.
+- **Výzkum zapečetěný na jiném počítači jde číst bez převzetí:** náhledy `strom source split`, `strom sync <soubor>`
+  a `strom input names` (co by rozdělení udělalo, co by rodokmen přinesl, která příjmení po sňatku by se přidala) se
+  ukážou jako každé čtení; zápis (`--apply`, `strom sync --app`, `--undo`) dál čeká na převzetí výzkumu (`strom seal
+  adopt`). `strom repair undo <razítko> --json` bez terminálu teď odpovídá jako `strom repair`: `status:
+  "needs-consent"` s příkazem ke spuštění v terminálu, ne jen kódem 4.
+- **Codex na Windows a jeho sandbox:** agent, kterému sandbox nedovolí číst nastavení nebo zapisovat do výzkumu, se
+  dozví právě to, s příkazem ke spuštění mimo sandbox, místo aby hledal nastavení, které bylo zapnuté. Codex pouští strom
+  ze sandboxu jen jako holý příkaz — bez `&`, roury nebo `cd` před ním, bez pomlčky (–) a bez uvozovek uvnitř textu
+  v uvozovkách v argumentech; agent se to dozví (AGENTS.md, `strom guide`, rada sandboxu), i s cestou pro delší text:
+  jeho příkaz v souboru v `notes/`, spuštěný přes `strom batch --file`. Úkol, u kterého sandbox nebo oprávnění třikrát
+  za sebou nepustily strom k výzkumu (nic se nezapsalo), se odloží s důvodem a s tím, co pomůže (`strom task show`),
+  a běh pokračuje dalším úkolem; vždy nejvýš jeden — když sandbox odmítá všechno, běh skončí jako dřív. `strom error`
+  ukáže, které příkazy byly odmítnuty, zkrácené a zamaskované.
 
 ## 1.31.0
 
