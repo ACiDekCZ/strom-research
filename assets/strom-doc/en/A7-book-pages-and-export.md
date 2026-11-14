@@ -178,10 +178,14 @@ the places of the life on a map, a life axis with history, clippings from regist
 
 - **Save as HTML** creates one self-contained file that opens offline in any browser. Groups of content and the
   privacy of living people can be chosen ([A7.2.1](#A7.2.1)); the choice is remembered.
+- **From app 3.28.0:** in the app's window **◎ Ancestors' path on the map ›** leads to the person's ancestors' path
+  in Migration over time ([A6.5.4](A6-views.md#A6.5.4)). A saved page does not have it. It stands in the section
+  **Places of life**; a person with at most one place of their own who has ancestors on the map has it on its own row
+  where the section would be.
 - **Controls:** the menu of a person's card, **Person page**; also from the fan.
 - **Since:** app 3.18.0
 
-<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 -->
+<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 · 3.28.0: app:src/person-page-map.ts pp-map-path (jen mode app), src/ui/person-page-ui.ts personPageMapPath, commit 34e82d43 · mapPathRowHtml (bez oddílu Místa života), commit caea192a -->
 
 <a id="A7.7"></a>
 ## A7.7 Saved HTML (a standalone file)

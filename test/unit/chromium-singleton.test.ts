@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { handToRunning, openWebApp, singletonMessage } from "../../src/core/chromium.ts";
 
 const unix = process.platform !== "win32";
@@ -59,6 +59,20 @@ async function startedSoon(marker: string): Promise<boolean> {
   return until(() => fs.existsSync(marker), 30_000);
 }
 
+/**
+ * How long this computer takes now to start a Node process and let it end — the budget of a check that would otherwise
+ * be fixed milliseconds (a busy computer outruns them: found under the whole suite). The longest of three.
+ */
+function nodeStartMs(): number {
+  let most = 0;
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    most = Math.max(most, Date.now() - t);
+  }
+  return most;
+}
+
 async function neverStarted(marker: string, s: { home: string; env: Record<string, string> }): Promise<boolean> {
   const control = path.join(s.home, "control");
   const t = Date.now();
@@ -73,10 +87,12 @@ test("the message a second start of the browser sends: START, the folder, the co
   assert.equal(singletonMessage(["/A/B", "--app-id=x", "--u=https://a.example/?q=Řehoř"], "/"), "START\0/\0/A/B\0--app-id=x\0--u=https://a.example/?q=Řehoř");
 });
 
-test("no socket: not handed over, at once", () => {
+test("no socket: not handed over, at once — no program started to try (less than one Node process takes to start now)", () => {
   const t = Date.now();
   assert.equal(handToRunning(path.join(os.tmpdir(), "no-such-strom-socket"), ["x"]), false);
-  assert.ok(Date.now() - t < 1000);
+  const took = Date.now() - t;
+  const budget = nodeStartMs();
+  assert.ok(took < budget, `${took} ms, one Node process ${budget} ms`);
 });
 
 test("macOS, the browser running: the app's address goes through its socket and no program starts (no Dock icon)", { skip: !unix }, async () => {
@@ -117,7 +133,10 @@ test("a browser that never answers: not handed over within the time given", { sk
   try {
     const t = Date.now();
     assert.equal(handToRunning(path.join(s.home, "Library", "Application Support", "Google", "Chrome", "SingletonSocket"), ["x"], 800), false);
-    assert.ok(Date.now() - t < 5000);
+    // its 800 ms and the hand-over's own Node process, with room: never waited for longer (a budget of this computer now)
+    const took = Date.now() - t;
+    const budget = 800 + 3 * nodeStartMs();
+    assert.ok(took < budget, `${took} ms, the budget ${budget} ms`);
   } finally {
     browser.kill();
     fs.rmSync(s.home, { recursive: true, force: true });

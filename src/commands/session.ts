@@ -7,7 +7,7 @@
 
 import { RUN_TURNS } from "../core/queue.ts";
 import { queueVerify } from "../core/verify.ts";
-import { opsLogsOf } from "../core/opslog.ts";
+import { opsLogs, opsLogsOf } from "../core/opslog.ts";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -20,6 +20,7 @@ import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
+import { cutDenied, DENIED_KEPT, DENIED_KEPT_CHARS } from "../core/report.ts";
 import { revivePhone } from "../core/phone.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { sandboxOfRun } from "../core/sandbox.ts";
@@ -730,8 +731,32 @@ function parseUntil(v: unknown): number | undefined {
   return d.getTime();
 }
 
+/**
+ * The commands refused in a session, kept for strom error alone (K031: which of strom's commands the agent's sandbox
+ * refused — the count alone in the session's metrics said nothing of them): beside its log in .strom/runs, never in
+ * data/ (the research is committed and synced) — at most DENIED_KEPT, each cut to DENIED_KEPT_CHARS (core/report.ts
+ * runDenied masks each whole as a log's line, then cuts it for the report).
+ * Diagnostics only: a file that cannot be written is left out.
+ */
+function keepDenied(root: string, session: string, denied: string[], whole: Set<number>): void {
+  const kept = denied.slice(0, DENIED_KEPT).map((d, i) => ({ command: cutDenied(d, DENIED_KEPT_CHARS), strom: deniedStrom(d, whole.has(i)), whole: whole.has(i) }));
+  try {
+    const dir = path.join(root, ".strom", "runs");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${session}.denied.json`), JSON.stringify(kept, null, 2) + "\n", "utf8");
+  } catch {
+    // (diagnostics only)
+  }
+}
+
 /** Sessions in a row that worked on a task without writing anything to the research before it is parked. */
 const MAX_IDLE_SESSIONS = 2;
+
+/** strom run --tasks: the most tasks one run settles. */
+export const TASKS_MAX = 100;
+
+/** The states of a task settled after its session (strom run --tasks): done, waiting for the user, parked, dropped. */
+const SETTLED: readonly string[] = ["done", "waiting", "parked", "dropped"];
 
 /** How many research writes a session made (bookkeeping of sessions and tasks does not count). */
 function sessionWrites(tree: Tree, sessionId: string): number {
@@ -765,6 +790,74 @@ function idleSessions(tree: Tree, taskId: string): number {
   return n;
 }
 
+/**
+ * Sessions in a row on a task in which strom was refused to the agent (its permissions, its sandbox) and nothing was
+ * recorded, before the task is parked and the run goes on with the next one (K031: Codex's sandbox on Windows kept
+ * strom from .git, and run after run started the same task — 14 in a row). Three, the maintainer's choice: once or
+ * twice may be a passing refusal (a command the agent wrote another way, a folder trusted since), the person meanwhile
+ * told by each run's stop; a third in a row is the task's way of being worked on here — the others are tried.
+ */
+const MAX_DENIED_SESSIONS = 3;
+
+/**
+ * The last sessions on a task strom was refused in that recorded nothing, newest first (ended from outside: skipped) —
+ * since the task was last parked or woken: a task the person woke (its agent's trust or rules changed meanwhile) starts
+ * its count again, one passing refusal never parks it at once (K031).
+ */
+function deniedSessions(tree: Tree, taskId: string): number {
+  const sessions = tree
+    .list<Session>("session")
+    .filter((x) => x.task === taskId && x.state !== "open")
+    .sort((a, b) => (b.ended ?? b.updated).localeCompare(a.ended ?? a.updated));
+  const row: Session[] = [];
+  for (const x of sessions) {
+    if (x.endedBy === "user" || x.endedBy === "run" || x.endedBy === "chat" || x.summary === BY_USER || x.summary === RUN_GONE) continue;
+    if ((x.metrics?.stromDenied ?? 0) === 0 || sessionWrites(tree, x.id) > 0) break;
+    row.push(x);
+  }
+  if (!row.length) return 0;
+  const since = lastParkOrWake(tree, taskId, row.reduce((at, x) => (x.started < at ? x.started : at), row[0]!.started));
+  return since ? row.filter((x) => x.started > since).length : row.length;
+}
+
+/**
+ * When a task was last parked or woken (task.park, task.wake: by a run, the person, an archive's decision), from the
+ * operation logs of the days since `from` alone (a session strom was refused in is of this strom's, never older than its
+ * daily logs) — undefined when not since then.
+ */
+function lastParkOrWake(tree: Tree, taskId: string, from: string): string | undefined {
+  const day = from.slice(0, 10);
+  let last: string | undefined;
+  for (const file of opsLogs(tree.dataDir)) {
+    const m = /[\\/]ops[\\/](\d{4}-\d{2})[\\/](\d{2})[\\/][^\\/]+$/.exec(file);
+    if (!m || `${m[1]}-${m[2]}` < day) continue;
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+      if (!line.includes(taskId) || !/"op":"task\.(?:park|wake)"/.test(line)) continue;
+      try {
+        const op = JSON.parse(line) as { at?: unknown; op?: unknown; targets?: unknown };
+        if (typeof op.at !== "string" || !Array.isArray(op.targets) || !op.targets.includes(taskId)) continue;
+        if (op.at >= from && (!last || op.at > last)) last = op.at;
+      } catch {
+        // (a line cut short: not this one)
+      }
+    }
+  }
+  return last;
+}
+
+/**
+ * A task parked for strom refused in its sessions that holds the one such park (K031): no session of any task has
+ * recorded anything since its last one — a sandbox that refuses everything parks one task, never empties the queue.
+ */
+function deniedParkHolds(tree: Tree): Task | undefined {
+  const ended = tree.list<Session>("session").filter((x) => x.state !== "open");
+  for (const t of tree.list<Task>("task").filter((x) => x.state === "parked" && x.parkedFor === "denied")) {
+    const since = ended.filter((x) => x.task === t.id).reduce((at, x) => ((x.ended ?? x.updated) > at ? (x.ended ?? x.updated) : at), "");
+    if (!ended.some((x) => (x.ended ?? x.updated) > since && sessionWrites(tree, x.id) > 0)) return t;
+  }
+  return undefined;
+}
+
 register(
   updatedDuringRun({
   path: ["run"],
@@ -779,7 +872,12 @@ register(
     "--minutes). The agent knows when its session is stopped (the brief; strom's output counts down its last\n" +
     "10 minutes, a short session its last quarter); at --minutes it is stopped, and Claude Code, Codex, OpenCode and Grok\n" +
     "get 5 minutes more to write down what they found and close (an unfinished task goes back to the queue); a task\n" +
-    "that comes back twice in a row with nothing recorded is parked. --task picks the tasks (one session each, in that order;\n" +
+    "that comes back twice in a row with nothing recorded is parked, and one strom was refused in (the agent's sandbox or\n" +
+    "permissions) three sessions in a row — one such at a time, until a session records something; else the run stops.\n" +
+    "--tasks <n> ends after n tasks settled — done, waiting for the user, parked or dropped after their session (a task\n" +
+    "parked by the run as stuck too); a task given back to the queue (--continue, the time limit, an interruption) does\n" +
+    "not count; at most 2×n sessions (then it stops: sessions). The gate is asked once, as with --max.\n" +
+    "--task picks the tasks (one session each, in that order;\n" +
     "one done or held by another agent meanwhile is left out). --loop: session after session for as long as there\n" +
     "is work. A gate (setting run.gate, or --gate; plugins/gates/<name>) is asked before each session of --loop and\n" +
     "--until: go on, wait (the run waits and asks again) or stop — the user's condition, e.g. the subscription's room\n" +
@@ -802,6 +900,7 @@ register(
     { name: "history", type: "boolean", hidden: true, description: "only the tasks of the history of the places, in their order, whatever its pace (the places to map first)" },
     { name: "places", type: "boolean", hidden: true, description: "only the task of identifying the places of the facts: one session for each batch of its queue, for as long as places wait (at most --max, default 1)" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
+    { name: "tasks", type: "string", value: "<n>", description: "end after n tasks settled (done, waiting, parked, dropped; 1–100), at most 2×n sessions — not with --max, --loop, --task, --until or another choice of the tasks" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
     { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
     { name: "gate", type: "string", value: "<name [n]>", description: 'ask this gate before each session, with what it is given, e.g. "claude-usage 20" (default: run.gate)' },
@@ -812,7 +911,7 @@ register(
     { name: "model", type: "string", value: "<model>", description: "model of the main agent (default: model.lead)" },
     { name: "interactive", type: "boolean", description: "give the agent the terminal (you can talk to it)" },
   ],
-  examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
+  examples: ["strom run", "strom run --tasks 5", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     refuseInArchive(ctx.tree(), "strom run", ctx.settings.agent(ctx.tree().config).value);
     // the agent's CLI not here (its desktop app alone): said before anything is asked (core/agentcli.ts)
@@ -846,6 +945,15 @@ register(
         ui(lang, "ui.consent.effort.run", { agent: name, effort: runEffort, now: effort ?? ownEffort(ctx.env, runnerId) ?? ui(lang, "ui.effort.default", { agent: name }) }),
       );
     }
+    // So many tasks settled (the Strom app's "work on the queue", N tasks): sessions until n tasks are done, waiting,
+    // parked or dropped — never more than 2×n sessions; alone, the gate asked once as for --max.
+    const tasksN = opts.tasks === undefined ? undefined : Number(opts.tasks);
+    if (tasksN !== undefined) {
+      if (!/^\d{1,3}$/.test(String(opts.tasks).trim()) || !Number.isInteger(tasksN) || tasksN < 1 || tasksN > TASKS_MAX)
+        throw new UsageError(`--tasks must be a whole number from 1 to ${TASKS_MAX}`, { code: "run.tasks" });
+      const with_ = (["max", "loop", "task", "until", "places", "history"] as const).filter((o) => opts[o] !== undefined && opts[o] !== false);
+      if (with_.length) throw new UsageError(`--tasks ends after n tasks settled: not with ${with_.map((o) => `--${o}`).join(", ")}`, { code: "run.tasks" });
+    }
     const until = parseUntil(opts.until);
     // The history of the places first (the person's word): its tasks alone, whatever its pace — only while it is on.
     const historyOnly = Boolean(opts.history);
@@ -858,9 +966,11 @@ register(
     const placesOnly = Boolean(opts.places);
     if (placesOnly && (historyOnly || opts.task !== undefined || opts.research !== undefined))
       throw new UsageError("--places takes the task of identifying the places alone: not with --task, --research or --history", { code: "run.places" });
+    // the tasks settled after their session, each once (--tasks)
+    const settled = new Set<string>();
     // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
     const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
-    const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
+    const max = tasksN !== undefined ? 2 * tasksN : opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
     if (max !== Infinity && (!Number.isInteger(max) || max < 1)) throw new UsageError("--max must be a positive number");
     const minutes = ctx.settings.number("run.minutes", treeCfg, DEFAULT_RUN_MINUTES);
     const gate = await runGate(ctx, opts);
@@ -883,12 +993,12 @@ register(
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
     let stopCode: Stop = "done";
-    let stopValues: Record<string, string> = {};
+    let stopValues: Record<string, string | number> = {};
     // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
     // it), then the run stops — no next session. Ctrl-C again, a closed terminal, a shutdown: stop the agent now,
     // close its session, give the task back. (Windows: the console stops the agent itself — now.)
@@ -1241,6 +1351,7 @@ register(
         const whole = new Set(result.deniedWhole ?? []);
         const stromDenied = result.denied?.filter((d, i) => deniedStrom(d, whole.has(i))).length ?? 0;
         if (stromDenied) result = { ...result, metrics: { ...result.metrics, stromDenied } };
+        if (result.denied?.length) keepDenied(root, session.id, result.denied, whole);
         // the agent closed the session itself and its process then failed by its exit code alone (OpenCode: 1 after its
         // last step ended normally, nothing else said wrong): done, the run goes on — the exit code kept in the log
         if (result.outcome === "error" && result.exitOnly && s.state === "closed") {
@@ -1274,12 +1385,33 @@ register(
         // A task that comes back again and again without anything being recorded
         // is stuck: park it (the user decides), work on the next one.
         const back = after.get<Task>(task.id);
-        const idle = back && back.state === "open" ? idleSessions(after, task.id) : 0;
+        // strom refused to the agent in this task's sessions again and again (its sandbox): parked, the run goes on with
+        // the next task — one such park at a time, until a session records something (deniedParkHolds); else the stop
+        const refusedRow = !ranStrom && stromDenied && back?.state === "open" ? deniedSessions(after, task.id) : 0;
+        const parkDenied = refusedRow >= MAX_DENIED_SESSIONS && !deniedParkHolds(after);
+        if (parkDenied) {
+          // Codex in its sandbox: what the run's stop would have said of it, with the park — also when the task was the
+          // run's last and the run ends as done (K031)
+          const codexSandbox = runnerId === "codex" && permissions !== "full";
+          const why =
+            `${refusedRow} sessions in a row: the agent's sandbox or permissions kept strom from the research — needs a look (strom task show ${task.id})` +
+            (codexSandbox
+              ? ". Codex's sandbox lets strom out only as a command of its own (the research's rules in .codex/rules/strom.rules, renewed by strom agents sync); on Windows .git stays closed inside it. Codex at the level without the sandbox, or another agent, is a choice in strom's settings"
+              : "");
+          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked", parkedReason: why, parkedFor: "denied" }), {
+            op: "task.park",
+            summary: `${task.id} park: ${refusedRow} sessions strom was refused in`,
+            reason: why,
+          });
+          out(ui(lang, "ui.run.parked.denied", { task: task.id, n: refusedRow }));
+          if (codexSandbox) out(ui(lang, "ui.run.parked.denied.codex"));
+        }
+        const idle = back && back.state === "open" && !parkDenied ? idleSessions(after, task.id) : 0;
         if (idle >= MAX_IDLE_SESSIONS) {
           const why = `${idle} sessions in a row recorded nothing for it — needs a look (strom task show ${task.id})`;
           // its images wait for the person's decision about an archive: said, so the decision wakes it
           const decision = permissionWait(after, back!, undefined, { queue: true });
-          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked", parkedReason: why, ...(decision ? { awaitsPermission: decision } : {}) }), {
+          update<Task>(after, task.id, "task", ({ parkedFor: _f, ...t }) => ({ ...t, state: "parked", parkedReason: why, ...(decision ? { awaitsPermission: decision } : {}) }), {
             op: "task.park",
             summary: `${task.id} park: ${idle} sessions without a result`,
             reason: why,
@@ -1298,6 +1430,9 @@ register(
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
         // what strom's own hook refused (its web limits) is strom's, never the permissions'
         if (result.refused?.length) out(ui(lang, "ui.run.refused", { n: result.refused.length, per: ctx.settings.webPerHost(after.config), what: result.refused.slice(0, 3).join(" · ") }));
+        // --tasks: the task settled after its session (done, waiting, parked — by the run as stuck too —, dropped) counts
+        // once; one given back to the queue does not
+        if (tasksN !== undefined && SETTLED.includes(after.get<Task>(task.id)?.state ?? "open")) settled.add(task.id);
         if (!committed) {
           stopCode = "problems";
           break;
@@ -1320,7 +1455,7 @@ register(
         // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
         // when strom worked for it otherwise. (The plan's limit and a login gone come first: they ended the session,
         // the limit said with when it resets; a refusal is met again by the run after them.)
-        if (!ranStrom && stromDenied) {
+        if (!ranStrom && stromDenied && !parkDenied) {
           // Codex: its sandbox (strom out of it only as a command of its own, by the research's rules; on Windows .git
           // closed inside it) — said with what is the person's choice; nothing more is started, the task stays queued
           stopCode = runnerId === "codex" && permissions !== "full" ? "denied.codex" : "denied";
@@ -1337,6 +1472,19 @@ register(
           stopValues = { detail: truncate(result.text, 120) };
           break;
         }
+        // --tasks: n tasks settled — the run ends
+        if (tasksN !== undefined) {
+          if (settled.size >= tasksN) {
+            stopCode = "tasks";
+            stopValues = { n: settled.size };
+            break;
+          }
+        }
+      }
+      // --tasks: its sessions spent (2×n) before n tasks settled
+      if (tasksN !== undefined && stopCode === "done") {
+        stopCode = "sessions";
+        stopValues = { n: settled.size, max };
       }
     } finally {
       for (const sig of signals) process.off(sig, onSignal);
@@ -1350,7 +1498,7 @@ register(
       historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, (stopCode === "model" && stopValues.agent === "codex" ? "ui.run.stop.model.codex" : `ui.run.stop.${stopCode}`) as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
-      data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
+      data: { sessions: report, stopped: reason, stop: stopCode, ...(tasksN !== undefined ? { settled: [...settled] } : {}), ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
       exitCode: ["failed", "problems", "auth", "model", "denied", "denied.codex", "gate.error"].includes(stopCode) ? 1 : 0,
     };
   },

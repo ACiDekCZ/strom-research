@@ -84,8 +84,12 @@ behind the facts. It takes the weakest of the card's three facts: name, birth an
 - **The tip at the mark:** “Weakest fact on the card: …” and in words what the mark means.
 - **Controls:** **Settings → Person card → Show on card → Sources and reliability** (on by default).
 - **Since:** app 3.26.0
+- **From app 3.28.0:** when the tree is zoomed out below 0.55 the mark is larger (about 10 px on the screen), below
+  0.3 it is not drawn. A card row (name, dates) ends before the enlarged mark with "…" only where the mark reaches at
+  the given zoom; rows above it stay whole, and below 0.3 all are whole. Names are laid out as at 100 %, so they do not
+  stay narrowed after zooming back in.
 
-<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · 3.27.0: app:dde0151a src/reliability.ts citesSourceRead (FactCitationRef, citationQuality; holé id = záznam změny výzkumu podle pramene), cardFactCitations, withChangeRecord · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) -->
+<!-- zdroj: app:7b0471f8 src/reliability.ts CARD_STATUS_FACTS, CardStatusClass, cardStatusClassOfFact, otherFactsClass, card status bez původu (full/partial/none) · src/ui/card-signals-ui.ts (signál status, CARD_SIGNAL_DEFAULTS vše zapnuto) · 3.27.0: app:dde0151a src/reliability.ts citesSourceRead (FactCitationRef, citationQuality; holé id = záznam změny výzkumu podle pramene), cardFactCitations, withChangeRecord · strings.ts cardDensity.cardShow, cardStatus, cardStatusSub, cardShowHint, reliability.cardFacts, cardMark.* · CHANGELOG.cs.md 3.26.0 (Jedna značka na kartičce) · app:669c08f0 src/reliability.ts reliabilityOptionsOf, treeOriginWords (strom výzkumu s původem v datech: stejně s mostem i bez) · 3.28.0: app c0bc007f src/zoom.ts ZOOM_FAR 0.55, ZOOM_TINY 0.3 · index.html #tree-canvas.zoom-far .card-status-mark (scale 0.85 / zoom), .zoom-tiny skrytá, --mark-gap, --far-step (okraj jen u řádků, kam značka dosáhne), text-overflow ellipsis · src/renderer.ts fitCardNames (jako při 100 %), markGapRows · dirigent:prace/1113-app-drobnosti-1112 §5 -->
 
 <a id="S7.3"></a>
 ## S7.3 Verify at a fact

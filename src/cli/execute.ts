@@ -98,6 +98,9 @@ export function resolveCommand(argv: string[]): Resolved {
   const leftover = found ? words.slice(found.used) : words;
   // Words that are not options — the values of global options (--lang en) are no stray words.
   const extra = rest.filter((r, i) => !r.startsWith("-") && !VALUE_GLOBALS.has(rest[i - 1] ?? ""));
+  // a command strom renamed, called by its old name (rules an agent read before, a conversation older than the update):
+  // the same call under its new name, never run for it
+  if (words.length === 0 && extra[0] !== undefined && Object.hasOwn(RENAMED, extra[0])) throw renamedCommand(argv, extra[0]);
   if (found && leftover.length === 0) {
     if (found.def.path.length === 0 && extra.length && rest[0] !== "--") throw unknownCommand(extra.slice(0, 2));
     return { def: found.def, rest };
@@ -112,6 +115,17 @@ export function resolveCommand(argv: string[]): Resolved {
     throw unknownCommand([...group, extra[0]!], [...typedGroup, extra[0]!]);
   }
   throw unknownCommand([...words, ...extra].slice(0, Math.max(words.length + 1, 2)));
+}
+
+/** Commands strom renamed: the old name → the new one, which takes the same options. */
+export const RENAMED: Record<string, string> = { facts: "query" };
+
+/** A renamed command called by its old name: the same call under the new name, to run as it is. */
+function renamedCommand(argv: string[], old: string): UsageError {
+  const now = RENAMED[old]!;
+  const at = argv.indexOf(old);
+  const call = ["strom", ...argv.map((a, i) => (i === at ? now : shellArg(a)))].join(" ");
+  return new UsageError(`"strom ${old}" is now "strom ${now}" (the same options)`, { hint: call, code: "command.renamed", params: { old, now, call } });
 }
 
 /** Signal: a group name alone — the caller prints the group's short help. */

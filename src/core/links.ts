@@ -56,7 +56,8 @@ function handlerName(env: Env): string {
  * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself); an experiment turned on (the
  * person's question in the terminal) or off for the research (at once); the history of a place and its surroundings
  * looked for (the estimate and the person's question in the terminal); the places to identify, the queue or one place
- * (the queue and the estimate, the session on the person's yes in the terminal); strom's fixes of the research, one of them, or one
+ * (the queue and the estimate, the session on the person's yes in the terminal); the agent working on the queue alone,
+ * n tasks or for as long as there is work (what starts shown, started on the person's yes in the terminal); strom's fixes of the research, one of them, or one
  * put back (shown, then set right or put back only on the person's word in the terminal); the research back in time (the
  * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal);
  * a hypothesis decided, left open or its decision changed (the person's, in the terminal; a variant picked in the app,
@@ -68,7 +69,7 @@ export const LINK_STORY_DOS = ["final", "keep"] as const;
 /** The research followed live: start: only its bridge started (at its last address), no window of the app opened. */
 export const LINK_LIVE_DOS = ["start"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -97,6 +98,15 @@ export const LINK_HISTORY_DOS = ["search"] as const;
  */
 export const LINK_PLACES_DOS = ["run"] as const;
 export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
+/**
+ * What a link does with the queue (the Strom app's "work on the queue"): the agent working alone — for as long as there
+ * is work (loop: strom run --loop, only under a gate) or n tasks settled (tasks: strom run --tasks n). What starts is
+ * shown and started only on the person's yes in the terminal (the bridge never starts one).
+ */
+export const LINK_WORK_DOS = ["loop", "tasks"] as const;
+/** The most tasks a link asks for (strom run --tasks: 1–100); none named: the app's default. */
+export const LINK_WORK_MAX = 100;
+export const LINK_WORK_DEFAULT = 5;
 /**
  * strom's fixes a link names (commands/fixchecks.ts FIX_CHECKS, the same ids — a test holds them together): only one of
  * these, never a name the link brings.
@@ -220,6 +230,7 @@ export type Link =
   | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "history"; tree: string; place: string; do: (typeof LINK_HISTORY_DOS)[number] }
   | { action: "places"; tree: string; do: (typeof LINK_PLACES_DOS)[number]; place?: string }
+  | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
@@ -373,6 +384,17 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       if (!q.has("do")) throw new LinkError("nothing to do named");
       const place = idOf(q, "place", PLACE, false);
       return { action, tree: id, do: oneOf(q, "do", LINK_PLACES_DOS), ...(place ? { place } : {}) };
+    }
+    case "work": {
+      // the agent working on the queue: the one thing done (required); n tasks only with tasks, a whole number 1–100 of
+      // at most three digits — never a text
+      if (!q.has("do")) throw new LinkError("nothing to do named");
+      const what = oneOf(q, "do", LINK_WORK_DOS);
+      if (!q.has("n")) return { action, tree: id, do: what };
+      if (what !== "tasks") throw new LinkError("n only with do=tasks");
+      const n = q.get("n") ?? "";
+      if (!/^\d{1,3}$/.test(n) || Number(n) < 1 || Number(n) > LINK_WORK_MAX) throw new LinkError(`n is 1–${LINK_WORK_MAX}`);
+      return { action, tree: id, do: what, n: String(Number(n)) };
     }
     case "fixes": {
       // strom's fixes: all of them, one of strom's own by its id, or what one set right put back — only shown in the

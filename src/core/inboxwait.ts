@@ -19,6 +19,7 @@ import type { Media, RecordSet, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { collectFiles, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, numberInName, parseImageList } from "./media.ts";
 import { waitKindOf } from "./waitkind.ts";
+import { imagesIndex } from "./mediaindex.ts";
 import { runs } from "../cli/format.ts";
 
 /** A file not written for this long has settled: it may be taken. */
@@ -58,9 +59,14 @@ export function inboxWaits(tree: Tree): InboxWait[] {
   return tree.list<Task>("task").map((t) => inboxWaitOf(tree, t)).filter((w): w is InboxWait => !!w);
 }
 
-/** The image numbers of a book registered in the research (a part counts: it was asked for too). */
+/**
+ * The image numbers of a book registered in the research (a part counts: it was asked for too) — from the images' index
+ * (core/mediaindex.ts: the same images, kept in .strom/cache while their folder is as it was), never every image record:
+ * a long research has tens of thousands, read whole for each task waiting for images at every look of the bridge (its
+ * /status, the desktop's widget every 15 s) — a second or two each time (found 2026-11-13: a bridge at ~40 % of a CPU).
+ */
 export function registeredImages(tree: Tree, recordset: string): Set<number> {
-  return new Set(tree.list<Media>("media").filter((m) => !m.retracted && m.recordset === recordset && m.image !== undefined).map((m) => m.image!));
+  return new Set(imagesIndex(tree).sets.get(recordset)?.images ?? []);
 }
 
 /** The image files lying in a folder of the inbox, in their order (as a person sorts them: 2 before 10). */

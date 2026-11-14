@@ -11,6 +11,7 @@ import http from "node:http";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
+import { BRIDGE, Started } from "../bridges.ts";
 import { reviveLive } from "../../src/core/live.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32" };
@@ -68,10 +69,13 @@ async function copied(o: { older?: boolean } = {}) {
   const read = (root: string, name: string) => JSON.parse(fs.readFileSync(file(root, name), "utf8")) as Record<string, unknown>;
   const write = (root: string, name: string, data: Record<string, unknown>) => fs.writeFileSync(file(root, name), JSON.stringify(data, null, 2));
   const log = (root: string) => (fs.existsSync(file(root, "live.log")) ? fs.readFileSync(file(root, "live.log"), "utf8") : "");
-  // the bridges this test started, ended by their own numbers
-  const started = new Set<number>([info.pid]);
+  // the bridges this test started, ended by their own numbers — each only while it is the one started (test/bridges.ts)
+  const dirs = w.dirs();
+  const bridges = new Started();
+  const started = { add: (pid: number) => bridges.add(pid, BRIDGE, dirs) };
+  started.add(info.pid);
   const end = () => {
-    for (const pid of started) if (alive(pid)) process.kill(pid, "SIGTERM");
+    bridges.end("SIGTERM");
     w.cleanup();
   };
   return { w, a, b, info, read, write, log, started, end, liveA: () => fs.readFileSync(file(a, "live.json"), "utf8") };

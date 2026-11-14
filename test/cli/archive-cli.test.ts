@@ -135,10 +135,11 @@ test("P4 a family tree taken in by an archive: its people are in it at once, sai
     },
     partnerships: { u1: { id: "u1", person1Id: "p_a", person2Id: "p_b", childIds: [], status: "married" } },
   };
+  // facts: the two births and the couple's wedding (married with nothing more known of it: a bare one, as its GEDCOM)
   for (const [lang, line] of [
-    ["cs", /^ {2}I0001 rodokmen převzat – osoby: 2 · rodiny: 1 · údaje: 2, vše jako vodítka \(pramen S0001\)$/m],
-    ["en", /^ {2}I0001 family tree taken in – people: 2 · families: 1 · facts: 2, all as leads \(source S0001\)$/m],
-    ["de", /^ {2}I0001 Stammbaum übernommen – Personen: 2 · Familien: 1 · Angaben: 2, alle als Hinweise \(Quelle S0001\)$/m],
+    ["cs", /^ {2}I0001 rodokmen převzat – osoby: 2 · rodiny: 1 · údaje: 3, vše jako vodítka \(pramen S0001\)$/m],
+    ["en", /^ {2}I0001 family tree taken in – people: 2 · families: 1 · facts: 3, all as leads \(source S0001\)$/m],
+    ["de", /^ {2}I0001 Stammbaum übernommen – Personen: 2 · Familien: 1 · Angaben: 3, alle als Hinweise \(Quelle S0001\)$/m],
   ] as const) {
     const w = new World();
     noAgent(w);

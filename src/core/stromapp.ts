@@ -761,6 +761,41 @@ export function appKeepsSourceFields(version: string | undefined): boolean {
   return !!v && isAppVersion(v) && compareVersions(v, APP_KEEPS_SOURCE_FIELDS) >= 0;
 }
 
+/**
+ * The first Strom app that decides which people share an event (spec 085 K1.3; the app's
+ * ZADANI_VYZKUM_sdilena-udalost.md, 6.4): a sync of its file takes the app's mark of a fact the research has as the
+ * user's — set or changed, or taken off where the app was given it (the person separated from the shared event since)
+ * — `2 _STROM_SHARE` and `2 _STROM_ROLE` of its GEDCOM (HEAD 1 SOUR STROM, 2 VERS), `shareId` and `roleAt` of its JSON
+ * (by its data version, APP_DATA_EVENT_SHARES). Before it (an older app, a version unknown) a sync only adds a mark to a
+ * fact that has none; the marks are written, kept and given back whatever the version. The app's answer (its
+ * ZADANI_VYZKUM_sdilena-udalost.md, "Strom 3.28.0-beta.7 je venku"): 3.28.0, its JSON from data version 20.
+ * Another copy of the app (its beta, its development) from APP_DECIDES_SHARES_BETA = 3.28.0-beta.7.
+ */
+export const APP_DECIDES_SHARES: string | undefined = "3.28.0";
+
+/** The first beta of the app that decides which people share an event (another copy of the app from it; none: never). */
+export const APP_DECIDES_SHARES_BETA: string | undefined = "3.28.0-beta.7";
+
+/** The data version of the Strom app's JSON from which it decides which people share an event (shareId); none: never. */
+export const APP_DATA_EVENT_SHARES: number | undefined = 20;
+
+/**
+ * Does the Strom app of this version decide which people share an event (a mark of a fact set, changed or taken off by
+ * a sync of its GEDCOM)? An app of unknown version: no; a gate not set: no, in production and in another copy alike.
+ */
+export function appDecidesShares(settings: Settings, version?: string, gate: string | undefined = APP_DECIDES_SHARES, beta: string | undefined = APP_DECIDES_SHARES_BETA): boolean {
+  // as appShowsOrigin, never through it: a gate not set given there is its own default (APP_SHOWS_ORIGIN)
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/** Does the Strom app's JSON of this data version decide which people share an event (shareId)? None said: no. */
+export function appDataDecidesShares(dataVersion: number | undefined, gate: number | undefined = APP_DATA_EVENT_SHARES): boolean {
+  return gate !== undefined && typeof dataVersion === "number" && dataVersion >= gate;
+}
+
 /** Does the Strom app of this version read a source's location field by field (_STROM_FOLIO, _STROM_IMAGE, _STROM_LOCATOR)? */
 export function appReadsSourceFields(settings: Settings, version?: string, gate: string | undefined = APP_READS_SOURCE_FIELDS, beta: string | undefined = APP_READS_SOURCE_FIELDS_BETA): boolean {
   return newTagsFor(settings, version, gate, beta);

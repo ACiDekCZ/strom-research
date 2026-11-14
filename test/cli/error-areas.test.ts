@@ -9,6 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { zipTexts } from "./error.helpers.ts";
+import { cutDenied } from "../../src/core/report.ts";
 
 const opts = { skip: !hasGit };
 const hasTar = spawnSync("tar", ["--version"]).status === 0;
@@ -206,4 +207,69 @@ test("--since: the logs of that time only; a date or 2d, 1w, 12h", opts, async (
   const bad = await w.run(["error", "--yes", "--since", "soon"]);
   assert.equal(bad.code, 2);
   w.cleanup();
+});
+
+test("the commands refused in a run's session: in the agent's sessions, masked as a log's line, then cut short (K031)", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["person", "add", "Vojtěch /Lhoták/", "--sex", "M"]);
+  await w.ok(["session", "start"]);
+  await w.ok(["session", "close", "--summary", "nic", "--next", "nic"]);
+  const root = w.treeDir("Lhotákovi");
+  const home = w.env.HOME!;
+  // a quote longer than the report's cut, an unknown name, a path under the home folder and a Windows one, a long tail
+  const long = `PowerShell: strom.cmd note add P0001 --text-cs "Vojtěch Lhoták ${"z Lhoty ".repeat(30)}" --quote "tajný citát Ondřej Zvonař"${" && strom task list".repeat(12)}`;
+  const named = `Bash: strom person add Ondřej Zvonař --sex M`;
+  const paths = `Bash: cd ${home}/Projects/Zvonařovi/rodokmen && strom note add P0001 --text-cs "C:\\Users\\zvonar\\Documents"`;
+  fs.mkdirSync(path.join(root, ".strom", "runs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, ".strom", "runs", "N0001.denied.json"),
+    JSON.stringify([
+      { command: long, strom: true, whole: false },
+      { command: "Bash: ls ..", strom: false, whole: true },
+      { command: named, strom: true, whole: true },
+      { command: paths, strom: false, whole: false },
+    ]),
+  );
+  const r = await w.ok(["error", "--yes", "--json", "--about", "agent"]);
+  const got = report(r.json.file);
+  const [session] = got.areas.agent.sessions as { id: string; denied?: { command: string; strom: boolean; whole: boolean }[] }[];
+  assert.equal(session!.id, "N0001");
+  const denied = session!.denied!;
+  assert.equal(denied.length, 4);
+  // what is quoted: one code each, whole (masked before it is cut), strom's own words kept
+  assert.match(denied[0]!.command, /^PowerShell: strom\.cmd note add P0001 --text-cs "‹[0-9a-f]{5}›" --quote "‹[0-9a-f]{5}›" && strom task list/u);
+  assert.ok([...denied[0]!.command].length <= 200 && denied[0]!.command.endsWith("…"), denied[0]!.command);
+  assert.doesNotMatch(denied[0]!.command, /‹[0-9a-f]{0,5}…$/u, "never a code cut in half");
+  assert.deepEqual([denied[0]!.strom, denied[0]!.whole], [true, false]);
+  assert.deepEqual(denied[1], { command: "Bash: ls ..", strom: false, whole: true });
+  // a name the research does not know: masked too
+  assert.match(denied[2]!.command, /^Bash: strom person add ‹[0-9a-f]{5}› ‹[0-9a-f]{5}› --sex M$/u);
+  // the home folder as ~, the path's own parts masked
+  assert.match(denied[3]!.command, /^Bash: cd ~\/‹[0-9a-f]{5}›\/‹[0-9a-f]{5}›\/‹[0-9a-f]{5}› && strom note add P0001 --text-cs "‹[0-9a-f]{5}›"$/u);
+  const text = JSON.stringify(denied);
+  for (const word of ["Lhoták", "Vojtěch", "Lhoty", "tajný", "citát", "Ondřej", "Zvonař", "zvonar", "rodokmen", "Projects", path.basename(home)])
+    assert.doesNotMatch(text, new RegExp(word, "u"), word);
+  // the research's sessions in every report: the same
+  const all = report((await w.ok(["error", "--yes", "--json"])).json.file);
+  assert.equal(all.areas.research.sessions.sessions[0].denied.length, 4);
+  assert.doesNotMatch(JSON.stringify(all), /Lhoták|Zvonař/u);
+  w.cleanup();
+});
+
+test("a refused command cut for the report: whole characters, never part of a word, any script (K031)", () => {
+  assert.equal(cutDenied("strom note add P0001 x"), "strom note add P0001 x");
+  for (const word of ["Lhoták", "Lhoták".normalize("NFD"), "Лхотак", "𝐋𝐡𝐨𝐭𝐚𝐤"]) {
+    const command = `${"x ".repeat(97)}${word} y`;
+    const cut = cutDenied(command);
+    assert.ok([...cut].length <= 200, word);
+    assert.equal(cut, `${"x ".repeat(97)}…`, `${word}: the word cut in half left out`);
+  }
+  assert.equal(cutDenied("x".repeat(250)).length, 1, "one word alone: nothing of it, the cut said");
+  // a masked word's code: never cut in half
+  assert.equal(cutDenied(`${"x ".repeat(96)}‹1863f› y`), `${"x ".repeat(96)}‹1863f›…`, "whole, kept");
+  for (const n of [97, 98, 99]) assert.equal(cutDenied(`${"x ".repeat(n)}‹1863f› y`), `${"x ".repeat(n)}…`, String(n));
+  // as the run keeps it: longer
+  assert.equal(cutDenied("x ".repeat(150)), `${"x ".repeat(99)}x…`);
+  assert.equal(cutDenied("x ".repeat(150), 2000), "x ".repeat(150));
 });

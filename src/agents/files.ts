@@ -26,6 +26,7 @@ import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
+import { codexWindowsRule } from "../core/writable.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -33,6 +34,7 @@ export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platfor
   const lang = langName(tree.config.lang);
   // (Windows only: written on the computer the agent works on, as its other files)
   const ps = powershellUtf8Rule("`", platform);
+  const codexWin = codexWindowsRule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
   // who decides the hypotheses (hypotheses.decide — the user's; refreshed when a conversation or a run starts)
@@ -88,7 +90,7 @@ the researcher; \`strom\` is your only way to read and change the research.
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`), no
    redirection (\`2>&1\`), no \`cd\` before them: output is already short,
    listings take \`--limit\` and \`--page\`, and such commands may be refused by
-   your permissions (Codex's sandbox lets strom out only on its own).${ps ? `\n   ${ps}` : ""}
+   your permissions (Codex's sandbox lets strom out only on its own).${ps ? `\n   ${ps}` : ""}${codexWin ? `\n   ${codexWin}` : ""}
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
@@ -135,7 +137,8 @@ the researcher; \`strom\` is your only way to read and change the research.
 
 The user watches this conversation and is usually not technical. Talk in
 ${lang}, plainly: say "the baptism of Karel in 1782", not record IDs, unless
-they ask. (Working alone — a session of strom run — nobody watches: this
+they ask, or ask a question over the data (below: the ID in brackets after
+each name). (Working alone — a session of strom run — nobody watches: this
 section is a conversation's; nothing there is said to the user, and its brief
 says how it ends.)
 
@@ -178,6 +181,26 @@ ${hypotheses}
   \`strom review P… P…\`; those no record of their own proves ("who has no
   source?"): \`strom person list --unproven\`, then \`strom review --unproven\`
   (a batch at a time).
+- **Questions over the data** ("how many millers were in the family?", "who
+  lived at house 12?"): one \`strom query\` call with filters
+  (\`--occupation mlynar --count --by generation\`; the stories holding a
+  word: \`--story mlyn\`), never \`find\` and \`show\` person by person for
+  such a question; answer with each person's name and their ID in brackets
+  after it (Karel Lhoták (P0012) — so it opens in the app: \`strom app
+  --person P…\`), the relation in words whole as \`strom query\` gives it,
+  never shortened, the source by its title with its S… in brackets, and how
+  sure each fact is: only a proven one is told as a fact;
+  probable, possible and a lead are not proven — say so, never as a fact. A
+  story retells the facts: answer from the facts and sources, a story only
+  shows where to look. \`strom query\` answers them and shows where to look;
+  whose a record is, who a person is, verifying and writing facts go as ever
+  (\`strom person show\`, the sources, the method) — a row of it is not
+  enough for that.
+  An occupation \`strom query\` says is in no list (found only as
+  written), or a form of one the records name that the list lacks (another
+  language, an old spelling): add it with its other forms — \`strom
+  occupation add <form> <form> [de:<form> la:<form>] --source S…\` — and
+  tell the user you did; what the user added is theirs, never changed.
 - **Their edits in the Strom app** ("I fixed grandma's birthday in the
   app", a .ged or .json they exported): \`strom sync <file>\` shows what it
   would take — tell them, write it on their yes (\`--apply\`); a sync is

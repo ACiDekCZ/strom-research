@@ -138,7 +138,12 @@ test("a run waiting for its gate is paused, not at work: the Strom app hears unt
   }
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
-    const status = (await (await fetch(`${info.url}/status`)).json()) as { working: { who: string; task?: string; paused?: { until: string; reason?: string } }[] };
+    const status = (await (await fetch(`${info.url}/status`)).json()) as { working: { who: string; task?: string; paused?: { until: string; reason?: string } }[]; busy: unknown; work: unknown; features: string[] };
+    // a worker from its start (enterWorker): busy sees the run while it waits for its gate — the app offers no second one
+    assert.deepEqual(status.busy, { sessions: 0, runs: 1 });
+    // before the link work: the gate as the settings name it, a session's minutes (features work.link, run.tasks)
+    assert.deepEqual(status.work, { gate: "Zkouška", minutes: 60 });
+    assert.ok(status.features.includes("work.link") && status.features.includes("run.tasks"), status.features.join(" "));
     const run = status.working.find((x) => x.paused);
     assert.ok(run, JSON.stringify(status.working));
     assert.equal(run.paused!.reason, "týden je z 92 % pryč");

@@ -274,6 +274,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
     const parsed = parseOptions(def, rest, own);
     const v = parsed.values;
+    // what writes the tree: a command that writes only with some of its options reads as any read without them
+    const writes = !!def.writes && (!def.writesWith || def.writesWith({ args: parsed.positionals, opts: v }));
     // a hook's quick answer, strom error itself and a --dry-run (it writes nothing anywhere) never noted
     quiet = v.hook === true || def.path[0] === "error" || v["dry-run"] === true;
     if (v.help) {
@@ -384,7 +386,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         ctx.backupFailed = e;
       }
     }
-    if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
+    if (ctx.backupFailed && (writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
     if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest && !superseded && !report) {
@@ -524,13 +526,13 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     const work = async (): Promise<Result> => {
       // Never write on top of data that was changed outside strom.
       // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
-      if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
+      if (writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
       let blocked: ReturnType<typeof autoCommit>;
       // a write of the Strom app's (through the bridge, which holds the tree from its first read to its commit): the
       // research's head before it and after it, for the app to take its own write as its version only when nothing
       // came between (found: "the research has a newer version" after every file the app assigned)
-      const forApp = def.writes && def.tree && def.lock !== "sections" && !ctx.dryRun && env.STROM_FOR_APP === "1";
+      const forApp = writes && def.tree && def.lock !== "sections" && !ctx.dryRun && env.STROM_FOR_APP === "1";
       const headNow = () => {
         const root = ctx.tree().root;
         resetCache(root);
@@ -551,11 +553,11 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         }
         // its commit is part of it: one that fails (found on Windows: _counters.json held by another program, its IDs
         // not written) takes back what the command wrote — a person or an agent running it again gets no second record
-        if (def.writes) blocked = autoCommit(ctx, def);
+        if (writes) blocked = autoCommit(ctx, def);
         if (parent !== undefined && !blocked && result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), commit: { head: headNow(), parent } };
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
-        const t = def.writes ? ctx.current() : undefined;
+        const t = writes ? ctx.current() : undefined;
         if (t) t.withTreeLock(() => t.rollback());
         throw err;
       }
@@ -575,7 +577,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     };
     // Other strom processes may write to the same tree (other agents, a run): a writing
     // command has the tree to itself from its first read to its commit.
-    const result = def.writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
+    const result = writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
     // a dry run says so, last, in the person's language — it reads as what would happen, never as done (found on
     // Windows: "taken back" of a dry run, nothing told it apart); an agent reads it in English, as the rest
     if (ctx.dryRun) {

@@ -44,8 +44,13 @@ Research** a z něj větší **Přehled výzkumu**. Oba jen čtou. Co ukazují, 
     panelem stojí „Agent tento měsíc: 4 sezení“, částka, obojí, nebo nic.
   - V řádku linie v oddílu **Linie** stojí u práce jen „pracuje se“, když je oddíl **Teď** vidět (rozbalený i
     sbalený); celé „Teď: …“ je v textu při najetí. Při skrytém **Teď** řádek říká „Teď: …“ celé.
+- **Od aplikace 3.28.0:** na počítači jde Přehled otevřít i v samostatném okně ([S4.1.6](#S4.1.6)).
+- **Od aplikace 3.28.0:** malý panel si na tomto zařízení pamatuje, zda je sbalený: jedna volba pro všechny
+  výzkumy, výchozí rozbaleno. Převezme ji obnovení stránky, nové sledování i panel jiného výzkumu; zapíše ji jen
+  šipka panelu. Otevřený Přehled už panel za sebou nerozbalí. Telefon volbu nečte ani nepíše (pruh otevírá Přehled
+  jako dřív). Bez úložiště prohlížeče (soukromé okno) platí do zavření stránky.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Sledovat agenta ve stromu
@@ -198,8 +203,76 @@ výzkumu, nezamkne se a dá se dál upravovat. Co Přehled ukáže, záleží na
   bez osob v záhlaví dialogu); na telefonu a tabletu v akcích stromu, skupina **Výzkum**; v Přehledu **Sledovat
   živě**.
 - **Platí od:** aplikace 3.27.0
+- **Od aplikace 3.28.0:** když most odpovídá, mění **⋯** u úkolu ve **Frontě** jeho místo jako při sledování:
+  **Udělat jako další** s **Vrátit** ([S4.2.2](#S4.2.2)), a kde je výzkum nabízí, **Na konec** a **Vrátit výchozí**
+  ([S4.2](#S4.2)). Totéž ve výsledcích hledání ([S4.2.1](#S4.2.1)) a v okně Přehledu ([S4.1.6](#S4.1.6)), kde to
+  provede hlavní okno. Zapíše to most výzkumu; sledování nezačne, strom se nepřepne a dá se dál upravovat. Fronta se
+  hned potom načte z výzkumu, nečeká na pravidelný dotaz. Bez mostu (Přehled ze stromu, telefon) se nic nemění.
+  Stejně se Přehled bez sledování zeptá mostu na stav hned po každém zápisu přes most: v **Čeká na vyřízení**
+  odpověď, **Přidat soubor**, **Odesláno** a **Vrátit mezi k vyřízení**, odpověď k otázkám k místům a k rostoucí větvi;
+  v **Linie** založení, úprava, přesun, pozastavení, ukončení a obnovení linie; rozhodnutí rozporu, vrácení hodnoty
+  a ověření nebo potvrzení údaje přes most. Okno Přehledu ([S4.1.6](#S4.1.6)) dostane nový stav od hlavního okna,
+  které zápis provede.
+- **Od aplikace 3.28.0:** Přehled bez sledování zavře ⤡ i ×; panel výzkumu, který byl vidět vedle něj, se po
+  zavření Přehledu ukáže znovu. **Ukončit sledování** v otevřeném Přehledu jen ukončí sledování a Přehled zůstane
+  otevřený bez sledování; konec, který udělá aplikace sama (například přepnutí do archivu), ho zavře. Přepnutí na
+  jiný pohled zavře Přehled bez sledování jako ⤡; Přehled sledovaného výzkumu zůstane.
 
-<!-- zdroj: app:f05fff8e, 48573de6 src/ui/research-overview-ui.ts renderResearchOverview (source live | bridge | tree; fromTree vynechá working, changes, queue), appendOverviewStateOff (notRunning, turnOn / researchLiveStartHow; telefon phoneTreeOnly, phoneWhy), overviewFollowStrip (activeResearchAgentless → bez pruhu; agentStarted, followNote), appendOverviewWaitingAsOf (asOf), appendOverviewSkeletonLines, appendOverviewFoot (missingLink) · src/research-overview-source.ts BRIDGE_ONLY_SECTIONS, afterTurnOnKeys, skeletonLines (_STROM_DIRECTION, místa osob) · src/research-device.ts WAITING_MAX_AGE_MS = 7 dní · src/ui/research-ui.ts OverviewViewing (refreshedAt, agentStarted, waitingAt) · src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (sekce focus, bez osob v záhlaví) · strings.ts live.followNote, agentStarted, notRunning, turnOn, afterTurnOn, refreshedAgo, asOf, phoneTreeOnly, phoneWhy, researchLink, missingLink, treeOverview focus · CHANGELOG.cs.md 3.27.0 · spec 057 K1.8–K1.12 -->
+<!-- zdroj: app:f05fff8e, 48573de6 src/ui/research-overview-ui.ts renderResearchOverview (source live | bridge | tree; fromTree vynechá working, changes, queue), appendOverviewStateOff (notRunning, turnOn / researchLiveStartHow; telefon phoneTreeOnly, phoneWhy), overviewFollowStrip (activeResearchAgentless → bez pruhu; agentStarted, followNote), appendOverviewWaitingAsOf (asOf), appendOverviewSkeletonLines, appendOverviewFoot (missingLink) · src/research-overview-source.ts BRIDGE_ONLY_SECTIONS, afterTurnOnKeys, skeletonLines (_STROM_DIRECTION, místa osob) · src/research-device.ts WAITING_MAX_AGE_MS = 7 dní · src/ui/research-ui.ts OverviewViewing (refreshedAt, agentStarted, waitingAt) · src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (sekce focus, bez osob v záhlaví) · strings.ts live.followNote, agentStarted, notRunning, turnOn, afterTurnOn, refreshedAgo, asOf, phoneTreeOnly, phoneWhy, researchLink, missingLink, treeOverview focus · CHANGELOG.cs.md 3.27.0 · spec 057 K1.8–K1.12 · 3.28.0: app:bb6c0d07 src/ui/research-ui.ts researchSession (sledovaný, jinak prohlížený přes most), openLiveTaskMenu, researchStatusAfterWrite / statusAfterWriteWay (bez sledování hned askResearchBridge, jen počítač), src/ui/research-offline-ui.ts taskMenuOrders (queue.next; queue.own last, default), changeTaskOrder, writeTaskOrder · CHANGELOG.cs.md 3.28.0 (c04a7199) · spec 052 K5.1, K5.6; spec 057 §7 · prace/1113-app-jako-dalsi-bez-sledovani · app:3c751bea src/ui/research-ui.ts researchStatusAfterWrite (Čeká: sent, unsent, odpověď, soubor; linie; větev), researchViewedStatusAfterWrite, viewedWriteSession (jen prohlížený přes most, ne sledovaný, ne ze stromu) · research-waiting-write-ui.ts, research-directions-ui.ts, direction-form-ui.ts, research-offline-ui.ts, research-sync-ui.ts, verify-ui.ts, waiting-places-ui.ts · e2e/overview-write-unfollowed.spec.ts (do 3 s, okno bez dotazu na most) · strings.ts live.waitingWrite.sent, unsent, file · spec 083 · prace/1113-app-hledani-v-prehledu bod 2 · od 3.28.0 zavření a Ukončit sledování: app commit 3f2e19f8 (panel výzkumu skrytý pod Přehledem bez sledování, Ukončit sledování nechá Přehled otevřený, jiný pohled ho zavře) -->
+
+<a id="S4.1.6"></a>
+### S4.1.6 Přehled výzkumu v samostatném okně
+
+Na počítači jde **Přehled výzkumu** otevřít v samostatném okně, třeba na druhém monitoru. Okno jen ukazuje: stav
+výzkumu mu posílá hlavní okno a co se v okně udělá, provede hlavní okno. S mostem výzkumu okno nemluví.
+
+- **Kde to jde:** u stromu z výzkumu, se sledováním i bez něj ([S4.1.5](#S4.1.5)), za stejných podmínek jako pohled
+  v okně ([A6.8](A6-views.md#A6.8)): počítač, okno širší než 640 px.
+- **Rozvržení:** souhrn přes celou šířku, pod ním oddíly ve sloupcích podle šířky okna:
+  - pod 1100 px jeden sloupec jako Přehled v hlavním okně, od 1100 px dva, od 1600 px tři. Na méně sloupců se okno
+    vrátí až 24 px pod hranicí, aby tažení okraje neblikalo;
+  - sloupec je nejvýš 660 px široký, sloupce stojí uprostřed a každý se posouvá sám;
+  - oddíly jdou v pořadí Přehledu (**Upravit panel**, [S4.1.2](#S4.1.2)) a dělí se do sloupců za sebou tak, aby
+    nejvyšší sloupec byl co nejnižší. Tři sloupce, z nichž by jeden měl méně než pětinu výšky, jsou dva;
+  - rozdělení se mění při změně počtu sloupců, při sbalení, rozbalení, skrytí nebo přesunu oddílu a po **Načíst
+    další** ve **Frontě**; nová data z výzkumu ani psaní ho nemění;
+  - dlouhý oddíl (s polem hledání nebo s víc než 8 řádky) má ve sloupci lepkavou hlavu: nadpis, pole hledání, čipy
+    a počet nalezených zůstanou nahoře, řádky se posouvají pod nimi;
+  - při změně šířky přes hranici zůstane rozepsané hledání, kurzor i oddíl, který byl na očích;
+  - volby oddílů ([S4.1.2](#S4.1.2)) platí i v okně.
+- **Hlavička okna:** „{strom} · Přehled výzkumu“, pod tím jméno výzkumu, vpravo podle stavu **Sledovat živě** nebo
+  ukončení sledování a ⋯. Bez ⤡, × a **Sledovat v**.
+- **Akce:** ukázání osoby ve stromu, odpověď v **Čeká na vyřízení**, správa linií, místo úkolu ve frontě, hledání ve
+  **Frontě** ([S4.2.1](#S4.2.1)), **Sledovat živě** a jeho ukončení, **Zapnout** a v oddílu **Ověřování** **Zastavit**
+  a **Ověřit údaje ve stromu…** ([S7.5](S7-reliability-and-verification.md#S7.5)) provede hlavní okno. Hledání
+  i stránky fronty čte hlavní okno ze svého mostu a výsledek pošle oknu. Po akci, jejíž výsledek je vidět v hlavním
+  okně (třeba ukázání ve stromu nebo dialog **Ověřit údaje ve stromu**, který se otevře v hlavním okně), okno požádá
+  o přenesení hlavního okna do popředí; po **Zastavit** ne. Hledání v **Čeká na vyřízení** a **Co ví výzkum**
+  ([S4.4.2](#S4.4.2), [S3.7.1](S3-what-the-research-knows.md#S3.7.1)) filtruje okno samo.
+- **Zvýraznění:** co strom v hlavním okně právě zvýrazňuje, ukáže okno rozsvícením tlačítka té skupiny:
+  **Ukázat ve stromu** u linie v **Teď** a v **Linie**, počet nalezených osob linie a **Ukázat změněné ve stromu**
+  v **Průběhu**. Po ukončení zvýraznění nebo zavření hlavního okna nesvítí nic. Když filtr **Průběhu** změněné osoby
+  zvýrazní znovu, hlavní okno se do popředí nepřenáší; filtr bez osob zvýraznění v hlavním okně ukončí.
+- **Stavy okna:**
+
+| Stav | Co okno ukáže |
+|---|---|
+| sleduje se živě | totéž co Přehled při sledování |
+| nesleduje se, most odpovídá | totéž co Přehled bez sledování ([S4.1.5](#S4.1.5)) s pruhem **Sledovat živě** |
+| výzkum neběží | „Výzkum neběží · ukazuje se, co je ve stromu“ s **Zapnout**; **Čeká na vyřízení** z paměti se „stav k …“ |
+| hlavní okno přepnulo na strom bez výzkumu | „Strom nemá výzkum“, „Hlavní okno přepnulo na strom {strom}, který výzkum nemá.“ a **Zavřít okno**; po návratu na strom s výzkumem se okno obnoví samo |
+| hlavní okno je zavřené | pruh „Hlavní okno je zavřené · stav k {čas}, jen ke čtení“, poslední stav, akce zašedlé; **Otevřít Strom** ([A6.8.2](A6-views.md#A6.8.2)) |
+| strom smazaný nebo zamčený | jako pohled v okně ([A6.8.2](A6-views.md#A6.8.2)) |
+
+- **Hranice:** dokud je okno Přehledu otevřené, hlavní okno svůj Přehled nekreslí; otevřený se po otevření okna
+  zavře. Malý panel výzkumu zůstává. **⤢ Otevřít přehled**, **Výzkum → Přehled výzkumu** i položka v nabídce ⧉ pak
+  jen přenesou okno Přehledu do popředí („Přehled výzkumu je v samostatném okně · klik ho přenese do popředí“). Po
+  zavření okna je vše jako dřív.
+- **Ovládání:** aplikace: ⧉ v hlavičce Přehledu (mezi ⋯ a ⤡); ⧉ **Otevřít v novém okně** vedle přepínače pohledů →
+  **Přehled výzkumu**.
+- **Platí od:** aplikace 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/overview-window.ts (research-state bez adresy a tokenu mostu, OVERVIEW_ACTION_IDS, OVERVIEW_ACTIONS_TO_MAIN, 6g) · src/windows/overview-main.ts · src/ui/research-overview-ui.ts OVERVIEW_WINDOW_COLS_MIN 1100, WINDOW_LEFT (working, waiting, directions), overviewMode 'window', overviewWindowButton (jen canOpenWindows, ne sheet), canOpenResearchOverview · index.html html.window-overview (bez ⤡, ×, ⧉, Follow in) · src/windows/window-controls.ts renderMenu (overview: focusOverviewWindow / openInNewWindow) · strings.ts win.overviewHead, overviewOffNote, noResearch, noResearchNote, overviewInWindow, mainClosed · CHANGELOG.cs.md 3.28.0 · spec 079 P3 (K3), ZADANI_DEV §6 · prace/1113-app-okna-prehled (8a7575f0..4387a662) · app:3c2fde77 src/ui/overview-window-view.ts readQueuePage přes akci queue-list do hlavního okna (okno most nevolá) · app:3f9a5ca4 overview-window-view.ts treeVerifyNow (extras.verify), verifyStop → verify-stop, showVerifyBulkDialog → verify-bulk; evidenceHighlightNow (extras.highlight), endEvidenceHighlight → highlight-end, startPersonHighlight quiet · src/ui/research-ui.ts lightsGroup, markOverviewLit (is-lit, aria-current; nic při zavřeném hlavním okně) · research-overview-ui.ts lightsGroup direction (show-in-tree v Teď), changed (showChanged) · research-directions-ui.ts lightsGroup direction (dirShow), direction-found (dirFoundPersons) · strings.ts verify.section, bulkRow, stop, live.showInTree, dirShow, showChanged · spec 079 K3 · prace/1113-app-dorovnani-052-okna (2876d570..27f0bafb) · app:7f307c74 src/overview-columns.ts OVERVIEW_WINDOW_COLS_2 1100, OVERVIEW_WINDOW_COLS_3 1600, OVERVIEW_COLS_HYSTERESIS 24, OVERVIEW_SMALL_COLUMN 0.2, OVERVIEW_COLUMN_MAX 660, partitionContiguous, planOverviewColumns · src/ui/overview-columns-ui.ts (souhrn a pruhy nad sloupci, každý sloupec se posouvá sám, nové rozdělení jen při změně sloupců, sbalení, skrytí, přesunu, Načíst další; lepkavá hlava: pole nebo > 8 řádků; fokus, výběr v poli a oddíl na očích při změně šířky) · e2e/windows-overview-columns.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 U3 · prace/1113-app-hledani-v-prehledu -->
 
 <a id="S4.2"></a>
 ## S4.2 Fronta v aplikaci
@@ -229,8 +302,105 @@ fronta zůstává ve výzkumu.
   vyprávění a ve frontě jsou i úkoly dějin. Úkol za textem nese tichý štítek **příběh** nebo **dějiny** (v **Na
   řadě**, ve **Frontě**, u odložených úkolů a v úkolech větve); úkol bez něj vypadá jako dřív. Bez sledování ukáže
   frontu Přehled ([S4.1.5](#S4.1.5)) i Tabulka, když most odpovídá.
+- **Od aplikace 3.28.0:** s výzkumem 1.32.0 jde ve **Frontě** hledat ([S4.2.1](#S4.2.1)), úkol dát jako další
+  a vrátit ([S4.2.2](#S4.2.2)) a požádat o práci agenta na frontě ([S4.2.3](#S4.2.3)). Rozbalená **Fronta** má pak
+  počet úkolů v nadpisu („Fronta · 1 240“) místo vpravo. Se starším výzkumem je Fronta jako dřív.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 -->
+
+<a id="S4.2.1"></a>
+### S4.2.1 Hledání ve frontě
+
+Ve **Frontě** v **Přehledu výzkumu** (i v jeho samostatném okně, [S4.1.6](#S4.1.6)) je pole **Hledat úkol, osobu,
+archiv…**. Hledá výzkum v celé frontě, i za
+načtenými stránkami; aplikace mu pošle jen hledaný text ([R2.2](R2-lines-and-queue.md#R2.2)).
+
+- **Kdy pole je:** v rozbalené **Frontě**, s výzkumem, jehož most hledání umí a odpovídá, a jen když je ve frontě
+  aspoň jeden úkol (i odložený). Se starším výzkumem pole není a Fronta je jako dřív.
+- **Co se najde:**
+  - číslo úkolu (`T0815`, `t815`, `815`): ten úkol jako první, pak úkoly, v jejichž textu to číslo je;
+  - číslo osoby (`P12`): úkoly k té osobě;
+  - jiný text: úkoly, které mají každé slovo v textu úkolu, ve jménech jeho osob, v knize, signatuře, archivu nebo
+    místě, nebo v čísle úkolu či osoby; bez ohledu na velká písmena a diakritiku. Výsledky jsou v pořadí fronty.
+- **Hranice:**
+  - hledá se 300 ms po posledním napsaném znaku, posílá se nejvýš 100 znaků; prázdné pole vrátí frontu;
+  - štítky linie a větve ([S4.2](#S4.2)) se s hledáním kombinují: výsledek jsou úkoly štítku, které odpovídají textu.
+    Počty ve štítcích zůstávají počty fronty;
+  - řádek výsledku je řádek fronty (místo ve frontě, text, **⋯**) se šedým číslem úkolu. Zvýrazněná je jen shoda čísla
+    úkolu nebo osoby („P0108 Jan Horák“), shoda textu ne. Odložené úkoly jsou na konci s místem „–“ a štítkem
+    **odloženo**;
+  - nad výsledky stojí jejich počet („Nalezeno 12 úkolů“). Bez výsledku **Nic nenalezeno.** a **Zrušit hledání**,
+    se štítkem linie i **Hledat ve všech liniích**;
+  - číslo úkolu, který už ve frontě není: „T0815 už ve frontě není (hotovo)“, stav **hotovo**, **čeká na vyřízení**,
+    **odloženo** nebo **vzdáno**;
+  - víc než 50 výsledků: **Načíst další** po 50, nejvýš 300 řádků jako ve frontě;
+  - most neodpovídá nebo je zaneprázdněný: **Hledání se nepovedlo, výzkum neodpovídá.** nebo **Výzkum je
+    zaneprázdněný, hledat teď nejde.** a **Zkusit znovu**; text v poli zůstane;
+  - když se fronta během hledání změní, výsledek se obnoví sám; text i kurzor v poli zůstanou;
+  - hledání platí, dokud se nezruší (×, Escape v poli, **Zrušit hledání**) nebo dokud se nezavře Přehled. Hledaný text
+    se nikam neukládá.
+- **Ovládání:** aplikace: **Přehled výzkumu → Fronta**, pole hledání; v malém panelu pod **Na řadě** odkaz
+  **Hledat ve frontě…**: otevře Přehled, rozbalí **Frontu** jen do jeho zavření (uložená volba oddílu se nemění) a dá
+  kurzor do pole. Na telefonu, kde je z panelu pruh, odkaz není.
+- **Platí od:** aplikace 3.28.0 (výzkum 1.32.0)
+
+<!-- zdroj: app:4ad34832 (8a10387e) src/ui/queue-search-ui.ts QUEUE_SEARCH_PAUSE_MS 300, queueSearchOffered (queue.search, queuePaged, queue/queueMore/queueCounts next+parked), resetQueueSearch (zavření Přehledu), Escape · src/research-queue-pages.ts QUEUE_QUERY_MAX 100, QUEUE_PAGE 50, QUEUE_ROWS_CAP 300, QUEUE_ELSEWHERE_STATES · src/ui/research-ui.ts appendQueueSection (searchable jen v Přehledu, ne při sbalení), appendQueueSearchResult (štítek + q, queueSearchBusy/Err, dirRetry), řádek výsledku (live-queue-num „–“, research-queue__match id/person, queueTagDeferred), live-queue-search-link (canExpandLivePanel) · src/ui/research-overview-ui.ts openQueueSearch (unfoldOverviewSection queue do zavření) · strings.ts live.queueSearch*, queueState, queueTagDeferred, queueTitleCount, dirRetry · research 1.32.0 src/core/live.ts searchQueue (TASK_NUMBER, PERSON_NUMBER, každé slovo v jednom poli, pořadí fronty, elsewhere) · spec 052 K1.1–K1.7 · ZADANI_DEV_fronta-hledani §1, §2; D1 (bez řádku pole) · app:08268b9f strings.ts live.queueSearchInDir, queueSearchNoneDir, queueSearchAllDirs (linie) · app:3c2fde77 okno Přehledu (queue-list) · spec 052 K1.1 -->
+
+<a id="S4.2.2"></a>
+### S4.2.2 Udělat jako další a Vrátit
+
+Úkol jde z aplikace poslat na řadu jako další, bez terminálu. Rozdělanou práci agent nepřeruší: úkol přijde na řadu
+po ní ([R2.3.1](R2-lines-and-queue.md#R2.3.1)).
+
+- **Hranice:**
+  - **Udělat jako další** („Přijde na řadu po rozdělaném úkolu“) je první položka v **⋯** u úkolu ve **Frontě**, ve
+    výsledcích hledání ([S4.2.1](#S4.2.1)) i v **Na řadě** malého panelu, bez značky. Stojí na místě **Udělat hned**;
+    **Na konec** a **Vrátit výchozí** zůstávají u výzkumu, který je nabízí ([S4.2](#S4.2));
+  - nenabízí se u úkolu, který už je první, na kterém agent pracuje, nebo který je odložený;
+  - jde to se sledováním i bez něj: v **Přehledu výzkumu** otevřeném bez sledování ([S4.1.5](#S4.1.5)), když most
+    výzkumu odpovídá; sledování nezačne a strom zůstane upravitelný. Fronta se po změně hned načte z výzkumu;
+  - úkol se přesune na první místo, jeho řádek se krátce zvýrazní a u textu má štítek **jako další**, dokud nepřijde
+    na řadu. Z více úkolů jako další je první naposledy označený; štítek mají všechny. Hledání zůstane;
+  - bublina s číslem úkolu („T0103 jako další“) a **Vrátit** stojí 6 s. **Vrátit** dá úkol přesně na původní místo
+    i s jeho původní volbou; řádek je na tom místě hned po odpovědi výzkumu, i v okně Přehledu ([S4.1.6](#S4.1.6));
+  - když agent úkol mezitím vzal: **Na úkolu agent právě pracuje, jeho místo teď nejde změnit.** a fronta se
+    obnoví. Když most neodpovídá: **Výzkum neodpovídá, pořadí se nezměnilo.** a **Zkusit znovu**;
+  - nic se nepotvrzuje: nic se nespouští ani neplatí;
+  - na telefonu je nabídka spodním listem jako ostatní listy aplikace (úchyt, ztmavené okno pod ním) s číslem
+    a textem úkolu nahoře; klepnutí na ztmavené okno nebo Escape ho zavře.
+- **Ovládání:** aplikace: u úkolu **⋯ → Udělat jako další**, v bublině **Vrátit**. Terminál: `strom task order T…
+  --next`, `--restore` ([R2.3.1](R2-lines-and-queue.md#R2.3.1)).
+- **Platí od:** aplikace 3.28.0 (výzkum 1.32.0)
+
+<!-- zdroj: app:623d9c77 (8a10387e) src/ui/research-offline-ui.ts queueNextOffered (queue.next, most odpovídá), queueNextFor (state next, ne pozice 1, ne práce agenta), doTaskNext (toast queueMoved 6000 ms, queueUndo → restoreTaskPlace {do: restore, was}), taskOrderRefusedToast (taken → taskDoing, bridge → queueBridgeErr + dirRetry), QUEUE_FLASH_MS 1600 · src/ui/research-ui.ts openLiveTaskMenu (nextOn: queueNext místo taskDoNext; taskOrderOffered: last, default; list na telefonu ≤ 640 px s titulem), markQueueNextRow (queueTagNext) · strings.ts live.queueNext, queueNextHint, queueTagNext, queueMoved, queueUndo, queueBridgeErr, taskDoing · research 1.32.0 rankTasks (naposledy zvolený první) · spec 052 K5.1, K5.3, K5.4, K5.6 · ZADANI_DEV_fronta-hledani §4 · app:2876d570 placeQueueItemInLists (odpověď restore: pos, own, why), strings.ts live.queueMoved(id) · app:7dc924ee list ⋯ = bottom-sheet (úchyt, ztmavení, Escape) · app:3f9a5ca4 Vrátit v okně Přehledu · spec 052 K5.4 · app:bb6c0d07 bez sledování přes most (researchSession, taskMenuOrders, researchStatusAfterWrite) · spec 057 §7 -->
+
+<a id="S4.2.3"></a>
+### S4.2.3 Pracovat na frontě…
+
+Z aplikace jde požádat o samostatnou práci agenta na frontě. Aplikace nic nespouští: otevře terminál výzkumu, ten
+ukáže, co se pustí, a spustí to až na **ano** ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)). Práce agenta čerpá
+předplatné AI.
+
+- **Kdy se nabízí:** s mostem, který odpovídá, u výzkumu, který odkaz na práci ohlásil, s agentem (ne v Archivu
+  Stromu ani ve výzkumu, který čeká na agenta), jen tam, kde aplikace otevírá odkazy výzkumu ([S4.5](#S4.5)); ne na
+  telefonu. Když agent pracuje nebo běží běh, akce není; v záhlaví **Fronty** je místo ní **● Pracuje se ›**, které
+  rozbalí **Teď** a přejde na **Dokončit a skončit**.
+- **Dialog Pracovat na frontě:**
+  - **Automaticky** (výchozí): „Agent bere úkol za úkolem, dokud to dovolí limit předplatného.“ Když výzkum hlásí,
+    že brána předplatného (podmínka, [R7.4](R7-when-the-agent-works.md#R7.4)) není nastavená, stojí pod tím **Automatická práce
+    potřebuje nastavenou bránu předplatného; terminál nabídne nastavení.** Volba zůstává;
+  - **Jen 5 úkolů**: počet 1–100, výchozí 5. Práce skončí po tolika vyřízených úkolech; počítá se i úkol, který
+    skončí čekáním, odložením nebo vzdáním. Jen s výzkumem, který to umí; jinak je jen **Automaticky**;
+  - **Jako první přijde**: úkol označený jako další ([S4.2.2](#S4.2.2)), jinak první úkol fronty;
+  - když to výzkum hlásí, délka sezení a brána („Sezení nejvýš 3 h · brána předplatného: …“);
+  - **Zrušit** a **Otevřít terminál** (značka AI a terminál) s větou **Spuštění potvrdí terminál výzkumu. Práci
+    zastaví Ctrl-C v jeho okně nebo Dokončit a skončit v oddílu Teď.**
+- **Ovládání:** aplikace: **Pracovat na frontě…** vpravo v záhlaví rozbalené **Fronty** v **Přehledu výzkumu**;
+  nabídka **Výzkum → Pracovat na frontě…** ([S4.5.2](#S4.5.2)). Terminál: `strom run --tasks N`, `strom run --loop`
+  ([R7.1](R7-when-the-agent-works.md#R7.1)).
+- **Platí od:** aplikace 3.28.0 (výzkum 1.32.0)
+
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie v aplikaci
@@ -341,6 +511,7 @@ a co jen ve výzkumu, říká [R6.5](R6-awaiting-action.md#R6.5).
 - **Platí od:** aplikace 3.4.0. Otázky k místům od výzkumu 1.25.0. Značka **!** a **Odpovědět · N čeká** takto od
   aplikace 3.26.0. Hypotézy od aplikace 3.27.0 s výzkumem 1.31.0. Více značek na kartičce od aplikace 3.27.0
   ([S4.4.1](#S4.4.1)).
+- **Od aplikace 3.28.0:** v **Přehledu výzkumu** má oddíl od 10 položek pole hledání ([S4.4.2](#S4.4.2)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -374,6 +545,49 @@ značky stojí v zákrytu jako jedno tlačítko.
 - **Platí od:** aplikace 3.27.0
 
 <!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
+
+<a id="S4.4.2"></a>
+### S4.4.2 Hledání v Čeká na vyřízení
+
+V oddílu **Čeká na vyřízení** v **Přehledu výzkumu** je pole **Hledat osobu, místo, archiv, úkol…**. Hledá
+aplikace sama v položkách, které už má, a nic neposílá do výzkumu. Filtruje hned při psaní, i bez sledování, když
+výzkum neběží (položky, které výzkum naposled řekl, [S4.1.5](#S4.1.5)), i v okně Přehledu ([S4.1.6](#S4.1.6)).
+
+- **Kdy pole je:** v rozbaleném oddílu s 10 a více položkami, pod nadpisem oddílu a nad čipy druhu. S napsaným
+  textem pole zůstane, i když položek ubude.
+- **Co se najde:** položky, které mají každé napsané slovo (v libovolném pořadí; slova dělí mezera, čárka nebo
+  středník) v tom, co ukazuje jejich řádek, detail nebo nadpis skupiny:
+  - text položky a na co čeká;
+  - jména a čísla osob (`P47` i `P0047`);
+  - číslo úkolu (`T0815`, `t815`) a hypotézy (`H22`); samotné číslo (`815`) najde úkol s tím číslem, jinak
+    hypotézu, jinak text (třeba rok);
+  - název skupiny (místo, archiv, úřad), adresu archivu u povolení a komu jde dopis.
+- **Shoda textu:** bez ohledu na velká písmena a diakritiku; ß, ł, đ, ø, æ a œ se najdou i jako ss, l, d, o, ae
+  a oe (`grosshof` najde „Großhof“). Slovo s 5 a více znaky najde i slova, která začínají jako ono bez posledního
+  znaku (`bialy` najde „Białe“).
+- **Hranice:**
+  - čipy druhu (**Rozhodnutí**, **Snímky**, **Archivy a úřady**…) ukazují počet nalezených; druh bez shody je
+    čárkovaný a jde dál zvolit. Hledá se ve zvoleném druhu;
+  - nad seznamem „Nalezeno 12 z 40“ (z položek zvoleného druhu). Bez výsledku **Nic nenalezeno.**, ve zvoleném
+    druhu „V druhu Snímky nic nenalezeno.“ s **Hledat ve všech druzích**, a **Zrušit hledání**;
+  - fáze (**K vyřízení**, **Čeká na odpověď**) a skupiny se shodou se rozbalí, bez shody se neukážou. Co se během
+    hledání sbalí, platí jen pro toto hledání; po vymazání pole se vrátí ruční rozbalení;
+  - shoda čísla osoby, úkolu nebo hypotézy má u řádku jantarový štítek („P0108 Jan Horák“); shoda textu se
+    nezvýrazňuje;
+  - hypotézy ve skupině **Hypotézy k rozhodnutí**: hlava výběru **Vybrat nalezené s návrhem (n)** vybere jen
+    nalezené. Vybrané mimo hledání zůstanou vybrané a pata to řekne („Vybráno 5, z toho 2 mimo hledání.“)
+    s **Odznačit mimo hledání**. **Přijmout návrhy (n)** počítá všechny vybrané
+    ([S3.5.2](S3-what-the-research-knows.md#S3.5.2));
+  - sbalený oddíl s napsaným hledáním má v nadpisu místo souhrnu lupu a hledaný text;
+  - starší výzkum bez druhů a skupin: hledá se v řádcích, jak jdou za sebou;
+  - × nebo Escape pole vymaže (Escape v prázdném poli zavře Přehled), ↓ přejde na první řádek, čtečka obrazovky
+    řekne počet po krátké pauze. Text platí do zavření Přehledu a nikam se neukládá;
+  - telefon: pole je vysoké 44 px; po klepnutí do pole se oddíl posune pod hlavičku Přehledu a Přehled končí nad
+    klávesnicí, takže nalezené je mezi polem a klávesnicí.
+- **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, pole hledání.
+- **Platí od:** aplikace 3.28.0
+
+<!-- zdroj: app:8cbada1c src/section-search-match.ts foldSearch2 (ß ł đ ø æ œ), tokenize (mezera, čárka, středník; p/t/h + číslo, samotné číslo), matchDoc (každé slovo; n: úkol, hypotéza, text), textMatches (≥ 5 znaků bez posledního na začátku slova), fieldVisible (≥ 10 nebo text) · src/ui/section-search.ts (×, Escape: nejdřív hledání, prázdné pole zavře Přehled; ↓; searchOpen se vymaže s textem; zavření Přehledu text zahodí) · app:9ebf7f2c src/section-search-filter.ts searchSection, chipCount, sectionPartOpen, toggleSectionPart, sheetOverKeyboard · src/ui/section-search-view.ts mountSectionSearch, paintSearchChip (čárkovaný), appendSearchOutcome (sectionSearchFound, queueSearchNone, sectionSearchNoneKind + sectionSearchAllKinds, queueSearchCancel), searchHitTag, searchSummaryEl (lupa a text), bindSheetSearch, keepSheetOverKeyboard · src/ui/research-overview-ui.ts appendOverviewWaiting (pole jen v rozbaleném oddílu, starší výzkum bez skupin), waitingSearchDoc (what, on, osoby, person, partner, task, hypo, group.name / otázky k místům, host, to), overviewWaitingRow (hit t, p) · app:cd0030b0 src/ui/hypothesis-waiting-ui.ts hypothesisAcceptHeadEl (bulkSelectFound), hypothesisAcceptFootEl (bulkSelectedHidden, bulkDeselectHidden), hwr-id hit h · strings.ts live.waitingSearchPlaceholder, waitingSearchAria, sectionSearchFound, sectionSearchNoneKind, sectionSearchAllKinds, bulkSelectFound, bulkSelectedHidden, bulkDeselectHidden, sectionSearchQuoted, waitingPhaseTodo, waitingPhaseSent, waitingChips · e2e/overview-waiting-search.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 K1.1–K1.3 · prace/1113-app-hledani-v-prehledu (pole 44 px na telefonu) -->
 
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum
@@ -414,8 +628,11 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
   Práce agenta čerpá předplatné AI.** Rozhovor může místo terminálu otevřít aplikaci agenta, když je tak výzkum
   nastavený.
 - **Platí od:** aplikace 3.21.0
+- **Od aplikace 3.28.0:** **Pracovat na frontě…** a v jeho dialogu **Otevřít terminál** mají značku AI a terminál
+  ([S4.2.3](#S4.2.3)). Hledání ve frontě, **Udělat jako další** a **Vrátit** jsou bez značky: jdou přes most a nic
+  neotevřou ([S4.2.1](#S4.2.1), [S4.2.2](#S4.2.2)).
 
-<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk -->
+<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ -->
 
 <a id="S4.5.2"></a>
 ### S4.5.2 Kde akce jsou
@@ -434,8 +651,13 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
 - V Archivu Stromu chybí vše, co potřebuje agenta, i **Sledovat živě**.
 - **Platí od:** aplikace 3.4.0; horních 6 položek od 3.14.0, **Nástroje výzkumu** od 3.19.0, **Dokončit a skončit** od
   3.5.0
+- **Od aplikace 3.28.0:**
+  - v menu **Výzkum** je pod **Pokračovat s agentem** položka **Pracovat na frontě…** ([S4.2.3](#S4.2.3)), když se
+    nabízí. Když je nahoře víc než 6 položek, přesune se do **Další akce** jako první **Otevřít výzkum**;
+  - v **Teď** stojí akce pod textem každého sezení, v jednom řádku: **Ukázat ve stromu** · **Dokončit a skončit**.
+    Na telefonu je jen **Ukázat ve stromu**.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent -->
+<!-- zdroj: app:v3.21.2 src/ui/research-actions-ui.ts:152 UNDO_MAX_AGE_MS, :158 FIRST_LEVEL_MAX, :300 researchMenuShown, :435 tools, :1000 personResearchActions · src/research-link.ts:115 RESEARCH_TOOL_GROUPS, :132 RESEARCH_TOOL_ACTIONS · research-overview-ui.ts:811, :870 finishSession · strings.ts research.footerFull, research.tools.*, research.reviewWhere, research.continueAgent · 3.28.0: app 9cf43b22 src/ui/research-actions-ui.ts research-item-queue-work za research-item-chat (queueWorkMenuOffered), FIRST_LEVEL_MAX 6: research-item-open do more · 623d9c77 src/ui/research-overview-ui.ts overviewNowActions (now-actions pod textem: showInTree · finishSession, finish ne v sheet), overviewNowLine (každé sezení svůj řádek) · ZADANI_DEV_fronta-hledani §6 (varianta A) -->
 
 <a id="S4.5.3"></a>
 ### S4.5.3 Otevřít úkol ve frontě
@@ -473,5 +695,8 @@ v terminálu výzkumu, i když to začne kliknutím v aplikaci.
 - **Od aplikace 3.22.0:** s výzkumem 1.26.0 jdou bez terminálu linie ([S4.3.1](#S4.3.1)), práce mimo linie po
   větvích
   ([S4.3.2](#S4.3.2)) a místo úkolu ve frontě ([S4.2](#S4.2)).
+- **Od aplikace 3.28.0:** s výzkumem 1.32.0 jde o samostatnou práci agenta na frontě požádat z aplikace
+  ([S4.2.3](#S4.2.3)). Spustí ji terminál výzkumu až po potvrzení ([R7.1.2](R7-when-the-agent-works.md#R7.1.2));
+  podmínka a její nastavení zůstávají v terminálu.
 
-<!-- zdroj: research:v1.25.2 src/core/links.ts (hlavička: nic se nezapíše bez slova člověka v terminálu) · src/core/live.ts (hlavička mostu) · app:v3.21.2 src/research-link.ts:66 · HEAD src/research-directions-write.ts -->
+<!-- zdroj: research:v1.25.2 src/core/links.ts (hlavička: nic se nezapíše bez slova člověka v terminálu) · src/core/live.ts (hlavička mostu) · app:v3.21.2 src/research-link.ts:66 · HEAD src/research-directions-write.ts · 3.28.0: app 9cf43b22 src/ui/queue-work-dialog.ts (aplikace nic nespouští, odkaz work) · spec 052 K6.2 (cesta terminál) -->

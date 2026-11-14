@@ -573,6 +573,8 @@ register(
     group: "inputs",
     tree: true,
     writes: true,
+    // what it would add reads only: anybody's, also on a research sealed on another computer
+    writesWith: ({ opts }) => !!opts.apply || !!opts.undo,
     description:
       "strom before 1.16 left out the married names other programs write as _MARNM (MyHeritage, Legacy, PAF). This reads\n" +
       "the file the research was started from again — the input it keeps — and finds the people imported from it by the\n" +

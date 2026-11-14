@@ -27,10 +27,12 @@
 
 import { GedWriter, clipChars, lineValue } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
+import { noteWhole } from "../core/model.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task, ValueOrigin } from "../core/model.ts";
 import { agentDecided, changeKeeps, linkInTree, pickableInApp, recordedLinks, reopenBlock } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, currentName, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
+import { relaForApp } from "../core/roles.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
@@ -603,7 +605,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(1, "ASSO", x(a.person));
       w.line(2, "RELA", a.rela);
     }
-    for (const n of p.notes) w.text(1, "NOTE", n.text);
+    for (const n of p.notes) w.text(1, "NOTE", noteWhole(n));
     for (const d of [...nameQuotes, ...deferred]) w.text(1, "NOTE", d);
     story(p.story);
     if (opts.research && opts.for === "strom") known(p);
@@ -690,7 +692,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (q) deferred.push(`${L("family")} — ${L("quote")}: „${q}“`);
     }
     for (const e of preferredOrder(f.events)) deferred.push(...event(e, "FAM", { husb: husb?.id, wife: wife?.id }, []));
-    for (const n of f.notes) w.text(1, "NOTE", n.text);
+    for (const n of f.notes) w.text(1, "NOTE", noteWhole(n));
     for (const d of deferred) w.text(1, "NOTE", d);
     story(f.story);
     // No REFN on FAM: the Strom importer reads REFN on individuals only.
@@ -921,6 +923,24 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (v.readers === 2) w.line(3, "_READERS", 2);
   }
 
+  /**
+   * A shared event of the Strom app (spec 085), the Strom profile alone, for any app (an older one leaves what it does
+   * not know under a fact): a person's copy of it (2 _STROM_SHARE <id>, 3 _ROLE the person's role as written), and a
+   * role at another's event (2 _STROM_ROLE <role>, 3 _STROM_AT @…@ whose — only one of this file —, 4 TYPE its tag).
+   */
+  function shareLines(e: Event, on: "INDI" | "FAM"): void {
+    if (on === "INDI" && e.share) {
+      w.line(2, "_STROM_SHARE", e.share.id);
+      if (e.share.role) w.line(3, "_ROLE", e.share.role);
+    }
+    if (!e.roleAt) return;
+    w.line(2, "_STROM_ROLE", e.roleAt.role);
+    const at = e.roleAt.at;
+    if (!at || !(personIds.has(at) || familiesById.has(at))) return;
+    w.line(3, "_STROM_AT", x(at));
+    if (e.roleAt.kind) w.line(4, "TYPE", e.roleAt.kind);
+  }
+
   function event(e: Event, on: "INDI" | "FAM", couple: { husb?: string | undefined; wife?: string | undefined }, assos: { person: string; rela: string }[]): string[] {
     if (!factWritten(e)) {
       stats.skipped++;
@@ -996,6 +1016,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         } else ageUntagged = true;
         ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age ?? raw, lang)}`);
       }
+    if (opts.for === "strom") shareLines(e, on);
     for (const c of e.citations) citation(2, c);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
     if (opts.factStatus && opts.for === "strom") w.line(2, "_STROM_STATUS", e.status);
@@ -1367,12 +1388,14 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       noteParts.push(`${L(pt.role as LabelKey)}: ${name}${pt.note ? ` (${pt.note})` : ""}`);
       return;
     }
+    // a midwife whose note says she was one ("porodní bába"): "Present" with the note, as the Strom app keeps it
+    const forApp = relaForApp(pt.role, pt.note);
     if (linked) {
       w.line(2, "ASSO", x(linked));
-      w.line(3, "RELA", rela);
+      w.line(3, "RELA", forApp);
     } else {
       w.line(2, "_WITN", name);
-      w.line(3, "RELA", rela);
+      w.line(3, "RELA", forApp);
     }
     if (pt.note) w.text(3, "NOTE", pt.note);
   }

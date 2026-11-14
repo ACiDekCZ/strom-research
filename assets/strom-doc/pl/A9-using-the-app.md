@@ -21,8 +21,11 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 | źródła osoby | menu osoby → **Źródła** | [A3.6](A3-evidence-in-the-app.md#A3.6) |
 | źródła drzewa | **Akcje → Źródła** | [A3.1](A3-evidence-in-the-app.md#A3.1) |
 | edytować osobę | menu osoby → **Edytuj** | [S2](S2-edits-from-the-app.md), przy śledzeniu [A9.3](#A9.3) |
-| widok Mapa i inne widoki | przełącznik widoków na pasku narzędzi; w wąskim oknie i na telefonie **Więcej → Widok** | [A6](A6-views.md) |
-| całe drzewo w wierszach, eksport CSV i XLSX | **Tabela** w przełączniku widoków; w wąskim oknie i na telefonie **Więcej → Widok → Tabela** | [A6.7](A6-views.md#A6.7) |
+| widok Mapa i inne widoki | przełącznik widoków na pasku narzędzi; na telefonie, tablecie i w oknie do 1024 px dolny pasek i **Więcej → Widok** | [A6](A6-views.md), [A9.5](#A9.5) |
+| całe drzewo w wierszach, eksport CSV i XLSX | **Tabela** w przełączniku widoków; na telefonie, tablecie i w oknie do 1024 px **Tabela** na dolnym pasku | [A6.7](A6-views.md#A6.7) |
+| zwinąć minimapę lub legendę drzewa | uszko nad minimapą; **◯** w legendzie | [A9.6](#A9.6) |
+| pełny ekran (telefon i tablet) | **Więcej → Pełny ekran**; na iPhonie w Safari **Więcej → Pełny ekran…** | [A9.5](#A9.5) |
+| widok albo Przegląd badania w osobnym oknie (na komputerze) | ⧉ **Otwórz w nowym oknie** obok przełącznika widoków; Ctrl+klik (macOS ⌘+klik) na karcie widoku; ⧉ na pasku Tabeli i w nagłówku Przeglądu | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
 | podkład mapy | **Pokaż mapę** przy powiadomieniu, że podkład wczytuje się z openstreetmap.org | [A9.4](#A9.4) |
 | miejsca poza mapą | pasek stanu mapy → **W badaniu**; w badaniu sekcja **Czeka na załatwienie** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | praca badania | panel badania, **⤢ Otwórz przegląd**; menu **Badanie → Przegląd badania** | [S4.1](S4-research-from-the-app.md#S4.1) |
@@ -38,7 +41,7 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 - **Obsługa:** jak w tabeli.
 - **Obowiązuje od:** aplikacja 3.25.0 (podsumowanie; każde miejsce obowiązuje od wersji w swojej zasadzie)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
 
 <a id="A9.2"></a>
 ## A9.2 Elementy mają czytelną nazwę
@@ -99,3 +102,59 @@ komputerem ([R12.10](R12-where-the-agent-works.md#R12.10)).
 - **Obowiązuje od:** badanie 1.29.0; aplikacja 3.25.0
 
 <!-- zdroj: research:src/agents/files.ts AGENTS.md „## When you have computer use“ (page tools, click by the reference find gives, never by coordinates, wait until a sliding panel has stopped; Claude's computer use only looks at browsers; research through strom; consent or setting left to the person: map's OpenStreetMap, how edits are sent) · CHANGELOG.cs.md 1.29.0 · src/core/browser.ts + src/core/bridgeguard.ts (most odmítnut) · dirigent:test/vysledek-063-pruzkum.md kolo 1 (úrovně), kolo 2 (klik přes ref z find spolehlivý, klik podle souřadnic během vysouvání trefil jinou položku; souhlas Zobrazit mapu nekliknut; místo mimo mapu v Čeká na vyřízení) · spec/063-computer-use-usnadnit K1.2, K1.3, K1.5 -->
+
+<a id="A9.5"></a>
+## A9.5 Dolny pasek na telefonie i tablecie
+
+Na telefonie, tablecie i w oknie do 1024 px aplikacja ma zamiast przełącznika widoków dolny pasek. Pozostałe widoki
+i akcje są w arkuszu **Więcej**.
+
+- **Dolny pasek:** **Rodzina** | **Potomkowie** | **＋** (dodaj osobę; tylko w drzewie, które można edytować) |
+  **Tabela** | **Więcej**. Otwarta Rodzina, Potomkowie lub Tabela jest wyróżniona na pasku; otwarty Wachlarz, Mapa
+  lub Oś czasu wyróżnia **Więcej**.
+- **Więcej → Widok:** **Wachlarz** | **Mapa** | **Oś czasu**. Na telefonie jest pod nimi wybór rodu
+  ([A6.6](A6-views.md#A6.6)), gdy drzewo go oferuje; nie przy Osi czasu, Mapie i Tabeli.
+- **Pełny ekran:** w arkuszu **Więcej** jest **Pełny ekran**, w trybie pełnego ekranu **Zamknij pełny ekran**.
+  Paski przeglądarki nie zajmują wtedy miejsca.
+  - Oferuje się go tylko tam, gdzie przeglądarka pozwala stronie na pełny ekran, i tylko z dolnym paskiem. Telefon
+    trzymany poziomo ma go jako czwarty kafelek w wierszu **Widok**.
+  - Na iPhonie lub iPadzie, którego przeglądarka nie pozwala stronie na pełny ekran (Safari na iPhonie), jest zamiast
+    niego **Pełny ekran…** z podpowiedzią: Strom dodany do ekranu początkowego (**Udostępnij → Do ekranu
+    początkowego**) otwiera się bez pasków przeglądarki, ale ma własną, oddzielną pamięć; drzewo trafia do niej przez
+    eksport i import. Aplikacja uruchomiona z ekranu początkowego tego wiersza nie ma.
+  - Gdy przeglądarka pełny ekran odrzuci, okno zostaje bez zmian.
+- **Obsługa:** dolny pasek; **Więcej → Widok**; **Więcej → Pełny ekran**.
+- **Obowiązuje od:** aplikacja 3.28.0 (do 3.27.0 dolny pasek miał **Oś czasu** zamiast **Tabeli**, a Tabela była
+  w **Więcej → Widok**)
+
+<!-- zdroj: app:4b1373a7 index.html #bottom-bar (bb-view-family, bb-view-descendants, bottom-bar-fab edit-only, bb-view-table, bb-view-more) · src/ui/misc.ts:530–533 (active: table na liště; fan, map, timeline → Více) · src/breakpoints.ts isTabletOrMobile (≤ 1024 px), isPhoneBar, MQ_PHONE_LANDSCAPE · src/ui/bottom-sheet.ts blok 5 (Pohled: fan, map, timeline; rodRow jen isPhoneBar, ne timeline/map/table; fullscreenRow jen isTabletOrMobile, na šířku čtvrtá dlaždice) · src/ui/fullscreen.ts fullscreenOffer (fullscreenEnabled → enter/exit; iOS a ne standalone → ios-hint; jinak nic), toggleFullscreen (odmítnutí: okno beze změny) · src/file-copy.ts isIosDevice · src/pwa.ts isStandaloneDisplay · strings.ts mobileMenu.fullscreen, fullscreenExit, fullscreenIos, fullscreenIosText, menu.sectionView, viewModeSwitch.* · commit bb5e4d12 (dřív bb-view-timeline a v Pohledu Tabulka) · dirigent:spec/082-tester-3.28 K1.1, K1.3 · prace/1112-app-tester-328-telefon -->
+
+<a id="A9.6"></a>
+## A9.6 Minimapę i legendę drzewa można zwinąć
+
+Minimapę i legendę drzewa można zwinąć, aby nie zasłaniały drzewa. Urządzenie zapamiętuje wybór dla wszystkich drzew.
+Zwinięcie to nie wyłączenie: czy element w ogóle się pokazuje, nadal decydują ustawienia **Minimapa** i **Legenda
+drzewa**.
+
+- **Minimapa** (komputer i tablet, widoki Rodzina i Potomkowie, gdy drzewo jest większe niż okno):
+  - na górnej krawędzi bloku z minimapą jest uszko: ⌄ zwija minimapę (**Zwiń minimapę**), zwinięta ma uszko ze
+    znakiem minimapy (**Rozwiń minimapę**). Przy myszy uszko widać tylko po najechaniu na blok lub przy fokusie
+    klawiatury, na dotyku zawsze;
+  - zwinięta minimapa się ukrywa i nie rysuje; przyciski powiększenia zostają na swoim miejscu;
+  - domyślnie rozwinięta. Telefon nie ma minimapy.
+- **Legenda drzewa:**
+  - **◯** zwija legendę do chipu „◯ Legenda”, a chip ją z powrotem rozwija. Przyciskiem jest pierwsza część pigułki
+    (po najechaniu zmienia się w ⌄, **Zwiń legendę**), a w panelu ze znakami kart cały nagłówek „◯ Legenda ⌄”;
+  - domyślnie rozwinięta. Przeciąganie myszą po legendzie poza przyciskiem dalej przesuwa drzewo;
+  - zwinięty chip ma kropkę, gdy widok pokazuje rodzaj znaku karty, którego legenda na tym urządzeniu jeszcze
+    rozwinięta nie pokazała; czytnik ekranu czyta „Legenda, nowy znak”. Po rozwinięciu kropka znika;
+  - **telefon** (pionowo i poziomo): legenda jest zawsze chipem. Stuknięcie otwiera ją jako panel od dołu (poziomo
+    jako panel po prawej) z nagłówkiem „◯ Legenda” i **Gotowe**. Zamyka go **Gotowe**, stuknięcie obok, przeciągnięcie
+    w dół (poziomo w prawo) i Esc. Po odświeżeniu strony sam się nie otwiera, a telefon wyboru urządzenia nie czyta
+    ani nie zapisuje.
+- **Granice:** bez pamięci przeglądarki (okno prywatne) wybór obowiązuje do zamknięcia strony.
+- **Obsługa:** uszko nad minimapą; **◯** w legendzie, chip „◯ Legenda”. Wyłączenie: ustawienia **Minimapa**,
+  **Legenda drzewa**.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->

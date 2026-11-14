@@ -120,8 +120,26 @@ zum Widerspruch. Die genauen Regeln stehen in [R5.2](R5-conflicts.md#R5.2); Absc
   ([R5.2.1](R5-conflicts.md#R5.2.1)). App: das Fenster **Forschung für diesen Stammbaum** zeigt, was die Option
   bedeutet („Änderungen werden in der Forschung erst nach Bestätigung geschrieben.“).
 - **Gilt seit:** Forschung 1.5.0; `sync.review` seit 1.12.0
+- **Ab Forschung 1.32.0:** `strom sync` eines Stammbaums aus der App (JSON und GEDCOM) behält gemeinsame Ereignisse,
+  Rollen, die eigenen Ereignisse **Patenschaft** und **Trauzeuge** und die Beteiligten von Ereignissen
+  ([A10](A10-shared-events.md)), wie die Übernahme eines Stammbaums ([R11.3](R11-material-from-the-user.md#R11.3)).
+  Eine Forschung, die den Stammbaum aus der App früher übernommen hat, korrigiert sich nicht von selbst; das nächste
+  `strom sync` aus der App ergänzt, was fehlt:
+  - die Notiz einer Person oder Familie, die die frühere Übernahme auf 500 Zeichen gekürzt hat, auf die ganze Notiz
+    (lässt sich zurücknehmen);
+  - fehlende eigene Ereignisse von Pate und Trauzeuge als neue Angaben und fehlende Beteiligte von Ereignissen;
+  - eine Person oder Familie, die die Übernahme von GEDCOM in der Forschung 1.31 wegen einer langen Notiz mit einem
+    Zeichen außerhalb des Grundzeichensatzes (Emoji) ausgelassen hat, wird als neu angeboten.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview -->
+  Notizen von Ereignissen und Notizen von Beteiligten vergleicht `strom sync` nicht und ergänzt sie daher nicht; die
+  App hält sie ganz.
+- **Ab App 3.28.0:** eine Forschung älter als 1.32.0 gibt gemeinsame Ereignisse und die eigenen Ereignisse von Pate
+  und Trauzeuge nicht zurück. Die App übernimmt sie beim Einlesen einer neuen Version einer solchen Forschung aus dem
+  vorigen Stand des Stammbaums: die Person erkennt sie an der Nummer in der Forschung, das Ereignis an Art, Datum,
+  Ort und Wert, nur wenn die Übereinstimmung eindeutig ist. Ein Ereignis, das die Forschung geändert hat, ist ein
+  gewöhnliches Ereignis seiner Person; die anderen Kopien bleiben verbunden.
+
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey -->
 
 <a id="S2.4"></a>
 ## S2.4 Strom-Archiv und Forschung ohne Agent

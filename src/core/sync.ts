@@ -22,14 +22,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { isCompiled } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { fromFlexDate, houseOf, importDate, marnmNames, readGedName, readGedSex, stromAppFile } from "./import.ts";
+import { APP_COUPLE_EVENTS, APP_EVENTS, appEventMarks, appLooseFamilies, appMarriedName, appNobody, appParticipants, appPersonEvent, appUnionFacts, childRelation, factDetails, fromFlexDate, importDate, partnersAges, marnmNames, readGedName, readGedSex, stromAppFile, type StromEvent } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
 import { appAge, appDate } from "./appshapes.ts";
 import { dateYears } from "./gdate.ts";
@@ -37,7 +37,7 @@ import { create, update } from "./records.ts";
 import { decodeText, foldText, safeFolderName } from "./text.ts";
 import { decodeGedcom, decodingNote, looksLikeGedcom, saidEncoding, type DecodingNote, type GedcomDecoding } from "../gedcom/encoding.ts";
 import { hasHouseMark } from "./streets.ts";
-import { roleWord } from "./roles.ts";
+import { eventMarksOf, gedcomRole, participantRole, roleWord } from "./roles.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate, humanDay } from "../cli/human.ts";
 import { ui } from "../cli/ui.ts";
@@ -49,7 +49,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -96,6 +96,24 @@ export interface SFact {
   eid?: string;
   /** An applied `event.edit`'s before only: where the fact's values came from before (an undo puts it back). */
   prior?: { origin?: Event["origin"]; was?: Event["was"] };
+  /**
+   * The Strom app's mark of an event it shares among people (spec 085: `2 _STROM_SHARE <id>` + `3 _ROLE`/`3 ROLE`, its
+   * JSON's `shareId` + `shareRole`): a person's fact only. Never part of factKey — a copy with it and one without are
+   * the same fact.
+   */
+  share?: EventShare;
+  /** A role at another's event (`2 _STROM_ROLE`, `3 _STROM_AT`, `4 TYPE`; the JSON's `roleAt`): never part of factKey. */
+  roleAt?: SRoleAt;
+}
+
+/**
+ * A role at another's event as a snapshot has it: whose by the snapshot's key — a person's, or "fam:" and the partners'
+ * keys of a family (famKey) —, the GEDCOM tag of that event (only where whose is said: the file gives it under it).
+ */
+export interface SRoleAt {
+  role: ParticipantRole;
+  at?: string;
+  kind?: string;
 }
 
 /** Someone the record names at a fact: a person of the file (its key), or a name as written; their role. */
@@ -283,6 +301,8 @@ export interface Snapshot {
   again?: string;
   /** The Strom app's version that wrote the file (its HEAD: 1 SOUR STROM, 2 VERS). */
   appVersion?: string;
+  /** The data version of the Strom app's JSON the file is (its `version`): the gates of what it decides by it. */
+  dataVersion?: number;
   /**
    * The file is of a Strom app that keeps a source's location field by field (its 3.27.0-beta.5, its JSON's data version
    * 18): a folio, image or call number it was given and does not give back is one the user removed (spec 075, B).
@@ -443,7 +463,7 @@ const ENTRY: Record<string, string> = {
 /** Facts there is one of: an edit of one is a change, not a second fact. */
 const ONE = new Set(["BIRT", "BAPM", "DEAT", "BURI", "CREM", "MARR", "DIV"]);
 
-type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean };
+type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean; problems?: string[] };
 
 function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, read: GedReaders = {}): SFact[] {
   return cleanFacts(rawFacts(node, couple, read));
@@ -484,9 +504,13 @@ function cleanFacts(facts: SFact[]): SFact[] {
       if (f.parts?.length) host.parts = mergeParts(host.parts, f.parts);
       return false;
     }
-    // a marriage with nothing known of it: every couple of the Strom app is "married" (its witnesses are something)
-    return !(f.kind === "MARR" && !f.date && !f.place && !f.value && !f.parts?.length);
+    return !bareMarriage(f);
   });
+}
+
+/** A marriage with nothing known of it: every couple of the Strom app is "married" (its witnesses are something). */
+function bareMarriage(f: SFact): boolean {
+  return f.kind === "MARR" && !f.date && !f.place && !f.value && !f.parts?.length;
 }
 
 /** Participants of two lists, each once (the same person or name in the same role). */
@@ -518,25 +542,21 @@ function resolveParts(facts: SFact[], key: (ref: string) => string | undefined):
   }
 }
 
-/** Words that only say someone was there (the Strom app's RELA for a role it has no name for). */
-const PRESENT = new Set(["present", "other", "participant"]);
-
 /**
- * A participant's role and note as a file gives them: its RELA, else — a role the Strom app has no name for
- * (informant, midwife: "RELA Present") — the word it puts in front of the note ("Midwife — z Kamenice").
+ * Whose a role at another's event was, read before all the file's people and families were: "@<ref>" → the person's
+ * key, else the family's ("fam:" and its partners' keys); one the file does not have — the role alone (its kind too:
+ * the file gives it only under whose).
  */
-function partRole(rela: string | undefined, note: string | undefined, fallback: ParticipantRole): { role: ParticipantRole; note?: string } {
-  const r = rela?.trim();
-  const named = r && !PRESENT.has(foldText(r)) ? roleWord(r) : undefined;
-  const text = note?.replace(/\s+/g, " ").trim();
-  if (named && named !== "other") return { role: named, ...(text ? { note: text } : {}) };
-  const m = text ? /^([^—–]{1,40}?)\s*(?:[—–]\s*(.*))?$/.exec(text) : null;
-  const fromNote = m && m[1]!.trim().split(/\s+/).length <= 3 ? roleWord(m[1]) : undefined;
-  if (fromNote) return { role: fromNote, ...(m![2]?.trim() ? { note: m![2].trim() } : {}) };
-  return { role: named ?? (r && PRESENT.has(foldText(r)) ? "other" : fallback), ...(text ? { note: text } : {}) };
+function resolveRoleAt(facts: SFact[], person: (ref: string) => string | undefined, family: (ref: string) => string | undefined): void {
+  for (const f of facts) {
+    if (!f.roleAt?.at?.startsWith("@")) continue;
+    const ref = f.roleAt.at.slice(1);
+    const at = person(ref) ?? family(ref);
+    f.roleAt = { role: f.roleAt.role, ...(at ? { at } : {}), ...(at && f.roleAt.kind ? { kind: f.roleAt.kind } : {}) };
+  }
 }
 
-function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed }: GedReaders = {}): SFact[] {
+function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed, problems }: GedReaders = {}): SFact[] {
   const out: SFact[] = [];
   for (const c of node.children) {
     if (["NAME", "SEX", "REFN", "NOTE", "FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "OBJE", "ASSO", "_STORY"].includes(c.tag)) continue;
@@ -580,19 +600,20 @@ function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
     // the fact's ID the app was given (what it saw the state of): only for taking a confirmation back
     const eid = confirmed ? val(c, "_STROM_EID")?.trim().toUpperCase() : undefined;
     if (eid && /^E\d{1,9}$/u.test(eid)) f.eid = eid;
+    // the Strom app's shared event (a person's fact) and a role at another's: whose by its xref, resolved once all are read
+    const marks = eventMarksOf(c, !couple, () => undefined);
+    if (marks.share) f.share = marks.share;
+    if (marks.unreadable) problems?.push(`${c.tag}: the mark of a shared event "${marks.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
+    if (marks.roleAt) f.roleAt = { role: marks.roleAt.role, ...(marks.atXref ? { at: `@${marks.atXref.replace(/@/g, "")}` } : {}), ...(marks.atXref && marks.roleAt.kind ? { kind: marks.roleAt.kind } : {}) };
     out.push(f);
   }
   return out;
 }
 
-/** A fact's cause, age and house as the file has them, in the research's form (an age it cannot read: none). */
+/** A fact's cause, age and house as the file has them, in the research's form (an age it cannot read: none) — as strom intake reads them (factDetails). */
 function details(f: SFact, cause: string | undefined, age: string | undefined, house: string | undefined): void {
-  const c = cause?.replace(/\s+/g, " ").trim();
-  if (c) f.cause = c;
-  const a = age?.trim() ? normalizeAge(age) : undefined;
-  if (a) f.age = a;
-  const h = house?.trim() ? houseOf(house) : "";
-  if (h) f.house = h;
+  const { ageAsWritten: _unread, ...said } = factDetails(cause, age, house);
+  Object.assign(f, said);
 }
 
 /** The details of a fact the research compares, besides the partners' ages. */
@@ -672,6 +693,21 @@ function swapLine(text: string, was: string, now: string): string {
   return lines.join("\n");
 }
 
+/**
+ * A note with one of its lines another (swapLine over its whole text): a note longer than one holds kept so — its
+ * beginning and the whole (a note of the user's own tree), else the text alone.
+ */
+/** A note as a tree's note keeps it (treeNoteText): NFC, no spaces before a line's end, trimmed. */
+function wholeNote(text: string): string {
+  return text.normalize("NFC").replace(/\s+\n/g, "\n").trim();
+}
+
+function swapNoteLine(n: Note, was: string, now: string): Note {
+  const { whole: _whole, ...rest } = n;
+  const text = swapLine(noteWhole(n), was, now);
+  return { ...rest, ...(text.length > NOTE_MAX ? treeNoteText(text) : { text }) };
+}
+
 /** The line only adds words around the research's ("Address: čp. 35" of "čp. 35"): the app's own shape, no line of its own. */
 function onlyAdds(ours: string, line: string): boolean {
   const w = lineWords(line);
@@ -717,7 +753,7 @@ function readingMarkOf(r: GedNode): { reading?: ReadingMark } {
 }
 
 /** A GEDCOM file (or one of ours, in memory) as a snapshot; an unreadable one throws. */
-export function readGedcom(text: string): Snapshot {
+export function readGedcom(text: string, lang = "en"): Snapshot {
   const { records, problems } = parseGedcomText(text);
   const head = records.find((r) => r.tag === "HEAD");
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
@@ -781,7 +817,11 @@ export function readGedcom(text: string): Snapshot {
       if (n.tag !== "ASSO" && n.tag !== "_WITN" && n.tag !== "WITN") continue;
       const v = n.value.replace(/\s+/g, " ").trim();
       if (!v) continue;
-      const { role, note } = partRole(val(n, "RELA"), children(n, "NOTE").map(noteText).join(" "), n.tag === "ASSO" ? "other" : "witness");
+      // GEDCOM 7: a ROLE (with its PHRASE) before a RELA, as the intake reads it (core/import.ts)
+      const roleNode = n.tag === "ASSO" ? children(n, "ROLE")[0] : undefined;
+      const g7 = roleNode ? gedcomRole(roleNode.value, val(roleNode, "PHRASE"), lang) : undefined;
+      const noted = children(n, "NOTE").map(noteText).join(" ").replace(/\s+/g, " ").trim();
+      const { role, note } = g7 ? { role: g7.role, note: [g7.note, noted].filter(Boolean).join("; ") } : participantRole(val(n, "RELA"), noted, n.tag === "ASSO" ? "other" : "witness");
       out.push({ role, ...(n.tag === "ASSO" ? { person: `@${v.replace(/@/g, "")}` } : { name: v }), ...(note ? { note } : {}) });
     }
     return out;
@@ -791,7 +831,7 @@ export function readGedcom(text: string): Snapshot {
   const imports = fromApp.app ? importsOfHead(head) : undefined;
   const markOf = (n: GedNode | undefined) => markUnder(n, imports);
   // the user's confirmations against the scan (spec 065): of the research's or the app's own file alone
-  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted };
+  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted, problems };
   const keys = new Map<string, string>();
   const persons = new Map<string, SPerson>();
   for (const r of records.filter((x) => x.tag === "INDI" && x.xref)) {
@@ -835,7 +875,7 @@ export function readGedcom(text: string): Snapshot {
     // a godparent other programs give the person (1 ASSO): theirs at the baptism, else the birth
     const host = facts.find((f) => kindOf(f.kind) === "BAPM") ?? facts.find((f) => f.kind === "BIRT");
     for (const a of children(r, "ASSO")) {
-      const { role, note } = partRole(val(a, "RELA"), children(a, "NOTE").map(noteText).join(" "), "other");
+      const { role, note } = participantRole(val(a, "RELA"), children(a, "NOTE").map(noteText).join(" "), "other");
       if (role === "godparent" && host && a.value.trim()) host.parts = mergeParts(host.parts, [{ role, person: `@${a.value.trim().replace(/@/g, "")}`, ...(note ? { note } : {}) }]);
     }
     // the sources of the person: the Strom app's (1 SOUR), the research's of their names
@@ -922,6 +962,17 @@ export function readGedcom(text: string): Snapshot {
     const k = keys.get(`@${ref}@`);
     return k && persons.has(k) ? k : undefined;
   });
+  resolveRoleAt(
+    [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)),
+    (ref) => {
+      const k = keys.get(`@${ref}@`);
+      return k && persons.has(k) ? k : undefined;
+    },
+    (ref) => {
+      const fam = families.find((f) => f.xref === ref);
+      return fam?.partners.length ? `fam:${famKey(fam.partners)}` : undefined;
+    },
+  );
   citedDetails(sources, [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)));
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
@@ -970,20 +1021,6 @@ function citedDetails(sources: Map<string, SSource>, facts: SFact[]): void {
     }
 }
 
-/** The Strom app's life events → our kinds. */
-const APP_EVENTS: Record<string, string> = {
-  birth: "BIRT", death: "DEAT", baptism: "BAPM", burial: "BURI", occupation: "OCCU", residence: "RESI", military: "MILI",
-  emigration: "EMIG", immigration: "IMMI", education: "EDUC", religion: "RELI", custom: "EVEN", confirmation: "CONF",
-  firstCommunion: "FCOM", barMitzvah: "BARM", batMitzvah: "BASM", ordination: "ORDN", adoption: "ADOP", naturalization: "NATU",
-  will: "WILL", probate: "PROB", title: "TITL", nationality: "NATI", cremation: "CREM",
-};
-
-/** The Strom app's events of a couple (its 3.8) → GEDCOM tags. */
-const APP_COUPLE_EVENTS: Record<string, string> = {
-  engagement: "ENGA", banns: "MARB", marriageLicence: "MARL", marriageContract: "MARC", marriageSettlement: "MARS",
-  residence: "RESI", census: "CENS", divorceFiled: "DIVF", annulment: "ANUL", custom: "EVEN",
-};
-
 /** Facts whose value is what they are (the GEDCOM tag's value). */
 const VALUE_KINDS = new Set(["OCCU", "RELI", "TITL", "NATI"]);
 
@@ -1012,6 +1049,8 @@ interface AppPerson {
   nameVariants?: string[];
   /** The surname after the (last) marriage (spec 010): with the person's first name, a name of the married kind. */
   marriedSurname?: string;
+  /** The given names of the name after the marriage when they are not the person's (the app's 3.26). */
+  marriedFirstName?: string;
   /** The name the person is shown by (spec 024, the user's choice): the birth one (lastName), the one after the marriage; none: no choice. */
   primaryName?: string;
   birthAddress?: string;
@@ -1025,7 +1064,7 @@ interface AppPerson {
   /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
   titleBefore?: string;
   titleAfter?: string;
-  events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string; sourceIds?: string[]; participants?: AppParticipant[] }[];
+  events?: (Pick<StromEvent, "shareId" | "shareRole" | "roleAt"> & { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string; sourceIds?: string[]; participants?: AppParticipant[] })[];
 }
 /** Someone at an event of the Strom app: a person of its tree, or a name as the register writes it. */
 interface AppParticipant {
@@ -1070,7 +1109,7 @@ interface AppPartnership {
   /** The partners' ages at the wedding: the app's person id → age (3.7). */
   ages?: Record<string, string>;
   /** The couple's other events (the app's 3.8, data version 10). */
-  events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; address?: string; ages?: Record<string, string>; sourceIds?: string[]; participants?: AppParticipant[] }[];
+  events?: (Pick<StromEvent, "roleAt"> & { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; address?: string; ages?: Record<string, string>; sourceIds?: string[]; participants?: AppParticipant[] })[];
   /** The witnesses at the wedding (the app's data version 6). */
   participants?: AppParticipant[];
   /** The sources of the union (its marriage record and the like; the app's 3.9 writes them under MARR). */
@@ -1080,7 +1119,7 @@ interface AppPartnership {
 }
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
-export function readStromJson(data: unknown): Snapshot {
+export function readStromJson(data: unknown, lang = "en"): Snapshot {
   const d = data as { version?: unknown; persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; sources?: Record<string, AppSource>; research?: { id?: string; head?: string; transcripts?: string; sexU?: unknown } };
   if (!d || typeof d !== "object" || !d.persons || typeof d.persons !== "object") throw new UsageError("not a family tree of the Strom app: no persons in it", { code: "tree.unreadable" });
   // the sex "unknown" is the user's (U01): a sex of its own from the app's data version 12 (its 3.10.0-beta.11), never
@@ -1138,28 +1177,33 @@ export function readStromJson(data: unknown): Snapshot {
   };
   // who else is at an event: a person of the app's tree (resolved to their key once all are read), or a name
   const partsOf = (list: unknown): SPart[] | undefined => {
-    const out: SPart[] = [];
-    for (const x of Array.isArray(list) ? (list as AppParticipant[]) : []) {
-      if (!x || typeof x !== "object") continue;
-      const name = typeof x.name === "string" ? x.name.replace(/\s+/g, " ").trim() : "";
-      const id = typeof x.personId === "string" ? x.personId : "";
-      if (!id && !name) continue;
-      const { role, note } = partRole(typeof x.role === "string" ? x.role : undefined, typeof x.note === "string" ? x.note : undefined, "other");
-      out.push({ role, ...(id ? { person: `@${id}` } : {}), ...(name ? { name } : {}), ...(note ? { note } : {}) });
-    }
+    const out: SPart[] = appParticipants(list).map((x) => ({ role: x.role, ...(x.appPerson ? { person: `@${x.appPerson}` } : {}), ...(x.name ? { name: x.name } : {}), ...(x.note ? { note: x.note } : {}) }));
     return out.length ? out : undefined;
   };
   const keys = new Map<string, string>();
   const persons = new Map<string, SPerson>();
+  const problems: string[] = [];
+  // the app's shared event and a role at another's (spec 085): whose by the app's IDs ("@" a person's, "@%" a
+  // partnership's), resolved once all are read
+  const marksOf = (f: SFact, e: { shareId?: unknown; shareRole?: unknown; roleAt?: unknown }, person: boolean): void => {
+    const m = appEventMarks(e, person);
+    if (m.share) f.share = m.share;
+    if (m.unreadable) problems.push(`${f.kind}: the mark of a shared event "${m.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
+    if (m.roleAt) {
+      const at = m.atPerson ? `@${m.atPerson}` : m.atPartnership ? `@%${m.atPartnership}` : undefined;
+      f.roleAt = { role: m.roleAt.role, ...(at ? { at } : {}), ...(at && m.roleAt.kind ? { kind: m.roleAt.kind } : {}) };
+    }
+  };
   for (const p of Object.values(d.persons)) {
-    // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
-    if (!p?.id || p.isPlaceholder) continue;
+    // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody (as strom intake reads it)
+    if (appNobody(p)) continue;
     const refn = p.refn?.trim();
     const key = refn && OUR_ID.test(refn) && (!p.refnType || p.refnType === REFN_TYPE) && !persons.has(refn) ? refn : `x:${p.id}`;
     keys.set(p.id, key);
     const facts: SFact[] = [];
-    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string, more: { cause?: string | undefined; age?: string | undefined; house?: string | undefined; sourceIds?: unknown; participants?: unknown } = {}) => {
+    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string, more: { cause?: string | undefined; age?: string | undefined; house?: string | undefined; sourceIds?: unknown; participants?: unknown; marks?: { shareId?: unknown; shareRole?: unknown; roleAt?: unknown } } = {}) => {
       const f: SFact = { kind };
+      if (more.marks) marksOf(f, more.marks, true);
       const cites = citesOf(more.sourceIds);
       if (cites) f.cites = cites;
       const parts = partsOf(more.participants);
@@ -1176,11 +1220,13 @@ export function readStromJson(data: unknown): Snapshot {
     if (p.deathDate || p.deathPlace || p.deathCause || p.deathAge || p.deathAddress)
       fact("DEAT", p.deathDate, p.deathPlace, undefined, undefined, { cause: p.deathCause, age: p.deathAge, house: p.deathAddress, sourceIds: p.deathSourceIds });
     for (const e of p.events ?? []) {
-      const kind = APP_EVENTS[e.type];
-      if (!kind || ((kind === "BIRT" || kind === "DEAT") && facts.some((f) => f.kind === kind))) continue;
+      // a godparent's or a wedding witness's own event (spec 085 K2.2): an EVEN named in the research's language
+      const what = e && typeof e.type === "string" ? appPersonEvent(e, lang) : undefined;
+      const kind = what && Object.hasOwn(APP_EVENTS, e.type) ? APP_EVENTS[e.type]! : what?.kind;
+      if (!what || !kind || ((kind === "BIRT" || kind === "DEAT") && facts.some((f) => f.kind === kind))) continue;
       // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
       const value = VALUE_KINDS.has(kind) ? e.note?.split("\n")[0] : undefined;
-      fact(kind === "MILI" ? "EVEN" : kind, e.date, e.place, kind === "EVEN" ? e.customLabel || "EVEN" : undefined, value, { cause: e.cause, age: e.age, house: e.address, sourceIds: e.sourceIds, participants: e.participants });
+      fact(what.kind, e.date, e.place, what.kind === "EVEN" ? (kind === "MILI" ? e.customLabel || "EVEN" : what.label || "EVEN") : undefined, value, { cause: e.cause, age: e.age, house: e.address, sourceIds: e.sourceIds, participants: e.participants, marks: e });
     }
     const name = `${p.firstName ?? ""} /${p.lastName ?? ""}/`.trim();
     if (!key.startsWith("P") && !`${p.firstName ?? ""}${p.lastName ?? ""}`.replace(/[?\s]/g, "")) {
@@ -1189,10 +1235,9 @@ export function readStromJson(data: unknown): Snapshot {
     }
     const cites = citesOf(p.sourceIds);
     const titles = titlesFrom(p.titleBefore, p.titleAfter);
-    // the surname after the marriage (spec 010) with the person's first name: a name of the married kind, after the one
-    // shown and before the other forms (as the app's GEDCOM gives it)
-    const marriedSurname = typeof p.marriedSurname === "string" ? p.marriedSurname.replace(/[/\s]+/g, " ").trim() : "";
-    const married = marriedSurname ? `${p.firstName ?? ""} /${marriedSurname}/`.trim() : undefined;
+    // the surname after the marriage (spec 010) with its own given names or the person's first name: a name of the
+    // married kind, after the one shown and before the other forms (as the app's GEDCOM gives it, as strom intake reads it)
+    const married = appMarriedName(p);
     const names = [name, ...(married ? [married] : []), ...(p.nameVariants ?? [])].filter((n) => n.replace(/[/?\s]/g, ""));
     // the name the user chose to show them by (spec 024): the birth one, the one after the marriage; none said: nothing
     const primary = p.primaryName === "birth" ? "birth" : p.primaryName === "married" && married ? `married|${nameKey(married)}` : undefined;
@@ -1213,15 +1258,7 @@ export function readStromJson(data: unknown): Snapshot {
     });
   }
   // a partner's age by the app's person id → by the person's key
-  const partnersAges = (ages: Record<string, string> | undefined): Record<string, string> | undefined => {
-    const out: Record<string, string> = {};
-    for (const [id, raw] of Object.entries(ages ?? {})) {
-      const key = keys.get(id);
-      const a = key && typeof raw === "string" && raw.trim() ? normalizeAge(raw) : undefined;
-      if (key && a) out[key] = a;
-    }
-    return Object.keys(out).length ? out : undefined;
-  };
+  const agesOf = (ages: Record<string, string> | undefined): Record<string, string> | undefined => partnersAges(ages, (id) => keys.get(id));
   /** The children's ties to each of their parents, as the app keeps them on the child (parentRelTypes). */
   const appTies = (kids: string[], parents: (string | undefined)[]): Ties => {
     const ties: Ties = {};
@@ -1246,20 +1283,23 @@ export function readStromJson(data: unknown): Snapshot {
   for (const u of Object.values(d.partnerships ?? {})) {
     const partners = [u.person1Id, u.person2Id].map((x) => (x ? keys.get(x) : undefined)).filter((k): k is string => !!k);
     const facts: SFact[] = [];
-    if ((u.status === "married" || u.status === "divorced") && (u.startDate || u.startPlace || u.participants?.length)) {
+    // the wedding and the divorce as the app's GEDCOM writes them (as strom intake reads them; a bare wedding is none)
+    const wrote = appUnionFacts(u, (id) => persons.has(keys.get(id) ?? ""));
+    if (wrote.marriage) {
       const f: SFact = { kind: "MARR" };
       const g = fromFlexDate(u.startDate);
       if (g) f.date = g;
       if (u.startPlace?.trim()) f.place = u.startPlace.trim();
       details(f, undefined, undefined, u.address);
-      const ages = partnersAges(u.ages);
+      const ages = agesOf(u.ages);
       if (ages) f.ages = ages;
       // the union's sources: the app gives them under its marriage (what the family itself cites is no news, newCites)
       const cites = citesOf(u.sourceIds);
       if (cites) f.cites = cites;
       const parts = partsOf(u.participants);
       if (parts) f.parts = parts;
-      facts.push(f);
+      // as the GEDCOM's: a bare MARR is no news (cleanFacts)
+      if (!bareMarriage(f)) facts.push(f);
     }
     // the couple's other events (the app's 3.8)
     for (const e of u.events ?? []) {
@@ -1271,16 +1311,17 @@ export function readStromJson(data: unknown): Snapshot {
       if (e.place?.trim()) f.place = e.place.trim().replace(/\s+/g, " ");
       if (kind === "EVEN") f.label = e.customLabel || "EVEN";
       details(f, e.cause, undefined, e.address);
-      const ages = partnersAges(e.ages);
+      const ages = agesOf(e.ages);
       if (ages) f.ages = ages;
       const cites = citesOf(e.sourceIds);
       if (cites) f.cites = cites;
       const parts = partsOf(e.participants);
       if (parts) f.parts = parts;
+      marksOf(f, e, false);
       if (f.date || f.place || f.label || kind !== "EVEN") facts.push(f);
     }
-    // the divorce (the app's 3.7 keeps its place too)
-    if (u.status === "divorced" && (u.endDate || u.endPlace)) {
+    // the divorce (the app's 3.7 keeps its place too; a couple separated: when they parted; bare: divorced, no more known)
+    if (wrote.divorce) {
       const f: SFact = { kind: "DIV" };
       const g = fromFlexDate(u.endDate);
       if (g) f.date = g;
@@ -1298,25 +1339,35 @@ export function readStromJson(data: unknown): Snapshot {
     const union = partners.length === 1 && kids.length === 1 && said === "married" ? undefined : unionOf(said, partners.length === 1, said === "married", said === "divorced");
     families.push({ partners, children: kids.map((c) => keys.get(c)!), ...appTies(kids, [u.person1Id, u.person2Id]), facts, ...(cites ? { cites } : {}), ...(note ? { notes: [note] } : {}), said: note ?? "", ...(union ? { union } : {}) });
   }
-  // a child of one parent (no couple of the app holds the tie): a family of that parent
-  const held = new Set(Object.values(d.partnerships ?? {}).flatMap((u) => (u.childIds ?? []).flatMap((c) => [u.person1Id, u.person2Id].filter(Boolean).map((p) => `${p}|${c}`))));
-  const alone = new Map<string, SFamily>();
-  for (const p of Object.values(d.persons)) {
-    const child = keys.get(p.id);
-    const parents = (p.parentIds ?? []).filter((x) => !held.has(`${x}|${p.id}`)).map((x) => keys.get(x)).filter((k): k is string => !!k && persons.has(k));
-    if (!child || !persons.has(child) || !parents.length) continue;
-    const k = famKey(parents);
-    const f = alone.get(k) ?? alone.set(k, { partners: parents, children: [], facts: [], said: "" }).get(k)!;
-    f.children.push(child);
-    const ties = appTies([p.id], (p.parentIds ?? []).filter((x) => !held.has(`${x}|${p.id}`)));
-    if (ties.relations) f.relations = { ...f.relations, ...ties.relations };
-    if (ties.relationsBy) f.relationsBy = { ...f.relationsBy, ...ties.relationsBy };
+  // a child of one parent (no couple of the app holds the tie): a family of that parent (as strom intake reads it)
+  for (const loose of appLooseFamilies(d, (id) => persons.has(keys.get(id) ?? ""))) {
+    const ties = appTies(loose.children, loose.parents);
+    families.push({
+      partners: loose.parents.map((x) => keys.get(x)!),
+      children: loose.children.map((c) => keys.get(c)!),
+      facts: [],
+      said: "",
+      ...(ties.relations ? { relations: ties.relations } : {}),
+      ...(ties.relationsBy ? { relationsBy: ties.relationsBy } : {}),
+    });
   }
-  families.push(...alone.values());
   resolveParts([...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)), (ref) => {
     const k = keys.get(ref);
     return k && persons.has(k) ? k : undefined;
   });
+  const ofPerson = (id: string) => {
+    const k = keys.get(id);
+    return k && persons.has(k) ? k : undefined;
+  };
+  resolveRoleAt(
+    [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)),
+    (ref) => (ref.startsWith("%") ? undefined : ofPerson(ref)),
+    (ref) => {
+      const u = ref.startsWith("%") ? d.partnerships?.[ref.slice(1)] : undefined;
+      const partners = u ? [u.person1Id, u.person2Id].map((x) => (x ? ofPerson(x) : undefined)).filter((k): k is string => !!k) : [];
+      return partners.length ? `fam:${famKey(partners)}` : undefined;
+    },
+  );
   // the app's coordinates are kept for the place's name (its placeKey): the names are its facts'
   const places = new Map<string, SPlace>();
   const geo = d.places && typeof d.places === "object" ? d.places : {};
@@ -1328,7 +1379,7 @@ export function readStromJson(data: unknown): Snapshot {
   }
   const r = d.research;
   const transcripts = r?.transcripts === "evidence" ? "evidence" : "lead";
-  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), ...(fieldsKept ? { fieldsKept: true as const } : {}), problems: [] };
+  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), ...(fieldsKept ? { fieldsKept: true as const } : {}), ...(typeof d.version === "number" ? { dataVersion: d.version } : {}), problems };
 }
 
 /**
@@ -1349,7 +1400,7 @@ export function treeFileKept(file: string): string {
 }
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
-export function readTreeFile(file: string): Snapshot {
+export function readTreeFile(file: string, lang?: string): Snapshot {
   const { text, decoded } = treeFileText(file);
   if (!text.trim()) throw new UsageError(`${path.basename(file)} is empty`, { code: "tree.empty", params: { file: path.basename(file) } });
   let snap: Snapshot;
@@ -1360,8 +1411,8 @@ export function readTreeFile(file: string): Snapshot {
     } catch (e) {
       throw new UsageError(`${path.basename(file)} is not readable JSON: ${(e as Error).message}`, { code: "tree.unreadable", params: { file: path.basename(file) } });
     }
-    snap = readStromJson(data);
-  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) snap = readGedcom(text);
+    snap = readStromJson(data, lang);
+  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) snap = readGedcom(text, lang);
   else throw new UsageError(`${path.basename(file)} is neither a GEDCOM file nor a family tree of the Strom app`, { code: "tree.unreadable", params: { file: path.basename(file) } });
   if (!snap.persons.size) throw new UsageError(`${path.basename(file)} has no people in it`, { hint: "a file exported from the Strom app or another family-tree program", code: "tree.empty", params: { file: path.basename(file) } });
   const note = decoded ? decodingNote(decoded) : {};
@@ -1372,24 +1423,6 @@ export function readTreeFile(file: string): Snapshot {
 
 /** How a family's children are tied to its parents, as a snapshot keeps it. */
 type Ties = Pick<SFamily, "relations" | "relationsBy" | "relationsUnknown">;
-
-/** A child's tie to a parent in the research's words (_FREL/_MREL, PEDI, the app's parentRelTypes); a word it has none for: undefined. */
-function childRelation(said: string | undefined): string | undefined {
-  switch ((said ?? "").trim().toLowerCase()) {
-    case "natural": case "birth": case "biological":
-      return "birth";
-    case "adopted": case "adoptive":
-      return "adopted";
-    case "step":
-      return "step";
-    case "foster":
-      return "foster";
-    case "unknown":
-      return "unknown";
-    default:
-      return undefined;
-  }
-}
 
 /** A child's ties to each parent: one for both (none said: birth), else each its own. */
 function settleTie(ties: Ties, child: string, by: Record<string, string>, both: string): void {
@@ -1774,7 +1807,8 @@ export function receiveTree(root: string, env: Tree["env"], text: string, opts: 
   if (opts.again) markSentAgain(root, opts.again, mark.intake);
   let changes: number;
   try {
-    changes = planSync(Tree.open(root, env), readTreeFile(file), "conflict").changes.length;
+    const t = Tree.open(root, env);
+    changes = planSync(t, readTreeFile(file, t.config.lang), "conflict").changes.length;
   } catch (e) {
     // refused (another research's, one without the research's IDs…): kept aside too, to see what came (said with it)
     const kept = keepSent(root, file, "refused-");
@@ -1888,7 +1922,7 @@ export function inboxTrees(root: string, env: Tree["env"]): InboxTree[] {
     if (head && r.counted !== head) {
       try {
         tree ??= Tree.open(root, env);
-        changes = planSync(tree, readTreeFile(path.join(root, SYNC_INBOX, r.file)), "conflict").changes.length;
+        changes = planSync(tree, readTreeFile(path.join(root, SYNC_INBOX, r.file), tree.config.lang), "conflict").changes.length;
         // the research took all it brings meanwhile (another send of it): nothing waits
         if (!changes) {
           decide(root, r, { state: "nothing", changes, counted: head });
@@ -2284,7 +2318,8 @@ export type ChangeKind =
   | "surname.warning"
   | "lineage.mark"
   | "ids.add"
-  | "fact.confirm";
+  | "fact.confirm"
+  | "fact.share";
 
 /** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing, withdrawn, what a record's fact lacks added to it. */
 export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report" | "remove" | "refine";
@@ -2316,8 +2351,11 @@ export interface Change {
   /** name.title: which title of the name the person is shown by, and the research's (the file's is `text`, "" none). */
   title?: { part: "before" | "after"; was: string };
   text?: string;
-  /** note.changed: the research's note (its time) and its line the user edited (the file's line is `text`). */
-  note?: { at: string; was: string };
+  /**
+   * note.changed: the research's note (its time) and its line the user edited (the file's line is `text`); `whole`: the
+   * note an older strom cut at its first 500 characters (`was`, ending "…"), given whole again (`text`, the whole note).
+   */
+  note?: { at: string; was: string; whole?: true };
   /** A source: its key in the file, and the research's source it is (a change of one the research has). */
   source?: string;
   sourceId?: string;
@@ -2365,6 +2403,11 @@ export interface Change {
   ids?: IdBlock[];
   /** fact.confirm: the user's confirmation against the scan given in the app (its day, "" none said), or taken back. */
   confirm?: { on: boolean; day: string };
+  /**
+   * fact.share: which mark of the Strom app the file gives the research's fact (`was`) — one event shared among people
+   * (`share`), a role at another's (`roleAt`); the file's fact without it: the mark taken off (spec 085).
+   */
+  shared?: "share" | "roleAt";
 }
 
 export interface Plan {
@@ -2477,7 +2520,7 @@ export function guardedChange(tree: Tree, c: Change, g: { decidePerson?: boolean
   }
 }
 
-export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", opts: { force?: boolean; takenBack?: false; sent?: boolean } = {}): Plan {
+export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean } = {}): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
   if (mirror) edits = "user";
@@ -2554,6 +2597,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const readsConfirmed = appShowsVerify(new Settings(tree.env, {}), incoming.appVersion);
   if (!readsConfirmed) unconfirmed(incoming);
   if (base && base.appVersion && !appShowsVerify(new Settings(tree.env, {}), base.appVersion)) unconfirmed(base);
+  // the app decides who shares an event (spec 085, APP_DECIDES_SHARES): of an app that does, a mark it changed or took
+  // off since it was given is the user's; of any other only a mark the research's fact lacks is taken (never one changed)
+  const decidesShares = opts.decidesShares ?? (incoming.format === "gedcom" ? appDecidesShares(new Settings(tree.env, {}), incoming.appVersion) : appDataDecidesShares(incoming.dataVersion));
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
   /** What the file no longer has: an archive takes it away — unless the window that sends never had it (kept, said). */
@@ -2576,6 +2622,10 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     return [...partIds(a, sa)].some((k) => x.has(k));
   };
   const sameRole = (a: SPart, b: SPart) => a.role === b.role || a.role === "other" || b.role === "other";
+  // a mark of the Strom app as compared (spec 085): whose a role was by the research's IDs, its kind only with whose
+  const atKey = (at: string | undefined) => (!at ? "" : at.startsWith("fam:") ? `fam:${famKey(at.slice(4).split("+").map(idOf))}` : idOf(at));
+  const markKey = (f: SFact, shared: "share" | "roleAt") =>
+    shared === "share" ? (f.share ? `${f.share.id}|${f.share.role ?? ""}` : "") : f.roleAt ? `${f.roleAt.role}|${atKey(f.roleAt.at)}|${f.roleAt.at ? (f.roleAt.kind ?? "") : ""}` : "";
 
   const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean) => {
     const ourKeys = new Set(our.map(factKey));
@@ -2624,6 +2674,29 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       if (!was && !on) return;
       push({ kind: "fact.confirm", action: "user", ...owner, fact: f, was: o, confirm: { on, day: f.confirmed ?? "" } });
     };
+    /**
+     * The Strom app's marks of the research's fact as the file has it (`o`, spec 085): one the research's fact lacks is
+     * added; of an app that decides who shares an event, one it changed or took off since it was given is the user's
+     * (without what it was given: nothing — an older copy, another program may never have had it).
+     */
+    const shareDiff = (f: SFact, o: SFact) => {
+      if (!o.id) return;
+      for (const shared of ["share", "roleAt"] as const) {
+        if (shared === "share" && owner.family) continue;
+        const [mine, theirs] = [markKey(o, shared), markKey(f, shared)];
+        if (mine === theirs) continue;
+        if (!mine) {
+          push({ kind: "fact.share", action: "add", ...owner, fact: f, was: o, shared });
+          continue;
+        }
+        if (!decidesShares || !was) continue;
+        const given = was.find((b) => factKey(b) === factKey(o) && (!b.id || b.id === o.id));
+        const gave = given ? markKey(given, shared) : "";
+        // as it was given: the research changed it since; taken off: only the one it was given
+        if (theirs ? gave === theirs : gave !== mine) continue;
+        push({ kind: "fact.share", action: "user", ...owner, fact: f, was: o, shared });
+      }
+    };
     for (const f of inc) {
       const k = factKey(f);
       if (ourKeys.has(k)) {
@@ -2638,6 +2711,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         const paired = mates.find((x) => sameDetails(f, x)) ?? mates[0]!;
         partsDiff(f, paired);
         confirmDiff(f, paired);
+        shareDiff(f, paired);
         // facts alike (two events of a year, told apart by their names only) pair loosely: a source any of them cites is no news
         const fresh = newCites(tree, f, mates, was?.filter((x) => factKey(x) === k) ?? [], sources, owner.family);
         if (fresh.length) push({ kind: "fact.cite", action: "add", ...owner, fact: { ...f, cites: fresh }, was: paired, reads: fresh.some((c) => reads(c.source)) });
@@ -2661,6 +2735,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         // user's to decide (empty where nothing is left); a lead corrected. Without a base nothing is taken off (an
         // older copy, another program: what it lacks it may never have had)
         partsDiff(f, less);
+        shareDiff(f, less);
         const given = less.id && !used.has(factKey(less)) ? was?.find((b) => factKey(b) === factKey(less) && (!b.id || b.id === less.id)) : undefined;
         const off = given ? (["date", "place", "value"] as const).filter((k) => !!exact(given[k]) && !exact(f[k])) : [];
         if (off.length) {
@@ -2784,9 +2859,32 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     // what the research says, and what the app was given (the base: a copy older than the research's edit is no edit)
     const exactly = new Set(said.flatMap((t) => t.split(/\n+/)).map(noteLine).filter(Boolean));
     const sent = new Set((inc ?? []).flatMap((t) => t.split(/\n+/)).map(noteLine).filter(Boolean));
-    const ours = (mine ?? []).flatMap((n) => n.text.split(/\n+/).map(noteLine).filter(Boolean).map((line) => ({ note: n, line })));
-    const used = new Set<(typeof ours)[number]>();
+    // a note an older strom's intake cut (its first 499 characters and "…", by code point): the file giving the whole
+    // note that begins so gives it back whole — no edit of the user's, only what was cut away. The older intake cut the
+    // text as the file gave it, before it was kept in NFC: a text the app sent decomposed (NFD, "e" + "◌́", pasted text)
+    // was cut at 499 code points of that form and is fewer now (N3). So not its length now but the length it was cut
+    // at: its beginning decomposed holds at least 499 code points (no form of a text has more than its NFD, whatever
+    // form the file gave), the note at most 500 — a user's short note ending in "…" is no such note — and the whole the
+    // file gives begins with it (compared decomposed: a cut between a letter and its mark) and is longer.
+    const nfd = (x: string) => x.normalize("NFD");
+    const cut = (mine ?? []).filter((n) => n.whole === undefined && n.text.endsWith("…") && [...n.text].length <= NOTE_MAX && [...nfd(n.text.slice(0, -1))].length >= NOTE_MAX - 1);
+    const mended = new Set<Note>();
+    const rest: string[] = [];
     for (const t of inc ?? []) {
+      const whole = wholeNote(t);
+      const n = cut.find((x) => {
+        const stem = nfd(x.text.slice(0, -1));
+        return !mended.has(x) && whole !== x.text && nfd(whole).length > stem.length && nfd(whole).startsWith(stem);
+      });
+      if (!n) rest.push(t);
+      else {
+        mended.add(n);
+        push({ kind: "note.changed", action: "correct", ...owner, text: whole, note: { at: n.at, was: n.text, whole: true } });
+      }
+    }
+    const ours = (mine ?? []).filter((n) => !mended.has(n)).flatMap((n) => noteWhole(n).split(/\n+/).map(noteLine).filter(Boolean).map((line) => ({ note: n, line })));
+    const used = new Set<(typeof ours)[number]>();
+    for (const t of rest) {
       const lines = t.split(/\n+/).map((line) => line.trim()).filter(Boolean);
       const own = new Set<string>();
       const fresh = lines.filter((line) => {
@@ -3467,7 +3565,7 @@ function takenBack(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", c
     const file = path.join(tree.root, SYNC_INBOX, r.keptAs!);
     let theirs: Change[];
     try {
-      theirs = planSync(tree, readTreeFile(file), edits, { force: true, takenBack: false }).changes;
+      theirs = planSync(tree, readTreeFile(file, tree.config.lang), edits, { force: true, takenBack: false }).changes;
     } catch {
       continue;
     }
@@ -4070,7 +4168,8 @@ export interface Applied {
     | "surname.set"
     | "lineage.set"
     | "ids.add"
-    | "event.confirm";
+    | "event.confirm"
+    | "event.share";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -4354,7 +4453,40 @@ export function applySync(
     return { role: p.role, ...(person ? { person } : { name: name! }), ...(p.note ? { note: p.note } : {}) };
   };
   const participants = (f: SFact) => (f.parts ?? []).map(participant).filter((x): x is Participant => !!x);
-  const fields = (f: SFact) => ({ kind: f.kind, date: f.date, place: f.place, value: f.value, label: f.label, cause: f.cause, age: f.age, house: f.house, participants: participants(f) });
+  /**
+   * Whose a role was (spec 085), as the research keeps it: a person's ID, a family's — one made by this sync too, else
+   * the research's of exactly those partners; one it does not have: none.
+   */
+  const atOf = (at: string | undefined): string | undefined => {
+    if (!at) return undefined;
+    if (!at.startsWith("fam:")) {
+      const id = who(at);
+      return id ? resolve(tree, id)?.id : undefined;
+    }
+    const partners = at.slice(4).split("+").map((k) => who(k));
+    if (partners.some((x) => !x)) return undefined;
+    const k = famKey(partners.map((x) => resolve(tree, x!)?.id ?? x!));
+    return families.get(k) ?? tree.list<Family>("family").find((f) => !f.retracted && f.partners.length && famKey(f.partners) === k)?.id;
+  };
+  const roleAtOf = (r: SRoleAt): NonNullable<Event["roleAt"]> => {
+    const at = atOf(r.at);
+    return { role: r.role, ...(at ? { at } : {}), ...(at && r.kind ? { kind: r.kind } : {}) };
+  };
+  /** A new fact's role at a family this sync made after it (spec 085): whose said once all is written. */
+  const roleLater: { event: string; roleAt: SRoleAt }[] = [];
+  const fields = (f: SFact) => ({
+    kind: f.kind,
+    date: f.date,
+    place: f.place,
+    value: f.value,
+    label: f.label,
+    cause: f.cause,
+    age: f.age,
+    house: f.house,
+    participants: participants(f),
+    ...(f.share ? { share: f.share } : {}),
+    ...(f.roleAt ? { roleAt: roleAtOf(f.roleAt) } : {}),
+  });
   const evidence = incoming.transcripts === "evidence";
 
   // the app's sources first: the facts cite them
@@ -4562,6 +4694,7 @@ export function applySync(
             const note = gr ? gradeNote(gr) : undefined;
             const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "lead", ...(note ? { note } : {}), citations, origin: originFrom(c.fact.mark, "fact") });
             applied.push({ do: "event.add", id: event.id });
+            if (c.fact.roleAt?.at && !event.roleAt?.at) roleLater.push({ event: event.id, roleAt: c.fact.roleAt });
             // confirmed against the scan in the app (spec 065): the person's word, with its day — an agent's sync never says it
             if (c.fact.confirmed !== undefined && person) confirmFact(event.id, true, c.fact.confirmed);
             toVerify(owner, citations);
@@ -4627,6 +4760,7 @@ export function applySync(
             const note = gr ? gradeNote(gr) : undefined;
             const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "possible", ...(note ? { note } : {}), citations, origin: originFrom(c.fact.mark, "fact") });
             applied.push({ do: "event.add", id: event.id });
+            if (c.fact.roleAt?.at && !event.roleAt?.at) roleLater.push({ event: event.id, roleAt: c.fact.roleAt });
             toVerify(owner, citations);
             toCheck(owner, gr);
           } else {
@@ -4775,6 +4909,41 @@ export function applySync(
             }
           }
           toVerify(owner, add);
+          break;
+        }
+        case "fact.share": {
+          // the Strom app's mark of the research's fact (spec 085): one it lacks added; changed or taken off in the app
+          // (an app that decides who shares an event) the person's word alone
+          const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+          const which = c.shared;
+          if (!mine || mine.retracted || !which || !c.fact) break;
+          const owns = ownerOf(tree, mine.id);
+          if (!owns || (which === "share" && owns.type !== "person")) break;
+          if (c.action !== "add" && !person) {
+            kept(c, `${mine.id}: ${which === "share" ? "the event it shares with others" : "its role at another's event"} changed in the Strom app by nobody but the user — tell the user`, { event: mine.id });
+            break;
+          }
+          const value = which === "share" ? c.fact.share : c.fact.roleAt ? roleAtOf(c.fact.roleAt) : undefined;
+          if (JSON.stringify(value ?? null) === JSON.stringify(mine[which] ?? null)) break;
+          update<Person | Family>(
+            tree,
+            owns.id,
+            owns.type,
+            (o) => ({
+              ...o,
+              events: o.events.map((e) => {
+                if (e.id !== mine.id) return e;
+                const { [which]: _w, ...rest } = e;
+                return { ...rest, ...(value ? { [which]: value } : {}) } as Event;
+              }),
+            }),
+            {
+              op: "event.edit",
+              summary: `${mine.id} ${mine.kind} ${which === "share" ? "shared event" : "role at"}: ${value ? (which === "share" ? (value as EventShare).id : (value as NonNullable<Event["roleAt"]>).role) : "−"} (${reason})`,
+              reason: `${c.action === "add" ? "added from" : "the user's edit:"} ${reason}`,
+            },
+          );
+          applied.push({ do: "event.share", id: mine.id, before: JSON.stringify({ mark: which, was: mine[which] ?? null }) });
           break;
         }
         case "fact.confirm": {
@@ -5090,7 +5259,8 @@ export function applySync(
         }
         case "note.new": {
           if (!owner || !c.text) break;
-          const n = addNote(tree, owner, c.text);
+          // the user's own note, whole however long (its beginning and the whole: treeNote)
+          const n = addNote(tree, owner, c.text, { tree: true });
           applied.push({ do: "note.add", id: owner, before: n.at });
           break;
         }
@@ -5098,10 +5268,22 @@ export function applySync(
           // the user's edit of a line of the research's note: that line of it corrected, the rest of the note as it was
           if (!owner || !c.text || !c.note) break;
           const { at, was } = c.note;
+          if (c.note.whole) {
+            // the note an older strom cut, whole again (its beginning and the whole: treeNoteText)
+            const rec = tree.get<Person | Family>(owner);
+            if (!rec?.notes.some((n) => n.at === at && n.whole === undefined && n.text === was)) break;
+            update<Person | Family>(tree, owner, typeOfId(owner) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === at && n.whole === undefined && n.text === was ? { ...n, ...treeNoteText(c.text!) } : n)) }), {
+              op: "note.edit",
+              summary: `${owner} note "${truncateText(was, 50)}" given whole again (${[...c.text].length} characters): ${reason}`,
+              reason,
+            });
+            applied.push({ do: "note.edit", id: owner, before: JSON.stringify({ at, was, whole: true }) });
+            break;
+          }
           const edited = noteLine(c.text);
           const rec = tree.get<Person | Family>(owner);
-          if (!rec?.notes.some((n) => n.at === at && n.text.split("\n").some((l) => noteLine(l) === was))) break;
-          update<Person | Family>(tree, owner, typeOfId(owner) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === at ? { ...n, text: swapLine(n.text, was, edited) } : n)) }), {
+          if (!rec?.notes.some((n) => n.at === at && noteWhole(n).split("\n").some((l) => noteLine(l) === was))) break;
+          update<Person | Family>(tree, owner, typeOfId(owner) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === at ? swapNoteLine(n, was, edited) : n)) }), {
             op: "note.edit",
             summary: `${owner} note "${truncateText(was, 50)}" → "${truncateText(edited, 50)}": the user's edit (${reason})`,
             reason,
@@ -5277,6 +5459,18 @@ export function applySync(
       if (!(e instanceof UsageError)) throw e;
       skipped.push({ n: c.n, kind: c.kind, why: e.message, ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params, names: namesOf(tree, e.params) } : {}) });
     }
+  }
+  // a new fact's role at a family made after it (spec 085): whose said now, the fact's own write undone with the sync
+  for (const l of roleLater) {
+    const mine = eventById(tree, l.event);
+    const owns = mine ? ownerOf(tree, mine.id) : undefined;
+    const value = roleAtOf(l.roleAt);
+    if (!mine || !owns || !value.at || JSON.stringify(value) === JSON.stringify(mine.roleAt ?? null)) continue;
+    update<Person | Family>(tree, owns.id, owns.type, (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, roleAt: value } : e)) }), {
+      op: "event.edit",
+      summary: `${mine.id} ${mine.kind} role at ${value.at} (${reason})`,
+    });
+    applied.push({ do: "event.share", id: mine.id, before: JSON.stringify({ mark: "roleAt", was: mine.roleAt ?? null }) });
   }
   // one task per person to read for themselves what the user transcribed or read again — none in an archive: nobody
   // reads there (switched to research, its reviews propose what to read)
@@ -5914,10 +6108,20 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       }
       case "note.edit": {
         // the line as it was, back in its note (the note as it is now otherwise)
-        const b = JSON.parse(String(a.before ?? "{}")) as { at?: string; now?: string; was?: string };
+        const b = JSON.parse(String(a.before ?? "{}")) as { at?: string; now?: string; was?: string; whole?: true };
         const rec = tree.get<Person | Family>(a.id);
-        if (!b.at || !b.now || !b.was || !rec?.notes.some((n) => n.at === b.at && n.text.split("\n").some((l) => noteLine(l) === b.now))) break;
-        update<Person | Family>(tree, a.id, typeOfId(a.id) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === b.at ? { ...n, text: swapLine(n.text, b.now!, b.was!) } : n)) }), {
+        if (b.whole) {
+          // the note given whole again: cut as it was
+          if (!b.at || !b.was || !rec?.notes.some((n) => n.at === b.at && n.whole !== undefined)) break;
+          update<Person | Family>(tree, a.id, typeOfId(a.id) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => {
+            if (n.at !== b.at || n.whole === undefined) return n;
+            const { whole: _whole, ...rest } = n;
+            return { ...rest, text: b.was! };
+          }) }), { op: "note.edit", summary: `${a.id} note "${truncateText(b.was, 50)}" cut again: ${reason}`, reason });
+          break;
+        }
+        if (!b.at || !b.now || !b.was || !rec?.notes.some((n) => n.at === b.at && noteWhole(n).split("\n").some((l) => noteLine(l) === b.now))) break;
+        update<Person | Family>(tree, a.id, typeOfId(a.id) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === b.at ? swapNoteLine(n, b.now!, b.was!) : n)) }), {
           op: "note.edit",
           summary: `${a.id} note "${truncateText(b.now, 50)}" → "${truncateText(b.was, 50)}" again: ${reason}`,
           reason,
@@ -5990,6 +6194,28 @@ export function undoSync(tree: Tree, input: SyncInput): number {
             return { ...f, ...(left.length ? { citations: left } : {}) } as Family;
           },
           { op: "family.cite", summary: `${a.id} cites no more ${(b.sources ?? []).join(", ")}: ${reason}`, reason },
+        );
+        break;
+      }
+      case "event.share": {
+        // the Strom app's mark of the fact as it was (spec 085)
+        const b = JSON.parse(String(a.before ?? "{}")) as { mark?: "share" | "roleAt"; was?: Event["share"] | Event["roleAt"] | null };
+        const owner = ownerOf(tree, a.id);
+        const which = b.mark;
+        if (!owner || (which !== "share" && which !== "roleAt")) break;
+        update<Person | Family>(
+          tree,
+          owner.id,
+          owner.type,
+          (o) => ({
+            ...o,
+            events: o.events.map((e) => {
+              if (e.id !== a.id) return e;
+              const { [which]: _w, ...rest } = e;
+              return { ...rest, ...(b.was ? { [which]: b.was } : {}) } as Event;
+            }),
+          }),
+          { op: "event.edit", summary: `${a.id} ${which === "share" ? "shared event" : "role at"} as it was: ${reason}`, reason },
         );
         break;
       }

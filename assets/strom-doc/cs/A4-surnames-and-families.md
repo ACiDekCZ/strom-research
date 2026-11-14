@@ -242,3 +242,38 @@ sňatku, všemi jejich tvary ([A4.5](#A4.5), [A4.7](#A4.7)) a pod jejími dalš�
 - **Platí od:** aplikace 3.0.0 (příjmení po sňatku v hledání 3.13.0)
 
 <!-- zdroj: app:src/name-search.ts:26 searchableSurnames · :82 surnameMatchesQuery · src/merge/matching.ts:38 normalizeName · src/person-picker.ts:18 sortByName · :28 calculateMatchScore · :98 hiddenSurnameMatchHtml · src/search-filter.ts:95 · src/given-names.ts -->
+
+<a id="A4.8.1"></a>
+### A4.8.1 Stejná jména ve výběru osoby
+
+Když se ve výsledku hledání opakuje stejné jméno, má každý takový řádek pod jménem druhý, šedý řádek s nejkratším
+údajem, který ho od ostatních stejnojmenných odliší. Řádek s jedinečným jménem vypadá jako dřív.
+
+- **Kdy:** stejné je to, co řádek ukazuje: jméno s tituly a poznámkou rodného nebo dřívějšího příjmení, a rok
+  narození, když ho seznam za jménem píše. Porovnává se jako při hledání, bez velkých a malých písmen a diakritiky.
+  Počítá se v celém výsledku, i v řádcích za prvními 50.
+- **Pořadí údajů:**
+  1. roky: „* 1820 – † 1866“, jen známé části a jen rok. Rok narození, který seznam píše za jménem, se neopakuje;
+  2. partner: „⚭ jméno“; při víc sňatcích první partner, kterého ostatní řádky nemají;
+  3. rodiče: „dcera: otec a matka“ (u muže „syn:“, bez pohlaví „dítě:“), jen známí rodiče;
+  4. místo: „rodiště …“, bez něj „bydliště …“ (poslední bydliště s místem).
+- **Hranice:**
+  - údaje se berou v tomto pořadí, dokud kombinace žádnému jinému řádku skupiny neodpovídá. Ukáže se z nich jen
+    to, co je známé a co nemají stejné všechny ostatní řádky skupiny, spojené „ · “. Sestry se stejnými rodiči tak
+    rozliší rodiště, ne rodiče; dvě „Radegunda Pokusná“ narozené 1900 mají „⚭ Bohuchval Zkoušek“ a „⚭ Sudivoj Pokus“, ne
+    „* 1900 · ⚭ …“. Údaj, který mají stejný jen některé řádky, se ukáže;
+  - když řádek odliší jen údaj, který u něj není známý, ukáže se jeho první známý údaj, který nemají stejný všichni
+    ostatní, a když takový není, „bez dalších údajů“. Řádek, který od jiného neodliší nic, ukáže všechny své známé
+    údaje;
+  - osoba nalezená podle údaje (příjmení po sňatku, příčina úmrtí, dům, [A4.8](#A4.8)) má jeden řádek: rozlišení
+    a za „ · “ nález. Rok, který už nález říká („† 1866 …“), se v rozlišení neopakuje;
+  - řádek rozlišení seznam nerozšíří: delší konec se zkrátí „…“. Celý text je v bublině řádku a čtečka obrazovky
+    řádek přečte jako „jméno, rozlišení“;
+  - na telefonu má seznam šířku obrazovky.
+- **Kde:** každý výběr osoby z pole: hledání v liště, přidání vztahu, zjištění vztahu, čtení
+  dokumentu, výchozí osoba stromu a další. Výběr osoby pro cestu předků na mapě ([A6.5.4](A6-views.md#A6.5.4)) má
+  vlastní seznam a rozlišení nemá.
+- **Ovládání:** nic: platí samo. Klávesy a načítání po 50 řádcích beze změny.
+- **Platí od:** aplikace 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->

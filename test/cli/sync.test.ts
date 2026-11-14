@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
+import { spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import type { Family, Person } from "../../src/core/model.ts";
@@ -320,4 +321,47 @@ test("the Strom app's JSON brings who is at an event too: the godparents of its 
   const marr = (await w.ok(["family", "show", "F1", "--json"])).json.family.events.find((e: { kind: string }) => e.kind === "MARR");
   assert.deepEqual(marr?.participants, [{ role: "witness", name: "Jan Kos" }]);
   w.cleanup();
+});
+
+test("sync: what a file would bring, on a research sealed on another computer, reads as any read (rc 0, nothing written); writing it (--apply, --app) asks for it to be taken over first", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["lang", "cs"]);
+    await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M", "--born", "1881"]); // P1, a lead
+    const ged = path.join(w.dir, "strom.ged");
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+    // the user adds a person in the app, her name written decomposed
+    const file = path.join(w.dir, "z-aplikace.ged");
+    const added = `0 @X1@ INDI\n1 NAME ${"Žofie /Lhotáková/".normalize("NFD")}\n1 SEX F\n1 BIRT\n2 DATE 1884\n2 PLAC Lhota\n`;
+    fs.writeFileSync(file, fs.readFileSync(ged, "utf8").replace(/^0 TRLR/m, `${added}0 TRLR`));
+    const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    fs.rmSync(path.join(w.env.STROM_CONFIG_DIR!, "keys", `${id}.key`));
+    const files = () => fs.readdirSync(w.cwd, { recursive: true, encoding: "utf8" }).filter((f) => !f.split(path.sep).includes(".git") && !f.split(path.sep).includes(".strom")).sort().map((f) => [f, fs.statSync(path.join(w.cwd, f)).isFile() ? fs.readFileSync(path.join(w.cwd, f), "utf8") : ""]);
+    const before = files();
+    const head = () => spawnSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout;
+    const was = head();
+
+    for (const env of [{ CLAUDECODE: "1" }, {}] as Record<string, string>[]) {
+      const preview = await w.run(["sync", file, "--json"], { env });
+      assert.equal(preview.code, 0, preview.out + preview.err);
+      assert.deepEqual(preview.json.changes.map((c: { kind: string; name?: string }) => [c.kind, c.name?.replace(/\//g, "").trim()]), [["person.new", "Žofie Lhotáková"], ["fact.new", "Žofie Lhotáková"]], "her and her birth, the name in NFC");
+    }
+    assert.match((await w.ok(["sync", file])).out, /Žofie \/?Lhotáková/);
+    assert.deepEqual((await w.ok(["sync", "--inbox", "--json"])).json.inbox, []);
+    assert.deepEqual(files(), before, "the preview writes nothing");
+    assert.equal(head(), was, "no commit");
+
+    // writing it waits for the research taken over here (--app: the bridge writes what the app sends at once)
+    for (const args of [[file, "--apply"], ["--app"]]) {
+      const refused = await w.run(["sync", ...args, "--json"]);
+      assert.equal(refused.code, 4, refused.out + refused.err);
+      assert.equal(refused.json.code, "seal.foreign");
+      assert.equal(refused.json.status, "needs-consent");
+    }
+    assert.deepEqual(files(), before);
+    assert.equal(head(), was);
+  } finally {
+    w.cleanup();
+  }
 });

@@ -300,6 +300,55 @@ test("ACTA PUBLICA: the catalogue through the person's browser, each image saved
   }
 });
 
+test("ACTA PUBLICA, browser.tileWait: hidden until set, the script then answers strom-wait while the tiles come — such an answer takes nothing", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  try {
+    install(w);
+    const downloads = path.join(w.dir, "Stažené");
+    fs.mkdirSync(downloads);
+    await w.ok(["config", "set", "browser.downloads", downloads]);
+    await w.ok(["allow", "archive", "mza.cz", "--way", "browser"], { tty: true });
+    await w.ok(["recordset", "add", "Lhota N 1784–1820", "--kinds", "baptism", "--places", "Lhota", "--years", "1784-1820", "--url", "https://www.mza.cz/actapublica/matrika/detail/9001"]); // B1
+    const args = ["fetch", "actapublica-mza", "9001", "--images", "1-2", "--recordset", "B1"];
+
+    // unset: nothing of it anywhere — not listed, not in the plan, the script as it was
+    assert.doesNotMatch((await w.ok(["config", "where"])).out, /tileWait/);
+    assert.doesNotMatch((await w.ok(["help", "config"])).out, /tileWait/);
+    const plain = (await throughPages(w, args, downloads)).json; // the book's page first, through the browser
+    assert.equal(plain.plan.items.length, 2);
+    assert.doesNotMatch(plain.script, /strom-wait|__stromCapture/);
+    assert.doesNotMatch((await w.ok(args)).out, /strom-wait/);
+
+    // a value out of its range refused, saying what it takes
+    const low = await w.run(["config", "set", "browser.tileWait", "20"]);
+    assert.notEqual(low.code, 0);
+    assert.match(low.out + low.err, /strom config set browser\.tileWait 180/);
+    await w.ok(["config", "set", "browser.tileWait", "180"]);
+    assert.match((await w.ok(["config", "where"])).out, /browser\.tileWait/);
+    const slow = (await w.ok([...args, "--json"])).json;
+    assert.match(slow.script, /strom-wait/);
+    assert.match((await w.ok(args)).out, /It answers "strom-wait …" while the viewer's tiles still come \(browser\.tileWait\): run the same script again in the same tab/);
+
+    // drawn at once: the same answer as without it, in one call
+    const viewer: Viewer = { pages: 3, shown: [], sizes: [], cuts: [] };
+    const ran = await tab(slow.script, slow.plan.open, downloads, viewer);
+    assert.match(ran.line, /^strom-result 1:200:\d+ 2:200:\d+$/);
+    for (const f of fs.readdirSync(downloads)) fs.rmSync(path.join(downloads, f));
+
+    // the agent hands over a strom-wait answer: nothing taken, told to run the script again
+    const wait = await w.ok(["fetch", "actapublica-mza", "--take", "--result", "strom-wait — the viewer's tiles still come in (35 so far, 32 s waited)", "--json"]);
+    assert.equal(wait.json.waiting, true);
+    assert.deepEqual(wait.json.taken, []);
+    assert.equal((await w.ok(["media", "list", "--json"])).out.includes("M0001"), false);
+
+    await w.ok(["config", "unset", "browser.tileWait"]);
+    assert.doesNotMatch((await w.ok([...args, "--json"])).json.script, /strom-wait/);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("ACTA PUBLICA's connector: the census records are never its; no image straight through strom", opts, async () => {
   const src = fs.readFileSync(path.join(fixture, "connector.ts"), "utf8");
   assert.doesNotMatch(src, /scitacioperaty/);

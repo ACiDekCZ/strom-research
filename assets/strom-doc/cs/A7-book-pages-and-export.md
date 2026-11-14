@@ -174,10 +174,13 @@ na mapě, osu života s dějinami, výřezy z matrik a prameny a oddíl **Pro ba
 
 - **Uložit jako HTML** vytvoří jeden samonosný soubor, který se otevře offline v každém prohlížeči. Skupiny
   obsahu a ochrana žijících jdou zvolit ([A7.2.1](#A7.2.1)); volba se pamatuje.
+- **Od aplikace 3.28.0:** v okně aplikace vede **◎ Cesta předků na mapě ›** na cestu předků osoby v Migraci
+  v čase ([A6.5.4](A6-views.md#A6.5.4)). Uložená stránka ho nemá. Stojí v oddílu **Místa života**; osoba s nejvýš
+  jedním vlastním místem, která má předky na mapě, ho má na vlastním řádku tam, kde by oddíl byl.
 - **Ovládání:** nabídka karty osoby, **Stránka osoby**; také z vějíře.
 - **Platí od:** aplikace 3.18.0
 
-<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 -->
+<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 · 3.28.0: app:src/person-page-map.ts pp-map-path (jen mode app), src/ui/person-page-ui.ts personPageMapPath, commit 34e82d43 · mapPathRowHtml (bez oddílu Místa života), commit caea192a -->
 
 <a id="A7.7"></a>
 ## A7.7 Uložené HTML (samostatný soubor)

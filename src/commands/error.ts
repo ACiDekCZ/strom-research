@@ -304,7 +304,7 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
           git: () => gitArea(r),
           check: () => checkArea(ctx.tree()),
           fetches: () => fetchesArea(r, sinceMs, masker),
-          ...(archive ? {} : { sessions: () => sessionsArea(r, sinceMs) }),
+          ...(archive ? {} : { sessions: () => sessionsArea(r, sinceMs, masker) }),
         }),
       );
     } else if (others.length) {
@@ -323,7 +323,7 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
       else if (a === "windows") fixed.push(readArea("windows", masker, () => windowsArea(env, masker)));
       else if (a === "sync") fixed.push(readArea("sync", masker, () => (root ? syncArea(root) : { research: false })));
       else if (a === "fetch") fixed.push(readArea("fetch", masker, () => (root ? { fetches: fetchesArea(root, 0, masker) } : { research: false })));
-      else if (a === "agent") fixed.push(readArea("agent", masker, () => (root ? sessionsArea(root, 0) : { research: false })));
+      else if (a === "agent") fixed.push(readArea("agent", masker, () => (root ? sessionsArea(root, 0, masker) : { research: false })));
     }
 
     // the logs and commands, within their sizes: --about gives its own more room; past the report's size, less for all

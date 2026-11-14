@@ -6,10 +6,12 @@
 // IDs in a tree of this research coming back from the Strom app are matched,
 // not duplicated — another research's IDs never (oursByRefn).
 
-import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
+import { eventKind, FAMILY_EVENT_KINDS, treeNoteText, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
 import { normalizeAge } from "./age.ts";
 import { foldText } from "./text.ts";
-import { roleWord } from "./roles.ts";
+import { eventMarksOf, gedcomRole, participantRole, roleAtMark, roleWord, shareMark, type EventMarks } from "./roles.ts";
+import { labels } from "../gedcom/labels.ts";
+import { phrase, type PhraseKey } from "./phrases.ts";
 import { validateRecord } from "./validate.ts";
 import { dateYears, normalizeDate } from "./gdate.ts";
 import { isRetractedName } from "./retractions.ts";
@@ -63,11 +65,6 @@ function knownFact(have: Event[], e: Event): boolean {
   return have.some(
     (x) => !x.retracted && kind(x.kind) === kind(e.kind) && (!e.date || x.date === e.date) && same(x.value, e.value) && same(x.place, e.place) && (e.kind !== "EVEN" || same(x.label, e.label)),
   );
-}
-
-function clip(text: string): string {
-  const t = text.replace(/\s+\n/g, "\n").trim();
-  return [...t].length <= NOTE_MAX ? t : [...t].slice(0, NOTE_MAX - 1).join("") + "…";
 }
 
 /** Normalize a date written by any program; undefined when it cannot be read. */
@@ -147,8 +144,9 @@ function makeSource(tree: Tree, title: string, input: string, imported?: Source[
   return s;
 }
 
+/** A note of the person's or the family's in the file: the user's own tree's, whole however long (its beginning `text`, the whole `whole`). */
 function note(tree: Tree, text: string): Note {
-  return { text: clip(text), at: now(), by: tree.actor };
+  return { ...treeNoteText(text), at: now(), by: tree.actor };
 }
 
 // ── GEDCOM ─────────────────────────────────────────────────────────────────
@@ -391,6 +389,10 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       }
     }
 
+    // a role at a family's event (_STROM_AT @F…@): the family's xref → our family, once the families are made
+    const families = new Set(records.filter((x) => x.tag === "FAM" && x.xref).map((x) => x.xref!));
+    const familyOf = new Map<string, string>();
+    const atLater: { event: string; at: string; owner: string; family: boolean }[] = [];
     const events = (node: GedNode, xref: string, forFamily: boolean, couple: { HUSB?: string; WIFE?: string } = {}): Event[] => {
       const out: Event[] = [];
       for (const c of node.children) {
@@ -412,24 +414,18 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         else if (rawDate) extra.push(`date as written: ${rawDate}`);
         const place = val(c, "PLAC");
         if (place) ev.place = place.replace(/\s+/g, " ");
-        // an address in the place (ADDR / ADR1) is the house
+        // an address in the place (ADDR / ADR1) is the house; the age a person's fact's (a couple's: the partners')
         const addr = c.children.find((x) => x.tag === "ADDR");
-        const house = addr ? houseOf(val(addr, "ADR1") ?? addr.value) : "";
-        if (house) ev.house = house;
-        const cause = val(c, "CAUS")?.replace(/\s+/g, " ").trim();
-        if (cause) ev.cause = cause;
+        const rawAge = val(c, "AGE");
+        const { ageAsWritten, ...said } = factDetails(val(c, "CAUS"), forFamily ? undefined : rawAge, addr ? (val(addr, "ADR1") ?? addr.value) : undefined);
+        Object.assign(ev, said);
+        if (ageAsWritten) extra.push(`age as written: ${rawAge}`);
         const value = c.value.trim();
         if (value && value !== "Y") ev.value = value.replace(/\s+/g, " ");
         const type = val(c, "TYPE");
         // A bare "1 EVEN" with neither TYPE nor value still is an event: name it after its tag.
         if (kind === "EVEN") ev.label = type || value || "EVEN";
         if (["OCCU", "RELI", "TITL", "NATI"].includes(kind) && !ev.value) ev.value = type || "?";
-        const rawAge = val(c, "AGE");
-        if (rawAge && !forFamily) {
-          const age = normalizeAge(rawAge);
-          if (age) ev.age = age;
-          else extra.push(`age as written: ${rawAge}`);
-        }
         if (forFamily) {
           const ages: Record<string, string> = {};
           for (const role of ["HUSB", "WIFE"] as const) {
@@ -443,21 +439,48 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           if (rawAge) extra.push(`age as written: ${rawAge}`);
         }
         const participants: Participant[] = [];
-        // "RELA Present" + a note with the role in words (the Strom app for a midwife, an informant …)
-        const roleIn = (n: GedNode, fallback: ParticipantRole): { role: ParticipantRole; note?: string } => {
-          const note = children(n, "NOTE").map(noteText).join(" ").trim();
-          const role = roleWord(val(n, "RELA")) ?? roleWord(note) ?? fallback;
-          return { role, ...(note && !roleWord(note) ? { note } : {}) };
-        };
+        // "RELA Present" + a note with the role in words (the Strom app for a midwife, an informant …): the role from
+        // the note, the note kept as the user wrote it ("porodní bába")
+        const roleIn = (n: GedNode, fallback: ParticipantRole): { role: ParticipantRole; note?: string } =>
+          participantRole(val(n, "RELA"), children(n, "NOTE").map(noteText).join(" "), fallback);
         for (const w of children(c, "_WITN").concat(children(c, "WITN"))) {
           const name = w.value.trim();
           if (name) participants.push({ ...roleIn(w, "witness"), name });
         }
+        // GEDCOM 7: a ROLE (with its PHRASE) before a RELA; a person of no record (@VOID@) named by the ASSO's PHRASE
+        const assoRole = (a: GedNode, fallback: ParticipantRole): { role: ParticipantRole; note?: string } => {
+          const roleNode = children(a, "ROLE")[0];
+          const g7 = gedcomRole(roleNode?.value, val(roleNode, "PHRASE"), tree.config.lang);
+          if (!g7) return roleIn(a, fallback);
+          const note = [g7.note, children(a, "NOTE").map(noteText).join(" ").trim()].filter(Boolean).join("; ");
+          return { role: g7.role, ...(note ? { note } : {}) };
+        };
         for (const a of children(c, "ASSO")) {
           const id = xrefToId.get(a.value.trim());
-          if (id) participants.push({ ...roleIn(a, "other"), person: id });
+          if (id) participants.push({ ...assoRole(a, "other"), person: id });
+          else if (a.value.trim() === "@VOID@" && val(a, "PHRASE")) participants.push({ ...assoRole(a, "other"), name: val(a, "PHRASE")!.normalize("NFC").replace(/\s+/gu, " ") });
+        }
+        // the people of another program's shared event (_SHAR of RootsMagic, Legacy, Family Historian): its ROLE or RELA
+        // read as GEDCOM 7's, a role the research has none of (Principal, Household) other with its word; nobody of the
+        // file, nobody
+        for (const sh of children(c, "_SHAR")) {
+          const id = xrefToId.get(sh.value.trim());
+          if (!id) continue;
+          const word = val(sh, "ROLE") ?? val(sh, "RELA");
+          const got = gedcomRole(word, val(children(sh, "ROLE")[0], "PHRASE"), tree.config.lang) ?? { role: "other" as ParticipantRole };
+          const note = [got.note, children(sh, "NOTE").map(noteText).join(" ").trim()].filter(Boolean).join("; ");
+          participants.push({ role: got.role, person: id, ...(note ? { note } : {}) });
         }
         if (participants.length) ev.participants = participants;
+        // the Strom app's shared event (a person's fact only) and a role at another's event; a family's xref is our
+        // family's only once the families are made: put in after them (atLater)
+        const marks = eventMarksOf(c, !forFamily, (ref) => xrefToId.get(ref));
+        if (marks.share) ev.share = marks.share;
+        if (marks.unreadable) result.problems.push(`${bare(xref)} ${c.tag}: the mark of a shared event "${marks.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
+        if (marks.roleAt) {
+          ev.roleAt = marks.roleAt;
+          if (!marks.roleAt.at && marks.atXref && families.has(marks.atXref)) atLater.push({ event: ev.id, at: marks.atXref, owner: xref, family: forFamily });
+        }
         // What the author of that tree cited for this fact.
         for (const sc of children(c, "SOUR")) {
           const title = foreignSources.get(sc.value.trim()) ?? (/^@/.test(sc.value) ? "" : sc.value.trim());
@@ -467,8 +490,10 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         // The Strom app returns age, cause and address as labelled lines of the note ("Věk: 61 let").
         const noteLines: string[] = [];
         for (const line of children(c, "NOTE").map(noteText).join("\n").split("\n")) if (!detailInto(ev, line, forFamily, couple)) noteLines.push(line);
+        // the note of the user's own tree whole, however long (a note of one's own is no limit of theirs: the app
+        // gets it back as it was)
         const parts = [...extra, noteLines.join("\n").trim()].filter(Boolean);
-        if (parts.length) ev.note = clip(parts.join("\n"));
+        if (parts.length) ev.note = parts.join("\n").replace(/\s+\n/g, "\n").trim();
         out.push(ev);
         result.events++;
       }
@@ -613,16 +638,15 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         if (!id) continue;
         const pd = pedi.get(c.value.trim())?.get(r.xref!);
         const relation: ChildRelation = pd === "adopted" ? "adopted" : pd === "foster" ? "foster" : pd === "step" ? "step" : "birth";
-        const link: ChildLink = { person: id, relation };
-        // the relation to each parent (Legacy, RootsMagic, FTM)
-        const relations: Record<string, ChildRelation> = {};
+        // the relation to each parent (Legacy, RootsMagic, FTM, the Strom app), over the PEDI that speaks for both
+        const by: Record<string, ChildRelation> = {};
         for (const [tag, who] of [["_FREL", couple.HUSB], ["_MREL", couple.WIFE]] as const) {
+          if (!who) continue;
           const v = (val(c, tag) ?? "").toLowerCase();
           const rel: ChildRelation | undefined = /natural|birth|biolog/.test(v) ? "birth" : /adopt/.test(v) ? "adopted" : /step/.test(v) ? "step" : /foster/.test(v) ? "foster" : v ? "unknown" : undefined;
-          if (who && rel && rel !== relation) relations[who] = rel;
+          by[who] = rel ?? relation;
         }
-        if (Object.keys(relations).length) link.relations = relations;
-        kids.push(link);
+        kids.push(childLink(id, by, relation));
       }
       // a partner who may be the partner of the other one already: no second family of the two
       const twice = partners.flatMap((p) =>
@@ -649,6 +673,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         .list<Family>("family")
         .find((f) => !f.retracted && !f.mergedInto && partners.length > 0 && partners.every((p) => f.partners.includes(p)) && f.partners.length === partners.length);
       if (exists) {
+        familyOf.set(r.xref!, exists.id);
         const kidsNew = kids.filter((k) => {
           if (exists.children.some((c) => c.person === k.person)) return false;
           const like = [...(mayBe.get(k.person) ?? [])].find((l) => exists.children.some((c) => c.person === l));
@@ -678,7 +703,20 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         created: t,
         updated: t,
       };
-      if (save(f, { op: "family.import", targets: [f.id, ...partners, ...kids.map((k) => k.person)], summary: `+${f.id} family (lead)` }, bare(r.xref!))) result.families++;
+      if (save(f, { op: "family.import", targets: [f.id, ...partners, ...kids.map((k) => k.person)], summary: `+${f.id} family (lead)` }, bare(r.xref!))) {
+        result.families++;
+        familyOf.set(r.xref!, f.id);
+      }
+    }
+    // a role at a family's event: whose, now that the families are made (a family the import made none of: the role alone)
+    for (const later of atLater) {
+      const at = familyOf.get(later.at);
+      const owner = later.family ? familyOf.get(later.owner) : xrefToId.get(later.owner);
+      const rec = at && owner ? tree.get<Person | Family>(owner) : undefined;
+      const ev = rec?.events.find((e) => e.id === later.event);
+      if (!rec || !ev?.roleAt) continue;
+      const next = { ...rec, events: rec.events.map((e) => (e === ev ? { ...e, roleAt: { ...ev.roleAt!, at: at! } } : e)) } as Person | Family;
+      tree.put(next, { op: `${rec.type}.import`, targets: [rec.id, at!], summary: `${rec.id} ${ev.kind}: a role at ${at}` });
     }
   });
   return result;
@@ -868,14 +906,151 @@ interface StromPerson {
   /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
   titleBefore?: string;
   titleAfter?: string;
+  /** What the app keeps of the birth and the death besides (its 3.7): the house, the cause, the age as written. */
+  birthAddress?: string;
+  deathCause?: string;
+  deathAge?: string;
+  deathAddress?: string;
+  /** The child's tie to a parent who is not their own: the parent's id → adoptive, step, foster. */
+  parentRelTypes?: Record<string, string>;
+  /** The person's other events (a census, a residence, a move, a godparent's own event of a role at another's). */
+  events?: StromEvent[];
+  /** The app's "?" stand-in (an unknown parent drawn in the tree): nobody (appNobody). */
+  isPlaceholder?: boolean;
+  /** The person's parents: a child of parents no partnership holds is theirs alone (appLooseFamilies). */
+  parentIds?: string[];
+  /** The surname after the (last) marriage (spec 010) and its given names when they are not the person's (its 3.26). */
+  marriedSurname?: string;
+  marriedFirstName?: string;
+  /** The name the person is shown by (spec 024): the birth one, the one after the marriage; none: no choice. */
+  primaryName?: string;
+}
+/** An event of a person (or a couple) in the Strom app's JSON, with the marks of an event it shares (spec 085). */
+export interface StromEvent {
+  type: string;
+  customLabel?: string;
+  date?: string;
+  place?: string;
+  note?: string;
+  cause?: string;
+  age?: string;
+  address?: string;
+  /** A couple's event: the partners' ages, the app's person id → age (3.7). */
+  ages?: Record<string, string>;
+  /** The app's ID of the event it shares among people (a census of a household, a move): `_STROM_SHARE` of its GEDCOM. */
+  shareId?: string;
+  /** The person's role in it as the user wrote it ("maid"); none: a member of the household. */
+  shareRole?: string;
+  /** A role at another's event (a godparent's own event): whose by the app's ID, of what type (`_STROM_ROLE`, `_STROM_AT`). */
+  roleAt?: { role?: string; personId?: string; partnershipId?: string; eventType?: string };
+  /** Who else was there (godparents, witnesses, a midwife): a person of the app's tree or a name. */
+  participants?: StromParticipant[];
+}
+/** Who else was at an event in the Strom app's JSON: its role, a person of its tree (`personId`) or a name, a note. */
+export interface StromParticipant {
+  role?: string;
+  personId?: string;
+  name?: string;
+  note?: string;
 }
 interface StromPartnership {
   id: string;
   person1Id?: string;
   person2Id?: string;
   childIds?: string[];
+  status?: string;
   startDate?: string;
   startPlace?: string;
+  /** The divorce's date and place (status divorced). */
+  endDate?: string;
+  endPlace?: string;
+  /** The house of the wedding (3.7). */
+  address?: string;
+  /** The partners' ages at the wedding: the app's person id → age (3.7). */
+  ages?: Record<string, string>;
+  /** The couple's one note (its GEDCOM: 1 NOTE under FAM). */
+  note?: string;
+  /** The witnesses at the wedding. */
+  participants?: StromParticipant[];
+  /** The couple's other events (the app's 3.8). */
+  events?: StromEvent[];
+  /** The file the couple came from wrote no wedding (spec 066 K3.1): none written back unless its witnesses or status say one. */
+  marriageUnrecorded?: boolean;
+  /** How sure the wedding is (the app's status of the fact). */
+  startStatus?: string;
+}
+
+/** The Strom app's life events of a person (its JSON's events[].type) → our kinds. */
+export const APP_EVENTS: Record<string, string> = {
+  birth: "BIRT", death: "DEAT", baptism: "BAPM", burial: "BURI", occupation: "OCCU", residence: "RESI", military: "MILI",
+  emigration: "EMIG", immigration: "IMMI", education: "EDUC", religion: "RELI", custom: "EVEN", confirmation: "CONF",
+  firstCommunion: "FCOM", barMitzvah: "BARM", batMitzvah: "BASM", ordination: "ORDN", adoption: "ADOP", naturalization: "NATU",
+  will: "WILL", probate: "PROB", title: "TITL", nationality: "NATI", cremation: "CREM", census: "CENS",
+};
+
+/** The Strom app's events of a couple (its 3.8) → GEDCOM tags. */
+export const APP_COUPLE_EVENTS: Record<string, string> = {
+  engagement: "ENGA", banns: "MARB", marriageLicence: "MARL", marriageContract: "MARC", marriageSettlement: "MARS",
+  residence: "RESI", census: "CENS", divorceFiled: "DIVF", annulment: "ANUL", custom: "EVEN",
+};
+
+/** The GEDCOM tag of a type of event of the Strom app (a person's, a couple's, its marriage); none it has a tag for: undefined. */
+export function appEventTag(type: unknown): string | undefined {
+  if (typeof type !== "string") return undefined;
+  if (type === "marriage") return "MARR";
+  return Object.hasOwn(APP_EVENTS, type) ? APP_EVENTS[type] : Object.hasOwn(APP_COUPLE_EVENTS, type) ? APP_COUPLE_EVENTS[type] : undefined;
+}
+
+/** The app's types of a person's own event of a role at another's (spec 085 K2.2): our EVEN named in the research's language. */
+const APP_ROLE_EVENTS: Record<string, PhraseKey> = { godparent: "event.godparent", weddingWitness: "event.weddingWitness" };
+
+/**
+ * A person's event of the Strom app's JSON as our kind (MILI an EVEN of its own) and, for an EVEN, its name: the
+ * user's own, else the word of the type (a soldier's service; a godparent's own event in the research's language);
+ * a type we have no kind of: undefined.
+ */
+export function appPersonEvent(e: { type: string; customLabel?: string }, lang: string): { kind: string; label?: string } | undefined {
+  const own = e.customLabel?.replace(/\s+/gu, " ").trim();
+  if (Object.hasOwn(APP_ROLE_EVENTS, e.type)) return { kind: "EVEN", label: own || phrase(lang, APP_ROLE_EVENTS[e.type]!) };
+  const tag = Object.hasOwn(APP_EVENTS, e.type) ? APP_EVENTS[e.type]! : undefined;
+  if (!tag) return undefined;
+  if (tag === "MILI") return { kind: "EVEN", label: own || labels(lang)("MILI") };
+  return tag === "EVEN" ? { kind: "EVEN", ...(own ? { label: own } : {}) } : { kind: tag };
+}
+
+/**
+ * Who else was at an event of the Strom app's JSON: the role (the app's own; "other" with a note naming a role it has
+ * none of — "porodní bába" — that role, the note kept), a person of its tree by the app's ID or a name, the note.
+ */
+export function appParticipants(list: unknown): { role: ParticipantRole; appPerson?: string; name?: string; note?: string }[] {
+  const out: { role: ParticipantRole; appPerson?: string; name?: string; note?: string }[] = [];
+  for (const x of Array.isArray(list) ? (list as StromParticipant[]) : []) {
+    if (!x || typeof x !== "object") continue;
+    const name = typeof x.name === "string" ? x.name.normalize("NFC").replace(/\s+/gu, " ").trim() : "";
+    const id = typeof x.personId === "string" ? x.personId.trim() : "";
+    if (!id && !name) continue;
+    const { role, note } = participantRole(typeof x.role === "string" ? x.role : undefined, typeof x.note === "string" ? x.note : undefined, "other");
+    out.push({ role, ...(id ? { appPerson: id } : {}), ...(name ? { name } : {}), ...(note ? { note } : {}) });
+  }
+  return out;
+}
+
+/**
+ * The marks of an event of the Strom app's JSON (spec 085): its `shareId` (+ `shareRole`; a person's event only) and
+ * its `roleAt` {role, personId | partnershipId, eventType} — whose by the app's own ID (`atPerson`, `atPartnership`),
+ * resolved by the reader; the type a GEDCOM tag (one of the research's kinds, else none).
+ */
+export function appEventMarks(e: { shareId?: unknown; shareRole?: unknown; roleAt?: unknown }, person: boolean): EventMarks & { atPerson?: string; atPartnership?: string } {
+  const out: EventMarks & { atPerson?: string; atPartnership?: string } = {};
+  if (person && typeof e.shareId === "string") Object.assign(out, shareMark(e.shareId, typeof e.shareRole === "string" ? e.shareRole : undefined));
+  const r = e.roleAt && typeof e.roleAt === "object" ? (e.roleAt as { role?: unknown; personId?: unknown; partnershipId?: unknown; eventType?: unknown }) : undefined;
+  const mark = r ? roleAtMark(typeof r.role === "string" ? r.role : undefined, undefined, appEventTag(r.eventType)) : undefined;
+  if (mark) {
+    out.roleAt = mark;
+    if (typeof r!.personId === "string" && r!.personId.trim()) out.atPerson = r!.personId.trim();
+    else if (typeof r!.partnershipId === "string" && r!.partnershipId.trim()) out.atPartnership = r!.partnershipId.trim();
+  }
+  return out;
 }
 
 /** Is this parsed JSON a Strom app tree? */
@@ -915,12 +1090,46 @@ export function importStromJson(
 ): ImportResult {
   const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems: [], candidates: [] };
   tree.withTreeLock(() => {
-    const source = makeSource(tree, `${importLabel(tree.config.lang)} ${opts.name} (Strom)`, opts.input);
+    const lang = tree.config.lang;
+    const source = makeSource(tree, `${importLabel(lang)} ${opts.name} (Strom)`, opts.input);
     result.source = source.id;
     const idMap = new Map<string, string>();
-    const cite = (sp: StromPerson, what: string) => [{ source: source.id, locator: `${sp.id} ${what}` }];
-    const all = Object.values(data.persons);
+    // a role at another's event: whose by the app's ID — a person or a partnership — once all are made
+    const atLater: { event: string; owner: string; person?: string; partnership?: string }[] = [];
+    // who else was at an event: a person of the app's tree by its ID, ours once all people are made
+    const partsLater = new Map<Event, { role: ParticipantRole; appPerson?: string; name?: string; note?: string }[]>();
+    const familyOf = new Map<string, string>();
+    // the app's "?" stand-in is nobody (its GEDCOM leaves it out; strom sync reads no one of it)
+    const all = Object.values(data.persons).filter((sp) => !appNobody(sp));
     const ourPeople = oursByRefn(tree, data.research?.id, all.map((sp) => ({ refn: sp.refn, names: [[sp.firstName, sp.lastName].filter(Boolean).join(" "), ...(sp.nameVariants ?? [])] })));
+    /** A fact of the app's: the user's own family tree's values (spec 066), theirs to guard, nothing they confirmed. */
+    const factOf = (owner: string, kind: string, e: StromEvent | undefined, date: string | undefined, place: string | undefined, family = false): Event => {
+      const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: [{ source: source.id, locator: `${owner} ${kind}` }], origin: { by: "user", tree: true } };
+      const d = fromFlexDate(date);
+      if (d) ev.date = d;
+      const at = place?.replace(/\s+/gu, " ").trim();
+      if (at) ev.place = at;
+      const said: string[] = [];
+      if (date && !d) said.push(`date as written: ${date}`);
+      if (e) {
+        // its cause, age and house as strom sync reads them (factDetails) — a person's age at any fact of theirs (a census
+        // the app shares among a household too); a couple's: the partners' ages by the app's ids
+        const { ageAsWritten, ...details } = factDetails(e.cause, family ? undefined : e.age, e.address);
+        Object.assign(ev, details);
+        if (ageAsWritten) said.push(`age as written: ${ageAsWritten}`);
+        const ages = partnersAges(e.ages, (id) => idMap.get(id));
+        if (ages) ev.ages = ages;
+        // the event's note as the user wrote it, whole (an occupation's first line is what it is: its value)
+        const text = (VALUE_TAGS.has(kind) ? (e.note ?? "").split("\n").slice(1).join("\n") : (e.note ?? "")).normalize("NFC").trim();
+        if (text) said.push(text);
+        const parts = appParticipants(e.participants);
+        if (parts.length) partsLater.set(ev, parts);
+      }
+      if (said.length) ev.note = said.join("\n");
+      result.events++;
+      return ev;
+    };
+    const made: Person[] = [];
     for (const [i, sp] of all.entries()) {
       const ours = ourPeople[i];
       if (ours) {
@@ -929,20 +1138,38 @@ export function importStromJson(
         continue;
       }
       const events: Event[] = [];
-      const add = (kind: string, date?: string, place?: string) => {
-        const d = fromFlexDate(date);
-        if (!d && !place) return;
-        // the Strom app's values are the user's own family tree's (spec 066): theirs to guard, nothing they confirmed
-        const ev: Event = { id: tree.allocate("E"), kind, status: "lead", citations: cite(sp, kind), origin: { by: "user", tree: true } };
-        if (d) ev.date = d;
-        if (place) ev.place = place;
-        if (date && !d) ev.note = `date as written: ${date}`;
+      // the birth and the death with what the app keeps of them besides (its 3.7: the house, the cause, the age)
+      const birth: StromEvent = { type: "birth", ...(sp.birthAddress ? { address: sp.birthAddress } : {}) };
+      const death: StromEvent = { type: "death", ...(sp.deathCause ? { cause: sp.deathCause } : {}), ...(sp.deathAge ? { age: sp.deathAge } : {}), ...(sp.deathAddress ? { address: sp.deathAddress } : {}) };
+      for (const [kind, date, place, e] of [["BIRT", sp.birthDate, sp.birthPlace, birth], ["DEAT", sp.deathDate, sp.deathPlace, death]] as const)
+        if (fromFlexDate(date) || place?.trim() || e.cause?.trim() || e.age?.trim() || e.address?.trim()) events.push(factOf(sp.id, kind, e, date, place));
+      // the person's other events (a census of the household, a move, a godparent's own event), with who else was
+      // there and the marks of an event the app shares among people (spec 085); whose a role at another's was: once
+      // all are made (atLater)
+      for (const e of Array.isArray(sp.events) ? sp.events : []) {
+        if (!e || typeof e !== "object" || typeof e.type !== "string") continue;
+        const what = appPersonEvent(e, lang);
+        if (!what || ((what.kind === "BIRT" || what.kind === "DEAT") && events.some((x) => x.kind === what.kind))) continue;
+        // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
+        const value = VALUE_TAGS.has(what.kind) ? (e.note?.split("\n")[0] ?? "").replace(/\s+/gu, " ").trim() : "";
+        if ((what.kind === "EVEN" && !what.label) || (VALUE_TAGS.has(what.kind) && !value)) continue;
+        const ev = factOf(sp.id, what.kind, e, e.date, e.place);
+        if (what.label) ev.label = what.label;
+        if (value) ev.value = value;
+        const marks = appEventMarks(e, true);
+        if (marks.share) ev.share = marks.share;
+        if (marks.unreadable) result.problems.push(`${sp.id} ${e.type}: the mark of a shared event "${marks.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
+        if (marks.roleAt) {
+          ev.roleAt = marks.roleAt;
+          if (marks.atPerson || marks.atPartnership) atLater.push({ event: ev.id, owner: sp.id, ...(marks.atPerson ? { person: marks.atPerson } : { partnership: marks.atPartnership! }) });
+        }
         events.push(ev);
-        result.events++;
-      };
-      add("BIRT", sp.birthDate, sp.birthPlace);
-      add("DEAT", sp.deathDate, sp.deathPlace);
+      }
       const t = now();
+      // the name after the marriage (spec 010) as its GEDCOM gives it: a name of the married kind after the birth one,
+      // the one the user chose to show the person by marked (spec 024)
+      const marriedAs = appMarriedName(sp);
+      const married: Name | undefined = marriedAs ? { ...parseName(marriedAs), kind: "married", ...(sp.primaryName === "married" ? { primary: true as const } : {}), origin: { by: "user", tree: true } } : undefined;
       const p: Person = {
         id: tree.allocate("P"),
         type: "person",
@@ -952,8 +1179,10 @@ export function importStromJson(
             surname: sp.lastName?.trim() ?? "",
             ...(cleanTitle(sp.titleBefore) ? { prefix: cleanTitle(sp.titleBefore)! } : {}),
             ...(cleanTitle(sp.titleAfter) ? { suffix: cleanTitle(sp.titleAfter)! } : {}),
+            ...(married && sp.primaryName === "birth" ? { primary: true as const } : {}),
             origin: { by: "user", tree: true },
           },
+          ...(married ? [married] : []),
           ...(sp.nameVariants ?? []).map((v): Name => ({ ...parseName(v), origin: { by: "user", tree: true } })),
         ],
         sex: sp.gender === "male" ? "M" : sp.gender === "female" ? "F" : "U",
@@ -964,42 +1193,130 @@ export function importStromJson(
         created: t,
         updated: t,
       };
-      tree.put(p, { op: "person.import", targets: [p.id], summary: `+${p.id} ${p.names[0]!.given} /${p.names[0]!.surname}/ (lead)` });
+      made.push(p);
       idMap.set(sp.id, p.id);
       result.persons++;
     }
+    /** Who else was at the event: a person of the app's tree ours (one the file does not have: by their name, else nobody). */
+    const participants = (ev: Event): void => {
+      const list = partsLater.get(ev);
+      if (!list) return;
+      const out: Participant[] = [];
+      for (const x of list) {
+        const person = x.appPerson ? idMap.get(x.appPerson) : undefined;
+        if (!person && !x.name) continue;
+        out.push({ role: x.role, ...(person ? { person } : { name: x.name! }), ...(x.note ? { note: x.note } : {}) });
+      }
+      if (out.length) ev.participants = out;
+    };
+    for (const p of made) {
+      for (const ev of p.events) participants(ev);
+      tree.put(p, { op: "person.import", targets: [p.id], summary: `+${p.id} ${p.names[0]!.given} /${p.names[0]!.surname}/ (lead)` });
+    }
+    const known = (id: string) => idMap.has(id);
+    // each child's tie to each parent (the app keeps it on the child: parentRelTypes), as its GEDCOM gives it (PEDI for
+    // both, _FREL/_MREL each) — a word the research has none for said, the child a child by birth to that parent
+    const ties = (appChild: string, child: string, parents: (string | undefined)[]): ChildLink => {
+      const by: Record<string, ChildRelation> = {};
+      const rels = data.persons[appChild]?.parentRelTypes;
+      for (const parent of parents) {
+        const ours = parent ? idMap.get(parent) : undefined;
+        if (!parent || !ours) continue;
+        const word = rels && typeof rels === "object" && typeof rels[parent] === "string" ? rels[parent] : undefined;
+        const rel = childRelation(word);
+        if (word?.trim() && !rel) result.problems.push(`${appChild}: the tie to the parent ${parent} "${word}" is no relation the research knows (birth, adopted, step, foster) — taken as birth`);
+        by[ours] = rel ?? "birth";
+      }
+      return childLink(child, by, appBothTie(Object.values(by)));
+    };
+    /**
+     * A family of these partners the research has (one of this intake's too: the "?" stand-in's family and the one
+     * parent's other children are one family, as its GEDCOM's two read): gets the children it lacks; else undefined.
+     */
+    const joined = (partners: string[], kids: ChildLink[]): Family | undefined => {
+      const exists = tree.list<Family>("family").find((f) => !f.retracted && !f.mergedInto && partners.length > 0 && partners.every((p) => f.partners.includes(p)) && f.partners.length === partners.length);
+      if (!exists) return undefined;
+      const fresh = kids.filter((k) => !exists.children.some((c) => c.person === k.person));
+      if (fresh.length) tree.put({ ...exists, children: [...exists.children, ...fresh], updated: now() }, { op: "family.import", targets: [exists.id, ...fresh.map((k) => k.person)], summary: `${exists.id} + ${fresh.map((k) => `child ${k.person}`).join(", ")} (lead)` });
+      return exists;
+    };
     for (const sp of Object.values(data.partnerships)) {
       const partners = [sp.person1Id, sp.person2Id].map((x) => (x ? idMap.get(x) : undefined)).filter((x): x is string => !!x);
-      const kids = (sp.childIds ?? []).map((c) => idMap.get(c)).filter((x): x is string => !!x);
-      if (partners.length + kids.length === 0) continue;
-      if (tree.list<Family>("family").some((f) => partners.length > 0 && partners.every((p) => f.partners.includes(p)) && f.partners.length === partners.length)) continue;
+      const appKids = (sp.childIds ?? []).filter((c) => idMap.has(c));
+      if (partners.length + appKids.length === 0) continue;
+      const kids = appKids.map((c) => ties(c, idMap.get(c)!, [sp.person1Id, sp.person2Id]));
+      const exists = joined(partners, kids);
+      if (exists) {
+        familyOf.set(sp.id, exists.id);
+        continue;
+      }
       const t = now();
       const events: Event[] = [];
-      const d = fromFlexDate(sp.startDate);
-      if (d || sp.startPlace) {
-        const ev: Event = { id: tree.allocate("E"), kind: "MARR", status: "lead", citations: [{ source: source.id, locator: `${sp.id} MARR` }], origin: { by: "user", tree: true } };
-        if (d) ev.date = d;
-        if (sp.startPlace) ev.place = sp.startPlace;
+      // the wedding and the divorce as the app's GEDCOM writes them (appUnionFacts: a couple married with nothing more
+      // known of it a bare one), the wedding with its witnesses, its house and the partners' ages
+      const union = appUnionFacts(sp, known);
+      const wedding: StromEvent = {
+        type: "marriage",
+        ...(Array.isArray(sp.participants) ? { participants: sp.participants } : {}),
+        ...(sp.address ? { address: sp.address } : {}),
+        ...(sp.ages && typeof sp.ages === "object" ? { ages: sp.ages } : {}),
+      };
+      if (union.marriage) events.push(factOf(sp.id, "MARR", wedding, sp.startDate, sp.startPlace, true));
+      // the couple's other events (an engagement, banns, a census of the two …)
+      for (const e of Array.isArray(sp.events) ? sp.events : []) {
+        if (!e || typeof e !== "object" || typeof e.type !== "string" || !Object.hasOwn(APP_COUPLE_EVENTS, e.type)) continue;
+        const kind = APP_COUPLE_EVENTS[e.type]!;
+        const label = kind === "EVEN" ? e.customLabel?.replace(/\s+/gu, " ").trim() : undefined;
+        if (kind === "EVEN" && !label) continue;
+        const ev = factOf(sp.id, kind, e, e.date, e.place, true);
+        if (label) ev.label = label;
         events.push(ev);
-        result.events++;
       }
+      // the divorce (the app's 3.7 keeps its place too; a couple separated: when they parted), as strom sync reads it
+      if (union.divorce) events.push(factOf(sp.id, "DIV", undefined, sp.endDate, sp.endPlace, true));
+      for (const ev of events) participants(ev);
       const f: Family = {
         id: tree.allocate("F"),
         type: "family",
         partners,
-        children: kids.map((person) => ({ person, relation: "birth" as const })),
+        children: kids,
         events,
-        notes: [],
+        // the couple's one note (its GEDCOM: 1 NOTE under FAM), whole
+        notes: typeof sp.note === "string" && sp.note.trim() ? [note(tree, sp.note)] : [],
         refs: [{ system: "strom-app", id: sp.id }],
         created: t,
         updated: t,
       };
-      tree.put(f, { op: "family.import", targets: [f.id, ...partners, ...kids], summary: `+${f.id} family (lead)` });
+      tree.put(f, { op: "family.import", targets: [f.id, ...partners, ...kids.map((k) => k.person)], summary: `+${f.id} family (lead)` });
+      familyOf.set(sp.id, f.id);
       result.families++;
+    }
+    // a child of parents no partnership holds (the app's parentIds; its GEDCOM: a family of their own): a family of
+    // those parents, as strom sync reads it
+    for (const loose of appLooseFamilies(data, known)) {
+      const partners = loose.parents.map((x) => idMap.get(x)!);
+      const kids = loose.children.map((c) => ties(c, idMap.get(c)!, loose.parents));
+      if (joined(partners, kids)) continue;
+      const t = now();
+      const f: Family = { id: tree.allocate("F"), type: "family", partners, children: kids, events: [], notes: [], created: t, updated: t };
+      tree.put(f, { op: "family.import", targets: [f.id, ...partners, ...kids.map((k) => k.person)], summary: `+${f.id} family (lead)` });
+      result.families++;
+    }
+    // a role at another's event: whose, now that all are made (one the import made nothing of: the role alone)
+    for (const later of atLater) {
+      const at = later.person ? idMap.get(later.person) : familyOf.get(later.partnership!);
+      const owner = idMap.get(later.owner);
+      const rec = at && owner ? tree.get<Person>(owner) : undefined;
+      const ev = rec?.events.find((e) => e.id === later.event);
+      if (!rec || !ev?.roleAt) continue;
+      tree.put({ ...rec, events: rec.events.map((e) => (e === ev ? { ...e, roleAt: { ...ev.roleAt!, at: at! } } : e)) }, { op: "person.import", targets: [rec.id, at!], summary: `${rec.id} ${ev.kind}: a role at ${at}` });
     }
   });
   return result;
 }
+
+/** The kinds of facts that are their value (an occupation, a religion): the Strom app keeps it as the event's note. */
+const VALUE_TAGS = new Set(["OCCU", "RELI", "TITL", "NATI"]);
 
 /** "čp. 13", "č. p. 13", "Nr. 13", "House No. 13" → "13": the house, without the word for it. */
 export function houseOf(address: string): string {
@@ -1042,4 +1359,155 @@ function detailInto(ev: Event, line: string, family: boolean, couple: { HUSB?: s
     return true;
   }
   return false;
+}
+
+// ── what a fact says besides, a child's ties: one reading for strom intake (GEDCOM, JSON) and strom sync ──────────────
+
+/** What a fact says besides its date and place, in the research's form (`ageAsWritten`: an age it cannot read). */
+export interface FactDetails {
+  cause?: string;
+  age?: string;
+  house?: string;
+  ageAsWritten?: string;
+}
+
+/**
+ * A fact's cause, age and address as a file gives them (a GEDCOM's CAUS, AGE, ADDR; the Strom app's JSON's cause, age,
+ * address, deathCause …): the cause on one line, the age read, the house without the word for it.
+ */
+export function factDetails(cause: string | undefined, age: string | undefined, address: string | undefined): FactDetails {
+  const out: FactDetails = {};
+  const c = cause?.replace(/\s+/gu, " ").trim();
+  if (c) out.cause = c;
+  const raw = age?.trim();
+  const a = raw ? normalizeAge(raw) : undefined;
+  if (a) out.age = a;
+  else if (raw) out.ageAsWritten = raw;
+  const h = address?.trim() ? houseOf(address) : "";
+  if (h) out.house = h;
+  return out;
+}
+
+/** The partners' ages at a couple's fact (the Strom app's `ages`: its person id → age) by whose they are to the reader (`whose`: the app's id → its key); none read: undefined. */
+export function partnersAges(ages: unknown, whose: (appId: string) => string | undefined): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const [id, raw] of Object.entries(ages && typeof ages === "object" ? (ages as Record<string, unknown>) : {})) {
+    const key = whose(id);
+    const a = key && typeof raw === "string" && raw.trim() ? normalizeAge(raw) : undefined;
+    if (key && a) out[key] = a;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** A child's tie to a parent in the research's words (_FREL/_MREL, PEDI, the app's parentRelTypes); a word it has none for: undefined. */
+export function childRelation(said: string | undefined): ChildRelation | undefined {
+  switch ((said ?? "").trim().toLowerCase()) {
+    case "natural": case "birth": case "biological":
+      return "birth";
+    case "adopted": case "adoptive":
+      return "adopted";
+    case "step":
+      return "step";
+    case "foster":
+      return "foster";
+    case "unknown":
+      return "unknown";
+    default:
+      return undefined;
+  }
+}
+
+/** The tie the Strom app writes for both parents (its PEDI) of a child's ties to each: adopted by one, foster by one, else birth. */
+export function appBothTie(ties: ChildRelation[]): ChildRelation {
+  return ties.includes("adopted") ? "adopted" : ties.includes("foster") ? "foster" : "birth";
+}
+
+/**
+ * A child of a family from its tie to each parent (`by`: every parent of the family, the tie for both where the file
+ * says nothing of one) and the tie for both (PEDI; none: birth): one tie to all its parents is the relation, else the
+ * relation for both and each parent's other tie (relations) — a GEDCOM (PEDI, _FREL/_MREL) and the Strom app's JSON
+ * (parentRelTypes) of the same tree alike.
+ */
+export function childLink(person: string, by: Record<string, ChildRelation>, both: ChildRelation): ChildLink {
+  const all = [...new Set(Object.values(by))];
+  if (all.length === 1) return { person, relation: all[0]! };
+  const relations = Object.fromEntries(Object.entries(by).filter(([, r]) => r !== both));
+  return { person, relation: both, ...(Object.keys(relations).length ? { relations } : {}) };
+}
+
+// ── the Strom app's JSON as its GEDCOM gives it: one reading for strom intake and strom sync ────────────────────────────
+
+/** A person of the Strom app's JSON who is nobody: no ID, or its "?" stand-in (an unknown parent drawn in the tree) — its GEDCOM leaves the stand-in out. */
+export function appNobody(p: { id?: unknown; isPlaceholder?: unknown } | undefined): boolean {
+  return !p || typeof p.id !== "string" || !p.id || !!p.isPlaceholder;
+}
+
+/**
+ * The name after the marriage of a person of the Strom app's JSON (spec 010: `marriedSurname`) as GEDCOM writes a name
+ * ("Marie /Lhotová/"): with its own given names (`marriedFirstName`, the app's 3.26) or the person's first name — as
+ * its GEDCOM gives it (1 NAME … 2 TYPE married); none: undefined.
+ */
+export function appMarriedName(p: { firstName?: unknown; marriedSurname?: unknown; marriedFirstName?: unknown }): string | undefined {
+  const surname = typeof p.marriedSurname === "string" ? p.marriedSurname.replace(/[/\s]+/gu, " ").trim() : "";
+  if (!surname) return undefined;
+  const own = typeof p.marriedFirstName === "string" ? p.marriedFirstName.replace(/[/\s]+/gu, " ").trim() : "";
+  const first = own || (typeof p.firstName === "string" ? p.firstName : "");
+  return `${first} /${surname}/`.trim();
+}
+
+/** A partnership of the Strom app's JSON as its exporter weighs it for MARR and DIV (appUnionFacts). */
+export interface AppUnion {
+  person1Id?: string;
+  person2Id?: string;
+  childIds?: string[];
+  status?: string;
+  startDate?: string;
+  startPlace?: string;
+  endDate?: string;
+  endPlace?: string;
+  address?: string;
+  ages?: Record<string, string>;
+  participants?: unknown[];
+  marriageUnrecorded?: boolean;
+  startStatus?: string;
+}
+
+/**
+ * What the Strom app's GEDCOM writes of a partnership of its JSON (its exporter): a wedding (MARR, bare when nothing
+ * more is known of it) for a couple married or divorced — not the one of a "?" stand-in and one child (that child's one
+ * known parent), nor one whose file wrote none (marriageUnrecorded) unless its witnesses or its status say one — and for
+ * any couple with the wedding's date, place, house or a partner's age; a divorce (DIV, bare likewise) for a couple
+ * divorced and for any with an end's date or place (separated: when they parted). `known`: a partner the reader has
+ * (the stand-in is nobody, appNobody).
+ */
+export function appUnionFacts(u: AppUnion, known: (appId: string) => boolean): { marriage: boolean; divorce: boolean } {
+  const has = (v: unknown) => typeof v === "string" && v.trim() !== "";
+  const standIn = (!u.person1Id || !known(u.person1Id) || !u.person2Id || !known(u.person2Id)) && (u.childIds ?? []).length === 1;
+  const witnesses = Array.isArray(u.participants) && u.participants.length > 0;
+  const unrecorded = u.marriageUnrecorded === true && !witnesses && !has(u.startStatus);
+  const ages = [u.person1Id, u.person2Id].some((id) => !!id && !!u.ages && typeof u.ages === "object" && has(u.ages[id]));
+  const marriage = ((u.status === "married" || u.status === "divorced") && !standIn && !unrecorded) || has(u.startDate) || has(u.startPlace) || has(u.address) || ages;
+  const divorce = u.status === "divorced" || has(u.endDate) || has(u.endPlace);
+  return { marriage, divorce };
+}
+
+/**
+ * The Strom app's children of parents no partnership of theirs holds (a child's `parentIds` beyond its couples — its
+ * GEDCOM: a family of their own, _STROM_NO_COUPLE): one family per set of those parents, of the people `known`.
+ */
+export function appLooseFamilies(
+  data: { persons?: Record<string, { id?: string; parentIds?: unknown } | undefined>; partnerships?: Record<string, { person1Id?: string; person2Id?: string; childIds?: string[] } | undefined> },
+  known: (appId: string) => boolean,
+): { parents: string[]; children: string[] }[] {
+  const held = new Set(Object.values(data.partnerships ?? {}).flatMap((u) => (u?.childIds ?? []).flatMap((c) => [u!.person1Id, u!.person2Id].filter(Boolean).map((p) => `${p}|${c}`))));
+  const out = new Map<string, { parents: string[]; children: string[] }>();
+  for (const p of Object.values(data.persons ?? {})) {
+    if (!p?.id || !known(p.id) || !Array.isArray(p.parentIds)) continue;
+    const parents = [...new Set((p.parentIds as unknown[]).filter((x): x is string => typeof x === "string" && !held.has(`${x}|${p.id}`) && known(x)))];
+    if (!parents.length) continue;
+    const key = [...parents].sort().join("|");
+    const f = out.get(key) ?? out.set(key, { parents, children: [] }).get(key)!;
+    f.children.push(p.id);
+  }
+  return [...out.values()];
 }

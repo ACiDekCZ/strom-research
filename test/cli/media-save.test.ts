@@ -93,6 +93,13 @@ test("one image through the agent's browser: the script for the one page, the do
     // Chrome saves one file of a page by itself: the second waits for the user's yes in Chrome — said, never the agent's
     const told = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE], { env: CLAUDE });
     assert.match(told.out, /one more from the same page waits until the user allows genbaza\.pl to download several files .* never change Chrome's settings yourself/);
+    assert.doesNotMatch(told.out + r.json.script, /strom-wait/);
+    // browser.tileWait set: the script waits while the viewer's tiles come, answering strom-wait — said how to go on
+    await w.ok(["config", "set", "browser.tileWait", "180"]);
+    const slow = await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE, "--json"], { env: CLAUDE });
+    assert.match(slow.json.script, /strom-wait/);
+    assert.match((await w.ok(["media", "save", "T1", "--image", "9", "--at", PAGE], { env: CLAUDE })).out, /It answers "strom-wait …" while the viewer's tiles still come \(browser\.tileWait\)/);
+    await w.ok(["config", "unset", "browser.tileWait"]);
     // the task waits for the image now (what the person reads in the research language), then for the next one too
     const waiting = (await w.ok(["task", "show", "T1", "--json"])).json.task;
     assert.equal(waiting.state, "waiting");

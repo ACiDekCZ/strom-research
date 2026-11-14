@@ -243,6 +243,27 @@ export const VIEWER_PART_PX = 2400;
  */
 export const VIEWER_HIDDEN_MS = 30_000;
 
+/**
+ * browser.tileWait (a setting not listed, for a browser that draws a viewer's tab slowly — about a frame a second, in
+ * which OpenSeadragon asks about one tile a frame and a page's tiles take minutes): its seconds, a whole number from
+ * TILE_WAIT_MIN_S to TILE_WAIT_MAX_S. Unset, the viewer's tiles are waited for 30 s, as ever; set, the wait goes on past
+ * 30 s while tiles still come — until none came for TILE_QUIET_MS, at most this long —, over several calls of the
+ * browser's JavaScript tool (each answers "strom-wait …" after WAIT_CALL_MS; the same script again goes on).
+ */
+export const TILE_WAIT_MIN_S = 60;
+export const TILE_WAIT_MAX_S = 600;
+export const TILE_WAIT_SUGGESTED_S = 180;
+/** With browser.tileWait: the wait goes on past 30 s only when a tile came within this time (they still come). */
+export const TILE_RECENT_MS = 10_000;
+/** With browser.tileWait: no tile for this long, and the wait is over. */
+export const TILE_QUIET_MS = 30_000;
+/** With browser.tileWait: a call of the script that still waits answers "strom-wait" after this (a browser tool's call ends at about 45 s). */
+export const WAIT_CALL_MS = 35_000;
+/** Options of the scripts that save from a viewer: browser.tileWait in ms (unset: as before it was there). */
+export interface CaptureOptions {
+  tileWaitMs?: number;
+}
+
 const safe = (s: string) => s.normalize("NFC").replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_").replace(/^[._]+/, "") || "x";
 
 /** The name a planned image is saved under: strom-<connector>-<book>-0009 (a part: …-0009-part). */
@@ -501,7 +522,9 @@ export function pageScript(plan: BrowserPlan): string {
  * whole or in part, at most as sharp as the image, waited for until every tile is there; what the browser drew of it
  * cut out and saved as a JPEG under a name. No request of its own: the tiles are the ones the viewer asks for.
  */
-const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function captureJs(o: CaptureOptions = {}): string {
+  const slow = o.tileWaitMs !== undefined;
+  return `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // a tab the browser does not draw (another tab in front, its window covered or minimized — the page may still be
   // told it is visible) gets no frame, and the viewer, which counts its tiles only when it draws, never says they are
   // all there: a wait counts only the time frames come (one asked at each look), and gives up once none came for
@@ -523,7 +546,7 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (drawing()) left -= now - t;
       else unseen += now - t;
       t = now;
-      if (left <= 0 || notShown()) return false;
+      if (left <= 0 || notShown()${slow ? " || live.cancel" : ""}) return false;
       await sleep(200);
     }
   };
@@ -594,7 +617,11 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const style = el.getAttribute("style");
     let failed = 0;
     const onFail = () => failed++;
-    v.addHandler("tile-load-failed", onFail);
+    v.addHandler("tile-load-failed", onFail);${slow ? `
+    // the tiles that come (browser.tileWait): a wait past 30 s goes on only while they come
+    let lastTile = 0;
+    const onTile = () => ((lastTile = Date.now()), (live.tiles = (live.tiles || 0) + 1));
+    v.addHandler("tile-loaded", onTile);` : ""}
     try {
       el.style.cssText = (style || "") + ";position:fixed;left:0;top:0;width:" + cw + "px;height:" + ch + "px;max-width:none;max-height:none;z-index:2147483646";
       await until(() => { const s = v.viewport.getContainerSize(); return Math.abs(s.x - cw) < 2 && Math.abs(s.y - ch) < 2; }, 5000);
@@ -605,9 +632,33 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       await sleep(300);
       const loaded = () => (typeof item.getFullyLoaded === "function" ? item.getFullyLoaded() : true);
       const jobs = () => (v.imageLoader ? v.imageLoader.jobsInProgress : 0);
-      const done = () => loaded() && jobs() === 0;
-      if (!(await until(done, 30000))) {
-        if (notShown()) return { why: NOT_SHOWN };
+      const done = () => loaded() && jobs() === 0;${slow ? `
+      const begun = Date.now();
+      let slowNow = false;
+      // 30 s over and a tile came within the last ${TILE_RECENT_MS / 1000} s: a browser that draws the tab slowly — waited on
+      // while tiles come (no tile for ${TILE_QUIET_MS / 1000} s: over), at most ${o.tileWaitMs! / 1000} s; the call of the
+      // script answers "strom-wait" meanwhile, the same script again goes on
+      const slowTiles = async () => {
+        if (!lastTile || Date.now() - lastTile > ${TILE_RECENT_MS} || live.cancel) return false;
+        // tiles that come are no tab left undrawn: from here, that is a tab with no frame for ${VIEWER_HIDDEN_MS / 1000} s
+        slowNow = live.slow = true;
+        unseen = 0;
+        live.begun = live.begun || begun;
+        if (live.wake) live.wake();
+        for (;;) {
+          requestAnimationFrame(() => (lastFrame = Date.now()));
+          try {
+            if (done() || (typeof v.currentPage === "function" && v.currentPage() !== page)) return true;
+          } catch (e) {}
+          if (live.cancel || Date.now() - lastTile > ${TILE_QUIET_MS} || Date.now() - begun > ${o.tileWaitMs}) return false;
+          await sleep(200);
+        }
+      };` : ""}
+      if (!(await until(done, 30000))${slow ? " && !(await slowTiles())" : ""}) {${slow ? `
+        if (live.cancel) return { why: "another script of strom took this tab over" };
+        // waited on: the tab not drawn only when no frame came either
+        if (slowNow ? Date.now() - lastFrame > ${VIEWER_HIDDEN_MS} : notShown()) return { why: NOT_SHOWN };` : `
+        if (notShown()) return { why: NOT_SHOWN };`}
         // what the viewer said when the wait ended (no token of it a result could be taken for: no "n:nnn")
         const said = [];
         try {
@@ -617,7 +668,7 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           const osd = window.OpenSeadragon && window.OpenSeadragon.version;
           if (osd && osd.versionStr) said.push("OpenSeadragon " + osd.versionStr);
         } catch (e) {}
-        return { why: "the viewer's tiles did not all come in 30 s (" + said.join(", ") + ")" };
+        return { why: "the viewer's tiles did not all come in ${slow ? `" + (slowNow ? Math.round((Date.now() - begun) / 1000) : 30) + "` : "30"} s (" + said.join(", ") + ")${slow ? "" : ` — if they were still coming (a browser that draws the tab slowly, the last frame often a second ago or more): strom config set browser.tileWait ${TILE_WAIT_SUGGESTED_S}, then the same strom command again for a new script, which waits while they come`}" };
       }
       if (!(await frames()) && notShown()) return { why: NOT_SHOWN };
       if (failed) return { why: failed + " tile" + (failed === 1 ? "" : "s") + " of the image did not come — the archive may be busy", stop: true };
@@ -636,33 +687,71 @@ const CAPTURE_JS = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       if (!blob) return { why: "the browser does not let this page save what its viewer drew (images of another site)" };
       return { blob };
     } finally {
-      v.removeHandler("tile-load-failed", onFail);
+      v.removeHandler("tile-load-failed", onFail);${slow ? `
+      v.removeHandler("tile-loaded", onTile);` : ""}
       if (style === null) el.removeAttribute("style");
       else el.setAttribute("style", style);
       try { v.viewport.goHome(true); } catch (e) {}
     }
   };`;
+}
+
+/**
+ * With browser.tileWait, a script that saves from a viewer runs in the tab's own keeping (window.__stromCapture): a call
+ * of the browser's JavaScript tool must end in time (about 45 s), the tiles of a slowly drawn tab may take minutes. A
+ * call that still waits for them answers "strom-wait …" after WAIT_CALL_MS; the same script run again (the same plan)
+ * goes on with the wait at work — nothing shown, paged or asked anew — and answers its "strom-result …" once it is over.
+ * Another script of strom in the same tab stops the one at work first (the viewer as it was). Unset: none of this.
+ */
+const RESUME_HEAD = `
+  // browser.tileWait: the run kept in the tab, so that a call ends in time while the viewer's tiles still come
+  const key = JSON.stringify(plan);
+  const attach = async (live) => {
+    const t0 = Date.now();
+    if (!live.slow && !live.done) await Promise.race([live.promise, new Promise((r) => (live.wake = r))]);
+    while (!live.done && Date.now() - t0 < ${WAIT_CALL_MS}) await new Promise((r) => setTimeout(r, 200));
+    if (!live.done) return "strom-wait — the viewer's tiles still come in (" + (live.tiles || 0) + " so far, " + Math.round((Date.now() - live.begun) / 1000) + " s waited): run this same script again in this tab — it goes on waiting where it is and asks nothing anew; only its last answer, strom-result …, counts";
+    if (window.__stromCapture === live) delete window.__stromCapture;
+    if (live.error) throw live.error;
+    return live.result;
+  };
+  const was = window.__stromCapture;
+  if (was && was.key === key) return attach(was);`;
+const RESUME_TAKE = `
+  // another script of strom at work in this tab: it stops first, the viewer as it was
+  if (was && !was.done) {
+    was.cancel = true;
+    await was.promise;
+  }
+  const live = (window.__stromCapture = { key, slow: false, cancel: false, done: false, tiles: 0 });`;
+const RESUME_RUN = `
+  live.promise = (async () => {`;
+const RESUME_TAIL = `
+  })().then((r) => ((live.result = r), (live.done = true)), (e) => ((live.error = e), (live.done = true)));
+  return attach(live);`;
 
 /**
  * The script that saves the plan's images from the portal's own viewer in the tab (browser.viewer; top-level await):
  * the tab on the book's page, each image its page n of the viewer, shown and saved at its time, one after the other.
  * Never a reload, never a request of its own. It returns "strom-result 9:200:412918 10:failed".
  */
-export function viewerScript(plan: BrowserPlan): string {
+export function viewerScript(plan: BrowserPlan, o: CaptureOptions = {}): string {
+  const slow = o.tileWaitMs !== undefined;
   const open = new URL(plan.open);
   const data = { origin: plan.origin, path: open.pathname, open: plan.open, until: plan.until, gap: plan.gap, items: plan.items.map((i) => ({ n: i.n, file: i.file, at: i.at, ...(i.region ? { region: i.region } : {}) })) };
   return `await (async () => {
-  const plan = ${JSON.stringify(data)};
+  const plan = ${JSON.stringify(data)};${slow ? RESUME_HEAD : ""}
   if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on the book's page — open " + plan.open + " (once; then page through it, never reload it)";
-  if (Date.now() > plan.until) return "strom: this plan is over — run strom fetch again for a new one";
-  ${CAPTURE_JS}
+  if (Date.now() > plan.until) return "strom: this plan is over — run strom fetch again for a new one";${slow ? RESUME_TAKE : ""}
+  ${captureJs(o)}${slow ? RESUME_RUN : ""}
   const v = findViewer();
   if (!v) return "strom: no image viewer on this page yet — wait until it shows an image; a check whether a person is there is the user's to pass";
   const out = [];
   let last = 0;
   for (const it of plan.items) {
     const wait = Math.max(it.at, last + plan.gap) - Date.now();
-    if (wait > 0) await sleep(wait);
+    if (wait > 0) await sleep(wait);${slow ? `
+    if (live.cancel) return "strom: another script of strom took this tab over";` : ""}
     last = Date.now();
     const got = await capture(v, it.n - 1, it.region, it.region ? ${VIEWER_PART_PX} : ${VIEWER_WHOLE_PX});
     if (!got.blob) {
@@ -672,7 +761,7 @@ export function viewerScript(plan: BrowserPlan): string {
     save(got.blob, it.file + ".jpg");
     out.push(it.n + ":200:" + got.blob.size);
   }
-  return "strom-result " + out.join(" ");
+  return "strom-result " + out.join(" ");${slow ? RESUME_TAIL : ""}
 })()`;
 }
 
@@ -733,19 +822,20 @@ export function waitFileBase(task: string, n: number): string {
  * site, path, parameters and anchor, so a viewer paged to another image is refused, nothing saved (`other`: that
  * said for the person, in the research language). It returns "strom-result 40:200:412918", or why not.
  */
-export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string }): string {
+export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string }, c: CaptureOptions = {}): string {
+  const slow = c.tileWaitMs !== undefined;
   const u = new URL(o.url);
   const data = { origin: u.origin, path: u.pathname, search: u.search, hash: u.hash, url: o.url, until: o.until, n: o.n, file: o.file, ...(o.other ? { other: o.other } : {}) };
   return `await (async () => {
-  const plan = ${JSON.stringify(data)};
+  const plan = ${JSON.stringify(data)};${slow ? RESUME_HEAD : ""}
   if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on " + plan.url + " — that page was allowed, no other";
   // the page of image n, as the viewer keeps it in the address: the same parameters and anchor, or another image shown
   const params = (q) => [...new URLSearchParams(q)].map((kv) => kv.join("=")).sort().join("&");
   const anchor = (h) => (h === "#" ? "" : h);
   if (params(location.search || "") !== params(plan.search) || anchor(location.hash || "") !== anchor(plan.hash))
     return "strom: this tab shows " + location.href + ", not " + plan.url + " — another image than " + plan.n + " (the viewer was paged); nothing saved. Page the viewer back to image " + plan.n + " or open " + plan.url + " (once), then run the script again; else tell the user" + (plan.other ? ": " + plan.other : "");
-  if (Date.now() > plan.until) return "strom: this script is over — run strom media save again";
-  ${CAPTURE_JS}
+  if (Date.now() > plan.until) return "strom: this script is over — run strom media save again";${slow ? RESUME_TAKE : ""}
+  ${captureJs(c)}${slow ? RESUME_RUN : ""}
   const v = findViewer();
   if (v) {
     const got = await capture(v, -1, undefined, ${VIEWER_WHOLE_PX});
@@ -777,6 +867,6 @@ export function saveScript(o: { url: string; file: string; n: number; until: num
   }
   const ext = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/tiff": ".tif" }[(blob.type || "").split(";")[0].trim()] || ".jpg";
   save(blob, plan.file + ext);
-  return "strom-result " + plan.n + ":200:" + blob.size;
+  return "strom-result " + plan.n + ":200:" + blob.size;${slow ? RESUME_TAIL : ""}
 })()`;
 }

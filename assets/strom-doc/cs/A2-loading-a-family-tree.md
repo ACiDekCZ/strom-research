@@ -34,8 +34,27 @@ tiše neztratí na úrovni záznamu ani přímého údaje osoby, rodiny a pramen
   - jméno zapsané jako popis (`Son`, `Unknown`) se vrací tak, jak bylo zapsané, bez poznámky z něj udělané; text na
     řádku údaje (vzdělání, pohřeb, vlastní událost), adresa po částech (`ADR1`, `CITY`…) a webový odkaz v textu
     pramene zůstanou a vrátí se tak, jak je soubor měl.
+- **Od aplikace 3.28.0:**
+  - `CENS` u osoby je událost osoby **Sčítání lidu** s datem, místem, věkem podle zápisu, domem nebo adresou,
+    poznámkou a prameny; ve výběru událostí osoby je hned za **Bydliště**. Import ho tak čte (i ze souboru výzkumu)
+    a export ho píše jako `1 CENS` u osoby. Do aplikace 3.27.0 se `CENS` u osoby četl jako vlastní událost se jménem
+    „Sčítání lidu“. `CENS` u rodiny zůstává událostí páru. Vlastní události „Sčítání lidu“ ve stromech uložených
+    dřív se při úpravě dat pro novou verzi stanou sčítáním lidu, se zálohou ([A10.7](A10-shared-events.md#A10.7));
+  - `2 TYPE` pod `CENS` (druh sčítání) se stane prvním řádkem poznámky. Export ho vrátí jako `2 TYPE`, dokud jím
+    poznámka začíná;
+  - společná událost z jiného programu: RootsMagic, Legacy a Family Historian píšou událost jednou a ostatní osoby
+    pod ni (`2 _SHAR @I…@` s rolí `ROLE`, `_ROLE` nebo `RELA` a s poznámkou; Family Historian i `2 _SHAN` se jménem
+    osoby bez záznamu). Člen domácnosti (role prázdná, „Household“, „Principal“, „Head“…) dostane kopii společné
+    události ([A10.1](A10-shared-events.md#A10.1)); jeho vlastní stejná událost se připojí, nezdvojí se. Jiná role
+    než prostý člen domácnosti zůstane jako role kopie. Sčítání, bydliště nebo vlastní událost páru s členy
+    domácnosti se stane společnou událostí partnerů a jmenovaných osob. Svědek, kmotr a jiná role jsou účastníci
+    události; u události jen pro jednu osobu (křest…) jsou osoby účastníky **Přítomen** s rolí v poznámce;
+  - GEDCOM 7: `ASSO` s `3 ROLE GODP`, `WITN`, `CLERGY` nebo `OFFICIATOR` je kmotr, svědek nebo oddávající; jiná role
+    je **Přítomen** se slovem role v poznámce (`OTHER` s `PHRASE`, `NGHBR` soused, `FRIEND` přítel …). `ASSO
+    @VOID@` s `PHRASE` je účastník zapsaný jménem;
+  - značky Stromu pro společnou událost a role čte import podle [A2.7](#A2.7).
 
-<!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
+<!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels · 3.28.0: app:34b2174c src/ged-parser.ts EVENT_TAG_TO_TYPE CENS → census (dřív CENS u INDI vlastní událost s gedcomNotes.census), src/ged-exporter.ts EVENT_TAG_TO_TYPE census → CENS, src/events.ts SELECTABLE_EVENT_TYPES (census za residence), src/ui/event-details-ui.ts offeredDetails census (age, address), strings.ts events.census, strings-pl part1 · CENS u FAM coupleEventTypeOfTag · dirigent:prace/1113-app-scitani-u-osoby Výsledek · spec 053 U2 K1.1 · 3.28.0 sdílení: app:80c2ffb9 src/ged-shares.ts (_SHAR, _SHAN, isHouseholdShareRole, convertGedShares, sharRoleWord), src/ged-parser.ts (ASSO ROLE GODP/WITN/CLERGY/OFFICIATOR, OTHER PHRASE, @VOID@ PHRASE; CENS 2 TYPE → první řádek poznámky + gedcomType), src/ged-exporter.ts (2 TYPE zpět), migrace vlastní „Census“ (A10.7) · dirigent:prace/1113-app-sdilena-udalost, 1113-app-085-nalezy Výsledek · spec 085 §7 -->
 
 <a id="A2.1.1"></a>
 ### A2.1.1 Souhrn importu
@@ -60,8 +79,10 @@ napojení.
   - po importu souboru jiného programu karta **Co teď** ([S6.4](S6-tree-from-another-program.md#S6.4)); nahrazuje
     dřívější otázky po importu;
   - **Vložit do stromu** si nejdřív uloží zálohu stromu ([S6.5](S6-tree-from-another-program.md#S6.5)).
+- **Od aplikace 3.28.0:** řádek „Sdílené události z {program}: n převedeno (m osob)“, když soubor jiného programu
+  měl společné události (`_SHAR`, [A2.1](#A2.1)).
 
-<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
+<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted -->
 
 <a id="A2.2"></a>
 ## A2.2 Kódování a verze GEDCOM
@@ -273,8 +294,19 @@ Hlavička `1 SOUR STROM` říká, že soubor psal Strom.
 - **Od aplikace 3.27.0:** folium, snímek a další umístění pramene se vracejí pod `_STROM_FOLIO`, `_STROM_IMAGE`
   a `_STROM_LOCATOR` vedle složené `PAGE`; se značkami platí pole, ne `PAGE`. Export **Zpět do {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)) pro program, ze
   kterého strom přišel, je nepíše. Výzkumu je aplikace posílá, jen když výzkum říká, že je čte.
+- **Od aplikace 3.28.0:** každý export GEDCOM (i **Zpět do {program}**) píše:
+  - společnou událost ([A10.1](A10-shared-events.md#A10.1)) u každé osoby zvlášť i s pramenem, aby ji přečetly jiné
+    programy, a pod ní `2 _STROM_SHARE` s označením události a `3 _ROLE` s rolí osoby. Jen když jsou v souboru
+    aspoň 2 kopie (export části stromu nebo ochrana žijících mohou ostatní vynechat); při novém načtení se kopie
+    zase spojí. Nápověda exportu: „Společná událost jde do souboru u každé
+    osoby zvlášť i s pramenem, jiné programy ji tak přečtou. Strom ji při dalším importu zase spojí.“;
+  - **Kmotrovství** a **Svědek při sňatku** ([A10.5.1](A10-shared-events.md#A10.5.1)) jako `1 EVEN` s `2 TYPE`
+    a `2 _STROM_ROLE` (`godparent`, `witness`); je-li v souboru i osoba nebo rodina té události, pod ním
+    `3 _STROM_AT` s odkazem na ni a `4 TYPE` se značkou té události (`BAPM`, `MARR` …);
+  - odmítnuté propojení kmotra nebo svědka ([A10.5.2](A10-shared-events.md#A10.5.2)) jako `3 _STROM_NOT_LINK @I…@`
+    pod účastníkem (`_WITN`, `ASSO`). Odkaz na osobu, která v souboru není, se při načtení zahodí.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents -->
 
 <a id="A2.8"></a>
 ## A2.8 Opakovaný import a sloučení

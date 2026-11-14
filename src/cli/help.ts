@@ -4,7 +4,7 @@
 import { GROUPS, GROUP_ALIASES, GLOBAL_OPTIONS, WRITE_OPTIONS, aliasGroup, commands, descriptionOf, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
 import { table } from "./format.ts";
 import type { ShownAppUrl } from "../core/stromapp.ts";
-import { suggest } from "./execute.ts";
+import { RENAMED, suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { docLangOf } from "../core/doc.ts";
 import { REPORT_TABLE_ARCHIVE } from "../core/report.ts";
@@ -35,7 +35,7 @@ const ARCHIVE_COMMANDS = new Set([
   "init", "trees", "trees use", "trees remove", "trees forget", "mode", "lang", "pack", "unpack", "seal adopt", "seal accept", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
-  "find", "stats", "pedigree", "recent", "history", "history back", "doc",
+  "find", "query", "stats", "pedigree", "recent", "history", "history back", "doc",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
   "check", "verify", "repair", "repair undo", "seal adopt", "seal accept", "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
@@ -210,6 +210,11 @@ export function overview(archive = false): string {
   return out.join("\n");
 }
 
+/** A command strom renamed, named in help by its old name alone (strom help facts): the old name and the new one. */
+function renamedHelp(words: string[]): { old: string; now: string } | undefined {
+  return words.length === 1 && Object.hasOwn(RENAMED, words[0]!) ? { old: words[0]!, now: RENAMED[words[0]!]! } : undefined;
+}
+
 export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false): string {
   // "strom help 'research new'" — one quoted argument with several words.
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
@@ -219,6 +224,9 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive, waiting);
   const real = aliasGroup(words);
   if (real) return groupHelp(real, archive, waiting);
+  // a command strom renamed (strom help facts): said as running it says it, then the help of its new name
+  const renamed = renamedHelp(words);
+  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return `unknown command "${words.join(" ")}"${near.length ? ` — similar command: ${near.map((c) => `strom help ${c}`).join(" · ")}` : ""}\nall commands: strom help`;
@@ -236,10 +244,10 @@ export const HUMAN_COMMANDS = [
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review", "verify bulk", "verify stop",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
-  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "doc",
+  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
   "fixes", "fixes show", "fixes run", "fixes decline", "fixes reopen", "fixes undo", "fixes review", "media calibrate",
-  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "quality dismiss", "quality undo", "place answer", "place undo", "source split",
+  "surname accept", "surname reject", "surname group", "surname ungroup", "surname unreject", "occupation add", "occupation list", "occupation remove", "quality dismiss", "quality undo", "place answer", "place undo", "source split",
   "config get", "config set", "login", "connector add", "connector remove", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 
@@ -328,6 +336,8 @@ export function helpAs(input: string[], as: HelpAs): string {
   if (subcommandsOf(words).length > 0) return humanGroup(words, as);
   const real = aliasGroup(words);
   if (real) return humanGroup(real, as);
+  const renamed = renamedHelp(words);
+  if (renamed) return `${ui(as.lang, "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now} --human\n\n${helpAs([renamed.now], as)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return [ui(as.lang, "ui.help.unknown", { cmd: words.join(" ") }), ...near.map((c) => `  strom help ${c} --human`)].join("\n");

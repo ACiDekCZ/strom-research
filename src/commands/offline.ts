@@ -14,7 +14,7 @@ import { update, requireRecord } from "../core/records.ts";
 import { detectAgent } from "../core/which.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { answerBranch, BRANCH_MODES, branchJson, branchKey, branchOf, offLineJson, offLineView, readOffline, setBranch, type BranchView } from "../core/offline.ts";
-import { ownTurn, runOrder } from "../core/queue.ts";
+import { ownTurn, restoredTurn, runOrder, turnWas } from "../core/queue.ts";
 import { resolveResearch } from "./research.ts";
 import { rankData } from "./tasks.ts";
 
@@ -176,39 +176,60 @@ register(
     writes: true,
     description:
       "--next: the task comes next, before the lines, the places and history — once: when a session on it ends,\n" +
-      "the choice goes by itself; several in the order given. --last: after everything else, until done or\n" +
-      "--default. Also a task off the lines whose branch is not researched. (strom task next is another command:\n" +
-      "what comes next.)",
+      "the choice goes by itself; several: the last chosen first (next again: on top). --last: after everything\n" +
+      "else, until done or --default. --restore <next|last>@<time>: the turn put back exactly as it was (its time\n" +
+      "as --json gave it in was: an ISO time, not later than now, at most 30 days ago) — the Strom app's \"back\".\n" +
+      "Also a task off the lines whose branch is not researched. (strom task next is another command: what comes\n" +
+      "next.)",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
       { name: "next", type: "boolean", description: "next, once" },
       { name: "last", type: "boolean", description: "at the end" },
       { name: "default", type: "boolean", description: "back to the queue's own order" },
+      { name: "restore", type: "string", value: "<next|last>@<time>", description: "the turn exactly as it was (was in --json)" },
     ],
     examples: ["strom task order T0002 --next", "strom task order T0002 --default"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       refuse(ctx, tree, "strom task order");
-      const given = [!!opts.next, !!opts.last, !!opts.default].filter(Boolean).length;
-      if (given !== 1) throw new UsageError("give exactly one of --next, --last or --default", { code: "queue.body" });
+      const given = [!!opts.next, !!opts.last, !!opts.default, opts.restore !== undefined].filter(Boolean).length;
+      if (given !== 1) throw new UsageError("give exactly one of --next, --last, --default or --restore", { code: "queue.body" });
+      // a turn put back as it was: checked before the task is looked at (a wrong time is the call's, whatever the task)
+      let back: { do: "next" | "last"; at: string } | undefined;
+      if (opts.restore !== undefined) {
+        const spec = String(opts.restore).trim();
+        const at = spec.indexOf("@");
+        const r = restoredTurn(at < 0 ? spec : spec.slice(0, at), at < 0 ? undefined : spec.slice(at + 1));
+        if ("bad" in r) throw new UsageError(`--restore: ${r.bad}`, { code: "queue.body" });
+        back = r;
+      }
       const t = requireRecord<Task>(tree, args[0]!, "task");
       if (t.state === "doing") throw new UsageError(`${t.id} is in progress: its turn is now`, { code: "queue.doing", params: { task: t.id } });
       if (t.state !== "open") throw new UsageError(`${t.id} is ${t.state}: only an open task has a turn in the queue`, { hint: "strom task list", code: "queue.none", params: { task: t.id } });
-      const want = opts.next ? "next" : opts.last ? "last" : undefined;
+      const want = back?.do ?? (opts.next ? "next" : opts.last ? "last" : undefined);
       const ended = tree.list<Session>("session").filter((s) => s.state !== "open" && s.task);
-      // as it is already ("next" only while it holds: a session on the task since used it up)
-      if (want ? t.queueAt?.do === want && ownTurn(t, ended) === want : !t.queueAt) return { text: `${t.id}: nothing to change`, data: taskTurn(ctx, tree, t.id) };
+      // the turn before (the Strom app's "back" puts it back with --restore)
+      const was = turnWas(t, ended);
+      // as it is already ("next" only while it holds: a session on the task since used it up; next again goes on top of
+      // the others put next — the last chosen first — so it is as it is only when none was chosen after it)
+      const newest = (x: Task) => tree.list<Task>("task").every((o) => o.id === x.id || (o.state !== "open" && o.state !== "doing") || ownTurn(o, ended) !== "next" || o.queueAt!.at <= x.queueAt!.at);
+      const same = back
+        ? t.queueAt?.do === back.do && t.queueAt.at === back.at
+        : want
+          ? t.queueAt?.do === want && ownTurn(t, ended) === want && (want === "last" || newest(t))
+          : !t.queueAt;
+      if (same) return { text: `${t.id}: nothing to change`, data: { ...taskTurn(ctx, tree, t.id), was } };
       update<Task>(
         tree,
         t.id,
         "task",
         (x) => {
           const { queueAt: _old, ...rest } = x;
-          return want ? { ...rest, queueAt: { do: want, at: new Date().toISOString() } } : rest;
+          return want ? { ...rest, queueAt: back ?? { do: want, at: new Date().toISOString() } } : rest;
         },
-        { op: "task.order", summary: `${t.id} ${want ? `${want} in the queue, the person's choice` : "back to the queue's order"}` },
+        { op: "task.order", summary: `${t.id} ${back ? `${back.do} in the queue as it was (${back.at}), the person's choice` : want ? `${want} in the queue, the person's choice` : "back to the queue's order"}` },
       );
-      return { text: lines(...tree.written.map((o) => o.summary)), data: taskTurn(ctx, tree, t.id) };
+      return { text: lines(...tree.written.map((o) => o.summary)), data: { ...taskTurn(ctx, tree, t.id), was } };
     },
   },
 );

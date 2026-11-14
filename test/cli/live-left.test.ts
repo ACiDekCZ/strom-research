@@ -2,16 +2,19 @@
 // still there, after a live start that gave up on a busy computer and the test failed before its cleanup): a world ends
 // its bridges — also one no live.json names — and a test file that ends without its cleanup leaves none; a bridge whose
 // research is gone ends by itself, but not when it is away for a moment; a bridge started while the tree's bridge runs
-// already ends at once and takes nothing over.
+// already ends at once and takes nothing over. The phone's server a test left ends with its world too (found 2026-11-12:
+// one running on for a day, port 47800). A process is ended only when it is the one a test started — its command and its
+// folder, never a number alone the system may have given to another process since (the person's own bridge).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
-import { bridgeRuns } from "../bridges.ts";
+import { BRIDGE, bridgeRuns, endOurs, FETCH, notedBridges, ours, PHONE, Started } from "../bridges.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32" };
 const cli = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
@@ -104,5 +107,58 @@ test("a bridge started while the tree's bridge runs ends at once: nothing taken 
     await w.ok(["live", "stop"]);
   } finally {
     w.cleanup();
+  }
+});
+
+test("a world's cleanup ends the phone's server a test left — also one phone-run.json names no longer (it noted itself)", opts, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["phone", "on", "--json"], { dialog: true });
+    const run = path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json");
+    await until("the phone's server says itself", () => fs.existsSync(run));
+    const { pid } = readJsonFile(run) as { pid: number };
+    const mine = { pid, command: PHONE, dirs: w.dirs() };
+    assert.ok(ours(mine), "the phone's server runs");
+    // noted where the run keeps its servers: the run fails when one is left after its last test
+    assert.ok(notedBridges().some((b) => b.pid === pid && b.kind === "phone" && b.cwd !== undefined), JSON.stringify(notedBridges()));
+    // its own note gone (a second server took over the file a moment, a test removed it)
+    fs.rmSync(run);
+    w.cleanup();
+    assert.equal(ours(mine), false, "ended before cleanup returns");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a process is ended only when it is the one a test started: its number given to another process (a bridge of another folder, another command) is left alone", opts, async () => {
+  const w = new World();
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-elsewhere-"));
+  // a bridge of the person's own, by its command line — in a folder of no test's world
+  const other = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "live", "serve"], { cwd: elsewhere, stdio: "ignore" });
+  try {
+    await until("the other process runs", () => bridgeRuns(other.pid!));
+    const pid = other.pid!;
+    // its number as a test of this world noted it (a bridge, a fetch, the phone's server): not the one started
+    assert.equal(ours({ pid, command: BRIDGE, dirs: w.dirs() }), false, "another folder");
+    assert.equal(ours({ pid, command: FETCH, dirs: [elsewhere] }), false, "another command");
+    assert.equal(ours({ pid, command: PHONE, dirs: [elsewhere] }), false, "another command");
+    assert.deepEqual(endOurs([{ pid, command: BRIDGE, dirs: w.dirs() }], { first: "SIGKILL" }), []);
+    const started = new Started();
+    started.add(pid, FETCH, w.dirs());
+    started.end();
+    // the world's notes naming it (a live.json, a phone-run.json of a server ended long ago): its cleanup leaves it
+    await w.withTree("Lhotákovi");
+    fs.writeFileSync(path.join(w.cwd, ".strom", "live.json"), JSON.stringify({ pid }));
+    fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json"), JSON.stringify({ pid }));
+    w.cleanup();
+    assert.ok(bridgeRuns(pid), "the other process runs on");
+    // the one started in that folder by that command: ended
+    assert.deepEqual(endOurs([{ pid, command: BRIDGE, dirs: [elsewhere] }], { first: "SIGKILL" }), []);
+    assert.equal(bridgeRuns(pid), false, "ended");
+  } finally {
+    other.kill("SIGKILL");
+    w.cleanup();
+    fs.rmSync(elsewhere, { recursive: true, force: true });
   }
 });

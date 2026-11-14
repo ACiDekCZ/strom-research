@@ -14,7 +14,7 @@ export { savedInInbox } from "./archivewait.ts";
 import { claimOf, pendingQuestions, questionHosts, termsFor, type Claim, type PendingQuestion, type Way } from "./terms.ts";
 import { bareHost, listConnectors, routesOf, type Connector } from "./connector.ts";
 import { ui } from "../cli/ui.ts";
-import { humanDay } from "../cli/human.ts";
+import { humanDate, humanDay } from "../cli/human.ts";
 
 const ORDER: Record<PendingQuestion["kind"], number> = { permission: 0, takeover: 1, milder: 2 };
 
@@ -124,9 +124,12 @@ export function waysOffered(c: Connector | undefined, claude: boolean, asked?: "
 }
 
 /** What the person reads of the archive's terms: strom's quote with its address, else the connector's reading (said so). */
-export function termsText(lang: string, env: Env, q: { host?: string; quote?: string; terms?: string; quoteBy?: "strom" | "connector" | "robots" }): string {
+export function termsText(lang: string, env: Env, q: { host?: string; quote?: string; terms?: string; quoteBy?: "strom" | "connector" | "robots" | "reply"; replied?: string }): string {
+  const known = q.host && !q.quoteBy ? termsFor(env, q.host) : undefined;
+  // the archive's written reply strom's list quotes: said as its reply (with its day), never as its terms nor with an address
+  if (q.quote && (q.quoteBy === "reply" || (known?.quoteFrom === "reply" && known.quote === q.quote))) return replyText(lang, q.quote, q.replied ?? known?.replied);
   // the site's robots.txt (strom's list quotes it, or strom read it): said as robots.txt, never as its terms of use
-  const robots = q.quoteBy === "robots" || (!!q.host && !q.quoteBy && termsFor(env, q.host)?.quoteFrom === "robots");
+  const robots = q.quoteBy === "robots" || known?.quoteFrom === "robots";
   if (robots) {
     const text = ui(lang, q.quote ? "ui.archive.terms.robots" : "ui.archive.terms.robots.none", { quote: q.quote ?? "", terms: q.terms ?? "" });
     return q.terms ? text : text.replace(/\s*\(\)/u, "");
@@ -135,6 +138,16 @@ export function termsText(lang: string, env: Env, q: { host?: string; quote?: st
   const by = q.quoteBy ?? (q.host && termsFor(env, q.host)?.quote === q.quote ? "strom" : "connector");
   const text = ui(lang, by === "strom" ? "ui.archive.terms.known" : "ui.archive.terms.connector", { quote: q.quote, terms: q.terms ?? "" });
   return q.terms ? text : text.replace(/\s*\(\)/u, "");
+}
+
+/** The archive's written reply as the person reads it: "The archive's written reply (12. 11. 2026): “…”". */
+export function replyText(lang: string, quote: string, replied?: string): string {
+  const m = replied ? /^(\d{4})-(\d\d)-(\d\d)$/u.exec(replied) : null;
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  // with its year always (a day of a source, not of the research)
+  const date = m && months[Number(m[2]) - 1] ? humanDate(`${Number(m[3])} ${months[Number(m[2]) - 1]} ${m[1]}`, lang) : "";
+  const text = ui(lang, "ui.archive.terms.reply", { quote, date });
+  return date ? text : text.replace(/\s*\(\)/u, "");
 }
 
 /** What gives a level from the archive's terms (strom's known terms, a connector's reading of them). */

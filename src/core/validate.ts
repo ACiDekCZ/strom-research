@@ -21,7 +21,7 @@ import {
 import { normalizeDate } from "./gdate.ts";
 import { isGedcomAge } from "./age.ts";
 import { SCHEMAS, checkFields, type RefUse } from "./schema.ts";
-import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, ORIGINAL_IDS_LIMITS, PARTICIPANT_ROLES } from "./model.ts";
+import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, ORIGINAL_IDS_LIMITS, PARTICIPANT_ROLES, SHARE_ID } from "./model.ts";
 
 export interface Problem {
   path: string;
@@ -54,6 +54,9 @@ function checkNotes(notes: unknown, path: string, out: Problem[]): void {
     if (!str(note.text)) out.push({ path: `${p}.text`, message: "is required" });
     else if (note.text.length > NOTE_MAX)
       out.push({ path: `${p}.text`, message: `is longer than ${NOTE_MAX} characters — use a conflict, hypothesis or story` });
+    // the whole of a long note of the user's own tree (no limit of its own): longer than its beginning `text`
+    if (note.whole !== undefined && (!str(note.whole) || !str(note.text) || note.whole.length <= note.text.length))
+      out.push({ path: `${p}.whole`, message: "must be the whole text, longer than text (its beginning)" });
     if (!str(note.at) || !ISO.test(note.at)) out.push({ path: `${p}.at`, message: "must be an ISO timestamp" });
     if (!str(note.by)) out.push({ path: `${p}.by`, message: "is required" });
     if (note.edits !== undefined) checkEdits(note.edits, `${p}.edits`, out);
@@ -133,6 +136,21 @@ export function checkEvent(e: unknown, path: string, out: Problem[], family = fa
   if (ev.age !== undefined) {
     if (family) out.push({ path: `${path}.age`, message: "a family event gives the age of each partner: ages" });
     else if (!str(ev.age) || !isGedcomAge(ev.age)) out.push({ path: `${path}.age`, message: `"${String(ev.age)}" is not a GEDCOM age like 27y, 27y 3m, INFANT` });
+  }
+  if (ev.share !== undefined) {
+    const s = ev.share as unknown;
+    if (family) out.push({ path: `${path}.share`, message: "a shared event is a person's fact; a family's is the couple's already" });
+    else if (!isObj(s) || !str(s.id) || !SHARE_ID.test(s.id)) out.push({ path: `${path}.share`, message: "must be { id: 1–64 letters and digits, role?: text }" });
+    else if (s.role !== undefined && (!str(s.role) || !s.role.trim())) out.push({ path: `${path}.share.role`, message: "must be a non-empty string" });
+  }
+  if (ev.roleAt !== undefined) {
+    const r = ev.roleAt as unknown;
+    if (!isObj(r) || !PARTICIPANT_ROLES.includes(r.role as (typeof PARTICIPANT_ROLES)[number]))
+      out.push({ path: `${path}.roleAt`, message: `must be { role: ${PARTICIPANT_ROLES.join(" | ")}, at?: P… or F…, kind?: an event kind }` });
+    else {
+      if (r.at !== undefined && (!str(r.at) || !/^[PF]\d{4,}$/.test(r.at))) out.push({ path: `${path}.roleAt.at`, message: "must be a person (P…) or a family (F…)" });
+      if (r.kind !== undefined && (!str(r.kind) || !(r.kind in EVENT_KINDS))) out.push({ path: `${path}.roleAt.kind`, message: `unknown event kind "${String(r.kind)}"` });
+    }
   }
   if (ev.confirmed !== undefined) {
     const c = ev.confirmed as unknown;
@@ -388,6 +406,7 @@ export function recordRefs(value: AnyRecord): RefUse[] {
   events.forEach((e, i) => {
     e.citations?.forEach((c, j) => refs.push({ path: `events[${i}].citations[${j}]`, id: c.source, to: ["source"] }));
     e.participants?.forEach((pt, j) => pt.person && refs.push({ path: `events[${i}].participants[${j}]`, id: pt.person, to: ["person"] }));
+    if (e.roleAt?.at) refs.push({ path: `events[${i}].roleAt.at`, id: e.roleAt.at, to: ["person", "family"] });
   });
   if (value.type === "person") {
     value.names.forEach((n, i) => n.citations?.forEach((c, j) => refs.push({ path: `names[${i}].citations[${j}]`, id: c.source, to: ["source"] })));

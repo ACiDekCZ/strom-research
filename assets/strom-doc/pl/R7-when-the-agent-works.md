@@ -23,8 +23,14 @@ to jedno zadanie. Przebieg uruchamia jedną lub więcej sesji po kolei; między 
   `strom run`. Aplikacja Strom 3.21.2 samodzielnej pracy nie ustawia; pokazuje stan przebiegu ([R7.4](#R7.4)),
   a sesję można z niej dokończyć ([R7.3](#R7.3)).
 - **Obowiązuje od:** badanie 1.0.0 (`--max`, `--until`, `--task`), `--loop` od 1.2.0
+- **Od badania 1.32.0:** `--tasks <n>` (1–100) kończy się po n załatwionych zadaniach: ukończonych, czekających na
+  człowieka, odłożonych lub porzuconych po swojej sesji (także zadania, które przebieg odłożył, bo na nim utknął).
+  Nieukończone zadanie, które wraca do kolejki (agent go nie skończył, limit czasu, przerwanie), się nie liczy.
+  Najwyżej 2×n sesji. `--tasks` nie łączy się z `--max`, `--loop`, `--task`, `--until` ani z innym wyborem zadań.
+  Warunek pyta się raz, jak przy `--max` ([R7.4.1](#R7.4.1)). Praca nad kolejką z linku aplikacji Strom:
+  [R7.1.2](#R7.1.2).
 
-<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how -->
+<!-- zdroj: research:src/commands/session.ts:737-783 (popis a volby run), :830 max, :694 parseUntil · src/cli/menu.ts:288-375 (v1.25.2) · cs.json ui.menu.run, ui.run.queue, ui.run.pick, ui.run.loop, ui.run.how · 1.32.0: src/commands/session.ts TASKS_MAX=100, SETTLED (done, waiting, parked, dropped), --tasks (max = 2×n, odmítnutí s --max, --loop, --task, --until a dalšími volbami výběru), popis run · CHANGELOG.cs.md 1.32.0 · spec 052 K6.3 -->
 
 <a id="R7.1.1"></a>
 ### R7.1.1 Dlaczego przebieg się kończy
@@ -35,8 +41,37 @@ to jedno zadanie. Przebieg uruchamia jedną lub więcej sesji po kolei; między 
 - Gdy pozostałe zadania potrzebują archiwum, które nie odpowiada, przebieg z `--loop` i `--until` czeka
   (**⏸ oczekiwanie do …**), inny się kończy.
 - **Obowiązuje od:** badanie 1.0.0; czekanie na archiwum, które nie odpowiada, od 1.22.0
+- **Od badania 1.32.0:** przebieg z `--tasks` kończy się **załatwione zadania: N** albo po 2×n sesjach **sesje: …
+  (najwięcej dla żądanej liczby zadań) – załatwione zadania: …**.
 
-<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 -->
+<!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
+
+<a id="R7.1.2"></a>
+### R7.1.2 Praca nad kolejką z linku aplikacji Strom
+
+- Linkiem `strom-research://work` aplikacja Strom może poprosić o samodzielną pracę agenta nad kolejką: określoną
+  liczbę zadań albo pracę, dopóki jest co robić. Link otwiera terminal badania
+  ([S4.5](S4-research-from-the-app.md#S4.5)). Terminal pokazuje, co by się uruchomiło, i uruchamia to dopiero po
+  „tak”; domyślna odpowiedź to nie.
+- **Granice:**
+  - terminal pokazuje pierwsze 5 zadań w kolejności, w jakiej bierze je `strom run` (zadanie wybrane **od razu**
+    pierwsze), ile jest dalszych, kiedy przebieg się skończy, limit czasu sesji i warunek ([R7.4](#R7.4));
+  - liczba zadań 1–100, bez podanej liczby 5. Uruchamia się `strom run --tasks N` ([R7.1](#R7.1)); warunek pyta się
+    raz, przed pierwszą sesją;
+  - praca, dopóki jest co robić, idzie tylko pod warunkiem i uruchamia `strom run --loop`. Bez ustawionego warunku nic
+    się nie uruchamia: terminal proponuje zamiast tego określoną liczbę zadań, ustawienie warunku albo nic
+    (domyślnie);
+  - gdy nad badaniem już pracuje przebieg lub sesja, nic więcej się nie uruchamia. Przy pustej kolejce też nie. Gdy na
+    komputerze brakuje programu agenta dla terminala, terminal mówi to, zanim o cokolwiek zapyta;
+  - przebieg idzie w tym samym oknie terminala. Ctrl-C prosi rozpoczętą sesję o dokończenie i zatrzymuje przebieg
+    ([R7.3](#R7.3)); reszta zostaje w kolejce;
+  - most nie uruchamia pracy agenta, tylko terminal po potwierdzeniu.
+- **Obsługa:** link z aplikacji Strom (`strom-research://work` z `do=tasks` i `n` albo `do=loop`), w aplikacji
+  3.28.0 **Praca nad kolejką…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); terminal:
+  `strom link open "<link>"`.
+- **Obowiązuje od:** badanie 1.32.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Każda sesja ma limit czasu

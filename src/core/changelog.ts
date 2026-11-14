@@ -462,6 +462,12 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(kind === "undo" ? phrase(lang, "log.surname.undo") : kind in { group: 1, ungroup: 1, reject: 1, unreject: 1 } ? phrase(lang, k, { forms: short(forms, 120) }) : changed(o));
       continue;
     }
+    // the research's own forms of occupations (quality/occupations.json): the forms, never the English summary
+    if (o.op === "occupation.add" || o.op === "occupation.remove") {
+      const forms = /^[^:]*: (.*?)(?: \(one with [^()]*\))?$/su.exec(o.summary)?.[1] ?? "";
+      say(phrase(lang, o.op === "occupation.add" ? "log.occupation.add" : "log.occupation.remove", { forms: short(forms, 120) }));
+      continue;
+    }
     // the bound of a lineage the person set in the Strom app (quality/lineages.json): the person by name, never the summary
     if (o.op === "lineage.set" || o.op === "lineage.undo") {
       const m = /^(\S+) (begins a lineage|carries no lineage|lineage as computed)/u.exec(o.summary);

@@ -15,7 +15,7 @@ import { Tree } from "../../src/core/tree.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
 import type { Source } from "../../src/core/model.ts";
 
-const opts = { skip: !hasGit || process.platform === "win32", timeout: 240_000 };
+const opts = { skip: !hasGit, timeout: 240_000 };
 const APP = "https://beta.stromapp.info";
 type Info = { pid: number; port: number; token: string; url: string };
 

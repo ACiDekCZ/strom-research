@@ -97,8 +97,25 @@ Ein Stammbaum (GEDCOM oder eine Datei der Strom-App) sind die Schlüsse eines an
   - die Quelle des Stammbaums hat keine Seite (`PAGE`): jede Angabe nennt ihre Zeile aus dem Stammbaum;
   - eine früher angelegte Forschung wird nach der Aktualisierung einmal gekennzeichnet (`strom fixes undo origins`
     nimmt das zurück).
+- **Ab Forschung 1.32.0:**
+  - ein Stammbaum aus der Strom-App ergibt aus einer JSON-Datei und aus GEDCOM dasselbe. Übernommen werden auch ein
+    gemeinsames Ereignis mehrerer Personen mit der Rolle jeder Person ([A10.1](A10-shared-events.md#A10.1)), die
+    eigenen Ereignisse **Patenschaft** und **Trauzeuge**, benannt in der Sprache der Forschung, mit Verweis auf die
+    Taufe oder Heirat ([A10.5.1](A10-shared-events.md#A10.5.1)), Paten, Zeugen, Amtspersonen und die Hebamme bei
+    Ereignissen der Person (mit einer Person verknüpft und nur namentlich), Trauzeugen und weitere Ereignisse des
+    Paares mit Beteiligten und Notiz. Die Forschung hält sie bei jeder Angabe und gibt sie der App zurück, wie sie
+    kamen;
+  - aus einer JSON-Datei werden auch Todesursache und Alter beim Tod übernommen, die Adresse von Geburt und Tod,
+    Adresse und Alter bei der Heirat, das Verhältnis des Kindes zu jedem Elternteil, Scheidung und Trennung mit
+    Datum, die Notiz des Paares, das Alter einer Person bei einer gemeinsamen Volkszählung, eine Familie nur eines
+    Elternteils und der Ehename. Platzhalterpersonen („?“) werden ausgelassen;
+  - die Notiz eines Ereignisses wird ganz übernommen. Die Notiz einer Person und Familie aus dem Stammbaum des
+    Menschen wird nicht auf 500 Zeichen gekürzt; die Grenze von 500 Zeichen gilt für Notizen, die die Forschung und
+    der Agent schreiben;
+  - die `ROLE` eines Beteiligten nach GEDCOM 7 wird auch in der Datei eines anderen Programms gelesen;
+  - eine Hebamme geht in die App als **Anwesend** mit der Notiz „Hebamme“.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek -->
 
 <a id="R11.4"></a>
 ## R11.4 Ein Stapel aus der App

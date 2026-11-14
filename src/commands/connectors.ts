@@ -1999,21 +1999,27 @@ function bookImagesOf(ctx: Context, c: Connector, book: string, books: RunReport
  * what they cover — for the agent who builds it: connector.json's policy starts from them. Never an address of a
  * portal's own: the connector is built from the portal as it is.
  */
-function knownTermsOf(ctx: Context, hosts: string[]): { text: string; data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] } | undefined {
+function knownTermsOf(ctx: Context, hosts: string[]): { text: string; data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots" | "reply"; replied?: string; terms?: string; scope?: string; checked?: string }[] } | undefined {
   const seen = new Set<string>();
-  const data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots"; terms?: string; scope?: string; checked?: string }[] = [];
+  const data: { host: string; name?: string; level: string; quote?: string; from: "terms" | "robots" | "reply"; replied?: string; terms?: string; scope?: string; checked?: string }[] = [];
   for (const h of hosts) {
     const k = termsFor(ctx.env, bareHost(h));
     if (!k || seen.has(`${k.name ?? k.host} ${k.quote ?? ""}`)) continue;
     seen.add(`${k.name ?? k.host} ${k.quote ?? ""}`);
-    data.push({ host: k.host, ...(k.name ? { name: k.name } : {}), level: k.level, ...(k.quote ? { quote: k.quote } : {}), from: k.quoteFrom === "robots" ? "robots" : "terms", ...(k.terms ? { terms: k.terms } : {}), ...(k.scope ? { scope: k.scope } : {}), ...(k.checked ? { checked: k.checked } : {}) });
+    data.push({ host: k.host, ...(k.name ? { name: k.name } : {}), level: k.level, ...(k.quote ? { quote: k.quote } : {}), from: k.quoteFrom ?? "terms", ...(k.replied ? { replied: k.replied } : {}), ...(k.terms ? { terms: k.terms } : {}), ...(k.scope ? { scope: k.scope } : {}), ...(k.checked ? { checked: k.checked } : {}) });
   }
   if (!data.length) return undefined;
   return {
     text: lines(
       ...data.flatMap((k) => [
         `strom knows the terms of ${k.name ?? k.host}: ${k.level}${k.checked ? ` (checked ${k.checked})` : ""}`,
-        k.quote ? `  "${k.quote}" — ${k.from === "robots" ? "its robots.txt" : "its terms"}${k.terms ? `: ${k.terms}` : ""}` : k.terms ? `  its terms: ${k.terms}` : undefined,
+        k.quote
+          ? k.from === "reply"
+            ? `  "${k.quote}" — the archive's written reply${k.replied ? ` of ${k.replied}` : ""} (not its published terms)${k.terms ? `; its terms: ${k.terms}` : ""}`
+            : `  "${k.quote}" — ${k.from === "robots" ? "its robots.txt" : "its terms"}${k.terms ? `: ${k.terms}` : ""}${k.replied ? ` (named in the archive's written reply of ${k.replied})` : ""}`
+          : k.terms
+            ? `  its terms: ${k.terms}`
+            : undefined,
         k.scope ? `  what it covers: ${k.scope}` : undefined,
       ]),
       `  start connector.json's policy from them (terms, termsSummary, automation) — robots.txt and official exports still yours to read (DISCOVERY.md, step 1)`,
@@ -3140,7 +3146,9 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     else removePlan(tree.root, old.id);
   }
   savePlan(tree.root, plan);
-  const script = viewer ? viewerScript(plan) : planScript(plan);
+  // browser.tileWait: the viewer's tiles waited for while they come, the script run again while it answers strom-wait
+  const tileWait = viewer ? ctx.settings.tileWaitMs() : undefined;
+  const script = viewer ? viewerScript(plan, tileWait ? { tileWaitMs: tileWait } : {}) : planScript(plan);
   const rest = asked.filter((n) => !items.some((i) => i.n === n));
   const secs = Math.max(1, Math.round((items.at(-1)!.at - now) / 1000));
   const take = `strom fetch ${c.name} --take --result "<the line it returned>"`;
@@ -3158,6 +3166,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
       "",
       script,
       "",
+      ...(tileWait ? [`   It answers "strom-wait …" while the viewer's tiles still come (browser.tileWait): run the same script again in the same tab, as often as it says so — it goes on where it is.`] : []),
       `3. Then: ${take}`,
       `The browser saves them into ${ctx.display(ctx.settings.downloads())} as ${shown} — strom takes them over; do not open, move or read them yourself.`,
       `The first time, Chrome asks whether ${first.hostname} may download several files: the user allows it once (at the right end of the address bar).`,
@@ -3170,6 +3179,12 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
 
 /** What the browser downloaded: taken over from the downloads folder, checked, registered (or put into the inbox). */
 async function takeOver(ctx: Context, c: Connector, result: string | undefined): Promise<Result> {
+  // the script still waits for a viewer's tiles (browser.tileWait): nothing taken yet — it is run again first
+  if (result !== undefined && /^\s*["']?\s*strom-wait\b/u.test(result))
+    return {
+      text: `the script has not ended: it still waits for the viewer's tiles (it answered strom-wait) — run the same script again in the same tab, as often as it answers so, then strom fetch ${c.name} --take --result "<its strom-result line>"`,
+      data: { taken: [], waiting: true },
+    };
   const tree = ctx.tree();
   const all = loadPlans(tree.root, c.name);
   const dir = ctx.settings.downloads();

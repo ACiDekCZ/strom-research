@@ -219,7 +219,7 @@ register({
     { name: "no-index", type: "boolean", description: `browse the images although an index of the book's parish and years is known (read already, or of no use here) — from ${INDEX_FIRST_DEFAULT} images on (the person's answer: strom media calibrate --questions) strom names the index first, and a session of strom run needs this to go on` },
   ],
   examples: [
-    'strom read B0001 --images 40-69 --question "Every baptism of the surname Novák (Nowak, Nowack) in 1820–1824: the child, date, house, both parents and their parents"',
+    'strom read B0001 --images 40-69 --question "Every baptism of the surname Novák (Nowak, Nowack) in 1820-1824: the child, date, house, both parents and their parents"',
     'strom read B0001 --images 40-69 --until-found --question "The baptism of Jan Novák, born about 1822 in house 12, son of Josef: the entry whole"',
     'strom read B0001:2 --blind --crop 0.05,0.40,0.45,0.18 --question "Transcribe this entry completely; mark what is uncertain with [?]"',
   ],

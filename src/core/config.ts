@@ -13,7 +13,7 @@ import { UsageError } from "./errors.ts";
 import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts";
 import { ALL_EFFORTS, EFFORTS, hasEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, OFF_LINE_CHOICES, STRATEGIES, type OffLine, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
-import { downloadsDir } from "./browser.ts";
+import { downloadsDir, TILE_WAIT_MAX_S, TILE_WAIT_MIN_S, TILE_WAIT_SUGGESTED_S } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
@@ -175,6 +175,8 @@ export interface UserConfig {
   tuneAnswers?: Record<string, Record<string, TuneAnswer>>;
   /** Minutes the bridge (strom live) runs on with nobody asking it before it ends by itself; 0: never (default 120). */
   liveIdleMinutes?: number;
+  /** browser.tileWait: seconds a viewer's tiles are waited for while they still come (unset: 30 s, as before). */
+  browserTileWait?: number;
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -251,6 +253,8 @@ export interface SettingDef {
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
+  /** Left out of the lists of settings (strom config where while unset, help): set only when strom says so for a need. */
+  hidden?: boolean;
 }
 
 /** occasional: one task off the lines in so many sessions (queue.offLineShare). */
@@ -316,6 +320,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "excerpts.mb", env: "STROM_EXCERPTS_MB", tree: true, kind: "number", description: `limit of all the images in one file for the Strom app, MB (default ${EXCERPTS_MAX_MB}): over it they are made smaller, then the farthest from the research left out; with excerpts.for all, the entries nobody cites only where there is room — strom says so` },
   { key: "strom.version", env: "STROM_APP_VERSION", tree: true, kind: "version", description: "version of the Strom app the Strom GEDCOM is for (set by the app)" },
   { key: "connectors.consent", env: "STROM_CONNECTORS_CONSENT", tree: false, kind: "choice", choices: ["off", "on"], description: "off (default): connectors run without asking — paced by strom, only to their hosts; on: each needs the user's yes, in their terminal, to it and to each archive host" },
+  { key: "browser.tileWait", env: "", tree: false, kind: "number", hidden: true, description: `seconds at most a script that saves from an archive's viewer (OpenSeadragon) through the browser waits for the viewer's tiles while they still come, ${TILE_WAIT_MIN_S} to ${TILE_WAIT_MAX_S} (${TILE_WAIT_SUGGESTED_S} suggested) — for a browser that draws the tab slowly (about a frame a second), whose images otherwise end "tiles did not all come in 30 s"; the script answers "strom-wait" meanwhile and is run again. Unset (default): 30 s` },
   { key: "browser.downloads", env: "STROM_BROWSER_DOWNLOADS", tree: false, kind: "path", description: "the folder your browser saves downloads into (default: the system's Downloads folder) — strom takes a connector's images over from there" },
   // Read from the config file only — no variable, no flag, no tree: nothing an agent can set.
   { key: "agent.permissions", env: "", tree: false, kind: "choice", choices: PERMISSION_LEVELS, description: "what the agent may do without asking you: ask (what the tree allows; anything else it asks), auto (default: what the tree allows; anything else the agent's own review decides, asking only when risky), full (everything but what the tree denies) — only you raise it" },
@@ -371,6 +376,7 @@ const FIELDS: Record<string, string> = {
   "queue.suggestPersons": "queueSuggestPersons",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
+  "browser.tileWait": "browserTileWait",
   "agent.permissions": "agentPermissions",
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",
@@ -416,7 +422,7 @@ export function settingDescription(def: SettingDef, env: Env): string {
 
 export function settingDef(key: string): SettingDef {
   const def = SETTINGS.find((s) => s.key === key);
-  if (!def) throw new UsageError(`unknown setting "${key}"`, { hint: `settings: ${SETTINGS.map((s) => s.key).join(", ")}` });
+  if (!def) throw new UsageError(`unknown setting "${key}"`, { hint: `settings: ${SETTINGS.filter((s) => !s.hidden).map((s) => s.key).join(", ")}` });
   return def;
 }
 
@@ -537,6 +543,8 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
       if (def.key === "queue.offLineShare" && (!Number.isInteger(n) || n < 2)) throw new UsageError(`${def.key} is a whole number from 2`, { hint: `one task off the lines in so many sessions — strom config set queue.offLineShare ${OFF_LINE_SHARE}` });
       if ((def.key === "queue.suggestTasks" || def.key === "queue.suggestPersons") && !Number.isInteger(n)) throw new UsageError(`${def.key} is a whole number from 1`);
+      if (def.key === "browser.tileWait" && (!Number.isInteger(n) || n < TILE_WAIT_MIN_S || n > TILE_WAIT_MAX_S))
+        throw new UsageError(`${def.key} is a whole number of seconds from ${TILE_WAIT_MIN_S} to ${TILE_WAIT_MAX_S}`, { hint: `strom config set browser.tileWait ${TILE_WAIT_SUGGESTED_S} · back to 30 s: strom config unset browser.tileWait` });
       if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
@@ -729,6 +737,13 @@ export class Settings {
     const v = readStored(this.config, "live.idleMinutes", "");
     const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
     return Number.isInteger(n) && n >= 0 ? n : DEFAULT_LIVE_IDLE_MINUTES;
+  }
+
+  /** browser.tileWait in ms (a whole number of seconds in its range), else undefined: the viewer's tiles waited for 30 s. */
+  tileWaitMs(): number | undefined {
+    const v = readStored(this.config, "browser.tileWait", "");
+    const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+    return Number.isInteger(n) && n >= TILE_WAIT_MIN_S && n <= TILE_WAIT_MAX_S ? n * 1000 : undefined;
   }
 
   /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */

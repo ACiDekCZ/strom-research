@@ -6,12 +6,16 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { VIEWER_HIDDEN_MS, saveScript } from "../../src/core/browser.ts";
+import { TILE_QUIET_MS, TILE_RECENT_MS, VIEWER_HIDDEN_MS, WAIT_CALL_MS, saveScript } from "../../src/core/browser.ts";
 
 const URL0 = "https://archive.example/book/9001?image=lhota-0007.jp2";
 
 interface Run {
   line: string;
+  /** Every answer of the calls of the script (browser.tileWait: run again while it answers strom-wait). */
+  lines: string[];
+  /** When each call ended, on the tab's clock (ms). */
+  ends: number[];
   saved: string[];
   /** The viewer's element as the script left it. */
   style: string | null;
@@ -25,7 +29,19 @@ interface Run {
  * at the browser's next frame (every 16 ms) while it draws, a wait of the script at its end. `stuck`: one tile never
  * comes. `pagedAt`: the viewer paged meanwhile. `cached`: the tiles of the image are all there already (one image whole).
  */
-async function tab(o: { draws: (t: number) => boolean; visibility?: (t: number) => string; stuck?: boolean; pagedAt?: number; cached?: boolean }): Promise<Run> {
+async function tab(o: {
+  draws: (t: number) => boolean;
+  visibility?: (t: number) => string;
+  stuck?: boolean;
+  pagedAt?: number;
+  cached?: boolean;
+  /** The tiles the view needs (default 30); the viewer asks one more at each frame, as OpenSeadragon does. */
+  need?: number;
+  /** browser.tileWait (ms): the script of that setting, run again while it answers strom-wait. */
+  tileWaitMs?: number;
+  /** After the first strom-wait: another script of strom in the same tab (image 8), not this one again. */
+  other?: boolean;
+}): Promise<Run> {
   const start = Date.parse("2026-11-10T09:30:00Z");
   let clock = start;
   const now = () => clock - start;
@@ -71,11 +87,14 @@ async function tab(o: { draws: (t: number) => boolean; visibility?: (t: number) 
     }
     full = loaded >= need && jobs.length === 0;
   };
+  // the viewer's events: a tile that came is said at once (the image's load, not a frame)
+  const handlers = new Map<string, Set<() => void>>();
   const arrive = () => {
     for (let i = jobs.length - 1; i >= 0; i--)
       if (jobs[i]! <= clock) {
         jobs.splice(i, 1);
         loaded++;
+        for (const h of handlers.get("tile-loaded") ?? []) h();
       }
     imageLoader.jobsInProgress = jobs.length;
   };
@@ -110,29 +129,34 @@ async function tab(o: { draws: (t: number) => boolean; visibility?: (t: number) 
       // the view changes at once; the viewer counts its tiles at its next frame
       fitBounds: (r: { x: number; y: number; w: number; h: number }) => {
         bounds = r;
-        need = o.cached ? 0 : 30;
+        need = o.cached ? 0 : (o.need ?? 30);
         loaded = 0;
       },
       pixelFromPoint: (p: { x: number; y: number }) => ({ x: ((p.x - bounds.x) / bounds.w) * size.x, y: ((p.y - bounds.y) / bounds.h) * size.y }),
       goHome: () => undefined,
     };
     currentPage = () => page;
-    addHandler = () => undefined;
-    removeHandler = () => undefined;
+    addHandler = (name: string, h: () => void) => void (handlers.get(name) ?? handlers.set(name, new Set()).get(name)!).add(h);
+    removeHandler = (name: string, h: () => void) => void handlers.get(name)?.delete(h);
   }
   const viewer = new OSDViewer();
 
+  const FRAME = 16;
   // a frame, if the browser draws now: the viewer draws (its own loop draws at every frame), then what the page asked of it
+  // (once a frame: a wait of the script ending within the same frame draws nothing more)
+  let drawnAt = -Infinity;
   const frame = () => {
     if (!o.draws(now())) return;
     const due = frames;
     frames = [];
-    draw();
+    if (clock - drawnAt >= FRAME) {
+      drawnAt = clock;
+      draw();
+    }
     for (const f of due) f();
   };
   // the tab's events: the waits of the script, and the browser's frames (every 16 ms, while it draws) — the clock goes
   // to the first of them once the script waits for something; meanwhile the tiles that came are there
-  const FRAME = 16;
   let timers: { at: number; f: () => void }[] = [];
   let kicked = false;
   const step = () => {
@@ -192,12 +216,31 @@ async function tab(o: { draws: (t: number) => boolean; visibility?: (t: number) 
   };
   const URLs = { createObjectURL: (b: Blob) => (blobs.set(`blob:${blobs.size}`, b), `blob:${blobs.size - 1}`), revokeObjectURL: () => undefined };
   const u = new URL(URL0);
-  const script = saveScript({ url: URL0, file: "strom-T0007-0007", n: 7, until: start + 3_600_000 });
+  const opts = o.tileWaitMs !== undefined ? { tileWaitMs: o.tileWaitMs } : {};
+  const script = saveScript({ url: URL0, file: "strom-T0007-0007", n: 7, until: start + 3_600_000 }, opts);
   const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor;
-  const run = new AsyncFunction("location", "document", "URL", "setTimeout", "window", "requestAnimationFrame", "Date", `return ${script}`);
   const window = { OpenSeadragon: { Viewer: OSDViewer, version: { versionStr: "2.4.2" } }, viewer, devicePixelRatio: 1 };
-  const line = await run({ origin: u.origin, pathname: u.pathname, search: u.search, hash: u.hash, href: URL0 }, document, URLs, setTimeout, window, requestAnimationFrame, { now: () => clock });
-  return { line, saved, style, took: now() };
+  const call = (text: string) =>
+    new AsyncFunction("location", "document", "URL", "setTimeout", "window", "requestAnimationFrame", "Date", `return ${text}`)(
+      { origin: u.origin, pathname: u.pathname, search: u.search, hash: u.hash, href: URL0 },
+      document,
+      URLs,
+      setTimeout,
+      window,
+      requestAnimationFrame,
+      { now: () => clock },
+    ) as Promise<string>;
+  // a call of the browser's tool at a time; the same script again while it answers strom-wait (or, once, another one)
+  const lines: string[] = [];
+  const ends: number[] = [];
+  let next = script;
+  for (let i = 0; i < 20; i++) {
+    lines.push(await call(next));
+    ends.push(now());
+    if (!lines.at(-1)!.startsWith("strom-wait")) break;
+    if (o.other && i === 0) next = saveScript({ url: URL0, file: "strom-T0007-0008", n: 8, until: start + 3_600_000 }, opts);
+  }
+  return { line: lines.at(-1)!, lines, ends, saved, style, took: now() };
 }
 
 test("a viewer's image in a tab the browser draws: saved once the viewer says every tile is there", async () => {
@@ -241,7 +284,7 @@ test("a tab the browser stops drawing for good (another tab in front): said as t
 
 test("a tile that never comes while the browser draws: the 30 s wait says what the viewer said then — and no token a result could be taken for", async () => {
   const r = await tab({ draws: () => true, stuck: true });
-  assert.match(r.line, /^strom-result 7:failed — the viewer's tiles did not all come in 30 s \(all there no, requests open 1, tiles loading 1, tab visible, last frame 0(\.\d)? s ago, drawn 2000x1333 px, OpenSeadragon 2\.4\.2\)$/, r.line);
+  assert.match(r.line, /^strom-result 7:failed — the viewer's tiles did not all come in 30 s \(all there no, requests open 1, tiles loading 1, tab visible, last frame 0(\.\d)? s ago, drawn 2000x1333 px, OpenSeadragon 2\.4\.2\) — if they were still coming \(a browser that draws the tab slowly[^)]*\): strom config set browser\.tileWait 180, then the same strom command again for a new script, which waits while they come$/, r.line);
   // the line is read for its images: only image 7, failed
   assert.deepEqual(
     r.line
@@ -256,4 +299,90 @@ test("the viewer paged to another image while this one was waited for: nothing s
   const r = await tab({ draws: (t) => t < 1000 || t > 5000, visibility: () => "visible", pagedAt: 3000 });
   assert.match(r.line, /^strom-result 7:failed — the viewer was paged to another image while this one was being saved — nothing saved/, r.line);
   assert.deepEqual(r.saved, []);
+});
+
+// A browser that draws the tab slowly — about a frame a second (seen with the browser an agent drives) — while the
+// viewer asks one tile a frame: a page's tiles take longer than 30 s, though they keep coming. browser.tileWait (a
+// setting strom suggests then) waits on while they come, over calls of the browser's tool; unset, all is as before.
+
+const SLOW = (t: number) => t % 1000 < 16; // a frame a second
+
+test("a browser drawing a frame a second, unset browser.tileWait: as before — after 30 s the tiles did not all come, with the setting suggested; nothing saved", async () => {
+  const r = await tab({ draws: SLOW, visibility: () => "visible", need: 60 });
+  assert.equal(r.lines.length, 1);
+  assert.match(r.line, /^strom-result 7:failed — the viewer's tiles did not all come in 30 s \(all there no, .*\) — if they were still coming .*strom config set browser\.tileWait 180/, r.line);
+  assert.deepEqual(r.saved, []);
+  assert.ok(r.took < 40_000, `${r.took} ms`);
+});
+
+test("a browser drawing a frame a second, browser.tileWait 180: each call answers strom-wait in time, the same script again goes on, the image saved once", async () => {
+  assert.equal(WAIT_CALL_MS, 35_000);
+  const r = await tab({ draws: SLOW, visibility: () => "visible", need: 60, tileWaitMs: 180_000 });
+  assert.ok(r.lines.length >= 2, r.lines.join("\n"));
+  for (const l of r.lines.slice(0, -1)) {
+    assert.match(l, /^strom-wait — the viewer's tiles still come in \(\d+ so far, \d+ s waited\): run this same script again in this tab/, l);
+    // no token a result could be taken for
+    assert.deepEqual(l.split(/\s+/).filter((t) => /^\d+:(\d{3}|failed)/.test(t)), []);
+  }
+  // each call ended before a browser tool's call is over (about 45 s)
+  r.ends.forEach((end, i) => assert.ok(end - (i ? r.ends[i - 1]! : 0) < 41_000, `call ${i + 1}: ${end - (i ? r.ends[i - 1]! : 0)} ms`));
+  assert.match(r.line, /^strom-result 7:200:\d+$/, r.line);
+  assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
+  assert.equal(r.style, "width:100%;height:560px", "the viewer's element as it was");
+  assert.ok(r.took > 60_000, `${r.took} ms`);
+});
+
+test("browser.tileWait 180 where the browser draws at its pace: the same as unset — as fast, one call, no strom-wait", async () => {
+  for (const cached of [false, true]) {
+    const before = await tab({ draws: () => true, cached });
+    const r = await tab({ draws: () => true, cached, tileWaitMs: 180_000 });
+    assert.deepEqual(r.lines, [r.line]);
+    assert.match(r.line, /^strom-result 7:200:\d+$/, r.line);
+    assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
+    assert.equal(r.took, before.took, `${r.took} ms against ${before.took} ms`);
+  }
+});
+
+test("browser.tileWait 180, a tab the browser stops drawing for good: still said as not drawn — no strom-wait, nothing saved", async () => {
+  const r = await tab({ draws: (t) => t < 1000, visibility: () => "visible", tileWaitMs: 180_000 });
+  assert.deepEqual(r.lines, [r.line]);
+  assert.match(r.line, /^strom-result 7:failed — the browser did not draw the tab with the viewer for 30 s/, r.line);
+  assert.deepEqual(r.saved, []);
+  assert.equal(r.style, "width:100%;height:560px");
+});
+
+test("browser.tileWait 180, a tile that never comes: no tile within the last 10 s when 30 s are over — over as unset, no strom-wait", async () => {
+  assert.equal(TILE_RECENT_MS, 10_000);
+  assert.equal(TILE_QUIET_MS, 30_000);
+  const r = await tab({ draws: () => true, stuck: true, tileWaitMs: 180_000 });
+  assert.deepEqual(r.lines, [r.line]);
+  assert.match(r.line, /^strom-result 7:failed — the viewer's tiles did not all come in 30 s \(all there no, requests open 1, tiles loading 1, .*\)$/, r.line);
+  assert.doesNotMatch(r.line, /browser\.tileWait/);
+  assert.deepEqual(r.saved, []);
+});
+
+test("browser.tileWait 180, a frame a second and the viewer paged meanwhile: nothing saved under this image's name", async () => {
+  const r = await tab({ draws: SLOW, visibility: () => "visible", need: 60, tileWaitMs: 180_000, pagedAt: 45_000 });
+  assert.match(r.lines[0]!, /^strom-wait/);
+  assert.match(r.line, /^strom-result 7:failed — the viewer was paged to another image while this one was being saved — nothing saved/, r.line);
+  assert.deepEqual(r.saved, []);
+});
+
+test("browser.tileWait 180, another script of strom run in the tab while one waits: the one at work stops first (the viewer as it was), only the new one saves", async () => {
+  const r = await tab({ draws: SLOW, visibility: () => "visible", need: 60, tileWaitMs: 180_000, other: true });
+  assert.match(r.lines[0]!, /^strom-wait/);
+  assert.match(r.line, /^strom-result 8:200:\d+$/, r.lines.join("\n"));
+  assert.deepEqual(r.saved, ["strom-T0007-0008.jpg"]);
+  assert.equal(r.style, "width:100%;height:560px");
+});
+
+test("a browser drawing a frame every 4 s while the tiles come: unset, said as not drawn after 30 s without frames, as before; browser.tileWait 180, waited on and saved", async () => {
+  const draws = (t: number) => t % 4000 < 16;
+  const before = await tab({ draws, visibility: () => "visible" });
+  assert.match(before.line, /^strom-result 7:failed — the browser did not draw the tab with the viewer for 30 s/, before.line);
+  assert.deepEqual(before.saved, []);
+  const r = await tab({ draws, visibility: () => "visible", tileWaitMs: 180_000 });
+  assert.match(r.lines[0]!, /^strom-wait/, r.lines[0]);
+  assert.match(r.line, /^strom-result 7:200:\d+$/, r.lines.join("\n"));
+  assert.deepEqual(r.saved, ["strom-T0007-0007.jpg"]);
 });

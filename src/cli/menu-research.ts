@@ -356,7 +356,7 @@ async function syncTree(ctx: Context, run: Run, lang: string, root: string): Pro
   let count: number;
   try {
     const tree = Tree.open(root, ctx.env);
-    count = planSync(tree, readTreeFile(file), ctx.settings.syncEdits(tree.config)).changes.length;
+    count = planSync(tree, readTreeFile(file, tree.config.lang), ctx.settings.syncEdits(tree.config)).changes.length;
   } catch {
     count = 0;
   }
@@ -401,7 +401,7 @@ async function confirmSync(ctx: Context, run: Run, lang: string, root: string, f
   if (known === undefined)
     try {
       const tree = Tree.open(root, ctx.env);
-      count = planSync(tree, readTreeFile(file), ctx.settings.syncEdits(tree.config)).changes.length;
+      count = planSync(tree, readTreeFile(file, tree.config.lang), ctx.settings.syncEdits(tree.config)).changes.length;
     } catch {
       count = 0;
     }

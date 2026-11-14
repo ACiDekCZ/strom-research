@@ -22,6 +22,7 @@ import { ui, UI, type UIKey } from "../cli/ui.ts";
 import { assetPath, readAsset } from "./assets.ts";
 import { Settings } from "./config.ts";
 import { phoneSend } from "./phone-send.ts";
+import { noteTestProcess } from "./testnote.ts";
 
 /** The port a phone is reached at; taken by another program, the next free one of PORT_TRIES (kept in phone.json). */
 export const PHONE_PORT = 47800;
@@ -1006,6 +1007,8 @@ export function servePhone(env: Env): Promise<string> {
   } catch {
     return Promise.resolve("another server runs");
   }
+  // a test's server noted where the run keeps them: ended with its world, none left after the run
+  noteTestProcess(configDir(env), env, "phone");
   return new Promise((resolve) => {
     const me = process.pid;
     const runs = env.STROM_PHONE_RENEWED ?? VERSION;

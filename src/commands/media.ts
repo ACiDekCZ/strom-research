@@ -1344,7 +1344,9 @@ register(
         // the task's other images held back before: asked of the person once more by this wait, so said anew
         if (wasHeld) storeSaves(tree.root, loadSaves(tree.root).map(({ held, ...r }) => (r.task === t.id || !held ? r : { ...r, held })));
       }
-      const script = saveScript({ url: u.href, file, n, until: Date.now() + PLAN_TTL_MS, other: phrase(lang, "browser.save.other", { n: String(n), url: u.href }) });
+      // browser.tileWait: the viewer's tiles waited for while they come, the script run again while it answers strom-wait
+      const tileWait = ctx.settings.tileWaitMs();
+      const script = saveScript({ url: u.href, file, n, until: Date.now() + PLAN_TTL_MS, other: phrase(lang, "browser.save.other", { n: String(n), url: u.href }) }, tileWait ? { tileWaitMs: tileWait } : {});
       const then = "strom media add --inbox --waiting";
       return {
         text: lines(
@@ -1353,6 +1355,7 @@ register(
           `1. Open ${u.href} in a tab of your own (once; a tab of yours on it already: that one). Never another image or page of the book for it.`,
           `2. Run this script in that tab with your browser's JavaScript tool; it answers "strom-result ${n}:200:<bytes>" (the file ${file}.jpg in the downloads folder):`,
           script,
+          ...(tileWait ? [`   It answers "strom-wait …" while the viewer's tiles still come (browser.tileWait): run the same script again in the same tab, as often as it says so — it goes on where it is.`] : []),
           `3. ${then} — moves it into the task's folder as image ${n} and takes it. Anything else the script answers: tell the user, never try another way.`,
           `Chrome saves one file of a page by itself; one more from the same page waits until the user allows ${u.hostname} to download several files (once, at the right end of the address bar) — the script said saved and nothing came: tell the user, never change Chrome's settings yourself.`,
         ),

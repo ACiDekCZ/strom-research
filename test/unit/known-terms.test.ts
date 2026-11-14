@@ -11,6 +11,7 @@ import path from "node:path";
 import { hostPace, politeGet, robotsVerdict, NetError } from "../../src/core/net.ts";
 import { knownDisallow, knownPaceMs, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "../../src/core/knownterms.ts";
 import { assetPath } from "../../src/core/assets.ts";
+import { termsText } from "../../src/core/archiveasks.ts";
 import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, termsOpen, type ConnectorLike } from "../../src/core/terms.ts";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "strom known terms "));
@@ -264,5 +265,50 @@ test("the list: AGAD's galleries by the archive's reply — the scans used freel
     assert.match(a.quote ?? "", /Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów/u, host);
     assert.match(a.scope ?? "", /Archiwum Główne Akt Dawnych, <zespół>, sygn\. <n>, s\.\/k\. <n>/u, `${host}: the citation the archive asks for`);
     assert.equal(a.checked, "2026-11-06", host);
+    assert.equal(a.quoteFrom, "reply", `${host}: the quote is the archive's reply, not its terms`);
+    assert.equal(a.replied, "2026-11-06", host);
   }
+});
+
+test("the list: eBadatelna (SOA Praha) by the archive's reply — still by hand only, the reply quoted as a reply, the address bar cited", () => {
+  const list = readPack(assetPath("archives.json"));
+  const a = list.find((x) => x.host === "ebadatelna.soapraha.cz");
+  assert.ok(a);
+  // the level and its limits as before: its robots.txt names AI agents, strom never opens its images
+  assert.equal(a.level, "manual");
+  assert.equal(a.browserOnly, true);
+  assert.deepEqual(knownDisallow("ebadatelna.soapraha.cz"), ["/d/", "/a/"]);
+  assert.match(a.robots ?? "", /User-agent: ClaudeBot · Disallow: \/ · User-agent: GPTBot · Disallow: \//u, "its robots.txt kept word for word");
+  // the reply quoted word for word, with its day — never with robots.txt as its source
+  assert.equal(a.quote, "Pokud si ručně stáhnete snímek do svého PC, není důvod omezovat u takto staženého snímku použití AI agenta.");
+  assert.equal(a.quoteFrom, "reply");
+  assert.equal(a.replied, "2026-11-12");
+  assert.equal(a.checked, "2026-11-12");
+  assert.doesNotMatch(a.terms ?? "", /robots\.txt/u, "robots.txt is no source of the reply");
+  assert.match(a.scope ?? "", /by hand only/u);
+  assert.match(a.scope ?? "", /address bar/u, "the permanent link of an image: the address in the browser's address bar");
+  // SOA Třeboň's reply of 2026-11-05 named its public terms (/Uvod): the day kept, the quote still said as its terms
+  for (const host of ["digi.ceskearchivy.cz", "www.ceskearchivy.cz"]) {
+    const t = list.find((x) => x.host === host);
+    assert.equal(t?.replied, "2026-11-05", host);
+    assert.equal(t?.quoteFrom, undefined, `${host}: its terms, not a reply`);
+    assert.equal(t?.terms, "https://digi.ceskearchivy.cz/Uvod", host);
+    assert.equal(t?.level, "manual", host);
+  }
+  assert.match(termsText("cs", {}, { host: "digi.ceskearchivy.cz", quote: list.find((x) => x.host === "digi.ceskearchivy.cz")!.quote!, terms: "https://digi.ceskearchivy.cz/Uvod" }), /^Podmínky: „Snímky jsou poskytnuty/u);
+  // every reply quoted with its day
+  for (const k of list.filter((x) => x.quoteFrom === "reply")) assert.match(k.replied ?? "", /^2026-\d\d-\d\d$/u, k.host);
+  // the level as strom gives it: by hand only, the quote said as the archive's reply (its day in the person's language)
+  const soap = archiveLevel(settings(), { connector: connector("soap", ["ebadatelna.soapraha.cz"], "unknown"), url: "https://ebadatelna.soapraha.cz/", readOnly: true });
+  assert.equal(soap.level, "manual");
+  assert.equal(soap.quoteBy, "reply");
+  assert.equal(soap.replied, "2026-11-12");
+  assert.doesNotMatch(soap.terms ?? "", /robots\.txt/u);
+  const cs = termsText("cs", {}, soap);
+  assert.equal(cs, "Písemná odpověď archivu (12. 11. 2026): „Pokud si ručně stáhnete snímek do svého PC, není důvod omezovat u takto staženého snímku použití AI agenta.“");
+  assert.equal(termsText("cs", {}, { host: "ebadatelna.soapraha.cz", quote: a.quote! }), cs, "a question kept without quoteBy: the list says it is a reply");
+  assert.match(termsText("en", {}, soap), /^The archive's written reply \(.*2026\): “Pokud si ručně/u);
+  assert.match(termsText("de", {}, soap), /^Schriftliche Antwort des Archivs \(12\.11\.2026\): „Pokud/u);
+  assert.match(termsText("pl", {}, soap), /^Pisemna odpowiedź archiwum \(12\.11\.2026\): „Pokud/u);
+  assert.equal(termsText("cs", {}, { quote: "Lhota", quoteBy: "reply" }), "Písemná odpověď archivu: „Lhota“", "no day: said without it");
 });

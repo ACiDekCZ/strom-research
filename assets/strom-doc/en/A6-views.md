@@ -7,6 +7,7 @@ A view is a different reading of **the same choice of people**. The choice is se
 clicked) and the depth **Ancestors** and **Descendants**. Family, Descendants, Timeline and Map show the same
 surroundings of the central person. The Fan counts ancestors and descendants on its own by the number of generations
 ([A6.4](#A6.4)). The Table shows the whole tree ([A6.7](#A6.7)).
+On a computer each view can also be opened in a separate window ([A6.8](#A6.8)).
 
 Views: **Family**, **Descendants**, **Timeline**, **Fan**, **Map**, **Table**.
 
@@ -85,6 +86,49 @@ The option **Spacing** sets the gaps between cards and between generations in th
 
 <!-- zdroj: app:src/types.ts TreeSpacing, DEFAULT_LAYOUT_CONFIG (31/80/18), DENSE_LAYOUT_CONFIG (20/48/14), layoutConfigFor · src/settings.ts getTreeSpacing/setTreeSpacing (treeSpacing), getPosterSpacing/setPosterSpacing (posterSpacing), výchozí normal · src/renderer.ts:804 STANDALONE_VIEWS (timeline, fan, map, table), getPosterLayout({spacing}), kotva překreslení (ústřední karta celá v obraze, jinak nejbližší středu; i při změně typu karty) · src/marriage-order.ts (husté: „∞ N“ na okraji karty, bez místa se nekreslí) · src/ui/export-image-ui.ts (řádek za formátem a orientací, skrytý u vějíře a časové osy, sheetsCount) · strings.ts spacing.label, normal, dense, desc, scope, scopeExport, smallHint, marriageOrder.short, poster.menu, poster.sheetsCount, settings.groupCard, cardDensity.settingLabel · commity 68b9dde4, 03918007, 928db183, e2891a8a · spec 069 K1.1, K3.1 -->
 
+<a id="A6.1.3"></a>
+### A6.1.3 Children and siblings at once
+
+In the Family view one step shows in place the person's children and the siblings of the person and of the person's
+ancestors. The focus, the depth and the zoom stay, and the person's card stays at the same place on the screen.
+
+- **Who is added:**
+  - the person's children (not grandchildren);
+  - the siblings of the person and of each of the person's ancestors who is in the view and whose parents are in the
+    view. The top row of the depth **Ancestors** is not expanded (its siblings would bring a new generation, which is
+    the depth's job); it keeps "▸ parents";
+  - siblings are the children of the parents in the view from all marriages, the same as with a single "Show siblings
+    here". With the children come their other parent, the partners the view draws with them and what the depth
+    **Descendants** keeps under them.
+- **Count +n:** how many cards the step adds; it is computed by the same layout as the view, so exactly n cards are
+  added by the step. It is recounted after each drawing.
+- **Limits:**
+  - the step is one layout, one history step and one step of **Hide shown · n** (n + 1). It is undone by **Back** in
+    the history, by **Hide shown** (undoes everything shown) or by the same option again ("Collapse children and
+    siblings");
+  - the affected cards have the tabs "▾ children" and "▾ siblings", and single families can still be collapsed one by
+    one;
+  - a new person in the focus, another view or tree cancels the step. A change of the depth **Ancestors** or
+    **Descendants** ends all "at once" steps: their cards go, families shown one by one stay and the option offers
+    the "+n" of the new depth;
+  - above 150 people the app asks first in a bubble: "n people will be added", "The tree will grow to about k screen
+    widths. The zoom stays." (k from the actual layout at the current zoom, rounded up) and the buttons **Expand
+    +n**, **Only 2 ancestor generations +m** (only the siblings of the person, the parents and the grandparents;
+    missing when m is n or 0) and **Cancel**. Esc, a click beside it or a change of the window size = Cancel. Up to
+    150 people without asking.
+- **Controls:** app, Family view:
+  - the view bar, right after the options **Ancestors** and **Descendants**: **Children & siblings +n** for the person
+    in the focus. A step that is on shows ✓ and a click undoes it; when there is nothing to add, the option is muted
+    ("All children and siblings are already shown"). On a tablet an icon and "+n"; when it does not fit into the bar,
+    it gives way (the person's menu still has it). A phone has no option in the bar;
+  - the person's menu (on touch the person's bottom panel) under the rows that show parents, siblings and children in
+    place: **Expand children and siblings · +n** with the sub-line "the person's children, siblings of the person and
+    of their ancestors", only when there is something to add; while the person's step stands, **Collapse children and
+    siblings**. For the person in the focus it is the same step as in the bar.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/bulk-family.ts collectBulkFamily (childrenOf osoba; siblingsOf osoba a předci v pohledu s rodiči v pohledu; maxGeneration), bulkParents, bulkNewIds (drawnPersonIds, kroky 1–5 pipeline), BULK_CONFIRM_ABOVE 150, BULK_TWO_GENERATIONS 2 · src/renderer.ts bulkFamilyPlan (jen family), bulkFamilyState (offer/on/none), bulkFamilyScreens (ceil šířka × zoom / plátno), showBulkFamily → showChildrenOf (jeden krok historie, zoom beze změny, kotva), undoBulkFamily, bulkStepOf (jen při stejné hloubce), forgetBulkSteps při změně hloubky, resetChildrenShown při změně fokusu, pohledu, stromu, hiddenShownCount (+1 za krok) · src/ui/bulk-family-ui.ts confirmBulkFamily (Esc, klik vedle, resize = zrušit; two jen m > 0 a m ≠ n), runBulkFamily, updateBulkFamilySwitches (title treeTip/menuOff/treeNone, aria-disabled) · src/ui/context-menu.ts bulkFamilyRows (offer: menu, +n, menuSub; on: menuOff) · src/ui/toolbar-fit.ts (tablet: přepínač ustoupí před hledáním, f5d56ed3) · index.html button.bulk-family (telefon skrytý) · strings.ts bulk.*, menu.showChildrenHere, showSiblingsHere, focusBar hideAllShown, history back · app 2eb013ba, cecea43f, 8dc34565, f5d56ed3 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §3 -->
+
 <a id="A6.2"></a>
 ## A6.2 The Descendants view
 
@@ -157,6 +201,7 @@ The Map shows the places of people's events.
 - The place of a marriage is shown when at least one of the partners is in the view.
 - A place is written in its most frequent spelling. A town is one point, house numbers included; a place with its own
   exact coordinates stays a separate point.
+- **Migration over time** shows the places by year and the ancestors' path to one person ([A6.5.3](#A6.5.3)).
 - **Since:** map app 1.10.0; kinds of events and town points app 3.21.0
 
 <!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 -->
@@ -229,6 +274,171 @@ only after **Queue**.
 
 <!-- zdroj: app:src/ui/map-ui.ts (stavový pruh, lookResearch, lookable), src/ui/place-actions.ts, src/ui/places-research-ui.ts (bulkLook, bulkLookHead, bulkLookGo, nic dvakrát), src/ui/map-follow-ui.ts (noCoords + places.research.look, Undo) · strings.ts map.onMap.notFound, lookResearch, lookResearchShort, lookResearchTitle, confirm; places.dialog.elsewhere, phoneLine, oldResearch · CHANGELOG.cs.md 3.25.0 · commit 2246ca28 · spec 058 -->
 
+<a id="A6.5.3"></a>
+### A6.5.3 Migration over time
+
+**Migration over time** shows the places by year. The slider in the bar under the map sets the year, and the map
+shows the places added up to that year and the lines of the family's moves.
+
+- **Limits:**
+  - the bar has only places with a year and a location. The status bar counts the places with a location but no date
+    ("N places without a date are not shown on the timeline.");
+  - the bar runs from the earliest to the latest year of the places in the scope (**This view** / **Whole tree**) and
+    of the kinds turned on ([A6.5](#A6.5)). Without dated places the mode cannot be turned on;
+  - a point where something happened in the last ten years before the chosen year is highlighted;
+  - a line runs from a parent's place of birth to the child's place of birth when both have a year and a location
+    and differ. Siblings on the same route share one line. A line fades with the child's age, to 15 % after 60
+    years. Only lines with an end near the map's view are drawn, at most 400. Without the kind **Births** no lines
+    are drawn ("The family path shows only with Births.");
+  - **Play** moves the year about every 120 ms up to the last year. On the last year, **Play** starts again from the
+    beginning.
+- **From app 3.28.0:**
+  - the button **◷ Over time** has text next to its icon;
+  - the map offers the mode once: while it has never been on and the tree has at least two dated places with a
+    location, the card **Migration over time** stands by the button ("Plays how the family lines moved and shows the
+    ancestors' path to one person."). **Try it** turns the mode on, **Not now** closes the card. After either, the
+    card does not come back on this device;
+  - keys on the slider: the arrows by a year, PageUp and PageDown by 10 years, Home and End to the beginning and the
+    end. The space bar anywhere on the map (outside fields and buttons) plays or pauses. Moving by hand pauses the
+    playback;
+  - in the mode a person can be chosen, and the map shows the path of that person's ancestors
+    ([A6.5.4](#A6.5.4));
+  - **Play** and **Pause** have the same width (that of the longer of the two words in the given language), so the
+    slider, its marks and the year do not move when the playback starts and stops. A phone has only the icon.
+- **Controls:** app: the map → **◷ Over time** (**Migration over time**) → the slider, **Play** / **Pause**.
+- **Since:** app 2.4.0; kinds of places 3.21.0; the button's text, the one-time offer, the keys and the fixed width
+  of **Play** 3.28.0
+
+<!-- zdroj: app:src/map-time.ts collectDatedPlacePoints (undatedPlaceCount, minYear/maxYear) · src/ui/map-ui.ts drawMapTimeLayer (fresh = posledních 10 let, slice(0, 400) s koncem u výřezu), mapMigrationSegments (místa narození rodič → dítě, opacity max(0.15, 1 − věk/60·0.85), bez Narození nic), toggleMapTimePlay (setInterval 120, na konci od začátku), renderMapTimeTip / dismissMapTimeTip (strom.map.timeTipSeen, ≥ 2 datovaná místa s polohou, podklad mapy potvrzený), klávesy na posuvníku a mezerník (setMapTimeYear pozastaví) · strings.ts map.timeMode, timeModeShort, timeModeEmpty, timePlay, timePause, timeUndated, noFamilyPath, timeTipTitle, timeTipText, timeTipTry, timeTipLater · Migrace v čase od v2.4.0 (app 44a903bc) · 3.28.0: app 34e82d43, cce82a89 (app:81f2adf0) · CHANGELOG.cs.md 3.21.0, 3.28.0 · spec 054 P2 · stálá šířka Přehrát/Pozastavit: app 35ed67f9 src/ui/map-ui.ts (obě slova v jedné buňce, map-time-play-word), index.html .map-time-play-text -->
+
+<a id="A6.5.4"></a>
+### A6.5.4 The ancestors' path to a person
+
+In Migration over time one person can be chosen. The map then shows only that person's direct ancestors and the
+lines from each ancestor to their child, down to the chosen person, and the bar ends at that person.
+
+- **Limits:**
+  - the ancestors are the parents, their parents and further, at most 30 generations. The parents are taken as in
+    the Fan ([A6.4](#A6.4)). The stand-in second parent of a family with one parent is not an ancestor: that branch
+    is unknown;
+  - an ancestor reached by more than one path (pedigree collapse) is one point on the map but counts in every
+    branch they belong to. Within the same branch their ancestors are not expanded a second time;
+  - an ancestor stands at the place of birth, without it at the place of baptism, without it at the first dated
+    residence; always only at a place with a location. Their year is the year of birth, without it the year of
+    baptism, without it the year of that place. An ancestor without a year or without a place with a location is
+    not on the bar: the legend counts them, and **List ›** names them with what is missing (**no birth date**,
+    **no place**, **no date or place**) and **Person page ›** ([A6.5.5](#A6.5.5));
+  - the chosen person stands the same way. They are the end: a ring "◎ end: name", at the end of the bar a full ring
+    "◎ name · year" (at a place of baptism "· baptism year", at a residence "· residence year"). An end without a
+    place on the map is not drawn, and at the end of the bar stands "… has no place on the map.";
+  - the bar runs from the year of the earliest ancestor on the map to the later of the years of the last ancestor
+    and the end;
+  - the path takes the ancestors from the whole tree: a chip with the person stands in place of the scope, and
+    clearing the path brings the scope back. The kinds of places do not apply to the path. A town's point gathers
+    its houses as without the path;
+  - a place's bubble shows only the people of the path at that place, the ancestors up to the chosen year and the
+    end, with the tags of their family lines;
+  - after a person is chosen, the map moves and zooms once to the whole path, then it does not move by itself
+    (an exception at the end of the playback, [A6.5.6](#A6.5.6));
+  - there are at most 400 lines, as without the path. When there are more, these come first: the trunk (parents and
+    grandparents), lines from the last 10 years, closer generations, an end in the map's view, a longer line. The
+    legend says so ("N of M lines shown", "Closer generations and newly added lines come first.");
+  - turning **Over time** off only hides the path. When turned on again, it comes back and runs from the first year.
+    **×** on the chip clears it;
+  - a new window with the map ([A6.8](#A6.8)) takes over the path's person, quarters or eighths and the line
+    colours.
+- **Choosing the person:** **Path to a person** searches the whole tree ("Name, surname or year"), at most 30 people.
+  An empty field shows the central person (**Last focused**). Each person shows how many of their ancestors are on
+  the map; a person with none is greyed out ("ancestors have no places on the map yet") and cannot be chosen. On a
+  phone and a touch screen the choice opens as a sheet from below. When no ancestor is on the map, the bar says
+  "No ancestor has a place on the map yet." and offers **Choose another person**.
+- **Controls:** app:
+  - the map → **◷ Over time** → in the bar **◎ Path to a person…** → a person. The chip **◎ Path to:** name opens
+    the choice again (**Change person**), **×** clears the path (**Clear the path**);
+  - in a place's bubble a click on a person → **◎ Path to this person** (beside **Person page ›**), also without a
+    chosen person;
+  - on the person page **◎ Ancestors' path on the map ›** ([A7.6](A7-book-pages-and-export.md#A7.6)): the page
+    closes, the map shows the path from the first year and a notice offers **‹ Back to the person page**. The link is
+    in the section **Places of life**. A person with at most one place of their own does not have this section; when
+    they have ancestors on the map, the link stands on its own row where the section would be. When the person has
+    ancestors but none is on the map, the link is greyed out ("No ancestor has a place on the map yet.") and only in
+    the section **Places of life**. Without ancestors in the tree there is no link.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:src/map-lines.ts buildPathModel (maxGen 30, fatherMother přes parentSlots jako vějíř, isPlaceholder není předek, implex záznam na cestu, expanded podle osoby a větve), placeOf (narození → křest → první datované bydliště, jen s polohou; rok narození → křest → místa), missing (date/place/both), yearFrom/yearTo, links, pathSegments (PATH_LINE_CAP 400, pořadí kmen, fresh < 10 let, generace, výřez, délka) · src/ui/map-path-ui.ts (mapEffectiveScope celý strom, čip místo rozsahu, clearMapPath vrátí rozsah, jednorázový výřez framed, cíl čárkovaný → plný, pathTargetNoPlace, pathNoAncestors + pathOtherPerson) · src/person-picker.ts PathPersonPicker (limit 30, recentId = ústřední osoba, onMapCount 0 = aria-disabled, celý strom) · src/ui/map-lines-legend-ui.ts mapPathBubbleParts · src/ui/map-ui.ts showMapPathPlace, toggleMapTime (vypnutí skryje, zapnutí od začátku) · src/ui/person-page-ui.ts personPageMapPath (on/off/null), openPersonPageMapPath (toast map-path-back) · src/person-page-map.ts (pp-map-path, aria-disabled, jen v okně aplikace; mapPathRowHtml vlastní řádek bez oddílu Místa života jen pro mapPath on, app caea192a) · src/person-page.ts mapPathRow · src/windows/view-window-state.ts MapTimeState path, mode, colors · strings.ts map.pathPick, pathPickTitle, pathPickPlaceholder, pathPickRecent, pathPickOnMap, pathPickNone, pathChip, pathChange, pathClear, pathFromPage, pathThisPerson, pathBackToPage, pathGoal, pathGoalEnd, pathTargetNoPlace, pathNoAncestors, pathOtherPerson, linesCut, linesCutWhy, missingDate, missingPlace, missingBoth · app 388e5a87, b01693bc, 5853882e, 34e82d43 (app:81f2adf0) · dirigent:prace/1113-app-mapa-rody-v-case · ZADANI_UIX_mapa-rody-v-case D3, D4 (ponechat) · spec 054 K2.1, P2 · CHANGELOG.cs.md 3.28.0 -->
+
+<a id="A6.5.5"></a>
+### A6.5.5 Line colours and the Family lines legend
+
+The ancestors' path is coloured by family line. A family line here is the branch of one grandparent (a quarter) or
+one great-grandparent (an eighth) of the chosen person, named by that person's birth surname. It is not a family
+line by surname ([A4](A4-surnames-and-families.md)).
+
+- **Limits:**
+  - the quarters are father's father, father's mother, mother's father and mother's mother, in the same hues as the
+    colours **Lines** in the Fan ([A6.4](#A6.4)). Each quarter also has its own line pattern (the first a solid
+    line), so the family lines can be told apart with weaker colour vision too. Pairs that a weaker red–green vision
+    merges differ in lightness and in pattern as well. The light and the dark appearance have their own shades;
+  - an eighth has its quarter's colour, the second eighth of the same quarter a darker shade. The eighth's number
+    (1–8) stands on the longest visible line of each eighth;
+  - the lines from parents and grandparents are the trunk: in the text colour and wider. The parents' points have the
+    trunk's colour, the grandparents' points the colour of their quarter. A point where several family lines meet
+    has the colours of all of them;
+  - a line from the last 10 years is wider. Older lines fade, at most to 55 %, so that the whole path is visible at
+    the end;
+  - the family line's surname is the birth surname of the grandparent or great-grandparent; without a surname their
+    given name.
+- **The Family lines legend** (on the right under the map's controls, when at least one ancestor is on the map):
+  - **Quarters** · **Eighths**. **Eighths** can be chosen when the tree knows at least two eighths;
+  - a family line's row: the line's pattern, the surname, the relationship and the number of ancestors on the map
+    ("father's father · 12 ancestors"). With eighths the rows stand under the heading of their quarter ("1 ·
+    surname"). An unknown grandparent has a row without a colour ("father's mother – unknown"). A family line none
+    of whose ancestors is on the timeline (all without a date or a place) has a row muted like an unknown one, with an
+    empty dashed swatch and "off the timeline" instead of the count ("father's mother · off the timeline"); it cannot
+    be highlighted or pinned. The last row is **Trunk: parents and grandparents**;
+  - hovering over a row highlights the family line for a moment, a click pins it and dims the others. Esc or a
+    second click releases it, and so does switching between quarters and eighths;
+  - under the rows stand: the first person in two branches ("↻ name (year) is in two lines: … and …."), the cut of
+    a big tree ([A6.5.4](#A6.5.4)), the ancestors off the bar ("N ancestors without a date or place are not on the
+    timeline." and **List ›**, the list **Ancestors not on the timeline**) and **No line colours**;
+  - **No line colours** draws the whole path in one colour and hides the family lines' rows. The trunk stays wider
+    and the person stays chosen;
+  - **▴** (**Collapse**) folds the legend into the chip "Family lines (N)" with the family lines' colours. The map
+    does not move.
+- **Phone:** the legend opens as a sheet from below from the chip **Family lines (N)** above the bar, **List ›**
+  too. Only one sheet is open at a time (the legend, the list, the bubble or the choice of a person). A phone held
+  sideways has the chip in the top row.
+- **Controls:** app: the map → **◷ Over time** → the path to a person ([A6.5.4](#A6.5.4)) → the legend **Family
+  lines**.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:src/map-line-colors.ts (LINE_HUE z fan-colors.ts jako vějíř Linie, tabulka OKLCH světlý/tmavý, QUARTER_DASH, lineCap, LINE_WIDTH base 3 / fresh 4 / trunk 4.5, pathLineOpacity max(0.55, 1 − věk/60·0.45), LINE_FOCUS_DIM, pointFill, lineSwatch; hlavička: dvojice 50↔95 a 215↔320 se liší světlostí i vzorem) · src/map-lines.ts lineClassOf (gen ≤ 2 kmen), pointClassOf (rodiče kmen), branchSurname (rodné příjmení, jinak křestní), quarters/eighths · src/ui/map-path-ui.ts drawMapPathLayer (čísla osmin na nejdelší viditelné čáře, LEGEND_WIDTH) · src/ui/map-lines-legend-ui.ts mapLinesLegendHtml (eighthsOff < 2 známé osminy, řádky, neznámý, kmen, pata), mapLinesImplexText, toggleMapLineFocus, setMapLineHover, setMapLineMode (připnutí pryč), setMapLineColors, setMapLegendCollapsed, openMapLinesSheet / closeMapLinesSheets, mapLinesUndatedHtml, offTimeline (count 0: is-unknown, is-off-timeline, swatch is-empty, app caea192a) · strings.ts map.linesOffTimeline, map.linesTitle, linesChip, linesQuarters, linesEighths, linesCollapse, linesRow, linesUnknown, linesTrunk, linesOff, linesImplex, pathUndated, pathUndatedList, pathUndatedTitle, lineE8–lineE15; fan.lineFatherFather… · app 388e5a87, b01693bc, 5853882e, 8e27df4a, 34e82d43 (app:81f2adf0) · spec 054 K1.1, K1.2 · CHANGELOG.cs.md 3.28.0 -->
+
+<a id="A6.5.6"></a>
+### A6.5.6 Playing the path to a person
+
+With a chosen person, **Play** goes through the whole bar in 24 seconds, from the earliest ancestor to the chosen
+person.
+
+- **Limits:**
+  - year by year, none is skipped. A year in which an ancestor or the end was added lasts five times longer than a
+    year without them;
+  - the playback ends at the end person. The next **Play** starts from the beginning;
+  - it is paused by **Pause**, the slider, the keys ([A6.5.3](#A6.5.3)) and a mark above the slider;
+  - the marks above the slider: each known quarter at the year of its earliest ancestor on the map, in the family
+    line's colour ("surname: earliest ancestor year"), and the end at the end. A click on a mark jumps to its year;
+  - the line under the slider says what was added last: "year · name · parent's place → place" with a swatch of the
+    family line's colour, the end in bold. When several people were added in one year, it shows the end, otherwise
+    the person from the closest generation. A screen reader reads the line when it changes. Without a chosen person
+    there is no such line, and the sentence about places without a date stays in the status bar;
+  - the map does not move during the playback. Only when nobody has moved or zoomed it since the person was chosen
+    and the end is out of sight at the end, it moves to it once;
+  - on a phone **▶** has no text and the bar is in one row.
+- **Controls:** app: the map → **◷ Over time** → the path to a person ([A6.5.4](#A6.5.4)) → **Play**.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:src/map-lines.ts pathPlaySchedule (PATH_PLAY_MS 24000, PATH_EVENT_WEIGHT 5, krok rok, součet 24 000), pathAddedIn (nejbližší generace, pak rel, cíl poslední), pathLastAdded · src/ui/map-path-ui.ts playMapPath (konec u cíle), panMapToPathEnd (framed, jednou), renderMapTimeMarks (čtvrtiny podle firstYear, cíl), renderMapTimeCaption (cíl, jinak items[0]; aria-live, aria-valuetext; bez cesty skryto) · src/ui/map-ui.ts toggleMapTimePlay (na konci od začátku), setMapTimeYear (pozastaví), značky → setMapTimeYear · strings.ts map.timeMarkTitle, pathGoalEnd · app cce82a89, 34e82d43 (app:81f2adf0) · ZADANI_UIX_mapa-rody-v-case D5 (ponechat) · spec 054 K2.2 · CHANGELOG.cs.md 3.28.0 -->
+
 <a id="A6.6"></a>
 ## A6.6 A family line in the view
 
@@ -287,11 +497,12 @@ the depth **Ancestors** and **Descendants**. The Table view is based on a table 
     export work; a view cannot be saved, renamed or deleted;
   - the arrows **↩ ↪** in the bottom left corner (the previous and the next central person) and Alt+← / Alt+→ are not
     in the Table: the table neither shows the central person nor changes it while working.
-- **Controls:** **Table** in the view bar (after **Map**); in a narrow window and on a phone **More → View → Table**.
+- **Controls:** **Table** in the view bar (after **Map**); on a phone, a tablet and in a window up to 1024 px **Table**
+  on the bottom bar ([A9.5](A9-using-the-app.md#A9.5); up to app 3.27.0 **More → View → Table**).
   The view is remembered like the others ([A6.1.1](#A6.1.1)).
 - **Since:** app 3.27.0
 
-<!-- zdroj: app:src/ui/table-view/table-model.ts ROW_TYPES, buildTableModel (isPlaceholder ven, svazek aspoň s jedním skutečným partnerem), bloodOf (předci hlavní osoby a všichni jejich potomci), makeContext (homeId, isLivingPerson) · table-columns.ts unionPartners (pokrevní partner jako Partner 1), gen (assignGenerations + 1), kin (findRelationship, kinSelf) · src/ui/table-view/table-ui.ts tableReadOnly (isReadOnly: viewMode, isLocked, isNewerData) · src/data.ts:655 isReadOnly · src/ui/bottom-sheet.ts:443 (Více → Pohled: Vějíř, Mapa, Tabulka) · table-bar.ts countText, sortText · perf-budget test 5 000 osob · strings.ts viewModeSwitch.table, table.rows, rowType, rowTypeNote, countOf, sortedBy, readOnly, readOnlyShort · commity c34c47ff, 1b72e6d8 · spec 073 U2 · Události a Prameny (spec 073 U3 P2, K5.1–K5.4): commity 8de751c2, 63ed9def, 1a3a49f1, 3cf69ffa, strings.ts table.rows.events, rows.sources, perf-budget 5 000 osob (Události) a 2 000 pramenů · poděkování: Milan 10. 11. (dirigent:prace/1110-doc-tabulka, bod 4) · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1110-app-tabulka-p1 · Žijící: strings.ts table.col.living, table.living (commit 7e648e24) · ústřední osoba mezi pohledy: commit 75de3a9b (T54 F1) · ↩ ↪ a Alt+šipky v Tabulce skryté: commity 79764eba, b1cbe546 (T54 G14) -->
+<!-- zdroj: app:src/ui/table-view/table-model.ts ROW_TYPES, buildTableModel (isPlaceholder ven, svazek aspoň s jedním skutečným partnerem), bloodOf (předci hlavní osoby a všichni jejich potomci), makeContext (homeId, isLivingPerson) · table-columns.ts unionPartners (pokrevní partner jako Partner 1), gen (assignGenerations + 1), kin (findRelationship, kinSelf) · src/ui/table-view/table-ui.ts tableReadOnly (isReadOnly: viewMode, isLocked, isNewerData) · src/data.ts:655 isReadOnly · src/ui/bottom-sheet.ts:443 (do 3.27.0 Více → Pohled: Vějíř, Mapa, Tabulka; od 3.28.0 app:4b1373a7 index.html bb-view-table, commit bb5e4d12) · table-bar.ts countText, sortText · perf-budget test 5 000 osob · strings.ts viewModeSwitch.table, table.rows, rowType, rowTypeNote, countOf, sortedBy, readOnly, readOnlyShort · commity c34c47ff, 1b72e6d8 · spec 073 U2 · Události a Prameny (spec 073 U3 P2, K5.1–K5.4): commity 8de751c2, 63ed9def, 1a3a49f1, 3cf69ffa, strings.ts table.rows.events, rows.sources, perf-budget 5 000 osob (Události) a 2 000 pramenů · poděkování: Milan 10. 11. (dirigent:prace/1110-doc-tabulka, bod 4) · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1110-app-tabulka-p1 · Žijící: strings.ts table.col.living, table.living (commit 7e648e24) · ústřední osoba mezi pohledy: commit 75de3a9b (T54 F1) · ↩ ↪ a Alt+šipky v Tabulce skryté: commity 79764eba, b1cbe546 (T54 G14) -->
 
 <a id="A6.7.1"></a>
 ### A6.7.1 Unions in the People table
@@ -328,7 +539,8 @@ The columns are in groups. Which are visible and in what order is part of the vi
 | **People** | **Person** · **Birth and baptism** · **Parents** · **Unions** · **Divorce** · **Death and burial** · **Events** · **Sources** · **Reliability and research** · **Checks** |
 | **Unions** | **Couple** · **Marriage** · **Divorce** · **Children and sources** |
 
-- **Full name** (for unions **Partner 1**) is pinned on the left and sorts by surname, then by given name.
+- **Full name** (for unions **Partner 1**) is always pinned on the left; it cannot be unpinned or hidden. It sorts
+  by surname, then by given name.
   It is made of the parts of the name, so there is a separate column **First name** (hidden by default) that can be
   edited in the cell ([A6.7.15](#A6.7.15)).
   **Surname** is the married surname, otherwise the birth surname; **Birth surname** is the recorded surname.
@@ -353,7 +565,16 @@ The columns are in groups. Which are visible and in what order is part of the vi
     **Filter…**, **Pin left** / **Unpin**, **Move left** / **Move right**, **Hide column**,
     **Collapse group …** / **Expand group …**; at a computed column “Computed from: …”;
   - the column width by dragging the edge of the header.
+- **Order of the columns:**
+  - in the pinned part any pinned column can be moved to any place among the pinned ones, **Full name** too (it
+    need not be first);
+  - outside the pinned part a column moves only within its group;
+  - a move that cannot be made is not offered: the header menu leaves out **Move left** or **Move right**, the panel
+    **Columns** the arrow ↑ or ↓.
+- **From app 3.28.0:** pinned columns in any order. Up to 3.27.0 **Full name** was always first and could not be
+  moved, pinned columns moved only within their group, and a move that could not be made was greyed out.
 
+<!-- zdroj: app:4b1373a7 src/ui/table-view/table-state.ts normalizeColumns (zamčený sloupec ukotvený, kdekoli v ukotvené části), columnRun (ukotvená část: [0, pinned − 1]; mimo ni skupina), canMoveColumn, moveColumnBy · table-headmenu.ts headMenuItems (moveLeft/moveRight jen canMove; Skrýt ne u zamčeného; Uvolnit ne u zamčeného) · table-colpanel.ts (šipka jen pro možný posun) · commit 19dbb595 (dřív columnRun locked = 1, disabled/aria-disabled) · dirigent:spec/082-tester-3.28 K2.1 -->
 <!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) -->
 
 <a id="A6.7.3"></a>
@@ -394,7 +615,8 @@ The columns **… completeness** say how many of the tracked fields are filled i
 - A substitute value (baptism, burial) does not fill a field. The hint at a cell lists what is missing (“missing:
   birth place, birth source”).
 - The **Coverage row** under the header shows for each column what percentage of the rows has a value (“filled
-  64 %”, hint “77 of 120”). Under the columns **… completeness** it shows the average completeness of the rows (hint
+  64 %”, hint “77 of 120”). The word “filled” stands in the first column, whichever it is (from app 3.28.0; before in
+  the name column), in the XLSX export too. Under the columns **… completeness** it shows the average completeness of the rows (hint
   “average of 120”). It counts only the rows visible at the moment (after the filter and the search). Cells
   **Does not apply** are not counted; for union columns the unions that match the filter are counted. Under 50 % the
   number is bold; without a cell it would concern, it is “–”.
@@ -404,7 +626,7 @@ The columns **… completeness** say how many of the tracked fields are filled i
   value that is there anyway (the start of the relationship from the union form) is shown as before.
 - **Controls:** **Coverage row** in the panel **Columns** (on a phone in **⋯**); it is saved with the view.
 
-<!-- zdroj: app:src/ui/table-view/table-columns.ts compCell, unionComp (pole a váhy, náhrada nevyplní) · table-coverage.ts cellFilled, columnCoverage, coverageCell, coverageLabel (LOW pod 50 %) · table-subrows.ts coverageUnionsOf · strings.ts table.compList.*, compField.*, missing, missingNone, compCounts, coverage, coverageOf · rozhodnutí Milan 10. 11. (spec 073, bod 5) · commit 8833da14 · průměr u sloupců úplnosti (kind percent): table-coverage.ts columnCoverage average, strings.ts table.coverageAverage, i XLSX, commit 56f3418c (T54 G12) · svazek bez sňatku: table-columns.ts unionWithoutWedding (partners, separated), weddingCell, oneUnionFields (jen partner), strings.ts table.naNoWedding, compList.unionNoWedding, commit 8fdf52ca (T54 G5, MILAN.md rozhodnutí 21) -->
+<!-- zdroj: app:src/ui/table-view/table-columns.ts compCell, unionComp (pole a váhy, náhrada nevyplní) · table-coverage.ts cellFilled, columnCoverage, coverageCell, coverageLabel (LOW pod 50 %) · table-subrows.ts coverageUnionsOf · strings.ts table.compList.*, compField.*, missing, missingNone, compCounts, coverage, coverageOf · rozhodnutí Milan 10. 11. (spec 073, bod 5) · commit 8833da14 · průměr u sloupců úplnosti (kind percent): table-coverage.ts columnCoverage average, strings.ts table.coverageAverage, i XLSX, commit 56f3418c (T54 G12) · „vyplněno“ v prvním sloupci: app:4b1373a7 table-ui.ts coverageOf (firstId), table-xlsx.ts labelAt, commit 19dbb595 · svazek bez sňatku: table-columns.ts unionWithoutWedding (partners, separated), weddingCell, oneUnionFields (jen partner), strings.ts table.naNoWedding, compList.unionNoWedding, commit 8fdf52ca (T54 G5, MILAN.md rozhodnutí 21) -->
 
 <a id="A6.7.5"></a>
 ### A6.7.5 Findings of the check in the cells
@@ -532,10 +754,16 @@ cancels it.
   A change from the research is announced by “Research changed 3 facts: …”.
 - One fact can also be edited right in the cell ([A6.7.15](#A6.7.15)).
 - **Limits:** in a read-only tree there is no **Edit…**.
-- **Controls:** buttons at the selected row, the row menu (right button; expanding unions too). On a phone a tap on a
-  row opens a panel with the actions and the unions (“Union 1: … · Edit ›”).
+- **Controls:** the buttons ⌖ ▤ ✎ at the row's end, over no cell's text: with a mouse they show once the pointer has
+  been on the row away from them, on the selected row also with the pointer elsewhere; the row menu (right button;
+  expanding unions too). A finger's tap on a row (a phone, a narrow window, a device worked mainly by touch) opens a
+  panel with the actions and the unions (“Union 1: … · Edit ›”).
+- **From app 3.28.0:** a click with a mouse or a pen only selects the row and the cell on every device, also on a
+  laptop with a touch screen, a tablet with a mouse and in a narrow window; the click's pointer decides, not the
+  device. Up to 3.27.0 every click opened the row panel on a touch device and in a narrow window. The row's actions
+  stand at its end, so the persons' column keeps its whole width on the selected row.
 
-<!-- zdroj: app:src/ui/table-view/table-ui.ts tableMethods (tableRowAction: tree → Rodina, focus, highlight; open; edit → dialog osoby / panel vztahů na svazku), personOfRow (Partner 1), keepWork · table-refresh.ts keepOrder, watchEdit, changedKeys, bridgeChanges, namesList · table-grid.ts FLASH_MS · strings.ts table.act.*, dblClickHint, actionsOf, unionWith, editMore, staleRow, savedToast, bridgeToast · commity da6b9786, de46ae30, e4a35406 -->
+<!-- zdroj: app:src/ui/table-view/table-ui.ts tableMethods (tableRowAction: tree → Rodina, focus, highlight; open; edit → dialog osoby / panel vztahů na svazku), personOfRow (Partner 1), keepWork · table-refresh.ts keepOrder, watchEdit, changedKeys, bridgeChanges, namesList · table-grid.ts FLASH_MS · strings.ts table.act.*, dblClickHint, actionsOf, unionWith, editMore, staleRow, savedToast, bridgeToast · commity da6b9786, de46ae30, e4a35406 · od 3.28.0: table-grid.ts clickPointerType, isMouseLikePointer, table-ui.ts onRowClick (panel jen klepnutí a isPhoneBar | isCoarsePointer), commit ee38c7a6; rowActions ⌖ ▤ ✎ v .tv-acts-dock, armRowActions (myš a pero), commit 80c2ffb9 -->
 
 <a id="A6.7.9"></a>
 ### A6.7.9 CSV and XLSX export
@@ -589,10 +817,19 @@ The Events table has a row for each event of the tree: who, when, where, at what
     a death also the cause or the age);
   - the marriage of a union: for a marriage always, for another relationship (“Start of the relationship”) only with
     a recorded fact; the divorce (“End of the relationship”), when the union is divorced or its end is recorded.
-- **A shared event** (residence, military service, emigration, immigration, naturalization, a custom event) recorded
+- **A shared event** (residence, census, military service, emigration, immigration, naturalization, a custom event) recorded
   the same way at several people is one row with all those people. The same way means the same type, date, place,
   address, note and sources; the date must be recorded, and with it a place or a source. A baptism, occupation or
   title always belongs to one person only.
+- **From app 3.28.0:**
+  - a shared event ([A10.1](A10-shared-events.md#A10.1)) is one row with all its people, even when its copies
+    differ. Same copies without a shared event (older data) are still joined into one row by their details; that is
+    only a view, an edit goes to one copy;
+  - the people cell has a count (“N people”). Age shows each person's age (“42 · 38”) with the tooltip “Age as
+    recorded · per person”; when the copies differ, the cell has “differs for N”
+    ([A10.3](A10-shared-events.md#A10.3));
+  - editing **Date** or **Place** right in the cell changes all copies of the shared event (“{Field}: changed for N
+    people ({event}).”), one **Undo** step.
 - **Columns** in the groups **Event** · **Participants** · **Source**:
   - **Type**, **Person or couple** (for a couple the blood relative of the home person first), **Date**, **Place**;
   - **Age at the event** as elsewhere ([A6.7.3](#A6.7.3)); up to one year, from exact dates, in days (“12 d”); for
@@ -613,9 +850,9 @@ The Events table has a row for each event of the tree: who, when, where, at what
   first copy), for a birth and death editing of the person, for an event of a couple its dialog, for a marriage and
   divorce the person's relationships on that union.
 - **Limits:** placeholder persons have no rows; a birth and death without a recorded fact have no row.
-- **Since:** app 3.27.0
+- **Since:** app 3.27.0; 3.28.0: a census at a person is a shared event, a shared event is one row
 
-<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES, shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 -->
+<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES (od 3.28.0 i census, app:34b2174c), shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · 3.28.0: app:80c2ffb9 table-events.ts (shareId → jeden řádek, bez shareId odhad podle shareKey), strings.ts table agePerPerson, sharedDiffers, events.sharedCellChanged · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 -->
 
 <a id="A6.7.11"></a>
 ### A6.7.11 Sources in rows
@@ -858,7 +1095,7 @@ cell can be copied, the table filtered by its value and the fact in it edited ri
 
 - **Copy:** Ctrl/Cmd+C without selected text copies the text the active cell shows, without marks, icons and pills.
   Text selected by hand is copied as usual.
-- **Cell menu:** the row menu (right button, Shift+F10) and on a phone the row panel (a tap on the cell) begin with
+- **Cell menu:** the row menu (right button, Shift+F10) and the row panel (a finger's tap on the cell) begin with
   the cell's choices **Copy**, **Only “{value}”** and **Without “{value}”** (the value shortened to about 24 characters
   with “…”); under them are the row actions ([A6.7.8](#A6.7.8)). The menu opens at the cell, also when another row was
   selected.
@@ -884,7 +1121,9 @@ cell can be copied, the table filtered by its value and the fact in it edited ri
 
   **Full name** is not edited in the cell (it is made of several parts), nor are computed cells, checks, research,
   citations, counts and relationships; a double click on them opens **Edit…**.
-- **The field** covers the cell. **Enter** saves, **Esc** cancels, **Tab** and **Shift+Tab** save and go to the next
+- **The field** stands in the cell. Only in a column narrower than the field's least width (text and date 100 px,
+  place 140 px, a choice 90 px) is the field wider, lying over the row with a shadow (from app 3.28.0; before, it
+  lay over the next cell). **Enter** saves, **Esc** cancels, **Tab** and **Shift+Tab** save and go to the next
   or previous editable cell of the row, a click elsewhere saves. In a choice a click with the mouse saves the value at
   once; after choosing with the arrows, Enter, Tab or a click elsewhere saves it. The date is read as in the person form; an unreadable
   one stays in the field with the error “The date cannot be read (e.g. 1880-05-15, 1880, about 1880)”. The place
@@ -900,4 +1139,113 @@ cell can be copied, the table filtered by its value and the fact in it edited ri
   finding's bubble), in the row menu **Edit cell** (F2). An editable cell has a text cursor on hovering with the mouse.
 - **Since:** app 3.27.0
 
-<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) -->
+<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) · pole v buňce: table-grid.ts EDITOR_MIN_WIDTH (text 100, date 100, place 140, select 90), placeEditor, commit 80c2ffb9 · panel klepnutím: commit ee38c7a6 -->
+
+<a id="A6.8"></a>
+## A6.8 A view in a separate window
+
+On a computer each view can be opened in a separate window, for example on a second monitor, as many as needed. The
+main window stays on its view. Only the main window saves; the other windows send it their edits and get the tree
+from it.
+
+- **Where it works:** on a computer (Windows, macOS, Linux, ChromeOS), also with a touch screen, in a window wider
+  than 640 px. On a phone and a tablet (Android, iOS, iPadOS) and in the exported app (an HTML file) ⧉ is not shown
+  and the shortcuts open nothing.
+- **What the window takes over:** the tree, the person in the centre and what the view shows: for the Table the
+  row type, filters, search, saved view, sorting and the selected row; for Family the zoom, for the Fan the rings,
+  for the Map the places and the zoom. Then the window has its own state. Reloading the window (F5) keeps its view
+  and person.
+- **What the window has:** instead of the app's toolbar it has a heading: the tree's name, the view switch (below
+  960 px as "{view} ▾"), **Follow selection** ([A6.8.1](#A6.8.1)), **Undo**, **Redo** and ⧉ **Open another window**. It has no
+  tree switcher, no **Research** menu, no Settings and no small research panel.
+- **Edits:** in the window a person can be edited (the person menu, **Edit**) and so can a Table cell. The main
+  window saves them, they can be undone as its steps and show in all windows at once. **Undo** and **Redo** in the window's heading
+  undo and redo the main window's steps. When the tree changed in another window meanwhile, the edit is not applied:
+  "The tree changed in another window meanwhile. The edit was not applied; the data is refreshed." A Table cell being
+  typed stays then ("Draft kept · Enter applies, Esc discards").
+- **Research:** only the main window handles the connection to the research (the bridge, following, sending edits).
+  The research items in the person menu of a window stand under the heading **Research · runs in the main window**
+  and the main window runs them. While the research is followed live
+  ([S1.4](S1-connecting-app-and-research.md#S1.4)), the windows are read-only like the main window: "Read-only · the
+  main window is following research" with **Go to the main window**.
+- **Limits:**
+  - ⧉ in the main window shows the number of other windows ("2 more windows", below 1280 px the number only). Its
+    menu has **Open windows** at the top (each with **Bring to front** and ×) and **Close all**;
+  - from 5 open windows on, the app warns that each extra window needs memory; it forbids nothing;
+  - a window blocked by the browser is reported ("The browser blocked the new window…") with **Try again**;
+  - the window's title carries the view and the tree ("Table – Horáks – Strom"), the main window's title the tree
+    ("Horáks – Strom").
+- **Controls:** app: ⧉ **Open in a new window** next to the view switch (a menu of the six views, for a tree from a
+  research also **Research overview**, [S4.1.6](S4-research-from-the-app.md#S4.1.6)); ⧉ in the Table's bar after
+  **Export ▾**; on a view's tab Ctrl+click (macOS ⌘+click), the middle button or a right click (Shift+F10) →
+  **{view} in a new window**.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
+
+<a id="A6.8.1"></a>
+### A6.8.1 Follow selection
+
+The selected person is shared between the windows. What a choice in another window does in this window is set by the
+switch **Follow selection** in the window's heading.
+
+| Mode | What a person chosen in another window does | Default in the views |
+|---|---|---|
+| **switch** | becomes the window's centre as after Focus: Descendants shows their descendants, the Fan their ancestors, Family their family | Family, Descendants, Fan |
+| **mark only** | is only marked: the card with a ring, a sector in the Fan, a row on the Timeline, their places on the Map, a row in the Table; the centre stays | Timeline, Map, Table |
+| **off** | nothing; the window has its own selection and does not send it | – |
+
+- **Limits:**
+  - **switch** is offered only in Family, Descendants and the Fan; elsewhere there are only **mark only** and **off**;
+  - a click of its own in the window changes the centre only in this window; a window that switched after another
+    window does not pass the choice on;
+  - the main window always follows the selection and has no switch;
+  - the choice holds for one window and survives its reload (F5). A chosen mode that is not the default holds also
+    after the view is switched in the window (**switch**, where it is not offered, as **mark only**); otherwise the
+    default of the new view applies.
+- **Controls:** app: in the window's heading **Follow selection: {mode} ▾**.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
+
+<a id="A6.8.2"></a>
+### A6.8.2 When the main window is missing
+
+A window without the main window loses nothing and nothing closes by itself. It stays read-only with the last data.
+
+| State | What the window shows | Choices |
+|---|---|---|
+| the main window is closed (3 s without a message from it) | a strip "The main window is closed · as of {time}, read-only"; the research items in the person menu under **Research · main window only** cannot be used | **Open Strom**, **Make this the main window** |
+| the tree was deleted in the main window | "The tree no longer exists" instead of the content | **Close window** |
+| the tree is locked | "The tree is locked · The password is entered in the main window." | **Go to the main window** |
+| the main window switched the tree | the window switches with it, the view stays, the selection is cleared ("{tree} → {tree}") | – |
+
+- **Limits:**
+  - **Open Strom** opens a new main window; the windows connect to it and the strip disappears;
+  - **Make this the main window** makes this window the main one: it loads the tree from storage (the data in the
+    window may be older than the saved data), gets the app's toolbar and the view stays. When another main window
+    came up meanwhile, nothing happens;
+  - reloading the main window (F5) does not show the strip.
+- **Controls:** app: the buttons in the strip and in place of the window's content.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/satellite.ts MAIN_SILENCE_MS 3000, lastHeardAt, treeGone · src/windows/sat-states.ts (closed strip mainClosed, treeGone, treeLocked, SWITCHED_TOAST_MS) · src/windows/become-main.ts (zámek ifAvailable, znovunačtení jako hlavní z IndexedDB) · src/windows/window-research-menu.ts researchMainOnly · strings.ts win.mainClosed, openStrom, makeMain, treeGone, treeGoneNote, treeLocked, treeLockedNote, closeWindow, goToMain, treeSwitched · spec 079 K1.5 · prace/1112-app-okna-zaklad (stavy 1–6) -->
+
+<a id="A6.8.3"></a>
+### A6.8.3 A second tab of the app
+
+The app opened a second time in an ordinary browser tab or window does not load a second copy of the tree. It shows
+"Strom is already open in another window" with the explanation "Only one window saves, so edits don't overwrite each
+other. Other windows connect to it."
+
+- **Limits:**
+  - **Switch there** brings the main window to the front. When the browser does not allow it, the tab says so and
+    adds "This tab can be closed.";
+  - **Open as another window** turns the tab into a window as in [A6.8](#A6.8), with the Table;
+  - a link opened in the second tab (a person, a search, the research's links, a file opened by the installed app)
+    goes to the main window exactly once: "The link opened in the main window.";
+  - the second tab writes nothing to the list of trees or to Settings.
+- **Controls:** app: **Switch there**, **Open as another window**.
+- **Since:** app 3.28.0
+
+<!-- zdroj: app:4b1373a7 src/windows/window-role.ts (Web Lock strom-main ifAvailable → main, jinak second-tab) · src/windows/second-tab.ts (secondTabSatelliteKind table) · src/windows/window-link.ts (předání odkazu hlavnímu jednou) · src/windows/window-start.ts openLinkFromWindow · strings.ts win.alreadyOpen, alreadyOpenNote, switchThere, openAsWindow, switchFailed, tabCanClose, linkForwarded · CHANGELOG.cs.md 3.28.0 · spec 079 K1.6 · prace/1112-app-okna-zaklad (7d22e396) -->

@@ -89,8 +89,23 @@ whole, but only as leads.
   - a file in Windows-1250 or Windows-1252 (“ANSI”) is read with the right letters;
   - the family tree's source has no page (`PAGE`): each fact gives its own line from the family tree;
   - research set up earlier is marked once after the update (`strom fixes undo origins` takes it back).
+- **From research 1.32.0:**
+  - a tree from the Strom app gives the same from a JSON file and from GEDCOM. Also taken over are a shared event of
+    several people with each person's role ([A10.1](A10-shared-events.md#A10.1)), the own events **Godparent** and
+    **Wedding witness** named in the research's language, with a reference to the baptism or marriage
+    ([A10.5.1](A10-shared-events.md#A10.5.1)), godparents, witnesses, officiants and the midwife at a person's events
+    (linked to a person and by name only), marriage witnesses and other events of a couple with participants and
+    a note. The research keeps them at each fact and gives them back to the app as they came;
+  - from a JSON file also taken over are the cause and age of death, the address of birth and death, the address and
+    ages at a marriage, a child's relationship to each parent, a divorce and a separation with a date, the couple's
+    note, a person's age at a shared census, a family of one parent only and the married surname. Placeholder
+    persons (“?”) are left out;
+  - an event's note is taken over whole. The note of a person and a family from the user's tree is not shortened to
+    500 characters; the limit of 500 characters holds for notes written by the research and the agent;
+  - a participant's `ROLE` as in GEDCOM 7 is read in another program's file too;
+  - a midwife goes to the app as **Present** with the note “midwife”.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek -->
 
 <a id="R11.4"></a>
 ## R11.4 A batch from the app

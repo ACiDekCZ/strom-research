@@ -98,8 +98,12 @@ rozpoczęte idzie przed wszystkimi.
 - **Obsługa:** terminal: `strom task list`, `strom task next`. Aplikacja: sekcja **Kolejka**.
 - **Obowiązuje od:** badanie 1.0.0 (klucze 1, 7–10). Klucz 6 od 1.1.0, łączenie hipotez od 1.17.0, klucz 3 od 1.22.0,
   klucz 4 i miejsca na prośbę od 1.25.0. Klucz 2 od 1.26.0.
+- **Od badania 1.32.0:** most szuka w całej kolejce (numer zadania lub osoby, imiona i nazwiska osób, słowa zadania,
+  jego księga, sygnatura, archiwum i miejsce, bez względu na znaki diakrytyczne), a szukany tekst nie jest nigdzie
+  zapisywany, nawet w dzienniku mostu.
+  W aplikacji: pole wyszukiwania w **Kolejce** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) -->
+<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategia kolejki
@@ -194,10 +198,15 @@ Oprócz wyboru dla całego badania własny wybór może mieć jedna gałąź (ta
     zostanie cofnięty. Zadanie, nad którym pracuje agent, miejsca nie zmienia.
 - **Obsługa:** terminal: `strom offline list|show`, `strom offline set B-P… --mode occasional|last|normal|never`,
   `--line G…`, `--default`; `strom task order T… --next|--last|--default`. Aplikacja 3.22.0:
-  **Zrób jako następne**, **Na koniec**, opcje gałęzi ([S4.3.2](S4-research-from-the-app.md#S4.3.2)).
+  **Zrób jako następne**, **Na koniec**, opcje gałęzi ([S4.3.2](S4-research-from-the-app.md#S4.3.2)). Aplikacja 3.28.0
+  z badaniem 1.32.0: **Zrób jako następne** i **Cofnij** ([S4.2.2](S4-research-from-the-app.md#S4.2.2)).
 - **Obowiązuje od:** badanie 1.26.0
+- **Od badania 1.32.0:** z kilku zadań wybranych **od razu** pierwsze idzie ostatnio wybrane (wybrane ponownie idzie
+  na górę); wcześniej pierwsze wybrane. Zadanie, nad którym agent pracuje, zostaje pierwsze. `strom task order T…
+  --restore next@<czas>` (lub `last@<czas>`) przywraca wybór zadania dokładnie taki, jaki był: czas to ten, który
+  poprzednia zmiana podała w `--json` (`was`), najwyżej sprzed 30 dni i nie późniejszy niż teraz.
 
-<!-- zdroj: research:src/commands/offline.ts:101 offline set (BRANCH_MODES), :171 task order (next once, queue.doing) · quality/offline.json -->
+<!-- zdroj: research:src/commands/offline.ts:101 offline set (BRANCH_MODES), :171 task order (next once, queue.doing) · quality/offline.json · 1.32.0: src/core/queue.ts rankTasks (b.nextAt před a.nextAt: naposledy zvolený první; doing první), turnWas, restoredTurn, RESTORE_DAYS=30 · src/commands/offline.ts task order --restore, was · src/core/live.ts POST /queue/<T…> was, {do: restore} · CHANGELOG.cs.md 1.32.0 · spec 052 K5.3, K5.4 -->
 
 <a id="R2.3.2"></a>
 ### R2.3.2 Rosnąca gałąź dostaje propozycję linii

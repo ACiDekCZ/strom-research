@@ -678,6 +678,9 @@ test("P1: facts of one person asked for one by one join the person's open task (
     const before = (await ask(other)).task as string;
     const first = (await ask(ids[0]!)).task as string;
     const at = open(w).get<Task>(first)!.queueAt;
+    // the person's own "next": the last asked for first (spec 052 K5.3) — the one asked for before after it
+    const queued = ((await w.ok(["task", "list", "--json"])).json.tasks as { id: string }[]).map((x) => x.id);
+    assert.ok(queued.indexOf(first) < queued.indexOf(before), `the last asked for first: ${queued}`);
     for (const id of ids.slice(1, 8)) assert.equal((await ask(id)).task, first, `${id} joins ${first}`);
     const t = open(w).get<Task>(first)!;
     assert.deepEqual(t.where, ids.slice(0, 8), "one task of the person's eight facts");
@@ -685,7 +688,7 @@ test("P1: facts of one person asked for one by one join the person's open task (
     assert.ok([...t.what].length <= 200, t.what);
     assert.match(t.what, /Jan Křtitel Lhoták/u);
     const queue = ((await w.ok(["task", "list", "--json"])).json.tasks as { id: string }[]).map((x) => x.id);
-    assert.ok(queue.indexOf(before) < queue.indexOf(first), `the one asked for before stays before: ${queue}`);
+    assert.deepEqual(queue.filter((x) => x === first || x === before), queued.filter((x) => x === first || x === before), "the facts joined: its place kept");
     // full: a new task, the next fact joins it
     const second = (await ask(ids[8]!)).task as string;
     assert.notEqual(second, first);

@@ -150,7 +150,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
           ? "ui.sync.name.married"
           : c.kind === "fact.confirm" && c.confirm?.on === false
             ? "ui.sync.fact.confirm.back"
-            : `ui.sync.${c.kind}`;
+            : c.kind === "fact.share"
+              ? `ui.sync.fact.share${c.shared === "roleAt" ? ".role" : ""}${(c.shared === "roleAt" ? c.fact?.roleAt : c.fact?.share) ? "" : ".gone"}`
+              : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
   // not the person's sync: a value of the user's or an import's only proposed, or not written at all (spec 066 U3)
   const guard = c.kept || c.asked || c.takenBack ? undefined : guardedChange(tree, c, { decidePerson });
@@ -166,6 +168,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // the user's confirmation against the scan (spec 065): the person's alone
       : c.kind === "fact.confirm"
       ? c.action === "report" ? "ui.sync.do.confirm.report" : !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.confirm${c.confirm?.on === false ? ".back" : ""}`
+      // the Strom app's mark of a shared event (spec 085): who shares one the person's alone
+      : c.kind === "fact.share"
+      ? c.action === "add" ? "ui.sync.do.share" : !tree.personWrites ? "ui.sync.do.share.kept" : "ui.sync.do.share.user"
       : c.kind === "ids.add"
       ? "ui.sync.do.ids"
       : c.kind === "child.parents"
@@ -305,6 +310,9 @@ register(
     group: "research",
     tree: true,
     writes: true,
+    // what a file would bring (no --apply) and the inbox read only: anybody's, also on a research sealed on another
+    // computer; --app starts the bridge, which writes what the app sends at once — a write
+    writesWith: ({ opts }) => !!opts.apply || !!opts.app,
     // the Strom app may take minutes to send the tree: the tree is locked only while a sync is written
     lock: "sections",
     description:
@@ -376,7 +384,7 @@ register(
         if (opts.apply && !tree.dryRun) settleReceived(tree.root, file, { state: "nothing" });
         return { text: ui(lang, "ui.sync.again", { input: before.id }), data: { input: before.id, changes: [] } };
       }
-      const incoming = readTreeFile(file);
+      const incoming = readTreeFile(file, tree.config.lang);
       // a Windows program's code page it was read in, characters it could not read: said, and in --json
       const said = decodingSaid(lang, path.basename(file), incoming.decoding ?? {});
       const decoding = incoming.decoding ?? {};
@@ -401,7 +409,7 @@ register(
       tree.withTreeLock(() => {
         // what another process wrote meanwhile counts: the changes again, now that the tree is ours — the ones picked by
         // number must be the ones shown; all of them are what the file brings now
-        const now1 = readTreeFile(file);
+        const now1 = readTreeFile(file, tree.config.lang);
         const fresh = planSync(tree, now1, edits as "conflict" | "user", { force: !!opts.force, sent });
         if (only && (fresh.changes.length !== plan.changes.length || fresh.changes.some((c, i) => c.kind !== plan.changes[i]!.kind || c.person !== plan.changes[i]!.person)))
           throw new UsageError("the research changed while this was shown — look again", { hint: `strom sync ${args[0] ?? file}` });

@@ -274,8 +274,14 @@ Die Karte einer Hypothese in **Was die Forschung weiß** lässt die Hypothese en
   trifft zu**, **Offen lassen**, **Ändern**, **Wieder öffnen**; **Wartet auf Bearbeitung** → **Hypothesen zu entscheiden**.
   Wahlmöglichkeiten, die das Terminal öffnen, tragen seine Marke ([S4.5.1](S4-research-from-the-app.md#S4.5.1)).
 - **Gilt seit:** App 3.27.0 mit Forschung 1.31.0
+- **Ab App 3.28.0:** **Alle mit Vorschlag auswählen** ist ein Kontrollkästchen mit drei Zuständen nach den
+  Hypothesen mit Vorschlag in der Liste: leer (keine ausgewählt), – (ein Teil) und ✓ (alle). Leer oder – wählt die
+  übrigen, ✓ hebt die Auswahl aller auf. Es bleibt auch, wenn alle ausgewählt sind; es fehlt, wenn 50 ausgewählt sind
+  und manche noch nicht. Bei der Suche in **Wartet auf Bearbeitung** oder **Was die Forschung weiß** heißt es
+  **Gefundene mit Vorschlag auswählen (n)** und betrifft nur die Gefundenen
+  ([S4.4.2](S4-research-from-the-app.md#S4.4.2), [S3.7.1](#S3.7.1)).
 
-<!-- zdroj: app:src/research-hypothesis-pick.ts hypothesisPickable (pick | old | remote | readonly | merge; HYPOTHESIS_DECIDE_LINK_FEATURE), HYPOTHESIS_BIG_JOIN = 50, hypothesisLinkUrl, hypothesesAcceptUrl, hypothesisChoiceStays, hypothesisCannotReopen · src/ui/person-research-ui.ts (verze s Vybrat, Pro/Proti, Zdroje, návrh, Žádná verze neplatí, Nechat otevřenou, Změnit, Zrušit změnu, Vrátit na otevřenou, nejde vrátit → Rozhodnout ve výzkumu, hypoRemote, hypoMerge) · src/ui/hypothesis-wait-ui.ts, src/research-hypothesis-wait.ts (čekání, 10 min, Otevřít znovu, Zrušit čekání; Načíst / Později se zálohou) · src/ui/hypothesis-waiting-ui.ts (Co čeká: Rozhodnout, Přijmout návrh, Nechat otevřenou, Vybrat, Víc ›, Vybrat vše s návrhem, Přijmout návrhy (n), ≤ 50, Tady rozhoduje jen výzkum.) · src/ui/research-edge-ui.ts (bublina kraje, Vybrat) · strings.ts research.hypoPick, hypoPickAria, hypoNone, hypoLeave, hypoProposal, hypoAccept, hypoAcceptNone, hypoFor, hypoAgainst, hypoSources, hypoWait, hypoWaitAsk, hypoWaitLong, hypoWaitLongText, hypoWaitAgain, hypoWaitStop, hypoChangeReason, hypoDecidedToast, hypoElsewhere, hypoByApp, hypoLoadLater, hypoLoad, hypoChangeHere, hypoChangeCancel, hypoHoldsSince, hypoBefore, hypoReopen, hypoReopenLoss, hypoReopenNone, hypoCannotReopenWork, hypoStaysNote, hypoBig, hypoInTreeNote, hypoKeepsTree, hypoMerge, hypoRemote, hypoAcceptMany, hypoSelectAll, hypoOnlyResearch, hypoAcceptMax, hypoSelected, decide · commity b6cd39f2, 92383f57, 4ed3251a, 8d7f1597, 364df0cd · spec 074 · K1.6 (verze bez vazby): app 91b16655 research-hypothesis-pick.ts hypothesisVariantLinksNobody, hypothesisChoiceKeepsTree (otevřená, zrušená, dřív zvolená verze také bez vazby, _STAYS) · src/research-hypotheses.ts (čekací text + hypoKeepsTree) · src/research-hypothesis-waiting.ts plan.keepsTree, versions[].keepsTree · src/ui/hypothesis-waiting-ui.ts hwr-keeps, hwr-version-note · src/ui/hypothesis-wait-ui.ts researchHypothesisUnlinkOthers (ne u verze bez vazby) · research c769f2eb export.ts (rozhodnuté/zrušené pickableInApp s hypothesisPick) · karta: app 7a222325 src/research-hypothesis-card.ts variantNote (noLink jen když hypothesisChoiceKeepsTree → hypoKeepsTree; hypoNoLinkNote zrušen) · CHANGELOG.cs.md 3.27.0 -->
+<!-- zdroj: app:src/research-hypothesis-pick.ts hypothesisPickable (pick | old | remote | readonly | merge; HYPOTHESIS_DECIDE_LINK_FEATURE), HYPOTHESIS_BIG_JOIN = 50, hypothesisLinkUrl, hypothesesAcceptUrl, hypothesisChoiceStays, hypothesisCannotReopen · src/ui/person-research-ui.ts (verze s Vybrat, Pro/Proti, Zdroje, návrh, Žádná verze neplatí, Nechat otevřenou, Změnit, Zrušit změnu, Vrátit na otevřenou, nejde vrátit → Rozhodnout ve výzkumu, hypoRemote, hypoMerge) · src/ui/hypothesis-wait-ui.ts, src/research-hypothesis-wait.ts (čekání, 10 min, Otevřít znovu, Zrušit čekání; Načíst / Později se zálohou) · src/ui/hypothesis-waiting-ui.ts (Co čeká: Rozhodnout, Přijmout návrh, Nechat otevřenou, Vybrat, Víc ›, Vybrat vše s návrhem, Přijmout návrhy (n), ≤ 50, Tady rozhoduje jen výzkum.) · src/ui/research-edge-ui.ts (bublina kraje, Vybrat) · strings.ts research.hypoPick, hypoPickAria, hypoNone, hypoLeave, hypoProposal, hypoAccept, hypoAcceptNone, hypoFor, hypoAgainst, hypoSources, hypoWait, hypoWaitAsk, hypoWaitLong, hypoWaitLongText, hypoWaitAgain, hypoWaitStop, hypoChangeReason, hypoDecidedToast, hypoElsewhere, hypoByApp, hypoLoadLater, hypoLoad, hypoChangeHere, hypoChangeCancel, hypoHoldsSince, hypoBefore, hypoReopen, hypoReopenLoss, hypoReopenNone, hypoCannotReopenWork, hypoStaysNote, hypoBig, hypoInTreeNote, hypoKeepsTree, hypoMerge, hypoRemote, hypoAcceptMany, hypoSelectAll, hypoOnlyResearch, hypoAcceptMax, hypoSelected, decide · commity b6cd39f2, 92383f57, 4ed3251a, 8d7f1597, 364df0cd · spec 074 · K1.6 (verze bez vazby): app 91b16655 research-hypothesis-pick.ts hypothesisVariantLinksNobody, hypothesisChoiceKeepsTree (otevřená, zrušená, dřív zvolená verze také bez vazby, _STAYS) · src/research-hypotheses.ts (čekací text + hypoKeepsTree) · src/research-hypothesis-waiting.ts plan.keepsTree, versions[].keepsTree · src/ui/hypothesis-waiting-ui.ts hwr-keeps, hwr-version-note · src/ui/hypothesis-wait-ui.ts researchHypothesisUnlinkOthers (ne u verze bez vazby) · research c769f2eb export.ts (rozhodnuté/zrušené pickableInApp s hypothesisPick) · karta: app 7a222325 src/research-hypothesis-card.ts variantNote (noLink jen když hypothesisChoiceKeepsTree → hypoKeepsTree; hypoNoLinkNote zrušen) · CHANGELOG.cs.md 3.27.0 · 3.28.0: app:cd0030b0 src/ui/hypothesis-waiting-ui.ts hypothesisAcceptHeadEl (input checkbox, indeterminate, aria-checked mixed; all → odznačí; null bez návrhu nebo acceptSelectionFull a ne vše) · src/section-search-filter.ts bulkBoxState · strings.ts research.hypoSelectAll, live.bulkSelectFound · spec 083 K2.2, D3 v ZADANI_UIX_hledani-v-prehledu -->
 
 <a id="S3.6"></a>
 ## S3.6 Durchsucht
@@ -306,5 +312,45 @@ beim jeweiligen Widerspruch oder bei der Hypothese.
   - ohne offene Widersprüche und Hypothesen gibt es den Abschnitt nicht.
 - **Bedienung:** App: Panel der Forschung, Abschnitt **Was die Forschung weiß**.
 - **Gilt seit:** App 3.5.0
+- **Ab App 3.28.0:** in der **Forschungsübersicht** hat der Abschnitt oben die Etiketten **Alle**, **Widersprüche** und
+  **Hypothesen** mit Zahlen, nur wenn es offene Widersprüche und auch Hypothesen gibt; sonst gibt es die Etiketten
+  nicht. **Alle** zeigt die Widersprüche oben und die Hypothesen darunter. Das Annehmen von Hypothesen auf einmal
+  ([S3.5.2](#S3.5.2)) steht über den Hypothesen (in **Alle** und in **Hypothesen**), in **Widersprüche** nicht;
+  **Alle mit Vorschlag auswählen** gilt für die gezeigten Hypothesen. Die Wahl gilt bis zum Schließen der Übersicht,
+  danach ist es wieder **Alle**; sie wird nirgends gespeichert. Ab 10 Zeilen lässt
+  sich im Abschnitt suchen ([S3.7.1](#S3.7.1)).
 
-<!-- zdroj: app:src/ui/research-overview-ui.ts appendOverviewKnows · strings.ts live.knowsTitle, live.hypothesisRow · commit 228ac6a -->
+<!-- zdroj: app:src/ui/research-overview-ui.ts appendOverviewKnows · strings.ts live.knowsTitle, live.hypothesisRow · commit 228ac6a · 3.28.0: app 4ad34832 (8a10387e) src/knows-kind.ts knowsKindChoice (štítky jen s rozpory i hypotézami), knowsKindShows · src/ui/research-overview-ui.ts appendOverviewKnows (rozpory první, hlavička přijetí nad hypotézami, v Rozporech žádná; knowsKind = 'all' při zavření), knowsKindChips · strings.ts live.knowsKindAll/Con/Hyp · spec 052 K3.1, K3.2 · ZADANI_DEV_fronta-hledani §3 -->
+
+<a id="S3.7.1"></a>
+### S3.7.1 Suche in Was die Forschung weiß
+
+Der Abschnitt **Was die Forschung weiß** in der **Forschungsübersicht** hat das Feld **Person, Widerspruch,
+Hypothese suchen…**. Für es gilt dasselbe wie für die Suche in **Wartet auf Bearbeitung**
+([S4.4.2](S4-research-from-the-app.md#S4.4.2)): die App sucht selbst, gleich beim Tippen, auch ohne Verfolgen, wenn
+die Forschung nicht läuft, und im Fenster der Übersicht; jedes Wort, ohne Rücksicht auf Groß- und Kleinschreibung
+und diakritische Zeichen.
+
+- **Wann das Feld da ist:** in einem aufgeklappten Abschnitt mit 10 und mehr Zeilen (offene Widersprüche und
+  Hypothesen). Mit eingegebenem Text bleibt das Feld, auch wenn es weniger Zeilen werden.
+- **Was gefunden wird:**
+  - ein Widerspruch nach Name und Nummer der Person (`P47`), der Angabe und den Werten, wie die Zeile sie zeigt (etwa
+    das Jahr `1791`);
+  - eine Hypothese nach Name und Nummer der Person, Titel und Nummer der Hypothese (`H22`, bloß `22`).
+- **Grenzen:**
+  - die Suche verbindet sich mit den Etiketten **Alle**, **Widersprüche** und **Hypothesen** ([S3.7](#S3.7)): die
+    Etiketten zeigen die Zahlen der Gefundenen, ein Etikett ohne Treffer ist gestrichelt und lässt sich weiter wählen;
+  - „n von m gefunden“, **Nichts gefunden.**, „In der Art Hypothesen nichts gefunden.“ mit **In allen Arten suchen**
+    und **Suche aufheben** wie in **Wartet auf Bearbeitung**;
+  - ein Treffer bei der Nummer einer Hypothese oder Person hat an der Zeile ein bernsteinfarbenes Etikett;
+  - das Annehmen von Vorschlägen auf einmal ([S3.5.2](#S3.5.2)): **Gefundene mit Vorschlag auswählen (n)** wählt nur
+    die gefundenen Hypothesen. Ausgewählte außerhalb der Suche bleiben ausgewählt, die Fußzeile sagt „n ausgewählt,
+    davon m außerhalb der Suche.“ mit **Auswahl außerhalb der Suche aufheben**; **Vorschläge annehmen (n)** zählt
+    alle ausgewählten;
+  - **Prüfung** unter der Liste ändert sich mit der Suche nicht;
+  - ein eingeklappter Abschnitt mit Suche hat in der Überschrift eine Lupe und den gesuchten Text; ×, Escape, ↓, die
+    Geltung bis zum Schließen der Übersicht und das Telefon wie in [S4.4.2](S4-research-from-the-app.md#S4.4.2).
+- **Bedienung:** App: **Forschungsübersicht → Was die Forschung weiß**, Suchfeld.
+- **Gilt seit:** App 3.28.0
+
+<!-- zdroj: app:cd0030b0 src/knows-search.ts knowsSearchSource (jméno, P…, údaj a hodnoty rozporu, název hypotézy, H…), knowsSearchDoc (pn, hn), knowsSearchIndex · src/ui/research-overview-ui.ts appendOverviewKnows (fieldVisible na řádky, knowsKindChoice + chipCount, appendSearchOutcome s knowsKindCon/Hyp, hypoSearch, hypothesisKnowsAccept, searchHitTag h a p, treeVerifyBlock beze změny) · src/ui/hypothesis-waiting-ui.ts hypothesisAcceptHeadEl, hypothesisAcceptFootEl · src/section-search-match.ts, src/section-search-filter.ts, src/ui/section-search-view.ts (jako S4.4.2) · strings.ts live.knowsSearchPlaceholder, knowsSearchAria, sectionSearchFound, sectionSearchNoneKind, sectionSearchAllKinds, bulkSelectFound, bulkSelectedHidden, bulkDeselectHidden, knowsKindAll/Con/Hyp · e2e/overview-knows-search.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 K2.1, K2.2 -->

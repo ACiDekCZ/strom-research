@@ -23,13 +23,13 @@
 // queue.strategy): balanced (the default), depth (stay on the line of the last sessions), priority (strict priority).
 // Work off the lines of a research with several (core/offline.ts: a side branch no line reaches, helping none) comes as
 // the person chose, on three floors, the lower winning — the task (strom task order: next — before everything but the
-// work at hand, once; last — after everything), its branch (strom offline set), the tree (queue.offLine) —, whatever
-// the strategy: occasional (the default) — after the lines' work, but after OFF_LINE_SHARE − 1 sessions since the last
-// one off the lines one comes forward, the nearest to a line, then the cheapest; at once when the lines have nothing to
-// do —; last — after all the lines' work, also after their stories and what waits for a download, before the tasks of
-// history —; normal — as the lines' work; never — out of the queue (nothing deleted). A task that helps a line goes with
-// that line (a branch added to a line too). A session at work on it goes on. Nothing is kept for the turn: it is counted
-// from the sessions.
+// work at hand, once, the last chosen first; last — after everything), its branch (strom offline set), the tree
+// (queue.offLine) —, whatever the strategy: occasional (the default) — after the lines' work, but after OFF_LINE_SHARE
+// − 1 sessions since the last one off the lines one comes forward, the nearest to a line, then the cheapest; at once
+// when the lines have nothing to do —; last — after all the lines' work, also after their stories and what waits for a
+// download, before the tasks of history —; normal — as the lines' work; never — out of the queue (nothing deleted). A
+// task that helps a line goes with that line (a branch added to a line too). A session at work on it goes on. Nothing
+// is kept for the turn: it is counted from the sessions.
 // The tasks of verification against the originals (core/verify.ts, core/verifyfacts.ts): the sweep's (verify:auto) and
 // the person's bulk one (verify:bulk, a family tree's leads' search too) come after the lines' work, whatever the
 // strategy, but after VERIFY_EVERY − 1
@@ -108,6 +108,34 @@ export function ownTurn(t: Task, ended: Pick<Session, "task" | "ended" | "update
   if (!q) return undefined;
   if (q.do === "last") return "last";
   return ended.some((s) => s.task === t.id && (s.ended ?? s.updated) > q.at) ? undefined : "next";
+}
+
+/**
+ * A task's own turn as it was before the person changed it (POST /queue/<T…> was, strom task order --json): {} when it
+ * had none, else its choice and when it was made — "next" only while it holds (ownTurn).
+ */
+export function turnWas(t: Task, ended: Pick<Session, "task" | "ended" | "updated">[]): { own?: "next" | "last"; at?: string } {
+  const own = ownTurn(t, ended);
+  return own && t.queueAt ? { own, at: t.queueAt.at } : {};
+}
+
+/** How far back a turn may be put back as it was (strom task order --restore, POST /queue/<T…> {do: restore}). */
+export const RESTORE_DAYS = 30;
+
+/**
+ * A turn to put back exactly as it was (strom task order --restore <next|last>@<ISO>, the Strom app's "back"): next or
+ * last, at a time no later than now and no more than RESTORE_DAYS before it — the time as an ISO instant (UTC, as strom
+ * writes it); else why not.
+ */
+export function restoredTurn(own: unknown, at: unknown, nowMs = Date.now()): { do: "next" | "last"; at: string } | { bad: string } {
+  const shape = `<next|last>@<ISO time, at most ${RESTORE_DAYS} days ago, not later than now>`;
+  if (own !== "next" && own !== "last") return { bad: `the turn: ${shape}` };
+  if (typeof at !== "string" || at.length > 40 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/u.test(at)) return { bad: `the time: ${shape}` };
+  const ms = Date.parse(at);
+  if (Number.isNaN(ms)) return { bad: `the time: ${shape}` };
+  if (ms > nowMs) return { bad: `the time is later than now: ${shape}` };
+  if (ms < nowMs - RESTORE_DAYS * 86_400_000) return { bad: `the time is more than ${RESTORE_DAYS} days ago: ${shape}` };
+  return { do: own, at: new Date(ms).toISOString() };
 }
 
 /**
@@ -409,9 +437,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   });
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
-        // the person's own turn: next before everything but the work at hand (the first chosen first), last after everything
+        // the person's own turn: next before everything but the work at hand (the last chosen first: the latest "do it
+        // next" goes next), last after everything
         a.own - b.own ||
-        a.nextAt.localeCompare(b.nextAt) ||
+        b.nextAt.localeCompare(a.nextAt) ||
         // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
         a.horder - b.horder ||

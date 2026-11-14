@@ -174,10 +174,14 @@ miejsca życia na mapie, oś życia z historią, wycinki z ksiąg metrykalnych i
 
 - **Zapisz jako HTML** tworzy jeden samowystarczalny plik, który otwiera się offline w każdej przeglądarce. Grupy
   treści i ochronę osób żyjących można wybrać ([A7.2.1](#A7.2.1)); wybór jest zapamiętywany.
+- **Od aplikacji 3.28.0:** w oknie aplikacji **◎ Droga przodków na mapie ›** prowadzi do drogi przodków osoby
+  w Migracji w czasie ([A6.5.4](A6-views.md#A6.5.4)). Zapisana strona tego odnośnika nie ma. Stoi w sekcji
+  **Miejsca życia**; osoba z najwyżej jednym własnym miejscem, która ma przodków na mapie, ma go we własnym wierszu
+  tam, gdzie byłaby sekcja.
 - **Obsługa:** menu karty osoby, **Strona osoby**; także z wachlarza.
 - **Obowiązuje od:** aplikacja 3.18.0
 
-<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 -->
+<!-- zdroj: app:src/person-page.ts · strings.ts personPage.save, fan.personPage · CHANGELOG.cs.md 3.18.0 · 3.28.0: app:src/person-page-map.ts pp-map-path (jen mode app), src/ui/person-page-ui.ts personPageMapPath, commit 34e82d43 · mapPathRowHtml (bez oddílu Místa života), commit caea192a -->
 
 <a id="A7.7"></a>
 ## A7.7 Zapisany HTML (samodzielny plik)

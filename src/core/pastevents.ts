@@ -21,7 +21,8 @@ import { allKinds, EVENT_KINDS, sayKinds, type EventKind } from "./eventkinds.ts
 import { readJsonIfExists, stringifyCanonical, writeFileAtomic } from "./json.ts";
 import { foldText } from "./text.ts";
 import { streetsOf } from "./streets.ts";
-import { historySwitches, Settings, type HistoryPace } from "./config.ts";
+import { configFile, historySwitches, readStored, Settings, type HistoryPace } from "./config.ts";
+import { sandboxedSwitch } from "./writable.ts";
 import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
 import { addressesPerson } from "./impersonal.ts";
@@ -327,6 +328,16 @@ export function requireHistoryOn(tree: Tree, settings: Settings = new Settings(t
   if (on) return;
   const key = which === "places" ? "experiments.placeHistory" : "experiments.history";
   const what = which === "places" ? "the history of the places" : which === "regions" ? "the history of the regions" : "the history of the regions and of the places";
+  // off by the user's settings, not the tree's own (its strom.json: an off there is the tree's indeed), under an agent
+  // that cannot read them or write the research: its sandbox said, never the switch (K031)
+  const set = (k: string) => readStored(tree.config, k, "") !== undefined;
+  const regionsOwn = set("experiments.history");
+  const placesOwn = set("experiments.placeHistory") || regionsOwn;
+  const treeOwns = which === "regions" ? regionsOwn : which === "places" ? placesOwn : regionsOwn && placesOwn;
+  if (!treeOwns) {
+    const sandbox = sandboxedSwitch(settings.env, tree.root, configFile(settings.env), what);
+    if (sandbox) throw sandbox;
+  }
   throw new UsageError(`${what} is off for this research — nothing is looked for or written`, {
     code: "history.off",
     hint: `the user alone turns it on, in their terminal: strom config set ${key} on --for-tree (this research) or strom config set ${key} on (every research)`,

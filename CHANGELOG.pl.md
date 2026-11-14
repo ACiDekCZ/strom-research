@@ -5,6 +5,67 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.32.0
+
+*14.11.2026 · współpracuje z aplikacją Strom 3.28.0.*
+
+- **Pytania o drzewo jednym wywołaniem: `strom query`.** Ilu młynarzy jest w rodzie, kto mieszkał pod numerem 12, kto
+  urodził się w Lhocie w XVIII wieku: wiersz na każdą daną osoby z wartością, miejscem, numerem domu, datą, pewnością
+  i źródłami oraz z tym, jak osoba jest spokrewniona z osobą główną, słowami — w języku badania, ze stroną (ojca, matki)
+  i pokoleniem, tak jak mówi kalkulator pokrewieństwa aplikacji Strom. Filtry według rodzaju, zawodu, wartości,
+  miejsca, numeru domu, lat, nazwiska (także jego innych form), źródła i stanu; czyje dane: linia prosta, krewni
+  (domyślnie, także linie boczne), z ich partnerami, albo całe drzewo. `--count` i `--by
+  generation|kin|place|decade|surname` je liczą. Osoby i dane wycofane nigdy, obalone tylko na życzenie. **Także
+  opowieści: `strom query --story <słowo>`** podaje osoby i pary, w których opowieści jest to słowo, każdą ze zdaniem
+  i źródłami, na których się opiera. Numer domu zapisany z własnym słowem (č. 7, Nr. 7) nie ma już słowa dwa razy,
+  także na karcie osoby.
+- **Zawody także w formach czeskich, niemieckich, łacińskich i polskich:** mlynar znajduje też Müller i molitor; osoby
+  ze słowem tylko w nazwisku lub notatce liczone są osobno, z `strom find`, który je znajduje.
+  **Własne formy badania: `strom occupation add|list|remove`.** Formę, której lista nie ma (inny język, dawna
+  pisownia, zawód, którego nie zna), dodaje się ręcznie, bez agenta — `strom occupation add olejník de:Ölschläger` — i
+  zostaje przy badaniu; agent tak samo dodaje to, co znajdzie w źródłach, i o tym mówi, a dodanego ręcznie nigdy nie
+  zmienia. `strom query` mówi, gdy słowa nie ma na żadnej liście (szukana jest tylko ta forma), i jak dodać jego formy.
+  Lista wbudowana zna o 40 rzemiosł i stanów z ksiąg metrykalnych więcej (kościelny, grabarz, garbarz, cyrulik,
+  ludwisarz …).
+- **Agent odpowiada na pytania o drzewo poleceniem `strom query`,** z imieniem i ID osoby w nawiasie (by otworzyć ją w
+  aplikacji Strom: `strom app --person P…`; aplikacja przed 3.21 otwiera drzewo), pełnym pokrewieństwem i źródłem z jego tytułem, i mówi, jak pewna jest każda dana: wskazówka ani
+  dana prawdopodobna nigdy jako fakt. Opowieść pokazuje tylko, gdzie szukać; czyj jest zapis, kto jest kim i sprawdzanie
+  danych idą dalej jak dotąd, ze źródeł.
+- **Wydarzenia wspólne w aplikacji Strom** (spis ludności gospodarstwa, przeprowadzka) i własne wydarzenie chrzestnego
+  lub świadka ślubu z rolą przy cudzym wydarzeniu są odczytywane z jej GEDCOM i JSON, zachowywane przy każdej danej
+  i oddawane tak, jak przyszły; od aplikacji 3.28 o tym, kto dzieli wydarzenie, decyduje się w aplikacji, a
+  synchronizacja przyjmuje jej zmianę jako zmianę użytkownika. `ROLE` uczestnika z GEDCOM 7 jest odczytywane także
+  w pliku innego programu. Spis osoby w JSON aplikacji nie jest już pomijany. Badanie założone z drzewa aplikacji Strom przejmuje z jej JSON wszystko, co daje jej GEDCOM: wydarzenia wspólne
+  i role, chrzestnych, świadków i wszystkich uczestników wydarzenia, przyczynę zgonu, wiek i numery domów, rozwód
+  z datą, więź każdego dziecka z każdym rodzicem, nazwisko po ślubie. Własne długie notatki użytkownika zostają całe,
+  nie są już skracane do 500 znaków. Badanie założone z drzewa aplikacji z długą notatką z emoji mogło pominąć osobę
+  lub rodzinę; następna synchronizacja ją uzupełni.
+- **Kolejka z aplikacji Strom:** wyszukiwanie w całej kolejce (numer zadania lub osoby, imię i nazwisko, słowa zadania,
+  jego księga, archiwum lub miejsce, bez względu na znaki diakrytyczne; szukany tekst nie jest nigdzie zapisywany);
+  „jako następne” stawia ostatnio wybrane zadanie na początku i daje się dokładnie cofnąć; praca nad kolejką otwiera
+  terminal, który pokazuje, co się uruchomi, i uruchamia to dopiero po „tak” – określoną liczbę zadań (`strom run
+  --tasks N`, kończy się po N załatwionych) albo samodzielną pracę tylko pod warunkiem. Most do aplikacji w dużym badaniu pracuje znacznie mniej, gdy nic się nie zmienia.
+- **Ustawienie dla przeglądarek archiwów, które przeglądarka rysuje powoli.** Gdy przeglądarka rysuje kartę tylko mniej
+  więcej raz na sekundę (rysowanie bez karty graficznej, zdalny pulpit), przeglądarka skanów archiwum (ACTA PUBLICA)
+  potrzebuje na jeden skan kilku minut, a zapis poddawał się po 30 s z komunikatem, że nie dotarły wszystkie kafelki.
+  Ten komunikat podaje teraz, co pomaga: `strom config set browser.tileWait 180` (60–600 s) — skrypt czeka wtedy,
+  dopóki kafelki jeszcze przychodzą, i odpowiada agentowi „strom-wait”, aż skończy. Bez tego ustawienia nic się nie
+  zmienia.
+- **Badanie zapieczętowane na innym komputerze można czytać bez przejęcia:** podglądy `strom source split`, `strom sync
+  <plik>` i `strom input names` (co zrobiłby podział, co wniosłoby drzewo, które nazwiska po ślubie zostałyby dodane)
+  pokazują się jak każde czytanie; zapis (`--apply`, `strom sync --app`, `--undo`) nadal czeka na przejęcie badania
+  (`strom seal adopt`). `strom repair undo <znacznik> --json` bez terminala odpowiada teraz jak `strom repair`: `status:
+  "needs-consent"` z poleceniem do uruchomienia w terminalu, nie tylko kodem wyjścia 4.
+- **Codex w Windows i jego sandbox:** agent, któremu sandbox nie pozwala czytać ustawień ani zapisywać w badaniu,
+  dowiaduje się właśnie tego, z poleceniem do uruchomienia poza sandboxem, zamiast szukać ustawienia, które było
+  włączone. Codex wypuszcza strom z sandboxu tylko jako zwykłe polecenie — bez `&`, potoku ani `cd` przed nim, bez
+  półpauzy (–) i bez cudzysłowów wewnątrz tekstu w cudzysłowie w argumentach; agent dowiaduje się o tym (AGENTS.md,
+  `strom guide`, wskazówka sandboxu), razem ze sposobem na dłuższy tekst: jego polecenie w pliku w `notes/`, uruchomione
+  przez `strom batch --file`. Zadanie, przy którym sandbox albo uprawnienia trzy razy z rzędu nie dopuściły strom do
+  badania (nic nie zapisano), zostaje odłożone z powodem i z tym, co pomaga (`strom task show`), a przebieg idzie dalej
+  następnym zadaniem; najwyżej jedno naraz — gdy sandbox odmawia wszystkiego, przebieg kończy się jak dotąd. `strom
+  error` pokazuje, które polecenia odrzucono, skrócone i zamaskowane.
+
 ## 1.31.0
 
 *12.11.2026 · współpracuje z aplikacją Strom 3.27.0.*

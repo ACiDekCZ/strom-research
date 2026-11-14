@@ -38,8 +38,29 @@ rekordy**. Nic nie ginie po cichu na poziomie rekordu ani bezpośredniej danej o
   - imię zapisane jako opis (`Son`, `Unknown`) wraca tak, jak było zapisane, bez zrobionej z niego notatki; tekst
     w wierszu danej (wykształcenie, pogrzeb, własne zdarzenie), adres w częściach (`ADR1`, `CITY`…) i odnośnik
     internetowy w tekście źródła zostają i wracają tak, jak miał je plik.
+- **Od aplikacji 3.28.0:**
+  - `CENS` przy osobie to wydarzenie osoby **Spis ludności** z datą, miejscem, wiekiem według zapisu, domem lub
+    adresem, notatką i źródłami; w wyborze wydarzeń osoby jest zaraz po **Miejsce zamieszkania**. Import tak go
+    czyta (także z pliku badania), a eksport zapisuje go jako `1 CENS` przy osobie. Do aplikacji 3.27.0 `CENS` przy
+    osobie czytało się jako własne wydarzenie o nazwie „Spis ludności”. `CENS` przy rodzinie pozostaje wydarzeniem
+    pary. Własne wydarzenia „Spis ludności” w drzewach zapisanych wcześniej przy dostosowaniu danych do nowej wersji
+    stają się spisem ludności, z kopią zapasową ([A10.7](A10-shared-events.md#A10.7));
+  - `2 TYPE` pod `CENS` (rodzaj spisu) staje się pierwszym wierszem notatki. Eksport zwraca go jako `2 TYPE`, dopóki
+    notatka się od niego zaczyna;
+  - wspólne wydarzenie z innego programu: RootsMagic, Legacy i Family Historian zapisują wydarzenie raz, a pozostałe
+    osoby pod nim (`2 _SHAR @I…@` z rolą `ROLE`, `_ROLE` lub `RELA` i z notatką; Family Historian także `2 _SHAN`
+    z imieniem osoby bez rekordu). Członek gospodarstwa (rola pusta, „Household”, „Principal”, „Head”…) dostaje
+    kopię wspólnego wydarzenia ([A10.1](A10-shared-events.md#A10.1)); jego własne takie samo wydarzenie dołącza się,
+    nie podwaja się. Rola inna niż zwykły członek gospodarstwa zostaje jako rola kopii. Spis, miejsce zamieszkania
+    lub własne wydarzenie pary z członkami gospodarstwa staje się wspólnym wydarzeniem partnerów i wymienionych
+    osób. Świadek, chrzestny i inna rola są uczestnikami wydarzenia; przy wydarzeniu tylko dla jednej osoby
+    (chrzest…) osoby są uczestnikami **Obecny** z rolą w notatce;
+  - GEDCOM 7: `ASSO` z `3 ROLE GODP`, `WITN`, `CLERGY` lub `OFFICIATOR` to chrzestny, świadek lub celebrans; inna
+    rola to **Obecny** ze słowem roli w notatce (`OTHER` z `PHRASE`, `NGHBR` sąsiad, `FRIEND` przyjaciel …). `ASSO
+    @VOID@` z `PHRASE` to uczestnik zapisany z nazwiska;
+  - znaczniki Stromu dla wspólnego wydarzenia i ról import czyta według [A2.7](#A2.7).
 
-<!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels -->
+<!-- zdroj: app:src/ged-parser.ts:1450 KNOWN_INDI_TAGS, :1453 KNOWN_FAM_TAGS, :1464 KNOWN_RECORD_TYPES, :1478 IGNORED_BOOKKEEPING_TAGS, :636 NOTED_INDI_TAGS, :2094 drop, :2410, :2486, :2194 · strings.ts gedcom.unsupported, gedcom.skippedTags, gedcomNotes.factLabels · 3.28.0: app:34b2174c src/ged-parser.ts EVENT_TAG_TO_TYPE CENS → census (dřív CENS u INDI vlastní událost s gedcomNotes.census), src/ged-exporter.ts EVENT_TAG_TO_TYPE census → CENS, src/events.ts SELECTABLE_EVENT_TYPES (census za residence), src/ui/event-details-ui.ts offeredDetails census (age, address), strings.ts events.census, strings-pl part1 · CENS u FAM coupleEventTypeOfTag · dirigent:prace/1113-app-scitani-u-osoby Výsledek · spec 053 U2 K1.1 · 3.28.0 sdílení: app:80c2ffb9 src/ged-shares.ts (_SHAR, _SHAN, isHouseholdShareRole, convertGedShares, sharRoleWord), src/ged-parser.ts (ASSO ROLE GODP/WITN/CLERGY/OFFICIATOR, OTHER PHRASE, @VOID@ PHRASE; CENS 2 TYPE → první řádek poznámky + gedcomType), src/ged-exporter.ts (2 TYPE zpět), migrace vlastní „Census“ (A10.7) · dirigent:prace/1113-app-sdilena-udalost, 1113-app-085-nalezy Výsledek · spec 085 §7 -->
 
 <a id="A2.1.1"></a>
 ### A2.1.1 Podsumowanie importu
@@ -65,8 +86,10 @@ imporcie** i obowiązuje tylko dla tego importu. Bez obrazów zostają transkryp
   - po imporcie pliku innego programu karta **Co dalej** ([S6.4](S6-tree-from-another-program.md#S6.4)); zastępuje
     dawne pytania po imporcie;
   - **Wstaw do drzewa** najpierw zapisuje kopię zapasową drzewa ([S6.5](S6-tree-from-another-program.md#S6.5)).
+- **Od aplikacji 3.28.0:** wiersz „Wspólne wydarzenia z {program}: n przeniesiono (m osób)”, gdy plik innego programu
+  miał wspólne wydarzenia (`_SHAR`, [A2.1](#A2.1)).
 
-<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* -->
+<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted -->
 
 <a id="A2.2"></a>
 ## A2.2 Kodowanie i wersja GEDCOM
@@ -291,8 +314,20 @@ GEDCOM 5.5.1 nie potrafi. Nagłówek `1 SOUR STROM` mówi, że plik napisał Str
   i `_STROM_LOCATOR` obok złożonej `PAGE`; ze znacznikami obowiązują pola, nie `PAGE`. Eksport **Z powrotem do
   {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)) dla programu, z którego drzewo przyszło, ich nie pisze.
   Badaniu aplikacja wysyła je tylko wtedy, gdy badanie mówi, że je czyta.
+- **Od aplikacji 3.28.0:** każdy eksport GEDCOM (także **Z powrotem do {program}**) pisze:
+  - wspólne wydarzenie ([A10.1](A10-shared-events.md#A10.1)) przy każdej osobie osobno, także ze źródłem, aby
+    odczytały je inne programy, a pod nim `2 _STROM_SHARE` z oznaczeniem wydarzenia i `3 _ROLE` z rolą osoby. Tylko
+    gdy w pliku są co najmniej 2 kopie (eksport części drzewa lub ochrona osób żyjących mogą pozostałe pominąć);
+    przy ponownym wczytaniu kopie znów się łączą. Podpowiedź eksportu: „Wspólne wydarzenie zapisuje się u każdej osoby
+    osobno, ze źródłem, aby inne programy mogły je odczytać. Strom przy następnym imporcie znów je połączy.”;
+  - **Chrzestny** i **Świadek ślubu** ([A10.5.1](A10-shared-events.md#A10.5.1)) jako `1 EVEN` z `2 TYPE`
+    i `2 _STROM_ROLE` (`godparent`, `witness`); jeśli w pliku jest też osoba lub rodzina tego wydarzenia, pod nim
+    `3 _STROM_AT` z odnośnikiem do niej i `4 TYPE` ze znacznikiem tego wydarzenia (`BAPM`, `MARR` …);
+  - odrzucone połączenie chrzestnego lub świadka ([A10.5.2](A10-shared-events.md#A10.5.2)) jako
+    `3 _STROM_NOT_LINK @I…@` pod uczestnikiem (`_WITN`, `ASSO`). Odnośnik do osoby, której w pliku nie ma, przy
+    wczytaniu się odrzuca.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents -->
 
 <a id="A2.8"></a>
 ## A2.8 Ponowny import i scalanie

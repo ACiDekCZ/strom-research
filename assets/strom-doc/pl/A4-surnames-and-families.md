@@ -254,3 +254,42 @@ formami imienia i nazwiska.
 - **Obowiązuje od:** aplikacja 3.0.0 (nazwisko po ślubie w wyszukiwaniu 3.13.0)
 
 <!-- zdroj: app:src/name-search.ts:26 searchableSurnames · :82 surnameMatchesQuery · src/merge/matching.ts:38 normalizeName · src/person-picker.ts:18 sortByName · :28 calculateMatchScore · :98 hiddenSurnameMatchHtml · src/search-filter.ts:95 · src/given-names.ts -->
+
+<a id="A4.8.1"></a>
+### A4.8.1 Te same imiona i nazwiska w wyborze osoby
+
+Gdy w wyniku wyszukiwania powtarza się to samo imię i nazwisko, każdy taki wiersz ma pod nim drugi, szary wiersz
+z najkrótszą informacją, która odróżnia go od pozostałych o tym samym imieniu i nazwisku. Wiersz z niepowtarzalnym
+imieniem i nazwiskiem wygląda jak dotąd.
+
+- **Kiedy:** takie samo jest to, co wiersz pokazuje: imię i nazwisko z tytułami i uwagą o nazwisku rodowym lub
+  dawniejszym oraz rok urodzenia, gdy lista pisze go za imieniem i nazwiskiem. Porównuje się jak przy wyszukiwaniu,
+  bez wielkich i małych liter oraz znaków diakrytycznych. Liczy się w całym wyniku, także w wierszach za pierwszymi 50.
+- **Kolejność informacji:**
+  1. lata: „* 1820 – † 1866”, tylko znane części i tylko rok. Rok urodzenia, który lista pisze za imieniem
+     i nazwiskiem, się nie powtarza;
+  2. partner: „⚭ imię i nazwisko”; przy kilku małżeństwach pierwszy partner, którego inne wiersze nie mają;
+  3. rodzice: „córka: ojciec i matka” (u mężczyzny „syn:”, bez płci „dziecko:”), tylko znani rodzice;
+  4. miejsce: „miejsce urodzenia …”, bez niego „zamieszkanie …” (ostatnie zamieszkanie z miejscem).
+- **Granice:**
+  - informacje bierze się w tej kolejności, aż połączenie nie pasuje do żadnego innego wiersza grupy. Pokazuje się
+    z nich tylko to, co znane i czego nie mają takiego samego wszystkie pozostałe wiersze grupy, połączone „ · ”.
+    Siostry o tych samych rodzicach rozróżnia więc miejsce urodzenia, nie rodzice; dwie „Radegunda Pokusná”
+    urodzone w 1900 mają „⚭ Bohuchval Zkoušek” i „⚭ Sudivoj Pokus”, nie „* 1900 · ⚭ …”. Informacja, którą mają taką
+    samą tylko niektóre wiersze, się pokazuje;
+  - gdy wiersz odróżnia tylko informacja, która u niego nie jest znana, pokazuje się jego pierwsza znana informacja,
+    której nie mają takiej samej wszystkie pozostałe, a gdy takiej nie ma, „brak innych danych”. Wiersz, którego od
+    innego nic nie odróżnia, pokazuje wszystkie swoje znane informacje;
+  - osoba znaleziona według informacji (nazwisko po ślubie, przyczyna zgonu, dom, [A4.8](#A4.8)) ma jeden wiersz:
+    rozróżnienie i za „ · ” znalezisko. Rok, który podaje już znalezisko („† 1866 …”), nie powtarza się
+    w rozróżnieniu;
+  - wiersz rozróżnienia nie poszerza listy: dłuższy koniec skraca się „…”. Cały tekst jest w dymku wiersza, a czytnik
+    ekranu czyta wiersz jako „imię i nazwisko, rozróżnienie”;
+  - na telefonie lista ma szerokość ekranu.
+- **Gdzie:** każdy wybór osoby z pola: wyszukiwanie na pasku narzędzi, dodanie relacji, ustalenie pokrewieństwa,
+  odczyt dokumentu, domyślna osoba drzewa i inne. Wybór osoby dla drogi przodków na mapie
+  ([A6.5.4](A6-views.md#A6.5.4)) ma własną listę bez rozróżnienia.
+- **Obsługa:** brak: działa samo. Klawisze i wczytywanie po 50 wierszy bez zmian.
+- **Obowiązuje od:** aplikacja 3.28.0
+
+<!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->

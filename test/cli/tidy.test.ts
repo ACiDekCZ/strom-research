@@ -30,6 +30,9 @@ function gathered(root: string): { outside: string } {
   const image = `{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"${"QUJD".repeat(50_000)}"}}\n`;
   put(s("runs", "N0001.log"), image.repeat(3), 40); // old: goes
   put(s("runs", "N0002.log"), `{"type":"text","text":"Hledám křest"}\n${image.repeat(3)}`, 2); // kept, made smaller
+  // the commands refused in a session (K031): go as their log goes
+  put(s("runs", "N0001.denied.json"), '[{"command":"Bash: strom brief","strom":true,"whole":false}]', 40);
+  put(s("runs", "N0002.denied.json"), '[{"command":"Bash: strom brief","strom":true,"whole":false}]', 2);
   put(s("briefs", "N0001.md"), "brief", 40);
   put(s("views", "B0001-1-aaaaaaaaaa.jpg"), 1000, 20); // not looked at for 20 days: goes
   put(s("views", "B0001-2-bbbbbbbbbb.jpg"), 1000, 1); // stays
@@ -80,7 +83,8 @@ test("strom tidy: what goes is shown, the person's yes takes it; the research, l
   assert.ok(has("runs", "N0001.log"));
   // shown: what, how much, why
   const shown = await w.ok(["tidy", "--dry-run"]);
-  assert.match(shown.out, /Záznamy pracovních sezení: počet 1, celkem .* → smaže se/, shown.out);
+  // (the old session's log and its refused commands)
+  assert.match(shown.out, /Záznamy pracovních sezení: počet 2, celkem .* → smaže se/, shown.out);
   assert.match(shown.out, /Záznamy pracovních sezení: počet 1, celkem .* → zmenší se/, shown.out);
   assert.match(shown.out, /Pracovní složky přerušených stahování: počet 1,/, shown.out);
   assert.match(shown.out, /Starší poslání z aplikace Strom, už zapsaná .*: počet 2,/, shown.out);
@@ -96,8 +100,9 @@ test("strom tidy: what goes is shown, the person's yes takes it; the research, l
   const done = await w.run(["tidy"], { tty: true, answers: ["a"] });
   assert.equal(done.code, 0, done.out + done.err);
   assert.match(done.out, /✓ Uvolněno/, done.out);
-  for (const gone of [["runs", "N0001.log"], ["briefs", "N0001.md"], ["views", "B0001-1-aaaaaaaaaa.jpg"], ["fetch", "demo-1700000000000"], ["converted", "0123456789abcdef"], ["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["runs", "N0002.log"], ["thumbs", `${"a".repeat(64)}-256.jpg`]])
+  for (const gone of [["runs", "N0001.log"], ["runs", "N0001.denied.json"], ["briefs", "N0001.md"], ["views", "B0001-1-aaaaaaaaaa.jpg"], ["fetch", "demo-1700000000000"], ["converted", "0123456789abcdef"], ["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["runs", "N0002.log"], ["thumbs", `${"a".repeat(64)}-256.jpg`]])
     assert.ok(!has(...gone), gone.join("/"));
+  assert.ok(has("runs", "N0002.denied.json"), "kept with its session's log");
   // the log kept smaller, its words kept, its images left out
   const log = (await import("node:zlib")).gunzipSync(fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0002.log.gz"))).toString("utf8");
   assert.match(log, /Hledám křest/);
@@ -141,7 +146,7 @@ test("an old tree is kept in order by itself only after its first strom tidy; on
   const big = zlib.gunzipSync(fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0004.log.gz"))).toString("utf8");
   assert.equal(big, '{"type":"text","text":"Lhoták z Lhoty"}\n{"data":"[image 17578 kB left out]"}\n{"type":"text","text":"konec"}\n');
   // the rest waits for the person
-  for (const kept of [["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["views", "B0001-2-bbbbbbbbbb.jpg"], ["excerpts", "S0001-x.jpg"]])
+  for (const kept of [["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["runs", "N0001.denied.json"], ["views", "B0001-2-bbbbbbbbbb.jpg"], ["excerpts", "S0001-x.jpg"]])
     assert.ok(has(...kept), `waits for the person: ${kept.join("/")}`);
   assert.ok(tidyPlan(tree()).items.some((i) => i.kind === "kept"));
   assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "tidy.log"), "utf8"), /kept in order: \d+ removed, 3 shrunk/);

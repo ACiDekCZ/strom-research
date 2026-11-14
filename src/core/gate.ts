@@ -228,6 +228,17 @@ export function loadGate(shared: string, spec: string): Gate {
   return { name, dir, manifest: m, args };
 }
 
+/** A gate as the user reads it: its title and what it is given ("Claude usage 10"); one that cannot be read, as named. */
+export function gateLabel(shared: string | undefined, spec: string): string {
+  if (!shared) return spec;
+  try {
+    const g = loadGate(shared, spec);
+    return [g.manifest.title ?? g.name, ...g.args].join(" ");
+  } catch {
+    return spec;
+  }
+}
+
 /** Ask the gate once. Never throws: a gate that fails answers "error". */
 export function askGate(gate: Gate, env: Env, facts: GateFacts): GateAnswer {
   const [cmd, ...args] = gate.manifest.command;

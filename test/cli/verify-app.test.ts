@@ -195,11 +195,11 @@ test("the sweep's task the person put first (verify of a fact it holds) is asked
     const marks = verifyMarks(open(w));
     assert.equal(marks.get(f.josefBirth)?.state, "asked");
     assert.equal(marks.get(f.josefDeath)?.state, "asked", "every fact of the task the same");
-    assert.equal(marks.get(f.josefBirth)?.pos, 2, "behind the task asked for before it");
+    assert.equal(marks.get(f.josefBirth)?.pos, 1, "the last asked for first: before the task asked for before it (spec 052 K5.3)");
     assert.equal(marks.get(f.marriage)?.state, "wait", "the sweep's other task waits for its turn");
     await w.ok(["export", "gedcom", "--for", "strom"], { env: BETA_APP });
     const text = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
-    assert.deepEqual(block(text, f.josefBirth).filter((l) => /_STROM_VERIFY|_POS/u.test(l)), ["2 _STROM_VERIFY asked", "3 _POS 2"]);
+    assert.deepEqual(block(text, f.josefBirth).filter((l) => /_STROM_VERIFY|_POS/u.test(l)), ["2 _STROM_VERIFY asked", "3 _POS 1"]);
     const s = (await w.ok(["verify", "status", "--json"])).json;
     assert.equal(s.asked, 3, "Jan's birth and Josef's two facts");
     assert.equal(s.waiting, 4);

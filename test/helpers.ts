@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { main } from "../src/cli/main.ts";
 import type { ChoiceText } from "../src/core/dialog.ts";
-import { bridgesFolder, endBridges, notedBridges, within } from "./bridges.ts";
+import { BRIDGE, bridgesFolder, endOurs, notedBridges, ourNoted, PHONE, within, type Ours } from "./bridges.ts";
 
 /** The answer of a window with choices: the key chosen, none (null: later, Esc, no answer in time) — or one given by what it says. */
 export type Choice = string | null | ((text: ChoiceText) => string | null);
@@ -180,25 +180,28 @@ export class World {
 
   cleanup(): void {
     worlds.delete(this);
-    // every bridge of this world a test left running (one that failed before strom live stop; one that came up after a
-    // live start gave up, named in no live.json) ended — and waited for — before its folder goes: those that noted
-    // themselves (test/bridges.ts), and any a tree's live.json names (one started with an environment of its own)
-    const pids = new Set(notedBridges(this.env.STROM_TEST_BRIDGES).filter((b) => within(b.root, this.dirs())).map((b) => b.pid));
+    // every bridge and phone's server of this world a test left running (one that failed before strom live stop; one that
+    // came up after a live start gave up, named in no live.json) ended — and waited for — before its folder goes: those
+    // that noted themselves (test/bridges.ts), any a tree's live.json names (one started with an environment of its own)
+    // and the phone's server phone-run.json names — each only while it is the one started here (its command, its folder)
+    const dirs = this.dirs();
+    const left = new Map<number, Ours>(notedBridges(this.env.STROM_TEST_BRIDGES).filter((b) => within(b.root, dirs)).map((b) => [b.pid, ourNoted(b)]));
     const trees = path.join(this.env.HOME!, "Documents", "Strom");
     for (const t of fs.existsSync(trees) ? fs.readdirSync(trees) : []) {
       try {
-        pids.add((JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid);
+        const pid = (JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid;
+        if (!left.has(pid)) left.set(pid, { pid, command: BRIDGE, dirs });
       } catch {
         // none running
       }
     }
-    if (pids.size) endBridges([...pids]);
-    // the phone's server a test left running
     try {
-      process.kill((JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid, "SIGTERM");
+      const pid = (JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid;
+      if (!left.has(pid)) left.set(pid, { pid, command: PHONE, dirs });
     } catch {
       // none running
     }
+    if (left.size) endOurs([...left.values()]);
     // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
     fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
@@ -237,6 +240,34 @@ export async function until(what: string, ok: () => boolean | Promise<boolean>, 
     }
   }
   throw new Error(`waited ${ms} ms in vain: ${what}${last}`);
+}
+
+/** The lines a bridge's log (.strom/live.log: "<ISO time> [pid] text") got from `since` (ms) on, their text only. */
+export function bridgeLogSince(root: string, since: number): string[] {
+  const file = path.join(root, ".strom", "live.log");
+  const text = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    const m = /^(\S+) \[\d+\] (.*)$/u.exec(line);
+    // (a log's clock in whole ms: a line of the very moment counts)
+    if (m && Date.parse(m[1]!) >= since - 1) out.push(m[2]!);
+  }
+  return out;
+}
+
+/**
+ * Where a bridge started again came up: at its last port (`was`) — "kept" — or at another one only when another
+ * program held that port at its start: the system refused it the port (its log says so since `since`) and not because a
+ * bridge of this tree still held it. Bridges of tests running in parallel take ports the system picks, so a port a
+ * stopped bridge freed may be another process's by the next start (found under the whole suite); any other move fails.
+ */
+export function keptPortUnlessTaken(root: string, since: number, was: number, port: number): "kept" | "taken" {
+  if (port === was) return "kept";
+  const said = bridgeLogSince(root, since).join("\n");
+  if (!said.includes(`port ${was} is taken: another one`) || /the bridge before \(\d+\) still held port/u.test(said)) {
+    throw new Error(`the bridge moved from port ${was} to ${port} with no other program holding it — its log since:\n${said}`);
+  }
+  return "taken";
 }
 
 export function readJsonFile(file: string): any {

@@ -452,6 +452,8 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
   return update<Task>(tree, id, "task", (t) => {
     if (t.state === "done" && state !== "open") throw new UsageError(`${id} is already done`);
     const next: Task = { ...t, state, ...fields, ...(notes.length ? { notes: [...t.notes, ...notes] } : {}) };
+    // a refusal park of strom run (parkedFor) goes with any change of the state
+    delete next.parkedFor;
     if (state !== "parked") {
       delete next.parkedUntil;
       delete next.parkedReason;
@@ -546,7 +548,7 @@ function impersonal(tree: Tree, flag: string, text: string): string {
   if (word)
     throw new UsageError(
       `${flag} speaks to the user ("${word}"): they read it in strom's menu and the Strom app, where nothing addresses them nor speaks as the agent — say what is needed and from whom, impersonal, in the research language`,
-      { hint: `e.g. --on "reply of the registry office of <place> to the request of <date>", --on "images 40–45 of the baptisms to be saved from <link>"`, code: "task.addresses", params: { flag, word } },
+      { hint: `e.g. --on "reply of the registry office of <place> to the request of <date>", --on "images 40-45 of the baptisms to be saved from <link>"`, code: "task.addresses", params: { flag, word } },
     );
   return text.trim();
 }
@@ -614,7 +616,7 @@ register(
       { name: "anyway", type: "boolean", description: "add it although an open task of the same person and level reads the same (it is really other work)" },
     ],
     examples: [
-      'strom task add "Křest Jana Nováka (~1905)" --level link --where B0001 --why "potvrdí otce Josefa" --done-when "zápis nalezen, nebo ročníky 1903–1907 prohledány celé" --about P0001 --priority 4',
+      'strom task add "Křest Jana Nováka (~1905)" --level link --where B0001 --why "potvrdí otce Josefa" --done-when "zápis nalezen, nebo ročníky 1903-1907 prohledány celé" --about P0001 --priority 4',
     ],
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
@@ -1076,8 +1078,8 @@ register(
     examples: [
       'strom task wait T0002 --on "reply of the archive to the request of 21 Sep"',
       'strom task wait T0002 --on "reply of the registry office of Lhota to the request of 21 Sep" --kind letter --to "the registry office of Lhota" --request notes/request-lhota.md',
-      'strom task wait T0002 --images B0001:40-45 --on "images 40–45 of the baptisms of Týnec 1784–1820 (https://archive.example.org/book/5359)"',
-      'strom task wait T0002 --check https://archive.example.org/book/5359 --on "whether the baptisms of 1784–1820 are there, with their images"',
+      'strom task wait T0002 --images B0001:40-45 --on "images 40-45 of the baptisms of Týnec 1784-1820 (https://archive.example.org/book/5359)"',
+      'strom task wait T0002 --check https://archive.example.org/book/5359 --on "whether the baptisms of 1784-1820 are there, with their images"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
