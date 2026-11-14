@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.33.0
 
-*In Vorbereitung: die Betas bis 1.33.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.33.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Archive, die nur der Browser eines Menschen betreten darf:** Der Agent versucht dort weder den Downloader von strom
   noch die Katalogsuche. Ihre Bilder kommen einzeln über den Browser des Agenten (`strom media save`), sobald der
@@ -24,6 +24,14 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Aus der Strom-App:** Eine Angabe, die in einer anderen Form derselben Art zurückkommt (ein Ereignis vom Typ Census
   für eine Volkszählung), wird als dieselbe Angabe erkannt – keine Änderung, wenn sich nichts geändert hat, eine
   Bearbeitung dieser Angabe, wenn sich ihr Datum geändert hat.
+- **Schwache und erwartete Bilder:** Ein schwacher Scan wird mit `strom media save --again` noch einmal als neue Kopie
+  neben der ersten gespeichert, nichts wird entfernt, und die schärfste Kopie ist das Bild; ein Bild, auf das eine Aufgabe
+  wartet, nennt, wer wartet, und den nächsten Schritt; auf einen Download, der noch geschrieben wird, wird gewartet, und
+  `strom fetch --take` nimmt eine Liste von Bildern auch neben einem Seitenplan.
+- **Indizes:** Ein Index einer anderen Pfarrei wird nie über eine Zuständigkeit angeboten, die nicht sagt, welche
+  Pfarrei; die Jahre einer Zuständigkeit zählen.
+- **Befehle, wie Agenten sie tippen:** Ein anderer Name für eine Option oder einen Befehl wird angenommen oder mit dem
+  richtigen beantwortet; `strom grep --in` mit dem Anfang von Dateinamen liest diese Dateien.
 
 ## 1.32.0
 

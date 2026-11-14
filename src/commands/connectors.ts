@@ -3197,9 +3197,17 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
   const pagePlans = all.filter((p) => p.pages?.length);
   const pagesHere = got.some((g) => g.page) || pagePlans.some((p) => p.pages!.some((pg) => findDownload(dir, pg.file).file));
   const imagesHere = all.some((p) => p.items.some((i) => findDownload(dir, i.file).file));
+  // the script's line names images and no page: it was a script of images — what it saved (or not) is said of them,
+  // never "no page taken over" of a page plan lying there
+  const imagesSaid = got.some((g) => !g.page) && !got.some((g) => g.page);
+  // a page plan whose script is over (it refuses to run past its time) and whose page never came holds nothing back
+  const now = Date.now();
+  const livePages = pagePlans.filter((p) => now <= p.until + PLAN_TTL_MS || p.pages!.some((pg) => findDownload(dir, pg.file).file));
+  const imagePlans = all.some((p) => p.items.length);
+  const toPages = pagePlans.length > 0 && !imagesSaid && (pagesHere || (!imagesHere && (livePages.length > 0 || !imagePlans)));
   // a plan made before (another strom, the terms since known): taken over only as the archive's terms let it now (D12)
-  if (all.length && !tree.dryRun) await gateArchive(ctx, c, { activity: pagePlans.length && (pagesHere || !imagesHere) ? "catalogue" : "images", route: "browser", ask: false });
-  if (pagePlans.length && !tree.dryRun && (pagesHere || !imagesHere)) return takePages(ctx, c, pagePlans, result);
+  if (all.length && !tree.dryRun) await gateArchive(ctx, c, { activity: toPages ? "catalogue" : "images", route: "browser", ask: false });
+  if (toPages && !tree.dryRun) return takePages(ctx, c, pagePlans, result);
   const plans = all.filter((p) => p.items.length);
   if (!plans.length) return { text: `nothing of ${c.name} waits to be taken over — plan it first: strom fetch ${c.name} <book> --images <from-to> --recordset B…`, data: { taken: [] } };
   if (tree.dryRun) {
@@ -3288,7 +3296,7 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
       woken.length ? `  back in the queue (they waited for these images): ${woken.join(" ")}` : undefined,
       ...notes.map((n) => `  ⚠ ${n}`),
       lost.length
-        ? `  images ${nums(lost)}: the browser fetched them but saved nothing here — Chrome lets a site download one file until the user allows automatic downloads for it (at the right end of the address bar), or it asks where to save each file (Settings → Downloads). Then plan them again: strom fetch ${c.name} ${lost[0]!.plan.book} --images ${nums(lost)}${lost[0]!.plan.recordset ? ` --recordset ${lost[0]!.plan.recordset}` : ""}`
+        ? `  images ${nums(lost)}: the browser fetched them but saved nothing here — Chrome lets a site download one file until the user allows automatic downloads for it (at the right end of the address bar), or it asks where to save each file (Settings → Downloads) — in the browser profile your browser tool works in (a permission given in another profile does not count). Tell the user exactly that: it is the person's to allow, never change the browser's settings yourself, and running the take again brings nothing. Then plan them again: strom fetch ${c.name} ${lost[0]!.plan.book} --images ${nums(lost)}${lost[0]!.plan.recordset ? ` --recordset ${lost[0]!.plan.recordset}` : ""}`
         : undefined,
       notYet.length ? `  still waiting for images ${nums(notYet)}${notYet.some((m) => m.unfinished) ? " (a download is still running)" : ""} — run the script of their plan, or they went elsewhere: strom config set browser.downloads <folder>` : undefined,
     ),

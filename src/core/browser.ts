@@ -861,6 +861,11 @@ export interface SaveRecord {
   at: number;
   held?: boolean;
   /**
+   * Saved once more (strom media save --again): its image was registered already, a new copy of it is waited for — the
+   * image counts as missing for its task until the file is taken (`taken`).
+   */
+  again?: boolean;
+  /**
    * When its image was found registered (ms): kept a while after, so a copy the browser saves late (a script run
    * again, "… (1).jpg") is known as strom's own and tidied from the downloads folder (strom media add --inbox --waiting).
    */

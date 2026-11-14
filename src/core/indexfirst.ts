@@ -9,7 +9,7 @@
 // question recommends: browsing pays below ~20–40 scans, an index above (a letter of an index costs 1–4 USD, browsing
 // 0.09–0.18 USD a scan).
 
-import type { Lesson, Media, Person, Place, RecordSet, Search, Task } from "./model.ts";
+import type { Jurisdiction, Lesson, Media, Person, Place, RecordSet, Search, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import type { Settings, UserConfig } from "./config.ts";
 import type { Env } from "./paths.ts";
@@ -18,7 +18,7 @@ import { currentSession } from "./session.ts";
 import { researchKey } from "./viewsizes.ts";
 import { indexFirstThreshold } from "./tuneask.ts";
 import { imagesIndex } from "./mediaindex.ts";
-import { yearsOverlap } from "./years.ts";
+import { parseYears, yearsOverlap, type YearSpan } from "./years.ts";
 import { foldText } from "./text.ts";
 import { sameFamily } from "./surnames.ts";
 import { subjectPeople } from "./records.ts";
@@ -46,33 +46,76 @@ export interface IndexBook {
 
 const isIndex = (b: RecordSet) => b.kinds.some((k) => foldText(k) === "index");
 
-/** A record set's places as names to compare (an L… is its names), with the parishes they belonged to. */
-function placeKeys(tree: Tree, b: RecordSet): Set<string> {
-  const out = new Set<string>();
-  const first = (s: string) => foldText(s.split(",")[0]!.trim());
-  for (const x of b.places) {
-    const pl = /^L\d{4,}$/u.test(x.trim()) ? tree.get<Place>(x.trim()) : undefined;
-    if (pl?.type === "place") for (const n of pl.names) out.add(first(n.name));
-    else if (x.trim()) out.add(first(x));
+/** What a record set covers, folded: its own places (an L… by its names) and the parishes they belonged to in its years. */
+interface Covers {
+  places: Set<string>;
+  parishes: Set<string>;
+}
+
+const firstPart = (s: string) => foldText(s.split(",")[0]!.trim());
+
+/**
+ * The parishes a place belonged to in a span of years, as far as they say which parish: a jurisdiction of kind parish
+ * whose years (from/to) reach into the span — a dated one says it for its years, so undated ones beside it are not
+ * taken; undated ones only when they are one parish (several without years — a parish and a deanery or vicariate
+ * written as a parish — do not say which, and match nothing).
+ */
+function parishesIn(pl: Place, span: YearSpan | undefined): string[] {
+  const inYears = (j: Jurisdiction) => !span || ((j.from ?? -Infinity) <= span.to && (j.to ?? Infinity) >= span.from);
+  const parishes = pl.jurisdictions.filter((j) => j.kind === "parish" && j.name.trim() && inYears(j));
+  const dated = parishes.filter((j) => j.from !== undefined || j.to !== undefined);
+  if (dated.length) return [...new Set(dated.map((j) => firstPart(j.name)))];
+  const undated = new Set(parishes.map((j) => firstPart(j.name)));
+  return undated.size === 1 ? [...undated] : [];
+}
+
+/**
+ * A record set's places as names to compare (an L… is its names) and the parishes of those places in its years: an L…
+ * by its own jurisdictions, a name by those of the one place of the research of that name (several places of one name:
+ * which of them is not known, no parish taken).
+ */
+function covers(tree: Tree, b: RecordSet): Covers {
+  const places = new Set<string>();
+  const parishes = new Set<string>();
+  const span = parseYears(b.years);
+  const all = tree.list<Place>("place").filter((p) => !p.retracted);
+  for (const raw of b.places) {
+    const x = raw.trim();
+    if (!x) continue;
+    const byId = /^L\d{4,}$/u.test(x) ? tree.get<Place>(x) : undefined;
+    let pl: Place | undefined;
+    if (byId?.type === "place" && !byId.retracted) {
+      pl = byId;
+      for (const n of pl.names) places.add(firstPart(n.name));
+    } else {
+      const key = firstPart(x);
+      places.add(key);
+      const named = all.filter((p) => p.names.some((n) => firstPart(n.name) === key));
+      if (named.length === 1) pl = named[0];
+    }
+    if (pl) for (const p of parishesIn(pl, span)) parishes.add(p);
   }
-  for (const pl of tree.list<Place>("place"))
-    if (!pl.retracted && pl.names.some((n) => out.has(first(n.name))))
-      for (const j of pl.jurisdictions) if (j.kind === "parish" && j.name.trim()) out.add(first(j.name));
-  return out;
+  return { places, parishes };
+}
+
+/** Two record sets of one parish: a place they share, the parish of one the place or parish of the other. */
+function sameParish(a: Covers, b: Covers): boolean {
+  const meets = (k: string) => b.places.has(k) || b.parishes.has(k);
+  return [...a.places].some(meets) || [...a.parishes].some(meets);
 }
 
 /** The kinds of record a book holds, its index left out. */
 const recordKinds = (b: RecordSet) => b.kinds.map(foldText).filter((k) => k && k !== "index");
 
 /**
- * The index books of a book's parish: an index (kinds: index) of a place it covers or the parish of one, its years
+ * The index books of a book's parish: an index (kinds: index) of a place it covers or the parish of one in its years, its years
  * reaching into the book's and its kinds of record the book's (an index naming no kind, or a book naming none: any).
  * None for a book that is an index or holds one itself.
  */
 export function indexBooksOf(tree: Tree, book: RecordSet): IndexBook[] {
   if (book.retracted || isIndex(book)) return [];
-  const places = placeKeys(tree, book);
-  if (!places.size) return [];
+  const own = covers(tree, book);
+  if (!own.places.size && !own.parishes.size) return [];
   const kinds = recordKinds(book);
   const out: IndexBook[] = [];
   const sets = imagesIndex(tree).sets;
@@ -81,7 +124,7 @@ export function indexBooksOf(tree: Tree, book: RecordSet): IndexBook[] {
     const its = recordKinds(b);
     if (kinds.length && its.length && !its.some((k) => kinds.includes(k))) continue;
     if (!yearsOverlap(b.years, book.years)) continue;
-    if (![...placeKeys(tree, b)].some((p) => places.has(p))) continue;
+    if (!sameParish(own, covers(tree, b))) continue;
     out.push(describe(tree, b, sets.get(b.id)?.images ?? []));
   }
   return out;

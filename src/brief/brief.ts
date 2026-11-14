@@ -745,7 +745,7 @@ function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefine
 }
 
 /** How many images of a record set are registered, how to look at them, and how the others come. */
-function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false, waiting?: string, handOnly = false): string[] {
+function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false, waiting?: string, handOnly = false, saveAgain?: string): string[] {
   // each image once: its parts and other copies are the same image
   const nums = imagesIndex(tree).sets.get(b.id)?.images ?? [];
   const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
@@ -777,7 +777,14 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   return [
     `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]…`,
     weak
-      ? `    weak scans (long side ${weak} px): a negative on them is weak — ${route?.part && !noSharper ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h` : SHARPER_SCAN}`
+      ? `    weak scans (long side ${weak} px): a negative on them is weak — ${
+          route?.part && !noSharper
+            ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h`
+            : // an archive your own browser saves images of: the image once more, sharper — never a wait for the person
+              saveAgain
+              ? `a sharper scan through your browser: ${saveAgain} (the viewer zoomed in on the entry, or its full resolution; a new copy beside it, nothing removed — the sharpest is the image)`
+              : SHARPER_SCAN
+        }`
       : "",
     // the others: through the connector, else as the archive allows (the person's decision waiting: not fetched)
     (waiting ? `    more: ${waiting}` : undefined) ??
@@ -1435,6 +1442,8 @@ export function buildBrief(
     return a?.permitted && browserState(tree.env, tuneAgent, tree.root).state === "ready" ? `strom media save ${task?.id ?? "T…"} --image <n> --at <the archive's page of that image>` : undefined;
   };
   const finders = new Map(sets.map((b) => [b.id, routes.get(b.id) ? undefined : bookFinder(tree, b, installed, opts.shared, saveFor(b))]));
+  // a weak scan of such an archive: the image saved once more through that browser (strom media save --again)
+  const saveAgainFor = (b: RecordSet) => (saveFor(b) ? `strom media save ${task?.id ?? "T…"} --image <n> --recordset ${b.id} --at <the archive's page of that image> --again` : undefined);
   const shapeFor = sets.find((b) => routes.get(b.id))?.id;
   if (sets.length)
     sections.push({
@@ -1459,7 +1468,7 @@ export function buildBrief(
             browserLine(tree, b, repo, opts.shared, tuneAgent, task?.id),
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
-            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b), hand),
+            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b), hand, saveAgainFor(b)),
             ...tunedBookLines(tuning, b, routes.get(b.id), opts.shared),
           ].filter(Boolean).join("\n");
         }),

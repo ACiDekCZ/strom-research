@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.33.0
 
-*W przygotowaniu: bety do 1.33.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.33.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Archiwa, do których wolno wejść tylko przeglądarką człowieka:** agent nie próbuje już tam pobierania przez strom ani
   wyszukiwania w katalogu. Ich skany idą pojedynczo przez przeglądarkę agenta (`strom media save`), gdy człowiek zezwoli
@@ -23,6 +23,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `strom history list --event <id>`.
 - **Z aplikacji Strom:** fakt odesłany w innej postaci tego samego rodzaju (zdarzenie typu Census zamiast spisu) jest
   rozpoznawany jako ten sam fakt – bez zmiany, gdy nic się nie zmieniło, jako edycja tego faktu, gdy zmieniła się data.
+- **Słabe i oczekiwane skany:** słaby skan zapisuje się jeszcze raz przez `strom media save --again` jako nową kopię obok
+  pierwszej, nic nie jest usuwane, a skanem jest najostrzejsza kopia; skan, na który czeka zadanie, podaje, kto czeka,
+  i następny krok; na pobieranie, które jeszcze się zapisuje, strom czeka, a `strom fetch --take` bierze listę skanów
+  także obok planu stron.
+- **Indeksy:** indeks innej parafii nigdy nie jest proponowany przez przynależność, która nie mówi, o którą parafię
+  chodzi; liczą się lata przynależności.
+- **Polecenia tak, jak wpisują je agenci:** inna nazwa opcji lub polecenia zostaje przyjęta albo strom odpowiada właściwą;
+  `strom grep --in` z początkiem nazw plików czyta te pliki.
 
 ## 1.32.0
 

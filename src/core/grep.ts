@@ -55,9 +55,10 @@ const rel = (root: string, file: string) => path.relative(root, file).split(path
  * inside one of them (tree-relative). Anything else — outside the tree, data/, .git, .strom, through a symbolic link —
  * is refused with the reason.
  */
-export function grepTargets(root: string, wanted: readonly string[]): { targets: string[]; error?: string; code?: string; params?: Record<string, string> } {
+export function grepTargets(root: string, wanted: readonly string[]): { targets: string[]; error?: string; code?: string; params?: Record<string, string>; prefixed?: { where: string; names: string[] }[] } {
   const out: string[] = [];
-  for (const w of wanted.length ? wanted : GREP_DEFAULT) {
+  const prefixed: { where: string; names: string[] }[] = [];
+  next: for (const w of wanted.length ? wanted : GREP_DEFAULT) {
     const v = w.trim().replace(/\\/g, "/").replace(/\/+$/u, "");
     if (v === "all") {
       out.push(...GREP_FOLDERS.map((f) => path.join(root, f)));
@@ -70,7 +71,7 @@ export function grepTargets(root: string, wanted: readonly string[]): { targets:
       return { targets: [], error: `--in ${w}: only ${GREP_FOLDERS.map((f) => `${f}/`).join(", ")} are searched (data/ through strom find, the records' commands)`, code: "grep.in.only", params: { where: w, folders: GREP_FOLDERS.map((f) => `${f}/`).join(", ") } };
     // never through a symbolic link: each step from the tree's folder down is what it says it is
     let at = root;
-    for (const p of parts) {
+    for (const [i, p] of parts.entries()) {
       at = path.join(at, p);
       let st: fs.Stats;
       try {
@@ -78,13 +79,43 @@ export function grepTargets(root: string, wanted: readonly string[]): { targets:
       } catch {
         // a folder of the research it does not have (yet): nothing in it
         if (parts.length === 1) break;
+        // the start of names in its folder (notes/readings/B0001-12 for B0001-12-1.md, B0001-12-2.md): those files
+        const names = i === parts.length - 1 ? namesBeginning(path.dirname(at), p) : [];
+        if (names.length) {
+          out.push(...names.map((n) => path.join(path.dirname(at), n)));
+          prefixed.push({ where: w, names });
+          continue next;
+        }
         return { targets: [], error: `--in ${w}: no such file or folder in the research`, code: "grep.in.missing", params: { where: w } };
       }
       if (st.isSymbolicLink()) return { targets: [], error: `--in ${w}: a symbolic link — not followed`, code: "grep.in.link", params: { where: w } };
     }
     out.push(at);
   }
-  return { targets: [...new Set(out)] };
+  return { targets: [...new Set(out)], ...(prefixed.length ? { prefixed } : {}) };
+}
+
+/**
+ * The names in a folder that begin with a start given, the start a whole part of them (what follows it is no letter or
+ * digit: B0001-12 is the start of B0001-12-1.md, never of B0001-125.md) — no dotfiles, no symbolic links; compared in
+ * one Unicode form (a name written decomposed too), the names as they are.
+ */
+function namesBeginning(dir: string, start: string): string[] {
+  const s = start.normalize("NFC");
+  if (!s) return [];
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => {
+        if (e.name.startsWith(".") || e.isSymbolicLink()) return false;
+        const n = e.name.normalize("NFC");
+        return n.startsWith(s) && n.length > s.length && !/^[\p{L}\p{M}\p{N}]/u.test(n.slice(s.length));
+      })
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
 }
 
 /** The text files under the targets, in order: no dotfiles, no symbolic links, nothing binary. */

@@ -133,9 +133,11 @@ test("one image through the agent's browser: the script for the one page, the do
     settled(path.join(downloads, `${named(w, "T0002", 9)}.jpg`));
     settled(path.join(downloads, "Snímek obrazovky.png".normalize("NFD")), "png-bw.png");
     fs.writeFileSync(path.join(downloads, `${named(w, "T0001", 9)}.jpg.crdownload`), "…");
-    // the file the script saved just now: still settling — the next look takes it
-    const first = await w.ok(["media", "add", "--inbox", "--waiting"]);
+    // the file the script saved just now: still settling — said so when it does not settle within the wait (none
+    // here), the next look takes it
+    const first = await w.ok(["media", "add", "--inbox", "--waiting"], { env: { STROM_DOWNLOAD_WAIT_MS: "0" } });
     assert.match(first.out, /images 10 of B0001 registered — T0001 still waits for images 9/);
+    assert.match(first.out, /^image 9 \(T0001\): its download is still being written in the downloads folder \(strom-[0-9a-f]{8}-T0001-0009\.jpg(\.crdownload)?\) — this command again in a few seconds takes it$/m);
     const dir = path.join(shared, "inbox", inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" }));
     assert.deepEqual(fs.readdirSync(dir), [], "taken into the store");
     const past = new Date(Date.now() - 2 * SETTLE_MS);

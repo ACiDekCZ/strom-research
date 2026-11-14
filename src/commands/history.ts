@@ -5,7 +5,7 @@
 
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { lines, shellArg, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { listOpt, normId } from "../core/records.ts";
@@ -341,7 +341,11 @@ register(
         return { text: lines(...tree.written.map((o) => o.summary)), data: { place: key, map: m } };
       }
       const links = listOpt(opts.region).map(regionLink);
-      if (!links.length) throw new UsageError("--region <id>[:<from>-<to>] (or --unlocated)", { code: "history.map" });
+      if (!links.length)
+        throw new UsageError("--region <id>[:<from>-<to>] (or --unlocated)", {
+          code: "history.map",
+          hint: `strom history map ${shellArg(args[0]!)} --region <id>[:<from>-<to>] (once for each region it belonged to; the regions: strom history status) — or --unlocated --why "…"`,
+        });
       const sh = shared(ctx);
       const missing = [...new Set(links.map((l) => l.id))].filter((id) => !readCatalog(sh, id));
       const name = texts(opts, "name");

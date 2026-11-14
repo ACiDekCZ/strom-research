@@ -656,7 +656,7 @@ register(
       { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
       { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
       { name: "years", type: "string", value: "<from-to>", description: "only the books whose years reach into these" },
-      { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive" },
+      { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive", aliases: ["repo-of"] },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
     run(ctx, { args, opts }) {

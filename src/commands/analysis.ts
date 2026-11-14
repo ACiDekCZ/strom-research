@@ -329,14 +329,14 @@ register(
     options: [
       { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable)", aliases: ["where"] },
       { name: "years", type: "string", value: "<from-to>", description: "years covered" },
-      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable)", aliases: ["surnames"] },
+      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable)", aliases: ["surnames"], mistaken: ["about"] },
       { name: "place", type: "string", multiple: true, value: "<name>", description: "places covered (repeatable)" },
       { name: "pages", type: "string", value: "<range>", description: "images/pages covered, e.g. 95-100" },
       { name: "method", type: "string", value: "<m>", description: SEARCH_METHODS.join(", ") },
       { name: "result", type: "string", value: "<r>", description: SEARCH_RESULTS.join(", ") },
       { name: "found", type: "string", multiple: true, value: "<S…>", description: "sources found (repeatable; required with --result found)" },
-      { name: "task", type: "string", value: "<T…>", description: "task this search served (default: the task of the open session)" },
-      { name: "by", type: "string", value: "<who>", description: "main (default), reader, user" },
+      { name: "task", type: "string", value: "<T…>", description: "task this search served (default: the task of the open session) — the people it is about are the task's", mistaken: ["about"] },
+      { name: "by", type: "string", value: "<who>", description: "main (default; agent is the same), reader, user" },
       { name: "note", type: "string", value: "<text>", description: "what was illegible, what is left" },
     ],
     examples: [
@@ -373,7 +373,8 @@ register(
           result,
           findings,
           task,
-          by: opts.by === undefined ? "main" : oneOf(opts.by, ["main", "reader", "user"] as const, "by"),
+          // "agent": the agent of the session, the main one (what agents type for it)
+          by: opts.by === undefined || (typeof opts.by === "string" && foldText(opts.by) === "agent") ? "main" : oneOf(opts.by, ["main", "reader", "user"] as const, "by"),
           note: opts.note as string | undefined,
         },
         (id) => `+${id} search [${result}] "${truncate(args[0]!, 50)}"`,

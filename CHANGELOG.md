@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.33.0
 
-*In preparation: the betas up to 1.33.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.33.0-beta.2. The section is complete with the release.*
 
 - **Archives only a person's browser may enter:** the agent no longer tries strom's downloader or catalogue search
   there. Their images go one at a time through the agent's browser (`strom media save`) once the person allows "through
@@ -21,6 +21,13 @@ The changes of each version in short. The full notes and the install lines are o
   `strom history list --event <id>`.
 - **From the Strom app:** a fact sent back in another shape of the same kind (an event of type Census for a census) is
   recognized as that fact — no change when nothing changed, an edit of that fact when its date did.
+- **Weak and awaited images:** a weak scan is saved once more with `strom media save --again` as a new copy beside the
+  first, nothing removed, and the sharpest copy is the image; an image a task waits for says who waits and the next step;
+  a download still being written is waited for, and `strom fetch --take` takes a list of images even beside a page plan.
+- **Indexes:** an index of another parish is never offered through a jurisdiction that does not say which parish; the
+  years of a jurisdiction count.
+- **Commands as agents type them:** another name for an option or a command is taken, or answered with the right one;
+  `strom grep --in` with the start of file names reads those files.
 
 ## 1.32.0
 

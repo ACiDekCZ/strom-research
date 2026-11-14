@@ -866,6 +866,20 @@ export function widgetMaker(root: string, env: Env, said: (text: string) => void
     });
 }
 
+/**
+ * What a strom of the bridge's said of its error: --json gives it on stdout ({"status":"error","message"}), else the
+ * "error:" line of stderr. None: undefined.
+ */
+export function takeError(stdout: string, stderr: string): string | undefined {
+  try {
+    const j = JSON.parse(stdout) as { status?: string; message?: unknown };
+    if (j && j.status === "error" && typeof j.message === "string" && j.message.trim()) return j.message.trim().slice(0, 300);
+  } catch {
+    // not its JSON: stderr says it
+  }
+  return stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() || undefined;
+}
+
 /** One line (or an error with its stack) into the bridge's log; never fails, never grows past its size. */
 export function noteLive(root: string, text: string): void {
   try {
@@ -6820,7 +6834,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
               return done(false);
             }
             if (code !== 0) {
-              noteLive(root, `images saved for waiting tasks not taken now: ${err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`}`);
+              // the research busy with another writer the whole wait (the agent's own take among them): nothing wrong —
+              // the next look takes what is still there, quietly
+              if (code === EXIT.locked) return done(false);
+              // a real error: said with its words (--json gives them on stdout), never a bare exit code
+              noteLive(root, `images saved for waiting tasks not taken now: ${takeError(out, err) ?? `exit ${code}`}`);
               return done(false);
             }
             try {

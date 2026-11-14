@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.33.0
 
-*Připravuje se: bety do 1.33.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.33.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Archivy, kam smí jen prohlížeč člověka:** agent tam už nezkouší stahovač stromu ani hledání v katalogu. Jejich
   snímky jdou po jednom přes prohlížeč agenta (`strom media save`), jakmile to člověk povolí „přes prohlížeč“, jinak je
@@ -21,6 +21,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   přes `strom history list --event <id>`.
 - **Z aplikace Strom:** údaj poslaný zpět v jiném tvaru téhož druhu (událost typu Census místo sčítání) se pozná jako
   tentýž údaj – beze změny, když se nic nezměnilo, úprava toho údaje, když se změnilo datum.
+- **Slabé a očekávané snímky:** slabý snímek se uloží ještě jednou přes `strom media save --again` jako nová kopie vedle
+  první, nic se neodebere a snímkem je ta nejostřejší; snímek, na který čeká úkol, řekne, kdo na něj čeká a další krok;
+  stahování, které se ještě zapisuje, se počká, a `strom fetch --take` vezme seznam snímků i vedle plánu stránek.
+- **Indexy:** index jiné farnosti se nikdy nenabídne přes příslušnost, která neříká kterou farnost; počítají se roky
+  příslušnosti.
+- **Příkazy, jak je agenti píší:** jiný název volby nebo příkazu se přijme, nebo se odpoví tím správným;
+  `strom grep --in` se začátkem názvů souborů čte tyto soubory.
 
 ## 1.32.0
 

@@ -130,6 +130,32 @@ test("strom grep refuses what is not the research's text: data/, .strom, .git, o
   w.cleanup();
 });
 
+test("strom grep --in the start of names in a folder (a reading's parts): those files, said; never a longer number, a word's start or a link", opts, async () => {
+  const w = await tree();
+  const readings = path.join(w.cwd, "notes", "readings");
+  fs.writeFileSync(path.join(readings, "Lhota-B0002-59-74-1.md"), "image 74: Jan Lhoták, křest\n");
+  fs.writeFileSync(path.join(readings, "Lhota-B0002-59-74-2.md"), "image 74: Anna Lhotáková\n");
+  fs.writeFileSync(path.join(readings, "Lhota-B0002-59-745.md"), "image 745: Lhoták elsewhere\n");
+  // a name of another script, written decomposed
+  fs.writeFileSync(path.join(readings, "Луга-Й-1.md".normalize("NFD")), "Лhoták Й\n");
+  const r = await w.ok(["grep", "lhotak", "--in", "notes/readings/Lhota-B0002-59-74"]);
+  assert.match(r.out, /^--in notes\/readings\/Lhota-B0002-59-74: no such file — the files beginning so: Lhota-B0002-59-74-1\.md, Lhota-B0002-59-74-2\.md$/m);
+  assert.match(r.out, /Lhota-B0002-59-74-1\.md:1: image 74: Jan Lhoták/u);
+  assert.match(r.out, /Lhota-B0002-59-74-2\.md:1: image 74: Anna Lhotáková/u);
+  assert.doesNotMatch(r.out, /745/);
+  assert.equal((await w.ok(["grep", "lhotak", "--in", "notes/readings/Lhota-B0002-59-74", "--json"])).json.total, 2);
+  // the start of a name in its other form (NFC given, NFD on the disk)
+  assert.match((await w.ok(["grep", "Й", "--in", "notes/readings/Луга-Й"])).out, /1 line in 1 of 1 text file/u);
+  // no part of a name, no file: not there, as before
+  for (const where of ["notes/readings/Lhota-B0002-59-7", "notes/read", "notes/readings/nic"]) {
+    const no = await w.run(["grep", "lhotak", "--in", where, "--json"]);
+    assert.equal(no.code, 2, where);
+    assert.equal(JSON.parse(no.out).code, "grep.in.missing", where);
+  }
+  if (fs.existsSync(path.join(w.cwd, "notes", "away"))) assert.equal((await w.run(["grep", "mlynar", "--in", "notes/aw"])).code, 2);
+  w.cleanup();
+});
+
 test("strom grep pages its lines and cuts a long line round its find", opts, async () => {
   const w = await tree();
   const r = await w.ok(["grep", "nic", "--in", "inputs/protokol.md", "--limit", "5"]);

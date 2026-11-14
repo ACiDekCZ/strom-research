@@ -198,9 +198,9 @@ export function match(words: string[]): { def: CommandDef; used: number } | unde
   return best;
 }
 
-/** Command groups ("person") that have subcommands but no command of their own. */
-export function subcommandsOf(prefix: string[]): CommandDef[] {
-  return registry.filter((c) => !c.hidden && c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
+/** Command groups ("person") that have subcommands but no command of their own; `hidden`: those behind a gate too. */
+export function subcommandsOf(prefix: string[], hidden = false): CommandDef[] {
+  return registry.filter((c) => (hidden || !c.hidden) && c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
 }
 
 /** An alias's words that begin with these (a group of aliases only: "lesson" has "lesson show" among them). */
