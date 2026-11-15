@@ -24,7 +24,7 @@ linii, a agent pracuje nad zadaniami linii.
 - **Jedno pytanie** (zmyślony przykład: „Kto był ojcem Marie Vlkovej?”).
 - **Przegląd osoby** powstaje z przeglądu osoby, nie z oferty nowej linii.
 - **Obsługa:** terminal: `strom research new --direction ancestors|descendants --generations <n> --before <rok>
-  --question "<otázka>"`. Aplikacja: **+ Nowa linia**, z ograniczeniami **Najwyżej pokoleń** i **Tylko przed rokiem**
+  --question "<pytanie>"`. Aplikacja: **+ Nowa linia**, z ograniczeniami **Najwyżej pokoleń** i **Tylko przed rokiem**
   (aplikacja 3.22.0 z badaniem 1.26.0).
 - **Obowiązuje od:** badanie 1.0.0
 

@@ -147,8 +147,9 @@ test("the app's shared census of three people and a godparent's own events: read
     assert.equal(fact(prokop, "RESI").date, "1925");
     const family = tree.list<Family>("family").find((f) => f.partners.includes(prokop.id))!;
     assert.deepEqual(fact(jakub, "EVEN", "Kmotrovství").roleAt, { role: "godparent", at: vaclav.id, kind: "BAPM" });
-    // a family's event: whose once the families are made
-    assert.deepEqual(fact(jakub, "EVEN", "Svědectví").roleAt, { role: "witness", at: family.id, kind: "MARR" });
+    // a family's event: whose once the families are made; a witness's at a marriage named as the app reads it
+    // (weddingWitness, in the research's language), whatever its TYPE
+    assert.deepEqual(fact(jakub, "EVEN", "Svědek při sňatku").roleAt, { role: "witness", at: family.id, kind: "MARR" });
     // a role not one of ours: other; a person not of the file: the role alone
     assert.deepEqual(fact(jakub, "EVEN", "Pomoc").roleAt, { role: "other", kind: "CHR" });
     // a family: its own role at another's event, never a share (a couple's event is the couple's)

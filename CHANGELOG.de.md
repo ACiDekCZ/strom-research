@@ -5,6 +5,41 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.34.0
+
+*15.11.2026 · gehört zur Strom-App 3.29.0.*
+
+- **Das Hauptzitat und eine Reihenfolge der Zitate:** Die Zitate jeder Angabe stehen in jeder Datei in einer
+  Reihenfolge – zuerst das Hauptzitat, dann der Eintrag des Ereignisses selbst, die weiteren Originale und der Rest
+  danach, wie sicher sie sind. Das Hauptzitat wählt nur der Mensch, in der Strom-App oder im Terminal mit
+  `strom event main`; ein Agent ändert es nie. `strom person|family|event show` zeigen die Reihenfolge und welches das
+  Hauptzitat ist.
+- **In der Strom-App entfernte Zitate:** Ein Zitat, das der Benutzer in der App entfernt, bleibt entfernt, auch nachdem
+  die Version der Forschung neu geladen wurde, und die Forschung zitiert es nicht wieder; das Rücknehmen dieser Sendung
+  bringt es zurück. Eine Änderung in der App an einer Angabe, die die Forschung inzwischen zurückgenommen hat, wird nie
+  stillschweigend geschrieben: Die App erfährt, warum.
+- **Selbstständige Arbeit mit Bedingung:** Unterbricht das Limit des Agenten-Plans eine Sitzung, wartet die Arbeit bis
+  zur Erneuerung des Limits (im Terminal und in der Strom-App als Pause), fragt dann die Bedingung erneut und geht
+  weiter; die unterbrochene Aufgabe kommt zurück in die Warteschlange. Die Meldung eines Agenten, dass sein Limit erreicht
+  ist, gilt als Limit des Plans samt seiner Zeit.
+- **Notizen aus der Strom-App:** Die Änderungen des Benutzers an der Notiz einer Angabe kommen in die Forschung
+  zurück, jede zu ihrer eigenen Angabe, der frühere Text bleibt in der Geschichte der Notiz; eine entfernte Notiz
+  entfernt nichts. Das eigene Ereignis eines Paten oder Zeugen im GEDCOM der App wird in der Sprache der Forschung
+  benannt. Die eigene zweite Geburt oder der zweite Tod der App und ihr Eintrag einer Geburt oder eines Todes werden
+  auch auf Polnisch erkannt und nie als nicht übernommen gemeldet.
+- **Ein Zuhause, in dem schon eine Forschung liegt:** `strom setup --home <Ordner> --use-existing` (und die Einrichtung
+  nach einem Ja) nimmt diesen Ordner so, wie er ist, als Zuhause – nichts wird verschoben, der alte Ordner bleibt, wie
+  er war.
+- **Abgelehnte Befehle:** Ein Befehl, den die Berechtigungen des Agenten abgelehnt haben, wird ganz behalten, auch
+  einer aus mehreren Zeilen, sodass `strom error` ihn ganz sieht; gekürzt wird er erst in seinem Bericht.
+- **Ein anderer Stammbaum unter dem Namen der Forschung:** Eine Sendung aus der Strom-App, die kaum Personen der
+  Forschung trägt, nur andere (etwa den Beispielstammbaum der App), wird abgelehnt und nichts wird geschrieben; ist es so
+  gemeint, nimmt sie `strom sync <Datei> --force`.
+- **Der Agent im Terminal nicht angemeldet:** die Leser von `strom read` und das selbstständige Arbeiten starten das
+  Programm des Agenten im Terminal, das eine eigene Anmeldung hat, nicht die der Desktop-App. Sagt es, dass es nicht
+  angemeldet ist, wird nichts gestartet und die Meldung sagt, wie man sich anmeldet; ein Leser, der so endet, wird
+  ebenso gemeldet, nie nur „auth“. `strom doctor` sagt in einer eigenen Zeile, ob der Agent im Terminal angemeldet ist.
+
 ## 1.33.0
 
 *15.11.2026 · gehört zur Strom-App 3.28.0.*

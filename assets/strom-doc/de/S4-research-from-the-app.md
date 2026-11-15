@@ -455,6 +455,10 @@ Aus der App lässt sich um selbstständige Arbeit des Agenten an der Warteschlan
   nur dort, wo die App Links der Forschung öffnet ([S4.5](#S4.5)); nicht auf dem Telefon. Arbeitet der Agent oder
   läuft ein Lauf, gibt es die Aktion nicht; im Kopf der **Warteschlange** steht stattdessen **● In Arbeit ›**, das
   **Jetzt** aufklappt und zu **Abschließen und beenden** springt.
+- **Im Bereich Jetzt:** wenn der Agent nicht arbeitet und kein Lauf läuft, bietet auch der Bereich **Jetzt** der
+  **Forschungsübersicht**, auch in ihrem eigenen Fenster, **An der Warteschlange arbeiten…** mit derselben Marke,
+  demselben Dialog und denselben Bedingungen an. Arbeitet der Agent, bleibt in **Jetzt** nur **Abschließen und
+  beenden**. Das Schließen des Dialogs setzt den Fokus zurück auf die Schaltfläche in **Jetzt**.
 - **Dialog An der Warteschlange arbeiten:**
   - **Automatisch** (Standard): „Der Agent nimmt eine Aufgabe nach der anderen, solange das Abo-Limit es erlaubt.“
     Meldet die Forschung, dass die Abo-Schranke (Bedingung, [R7.4](R7-when-the-agent-works.md#R7.4)) nicht
@@ -465,6 +469,15 @@ Aus der App lässt sich um selbstständige Arbeit des Agenten an der Warteschlan
     gibt es nur **Automatisch**;
   - **Als Erstes kommt**: die als nächste markierte Aufgabe ([S4.2.2](#S4.2.2)), sonst die erste Aufgabe der
     Warteschlange;
+  - **Weitere (n)** unter der Aufgabe von **Als Erstes kommt** klappt die nächsten Aufgaben der Warteschlange in der
+    Reihenfolge der Forschung auf: zuerst eine als nächste markierte Aufgabe, dann nach dem Platz in der
+    Warteschlange; zurückgestellte Aufgaben und Aufgaben außerhalb der Linien, die nicht übernommen werden, fehlen.
+    Darüber stehen **In der Reihenfolge der Warteschlange** und „Der Agent nimmt sie nicht unbedingt in dieser
+    Reihenfolge.“ Eine Zeile ist Nummer und Text der Aufgabe mit ihrer Marke **als Nächstes** und ihrer Art; mit
+    Plätzen in der Warteschlange sind die Zeilen „2.“, „3.“ nummeriert. Darunter „und N weitere Aufgaben in der
+    Warteschlange“ mit **Forschungsübersicht ›** (klappt die **Warteschlange** auf) oder „Die Warteschlange kann
+    weitere Aufgaben haben.“ **Weitere ausblenden** klappt die Liste zu. Die Zahl bei **Nur 5 Aufgaben** ändert die
+    Liste nicht; jedes Öffnen des Dialogs beginnt zugeklappt, und ohne weitere Aufgaben gibt es keine Schaltfläche;
   - wenn die Forschung es meldet, die Länge der Sitzung und die Schranke („Sitzung höchstens 3 Std. · Abo-Schranke:
     …“);
   - **Abbrechen** und **Terminal öffnen** (Marke KI und Terminal) mit dem Satz **Den Start bestätigt das
@@ -472,9 +485,9 @@ Aus der App lässt sich um selbstständige Arbeit des Agenten an der Warteschlan
 - **Bedienung:** App: **An der Warteschlange arbeiten…** rechts im Kopf der aufgeklappten **Warteschlange** in der
   **Forschungsübersicht**; Menü **Forschung → An der Warteschlange arbeiten…** ([S4.5.2](#S4.5.2)). Terminal:
   `strom run --tasks N`, `strom run --loop` ([R7.1](R7-when-the-agent-works.md#R7.1)).
-- **Gilt seit:** App 3.28.0 (Forschung 1.32.0)
+- **Gilt seit:** App 3.28.0 (Forschung 1.32.0); im Bereich **Jetzt** und **Weitere (n)** seit App 3.29.0
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
 
 <a id="S4.3"></a>
 ## S4.3 Linien in der App
@@ -569,11 +582,17 @@ einstellen.
     Reihenfolge. Ab App 3.27.0 sagt die Einleitung der Gruppe, was einer Richtung hilft und immer mit ihr geht: „eine
     Frage der Richtung, Personen an jemanden in ihr oder an dessen Partner anbinden, ein vom Agenten genannter
     Grund“ ([R2.3](R2-lines-and-queue.md#R2.3)).
+  - Die Wahl der Forschung neben der Überschrift **Außerhalb der Richtungen** (z. B. „am Ende“) öffnet **Forschung
+    für diesen Stammbaum…** bei der Gruppe **Arbeit außerhalb der Richtungen** mit der gewählten Karte, auch ohne
+    Verfolgen und aus dem eigenen Fenster der Übersicht (der Dialog öffnet sich im Hauptfenster). Beim Strom-Archiv
+    und bei einer Forschung, die auf ihren Agenten wartet, gibt es diese Gruppe nicht, und die Wahl ist nur Text. Die
+    Marke eines Zweigs ist kein Link: Sie klappt den Zweig auf wie sein ganzer Kopf.
 - **Bedienung:** App: **Forschungsübersicht**, Abschnitt der Arbeit außerhalb der Linien, beim Zweig **⋯** (**Optionen
   des Zweigs**); **Forschung für diesen Stammbaum…**.
-- **Gilt seit:** App 3.22.0 (Forschung 1.26.0)
+- **Gilt seit:** App 3.22.0 (Forschung 1.26.0); die Wahl neben **Außerhalb der Richtungen** ohne Verfolgen und aus
+  dem Fenster der Übersicht seit App 3.29.0
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
 
 <a id="S4.4"></a>
 ## S4.4 Wartet auf Bearbeitung in der App

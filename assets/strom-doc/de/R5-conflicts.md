@@ -19,7 +19,7 @@ Widerspruch bleibt offen, bis ihn jemand mit Begründung entscheidet ([R5.3](#R5
     [R3](R3-verification-and-citation.md));
   - was den Widerspruch entscheiden würde, wird als Aufgabe zum Widerspruch erfasst;
   - einen offenen Widerspruch bei einer Person mit belegten Angaben meldet die Prüfung des Stammbaums als Warnung.
-- **Bedienung:** Terminal: `strom conflict add "<otázka>" --about P… --fact BIRT --claim "S…: …" --claim "S…: …"`,
+- **Bedienung:** Terminal: `strom conflict add "<Frage>" --about P… --fact BIRT --claim "S…: …" --claim "S…: …"`,
   `strom conflict list [--about P…] [--all]`, `strom conflict show X…`, Aufgabe zum Widerspruch `strom task add … --about X…`,
   Prüfung `strom check`.
 - **Gilt seit:** Forschung 1.0.0

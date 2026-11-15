@@ -407,3 +407,34 @@ export function backupOnce(opts: { home: string; env: Env; trees: () => string[]
     release();
   }
 }
+
+/** Whether a backup holds the research of this ID (its strom.json under trees/, whatever its folder's name there). */
+function holdsTree(b: BackupRecord, id: string): boolean {
+  const trees = path.join(b.path, "trees");
+  try {
+    return fs.readdirSync(trees).some((name) => readJsonIfExists<{ id?: string }>(path.join(trees, name, "strom.json"))?.id === id);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The backup of one research before this strom writes on it by itself what a version before wrote wrong (core/notefix.ts:
+ * a fix, once) — the same backup a change of channel makes, of this research and the settings alone: under the lock of
+ * the settings, none made when a backup of the last day for this version holds the research already (the change of
+ * channel's, made a moment ago, or this fix's at a start before). Returns the one made now, else undefined; throws
+ * BackupFailed when it cannot (nothing to be written then).
+ */
+export function backupTreeOnce(opts: { home: string; env: Env; root: string; id: string; transition: Transition; readme: string; /** As makeBackup's: never copied as part of the settings. */ research?: string[]; record: (b: BackupRecord, before: BackupRecord[]) => void; now?: number }): BackupRecord | undefined {
+  const release = acquireLock(path.join(configDir(opts.env), "backup.lock"), { owner: "strom backup", waitMs: 30 * 60_000, staleMs: 6 * 3600_000 });
+  try {
+    const before = backupsMade(opts.env);
+    const now = opts.now ?? Date.now();
+    if (before.some((b) => b.to === opts.transition.to && now - Date.parse(b.at) <= SAME_TRIP_MS && holdsTree(b, opts.id))) return undefined;
+    const made = makeBackup({ home: opts.home, env: opts.env, trees: [opts.root], transition: opts.transition, readme: opts.readme, research: [path.dirname(opts.root), ...(opts.research ?? [])] });
+    opts.record(made, before.slice(-(KEPT - 1)));
+    return made;
+  } finally {
+    release();
+  }
+}

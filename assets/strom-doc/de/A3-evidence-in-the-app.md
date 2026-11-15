@@ -120,6 +120,89 @@ berechnet die App die Belegstufe der Person ([R3.8.1](R3-verification-and-citati
 
 <!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
+<a id="A3.2.2"></a>
+### A3.2.2 Reihenfolge der Zitate und Hauptzitat
+
+Eine Angabe mit mehreren Zitationen hat sie überall in derselben Reihenfolge: die Etiketten beim Bearbeiten einer
+Person und bei der Heirat, die Sprechblase an der Marke der Angabe, **Quellen** der Person. Wo die App nur eine
+Zitation nimmt, nimmt sie die erste: den Auszug auf der Personenseite, die Heirat auf den Familienseiten, die
+Quellennummern im Familienbuch, die Spalten der Zitationen in der **Tabelle** ([A6.7](A6-views.md#A6.7)) und die erste
+Quelle bei **Prüfen** ([S7.3](S7-reliability-and-verification.md#S7.3)). Dieselbe Reihenfolge hat die Forschung
+([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+
+- **Reihenfolge:**
+  1. das Hauptzitat, das der Benutzer gewählt hat;
+  2. der primäre Eintrag des Ereignisses: eine Quelle, die diese Art von Ereignis verzeichnet, mit einer Zitation
+     **Original** und höchstens 12 Monate nach der Angabe eingetragen. Bei Geburt und Taufe ein Geburts- oder
+     Taufeintrag, bei Tod, Beerdigung und Einäscherung ein Sterbe- oder Beerdigungseintrag, bei Heirat, Aufgebot und
+     Verlobung ein Heiratseintrag, bei einer Volkszählung eine Volkszählung. Ein früher eingetragener steht vor einem
+     später eingetragenen, eine Quelle ohne **Eintragsdatum** hinter den eingetragenen mit Datum. Ein fehlendes oder
+     unlesbares Datum der Angabe entscheidet nicht;
+  3. die übrigen Zitationen mit der Zuverlässigkeit **Original**;
+  4. die übrigen nach Zuverlässigkeit: **Abschrift / Index**, **Unsicher**, dann ohne Zuverlässigkeit;
+  5. nach dem Zahlenteil der Quellennummer (eine Quelle ohne Nummer hinter den nummerierten), zuletzt die Reihenfolge,
+     in der die Zitationen hinzugefügt wurden.
+- Welche Ereignisse eine Quelle verzeichnet, weiß die App aus der GEDCOM-Datei (`1 DATA` › `2 EVEN`,
+  [A2.6](A2-loading-a-family-tree.md#A2.6)); die Forschung schreibt es bei ihren Quellen. Eine Quelle ohne diese
+  Angabe ist kein primärer Eintrag.
+- **Hauptzitat:** eine Zitation einer Angabe kann der Benutzer als Hauptzitat markieren. Sie steht zuerst, ihr Etikett
+  hat ★ vor dem Titel und einen hervorgehobenen Rand, seine Schaltfläche sagt „Hauptzitat“. In der Sprechblase steht
+  bei ihr „★ Haupt“, in **Quellen** der Person und in **Belegt** des Quellenbetrachters ★ hinter der Angabe. Eine
+  Zitation, die nur nach der Reihenfolge die erste ist, hat keine Marke.
+- **Leiste im Quellenbetrachter:** der aus der Zitation einer Angabe geöffnete Betrachter (Etikett, Zeile der
+  Sprechblase, Zeile in **Quellen** der Person) zeigt oben, was die Zitation belegt („Geburt · Marie Vlková“) und wo
+  sie in der Reihenfolge steht: „2. von 3 Zitaten“; bei der ersten auch warum („steht zuerst: Eintrag (Geburt),
+  Original“, „Original“, „höchste Verlässlichkeit“); „Hauptzitat (Geburt)“; „Einziges Zitat (Geburt)“. Darunter die
+  Schaltflächen **Als Hauptzitat markieren** oder **Hauptzitat aufheben** und **Zitat entfernen** ([A3.2.3](#A3.2.3)).
+- **Grenzen:**
+  - gespeicherte Listen der Zitationen werden nicht umsortiert; die Reihenfolge wird bei der Anzeige und beim Export
+    berechnet;
+  - **Als Hauptzitat markieren** gibt es nur bei einer Angabe mit 2 und mehr Zitationen, und nur in einem Stammbaum
+    ohne Forschung oder mit einer Forschung, die das Hauptzitat führt (Forschung 1.34.0 und neuer). Nur dort ist
+    auch ★ zu sehen;
+  - ein Stammbaum der Forschung, die die Reihenfolge der Zitationen selbst bestimmt, hat die Zitationen in der
+    Reihenfolge aus der Datei der Forschung; das Hauptzitat steht zuerst;
+  - bei einer gesperrten Person und in einem schreibgeschützten Stammbaum gibt es die Schaltflächen nicht;
+  - Markieren, Wechseln und Aufheben ist ein Schritt **Rückgängig** („Hauptzitat (Geburt): …“, „Hauptzitat (Geburt)
+    aufgehoben; die Reihenfolge ist wieder automatisch“). Das Entfernen des Hauptzitats oder seiner Quelle und eine
+    Änderung des Ereignisses ohne es heben die Marke im selben Schritt auf; **Rückgängig** bringt Platz und ★ zurück;
+  - ein gemeinsames Ereignis ([A10.1](A10-shared-events.md#A10.1)) hat ein Hauptzitat, das allen Kopien gemeinsam
+    ist; Kopien, die sich darin unterscheiden, sind abweichende Kopien ([A10.3](A10-shared-events.md#A10.3));
+  - eine in eine andere zusammengeführte Quelle überträgt die Marke auf die Quelle, in die sie zusammengeführt wurde.
+    Das Zusammenführen von Stammbäumen ([A8](A8-merging-trees.md)) lässt die Marke der Seite, die sie hat; haben sie
+    beide, die der behaltenen Seite.
+- **Bedienung:** der aus der Zitation einer Angabe geöffnete Quellenbetrachter → **Als Hauptzitat markieren** ·
+  **Hauptzitat aufheben**. Terminal der Forschung: `strom event main` ([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+- **Gilt seit:** App 3.29.0
+
+<!-- zdroj: app:e361220d src/citation-order.ts FACT_RECORDS, recordOfFact, PRIMARY_RECORD_MONTHS 12, orderedCitationSteps (main, primary jen QUAY 3, written, QUAY, number, list), citationMain (jeden krok Zpět, sdílená kopie, remap, merge/executor.ts), data v21 · 9c0ca227 (★ a pořadí: sources.ts chipy, relationships-panel, status-tip „★ hlavní“, person-sources, person-page, family-pages-html, book-blocks, table-sources, verify.ts) · 192d53ec src/citation-bar.ts citeBar, whyFirst, citeMainToast · src/citation-gates.ts citationMainOffered, citationFileOrder, citationMainShown · strings.ts sources.mainMark, citeAt, citePos, citeFirstWhy, whyPrimary, whyOriginal, whyQuality, citeMainAt, citeOnly, setMain, clearMain, mainSetToast, mainClearedToast · spec 095 K1.1, §2 -->
+
+<a id="A3.2.3"></a>
+### A3.2.3 Zitat entfernen
+
+**Zitat entfernen** löst eine Quelle von einer Angabe. Die Quelle bleibt in **Quellen** des Stammbaums mit ihren
+Ausschnitten und Anhängen, und die übrigen Angaben zitieren sie weiter.
+
+- **Prüft der Code:**
+  - ohne Bestätigung, auch beim Hauptzitat. Die Leiste im Betrachter sagt dann „Gelöst (Geburt) · die Quelle bleibt im
+    Katalog“, und die Schaltflächen verschwinden;
+  - die Meldung nennt Angabe und Quelle: „Zitat entfernt (Geburt): … · die Quelle bleibt“, beim Hauptzitat „…, kein
+    Hauptzitat mehr: …“, bei einem gemeinsamen Ereignis „…, bei allen N Personen: …“ (es wird aus allen Kopien
+    entfernt);
+  - ein Schritt **Rückgängig**: **Rückgängig** in der Meldung bringt die Zitation an ihren Platz zurück, samt ★. Die
+    Meldung steht auch über dem geöffneten Betrachter, sodass sich **Rückgängig** dort verwenden lässt;
+  - in einem Stammbaum der Forschung, die das Entfernen nicht übernimmt, steht unter den Schaltflächen „Die Forschung
+    übernimmt Entfernungen noch nicht.“, und das erste Entfernen im Fenster sagt „Die Forschung übernimmt dieses
+    Entfernen nicht; beim Laden ihrer Version kommt das Zitat zurück.“, jedes weitere nur noch „von der Forschung
+    nicht übernommen“. Was die Forschung mit dem Entfernen tut, beschreibt [S2.3.1](S2-edits-from-the-app.md#S2.3.1).
+- **Grenzen:** bei einer gesperrten Person und in einem schreibgeschützten Stammbaum gibt es die Schaltfläche nicht.
+  Eine ganze Quelle wird in **Aktionen → Quellen** gelöscht ([A3.1](#A3.1)).
+- **Bedienung:** der aus der Zitation einer Angabe geöffnete Quellenbetrachter → **Zitat entfernen**; × am Etikett
+  der Zitation beim Bearbeiten einer Person ([A3.2](#A3.2)).
+- **Gilt seit:** App 1.4.0 (× am Etikett); Leiste und Meldung 3.29.0
+
+<!-- zdroj: app:192d53ec src/citation-bar.ts citeBar (gone, note = editable && removeNotTaken), unciteToast (unciteWarned jednou na strom v okně), citeBarHtml · src/citation-gates.ts citationRemoveTaken (feature citations.remove) · strings.ts sources.citeGone, uncitedToast, uncitedMainToast, uncitedSharedToast, sourceStays, uncitedNotTaken, uncitedNotTakenShort, unciteNote, undo.uncite · spec 095 §3 -->
+
 <a id="A3.3"></a>
 ## A3.3 Ausschnitt des Eintrags
 

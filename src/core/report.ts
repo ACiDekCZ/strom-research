@@ -27,6 +27,10 @@ import { check } from "./check.ts";
 import { installation } from "./self.ts";
 import * as stromApp from "./stromapp.ts";
 import type { Tree } from "./tree.ts";
+import { cutDenied, DENIED_KEPT, DENIED_KEPT_CHARS } from "../runners/runner.ts";
+
+// (kept with the runners, which keep a refused command as long: K031 N1)
+export { cutDenied, DENIED_CHARS, DENIED_KEPT, DENIED_KEPT_CHARS } from "../runners/runner.ts";
 
 /** Whom the report is sent to: the one place it is written (spec 070, Milan 2026-11-08). */
 export const REPORT_ADDRESS = "milan@stromapp.info";
@@ -457,7 +461,7 @@ export function sessionsArea(root: string, sinceMs: number, masker: Masker): { s
 /**
  * The commands the agent's permissions or sandbox refused in a run's session, as the run kept them beside its log
  * (.strom/runs/<session>.denied.json, commands/session.ts keepDenied: at most DENIED_KEPT, each cut to
- * DENIED_CHARS): each masked as every value going out, whether strom was the one refused, whether refused whole (K031).
+ * DENIED_KEPT_CHARS): each masked as every value going out, whether strom was the one refused, whether refused whole (K031).
  */
 function runDenied(root: string, id: string, masker: Masker): { denied?: { command: string; strom: boolean; whole: boolean }[] } {
   try {
@@ -473,27 +477,6 @@ function runDenied(root: string, id: string, masker: Masker): { denied?: { comma
   } catch {
     return {};
   }
-}
-
-/**
- * How many refused commands of a session are kept for strom error, and how long each in the report (K031: the report
- * stays small) — and how long each as the run keeps it (masked whole before it is cut for the report).
- */
-export const DENIED_KEPT = 10;
-export const DENIED_CHARS = 200;
-export const DENIED_KEPT_CHARS = 2000;
-
-/**
- * A refused command cut to `max` characters, "…" where it was cut: whole characters, never part of a word (a name cut
- * in half would no longer be known to the masker) nor of a masked word's code (‹3fa9c›) — any script.
- */
-export function cutDenied(command: string, max = DENIED_CHARS): string {
-  const chars = [...command];
-  if (chars.length <= max) return command;
-  const head = chars.slice(0, max - 1).join("");
-  // (alternatives, not a class: Node 26's V8 misses a class of properties before $ when the last character is astral)
-  const inWord = /(?:\p{L}|\p{M}|\p{N})$/u.test(head) && /^(?:\p{L}|\p{M}|\p{N})/u.test(chars[max - 1]!);
-  return (inWord ? head.replace(/(?:\p{L}|\p{M}|\p{N})+$/u, "") : head).replace(/‹[0-9a-f]{0,5}$/u, "") + "…";
 }
 
 /** What strom wrote of a run's agent's end into its log (never the agent's own output): its exit code. */

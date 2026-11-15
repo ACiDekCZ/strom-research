@@ -15,7 +15,8 @@ import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
 import { children, parseGedcomText, val } from "../../src/gedcom/parse.ts";
-import { planSync, readGedcom } from "../../src/core/sync.ts";
+import { applySync, planSync, readGedcom, type SyncInput } from "../../src/core/sync.ts";
+import { create } from "../../src/core/records.ts";
 import { BRIDGE_FEATURES, bridgeFeatures, status } from "../../src/core/live.ts";
 import { Settings } from "../../src/core/config.ts";
 import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appShowsOrigin } from "../../src/core/stromapp.ts";
@@ -190,6 +191,32 @@ test("the app's marks: one source for each import (made once, reused), its value
     assert.deepEqual(third.changes ?? [], []);
     assert.equal(imports(w).length, 1);
     assert.match((await w.ok(["check"])).out, /^ok/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("an import a later send of the day names first: its source made of that send's input, not of the day's source's (the day's first send)", opts, async () => {
+  const { w, send } = await adopted();
+  try {
+    const first = imports(w)[0]!;
+    // the day's source of the adoption, as the bridge's later sends of the day share it
+    const day = fact(named(w, "Václav"), "BIRT").citations.find((c) => c.source !== first.id)!.source;
+    // a second import of the app (I2), first in this send: a person of it
+    const other = ["1 _STROM_IMPORT I2", "2 SOUR Gramps", "2 VERS 6.0", "2 DATE 1 JUN 2025", "2 FILE lhota-gramps.ged"];
+    const incoming = readGedcom(fs.readFileSync(send([...other, ...appPeople, "0 @I5@ INDI", "1 _STROM_IMPORT I2", "1 NAME Žofie /Lhotáková/", "2 _STROM_IMPORT I2", "1 SEX F"]), "utf8"));
+    const tree = open(w);
+    tree.personWrites = true;
+    const input = tree.withTreeLock(() => {
+      const made = create<SyncInput>(tree, "input", { name: "app.ged", sha: "0", size: 1, mime: "text/plain", from: "app.ged", kind: "tree", state: "processed" } as never, (i) => `+${i} input tree "app.ged" (sync)`);
+      applySync(tree, planSync(tree, incoming, "conflict"), incoming, tree.get<Source>(day)!, undefined, { decidePerson: false, input: made.id });
+      tree.commit(`sync ${made.id}`);
+      return made.id;
+    });
+    const made = imports(w).find((s) => s.id !== first.id)!;
+    assert.equal(made.imported?.key, "I2");
+    assert.notEqual(open(w).get<Source>(day)!.input, input);
+    assert.equal(made.input, input, "the send that named it");
   } finally {
     w.cleanup();
   }

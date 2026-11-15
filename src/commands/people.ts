@@ -6,12 +6,13 @@ import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
 import { checkStreetPlace } from "../core/streets.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, parseStatus, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, chooseMainCitation, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, parseStatus, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
-import { EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Task } from "../core/model.ts";
+import { EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Source, type Task } from "../core/model.ts";
+import { orderCitations, removedByUser } from "../core/citeorder.ts";
 import {
   ancestorGenerations,
   currentName,
@@ -108,6 +109,9 @@ function informationOpt(v: unknown): Citation["information"] {
 /** Why putting an imported value back is the person's (the commands' `person`). */
 const REVERT_PERSON = "Putting back what an imported family tree said is the user's own: in the Strom app or at their own terminal, never an agent";
 
+/** Why the main citation of a fact is the person's (spec 095 K2.3: no agent chooses or changes it). */
+const MAIN_PERSON = "The main citation of a fact is the user's choice: in the Strom app or at their own terminal, never an agent";
+
 /** An agent (or anything not the person) puts nothing back: said with what the user does instead. */
 function refuseRevert(tree: Tree, command: string): void {
   if (tree.personWrites) return;
@@ -165,7 +169,22 @@ function removal(tree: Tree, p: Person, w: Words): { line: string; data: { at: s
 /** The citations; for a person what a family tree a sync gave cites by the part it came from ("name", "BIRT") said in words. */
 function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string {
   const where = (l: string) => (!w.lang ? l : `ui.show.loc.${l}` in UI ? w.word("loc", l) : /^[A-Z_]{3,5}$/.test(l) ? eventName(l, w.lang) : l);
-  return (citations ?? []).map((c) => c.source + (c.locator ? ` ${where(c.locator)}` : "") + (c.information ? ` (${w.word("info", c.information)})` : "")).join(", ");
+  return (citations ?? [])
+    .map((c) => c.source + (c.locator ? ` ${where(c.locator)}` : "") + (c.information ? ` (${w.word("info", c.information)})` : "") + (c.main ? ` ${w.say("ui.show.main", "(main, the user's)")}` : ""))
+    .join(", ");
+}
+
+/** The research's sources of a tree, for the order of a fact's citations (spec 095 K1.1). */
+export const sourcesOf = (tree: Tree) => (id: string) => tree.get<Source>(id);
+
+/** A fact's citations in the order every file gives them (spec 095 K1.1), for --json: the user's main one marked. */
+export function citationOrder(tree: Tree, e: Event): { source: string; locator?: string; main?: true }[] {
+  return orderCitations(e.citations, sourcesOf(tree), { kind: e.kind, date: e.date }).map((c) => ({ source: c.source, ...(c.locator ? { locator: c.locator } : {}), ...(c.main ? { main: true as const } : {}) }));
+}
+
+/** The order of the citations of each fact that has any (fact ID → its citations in order), for --json. */
+export function citationOrders(tree: Tree, events: readonly Event[]): Record<string, ReturnType<typeof citationOrder>> {
+  return Object.fromEntries(events.filter((e) => e.citations.length).map((e) => [e.id, citationOrder(tree, e)]));
 }
 
 function nameLine(n: Name, w: Words = ENGLISH): string {
@@ -209,8 +228,10 @@ function historyLine(h: HistoryItem, w: Words): string {
   return fact + w.say("ui.show.history.edit", `note corrected ${values.at} (${values.by}): ${values.reason} — before: ${values.text}`, values);
 }
 
-export function eventLine(e: Event, w: Words = ENGLISH): string {
-  const cites = citesOf(e.citations, w);
+/** A fact in one line; its citations in the order every file gives them (spec 095 K1.1) where the sources are given. */
+export function eventLine(e: Event, w: Words = ENGLISH, sources?: (id: string) => Source | undefined): string {
+  const cites = citesOf(sources ? orderCitations(e.citations, sources, { kind: e.kind, date: e.date }) : e.citations, w);
+  const gone = [...new Set((e.uncited ?? []).filter((u) => !u.cleared).map((u) => u.source))].filter((s) => removedByUser(e, s));
   const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}${p.note ? ` (${p.note})` : ""}`).join(", ");
   const ages = e.ages ? Object.entries(e.ages).map(([p, a]) => `${w.word("who", p)} ${a}`).join(", ") : "";
   return [
@@ -224,6 +245,7 @@ export function eventLine(e: Event, w: Words = ENGLISH): string {
     ages ? w.say("ui.show.ages", `ages ${ages}`, { ages }) : "",
     `[${w.lang ? statusName(e.status, w.lang) : e.status}]`,
     cites ? `← ${cites}` : "",
+    gone.length ? w.say("ui.show.uncited", `(removed by the user: ${gone.join(", ")})`, { sources: gone.join(", ") }) : "",
     who ? w.say("ui.show.with", `with ${who}`, { who }) : "",
     e.retracted ? w.say("ui.show.retracted", `(retracted: ${e.retracted.reason})`, { reason: e.retracted.reason }) : "",
   ]
@@ -366,7 +388,7 @@ register(
         ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
         w.say("ui.show.facts", "facts"),
-        p.events.length ? table(p.events.map((e) => [`  ${eventLine(e, w)}`])) : `  ${w.say("ui.show.none", "(none)")}`,
+        p.events.length ? table(p.events.map((e) => [`  ${eventLine(e, w, sourcesOf(tree))}`])) : `  ${w.say("ui.show.none", "(none)")}`,
         ...p.events.filter((e) => e.note).map((e) => `  ${e.id} ${w.say("ui.show.note", "note")}: ${truncate(e.note!, 160)}`),
         "",
         w.say("ui.show.family", "family"),
@@ -385,7 +407,7 @@ register(
       for (const f of partnerships) {
         const partner = f.partners.filter((id) => id !== p.id).map((id) => tree.get<Person>(id)).filter(Boolean).map((x) => who(x!));
         out.push(`  ${w.say("ui.show.partner", "partner")}  ${f.id}: ${partner.join(", ") || unknown}`);
-        for (const e of f.events) out.push(`    ${eventLine(e, w)}`);
+        for (const e of f.events) out.push(`    ${eventLine(e, w, sourcesOf(tree))}`);
         for (const c of f.children) {
           const child = tree.get<Person>(c.person);
           if (child) out.push(`    ${w.say("ui.show.child", "child")}  ${who(child)}${c.relation !== "birth" ? ` [${w.word("rel", c.relation)}]` : ""}`);
@@ -400,6 +422,8 @@ register(
         text: lines(...out),
         data: {
           person: p,
+          // the stored order is the history's; the order every file gives (spec 095 K1.1) is this one
+          citationOrder: citationOrders(tree, [...p.events, ...partnerships.flatMap((f) => f.events)]),
           ...(removed ? { removal: removed.data } : {}),
           parentFamilies: parents,
           partnerFamilies: partnerships,
@@ -709,7 +733,7 @@ register(
         f.citations?.length ? `${w.say("ui.show.evidence", "evidence of the family")}  ← ${citesOf(f.citations, w)}` : undefined,
         "",
         w.say("ui.show.facts", "facts"),
-        f.events.length ? table(f.events.map((e) => [`  ${eventLine(e, w)}`])) : none,
+        f.events.length ? table(f.events.map((e) => [`  ${eventLine(e, w, sourcesOf(tree))}`])) : none,
         ...f.events.filter((e) => e.note).map((e) => `  ${e.id} ${w.say("ui.show.note", "note")}: ${truncate(e.note!, 160)}`),
         "",
         w.say("ui.show.children", "children"),
@@ -722,7 +746,7 @@ register(
           : [none]),
         ...(f.notes.length ? ["", w.say("ui.show.notes", "notes"), ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${noteWhole(n)}`)] : []),
       ];
-      return { text: lines(...out), data: { family: f, retractedPeople: [...shown].filter((x) => x.retracted).map((x) => x.id) } };
+      return { text: lines(...out), data: { family: f, citationOrder: citationOrders(tree, f.events), retractedPeople:[...shown].filter((x) => x.retracted).map((x) => x.id) } };
     },
   },
   {
@@ -993,6 +1017,7 @@ register(
       { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
       { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
       { name: "status", type: "string", value: "<status>", description: "of a fact (E…) only: probable (default) or proven — proven only when you read the record yourself" },
+      { name: "reason", type: "string", value: "<why>", description: "of a fact (E…) only, needed only to cite a source the user removed from it: why the record belongs to this fact after all" },
     ],
     examples: ['strom cite E0001 S0001 --locator "fol. 45, č. 12" --status proven', 'strom cite F0001 S0001 --locator "fol. 45, č. 12" --information secondary'],
     run(ctx, { args, opts }) {
@@ -1006,6 +1031,7 @@ register(
       const id = normId(args[0]!);
       if (/^[PF]\d+$/.test(id)) {
         if (opts.status) throw new UsageError("--status is for facts (E…)", { hint: "a name or a family has no status: its citations say how well it is attested" });
+        if (opts.reason) throw new UsageError("--reason is for facts (E…)", { hint: "only a citation the user removed from a fact needs a reason" });
         const rec = citeRecord(tree, id, citation);
         return { text: written(tree), data: { [rec.type]: rec } };
       }
@@ -1015,7 +1041,7 @@ register(
         if (before.confirmed && parseStatus(opts.status as string, before.status) !== before.status)
           throw new UsageError(`${id} was confirmed by the user against the scan: its status is theirs, not changed by an agent`, { code: "event.confirmed", hint: `strom cite ${id} ${citation.source} without --status` });
       }
-      const e = citeEvent(tree, id, citation, opts.status as string | undefined);
+      const e = citeEvent(tree, id, citation, opts.status as string | undefined, opts.reason as string | undefined);
       return { text: written(tree), data: { event: e } };
     },
   },
@@ -1168,6 +1194,46 @@ register(
       refuseRevert(tree, `strom event revert ${args[0]}`);
       const r = revertImported(tree, { ref: normId(args[0]!), part: opts.part as string | undefined, reason: opts.reason as string | undefined });
       return { text: written(tree), data: { reverted: r } };
+    },
+  },
+  {
+    path: ["event", "main"],
+    summary: "Choose the record shown first with a fact — its main citation — or cancel the choice (the user's own)",
+    group: "people",
+    tree: true,
+    writes: true,
+    person: MAIN_PERSON,
+    description:
+      "The citation is marked as the user's main one: every file, the Strom app and strom show give it first, the other\n" +
+      "citations after it in the research's order (the record of the event first, then the rest by how reliable it is).\n" +
+      "--clear takes the mark off: the research's order alone. A fact citing the source at several places: --locator\n" +
+      "picks one. Only the user: in the Strom app or at their own terminal — an agent never chooses or changes it.",
+    args: [
+      { name: "event", description: "event ID (E0001)", required: true },
+      { name: "source", description: "source ID (S0001) the fact cites (none with --clear)" },
+    ],
+    options: [
+      { name: "locator", type: "string", value: "<where>", description: "which citation of the source: its place in it" },
+      { name: "clear", type: "boolean", description: "no main citation: the research's order" },
+    ],
+    examples: ["strom event main E0001 S0001", 'strom event main E0001 S0001 --locator "fol. 12"', "strom event main E0001 --clear"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = normId(args[0]!);
+      if (!tree.personWrites)
+        throw new UsageError(`the main citation of ${id} is the user's choice — never an agent's`, {
+          hint: `tell the user: in the Strom app, or at their own terminal: strom event main ${id} ${args[1] ? normId(args[1], "source") : "<S…>"} — the order of the others is the research's (strom show ${id})`,
+          code: "main.person",
+        });
+      if (opts.clear && args[1] !== undefined) throw new UsageError("a source or --clear, not both", { hint: `strom event main ${id} <S…> · strom event main ${id} --clear` });
+      if (!opts.clear && args[1] === undefined) throw new UsageError("which source?", { hint: `strom show ${id}: its citations · strom event main ${id} <S…> · --clear` });
+      if (opts.clear && opts.locator !== undefined) throw new UsageError("--locator picks the citation to mark: not with --clear", { hint: `strom event main ${id} --clear` });
+      const source = opts.clear ? undefined : normId(args[1]!, "source");
+      const r = chooseMainCitation(tree, id, source, opts.locator === undefined ? undefined : String(opts.locator), opts.reason as string | undefined);
+      const w = wordsFor(ctx, tree);
+      const line = eventLine(r.event, w, sourcesOf(tree));
+      const said = !r.changed ? w.say("ui.event.main.same", `nothing to change: ${line}`, { line }) : source ? w.say("ui.event.main", `the main record of the fact chosen: ${line}`, { line }) : w.say("ui.event.main.off", `the fact without a main record (the research's order): ${line}`, { line });
+      return { text: said, data: { event: r.event, citationOrder: citationOrder(tree, r.event), changed: r.changed, ...(r.was ? { was: r.was } : {}) } };
     },
   },
   {

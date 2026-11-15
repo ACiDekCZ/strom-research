@@ -172,6 +172,29 @@ test("Claude Code: a call strom's own hook refused is strom's refusal, not the p
   }
 });
 
+test("Claude Code: a refused command of several lines is kept whole, as Codex and OpenCode keep it", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom web claude lines "));
+  try {
+    const stream = path.join(dir, "claude-lines.jsonl");
+    const session = "00000000-0000-4000-8000-0000000000cb";
+    const command = 'strom note add P0001 "Lhoták z Lhoty\nи Лотаки"\nstrom session close --summary "Žofie"';
+    const line = (o: unknown) => JSON.stringify(o);
+    fs.writeFileSync(
+      stream,
+      [
+        line({ type: "system", subtype: "init", cwd: "/tree", session_id: session, tools: ["Bash"], model: "claude-model-x" }),
+        line({ type: "assistant", message: { id: "m1", role: "assistant", model: "claude-model-x", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command } }], usage: { input_tokens: 4, output_tokens: 5 } }, parent_tool_use_id: null, session_id: session }),
+        line({ type: "user", message: { role: "user", content: [{ type: "tool_result", content: "Permission to use Bash has been denied.", is_error: true, tool_use_id: "t1" }] }, parent_tool_use_id: null, session_id: session }),
+        line({ type: "result", subtype: "success", is_error: false, result: "Hotovo.", session_id: session, num_turns: 1, total_cost_usd: 0.01, usage: { input_tokens: 4, output_tokens: 5 }, permission_denials: [{ tool_name: "Bash", tool_use_id: "t1", tool_input: { command } }] }),
+      ].join("\n") + "\n",
+    );
+    const { r } = await heardWeb(claudeRunner, "claude", stream);
+    assert.deepEqual(r.denied, [`Bash: ${command}`]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the host of a page as fetch.jsonl names it: lowercase, its port only when not the scheme's own, any script", () => {
   assert.equal(webHost("https://Obec.Example:443/a?b=1"), "obec.example");
   assert.equal(webHost("http://obec.example:80/a"), "obec.example");

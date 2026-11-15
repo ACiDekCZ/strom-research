@@ -9,7 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { codexPolicyRejected, codexRefusedStrom, codexRunner } from "../../src/runners/codex.ts";
-import { deniedStrom, shellUnwrapped } from "../../src/runners/runner.ts";
+import { deniedCall, deniedStrom, DENIED_KEPT_CHARS, shellUnwrapped } from "../../src/runners/runner.ts";
+import { opencodeRunner } from "../../src/runners/opencode.ts";
 import { noPermission, refusalMark, SANDBOX_REFUSAL } from "../../src/core/writable.ts";
 import { agentStandIn } from "../helpers.ts";
 
@@ -300,6 +301,53 @@ test("Codex: the refusal only quoted with the exit code 0 — strom brief, sessi
     const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0002.log") });
     assert.equal(r.denied, undefined);
     assert.equal(r.metrics.denied, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// (K031 N1, found 2026-11-12) a runner cut a refused command at 120 characters before the run kept it: strom error
+// saw "strom s" of `cd … && strom session note "…"` and a quote left open — the run keeps it up to DENIED_KEPT_CHARS,
+// strom error masks it whole and only then cuts it for its report
+const LONG = `cd /tmp/Lhotákovi/Лотаки/rodina && strom session note "Žofie Lhotáková ${"z Lhoty u Týna ".repeat(12)}— 𝒜 konec" --quote "Пётр Лотак"`;
+
+test("deniedCall: a refused call kept up to DENIED_KEPT_CHARS whole characters — any script, an astral one never cut in half", () => {
+  assert.ok([...LONG].length > 200 && [...LONG].length < DENIED_KEPT_CHARS);
+  assert.equal(deniedCall("Bash", LONG), `Bash: ${LONG}`);
+  assert.equal(deniedCall("WebFetch", ""), "WebFetch");
+  const cut = deniedCall("Bash", "𝒜 ".repeat(DENIED_KEPT_CHARS)).slice("Bash: ".length);
+  assert.ok([...cut].length <= DENIED_KEPT_CHARS && cut.endsWith("…"), "cut to whole characters");
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(cut), "no half of a pair");
+});
+
+test("Codex and OpenCode: a refused command longer than 120 characters is kept whole — by the sandbox, by Codex's policy, by OpenCode's permissions", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom denied-long ě "));
+  try {
+    const lines = [
+      { type: "thread.started", thread_id: "0199aaaa-bbbb-7ccc-8ddd-000000000031" },
+      { type: "turn.started" },
+      { type: "item.completed", item: { id: "item_0", type: "command_execution", command: `/bin/zsh -lc '${LONG}'`, aggregated_output: "Operation not permitted", exit_code: 1, status: "failed" } },
+      { type: "item.completed", item: { id: "item_1", type: "agent_message", text: "Konec." } },
+      { type: "turn.completed", usage: { input_tokens: 2, cached_input_tokens: 0, output_tokens: 2 } },
+    ];
+    const stream = path.join(dir, "stream.jsonl");
+    fs.writeFileSync(stream, lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const stderr = path.join(dir, "stderr.txt");
+    const policy = `strom note add P0001 "${"Lhoták ".repeat(30).trim()}" | head -5`;
+    fs.writeFileSync(stderr, routerLine(`/bin/zsh -lc '${policy}'`) + "\n");
+    const env = { ...agentStandIn(dir, "codex"), FAKE_STREAM: stream, FAKE_STDERR: stderr, STROM_SESSION: "N0001" };
+    const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log") });
+    assert.deepEqual([...(r.denied ?? [])].sort(), [`Bash: ${LONG}`, `Bash: ${policy}`].sort());
+
+    const opencode = [
+      { type: "step_start", sessionID: "ses_lhota", part: { type: "step-start" } },
+      { type: "tool_use", sessionID: "ses_lhota", part: { type: "tool", tool: "bash", callID: "c1", state: { status: "error", input: { command: LONG }, error: "The user rejected permission to use this specific tool call." } } },
+      { type: "tool_use", sessionID: "ses_lhota", part: { type: "tool", tool: "read", callID: "c2", state: { status: "error", input: { filePath: `/tmp/${"Лотаки/".repeat(30)}x.md` }, error: "permission denied" } } },
+      { type: "step_finish", sessionID: "ses_lhota", part: { type: "step-finish", reason: "stop", tokens: { input: 1, output: 1, cache: { read: 0, write: 0 } }, cost: 0 } },
+    ];
+    fs.writeFileSync(stream, opencode.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const o = await opencodeRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env: { ...agentStandIn(dir, "opencode"), FAKE_STREAM: stream }, logFile: path.join(dir, "runs", "N0002.log") });
+    assert.deepEqual(o.denied, [`Bash: ${LONG}`, `read: read /tmp/${"Лотаки/".repeat(30)}x.md`]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

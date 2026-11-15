@@ -5,6 +5,37 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.34.0
+
+*15.11.2026 · współpracuje z aplikacją Strom 3.29.0.*
+
+- **Główny przypis i jedna kolejność przypisów:** przypisy każdej danej idą w każdym pliku w jednej kolejności – najpierw
+  główny przypis, potem zapis samego zdarzenia, inne oryginały, a reszta według tego, jak są pewne. Główny przypis
+  wybiera tylko człowiek, w aplikacji Strom albo w terminalu przez `strom event main`; agent nigdy go nie zmienia.
+  `strom person|family|event show` pokazują kolejność i który przypis jest główny.
+- **Przypisy usunięte w aplikacji Strom:** przypis usunięty przez użytkownika w aplikacji pozostaje usunięty, także po
+  ponownym wczytaniu wersji badania, a badanie go znowu nie cytuje; cofnięcie tego wysłania go przywraca. Zmiana w
+  aplikacji danej, którą badanie w międzyczasie wycofało, nigdy nie jest zapisana po cichu: aplikacja dowiaduje się
+  dlaczego.
+- **Samodzielna praca z warunkiem:** gdy limit planu agenta przerwie sesję, praca czeka do odnowienia limitu (w
+  terminalu i w aplikacji Strom jako pauza), potem ponownie pyta warunek i idzie dalej; przerwane zadanie wraca do
+  kolejki. Komunikat agenta o wyczerpaniu limitu jest odczytywany jako limit planu razem z czasem odnowienia.
+- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej wracają do badania, każda do swojej danej,
+  wcześniejszy tekst zostaje w historii notatki; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
+  GEDCOM aplikacji jest nazwane w języku badania. Własne drugie urodzenie lub zgon aplikacji i jej akt urodzenia lub
+  zgonu są rozpoznawane także po polsku i nigdy nie są zgłaszane jako nieprzejęte.
+- **Folder domowy, w którym badanie już jest:** `strom setup --home <folder> --use-existing` (i konfiguracja po
+  zgodzie) przyjmuje ten folder za domowy takim, jaki jest – nic nie jest przenoszone, a stary folder zostaje bez zmian.
+- **Odrzucone polecenia:** polecenie odrzucone przez uprawnienia agenta jest zachowane w całości, także wielowierszowe,
+  więc `strom error` widzi je całe; skraca je dopiero jego raport.
+- **Inne drzewo pod nazwą badania:** wysłanie z aplikacji Strom, w którym prawie nie ma osób badania, tylko inne
+  (na przykład przykładowe drzewo aplikacji), jest odrzucane i nic nie jest zapisane; jeśli to zamierzone, przyjmie je
+  `strom sync <plik> --force`.
+- **Agent w terminalu niezalogowany:** czytelnicy `strom read` i praca samodzielna uruchamiają program agenta
+  w terminalu, który ma własne logowanie, nie to z aplikacji desktopowej. Gdy mówi, że nie jest zalogowany, nic się nie
+  uruchamia, a komunikat mówi, jak się zalogować; tak samo przy czytelniku, który tak kończy, nigdy tylko „auth”.
+  `strom doctor` ma osobny wiersz, czy agent w terminalu jest zalogowany.
+
 ## 1.33.0
 
 *15.11.2026 · współpracuje z aplikacją Strom 3.28.0.*

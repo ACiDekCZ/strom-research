@@ -19,7 +19,7 @@ ktoś jej nie rozstrzygnie z uzasadnieniem ([R5.3](#R5.3)).
     [R3](R3-verification-and-citation.md));
   - co by rozstrzygnęło sprzeczność, zapisuje się jako zadanie do sprzeczności;
   - otwartą sprzeczność przy osobie z udokumentowanymi danymi kontrola drzewa zgłasza jako ostrzeżenie.
-- **Obsługa:** terminal: `strom conflict add "<otázka>" --about P… --fact BIRT --claim "S…: …" --claim "S…: …"`,
+- **Obsługa:** terminal: `strom conflict add "<pytanie>" --about P… --fact BIRT --claim "S…: …" --claim "S…: …"`,
   `strom conflict list [--about P…] [--all]`, `strom conflict show X…`, zadanie do sprzeczności
   `strom task add … --about X…`, kontrola `strom check`.
 - **Obowiązuje od:** badanie 1.0.0

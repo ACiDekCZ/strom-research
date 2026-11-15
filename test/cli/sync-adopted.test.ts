@@ -300,3 +300,45 @@ test("a conflict of the user's edit resolved with the user's value: that value w
   assert.match(kept[0]!, /^katolík /);
   w.cleanup();
 });
+
+test("a small other family tree sent under the ID of a big research it is linked to (found on Mac: the app's demo tree sent as the research's, 30 strangers written beside 954 people): refused, nothing written; --force takes it; a part of the research sent goes on", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const tree = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+  const head0 = ["0 HEAD", "1 SOUR STROM", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8"];
+  // the research: 80 people the app handed over (30 strangers are fewer than half of those missing)
+  const given = ["Žofie", "Kvido", "Zdeslava", "Lhotomír", "Dobromila", "Zbyhoň", "Radegunda", "Vratislav", "Radegasta", "Lubor"];
+  const ours: string[] = [];
+  for (let i = 1; i <= 80; i++)
+    ours.push(`0 @I${i}@ INDI`, `1 NAME ${given[(i - 1) % 10]} /Lhoták/`, `1 SEX ${i % 2 ? "F" : "M"}`, "1 BIRT", `2 DATE ${1800 + i}`, "2 PLAC Lhota");
+  const adopt = path.join(w.dir, "adopt.ged");
+  fs.writeFileSync(adopt, ged([...head0, ...ours]));
+  await w.ok(["sync", adopt, "--apply", "--force"]);
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).trim();
+  const linked = (name: string, body: string[]) => {
+    const out = path.join(w.dir, name);
+    fs.writeFileSync(out, ged([...head0, `1 _STROM_TREE ${tree}`, `1 _STROM_HEAD ${head}`, ...body]));
+    return out;
+  };
+  // another family tree of 30 people (none of the research's IDs, no one of its people), under the research's ID
+  const strangers: string[] = [];
+  for (let i = 1; i <= 30; i++)
+    strangers.push(`0 @I${i}@ INDI`, `1 NAME Ярополк${i} /Кулішенко/`, `1 SEX ${i % 2 ? "M" : "F"}`, "1 BIRT", `2 DATE ${1950 + i}`, "2 PLAC Zálesí");
+  const other = linked("other.ged", strangers);
+  const r = await w.run(["sync", other, "--apply", "--json"]);
+  assert.equal(r.code, 2, r.out);
+  assert.equal(r.json.code, "tree.no-ids");
+  assert.deepEqual(r.json.params, { kept: "0", people: "80" });
+  assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).trim(), head, "nothing written");
+  assert.equal((await w.ok(["person", "list", "--json"])).json.total, 80);
+  // a few strangers alone (five, none of the research's): the same
+  const few = await w.run(["sync", linked("few.ged", strangers.slice(0, 30)), "--json"]);
+  assert.equal(few.json.code, "tree.no-ids", few.out);
+  // a part of the research sent (ten of its people, one added): written, no one taken as gone
+  const part = await w.ok(["sync", linked("part.ged", [...ours.slice(0, 60), ...strangers.slice(0, 6)]), "--json"]);
+  assert.ok(!part.json.code, part.out);
+  // the person meant it: --force takes the other tree in as new people
+  await w.ok(["sync", other, "--apply", "--force"]);
+  assert.equal((await w.ok(["person", "list", "--json"])).json.total, 110);
+  w.cleanup();
+});

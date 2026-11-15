@@ -30,7 +30,7 @@ erfasst daraus nur, was wirklich darin steht.
   - 20 MB: die Historie des Stammbaums wird nie umgeschrieben und geht mit dem Stammbaum in Sicherungen und
     Übertragungen mit. Große Dateien (Video, unkomprimierte Scans) würden sie dauerhaft vergrößern, deshalb liegen
     sie im gemeinsamen Medienspeicher.
-- **Bedienung:** Terminal: `strom intake <soubory nebo složky>`, `strom intake --text "…"` (was der Benutzer sagt),
+- **Bedienung:** Terminal: `strom intake <Dateien oder Ordner>`, `strom intake --text "…"` (was der Benutzer sagt),
   `strom input list`, `strom input show I…`. App: **Material senden…**, **Materialien hinzufügen…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Gilt seit:** Forschung 1.0.0
@@ -100,7 +100,7 @@ Ein Stammbaum (GEDCOM oder eine Datei der Strom-App) sind die Schlüsse eines an
 - **Ab Forschung 1.32.0:**
   - ein Stammbaum aus der Strom-App ergibt aus einer JSON-Datei und aus GEDCOM dasselbe. Übernommen werden auch ein
     gemeinsames Ereignis mehrerer Personen mit der Rolle jeder Person ([A10.1](A10-shared-events.md#A10.1)), die
-    eigenen Ereignisse **Patenschaft** und **Trauzeuge**, benannt in der Sprache der Forschung, mit Verweis auf die
+    eigenen Ereignisse **Patenschaft** und **Trauzeuge**, benannt in der Sprache der Forschung (aus einer GEDCOM-Datei ab Forschung 1.34.0, vorher nach dem TYPE der Datei in der Sprache, in der die App lief), mit Verweis auf die
     Taufe oder Heirat ([A10.5.1](A10-shared-events.md#A10.5.1)), Paten, Zeugen, Amtspersonen und die Hebamme bei
     Ereignissen der Person (mit einer Person verknüpft und nur namentlich), Trauzeugen und weitere Ereignisse des
     Paares mit Beteiligten und Notiz. Die Forschung hält sie bei jeder Angabe und gibt sie der App zurück, wie sie
@@ -115,7 +115,7 @@ Ein Stammbaum (GEDCOM oder eine Datei der Strom-App) sind die Schlüsse eines an
   - die `ROLE` eines Beteiligten nach GEDCOM 7 wird auch in der Datei eines anderen Programms gelesen;
   - eine Hebamme geht in die App als **Anwesend** mit der Notiz „Hebamme“.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) -->
 
 <a id="R11.4"></a>
 ## R11.4 Ein Stapel aus der App

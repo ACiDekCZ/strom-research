@@ -421,6 +421,10 @@ work uses the AI subscription.
   in a Strom archive nor in a research waiting for an agent), only where the app opens the research's links
   ([S4.5](#S4.5)); not on a phone. While the agent works or a run goes on, the action is not there; in the **Queue**
   heading **● At work ›** stands in its place, which unfolds **Now** and goes to **Finish and stop**.
+- **In Now:** while the agent does not work and no run goes on, the section **Now** of the **Research overview**,
+  in its own window too, also offers **Work on the queue…** with the same mark, dialog and conditions. While the
+  agent works, **Now** keeps **Finish and stop** only. Closing the dialog puts the focus back on the button in
+  **Now**.
 - **The dialog Work on the queue:**
   - **Automatically** (the default): "The agent takes one task after another as long as the subscription limit
     allows." When the research reports that the subscription gate (the condition, [R7.4](R7-when-the-agent-works.md#R7.4))
@@ -430,15 +434,22 @@ work uses the AI subscription.
     in waiting, postponing or giving up counts too. Only with a research that can do it; otherwise there is only
     **Automatically**;
   - **First up**: the task set next ([S4.2.2](#S4.2.2)), otherwise the first task of the queue;
+  - **More (n)** under the task of **First up** unfolds the queue's next tasks in the research's order: first a task
+    set next, then by the place in the queue; postponed tasks and tasks outside the directions that are not taken are
+    left out. Above them stand **In queue order** and "The agent may take them in another order." A row is the task's
+    number and text with its **next** tag and its kind; with places in the queue the rows are numbered "2.", "3.".
+    Under them "and N more tasks in the queue" with **Research overview ›** (unfolds the **Queue**), or "The queue may
+    hold more tasks." **Hide more** folds the unfolded list. The count in **Only 5 tasks** does not change the list;
+    every opening of the dialog starts folded, and without more tasks there is no button;
   - when the research reports it, the session's length and the gate ("Session up to 3 h · subscription gate: …");
   - **Cancel** and **Open terminal** (the mark AI and terminal) with the sentence **The research terminal confirms the
     start. Ctrl-C in its window or Finish and stop in Now stops the work.**
 - **Controls:** app: **Work on the queue…** on the right of the unfolded **Queue** heading in the **Research
   overview**; menu **Research → Work on the queue…** ([S4.5.2](#S4.5.2)). Terminal: `strom run --tasks N`,
   `strom run --loop` ([R7.1](R7-when-the-agent-works.md#R7.1)).
-- **Since:** app 3.28.0 (research 1.32.0)
+- **Since:** app 3.28.0 (research 1.32.0); in **Now** and **More (n)** from app 3.29.0
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
 
 <a id="S4.3"></a>
 ## S4.3 Directions in the app
@@ -528,11 +539,17 @@ With two or more directions, the overview shows the work outside the directions 
     3.27.0 the group's introduction says what helps a direction and always goes with it: "a question of the
     direction, connecting people to someone in it or to their spouse, a reason the agent gives"
     ([R2.3](R2-lines-and-queue.md#R2.3)).
+  - The research's choice beside the heading **Outside the directions** (e.g. "at the end") opens **Research for
+    this tree…** at the group **Work outside the directions** with the chosen card, also without following and from
+    the overview's own window (the dialog opens in the main window). For the Strom archive and for a research that
+    waits for its agent the group is not there and the choice is plain text. A branch's tag is no link: it unfolds
+    the branch, as its whole head does.
 - **Controls:** app: **Research overview**, the section of work outside the directions, at a branch **⋯** (**Branch
   options**); **Research for this tree…**.
-- **Since:** app 3.22.0 (research 1.26.0)
+- **Since:** app 3.22.0 (research 1.26.0); the choice beside **Outside the directions** without following and from
+  the overview's window from app 3.29.0
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
 
 <a id="S4.4"></a>
 ## S4.4 Awaiting action in the app

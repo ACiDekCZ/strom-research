@@ -20,7 +20,7 @@ import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, guardedChange, houseWords, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
+import { applySync, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -139,8 +139,12 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
     role: c.part ? role(c.part.role) : "",
     wasRole: c.wasPart ? role(c.wasPart.role) : "",
     part: partWho(c.part ?? c.wasPart),
-    sources: (c.cites ?? []).map((x) => `„${truncate(incoming.sources?.get(x.source)?.title || tree.get<Source>(x.source)?.title || x.source, 60)}“`).join(", "),
+    sources: (c.cites ?? (c.sourceId ? [{ source: c.sourceId }] : [])).map((x) => `„${truncate(incoming.sources?.get(x.source)?.title || tree.get<Source>(x.source)?.title || x.source, 60)}“`).join(", "),
   };
+  // the note of a fact, or of someone the fact names: as the research has it and as the user wrote it in the app (B1)
+  const noteSaid = (t: string | undefined) => truncate((t ?? "").replace(/\s*\n\s*/gu, " / "), 80) || "—";
+  if (c.kind === "fact.note") Object.assign(v, { old: noteSaid(c.noteWas), new: noteSaid(c.text) });
+  if (c.kind === "fact.part.note") Object.assign(v, { old: noteSaid(c.wasPart?.note), new: noteSaid(c.part?.note) });
   const key =
     c.kind === "place.coords" && !c.place?.was
       ? "ui.sync.place.located"
@@ -152,7 +156,12 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
             ? "ui.sync.fact.confirm.back"
             : c.kind === "fact.share"
               ? `ui.sync.fact.share${c.shared === "roleAt" ? ".role" : ""}${(c.shared === "roleAt" ? c.fact?.roleAt : c.fact?.share) ? "" : ".gone"}`
-              : `ui.sync.${c.kind}`;
+              // the main citation and the citations the user removed (spec 095)
+              : c.kind === "fact.main"
+                ? `ui.sync.fact.main${c.code === "fact.noMatch" ? ".nomatch" : c.mainOff ? ".off" : ""}`
+                : c.code === "cite.notCarried"
+                  ? "ui.sync.cite.notCarried"
+                  : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
   // not the person's sync: a value of the user's or an import's only proposed, or not written at all (spec 066 U3)
   const guard = c.kept || c.asked || c.takenBack ? undefined : guardedChange(tree, c, { decidePerson });
@@ -171,6 +180,14 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // the Strom app's mark of a shared event (spec 085): who shares one the person's alone
       : c.kind === "fact.share"
       ? c.action === "add" ? "ui.sync.do.share" : !tree.personWrites ? "ui.sync.do.share.kept" : "ui.sync.do.share.user"
+      // why the research keeps what the file changed (spec 095 K3.4)
+      : c.code && `ui.sync.do.${c.code}` in UI
+      ? `ui.sync.do.${c.code}`
+      // the main citation and a citation removed (spec 095): the person's alone
+      : c.kind === "fact.main"
+      ? !tree.personWrites ? "ui.sync.do.main.kept" : `ui.sync.do.main${c.mainOff ? ".off" : ""}`
+      : c.kind === "fact.uncite" && c.action === "user"
+      ? !tree.personWrites ? "ui.sync.do.uncite.kept" : "ui.sync.do.uncite"
       : c.kind === "ids.add"
       ? "ui.sync.do.ids"
       : c.kind === "child.parents"
@@ -191,6 +208,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? "ui.sync.do.family.union"
       : c.kind === "fact.detail" && c.action === "add"
       ? "ui.sync.do.detail"
+      : (c.kind === "fact.note" || c.kind === "fact.part.note") && (c.action === "add" || c.action === "correct")
+      ? `ui.sync.do.${c.kind}${c.action === "add" ? ".add" : ""}`
       : c.kind === "fact.part" && (c.action === "add" || c.action === "user")
         ? `ui.sync.do.part${c.action === "user" ? ".user" : ""}`
       : c.kind === "source.title"
@@ -461,7 +480,7 @@ register(
             (sid) => `+${sid} source "${path.basename(file)}" (sync)`,
           );
         // not the person's sync: a change of the user's or an imported tree's value only proposed (the user decides)
-        const { applied: done, changes, skipped: left, asked, proposed: open } = applySync(tree, fresh, now1, source, only, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person" });
+        const { applied: done, changes, skipped: left, asked, proposed: open } = applySync(tree, fresh, now1, source, only, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person", input: made.id });
         applied = changes;
         skipped = left;
         proposed = open ?? [];
@@ -473,11 +492,11 @@ register(
         if (changes) queueVerify(tree);
       });
       if (!input) {
-        settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length });
+        settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped });
         return { text: lines(...said, planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, ...decoding, applied: [], changes: written.changes } };
       }
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
-      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length }, input.sync?.applied ?? []);
+      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped }, input.sync?.applied ?? []);
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
       return {

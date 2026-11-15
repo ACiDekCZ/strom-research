@@ -235,7 +235,7 @@ przestanie się otwierać.
   Istniejące źródła zostają, jakie są, dopóki człowiek ich nie podzieli ([R3.4.4](#R3.4.4)). Zmiany pól z aplikacji
   i ich usunięcie: [S2.2.2](S2-edits-from-the-app.md#S2.2.2).
 - **Obsługa:** terminal: `strom source add "…" --folio "pag. 112" --image 57 --locator "nr 3"`, `strom source edit S…
-  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <text>` szuka
+  --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <tekst>` szuka
   także w folio i skanie.
 - **Obowiązuje od:** badanie 1.31.0
 
@@ -267,6 +267,67 @@ naraz: kod, bez agenta i bez kosztów.
 - **Obowiązuje od:** badanie 1.31.0
 
 <!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
+
+<a id="R3.4.5"></a>
+### R3.4.5 Kolejność cytatów faktu i cytat główny
+
+Cytaty danej badanie porządkuje tak samo jak aplikacja ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)): pierwszy jest
+cytat główny, który wybrał użytkownik, potem pierwotny zapis wydarzenia, potem pozostałe według wiarygodności.
+Zapisana kolejność się nie zmienia; kolejność obowiązuje w każdym pliku GEDCOM (dla aplikacji Strom, `/tree.ged`,
+plik dla innych programów), w briefie agenta i w wypisach `strom … show`.
+
+- **Pilnuje kod:**
+  - kolejność: 1. cytat główny; 2. pierwotny zapis wydarzenia: wpis tego rodzaju wydarzenia (chrzest lub urodzenie
+    przy urodzeniu i chrzcie, zgon lub pogrzeb przy zgonie, pogrzebie i kremacji, ślub przy ślubie, zapowiedziach
+    i zaręczynach, spis przy spisie), źródło oryginalne z informacją pierwotną (`QUAY` 3) albo źródło oryginalne,
+    którego informacji nikt nie ocenił (`QUAY` 2 tylko z braku słowa, [R3.2.1](#R3.2.1)), spisane najwyżej
+    12 miesięcy od danej; wcześniej spisane pierwsze, bez daty spisania za tymi z datą; brakująca lub nieczytelna
+    data nie rozstrzyga; 3. pozostałe `QUAY` 3; 4. pozostałe według `QUAY` malejąco; 5. liczbowa część numeru źródła
+    (bez numeru za numerowanymi), potem kolejność dodania;
+  - cytat wpisu innego wydarzenia, który nie ma własnej informacji, ma w kolejności i w eksporcie `QUAY` informacji
+    wtórnej (wpis pogrzebu przy urodzeniu). Stopień pewności danej się przez to nie zmienia;
+  - imiona i nazwiska oraz cytaty osoby i rodziny (`1 SOUR`) porządkuje się bez kroku 2;
+  - jakie wydarzenia źródło zapisuje, eksport podaje jako `1 DATA` › `2 EVEN` przy źródle: zawsze w pliku dla innych
+    programów, aplikacji Strom tylko tej, która to czyta;
+  - `strom event main <E> <S>` oznacza cytat źródła S jako główny, `--locator "<gdzie>"` wybiera jeden z kilku
+    cytatów tego samego źródła, `--clear` usuwa cytat główny (obowiązuje kolejność badania). Wypis: „wybrano główny
+    zapis danej: …”, „dana bez głównego zapisu (kolejność badań): …”, „nie ma czego zmieniać: …”;
+  - cytat główny wybiera tylko człowiek, w aplikacji Strom ([S2.3.1](S2-edits-from-the-app.md#S2.3.1)) albo w swoim
+    terminalu. Agentowi `strom event main` odmawia (`main.person`) z radą, by powiedział to użytkownikowi. Nowy cytat
+    agenta porządkuje się za głównym, nigdy go nie zastąpi;
+  - `strom person show`, `strom family show` i `strom event show` wypisują cytaty w tej kolejności, główny
+    z „(główne, wybór użytkownika)”; `--json` ma `citationOrder`.
+- **Granice:** ogólnego cofnięcia cytatu głównego z terminala nie ma: usuwa się go `--clear` albo ustawia się
+  ponownie poprzedni.
+- **Obsługa:** terminal: `strom event main E0001 S0001`, `strom event main E0001 S0001 --locator "fol. 12"`,
+  `strom event main E0001 --clear`, `strom event show E0001`.
+- **Obowiązuje od:** badanie 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts (pořadí K1.1, SOURCE_EVENTS, FACT_RECORDS, monthsApart, quayAt, mainCitation), src/gedcom/export.ts (1 DATA / 2 EVEN, _STROM_MAIN) · ce8dc753 src/commands/people.ts ["event","main"] (personWrites, code main.person, a source or --clear, which source?, --locator not with --clear), core chooseMainCitation · src/core/actions.ts citeEvent (main nikdy) · assets/lang/cs.json ui.event.main, ui.event.main.off, ui.event.main.same, ui.show.main · ZADANI_VYZKUM_hlavni-citace.md Odpověď V1–V3 · dirigent:prace/1115-vyzkum-095-cli-drobnosti (U6: undo není) · spec 095 K1.1, K2.3 -->
+
+<a id="R3.4.6"></a>
+### R3.4.6 Cytat usunięty przez użytkownika
+
+Cytat, który użytkownik usunął z danej ([A3.2.3](A3-evidence-in-the-app.md#A3.2.3),
+[S2.3.1](S2-edits-from-the-app.md#S2.3.1)), badanie pamięta przy danej: źródło, miejsce w nim i kiedy. Agent sam go
+tam nie przywróci.
+
+- **Pilnuje kod:**
+  - `strom cite` odmawia agentowi takiego źródła przy tej samej danej (`cite.removedByUser`: „the user removed S…
+    from E… (data): it is not cited there again on its own”) z radą, by cytować tylko z nowym powodem, dlaczego wpis
+    należy do danej: `strom cite E… S… --reason "<dlaczego>"`. Z powodem cytat się zapisuje, a usunięcie zostaje
+    zamknięte;
+  - człowiek w swoim terminalu może cytować zawsze; tym zamyka usunięcie. To samo robi aplikacja Strom, która cytat
+    ponownie doda;
+  - według miejsca: usunięcie bez miejsca blokuje każde miejsce źródła; usunięcie jednego miejsca blokuje to miejsce
+    i cytat bez miejsca. Inne miejsce tego samego źródła można cytować (jedna księga często ma chrzest i pogrzeb tej
+    samej osoby);
+  - `strom … show` wypisuje przy danej „(usunięte przez użytkownika: S…)”, brief agenta tak samo.
+- **Granice:** wskazówki metodyki o usuniętych cytatach nic nie mówią; pilnuje ich tylko kod.
+- **Obsługa:** terminal: `strom cite E0001 S0001 --reason "…"`, `strom event show E0001`.
+- **Obowiązuje od:** badanie 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts removedByUser (locator), refuseRemoved (cite.removedByUser), clearRemoved · src/core/actions.ts:690 citeEvent (personWrites, --reason) · src/core/model.ts Event.uncited · src/core/sync.ts:5268 (aplikace cituje znovu) · src/brief/brief.ts:169 · assets/lang/cs.json ui.show.uncited · 4cd81f14 (vrácení: značka odebrání patří svému poslání) · spec 095 K3.2, K3.3 -->
 
 <a id="R3.5"></a>
 ## R3.5 Ślepy drugi odczyt
@@ -420,7 +481,7 @@ wersji.
     tekst źródła nie wymienia, badanie na to zwraca uwagę;
   - zatwierdzenie opowieści należy do człowieka ([R5.5](R5-conflicts.md#R5.5)).
 - **Obsługa:** terminal: `strom story show P…` (każda dana ze źródłami, potem tło), `strom story set P… --fact E…
-  --source S… --drop "E… <proč>"`. Plik Stromu: źródła opowieści jako `2 SOUR` pod `_STORY`.
+  --source S… --drop "E… <dlaczego>"`. Plik Stromu: źródła opowieści jako `2 SOUR` pod `_STORY`.
 - **Obowiązuje od:** badanie 1.26.0
 
 <!-- zdroj: research:src/core/storykeep.ts StoryVersion, StoryDrop, StorySource, storySources · src/commands/story.ts:104 --drop, :151 told from a lead, :231 story show · assets/method/narrate.md · CHANGELOG.cs.md 1.26.0 -->

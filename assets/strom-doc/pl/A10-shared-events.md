@@ -147,9 +147,11 @@ chrzcie, ślubie, zgonie. Gdy uczestnik jest połączony z osobą w drzewie, to 
 
 - **Role:** **Chrzestny / chrzestna**, **Świadek**, **Celebrans**, **Obecny**; z plików także **Akuszerka**
   i **Zgłaszający**. Uczestnik jest zapisany z imienia i nazwiska, jak w źródle, oraz z bliższym określeniem
-  (rzemiosło, „sąsiad”…).
+  (rzemiosło, „sąsiad”…). Słowo roli na początku notatki uczestnika z pliku jest rozpoznawane także w formie
+  żeńskiej („Zgłaszająca”, „Akuszerka”, cs „Oznamovatelka”).
 - **W życiu połączonej osoby:** wiersz pochodny, na przykład „Chrzestny · chrzest: …”, „Chrzestna · chrzest: …”,
-  „Świadek · ślub: …”, „Udzielający ślubu · ślub: …”, „Akuszerka · chrzest: …”, „Zgłaszający · zgon: …”. Jest na
+  „Świadek · ślub: …”, „Udzielający ślubu · ślub: …”, „Akuszerka · chrzest: …”, „Zgłaszający · zgon: …”. U kobiety „Zgłaszająca · zgon: …” (przy każdym wydarzeniu i w podsumowaniu)
+  i przy ślubie „Udzielająca ślubu · ślub: …” („Celebrantka” przy innych wydarzeniach); „Świadek” ma jedną formę. Jest na
   liście wydarzeń osoby i na stronie osoby w sekcji **Oś czasu życia**; podsumowanie strony osoby ma „Chrzestny
   i świadek u” (u kobiety „Chrzestna i świadek u”).
 - **Granice:**
@@ -161,9 +163,9 @@ chrzcie, ślubie, zgonie. Gdy uczestnik jest połączony z osobą w drzewie, to 
 - **Obsługa:** edycja wydarzenia, sekcja **Chrzestni i świadkowie**: **+ Dodaj**, **Połącz z osobą w drzewie**;
   połączony uczestnik ma znacznik **w drzewie**. Menu wiersza pochodnego: **Otwórz osobę**, **Zapisz też jako własne
   wydarzenie**, **Usuń powiązanie**.
-- **Obowiązuje od:** aplikacja 3.28.0
+- **Obowiązuje od:** aplikacja 3.28.0; formy żeńskie od 3.29.0
 
-<!-- zdroj: app:80c2ffb9 strings.ts events.roles, extraRoles, participants, addParticipant, participantName, participantNote, participantLink, participantInTree, derived*, derivedMenu, recordOwn, unlink · personPage godparentWitness · src/ui/shared-event-ui.ts (odvozené řádky jen v seznamu událostí a Život) · spec 085 K2.1 · dirigent:prace/1113-app-sdilena-udalost Výsledek -->
+<!-- zdroj: app:80c2ffb9 strings.ts events.roles, extraRoles, participants, addParticipant, participantName, participantNote, participantLink, participantInTree, derived*, derivedMenu, recordOwn, unlink · personPage godparentWitness · src/ui/shared-event-ui.ts (odvozené řádky jen v seznamu událostí a Život) · spec 085 K2.1 · dirigent:prace/1113-app-sdilena-udalost Výsledek · 3.29.0: app:844985bc ženské tvary (cs Oznamovatelka, de Anzeigende, pl Zgłaszająca; pl Udzielająca ślubu / Celebrantka; de Amtsperson všude; en jeden tvar, pl świadek, cs oddávající beze změny) · 8bbc2ec6 src/godparents.ts EXTRA_ROLE_WORDS (oznamovatel(ka), zgłaszający/a, akuszerka) -->
 
 <a id="A10.5.1"></a>
 ### A10.5.1 Zapisz też jako własne wydarzenie

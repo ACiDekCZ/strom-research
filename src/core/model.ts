@@ -82,6 +82,26 @@ export interface Citation {
   quote?: string;
   /** Information of the source FOR THIS FACT: the same entry is primary for a baptism date, secondary for an age. */
   information?: "primary" | "secondary" | "unknown";
+  /**
+   * The main citation of its fact (spec 095): chosen by the user alone — in the Strom app or in the terminal — never by
+   * an agent; at most one citation of a fact. First in the order of the fact's citations (core/citeorder.ts).
+   */
+  main?: { by: "user"; at: string };
+}
+
+/**
+ * A citation the user removed from a fact (spec 095 K3): kept so that the research never cites it there again on its
+ * own — an agent may only with a reason, which closes the entry (`cleared`).
+ */
+export interface UncitedEntry {
+  source: string;
+  locator?: string;
+  at: string;
+  by: "user";
+  /** The sync that brought the removal (I…), none: removed in the terminal. */
+  sync?: string;
+  /** Cited again with a reason: the entry no longer refuses. */
+  cleared?: { at: string; reason: string };
 }
 
 export const PARTICIPANT_ROLES = ["godparent", "witness", "officiant", "informant", "midwife", "other"] as const;
@@ -116,6 +136,8 @@ export interface Event {
   participants?: Participant[];
   status: Status;
   citations: Citation[];
+  /** Citations the user removed from this fact (spec 095 K3), never cited again unasked. */
+  uncited?: UncitedEntry[];
   note?: string;
   /** The texts the note had before it was corrected, oldest first. */
   noteEdits?: NoteEdit[];
@@ -1163,6 +1185,8 @@ export interface SessionMetrics {
    * written and strom refused is no failure of the research, its task never parked for it.
    */
   stromDenied?: number;
+  /** The plan's limit of the agent cut it off (strom run): no failure of the research, its task never parked for it. */
+  limit?: true;
   /** Tool calls strom's own hook refused (an agent's web fetch past strom's limits for one server: core/web.ts). */
   refused?: number;
 }

@@ -79,7 +79,7 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
 - **Dlaczego:** metodyka chce przestrzegać warunków każdego archiwum. Tam, gdzie robots.txt wpuszcza tylko
   przeglądarkę, idzie najwyżej przeglądarka, za zgodą człowieka i w jego tempie; to, co lista archiwów zostawia
   ręce człowieka, zapisuje człowiek.
-- **Obsługa:** terminal: `strom net web --check <adresa>` (co strom zrobiłby z adresem), menu archiwów, `strom
+- **Obsługa:** terminal: `strom net web --check <adres>` (co strom zrobiłby z adresem), menu archiwów, `strom
   allow archive` (tylko człowiek). Aplikacja: Czeka na załatwienie.
 - **Obowiązuje od:** badanie 1.14.0. Kolejne archiwa Czech, Niemiec i Polski oraz serwer obrazów od 1.27.0.
 
@@ -93,7 +93,7 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
   poziom **nieznane**, czyli jak ograniczone.
 - Strony takiej witryny agent może pobrać, w granicach [R9.3](#R9.3). Skanów nie: skany archiwum, które nie jest
   dozwolone, nigdy nie idą przez pobieranie stron.
-- **Obsługa:** terminal: `strom net web --check <adresa>`.
+- **Obsługa:** terminal: `strom net web --check <adres>`.
 - **Obowiązuje od:** badanie 1.14.0
 
 <!-- zdroj: research:src/core/terms.ts:566-680 archiveLevel (unknown → restricted) · src/core/webgate.ts webGate (images of a non-allowed archive) -->
@@ -128,7 +128,7 @@ ją tylko człowiek.
   w folderze, nie wraca: skany zostaną przejęte ([R9.6](#R9.6)). Zadanie **witryna do sprawdzenia** nie budzi się
   nigdy ([R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Dlaczego:** złagodzić archiwum lub je otworzyć może tylko człowiek; agent może archiwum tylko zaostrzyć.
-- **Obsługa:** terminal: `strom allow archive <web|stahovač> --way slow|browser|manual`, `--revoke`, menu archiwów.
+- **Obsługa:** terminal: `strom allow archive <witryna|pobieracz> --way slow|browser|manual`, `--revoke`, menu archiwów.
   Aplikacja: odnośnik **Zgoda…** w notatce przy pozycji, która czeka na skany archiwum tylko przez przeglądarkę,
   i w wierszu **Przeglądarka** ([R9.4.3](#R9.4.3)). Otwiera pytanie w badaniu w terminalu, nawet gdy do archiwum nie
   prowadzi żaden program pobierający.
@@ -147,7 +147,7 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
   - archiwum zakazane lub witryna, która odrzuciła klienta strom: tylko strona warunków, najwyżej 3 razy dziennie,
     i robots.txt;
   - archiwum tylko przez przeglądarkę człowieka: żadnego pobierania stron. Agent dostaje radę: zgoda „przez
-    przeglądarkę” albo oczekiwanie na skany (`strom task wait T… --images B…:<čísla>`);
+    przeglądarkę” albo oczekiwanie na skany (`strom task wait T… --images B…:<numery>`);
   - archiwum tylko ręcznie, zgoda tylko ręcznie i zakazana ścieżka z listy archiwów: tylko ręcznie, nawet nie
     przeglądarka agenta;
   - ścieżka, której zabrania robots.txt: odrzucone;
@@ -164,7 +164,7 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
   czeka na człowieka, aby sprawdził witrynę (`strom task wait --check`, [R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Dlaczego:** pobieranie stron i przeglądarka agenta liczą się i zwalniają razem, aby żadna droga nie szła szybciej
   niż inna.
-- **Obsługa:** terminal (agent): `strom net web --check <adresa>`.
+- **Obsługa:** terminal (agent): `strom net web --check <adres>`.
 - **Obowiązuje od:** badanie 1.14.0
 
 <!-- zdroj: research:src/core/webgate.ts webGate (TERMS_PER_DAY, browserOnly advice, otherWay) · src/core/web.ts WEB_SOFT 12, WEB_SOFT_GAP_MS, WEB_PER_HOST 30, WEB_WAIT_MAX_MS · src/core/config.ts web.perHost · assets/method/locate.md -->
@@ -341,7 +341,7 @@ Gdzie agent skanów nie zdobędzie, zadanie czeka na człowieka. Badanie podaje 
 nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego skany.
 
 - **Pilnuje kod:**
-  - `strom task wait T… --images B…:<čísla>` przygotowuje folder `inbox/<B… název knihy>` w folderze współdzielonym
+  - `strom task wait T… --images B…:<numery>` przygotowuje folder `inbox/<B… tytuł księgi>` w folderze współdzielonym
     (nazwa najwyżej 80 znaków);
   - plik nosi numer skanu (`40.jpg`, `9a.jpg`). Inaczej nazwane pliki numeruje się według kolejności, gdy jest ich
     tyle, ile skanów brakuje;
@@ -464,7 +464,7 @@ Kroki przy zadaniu, które czeka na skany archiwum, do którego agentowi nie wol
    stanu **Czeka: N**. Pozycja podaje księgę, numery skanów i czego do tego brakuje.
 2. **Wybrać drogę:**
    - z Claude Code i rozszerzeniem Claude in Chrome można dać archiwum zgodę **przez przeglądarkę** (aplikacja:
-     odnośnik **Zgoda…** w notatce przy pozycji, terminal `strom allow archive <web> --way browser`). Zadanie wraca,
+     odnośnik **Zgoda…** w notatce przy pozycji, terminal `strom allow archive <witryna> --way browser`). Zadanie wraca,
      a agent zapisuje skany sam ([R9.5](#R9.5));
    - w przeciwnym razie, albo przy archiwum tylko ręcznie, zapisać skany ręcznie (kolejne kroki).
 3. **Otworzyć księgę** w przeglądarce na witrynie archiwum, z logowaniem i sprawdzeniem człowieka, gdzie archiwum ich
@@ -572,7 +572,7 @@ Horáków jest zmyślona.
 - Zadanie: wpis Marie Horákovej w księdze metrykalnej w DigiArchivie. Zadanie zawsze czeka na skany, które wybiera
   i zapisuje człowiek. Zgoda tego nie otwiera; nie wolno tam wchodzić ani programowi pobierającemu, ani pobieraniu
   stron, ani przeglądarce agenta.
-- Cytat: trwały odnośnik do skanu to adres jego strony `https://digi.ceskearchivy.cz/<kniha>/<snímek>` albo
+- Cytat: trwały odnośnik do skanu to adres jego strony `https://digi.ceskearchivy.cz/<księga>/<skan>` albo
   **Odkaz na snímek** w panelu **POPIS**.
 - **Obowiązuje od:** badanie 1.28.0
 

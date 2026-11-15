@@ -6,7 +6,7 @@
 // IDs in a tree of this research coming back from the Strom app are matched,
 // not duplicated — another research's IDs never (oursByRefn).
 
-import { eventKind, FAMILY_EVENT_KINDS, treeNoteText, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
+import { eventKind, FAMILY_EVENT_KINDS, treeNoteText, type EventRoleAt, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
 import { normalizeAge } from "./age.ts";
 import { foldText } from "./text.ts";
 import { eventMarksOf, gedcomRole, participantRole, roleAtMark, roleWord, shareMark, type EventMarks } from "./roles.ts";
@@ -479,6 +479,9 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         if (marks.unreadable) result.problems.push(`${bare(xref)} ${c.tag}: the mark of a shared event "${marks.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
         if (marks.roleAt) {
           ev.roleAt = marks.roleAt;
+          // a godparent's own event named in the research's language, as the app's JSON names it
+          const named = kind === "EVEN" && !forFamily ? gedRoleEventLabel(fromApp, marks.roleAt, !!marks.atXref, tree.config.lang) : undefined;
+          if (named) ev.label = named;
           if (!marks.roleAt.at && marks.atXref && families.has(marks.atXref)) atLater.push({ event: ev.id, at: marks.atXref, owner: xref, family: forFamily });
         }
         // What the author of that tree cited for this fact.
@@ -1019,6 +1022,20 @@ export function appPersonEvent(e: { type: string; customLabel?: string }, lang: 
 }
 
 /**
+ * The name of a person's own event of a role at another's in a GEDCOM file of the Strom app (`2 _STROM_ROLE`): in the
+ * research's language, as its JSON gives it (appPersonEvent) — the app writes the TYPE of its godparent's and wedding
+ * witness's events in the language it runs in ("Godparent" in a Czech research). The app itself reads a godparent's
+ * role at any event as its type "godparent" and a witness's at a marriage of somebody known as "weddingWitness",
+ * whatever the TYPE says (its ged-shares.ts roleAtEventType); any other role, or another program's file: none (the
+ * TYPE as it is).
+ */
+export function gedRoleEventLabel(file: Pick<GedFile, "app">, roleAt: EventRoleAt | undefined, whoseKnown: boolean, lang: string): string | undefined {
+  if (!file.app || !roleAt) return undefined;
+  const type = roleAt.role === "godparent" ? "godparent" : roleAt.role === "witness" && whoseKnown && roleAt.kind === "MARR" ? "weddingWitness" : undefined;
+  return type ? phrase(lang, APP_ROLE_EVENTS[type]!) : undefined;
+}
+
+/**
  * Who else was at an event of the Strom app's JSON: the role (the app's own; "other" with a note naming a role it has
  * none of — "porodní bába" — that role, the note kept), a person of its tree by the app's ID or a name, the note.
  */
@@ -1324,6 +1341,12 @@ export function houseOf(address: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/^(?:č\.\s?p\.?|čp\.?|c\.\s?p\.|cp\.|house\s+no\.?|no\.|nr\.|haus-?\s?n(?:r|ro)\.?)\s*/iu, "");
+}
+
+/** A line of a fact's note that is a labelled detail of it as the Strom app writes one back (detailInto): no words of a note. */
+export function detailLine(line: string): boolean {
+  const scratch = () => ({}) as Event;
+  return detailInto(scratch(), line, false) || detailInto(scratch(), line, true, { HUSB: "H", WIFE: "W" });
 }
 
 /**

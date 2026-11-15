@@ -91,6 +91,14 @@ if (mode === "limit") {
   console.log("Claude usage limit reached. Your limit resets at 7pm.");
   process.exit(1);
 }
+// the plan's limit cuts off the first session (resets AGENT_LIMIT_IN ms after it says so, none: no time said), the next ones as echo
+if (mode === "limit-once" && !(await import("node:fs")).existsSync(".strom/agent-limit-once")) {
+  (await import("node:fs")).writeFileSync(".strom/agent-limit-once", "");
+  // (an ISO time without its milliseconds: the agent's words are read up to a dot)
+  const at = process.env.AGENT_LIMIT_IN ? new Date(Date.now() + Number(process.env.AGENT_LIMIT_IN)).toISOString().replace(/\.\d{3}Z$/, "Z") : undefined;
+  console.log(at ? `Claude usage limit reached. Your limit resets at ${at}.` : "Claude usage limit reached.");
+  process.exit(1);
+}
 if (mode === "die") process.exit(0); // leaves the session open
 if (mode === "denied") {
   // what an agent reports when its permissions refuse strom (stands in for Claude's permission_denials)
@@ -147,7 +155,7 @@ if (mode === "fetch-wait") {
   strom("session", "close", "--continue", "--summary", "the images wait for the archive", "--next", "images 1-2", "--reason", "the images wait for the person's decision");
   process.exit(0);
 }
-if (mode === "echo") {
+if (mode === "echo" || mode === "limit-once") {
   // what the agent got: its arguments and the prompt on stdin
   const stdin = await new Promise<string>((resolve) => {
     let s = "";

@@ -110,6 +110,82 @@ osoby, do ślubu i do wspólnego zdarzenia pary. Z cytatów aplikacja liczy pozi
 
 <!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
+<a id="A3.2.2"></a>
+### A3.2.2 Kolejność cytatów i cytat główny
+
+Dana z kilkoma cytatami ma je wszędzie w jednej kolejności: etykiety w edycji osoby i przy ślubie, dymek przy
+znaczniku danej, **Źródła** osoby. Gdzie aplikacja bierze tylko jeden cytat, bierze pierwszy: wyciąg na stronie osoby,
+ślub na stronach rodzin, numery źródeł w księdze rodu, kolumny cytatów w widoku **Tabela** ([A6.7](A6-views.md#A6.7))
+i pierwsze źródło przy **Zweryfikuj** ([S7.3](S7-reliability-and-verification.md#S7.3)). Tę samą kolejność ma badanie
+([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+
+- **Kolejność:**
+  1. cytat główny, który wybrał użytkownik;
+  2. zapis pierwotny wydarzenia: źródło, które odnotowuje ten rodzaj wydarzenia, z cytatem **Oryginał** i zapisane
+     najwyżej 12 miesięcy od danej. Przy urodzeniu i chrzcie zapis urodzenia lub chrztu, przy zgonie, pochówku
+     i kremacji zapis zgonu lub pochówku, przy ślubie, zapowiedziach i zaręczynach zapis ślubu, przy spisie ludności
+     spis. Zapisane wcześniej stoi przed zapisanym później, źródło bez **Data zapisu** za zapisanymi z datą. Brakująca
+     lub nieczytelna data danej nie rozstrzyga;
+  3. pozostałe cytaty z wiarygodnością **Oryginał**;
+  4. pozostałe według wiarygodności: **Odpis / indeks**, **Niepewne**, potem bez wiarygodności;
+  5. według liczbowej części numeru źródła (źródło bez numeru za numerowanymi), na końcu kolejność, w jakiej cytaty
+     dodano.
+- Jakie wydarzenia źródło odnotowuje, aplikacja wie z pliku GEDCOM (`1 DATA` › `2 EVEN`,
+  [A2.6](A2-loading-a-family-tree.md#A2.6)); badanie pisze to przy swoich źródłach. Źródło bez tego nie jest zapisem
+  pierwotnym.
+- **Cytat główny:** jeden cytat danej użytkownik może oznaczyć jako główny. Stoi pierwszy, jego etykieta ma ★ przed
+  tytułem i wyróżnioną ramkę, jej przycisk mówi „cytat główny”. W dymku jest przy nim „★ główny”, w **Źródła** osoby
+  i w **Dokumentuje** podglądu źródła ★ za daną. Cytat, który jest pierwszy tylko według kolejności, znacznika nie ma.
+- **Pasek w podglądzie źródła:** podgląd otwarty z cytatu danej (etykieta, wiersz dymku, wiersz **Źródła** osoby)
+  pokazuje u góry, co cytat dokumentuje („Urodzenie · Marie Vlková”) i gdzie stoi w kolejności: „2. z 3 cytatów”;
+  przy pierwszym także dlaczego („jest pierwszy: zapis urodzenia, oryginał”, „oryginał”, „najwyższa wiarygodność”);
+  „Cytat główny dla urodzenia”; „Jedyny cytat dla urodzenia”. Pod tym przyciski **Oznacz jako główny** albo **Usuń
+  oznaczenie głównego** i **Usuń cytowanie** ([A3.2.3](#A3.2.3)).
+- **Granice:**
+  - zapisanych list cytatów się nie przestawia; kolejność liczy się przy wyświetlaniu i eksporcie;
+  - **Oznacz jako główny** jest tylko przy danej z 2 i więcej cytatami, i tylko w drzewie bez badania albo z badaniem,
+    które cytat główny przechowuje (badanie 1.34.0 i nowsze). Tylko tam pokazuje się też ★;
+  - drzewo badania, które kolejność cytatów ustala samo, ma cytaty w kolejności z pliku badania; cytat główny stoi
+    pierwszy;
+  - przy osobie zablokowanej i w drzewie tylko do odczytu przycisków nie ma;
+  - oznaczenie, zamiana i usunięcie oznaczenia to jeden krok **Cofnij** („Cytat główny dla urodzenia: …”, „Cytat
+    główny dla urodzenia usunięty; kolejność znów automatyczna”). Usunięcie cytatu głównego lub jego źródła i zmiana
+    wydarzenia bez niego usuwają oznaczenie w tym samym kroku; **Cofnij** przywraca miejsce i ★;
+  - wspólne wydarzenie ([A10.1](A10-shared-events.md#A10.1)) ma cytat główny wspólny dla wszystkich kopii; kopie,
+    które różnią się nim, są kopiami, które się różnią ([A10.3](A10-shared-events.md#A10.3));
+  - źródło scalone z innym przenosi oznaczenie na źródło, z którym zostało scalone. Scalanie drzew
+    ([A8](A8-merging-trees.md)) zostawia oznaczenie tej strony, która je ma; gdy mają je obie, strony zachowanej.
+- **Obsługa:** podgląd źródła otwarty z cytatu danej → **Oznacz jako główny** · **Usuń oznaczenie głównego**. Terminal
+  badania: `strom event main` ([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+- **Obowiązuje od:** aplikacja 3.29.0
+
+<!-- zdroj: app:e361220d src/citation-order.ts FACT_RECORDS, recordOfFact, PRIMARY_RECORD_MONTHS 12, orderedCitationSteps (main, primary jen QUAY 3, written, QUAY, number, list), citationMain (jeden krok Zpět, sdílená kopie, remap, merge/executor.ts), data v21 · 9c0ca227 (★ a pořadí: sources.ts chipy, relationships-panel, status-tip „★ hlavní“, person-sources, person-page, family-pages-html, book-blocks, table-sources, verify.ts) · 192d53ec src/citation-bar.ts citeBar, whyFirst, citeMainToast · src/citation-gates.ts citationMainOffered, citationFileOrder, citationMainShown · strings.ts sources.mainMark, citeAt, citePos, citeFirstWhy, whyPrimary, whyOriginal, whyQuality, citeMainAt, citeOnly, setMain, clearMain, mainSetToast, mainClearedToast · spec 095 K1.1, §2 -->
+
+<a id="A3.2.3"></a>
+### A3.2.3 Usuń cytowanie
+
+**Usuń cytowanie** odłącza źródło od jednej danej. Źródło zostaje w **Źródła** drzewa razem ze swoimi wycinkami
+i załącznikami, pozostałe dane cytują je dalej.
+
+- **Pilnuje kod:**
+  - bez potwierdzenia, także przy cytacie głównym. Pasek w podglądzie mówi wtedy „Odłączono od urodzenia · źródło
+    zostaje w katalogu”, a przyciski znikają;
+  - komunikat wymienia daną i źródło: „Cytat usunięty z urodzenia: … · źródło zostaje”, przy cytacie głównym „…, już
+    nie główny: …”, przy wspólnym wydarzeniu „… u wszystkich N osób: …” (usuwa się ze wszystkich kopii);
+  - jeden krok **Cofnij**: **Cofnij** w komunikacie przywraca cytat na jego miejsce razem z ★. Komunikat stoi także nad
+    otwartym podglądem, więc **Cofnij** da się użyć tam;
+  - w drzewie badania, które usunięcia nie przejmuje, pod przyciskami jest „Badanie jeszcze nie przejmuje usunięć.”,
+    a pierwsze usunięcie w oknie mówi „Badanie nie przejmie tego usunięcia; po wczytaniu jego wersji cytat wróci.”,
+    kolejne już tylko „badanie nie przejmie”. Co badanie z usunięciem zrobi, opisuje
+    [S2.3.1](S2-edits-from-the-app.md#S2.3.1).
+- **Granice:** przy osobie zablokowanej i w drzewie tylko do odczytu przycisku nie ma. Całe źródło usuwa się
+  w **Akcje → Źródła** ([A3.1](#A3.1)).
+- **Obsługa:** podgląd źródła otwarty z cytatu danej → **Usuń cytowanie**; × na etykiecie cytatu w edycji osoby
+  ([A3.2](#A3.2)).
+- **Obowiązuje od:** aplikacja 1.4.0 (× na etykiecie); pasek i komunikat 3.29.0
+
+<!-- zdroj: app:192d53ec src/citation-bar.ts citeBar (gone, note = editable && removeNotTaken), unciteToast (unciteWarned jednou na strom v okně), citeBarHtml · src/citation-gates.ts citationRemoveTaken (feature citations.remove) · strings.ts sources.citeGone, uncitedToast, uncitedMainToast, uncitedSharedToast, sourceStays, uncitedNotTaken, uncitedNotTakenShort, unciteNote, undo.uncite · spec 095 §3 -->
+
 <a id="A3.3"></a>
 ## A3.3 Wycinek zapisu
 

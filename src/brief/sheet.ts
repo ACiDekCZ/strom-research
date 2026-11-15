@@ -38,6 +38,8 @@ const RARE: Record<string, string[]> = {
   "hypothesis decide": ["proposed", "keep-open"],
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
+  // a citation the user removed from a fact (spec 095 K3.2): its refusal says --reason where it applies
+  cite: ["reason"],
   "recordset add": ["images", "again"],
   grep: ["regex", "files"],
   // what a waiting task waits for is said when it is set waiting (task wait); edit fills it for an older one

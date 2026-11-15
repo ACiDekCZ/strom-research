@@ -25,7 +25,7 @@ Aufgabe gehört zu einer Linie, und der Agent arbeitet an den Aufgaben der Linie
 - **Eine Frage** (erfundenes Beispiel: „Wer war der Vater von Marie Vlková?“).
 - **Durchsicht einer Person** entsteht aus der Durchsicht einer Person, nicht aus dem Angebot einer neuen Linie.
 - **Bedienung:** Terminal: `strom research new --direction ancestors|descendants --generations <n> --before <rok>
-  --question "<otázka>"`. App: **+ Neue Richtung**, mit den Grenzen **Höchstens Generationen** und **Nur vor dem
+  --question "<Frage>"`. App: **+ Neue Richtung**, mit den Grenzen **Höchstens Generationen** und **Nur vor dem
   Jahr** (App 3.22.0 mit Forschung 1.26.0).
 - **Gilt seit:** Forschung 1.0.0
 

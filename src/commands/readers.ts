@@ -8,11 +8,13 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "../cli/context.ts";
 import { UsageError } from "../core/errors.ts";
-import { requireAgentCli } from "../core/agentcli.ts";
-import { READER_STALLED, readerSettings, readerStall } from "../core/reader.ts";
+import { requireAgentCli, requireClaudeLogin } from "../core/agentcli.ts";
+import { claudeLoginCommand } from "../core/claudedir.ts";
+import { AGENTS, isAgent, withoutAgentMarks } from "../core/which.ts";
+import { ui } from "../cli/ui.ts";
+import { readerSettings, readerStall } from "../core/reader.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { RUNNERS } from "../runners/index.ts";
-import { withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import type { Tree } from "../core/tree.ts";
@@ -140,6 +142,30 @@ export function refuseReadersWithoutCli(ctx: Context, tree: Tree, command: strin
   requireAgentCli(readerAgent(ctx, tree), ctx.env, command);
 }
 
+/**
+ * Claude Code in the terminal said outright not logged in (`claude auth status`, in the readers' environment): no reader
+ * is started — every one would end "auth" at $0.00 (K040). Said at once with how to log in (agent.logged-out).
+ */
+export function refuseReadersLoggedOut(ctx: Context, agentId: string, command: string): void {
+  const { STROM_SESSION: _s, ...env } = ctx.env;
+  requireClaudeLogin(agentId, withoutAgentMarks(env), command);
+}
+
+/**
+ * A reader that ended "auth": its agent's CLI not logged in, said with how to log in (K040) — English for an agent,
+ * else in the research's language.
+ */
+/** The language the readers' progress is said in: the research's for a person, English for an agent. */
+export function readersLang(ctx: Context, tree: Tree): string {
+  return isAgent(ctx.env) ? "en" : tree.lang;
+}
+
+export function readerAuthSaid(ctx: Context, tree: Tree, agentId: string): string {
+  const lang = readersLang(ctx, tree);
+  if (agentId === "claude") return ui(lang, "ui.read.auth", { command: claudeLoginCommand(ctx.env) });
+  return ui(lang, "ui.run.stop.auth", { command: AGENTS.find((a) => a.id === agentId)?.command ?? agentId });
+}
+
 /** Inside a sandbox that lets no agent start (Codex's) no reader is started: said at once, with what to do instead. */
 export function refuseReadersInSandbox(ctx: Context, command: string): void {
   const sb = sandboxOf(ctx.env);
@@ -157,6 +183,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   refuseReadersWhenFinishing(tree.root, ctx.env);
   refuseReadersInSandbox(ctx, `strom ${kind}`);
   requireAgentCli(agentId, ctx.env, `strom ${kind}`);
+  refuseReadersLoggedOut(ctx, agentId, `strom ${kind}`);
   const runner = RUNNERS[agentId];
   if (!runner) throw noReaderFor(agentId, `strom ${kind}`);
   const model = own.with ? own.with.model || undefined : typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
@@ -176,6 +203,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   let runs = 0;
   let partial = false;
   const failed: string[] = [];
+  let authTold = false;
   const read = async (name: string, views: string[], title: string, prompt: (report: string) => string, more: ReadMore = {}) => {
     const report = path.join(reportsDir, `${stem}-${name}.md`);
     const own = path.join(work, `${stem}-${name}`);
@@ -246,7 +274,12 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     runs++;
     if (r.metrics.costUsd === undefined || r.metrics.costPartial) partial = true;
     // refused by a sandbox that does not say so: said as such, never only "error"
-    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.stalled ? READER_STALLED : r.outcome === "error" && r.modelRejected ? `${agentId === "codex" ? `the model ${model ?? "it reads with"} is not available in the Codex CLI installed here — update Codex: npm install -g @openai/codex@latest, or another model` : `${agentId} does not take the model ${model ?? "it reads with"} — another model`}` : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
+    // not logged in: said once as it happens, with how to log in (K040)
+    if (r.outcome === "auth" && !authTold) {
+      authTold = true;
+      progress(`■ ${name}: ${readerAuthSaid(ctx, tree, agentId)}`);
+    }
+    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.stalled ? ui(readersLang(ctx, tree), "ui.read.stalled") : r.outcome === "error" && r.modelRejected ? `${agentId === "codex" ? `the model ${model ?? "it reads with"} is not available in the Codex CLI installed here — update Codex: npm install -g @openai/codex@latest, or another model` : `${agentId} does not take the model ${model ?? "it reads with"} — another model`}` : r.outcome === "timeout" ? ui(readersLang(ctx, tree), "ui.read.failed.timeout", { minutes: limit.minutes }) : r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}), ...(r.outcome === "error" && r.modelRejected ? { modelRejected: true as const } : {}) };

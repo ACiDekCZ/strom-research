@@ -241,8 +241,15 @@ jako **Spolehlivost pramene**: 3 je **Originál**, 2 **Opis / index**, 1 a 0 **N
   `PAGE` složenou z polí: folium, další umístění, snímek („fol. 12v, č. 5, snímek 34“; slovo pro snímek v jazyce
   aplikace). Číslo, které už další umístění jmenuje, se neopakuje. Pramen bez folia a snímku se exportuje přesně jako
   dřív. Pole pramene popisuje [A3.9](A3-evidence-in-the-app.md#A3.9).
+- **Od aplikace 3.29.0:**
+  - `1 DATA` › `2 EVEN` u záznamu pramene (události, které zápis zapisuje, např. `2 EVEN BIRT, CHR`) se načte a slouží
+    pořadí citací ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)); v souhrnu importu už není jako nenačtené. `DATE`
+    a `AGNC` pod `DATA` se nenačtou a souhrn je uvede jednou jako `DATA`;
+  - `3 _STROM_MAIN Y` pod citací údaje (`2 SOUR`) označí hlavní citaci údaje; pod citací osoby nebo rodiny (`1 SOUR`)
+    se nečte. Jako vynechaná značka se nehlásí;
+  - citace se uloží v pořadí ze souboru; ukazují se v pořadí [A3.2.2](A3-evidence-in-the-app.md#A3.2.2).
 
-<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 -->
+<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 · 3.29.0: app:e361220d src/ged-parser.ts:3952 (DATA › EVEN → Source.events, ostatní count('DATA')), :3410 _STROM_MAIN pod 2 SOUR · spec 095 -->
 
 <a id="A2.6.1"></a>
 ### A2.6.1 Spolehlivost u citace
@@ -305,8 +312,14 @@ Hlavička `1 SOUR STROM` říká, že soubor psal Strom.
     `3 _STROM_AT` s odkazem na ni a `4 TYPE` se značkou té události (`BAPM`, `MARR` …);
   - odmítnuté propojení kmotra nebo svědka ([A10.5.2](A10-shared-events.md#A10.5.2)) jako `3 _STROM_NOT_LINK @I…@`
     pod účastníkem (`_WITN`, `ASSO`). Odkaz na osobu, která v souboru není, se při načtení zahodí.
+- **Od aplikace 3.29.0:** každý export GEDCOM píše citace údajů v pořadí [A3.2.2](A3-evidence-in-the-app.md#A3.2.2)
+  a u pramene `1 DATA` › `2 EVEN`, když se ví, jaké události zapisuje. Hlavní citaci píše jako `3 _STROM_MAIN Y` pod
+  její citací, jen u údaje se 2 a víc citacemi; nikdy v **Zpět do {program}** (tam stojí jen první) a výzkumu jen
+  tehdy, když říká, že hlavní citaci drží. U citací rozvodu, které jdou pod `1 MARR`, se `_STROM_MAIN` nepíše (vrátila
+  by se jako hlavní citace sňatku). Stránka zápisu, kterou dal výzkum, jde výzkumu zpět jako citace jeho pramene
+  s vlastní `PAGE`, ne jako druhý pramen.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents · 3.29.0: app:e361220d, d32eedf1 src/ged-exporter.ts citationMain, citationFileOrder, pushCitations (markMain, ≥ 2 citace, level ≥ 2), 1 DATA / 2 EVEN · ZADANI_VYZKUM_hlavni-citace.md Implementace aplikace (V8) -->
 
 <a id="A2.8"></a>
 ## A2.8 Opakovaný import a sloučení

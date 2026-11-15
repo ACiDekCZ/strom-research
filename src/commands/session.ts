@@ -48,7 +48,8 @@ import { RUNNERS } from "../runners/index.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { requireAgentCli } from "../core/agentcli.ts";
-import { askGate, checkGateSpec, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
+import { askGate, checkGateSpec, DEFAULT_WAIT_MS, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
+import { limitReserve, limitResume } from "../core/planlimit.ts";
 import { keepAwake } from "../core/awake.ts";
 import { askFinish, deadlineOf, earlyClose, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
 import { openUnclear } from "./readings.ts";
@@ -71,7 +72,7 @@ import { isArchive } from "../core/mode.ts";
 import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
-import { claudeConfigSet, claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
+import { claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -721,13 +722,14 @@ export function shimDir(tree: Tree, opts: { pin?: boolean } = {}): string {
   return writeShim(tree.root, process.env, undefined, opts);
 }
 
-function parseUntil(v: unknown): number | undefined {
+/** --until HH:MM: its next time from now (this computer's time) — past midnight when the time of day is gone today. */
+export function parseUntil(v: unknown, now: number = Date.now()): number | undefined {
   if (typeof v !== "string") return undefined;
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
   if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) throw new UsageError(`--until must be a time of day, HH:MM (e.g. 23:30), not "${v}"`);
-  const d = new Date();
+  const d = new Date(now);
   d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+  if (d.getTime() < now) d.setDate(d.getDate() + 1);
   return d.getTime();
 }
 
@@ -785,6 +787,8 @@ function idleSessions(tree: Tree, taskId: string): number {
     if (x.endedBy === "user" || x.endedBy === "run" || x.endedBy === "chat" || x.summary === BY_USER || x.summary === RUN_GONE) continue;
     // strom itself kept from the agent (its permissions, its sandbox): the run's stop says it, the task waits as it was
     if ((x.metrics?.stromDenied ?? 0) > 0) continue;
+    // cut off by the plan's limit: no failure of the agent (a run under a gate waits for it, K036)
+    if (x.metrics?.limit) continue;
     n++;
   }
   return n;
@@ -888,6 +892,9 @@ register(
     "finish when the agent says the cap's window reached the cap (a cap of 100: 99 %).\n" +
     "Each answer of the gate is said in one line and recorded (time, gate and its arguments, exit status, verdict,\n" +
     "reason, wait, the plan's limits it was given, what the run did) in .strom/gate.log and the next session's log.\n" +
+    "The agent's plan limit cutting off a session of --loop or --until under a gate does not end the run: it waits\n" +
+    "until the limit resets as the agent said (a minute more; not said: 15 minutes), its task back in the queue, then\n" +
+    "asks the gate and goes on (a reset after --until: the run ends, time). Any other run ends there (limit).\n" +
     "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
     "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
     "--until), any other run ends saying when.\n" +
@@ -991,8 +998,9 @@ register(
     const gateTrail: GateRecord[] = [];
     // The Strom app opened to follow the run (--follow): once, when its first session starts.
     let followed = false;
-    // Why the run stopped: a code for the exit status and for data, words for the user (their language).
-    const lang = Tree.open(root, runEnv).lang;
+    // Why the run stopped: a code for the exit status and for data, words for the user (their language — the run's
+    // --lang or STROM_LANG before the tree's own, as for every command)
+    const lang = ctx.settings.lang(Tree.open(root, runEnv).config).value;
     type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
@@ -1056,9 +1064,9 @@ register(
       // how the gate is asked (before each session, once, its cap) is said in its first answer's line, never a line of its own
       let gateTold = false;
       let capTold = false;
-      // Claude Code of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir) not logged in there: no session
-      // would work — said before the first one, with how to log in (found 2026-11-03)
-      const loggedOut = runnerId === "claude" && claudeConfigSet(runEnv) !== undefined && claudeLoggedIn(runEnv, runner.command) === false;
+      // Claude Code not logged in — of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir, found 2026-11-03)
+      // or its own default one (K040) —: no session would work, said before the first one with how to log in
+      const loggedOut = runnerId === "claude" && claudeLoggedIn(runEnv, runner.command) === false;
       if (loggedOut) {
         stopCode = "auth";
         stopValues = { command: claudeLoginCommand(runEnv) };
@@ -1352,6 +1360,8 @@ register(
         const stromDenied = result.denied?.filter((d, i) => deniedStrom(d, whole.has(i))).length ?? 0;
         if (stromDenied) result = { ...result, metrics: { ...result.metrics, stromDenied } };
         if (result.denied?.length) keepDenied(root, session.id, result.denied, whole);
+        // cut off by the plan's limit: no failure of the agent, its task never parked for it
+        if (result.outcome === "limit") result = { ...result, metrics: { ...result.metrics, limit: true } };
         // the agent closed the session itself and its process then failed by its exit code alone (OpenCode: 1 after its
         // last step ended normally, nothing else said wrong): done, the run goes on — the exit code kept in the log
         if (result.outcome === "error" && result.exitOnly && s.state === "closed") {
@@ -1427,9 +1437,9 @@ register(
         const total = sessionCost(m);
         report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(result.exitOnly && result.outcome === "ok" ? { agentExit: result.exitCode } : {}), ...(result.recovered ? { recovered: result.recovered } : {}), ...(result.denied?.length ? { denied: result.denied.length } : {}), ...(stromDenied ? { stromDenied } : {}), ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
-        if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
+        if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).map((d) => truncate(d.split("\n")[0]!, 120)).join(" · ") }));
         // what strom's own hook refused (its web limits) is strom's, never the permissions'
-        if (result.refused?.length) out(ui(lang, "ui.run.refused", { n: result.refused.length, per: ctx.settings.webPerHost(after.config), what: result.refused.slice(0, 3).join(" · ") }));
+        if (result.refused?.length) out(ui(lang, "ui.run.refused", { n: result.refused.length, per: ctx.settings.webPerHost(after.config), what: result.refused.slice(0, 3).map((d) => truncate(d.split("\n")[0]!, 120)).join(" · ") }));
         // --tasks: the task settled after its session (done, waiting, parked — by the run as stuck too —, dropped) counts
         // once; one given back to the queue does not
         if (tasksN !== undefined && SETTLED.includes(after.get<Task>(task.id)?.state ?? "open")) settled.add(task.id);
@@ -1442,6 +1452,33 @@ register(
           break;
         }
         if (result.outcome === "limit") {
+          // A run that goes on by itself under a gate: the limit that cut the session off is waited out — until it
+          // resets as the agent said (a minute more, as the gate's), unknown: the gate asked again after a while —
+          // then the gate decides the next session (K036). Not past --until; a run the user started ends saying when.
+          if (gateHolds && gate) {
+            const now = Date.now();
+            const known = limitResume(result, now);
+            const at = known.at !== undefined ? known.at + limitReserve(ctx.env) : now + DEFAULT_WAIT_MS;
+            if (until && at > until) {
+              stopCode = "time";
+              break;
+            }
+            const values = {
+              at: new Date(at).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }),
+              kind: known.kind ? ` (${ui(lang, `ui.run.limit.${known.kind}` as UIKey)})` : "",
+            };
+            out(ui(lang, known.at !== undefined ? "ui.run.limit.wait" : "ui.run.limit.unknown", values));
+            stopAwake(); // nothing to do meanwhile: the computer may sleep
+            // the Strom app shows the run paused until then, and why
+            markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.limit.why", values) });
+            try {
+              await pause(at - Date.now(), stop.signal);
+            } finally {
+              markPaused(root, worker, undefined);
+            }
+            stopAwake = keepAwake(ctx.env);
+            continue; // the gate next, with the queue as it is then
+          }
           stopCode = "limit";
           stopValues = { resets: result.resumeAt ? ui(lang, "ui.run.stop.resets", { at: result.resumeAt }) : "" };
           break;

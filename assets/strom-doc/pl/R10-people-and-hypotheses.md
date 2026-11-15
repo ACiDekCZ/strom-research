@@ -36,7 +36,7 @@ imieniu i nazwisku w jednej wsi to rzecz zwyczajna.
 Gdy okaże się, że dwa wpisy w badaniu to jedna osoba, scala się je. Drugi wpis nie znika: zostaje wycofany z notatką,
 z którą osobą go scalono.
 
-- **Pilnuje kod** (`strom person merge <zůstává> <druhý> --reason "…"`):
+- **Pilnuje kod** (`strom person merge <zostaje> <drugi> --reason "…"`):
   - scalenie wymaga powodu;
   - imiona i nazwiska, dane, notatki, rodziny i wszystkie odwołania (zadania, hipotezy, chrzestni…) przechodzą na
     osobę, która zostaje;
@@ -70,7 +70,7 @@ nie wybiera po cichu. Zapisuje hipotezę: pytanie i jego wersje A, B, C… z tym
 - **Tylko metodyka:** to, co by hipotezę rozstrzygnęło, jest zadaniem (`strom task add … --about H…`), a nie dygresją
   w innym zadaniu. Połączenie wersji zapisuje się tylko wtedy, gdy twierdzenie mówi o nim bez wątpliwości; imiennik
   zostaje poza nim.
-- **Obsługa:** terminal: `strom hypothesis add "<otázka>" --about P… --variant "…" --variant "…"`,
+- **Obsługa:** terminal: `strom hypothesis add "<pytanie>" --about P… --variant "…" --variant "…"`,
   `hypothesis argue`, `hypothesis variant`, `hypothesis link`, `hypothesis show`, `hypothesis list`. Aplikacja pokazuje
   wersje i pozwala je narysować w drzewie tylko w widoku ([S3.5](S3-what-the-research-knows.md#S3.5),
   [S3.5.1](S3-what-the-research-knows.md#S3.5.1)).

@@ -23,7 +23,9 @@ const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
 
 test("Claude Code working alone: no MCP servers of the user's, the tools strom uses, no auto-memory; a conversation keeps all", () => {
   const run = claudeArgs({ kickoff: "k", clean: true, chrome: true, settingsFile: "/t/.claude/settings.json" });
-  assert.deepEqual(run.slice(-6), ["--chrome", "--strict-mcp-config", "--tools", "Bash,Read,Edit,Write,WebFetch,WebSearch,Agent,ToolSearch,SendMessage", ...NO_WAIT]);
+  // Windows: its PowerShell too (cleanTools of this platform)
+  const tools = ["Bash,Read,Edit,Write,WebFetch,WebSearch,Agent,ToolSearch,SendMessage", ...(process.platform === "win32" ? ["PowerShell"] : [])].join(",");
+  assert.deepEqual(run.slice(-6), ["--chrome", "--strict-mcp-config", "--tools", tools, ...NO_WAIT]);
   // the browser's tools load through ToolSearch (else every schema would be in the prompt); subagents and asking one again
   for (const t of ["Bash", "Read", "Edit", "Write", "WebFetch", "WebSearch", "Agent", "ToolSearch", "SendMessage"]) assert.ok(RUN_TOOLS.includes(t as never), t);
   // nothing that drops the user's model, effort or login, or the tree's own instructions
@@ -153,6 +155,7 @@ async function world(): Promise<World> {
   fs.writeFileSync(
     path.join(bin, "claude"),
     `#!/bin/sh
+[ "$1 $2" = "auth status" ] && { echo '{"loggedIn": true}'; exit 0; }
 { printf 'ARGS'; for a in "$@"; do printf ' [%s]' "$a"; done; printf '\\n'; echo "MEM=\${CLAUDE_CODE_DISABLE_AUTO_MEMORY:-} TTL=\${CLAUDE_CODE_PROMPT_CACHE_TTL:-} CC=\${CLAUDECODE:-}"; } >> "${calls}"
 cat > /dev/null
 if [ -n "\${FAKE_WEBFETCH_AGENT:-}" ]; then

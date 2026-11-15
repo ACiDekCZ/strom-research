@@ -22,14 +22,15 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
-import { isCompiled } from "./evidence.ts";
+import { checkStatus, isCompiled } from "./evidence.ts";
+import { clearRemoved } from "./citeorder.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { APP_COUPLE_EVENTS, APP_EVENTS, appEventMarks, appLooseFamilies, appMarriedName, appNobody, appParticipants, appPersonEvent, appUnionFacts, childRelation, factDetails, fromFlexDate, importDate, partnersAges, marnmNames, readGedName, readGedSex, stromAppFile, type StromEvent } from "./import.ts";
+import { APP_COUPLE_EVENTS, APP_EVENTS, appEventMarks, appLooseFamilies, appMarriedName, appNobody, appParticipants, appPersonEvent, appUnionFacts, childRelation, detailLine, factDetails, fromFlexDate, importDate, partnersAges, marnmNames, readGedName, readGedSex, stromAppFile, type StromEvent } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
 import { appAge, appDate } from "./appshapes.ts";
 import { dateYears } from "./gdate.ts";
@@ -49,7 +50,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -105,6 +106,12 @@ export interface SFact {
   share?: EventShare;
   /** A role at another's event (`2 _STROM_ROLE`, `3 _STROM_AT`, `4 TYPE`; the JSON's `roleAt`): never part of factKey. */
   roleAt?: SRoleAt;
+  /**
+   * The fact's note as the file has it (`2 NOTE` under it, the app's JSON event `note`): of a fact that is no value of
+   * its own (an occupation's is its value). The research's own is its export's — the words strom says there besides
+   * (the status, a quote) with the fact's note. Never part of factKey.
+   */
+  note?: string;
 }
 
 /**
@@ -131,6 +138,8 @@ export interface SCite {
   page?: string;
   date?: string;
   quay?: number;
+  /** The user's main citation of the fact (`_STROM_MAIN Y`, the app's JSON `citationMain`; spec 095). */
+  main?: true;
 }
 
 /** A source as a file has it: one entry of a register (the Strom app's way), or a book of older trees. */
@@ -447,24 +456,34 @@ function gedPlaces(records: GedNode[]): Map<string, SPlace> {
 /** The same point: the Strom app keeps six decimals. */
 const samePoint = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => Math.abs(a.lat - b.lat) < 5e-7 && Math.abs(a.lon - b.lon) < 5e-7;
 
-/** The Strom app's "Birth (alternative record)": a second birth or death of ours coming back as an event of its own. */
-const ALTERNATIVE: Record<string, string> = {
-  "birth (alternative record)": "BIRT", "death (alternative record)": "DEAT",
-  "narozeni (alternativni zaznam)": "BIRT", "umrti (alternativni zaznam)": "DEAT",
-  "geburt (alternativer eintrag)": "BIRT", "tod (alternativer eintrag)": "DEAT",
+/**
+ * The Strom app's words for what it adds of its own (its gedcomNotes in each language it runs in: en, cs, de, pl), as
+ * it writes them — the TYPE of an EVEN comes back in the language the app ran in when it read our file:
+ * - altBirth, altDeath ("Birth (alternative record)"): a second birth or death of ours as an event of its own;
+ * - birthRecord, deathRecord ("Birth record"): its entry of a birth, a death, carrying the people of the entry.
+ * A language the app adds goes here with all four.
+ */
+const APP_WORDS: Record<"altBirth" | "altDeath" | "birthRecord" | "deathRecord", readonly string[]> = {
+  altBirth: ["Birth (alternative record)", "Narození (alternativní záznam)", "Geburt (alternativer Eintrag)", "Urodzenie (alternatywny zapis)"],
+  altDeath: ["Death (alternative record)", "Úmrtí (alternativní záznam)", "Tod (alternativer Eintrag)", "Zgon (alternatywny zapis)"],
+  birthRecord: ["Birth record", "Zápis o narození", "Geburtseintrag", "Akt urodzenia"],
+  deathRecord: ["Death record", "Zápis o úmrtí", "Sterbeeintrag", "Akt zgonu"],
 };
 
+/** The app's words of each language, folded, → the fact they are of. */
+const appWords = (birth: readonly string[], death: readonly string[]): Map<string, string> =>
+  new Map([...birth.map((w) => [fold(w), "BIRT"] as const), ...death.map((w) => [fold(w), "DEAT"] as const)]);
+
+/** The Strom app's "Birth (alternative record)": a second birth or death of ours coming back as an event of its own. */
+const ALTERNATIVE = appWords(APP_WORDS.altBirth, APP_WORDS.altDeath);
+
 /** The Strom app's entry of a birth, a death (its gedcomNotes.birthRecord, deathRecord) → the fact it is of. */
-const ENTRY: Record<string, string> = {
-  "birth record": "BIRT", "death record": "DEAT",
-  "zapis o narozeni": "BIRT", "zapis o umrti": "DEAT",
-  geburtseintrag: "BIRT", sterbeeintrag: "DEAT",
-};
+const ENTRY = appWords(APP_WORDS.birthRecord, APP_WORDS.deathRecord);
 
 /** Facts there is one of: an edit of one is a change, not a second fact. */
 const ONE = new Set(["BIRT", "BAPM", "DEAT", "BURI", "CREM", "MARR", "DIV"]);
 
-type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean; problems?: string[] };
+type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean; problems?: string[]; note?: (n: GedNode) => string };
 
 function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, read: GedReaders = {}): SFact[] {
   return cleanFacts(rawFacts(node, couple, read));
@@ -473,7 +492,7 @@ function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
 /** What the Strom app adds of its own: an alternative birth or death as an event, a "Birth record" beside a birth, every couple married. */
 function cleanFacts(facts: SFact[]): SFact[] {
   for (const f of facts) {
-    const alt = f.kind === "EVEN" && f.label ? ALTERNATIVE[fold(f.label)] : undefined;
+    const alt = f.kind === "EVEN" && f.label ? ALTERNATIVE.get(fold(f.label)) : undefined;
     if (alt) {
       f.kind = alt;
       if (f.value === f.label) delete f.value;
@@ -484,7 +503,7 @@ function cleanFacts(facts: SFact[]): SFact[] {
   // baptism or burial): theirs are the birth's, the death's — or it is that birth, that death
   let out = facts;
   for (const f of facts) {
-    const of = f.kind === "EVEN" && f.label ? ENTRY[fold(f.label)] : undefined;
+    const of = f.kind === "EVEN" && f.label ? ENTRY.get(fold(f.label)) : undefined;
     if (!of) continue;
     const host = facts.find((o) => o !== f && o.kind !== "EVEN" && (o.kind === of || kindOf(o.kind) === (of === "BIRT" ? "BAPM" : "BURI")));
     if (host) {
@@ -557,7 +576,7 @@ function resolveRoleAt(facts: SFact[], person: (ref: string) => string | undefin
   }
 }
 
-function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed, problems }: GedReaders = {}): SFact[] {
+function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed, problems, note }: GedReaders = {}): SFact[] {
   const out: SFact[] = [];
   for (const c of node.children) {
     if (["NAME", "SEX", "REFN", "NOTE", "FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "OBJE", "ASSO", "_STORY"].includes(c.tag)) continue;
@@ -606,6 +625,9 @@ function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
     if (marks.share) f.share = marks.share;
     if (marks.unreadable) problems?.push(`${c.tag}: the mark of a shared event "${marks.unreadable}" is no ID of one (1–64 letters and digits) — the fact taken without it`);
     if (marks.roleAt) f.roleAt = { role: marks.roleAt.role, ...(marks.atXref ? { at: `@${marks.atXref.replace(/@/g, "")}` } : {}), ...(marks.atXref && marks.roleAt.kind ? { kind: marks.roleAt.kind } : {}) };
+    // its note (an occupation's NOTE is the person's: the value is the fact)
+    const said = note && !VALUE_KINDS.has(f.kind) ? factNote(children(c, "NOTE").map(note).join("\n")) : undefined;
+    if (said) f.note = said;
     out.push(f);
   }
   return out;
@@ -665,7 +687,26 @@ function knownNote(text: string, said: Set<string>): boolean {
 }
 
 /** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
-const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+export const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+
+/** A line strom intake writes into a fact's note itself: what a file said that the fact has no place for. */
+const STROM_NOTE_LINE = /^(?:source there|date as written|age as written): |^(?:husband|wife) aged /u;
+
+/**
+ * A line the export for the app puts into a fact's note besides the fact's own note, in any language a strom wrote it
+ * in (the research's language changed, an older strom's English): the fact's status, a record's words, the ages.
+ */
+const EXPORT_SAYS = Object.values(LABELS).map((l) => ({ exact: [l.lead, l.possible].map(noteLine), starts: [`${l.quote}: „`, `${l.age}: `].map((s) => s.normalize("NFC")) }));
+const exportSays = (line: string) => EXPORT_SAYS.some((x) => x.exact.includes(line) || x.starts.some((s) => line.startsWith(s)));
+
+/**
+ * A fact's note as compared: its lines as compared, none empty, without the labelled details the Strom app writes
+ * back into it ("Věk: 61 let" — the fact's age, compared as one); undefined when nothing is left.
+ */
+export function factNote(text: string): string | undefined {
+  const lines = text.split(/\r?\n/).map(noteLine).filter((l) => l && !detailLine(l));
+  return lines.length ? lines.join("\n") : undefined;
+}
 
 /** The words of a line as the user wrote them (lower case, accents kept, a letter alone too): what an edit changes. */
 const lineWords = (t: string) => new Set(t.normalize("NFC").toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? []);
@@ -809,7 +850,8 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
     const page = val(n, "PAGE")?.trim();
     const date = importDate(val(n.children.find((c) => c.tag === "DATA"), "DATE"));
     const q = Number.parseInt(val(n, "QUAY") ?? "", 10);
-    return { source: key, ...(page ? { page } : {}), ...(date ? { date } : {}), ...(q >= 0 && q <= 3 ? { quay: q } : {}) };
+    const main = /^y(es)?$/i.test(val(n, "_STROM_MAIN")?.trim() ?? "");
+    return { source: key, ...(page ? { page } : {}), ...(date ? { date } : {}), ...(q >= 0 && q <= 3 ? { quay: q } : {}), ...(main ? { main: true as const } : {}) };
   };
   // who else a record names at a fact: a person of the file (resolved to their key once all are read), or a name
   const partsOf = (c: GedNode): SPart[] => {
@@ -832,7 +874,7 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
   const imports = fromApp.app ? importsOfHead(head) : undefined;
   const markOf = (n: GedNode | undefined) => markUnder(n, imports);
   // the user's confirmations against the scan (spec 065): of the research's or the app's own file alone
-  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted, problems };
+  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted, problems, note: noteText };
   const keys = new Map<string, string>();
   const persons = new Map<string, SPerson>();
   for (const r of records.filter((x) => x.tag === "INDI" && x.xref)) {
@@ -1166,15 +1208,22 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
         : {}),
     });
   }
-  const citesOf = (ids: unknown): SCite[] | undefined => {
+  // the main citation of a fact (spec 095): the source the holder's citationMain names for the list, from data version 21
+  const mainsKept = appDataMainCitation(typeof d.version === "number" ? d.version : undefined);
+  const citesOf = (ids: unknown, main?: unknown): SCite[] | undefined => {
+    const chosen = mainsKept && typeof main === "string" ? sourceKeys.get(main) : undefined;
     const out = (Array.isArray(ids) ? ids : [])
       .map((x) => (typeof x === "string" ? sourceKeys.get(x) : undefined))
       .filter((k): k is string => !!k)
-      .map((k) => {
+      .map((k, i, all) => {
         const s = sources.get(k)!;
-        return { source: k, ...(s.page ? { page: s.page } : {}), ...(s.date ? { date: s.date } : {}), ...(s.quay !== undefined ? { quay: s.quay } : {}) };
+        return { source: k, ...(s.page ? { page: s.page } : {}), ...(s.date ? { date: s.date } : {}), ...(s.quay !== undefined ? { quay: s.quay } : {}), ...(k === chosen && all.indexOf(k) === i ? { main: true as const } : {}) };
       });
     return out.length ? out : undefined;
+  };
+  const mainOf = (holder: unknown, field: string): unknown => {
+    const m = holder && typeof holder === "object" ? (holder as { citationMain?: unknown }).citationMain : undefined;
+    return m && typeof m === "object" ? (m as Record<string, unknown>)[field] : undefined;
   };
   // who else is at an event: a person of the app's tree (resolved to their key once all are read), or a name
   const partsOf = (list: unknown): SPart[] | undefined => {
@@ -1202,10 +1251,12 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
     const key = refn && OUR_ID.test(refn) && (!p.refnType || p.refnType === REFN_TYPE) && !persons.has(refn) ? refn : `x:${p.id}`;
     keys.set(p.id, key);
     const facts: SFact[] = [];
-    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string, more: { cause?: string | undefined; age?: string | undefined; house?: string | undefined; sourceIds?: unknown; participants?: unknown; marks?: { shareId?: unknown; shareRole?: unknown; roleAt?: unknown } } = {}) => {
+    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string, more: { cause?: string | undefined; age?: string | undefined; house?: string | undefined; sourceIds?: unknown; main?: unknown; participants?: unknown; marks?: { shareId?: unknown; shareRole?: unknown; roleAt?: unknown }; note?: unknown } = {}) => {
       const f: SFact = { kind };
+      const said = typeof more.note === "string" && !VALUE_KINDS.has(kind) ? factNote(more.note) : undefined;
+      if (said) f.note = said;
       if (more.marks) marksOf(f, more.marks, true);
-      const cites = citesOf(more.sourceIds);
+      const cites = citesOf(more.sourceIds, more.main);
       if (cites) f.cites = cites;
       const parts = partsOf(more.participants);
       if (parts) f.parts = parts;
@@ -1217,9 +1268,9 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       details(f, more.cause, more.age, more.house);
       if (f.date || f.place || label || kind !== "EVEN") facts.push(f);
     };
-    if (p.birthDate || p.birthPlace || p.birthAddress) fact("BIRT", p.birthDate, p.birthPlace, undefined, undefined, { house: p.birthAddress, sourceIds: p.birthSourceIds });
+    if (p.birthDate || p.birthPlace || p.birthAddress) fact("BIRT", p.birthDate, p.birthPlace, undefined, undefined, { house: p.birthAddress, sourceIds: p.birthSourceIds, main: mainOf(p, "birthSourceIds") });
     if (p.deathDate || p.deathPlace || p.deathCause || p.deathAge || p.deathAddress)
-      fact("DEAT", p.deathDate, p.deathPlace, undefined, undefined, { cause: p.deathCause, age: p.deathAge, house: p.deathAddress, sourceIds: p.deathSourceIds });
+      fact("DEAT", p.deathDate, p.deathPlace, undefined, undefined, { cause: p.deathCause, age: p.deathAge, house: p.deathAddress, sourceIds: p.deathSourceIds, main: mainOf(p, "deathSourceIds") });
     for (const e of p.events ?? []) {
       // a godparent's or a wedding witness's own event (spec 085 K2.2): an EVEN named in the research's language
       const what = e && typeof e.type === "string" ? appPersonEvent(e, lang) : undefined;
@@ -1227,7 +1278,7 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       if (!what || !kind || ((kind === "BIRT" || kind === "DEAT") && facts.some((f) => f.kind === kind))) continue;
       // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
       const value = VALUE_KINDS.has(kind) ? e.note?.split("\n")[0] : undefined;
-      fact(what.kind, e.date, e.place, what.kind === "EVEN" ? (kind === "MILI" ? e.customLabel || "EVEN" : what.label || "EVEN") : undefined, value, { cause: e.cause, age: e.age, house: e.address, sourceIds: e.sourceIds, participants: e.participants, marks: e });
+      fact(what.kind, e.date, e.place, what.kind === "EVEN" ? (kind === "MILI" ? e.customLabel || "EVEN" : what.label || "EVEN") : undefined, value, { cause: e.cause, age: e.age, house: e.address, sourceIds: e.sourceIds, main: mainOf(e, "sourceIds"), participants: e.participants, marks: e, note: e.note });
     }
     const name = `${p.firstName ?? ""} /${p.lastName ?? ""}/`.trim();
     if (!key.startsWith("P") && !`${p.firstName ?? ""}${p.lastName ?? ""}`.replace(/[?\s]/g, "")) {
@@ -1295,7 +1346,7 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       const ages = agesOf(u.ages);
       if (ages) f.ages = ages;
       // the union's sources: the app gives them under its marriage (what the family itself cites is no news, newCites)
-      const cites = citesOf(u.sourceIds);
+      const cites = citesOf(u.sourceIds, mainOf(u, "sourceIds"));
       if (cites) f.cites = cites;
       const parts = partsOf(u.participants);
       if (parts) f.parts = parts;
@@ -1314,11 +1365,13 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       details(f, e.cause, undefined, e.address);
       const ages = agesOf(e.ages);
       if (ages) f.ages = ages;
-      const cites = citesOf(e.sourceIds);
+      const cites = citesOf(e.sourceIds, mainOf(e, "sourceIds"));
       if (cites) f.cites = cites;
       const parts = partsOf(e.participants);
       if (parts) f.parts = parts;
       marksOf(f, e, false);
+      const said = typeof e.note === "string" ? factNote(e.note) : undefined;
+      if (said) f.note = said;
       if (f.date || f.place || f.label || kind !== "EVEN") facts.push(f);
     }
     // the divorce (the app's 3.7 keeps its place too; a couple separated: when they parted; bare: divorced, no more known)
@@ -1439,7 +1492,7 @@ const tieOf = (f: SFamily, child: string, parent: string) => f.relationsBy?.[chi
 
 /** Our records as the app is given them: the export for it, read like any file — with the facts' IDs. */
 export function snapshotOfTree(tree: Tree): Snapshot {
-  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true }).text);
+  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, mainCitations: true }).text);
 }
 
 /** The folders of data/ the export for the app reads. */
@@ -1540,6 +1593,93 @@ export interface Received {
   kept?: number;
   /** People and sources it named by the app's own marks, given their IDs when it came (the app's xref → P…, S…). */
   known?: { persons: Record<string, string>; sources: Record<string, string> };
+  /** Written or brought nothing: the changes of the file not written and why (spec 095 V5) — at most NOT_WRITTEN_KEPT, `notWrittenCount` all. */
+  notWritten?: NotWritten[];
+  notWrittenCount?: number;
+  /** Written: the changes the research could not write (at most NOT_WRITTEN_KEPT). */
+  skipped?: Skipped[];
+}
+
+/** So many changes not written a send keeps for /status (the reply to POST /sync has them all). */
+export const NOT_WRITTEN_KEPT = 50;
+
+/** A change of the app's file not written, as the app reads it (POST /sync, /status sends; spec 095 K3.4). */
+export interface NotWritten {
+  kind: ChangeKind;
+  person?: string;
+  family?: string;
+  /** A source (S…, or the file's @xref@ of one the research does not have) and a place (its name as the file has it). */
+  source?: string;
+  place?: string;
+  /** The fact's tag. */
+  fact?: string;
+  /** The older words: takenBack | kept | removed | report | pick (the code says it exactly). */
+  why: string;
+  code: NotWrittenCode;
+  params: Record<string, string>;
+  removedBy?: string;
+  /** The sources the user gave it that went unwritten with it: the file's own keys (`@xref@` of one new). */
+  cites?: string[];
+}
+
+/** A source of a change as the app names it: the research's S…, or the file's @xref@ of one the research does not have. */
+function appSource(key: string): string {
+  return key.startsWith("x:") ? `@${key.slice(2)}@` : key;
+}
+
+/**
+ * What a change not written is about besides a person or a family, for the app to put it to its line: a source (the
+ * research's S…, or the file's @xref@ of one the research does not have) and a place (its name as the file has it).
+ */
+export function notWrittenOf(c: Change): { source?: string; place?: string } {
+  const source = c.sourceId ?? (c.source ? appSource(c.source) : undefined);
+  const cited = c.kind.startsWith("source.") || c.kind === "fact.uncite" || c.kind === "fact.main" || c.kind === "person.cite" || c.kind === "family.cite";
+  return { ...(source && cited ? { source } : {}), ...(c.kind === "place.coords" && c.place?.name ? { place: c.place.name } : {}) };
+}
+
+/** Why a change is not written, by its stable code (spec 095 K3.4): its own where it has one, else what its kind and action say. */
+export function notWrittenCode(c: Change): NotWrittenCode {
+  if (c.takenBack) return "takenBack";
+  if (c.code) return c.code;
+  if (c.kept) return "kept";
+  if (c.kind === "person.removed") return "person.removed";
+  if (c.action === "pick") return "pick";
+  if (c.kind.endsWith(".gone")) return "gone";
+  return "report";
+}
+
+/** The changes of a plan not written (reported, or the user's to pick), each with its code and params, as the app reads them. */
+export function notWrittenList(changes: readonly Change[]): NotWritten[] {
+  return changes
+    .filter((c) => c.action === "report" || c.action === "pick")
+    .map((c) => {
+      const about = notWrittenOf(c);
+      const fact = c.fact?.kind ?? c.was?.kind;
+      const event = c.was?.id ?? c.fact?.id;
+      const params: Record<string, string> = {
+        ...(c.person ? { person: c.person } : {}),
+        ...(c.family ? { family: c.family } : {}),
+        ...(fact ? { fact } : {}),
+        ...(event ? { event } : {}),
+        ...(about.source ? { source: about.source } : {}),
+        ...(c.child ? { child: c.child } : {}),
+        ...(c.takenBack ? { send: c.takenBack } : {}),
+        ...(c.removedBy ? { sync: c.removedBy } : {}),
+        ...(about.place ? { place: about.place } : {}),
+      };
+      return {
+        kind: c.kind,
+        ...(c.person ? { person: c.person } : {}),
+        ...(c.family ? { family: c.family } : {}),
+        ...about,
+        ...(fact ? { fact } : {}),
+        why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.kind === "person.removed" ? "removed" : c.action,
+        code: notWrittenCode(c),
+        params,
+        ...(c.removedBy ? { removedBy: c.removedBy } : {}),
+        ...(c.uncited?.length ? { cites: c.uncited.map(appSource) } : {}),
+      };
+    });
 }
 
 /** What the app may say of a send in the file's HEAD: only these shapes are taken, anything else is ignored. */
@@ -1624,7 +1764,12 @@ function decide(root: string, r: Received, to: Partial<Received> & { state: Rece
 }
 
 /** The send of this file was written into the research (as this sync's input), or it brought nothing it had not. */
-export function settleReceived(root: string, file: string, to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number }, applied: Applied[] = []): void {
+export function settleReceived(
+  root: string,
+  file: string,
+  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[] },
+  applied: Applied[] = [],
+): void {
   const r = receivedOf(root, file);
   if (r?.state !== "pending") return;
   // what this tree of the app had, for the next send of it (an archive takes away only what it had) — the people it
@@ -1635,8 +1780,14 @@ export function settleReceived(root: string, file: string, to: ({ state: "writte
   } catch {
     // its next send takes away as before
   }
-  const { kept, ...rest } = to;
-  decide(root, r, { ...rest, ...(kept ? { kept } : {}) });
+  const { kept, notWritten, skipped, ...rest } = to;
+  decide(root, r, {
+    ...rest,
+    ...(kept ? { kept } : {}),
+    // what it did not write, for the app to say it later too (/status sends): the first ones, and how many
+    ...(notWritten?.length ? { notWritten: notWritten.slice(0, NOT_WRITTEN_KEPT), notWrittenCount: notWritten.length } : {}),
+    ...(skipped?.length ? { skipped: skipped.slice(0, NOT_WRITTEN_KEPT) } : {}),
+  });
 }
 
 /** A send the bridge could not write: so said (the app may send it again); `retry`: the research was busy, tried again later. */
@@ -1966,6 +2117,9 @@ export function recentSends(root: string, tree?: Tree, days = 7, max = 20): Reco
       ...(r.reasonParams ? { reasonParams: r.reasonParams, ...(tree ? { reasonNames: namesOf(tree, r.reasonParams) } : {}) } : {}),
       // an archive: what it did not take away (the window that sent it never had it)
       ...(r.kept ? { kept: r.kept } : {}),
+      // what it did not write and why, as the reply to its POST /sync said it (spec 095 V5): the first ones, and how many
+      ...(r.notWritten?.length ? { notWritten: r.notWritten, notWrittenCount: r.notWrittenCount ?? r.notWritten.length } : {}),
+      ...(r.skipped?.length ? { skipped: r.skipped } : {}),
       // pending, tried while the research was busy: so many times so far (it is tried again)
       ...(r.state === "pending" && r.tries ? { tries: r.tries } : {}),
     }));
@@ -2320,7 +2474,11 @@ export type ChangeKind =
   | "lineage.mark"
   | "ids.add"
   | "fact.confirm"
-  | "fact.share";
+  | "fact.share"
+  | "fact.main"
+  | "fact.uncite"
+  | "fact.note"
+  | "fact.part.note";
 
 /** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing, withdrawn, what a record's fact lacks added to it. */
 export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report" | "remove" | "refine";
@@ -2368,9 +2526,14 @@ export interface Change {
   removed?: { field: SourceField; was: string }[];
   /** A fact taken with its sources: it stands on the user's reading of a record (their transcript counts as one). */
   reads?: boolean;
-  /** fact.part: who the file names at the fact (`was` the research's fact), and the research's entry of them (its role). */
+  /**
+   * fact.part: who the file names at the fact (`was` the research's fact), and the research's entry of them (its role).
+   * fact.part.note: the same person in the same role, the note the file gives them (`part`) and the research's (`wasPart`).
+   */
   part?: SPart;
   wasPart?: SPart;
+  /** fact.note: the research's note of the fact (`was`) as it is ("" none); the note it becomes is `text`. */
+  noteWas?: string;
   /** person.cite, family.cite: the sources the file gives the person or the family themselves. */
   cites?: SCite[];
   /** An archive keeps what the window that sent never had (its data older than the research it was given): only said. */
@@ -2409,7 +2572,42 @@ export interface Change {
    * (`share`), a role at another's (`roleAt`); the file's fact without it: the mark taken off (spec 085).
    */
   shared?: "share" | "roleAt";
+  /**
+   * fact.main: the user cancelled the main citation of the fact (`sourceId`, the research's) in the app — none: the
+   * file's source (`source`, the research's `sourceId`) is the fact's main citation now (spec 095 K2.2).
+   */
+  mainOff?: true;
+  /**
+   * fact.uncite: the places in the source (`sourceId`) the fact cited it at when the app was given it (`_STROM_HEAD`,
+   * "" none) — only these are removed (a citation the research added since stays); none known: every citation of it.
+   */
+  locators?: string[];
+  /** Why a change is not written, as a program reads it (spec 095 K3.4) where its kind and action do not say it. */
+  code?: NotWrittenCode;
 }
+
+/**
+ * Why a change of the app's file is not written (spec 095 K3.4): stable codes — new ones are only added, none changes
+ * its meaning. The app says each in its language by the code and its params (`notWrittenList`).
+ */
+export type NotWrittenCode =
+  | "takenBack"
+  | "kept"
+  | "gone"
+  | "person.removed"
+  | "pick"
+  | "conflict.open"
+  | "sentSince"
+  | "confirm.changed"
+  | "relation.unknown"
+  | "surname.kept"
+  | "surname.warning"
+  | "cite.olderApp"
+  | "cite.sourceRemoved"
+  | "cite.notCarried"
+  | "fact.noMatch"
+  | "event.retracted"
+  | "report";
 
 export interface Plan {
   changes: Change[];
@@ -2508,6 +2706,11 @@ export function guardedChange(tree: Tree, c: Change, g: { decidePerson?: boolean
       const overwrites = Object.keys(fd).some((d) => fd[d] !== md[d] && !!md[d]);
       return overwrites && guarded(mine.origin, [...FACT_PARTS], mine.citations) ? "guarded" : undefined;
     }
+    case "fact.note":
+      // a note added where none was takes nothing of the user's; one written over stays the user's to change
+      return mine?.note && c.action === "correct" && guarded(mine.origin, [...FACT_PARTS], mine.citations) ? "guarded" : undefined;
+    case "fact.part.note":
+      return mine && c.wasPart?.note && c.action === "correct" && guarded(mine.origin, [...FACT_PARTS], mine.citations) ? "guarded" : undefined;
     case "name.changed": {
       if (!owner || !c.text || !(c.action === "correct" || c.action === "user")) return undefined;
       const shown = primaryName(owner);
@@ -2521,7 +2724,12 @@ export function guardedChange(tree: Tree, c: Change, g: { decidePerson?: boolean
   }
 }
 
-export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean } = {}): Plan {
+export function planSync(
+  tree: Tree,
+  incoming: Snapshot,
+  edits: "conflict" | "user",
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean; partNotes?: boolean } = {},
+): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
   if (mirror) edits = "user";
@@ -2584,7 +2792,12 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const kept = [...given.persons.keys()].filter((k) => incoming.persons.has(k)).length;
     const strangers = [...incoming.persons.keys()].filter((k) => k.startsWith("x:")).length;
     const missing = given.persons.size - kept;
-    if (given.persons.size && kept < given.persons.size / 2 && strangers > 0 && strangers >= missing / 2)
+    // a small other tree under the research's ID (found on Mac: the app's demo tree, 30 strangers beside 954 people
+    // gone, sent as the research's): strangers fewer than half of those missing, yet hardly anyone of the research's
+    const known = [...incoming.persons.keys()].filter((k) => !k.startsWith("x:")).length;
+    const sent = incoming.persons.size;
+    const another = (sent >= 10 && known < sent / 10) || (sent >= 5 && known === 0);
+    if (given.persons.size && kept < given.persons.size / 2 && strangers > 0 && (strangers >= missing / 2 || another))
       throw new UsageError(`the Strom app's copy carries ${kept} of the research's ${given.persons.size} people by their IDs — it would come in as another family tree beside them`, {
         hint: "load the research in the app again (its tree.ged), then send — or, if it is meant: strom sync <file> --force",
         code: "tree.no-ids",
@@ -2603,6 +2816,19 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   // the app decides who shares an event (spec 085, APP_DECIDES_SHARES): of an app that does, a mark it changed or took
   // off since it was given is the user's; of any other only a mark the research's fact lacks is taken (never one changed)
   const decidesShares = opts.decidesShares ?? (incoming.format === "gedcom" ? appDecidesShares(new Settings(tree.env, {}), incoming.appVersion) : appDataDecidesShares(incoming.dataVersion));
+  // the main citation of a fact and the citations the user removed from one (spec 095 K2.2, K3.1): of an app that reads
+  // the main citation (APP_READS_MAIN_CITATION, its JSON from APP_DATA_MAIN_CITATION) alone — an older one is never
+  // given one, so a mark missing there is never the user's "none" (nor where the copy it sent before was of such an
+  // app); a removal only on the word of an app whose file says one (APP_SENDS_UNCITE), against what it was given
+  const readsMain =
+    opts.readsMain ??
+    (incoming.format === "gedcom"
+      ? appReadsMainCitation(new Settings(tree.env, {}), incoming.appVersion) && (!base?.appVersion || appReadsMainCitation(new Settings(tree.env, {}), base.appVersion))
+      : appDataMainCitation(incoming.dataVersion));
+  const sendsUncite = opts.sendsUncite ?? (incoming.format === "gedcom" && appSendsUncite(incoming.appVersion));
+  // the note of someone a fact names: only of an app that gives it whole (APP_SENDS_PART_NOTES; its JSON from
+  // APP_DATA_PART_NOTES) — an older one sends a longer note cut short, never an edit of the user's
+  const partNotes = opts.partNotes ?? (incoming.format === "gedcom" ? appSendsPartNotes(incoming.appVersion) : appDataPartNotes(incoming.dataVersion));
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
   /** What the file no longer has: an archive takes it away — unless the window that sends never had it (kept, said). */
@@ -2615,6 +2841,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const readings = new Map<string, ReadingCheck>();
   const sources = planSources(tree, incoming, ours, base, push, readings, edits);
   const reads = readsFor(tree, incoming, sources, changes, readings);
+  // the research's sources the file has at all (one it has nowhere the user removed in the app, or it never came)
+  const inFile = new Set([...(incoming.sources?.keys() ?? [])].map((k) => sources.get(k) ?? k));
   const idOf = (key: string) => (key.startsWith("x:") ? key : (resolve(tree, key)?.id ?? key));
   // who the records name at a fact: the same person by their key or a name of theirs; the role "other" is any role
   // (the Strom app has no name for an informant or a midwife)
@@ -2630,21 +2858,46 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const markKey = (f: SFact, shared: "share" | "roleAt") =>
     shared === "share" ? (f.share ? `${f.share.id}|${f.share.role ?? ""}` : "") : f.roleAt ? `${f.roleAt.role}|${atKey(f.roleAt.at)}|${f.roleAt.at ? (f.roleAt.kind ?? "") : ""}` : "";
 
-  const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean) => {
+  // the facts of a person or family as the research gave them at _STROM_HEAD (their IDs), read once when asked
+  let headAt: Snapshot | undefined | null = null;
+  const givenFactsOf = (owner: { person?: string; family?: string }) => {
+    const rec = owner.person ? tree.get<Person>(owner.person) : owner.family ? tree.get<Family>(owner.family) : undefined;
+    if (!rec?.events?.some((e) => e.retracted)) return undefined;
+    if (headAt === null) headAt = snapshotAt(tree, incoming.head!);
+    return owner.person ? headAt?.persons.get(owner.person)?.facts : headAt?.families.find((x) => (x.id ?? x.xref) === owner.family)?.facts;
+  };
+  const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean, famCites?: SCite[]) => {
     const ourKeys = new Set(our.map(factKey));
     const baseKeys = new Set((was ?? []).map(factKey));
     const incKeys = new Set(inc.map(factKey));
     const used = new Set<string>();
     const partsOf = (facts: SFact[] | undefined) => (facts ?? []).flatMap((fact) => (fact.parts ?? []).map((part) => ({ fact, part })));
     const [ourParts, baseParts, incParts] = [partsOf(our), partsOf(was), partsOf(inc)];
+    /**
+     * The note of someone the file names at the research's fact (`o`) in the role the research gives them ("soused,
+     * kovář"): the user's edit of it in the app. One the research has none of is added; one changed since the app was
+     * given it corrects the research's — unless the research changed it since too (then picked); without what the app
+     * was given, picked. A note the file no longer gives takes nothing away; a note whose words give the role (a midwife
+     * the user called "porodní bába") changed into another role is no edit of a note (the role read from it differs).
+     */
+    const partNoteDiff = (f: SFact, o: SFact | undefined, p: SPart) => {
+      if (!partNotes || !o?.id || !p.note) return;
+      const mine = (o.parts ?? []).find((x) => x.role === p.role && sameWho(p, incoming, x, ours));
+      if (!mine || noteLine(mine.note ?? "") === noteLine(p.note)) return;
+      const given = was ? givenOf(o)?.parts?.find((x) => x.role === p.role && sameWho(p, incoming, x, base!)) : undefined;
+      if (given && noteLine(given.note ?? "") === noteLine(p.note)) return;
+      const action: ChangeAction = !mine.note ? "add" : !given || noteLine(given.note ?? "") !== noteLine(mine.note) ? "pick" : "correct";
+      push({ kind: "fact.part.note", action, ...owner, fact: f, was: o, part: { ...p, note: noteLine(p.note) }, wasPart: mine });
+    };
     /** Who the file names at a fact the research has (`o`): one more is added, another role a change, as a fact's. */
-    const partsDiff = (f: SFact, o: SFact | undefined) => {
+    const partsDiff = (f: SFact, o: SFact | undefined, sure = true) => {
       for (const p of f.parts ?? []) {
         const known = ourParts.find((x) => sameWho(p, incoming, x.part, ours) && sameRole(p, x.part));
         if (known) {
           // a name of the research's the user linked to a person of the tree
           const linked = was && baseParts.some((x) => sameWho(p, incoming, x.part, base!) && x.part.person);
           if (p.person && !known.part.person && known.fact.id && !linked) push({ kind: "fact.part", action: "add", ...owner, fact: f, was: known.fact, part: p, wasPart: known.part });
+          if (sure) partNoteDiff(f, o, p);
           continue;
         }
         if (was && baseParts.some((x) => sameWho(p, incoming, x.part, base!) && sameRole(p, x.part))) continue; // as given: the research changed it since
@@ -2700,6 +2953,125 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         push({ kind: "fact.share", action: "user", ...owner, fact: f, was: o, shared });
       }
     };
+    /** The fact as the app was given it (`o` the research's). */
+    const givenOf = (o: SFact) => was?.find((b) => factKey(b) === factKey(o) && (!b.id || b.id === o.id));
+    /**
+     * The note of the research's fact as the file has it (`o`): the user's edit of it in the app. Compared as the app
+     * was given it — the words strom says there besides the fact's own note (its status, a quote: the export's), and a
+     * line the research took off since, are none of the user's; the lines strom wrote into the note itself (where a
+     * date or a source of another tree was) stay whatever the app did with them. A file that gives no note takes
+     * nothing away (the app keeps a birth's or a marriage's note in the person's or the couple's). One the research
+     * has none of is added; changed since the app was given it, it corrects the research's (the earlier kept in the
+     * note's history) — unless the research changed it since too (then picked); without what the app was given, picked.
+     */
+    const noteDiff = (f: SFact, o: SFact) => {
+      if (!f.note || !o.id || VALUE_KINDS.has(kindOf(o.kind))) return;
+      const e = eventById(tree, o.id);
+      if (!e || e.retracted) return;
+      const linesOf = (t: string | undefined) => (t ? (factNote(t)?.split("\n") ?? []) : []);
+      const own = linesOf(e.note);
+      const exported = linesOf(o.note);
+      const given = was ? linesOf(givenOf(o)?.note) : undefined;
+      const theirs = linesOf(f.note);
+      const same = (a: string[], b: string[]) => a.join("\n") === b.join("\n");
+      if (same(theirs, exported) || (given && same(theirs, given))) return;
+      // an event the app shares among people (spec 085) has one note there: what another copy of it in the research
+      // says (as it is, as the app was given it) is none of the user's — one edit of the user's, never one per copy
+      const copies = o.share ? [ours, ...(base ? [base] : [])].flatMap((s) => [...s.persons.values()].flatMap((x) => x.facts.filter((y) => y.share?.id === o.share!.id && y.id !== o.id).flatMap((y) => linesOf(y.note)))) : [];
+      if (copies.length && theirs.every((l) => copies.includes(l) || exported.includes(l) || given?.includes(l))) return;
+      const strom = new Set([...exported, ...(given ?? []), ...copies].filter((l) => !own.includes(l)));
+      const users = theirs.filter((l) => !strom.has(l) && (own.includes(l) || !exportSays(l)));
+      if (!users.length) return;
+      const raw = (e.note ?? "").split(/\r?\n/).map(noteLine).filter(Boolean);
+      const kept = raw.filter((l) => (detailLine(l) || STROM_NOTE_LINE.test(l)) && !users.includes(l));
+      const next = [...kept, ...users];
+      if (same(next, raw)) return;
+      const action: ChangeAction = !own.length ? "add" : !given || own.some((l) => !given.includes(l)) ? "pick" : "correct";
+      push({ kind: "fact.note", action, ...owner, fact: f, was: o, text: next.join("\n"), noteWas: e.note ?? "" });
+    };
+    /**
+     * The user's main citation of the research's fact as the file has it (`o`, spec 095 K2.2): one the file marks that
+     * the fact has not (nor was it given so — the research's choice since stays) is the user's choice; none marked where
+     * the research gave one the file still cites, the user's cancel. Only of an app that reads the main citation.
+     */
+    const mainDiff = (f: SFact, o: SFact) => {
+      const e = readsMain && o.id ? eventById(tree, o.id) : undefined;
+      if (!e || e.retracted) return;
+      const mine = e.citations.find((c) => c.main)?.source;
+      const given = givenOf(o)?.cites?.find((c) => c.main)?.source;
+      const theirs = (f.cites ?? []).find((c) => c.main);
+      if (theirs) {
+        const id = sources.get(theirs.source);
+        if ((id ?? theirs.source) === mine || (id ?? theirs.source) === given) return;
+        push({ kind: "fact.main", action: "user", ...owner, fact: f, was: o, source: theirs.source, ...(id ? { sourceId: id } : {}), cites: [theirs] });
+        return;
+      }
+      if (!mine || !was || given !== mine) return;
+      const still = (f.cites ?? []).find((c) => (sources.get(c.source) ?? c.source) === mine);
+      if (still) push({ kind: "fact.main", action: "user", mainOff: true, ...owner, fact: f, was: o, source: still.source, sourceId: mine, cites: [still] });
+    };
+    /**
+     * The citations the user removed from the research's fact in the app (spec 095 K3.1): a source the fact cited when
+     * the app was given it (`_STROM_HEAD`) and cites still, that the file no longer gives it (nor its couple — the app's
+     * one list of a union's sources). Removed only on the word of an app whose file says so (APP_SENDS_UNCITE); a source
+     * the file has nowhere any more, or an app that does not say it: only reported, of an app that reads the main citation.
+     */
+    const unciteDiff = (f: SFact, o: SFact) => {
+      if (!incoming.head || !was || partial || !o.id) return;
+      const e = eventById(tree, o.id);
+      const given = givenOf(o);
+      if (!e || e.retracted || !given?.cites?.length) return;
+      const here = new Set([...(f.cites ?? []), ...(owner.family ? (famCites ?? []) : [])].map((c) => sources.get(c.source) ?? c.source));
+      for (const id of new Set(given.cites.map((c) => c.source))) {
+        if (here.has(id) || !e.citations.some((c) => c.source === id)) continue;
+        const code: NotWrittenCode | undefined = !inFile.has(id) ? "cite.sourceRemoved" : !sendsUncite ? "cite.olderApp" : undefined;
+        if (code) {
+          if (readsMain) push({ kind: "fact.uncite", action: "report", code, ...owner, fact: f, was: o, sourceId: id });
+          continue;
+        }
+        const locators = locatorsAt(tree, incoming.head, owner.person ?? owner.family, o.id, id);
+        push({ kind: "fact.uncite", action: "user", ...owner, fact: f, was: o, sourceId: id, ...(locators ? { locators } : {}) });
+      }
+    };
+    /**
+     * The user's changes in the app of a fact the research took back since it gave it (`strom event retract`; spec 095
+     * K3.4, found with the app's 3.29.0-beta.1): nothing is written on it, each said with its code, never in silence — a
+     * citation removed (of an app whose file says it), one added, the main one chosen, a note, a detail, a confirmation.
+     * The fact is not in the tree the app loads next, so nothing of it comes back.
+     */
+    const retractedDiff = (f: SFact, given: SFact) => {
+      const said = (kind: ChangeKind, more: Partial<Change> = {}) => {
+        const { cites: _c, ...bare } = f;
+        push({ kind, action: "report", code: "event.retracted", ...owner, fact: bare, was: given, ...more });
+      };
+      const id = (c: SCite) => sources.get(c.source) ?? c.source;
+      const here = new Set([...(f.cites ?? []), ...(owner.family ? (famCites ?? []) : [])].map(id));
+      const had = new Set((given.cites ?? []).map((c) => c.source));
+      if (incoming.head && !partial && sendsUncite) for (const s of had) if (!here.has(s)) said("fact.uncite", { sourceId: s });
+      const fresh = (f.cites ?? []).filter((c) => !had.has(id(c)));
+      if (fresh.length) push({ kind: "fact.cite", action: "report", code: "event.retracted", ...owner, fact: { ...f, cites: fresh }, was: given });
+      const main = readsMain ? (f.cites ?? []).find((c) => c.main) : undefined;
+      if (main && id(main) !== (given.cites ?? []).find((c) => c.main)?.source) said("fact.main", { source: main.source, sourceId: id(main), cites: [main] });
+      const note = (t: string | undefined) => (t ? (factNote(t) ?? "") : "");
+      if (f.note && note(f.note) !== note(given.note)) said("fact.note");
+      const [fd, gd] = [detailsOf(f), detailsOf(given)];
+      if (Object.keys(fd).some((d) => exact(fd[d]) !== exact(gd[d]))) said("fact.detail");
+      if (f.confirmed !== undefined && given.confirmed === undefined) said("fact.confirm", { confirm: { on: true, day: f.confirmed } });
+    };
+    /**
+     * The fact of this key as the app was given it, which the research took back since. A base that is the copy of an
+     * earlier send (_STROM_SINCE) carries no IDs of facts: the ID is the research's at _STROM_HEAD, by the same key.
+     */
+    const retractedGiven = (k: string) => {
+      for (const b of was ?? []) {
+        if (factKey(b) !== k) continue;
+        const id = b.id ?? (incoming.head ? givenFactsOf(owner)?.find((g) => factKey(g) === k && !!g.id)?.id : undefined);
+        if (id && !our.some((o) => o.id === id) && eventById(tree, id)?.retracted) return { ...b, id };
+      }
+      return undefined;
+    };
+    // the facts of a main citation the research has not as the file has them (spec 095 K3.4): said, unless one comes new
+    const mainsOff: SFact[] = [];
     for (const f of inc) {
       const k = factKey(f);
       if (ourKeys.has(k)) {
@@ -2710,14 +3082,24 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
           return Object.keys(x).every((d) => exact(x[d]) === exact(y[d]));
         };
         const mates = our.filter((x) => factKey(x) === k);
-        // the sources the user gave it in the app that it does not cite yet (nor did it when given)
-        const paired = mates.find((x) => sameDetails(f, x)) ?? mates[0]!;
-        partsDiff(f, paired);
+        // the research's fact it is: by the ID the app was given (`2 _STROM_EID`), else the one of the same details,
+        // then of the same name (two events of one day and one source, told apart by their names only — 1115 B1)
+        const byId = f.eid ? mates.find((x) => x.id?.toUpperCase() === f.eid) : undefined;
+        const alike = mates.filter((x) => sameDetails(f, x));
+        const named = (alike.length ? alike : mates).filter((x) => fold(x.label) === fold(f.label));
+        const paired = byId ?? (named.length === 1 ? named[0]! : (alike[0] ?? mates[0]!));
+        // what the user wrote of one fact (its note, a note of someone it names) only to the one it surely is: never
+        // guessed among facts alike (the note of one would correct its twin's)
+        const sure = !!byId || mates.length === 1 || alike.length === 1 || named.length === 1;
+        partsDiff(f, paired, sure);
         confirmDiff(f, paired);
         shareDiff(f, paired);
+        if (sure) noteDiff(f, paired);
         // facts alike (two events of a year, told apart by their names only) pair loosely: a source any of them cites is no news
         const fresh = newCites(tree, f, mates, was?.filter((x) => factKey(x) === k) ?? [], sources, owner.family);
         if (fresh.length) push({ kind: "fact.cite", action: "add", ...owner, fact: { ...f, cites: fresh }, was: paired, reads: fresh.some((c) => reads(c.source)) });
+        mainDiff(f, paired);
+        unciteDiff(f, paired);
         if (mates.some((x) => sameDetails(f, x)) || was?.some((x) => factKey(x) === k && sameDetails(f, x))) continue;
         const o = mates.find((x) => !inc.some((i) => factKey(i) === k && sameDetails(i, x))) ?? mates[0]!;
         const b = was?.find((x) => factKey(x) === k && (!x.id || x.id === o.id));
@@ -2730,6 +3112,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         }
         continue;
       }
+      const marked = readsMain ? (f.cites ?? []).find((c) => c.main) : undefined;
+      if (marked && !retractedGiven(k) && was?.find((b) => factKey(b) === k)?.cites?.find((c) => c.main)?.source !== (sources.get(marked.source) ?? marked.source)) mainsOff.push(f);
       const less = our.find((o) => knowsMore(o, f));
       if (less) {
         // the file knows less of it (the date lost on the way) — or, against what the app was given, the user took a
@@ -2749,19 +3133,25 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         continue;
       }
       if (was && baseKeys.has(k)) {
+        // as it was given: the research took it back since — what the user changed of it is said, nothing written
+        const gave = retractedGiven(k);
+        if (gave) {
+          retractedDiff(f, gave);
+          continue;
+        }
         // as it was given: the research changed it since — a later send of this tree of the app too, one this copy never
         // had (or the user set it back): kept, said
         const owned = owner.person ?? owner.family;
         // confirmed in the app since as it was given, the research changed or withdrew it meanwhile: only said
         if (f.confirmed !== undefined && was.find((b) => factKey(b) === k)?.confirmed === undefined)
-          push({ kind: "fact.confirm", action: "report", ...owner, fact: f, confirm: { on: true, day: f.confirmed } });
+          push({ kind: "fact.confirm", action: "report", code: "confirm.changed", ...owner, fact: f, confirm: { on: true, day: f.confirmed } });
         const sent = sentSince && owned ? our.find((o) => kindOf(o.kind) === kindOf(f.kind) && !incKeys.has(factKey(o)) && !used.has(factKey(o)) && sentSince.has(`${owned}|${factKey(o)}`)) : undefined;
         if (sent) {
           used.add(factKey(sent));
           // set back to what an earlier send wrote (a copy kept from before, or the user's word: the same file), or
           // given a source of the user's since (found on Mac: a citation lost with the value kept): the user decides
           const asked = sentBefore?.has(`${owned}|${k}`) ? "setBack" : newCites(tree, f, [sent], was.filter((b) => factKey(b) === k), sources, owner.family).length ? "cited" : undefined;
-          if (!asked) push({ kind: "fact.changed", action: "report", kept: true, ...owner, fact: f, was: sent });
+          if (!asked) push({ kind: "fact.changed", action: "report", kept: true, code: "sentSince", ...owner, fact: f, was: sent });
           else if (!openConflict(tree, owned, f)) push({ kind: "fact.changed", action: "conflict", asked, ...owner, fact: f, was: sent });
           continue;
         }
@@ -2823,6 +3213,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       if (action === "conflict" && openConflict(tree, owner.person ?? owner.family, f)) continue;
       push({ kind: "fact.changed", action, ...owner, fact: f, was: mine });
     }
+    for (const f of mainsOff) if (!changes.some((c) => c.kind === "fact.new" && c.fact === f)) push({ kind: "fact.main", action: "report", code: "fact.noMatch", ...owner, fact: f });
     // who the research gave at a fact the file still has, no longer named at it (in no role)
     if (was?.length && !partial) {
       const said = new Set<SPart>();
@@ -2841,11 +3232,19 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   };
 
   /** The sources the file gives a person or a family themselves that the research's record cites nowhere, nor did it when given. */
-  const citesDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SCite[] | undefined, rec: Person | Family | undefined, given: SCite[] | undefined) => {
+  const citesDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SCite[] | undefined, rec: Person | Family | undefined, given: SCite[] | undefined, facts?: SFact[]) => {
     const has = rec ? citedIn(rec) : new Set<string>();
     for (const c of given ?? []) has.add(c.source);
     const fresh = (inc ?? []).filter((c, i, all) => !has.has(sources.get(c.source) ?? c.source) && all.findIndex((x) => x.source === c.source) === i);
-    if (fresh.length) push({ kind: owner.family || owner.partners ? "family.cite" : "person.cite", action: "add", ...owner, cites: fresh, ...(fresh.some((c) => reads(c.source)) ? { reads: true } : {}) });
+    const kind = owner.family || owner.partners ? "family.cite" : "person.cite";
+    if (fresh.length) push({ kind, action: "add", ...owner, cites: fresh, ...(fresh.some((c) => reads(c.source)) ? { reads: true } : {}) });
+    // a source the research gave the record itself that the file carries nowhere in it, though it has the source
+    // (spec 095 K3.4): not removed — the app did not carry it; said to an app that reads the main citation
+    if (!readsMain || !incoming.head || !rec || !given?.length || partial) return;
+    const here = new Set([...(inc ?? []), ...(facts ?? []).flatMap((f) => f.cites ?? [])].map((c) => sources.get(c.source) ?? c.source));
+    const now = citedIn(rec);
+    for (const id of new Set(given.map((c) => c.source)))
+      if (!here.has(id) && now.has(id) && inFile.has(id)) push({ kind, action: "report", code: "cite.notCarried", ...owner, sourceId: id });
   };
 
   /**
@@ -2983,7 +3382,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   /** The user's edits of a person: the file's (`p`) against the research's (`o`) and what the app was given (`b`). */
   const personDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
   factsDiff({ person: id, name }, p.facts, o.facts, b?.facts, true);
-  citesDiff({ person: id, name }, p.cites, tree.get<Person>(id), b?.cites);
+  citesDiff({ person: id, name }, p.cites, tree.get<Person>(id), b?.cites, p.facts);
   const ourNames = new Set(o.names.map(nameKey));
   const baseNames = new Set((b?.names ?? []).map(nameKey));
   // the name the person is shown by, renamed in the app (the one it was given gone from the file, the research's
@@ -3254,7 +3653,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     // research has none for, said (found on Mac: a stepchild lost both ways, nothing said)
     for (const c of kids) {
       if (!o.children.includes(c) || c.startsWith("x:")) continue;
-      for (const said of f.relationsUnknown?.[fileKey(c)] ?? []) push({ kind: "child.relation", action: "report", family: fam.id, partners, child: c, person: c, name: incoming.persons.get(fileKey(c))?.names[0] ?? c, text: said });
+      for (const said of f.relationsUnknown?.[fileKey(c)] ?? []) push({ kind: "child.relation", action: "report", code: "relation.unknown", family: fam.id, partners, child: c, person: c, name: incoming.persons.get(fileKey(c))?.names[0] ?? c, text: said });
       const shared = o.partners.filter((p) => partners.includes(p));
       if (!shared.length) continue;
       const theirs = Object.fromEntries(shared.map((p) => [p, tieOf(f, fileKey(c), f.partners[partners.indexOf(p)] ?? p)]));
@@ -3270,8 +3669,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       push({ kind: "child.relation", action, family: fam.id, partners, child: c, person: c, name: incoming.persons.get(fileKey(c))?.names[0] ?? c, ties: { [c]: theirs }, text: shared.map((p) => `${p}:${theirs[p]}`).join(" ") });
     }
     const both = [...new Set([...o.partners, ...partners])];
-    factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true);
-    citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites);
+    factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true, f.cites);
+    citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites, f.facts);
     notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...earlierNoteTexts(fam)], o.facts, fam.notes);
     // how the couple is bound (no record proves it): the user's word where it changed since given, or where the research
     // has none; another word with nothing to stand on only said; none in the file takes nothing away (an older app)
@@ -3347,19 +3746,19 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const gone = (ours.persons.get(person)?.facts ?? []).filter((o) => kindOf(o.kind) === kind && o.id && !theirs.has(factKey(o)));
       if (news.length !== 1 || gone.length !== 1) continue;
       const c = news[0]!;
-      if (openConflict(tree, person, c.fact!)) Object.assign(c, { action: "report" as const });
+      if (openConflict(tree, person, c.fact!)) Object.assign(c, { action: "report" as const, code: "conflict.open" as const });
       else Object.assign(c, { kind: "fact.changed" as const, action: decide, was: gone[0] });
     }
     for (const c of changes) {
       if (c.action !== "pick") continue;
       if ((c.kind === "fact.differs" || c.kind === "fact.detail") && c.was?.id && c.fact)
-        Object.assign(c, { action: openConflict(tree, c.person ?? c.family, c.fact) ? "report" : decide });
+        Object.assign(c, openConflict(tree, c.person ?? c.family, c.fact) ? { action: "report" as const, code: "conflict.open" as const } : { action: decide });
       else Object.assign(c, { action: "report" as const });
     }
   }
   // a change not written leaves out the sources the user gave its fact too: said with it, never lost in silence
   for (const c of changes) {
-    if ((c.action !== "report" && c.action !== "pick") || !c.fact?.cites?.length) continue;
+    if ((c.action !== "report" && c.action !== "pick") || !c.fact?.cites?.length || c.kind === "fact.main" || c.kind === "fact.uncite") continue;
     const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
     const has = new Set(mine?.citations.map((x) => x.source) ?? []);
     const left = c.fact.cites.filter((x) => !has.has(sources.get(x.source) ?? x.source)).map((x) => x.source);
@@ -3370,7 +3769,13 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   if (incoming.surnames) {
     const given = incoming.head && appReadsSurnameGroups(new Settings(tree.env, {}), incoming.appVersion) ? surnamesAt(tree, incoming.head) : undefined;
     for (const c of planSurnames(readSurnames(tree), incoming.surnames, given))
-      push({ kind: c.how === "warning" ? "surname.warning" : c.list === "groups" ? "surname.group" : "surname.reject", action: c.how === "kept" || c.how === "warning" ? "report" : c.how, text: formsSaid(c.forms), surname: c });
+      push({
+        kind: c.how === "warning" ? "surname.warning" : c.list === "groups" ? "surname.group" : "surname.reject",
+        action: c.how === "kept" || c.how === "warning" ? "report" : c.how,
+        ...(c.how === "kept" ? { code: "surname.kept" as const } : c.how === "warning" ? { code: "surname.warning" as const } : {}),
+        text: formsSaid(c.forms),
+        surname: c,
+      });
   }
   return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
 }
@@ -3808,6 +4213,23 @@ function readsFor(tree: Tree, incoming: Snapshot, sources: Map<string, string>, 
 }
 
 /** The sources a fact of the file cites that the research's fact does not, nor did it when given. */
+/**
+ * The places in a source a fact cited it at in the research at a commit (what the app was given: `""` for a citation of
+ * no place); undefined: the record or the fact not there, or not readable.
+ */
+function locatorsAt(tree: Tree, head: string, owner: string | undefined, eventId: string, source: string): string[] | undefined {
+  if (!owner || owner.startsWith("x:")) return undefined;
+  const text = git.showFile(tree.root, head, tree.relative(tree.recordPath(owner.startsWith("F") ? "family" : "person", owner)));
+  if (!text) return undefined;
+  try {
+    const rec = JSON.parse(text) as { events?: { id?: string; citations?: { source?: string; locator?: string }[] }[] };
+    const e = rec.events?.find((x) => x.id === eventId);
+    return e ? (e.citations ?? []).filter((c) => c.source === source).map((c) => c.locator ?? "") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function newCites(tree: Tree, f: SFact, ours: SFact[], given: SFact[], sources: Map<string, string>, family?: string): SCite[] {
   const events = ours.map((o) => (o.id ? eventById(tree, o.id) : undefined)).filter((e): e is Event => !!e);
   if (!events.length) return [];
@@ -4205,6 +4627,8 @@ export interface Applied {
     | "partner.add"
     | "partner.remove"
     | "event.uncite"
+    | "event.note"
+    | "event.main"
     | "sex.edit"
     | "family.sides"
     | "place.add"
@@ -4252,6 +4676,11 @@ export interface Applied {
 export interface SyncGuard {
   /** hypotheses.decide person: every change of an import's value is a proposal. */
   decidePerson: boolean;
+  /**
+   * This sync's own input (I…): what its marks name. Never the day's source's input — the app's sends of one day share
+   * one source, whose input is the day's first send (an undo of a later one would leave its marks behind).
+   */
+  input?: string;
 }
 
 /** A change of a sync not the person's that became a proposal (a conflict the user decides): its number, the conflict, what an agent is told. */
@@ -4366,7 +4795,7 @@ export function applySync(
     if (known) return known;
     const imp = incoming.imports?.get(key);
     if (!imp) return undefined;
-    const { source: s, created } = importSourceFor(tree, imp, source.input);
+    const { source: s, created } = importSourceFor(tree, imp, guard.input ?? source.input);
     importSources.set(key, s.id);
     if (created) applied.push({ do: "source.add", id: s.id });
     return s.id;
@@ -4407,6 +4836,16 @@ export function applySync(
   };
   /** A change of a value of the user's or an import's that has no proposal to become: left out, said why. */
   const kept = (c: Change, why: string, params: Record<string, string>) => skipped.push({ n: c.n, kind: c.kind, why, code: "sync.origin", params, names: namesOf(tree, params) });
+  /**
+   * A new fact's citations with the main citation the file marks (spec 095 K2.2): the user's choice, written by the
+   * person's sync alone — the first citation of that source.
+   */
+  const mainFrom = (citations: Citation[], f: SFact): Citation[] => {
+    const m = person ? f.cites?.find((x) => x.main) : undefined;
+    const id = m ? srcId(m.source) : undefined;
+    const at = id ? citations.findIndex((x) => x.source === id) : -1;
+    return at < 0 ? citations : citations.map((x, i) => (i === at ? { ...x, main: { by: "user" as const, at: now() } } : x));
+  };
   /**
    * The person's confirmation of a fact against the scan given (on the day the app says) or taken back (spec 065), as
    * `strom verify confirm` does it: the tasks of verification it changes kept as they were, for an undo.
@@ -4747,7 +5186,7 @@ export function applySync(
             const citations = c.fact.mark ? [...citeFrom(c.fact.mark, c.fact.kind), ...theirs] : theirs.length ? theirs : [cite(c.fact.kind)];
             const gr = graded(citations, c.fact);
             const note = gr ? gradeNote(gr) : undefined;
-            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "lead", ...(note ? { note } : {}), citations, origin: originFrom(c.fact.mark, "fact") });
+            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "lead", ...(note ? { note } : {}), citations: mainFrom(citations, c.fact), origin: originFrom(c.fact.mark, "fact") });
             applied.push({ do: "event.add", id: event.id });
             if (c.fact.roleAt?.at && !event.roleAt?.at) roleLater.push({ event: event.id, roleAt: c.fact.roleAt });
             // confirmed against the scan in the app (spec 065): the person's word, with its day — an agent's sync never says it
@@ -4813,7 +5252,7 @@ export function applySync(
             const citations = c.fact.mark ? [...citeFrom(c.fact.mark, c.fact.kind), ...theirs] : theirs.length ? theirs : [cite(c.fact.kind)];
             const gr = graded(citations, c.fact);
             const note = gr ? gradeNote(gr) : undefined;
-            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "possible", ...(note ? { note } : {}), citations, origin: originFrom(c.fact.mark, "fact") });
+            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "possible", ...(note ? { note } : {}), citations: mainFrom(citations, c.fact), origin: originFrom(c.fact.mark, "fact") });
             applied.push({ do: "event.add", id: event.id });
             if (c.fact.roleAt?.at && !event.roleAt?.at) roleLater.push({ event: event.id, roleAt: c.fact.roleAt });
             toVerify(owner, citations);
@@ -4868,13 +5307,125 @@ export function applySync(
           // a reading the person gave it: the research's fact as the readers read it (surer only, never less)
           const gr = graded(add, mine);
           const to = gr && surer(gr.grade.status, up ? "probable" : mine.status) ? gr.grade.status : up ? "probable" : undefined;
-          update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, citations: [...e.citations, ...add], ...(to ? { status: to } : {}) } : e)) }), {
+          // a source the user removed from it before, cited again in the app: the removal closed (spec 095 K3.2)
+          const again = (e: Event): Event => add.reduce((x, a) => clearRemoved(x, a.source, `cited again by the user in the Strom app (${reason})`, now(), a.locator ?? ""), e);
+          update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...again(e), citations: [...e.citations, ...add], ...(to ? { status: to } : {}) } : e)) }), {
             op: "event.cite",
             summary: `${mine.id} cites ${add.map((x) => x.source).join(", ")}${to && !up ? ` — ${to}: read ${gr!.reads.join(", ")}` : up ? " — probable on the user's reading" : ""} (${reason})`,
           });
           applied.push({ do: "event.cite", id: mine.id, before: JSON.stringify({ status: mine.status, sources: add.map((x) => x.source) }) });
           toVerify(owner, add);
           toCheck(owner, gr);
+          break;
+        }
+        case "fact.main": {
+          // the user's main citation of the research's fact chosen in the app, or cancelled (spec 095 K2.2): the person's
+          // alone — the first citation of that source is the main one, every other is not
+          const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+          if (!owner || !mine || mine.retracted || c.action === "report") break;
+          if (!person) {
+            kept(c, `${mine.id}: its main citation ${c.mainOff ? "cancelled" : "chosen"} by nobody but the user — tell the user`, { fact: mine.id });
+            break;
+          }
+          const id = c.mainOff ? c.sourceId : c.source ? srcId(c.source) : c.sourceId;
+          const at = id ? mine.citations.findIndex((x) => x.source === id) : -1;
+          if (at < 0) {
+            if (!c.mainOff) skipped.push({ n: c.n, kind: c.kind, why: `${mine.id} does not cite ${id ?? c.source}: its main citation is not written`, code: "main.notCarried", params: { fact: mine.id, source: id ?? appSource(c.source ?? "") } });
+            break;
+          }
+          const was = mine.citations.filter((x) => x.main);
+          if (c.mainOff ? !mine.citations[at]!.main : was.length === 1 && mine.citations[at]!.main) break;
+          const next = mine.citations.map(({ main: _m, ...x }, i) => (!c.mainOff && i === at ? { ...x, main: { by: "user" as const, at: now() } } : x));
+          update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, citations: next } : e)) }), {
+            op: "event.main",
+            summary: c.mainOff ? `${mine.id} has no main citation (${reason})` : `${mine.id} main citation ${id} (${reason})`,
+          });
+          applied.push({ do: "event.main", id: mine.id, before: JSON.stringify(was.map((x) => ({ source: x.source, locator: x.locator ?? null, main: x.main }))) });
+          break;
+        }
+        case "fact.uncite": {
+          // the citations of a source the user removed from the research's fact in the app (spec 095 K3.1): the person's
+          // alone — those the fact had when the app was given it (a citation of it the research added since stays);
+          // kept on the fact as removed by the user, so that no agent cites it there again on its own (K3.2, K3.3)
+          const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+          if (!owner || !mine || mine.retracted || c.action === "report" || !c.sourceId) break;
+          if (!person) {
+            kept(c, `${mine.id}: ${c.sourceId} removed from it by nobody but the user — tell the user`, { fact: mine.id, source: c.sourceId });
+            break;
+          }
+          const gone = mine.citations.filter((x) => x.source === c.sourceId && (!c.locators || c.locators.includes(x.locator ?? "")));
+          if (!gone.length) break;
+          const rest = mine.citations.filter((x) => !gone.includes(x));
+          // a status the citations left no longer carry: as sure as they are
+          let status = mine.status;
+          for (const s of [mine.status, "probable", "lead"] as const) {
+            try {
+              checkStatus(tree, s, rest);
+              status = s;
+              break;
+            } catch {
+              // less sure
+            }
+          }
+          const when = now();
+          // marked with this sync's input, so that its undo takes the removal back (not the day's first send's)
+          const sync = guard.input ?? source.input;
+          const marks: UncitedEntry[] = gone.map((x) => ({ source: x.source, ...(x.locator ? { locator: x.locator } : {}), at: when, by: "user" as const, ...(sync ? { sync } : {}) }));
+          update<Person | Family>(
+            tree,
+            owner,
+            owner.startsWith("F") ? "family" : "person",
+            (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, citations: rest, status, uncited: [...(e.uncited ?? []), ...marks] } : e)) }),
+            { op: "event.cite", summary: `${mine.id} cites no more ${c.sourceId}: removed by the user in the Strom app${status !== mine.status ? ` — ${status}` : ""} (${reason})` },
+          );
+          applied.push({ do: "event.uncite", id: mine.id, before: JSON.stringify({ citations: gone, status: mine.status, removed: true }) });
+          break;
+        }
+        case "fact.note": {
+          // the user's note of the research's fact: added, or the note corrected — the earlier one kept in its history
+          const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+          if (!owner || !mine || mine.retracted || !c.text || (mine.note ?? "") !== (c.noteWas ?? "")) break;
+          // not the person's sync: the note of a fact of the user's or an import's is changed by nobody but the user
+          const whose = mine.note ? verdict(mine.origin, FACT_PARTS, mine.citations) : undefined;
+          if (whose) {
+            kept(c, `${mine.id} is the ${whose.as === "user" ? "user's" : "imported family tree's"} fact: its note is changed by nobody but the user — tell the user`, { event: mine.id });
+            break;
+          }
+          const text = c.text.normalize("NFC");
+          const at = now();
+          const edits = mine.note ? [...(mine.noteEdits ?? []), { text: mine.note, at, by: tree.actor, reason: `the user's edit in the Strom app: ${reason}` }] : mine.noteEdits;
+          update<Person | Family>(
+            tree,
+            owner,
+            owner.startsWith("F") ? "family" : "person",
+            (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? ({ ...e, note: text, ...(edits?.length ? { noteEdits: edits } : {}) } as Event) : e)) }),
+            { op: mine.note ? "note.edit" : "note.add", summary: `${mine.id} note ${mine.note ? "corrected" : "added"}: the user's edit (${reason})`, reason },
+          );
+          applied.push({ do: "event.note", id: mine.id, before: JSON.stringify({ note: mine.note ?? null, now: text, edits: mine.noteEdits?.length ?? 0 }) });
+          break;
+        }
+        case "fact.part.note": {
+          // the note of someone the record names at the research's fact, as the user wrote it in the app
+          const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+          if (!owner || !mine || mine.retracted || !c.part?.note || !c.wasPart) break;
+          const before = mine.participants ?? [];
+          const w = c.wasPart;
+          const at = before.findIndex((x) => x.role === w.role && (w.person ? x.person === w.person : !x.person && nameKey(x.name ?? "") === nameKey(w.name ?? "")) && noteLine(x.note ?? "") === noteLine(w.note ?? ""));
+          if (at < 0) break;
+          const whose = w.note ? verdict(mine.origin, FACT_PARTS, mine.citations) : undefined;
+          if (whose) {
+            kept(c, `${mine.id} is the ${whose.as === "user" ? "user's" : "imported family tree's"} fact: who it names is changed by nobody but the user — tell the user`, { event: mine.id });
+            break;
+          }
+          const note = c.part.note.normalize("NFC");
+          update<Person | Family>(
+            tree,
+            owner,
+            owner.startsWith("F") ? "family" : "person",
+            (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? ({ ...e, participants: before.map((x, i) => (i === at ? { ...x, note } : x)) } as Event) : e)) }),
+            { op: "event.edit", summary: `${mine.id} ${mine.kind} participants: ~${partText(c.part, incoming)} (${w.note ? "the note corrected" : "a note added"})`, reason: `${w.note ? "corrected in" : "added from"} ${reason}` },
+          );
+          applied.push({ do: "event.parts", id: mine.id, before: JSON.stringify(before) });
           break;
         }
         case "fact.part": {
@@ -6187,15 +6738,44 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         update<Person | Family | Source>(tree, a.id, typeOfId(a.id) ?? "person", (o) => ({ ...o, notes: o.notes.filter((x) => x.at !== a.before) }), { op: "note.remove", summary: `${a.id} note "${noteText(tree, a.id, a.before)}" removed: ${reason}`, reason });
         break;
       case "event.uncite": {
-        // the citations of the family tree that gave the value before, back with it
-        const back = JSON.parse(String(a.before ?? "[]")) as Citation[];
+        // the citations of the family tree that gave the value before, back with it — or the ones the user removed in
+        // the app (spec 095 K3.1), with the status they carried and their removal taken back with the sync
+        const b = JSON.parse(String(a.before ?? "[]")) as Citation[] | { citations: Citation[]; status?: Event["status"]; removed?: true };
+        const back = Array.isArray(b) ? b : b.citations;
         const owner = ownerOf(tree, a.id);
+        const after = (e: Event): Event => {
+          if (Array.isArray(b)) return e;
+          const left = (e.uncited ?? []).filter((u) => !(u.sync === input.id && !u.cleared && back.some((c) => c.source === u.source)));
+          const { uncited: _u, ...rest } = e;
+          return { ...rest, ...(left.length ? { uncited: left } : {}), ...(b.status ? { status: b.status } : {}) };
+        };
         if (owner && back.length)
-          update<Person | Family>(tree, owner.id, owner.type, (o) => ({ ...o, events: o.events.map((e) => (e.id === a.id ? { ...e, citations: [...back.filter((c) => !e.citations.some((x) => x.source === c.source && x.locator === c.locator)), ...e.citations] } : e)) }), {
+          update<Person | Family>(tree, owner.id, owner.type, (o) => ({ ...o, events: o.events.map((e) => (e.id === a.id ? { ...after(e), citations: [...back.filter((c) => !e.citations.some((x) => x.source === c.source && x.locator === c.locator)), ...e.citations] } : e)) }), {
             op: "event.cite",
             summary: `${a.id} cites ${back.map((c) => c.source).join(", ")} again: ${reason}`,
             reason,
           });
+        break;
+      }
+      case "event.main": {
+        // the main citation as it was before the user's choice in the app (none: none)
+        const b = JSON.parse(String(a.before ?? "[]")) as { source: string; locator: string | null; main: NonNullable<Citation["main"]> }[];
+        const owner = ownerOf(tree, a.id);
+        if (owner)
+          update<Person | Family>(
+            tree,
+            owner.id,
+            owner.type,
+            (o) => ({
+              ...o,
+              events: o.events.map((e) => {
+                if (e.id !== a.id) return e;
+                const at = e.citations.findIndex((c) => b.some((x) => x.source === c.source && (x.locator ?? undefined) === c.locator));
+                return { ...e, citations: e.citations.map(({ main: _m, ...c }, i) => (i === at ? { ...c, main: b.find((x) => x.source === c.source)!.main } : c)) };
+              }),
+            }),
+            { op: "event.main", summary: `${a.id} main citation ${b[0]?.source ?? "none"} again: ${reason}`, reason },
+          );
         break;
       }
       case "event.cite": {
@@ -6207,6 +6787,29 @@ export function undoSync(tree: Tree, input: SyncInput): number {
             summary: `${a.id} cites no more ${(b.sources ?? []).join(", ")}: ${reason}`,
             reason,
           });
+        break;
+      }
+      case "event.note": {
+        // the fact's note as it was (none: none), its history as it was — only while it says what the sync wrote
+        const b = JSON.parse(String(a.before ?? "{}")) as { note?: string | null; now?: string; edits?: number };
+        const owner = ownerOf(tree, a.id);
+        const e = eventById(tree, a.id);
+        if (!owner || !e || e.note !== b.now) break;
+        update<Person | Family>(
+          tree,
+          owner.id,
+          owner.type,
+          (o) => ({
+            ...o,
+            events: o.events.map((x) => {
+              if (x.id !== a.id) return x;
+              const { note: _n, noteEdits: _e, ...rest } = x;
+              const edits = (x.noteEdits ?? []).slice(0, b.edits ?? 0);
+              return { ...rest, ...(b.note ? { note: b.note } : {}), ...(edits.length ? { noteEdits: edits } : {}) } as Event;
+            }),
+          }),
+          { op: "note.edit", summary: `${a.id} note as it was: ${reason}`, reason },
+        );
         break;
       }
       case "event.parts": {

@@ -14,7 +14,7 @@
 import path from "node:path";
 import { runJsonLines, webUse } from "./jsonl.ts";
 import { OPENCODE_RUN_AGENT } from "../agents/files.ts";
-import { commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, deniedCall, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 
 /** OpenCode's own web tools (OpenCode 2: webfetch with its url, websearch with its query), counted once each call is done. */
 export const OPENCODE_WEB = { page: ["webfetch"], search: ["websearch"] } as const;
@@ -130,7 +130,7 @@ export const opencodeRunner: Runner = {
         opts.onProgress?.(typeof input.command === "string" ? commandLine(input.command) : what.split("\n")[0]!.slice(0, 140));
         // (its shell tool: "bash", "shell" from OpenCode 2 — named "Bash" like Claude Code's, so a refused strom stops the run)
         const refused = state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? "");
-        if (refused) heard.denied.push(typeof input.command === "string" ? `Bash: ${input.command.slice(0, 120)}` : `${String(part.tool)}: ${what.slice(0, 120)}`);
+        if (refused) heard.denied.push(typeof input.command === "string" ? deniedCall("Bash", input.command) : deniedCall(String(part.tool), what));
         // its web tools: a page or a search once done — or failed other than refused (asked of the host all the same)
         const w = state.status === "completed" || (state.status === "error" && !refused) ? webUse(part.tool, input, OPENCODE_WEB) : undefined;
         const call = typeof part.callID === "string" ? part.callID : typeof part.id === "string" ? part.id : undefined;

@@ -248,11 +248,15 @@ test("strom run with Claude Code of a folder said outright, not logged in there:
     assert.ok(r.json.stopped.includes(`CLAUDE_CONFIG_DIR='${second}' claude`), r.json.stopped);
     assert.deepEqual(fs.readFileSync(asked, "utf8").trim().split("\n"), ["auth status"], "no session started");
     assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "data", "tasks", "T0001.json"), "utf8")).state, "open");
-    // the default folder said outright: no variable, no check — the plain claude's own login counts
+    // the default folder said outright: no variable — the plain claude is asked of its own login (K040), and logging in
+    // is the plain claude too
     fs.writeFileSync(asked, "");
     const plain = await w.run(["run", "--agent", "claude", "--json"], { env: { PATH: `${bin}${path.delimiter}${w.env.PATH}`, CLAUDE_CONFIG_DIR: path.join(w.env.HOME!, ".claude") } });
-    assert.notEqual(plain.json.sessions.length, 0, plain.out + plain.err);
-    assert.ok(!fs.readFileSync(asked, "utf8").includes("auth status"));
+    assert.equal(plain.json.stop, "auth", plain.out + plain.err);
+    assert.equal(plain.json.sessions.length, 0);
+    assert.match(plain.json.stopped, /jednou spustit claude a přihlásit se/u);
+    assert.doesNotMatch(plain.json.stopped, /CLAUDE_CONFIG_DIR/);
+    assert.deepEqual(fs.readFileSync(asked, "utf8").trim().split("\n"), ["auth status"]);
   } finally {
     w.cleanup();
   }

@@ -708,6 +708,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
 
+<a id="main-citation"></a>
+### Hlavní citace
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Hlavní citace (★); Označit jako hlavní · Zrušit hlavní (app); `strom event main` (terminal) | Citace údaje, kterou uživatel zvolil jako první. Ostatní citace stojí za ní v pořadí aplikace a výzkumu: primární záznam události, ostatní originály, pak podle spolehlivosti. Volí ji jen člověk. |
+| en | Main citation (★); Mark as main · Unmark main (app); `strom event main` (terminal) | The citation of a fact the user chose to stand first. The other citations follow in the order of the app and the research: the primary record of the event, the other originals, then by reliability. Only a person chooses it. |
+| de | Hauptzitat (★); Als Hauptzitat markieren · Hauptzitat aufheben (app); `strom event main` (terminal) | Die Zitation einer Angabe, die der Benutzer an die erste Stelle gesetzt hat. Die übrigen Zitationen folgen in der Reihenfolge von App und Forschung: der primäre Eintrag des Ereignisses, die übrigen Originale, dann nach Zuverlässigkeit. Nur ein Mensch wählt sie. |
+| pl | Cytat główny (★); Oznacz jako główny · Usuń oznaczenie głównego (app); `strom event main` (terminal) | Cytat danej, który użytkownik wybrał jako pierwszy. Pozostałe cytaty idą za nim w kolejności aplikacji i badania: pierwotny zapis zdarzenia, pozostałe oryginały, potem według wiarygodności. Wybiera go tylko człowiek. |
+
+- **Čísla:** [A3.2.2](cs/A3-evidence-in-the-app.md#A3.2.2), [R3.4.5](cs/R3-verification-and-citation.md#R3.4.5), S2.3.1
+
 <a id="hypothesis"></a>
 ### Hypotéza
 

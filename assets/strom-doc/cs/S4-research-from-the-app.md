@@ -385,6 +385,9 @@ předplatné AI.
   Stromu ani ve výzkumu, který čeká na agenta), jen tam, kde aplikace otevírá odkazy výzkumu ([S4.5](#S4.5)); ne na
   telefonu. Když agent pracuje nebo běží běh, akce není; v záhlaví **Fronty** je místo ní **● Pracuje se ›**, které
   rozbalí **Teď** a přejde na **Dokončit a skončit**.
+- **V oddílu Teď:** když agent nepracuje a neběží žádný běh, nabízí **Pracovat na frontě…** se stejnou značkou,
+  dialogem a podmínkami i oddíl **Teď** v **Přehledu výzkumu**, také v jeho samostatném okně. Když agent pracuje,
+  zůstává v **Teď** jen **Dokončit a skončit**. Zavření dialogu vrátí fokus na tlačítko v **Teď**.
 - **Dialog Pracovat na frontě:**
   - **Automaticky** (výchozí): „Agent bere úkol za úkolem, dokud to dovolí limit předplatného.“ Když výzkum hlásí,
     že brána předplatného (podmínka, [R7.4](R7-when-the-agent-works.md#R7.4)) není nastavená, stojí pod tím **Automatická práce
@@ -392,15 +395,22 @@ předplatné AI.
   - **Jen 5 úkolů**: počet 1–100, výchozí 5. Práce skončí po tolika vyřízených úkolech; počítá se i úkol, který
     skončí čekáním, odložením nebo vzdáním. Jen s výzkumem, který to umí; jinak je jen **Automaticky**;
   - **Jako první přijde**: úkol označený jako další ([S4.2.2](#S4.2.2)), jinak první úkol fronty;
+  - **Další (n)** pod úkolem **Jako první přijde** rozbalí další úkoly fronty v pořadí výzkumu: nejdřív úkol
+    označený jako další, pak podle místa ve frontě; odložené úkoly a úkoly mimo linie, které se neberou, v něm
+    nejsou. Nad nimi stojí **Podle pořadí ve frontě** a „Agent je nemusí vzít přesně v tomto pořadí.“ Řádek je
+    číslo a text úkolu se štítkem **jako další** a druhem úkolu; s místy ve frontě jsou řádky číslované „2.“, „3.“.
+    Pod nimi „a ještě N úkolů ve frontě“ s **Přehled výzkumu ›** (rozbalí **Frontu**), nebo „Fronta může mít další
+    úkoly.“ Rozbalený seznam sbalí **Skrýt další**. Počet v **Jen 5 úkolů** seznam nemění; každé otevření dialogu
+    začíná sbalené a bez dalších úkolů tlačítko není;
   - když to výzkum hlásí, délka sezení a brána („Sezení nejvýš 3 h · brána předplatného: …“);
   - **Zrušit** a **Otevřít terminál** (značka AI a terminál) s větou **Spuštění potvrdí terminál výzkumu. Práci
     zastaví Ctrl-C v jeho okně nebo Dokončit a skončit v oddílu Teď.**
 - **Ovládání:** aplikace: **Pracovat na frontě…** vpravo v záhlaví rozbalené **Fronty** v **Přehledu výzkumu**;
   nabídka **Výzkum → Pracovat na frontě…** ([S4.5.2](#S4.5.2)). Terminál: `strom run --tasks N`, `strom run --loop`
   ([R7.1](R7-when-the-agent-works.md#R7.1)).
-- **Platí od:** aplikace 3.28.0 (výzkum 1.32.0)
+- **Platí od:** aplikace 3.28.0 (výzkum 1.32.0); v oddílu **Teď** a **Další (n)** od aplikace 3.29.0
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie v aplikaci
@@ -477,11 +487,16 @@ Při dvou a více liniích ukazuje přehled práci mimo linie po větvích. Volb
     a úkoly s ručním pořadím. Od aplikace 3.27.0 úvod skupiny řekne, co linii pomáhá a jde s ní vždy: „otázka
     linie, připojení lidí k člověku linie nebo k jeho partnerovi, důvod uvedený agentem“
     ([R2.3](R2-lines-and-queue.md#R2.3)).
+  - Volba výzkumu vedle nadpisu **Mimo linie** (např. „na konci“) otevře **Výzkum u tohoto stromu…** na skupině
+    **Práce mimo linie** s vybranou kartou, i bez sledování a ze samostatného okna přehledu (dialog se otevře
+    v hlavním okně). U Archivu Stromu a u výzkumu, který čeká na agenta, tahle skupina není a volba je jen text.
+    Štítek větve odkazem není: rozbalí větev jako celá její hlavička.
 - **Ovládání:** aplikace: **Přehled výzkumu**, oddíl práce mimo linie, u větve **⋯** (**Možnosti větve**);
   **Výzkum u tohoto stromu…**.
-- **Platí od:** aplikace 3.22.0 (výzkum 1.26.0)
+- **Platí od:** aplikace 3.22.0 (výzkum 1.26.0); volba u nadpisu **Mimo linie** bez sledování a z okna přehledu od
+  aplikace 3.29.0
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
 
 <a id="S4.4"></a>
 ## S4.4 Čeká na vyřízení v aplikaci

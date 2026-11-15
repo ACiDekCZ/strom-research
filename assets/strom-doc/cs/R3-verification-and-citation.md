@@ -251,6 +251,62 @@ najednou: kód, bez agenta a zdarma.
 
 <!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
+<a id="R3.4.5"></a>
+### R3.4.5 Pořadí citací údaje a hlavní citace
+
+Citace údaje výzkum řadí stejně jako aplikace ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)): první je hlavní citace,
+kterou zvolil uživatel, pak primární záznam události, pak ostatní podle spolehlivosti. Uložené pořadí se nemění;
+pořadí platí v každém souboru GEDCOM (pro aplikaci Strom, `/tree.ged`, soubor pro jiné programy), v briefu agenta
+a ve výpisech `strom … show`.
+
+- **Hlídá kód:**
+  - pořadí: 1. hlavní citace; 2. primární záznam události: zápis tohoto druhu události (křest nebo narození
+    u narození a křtu, úmrtí nebo pohřeb u úmrtí, pohřbu a kremace, sňatek u sňatku, ohlášek a zasnoubení, sčítání
+    u sčítání), originál s prvotní informací (`QUAY` 3) nebo originál, jehož informaci nikdo neposoudil (`QUAY` 2 jen
+    pro chybějící slovo, [R3.2.1](#R3.2.1)), zapsaný nejvýš 12 měsíců od údaje; dřív zapsaný první, bez data
+    zápisu za zapsanými s datem; chybějící nebo nečitelné datum nerozhoduje; 3. ostatní `QUAY` 3; 4. ostatní podle
+    `QUAY` sestupně; 5. číselná část čísla pramene (bez čísla za číslovanými), pak pořadí přidání;
+  - citace zápisu jiné události, která nemá vlastní informaci, má v pořadí a v exportu `QUAY` druhotné informace
+    (pohřební zápis u narození). Stupeň jistoty údaje se tím nemění;
+  - jména a citace osoby a rodiny (`1 SOUR`) se řadí bez kroku 2;
+  - jaké události pramen zapisuje, píše export jako `1 DATA` › `2 EVEN` u pramene: vždy v souboru pro jiné programy,
+    aplikaci Strom jen té, která to čte;
+  - `strom event main <E> <S>` označí citaci pramene S jako hlavní, `--locator "<kde>"` vybere jednu z víc citací
+    téhož pramene, `--clear` hlavní citaci zruší (platí pořadí výzkumu). Výpis: „hlavní záznam údaje zvolen: …“,
+    „údaj bez hlavního záznamu (pořadí výzkumu): …“, „není co měnit: …“;
+  - hlavní citaci volí jen člověk, v aplikaci Strom ([S2.3.1](S2-edits-from-the-app.md#S2.3.1)) nebo ve svém
+    terminálu. Agentovi `strom event main` odmítne (`main.person`) s radou, ať to řekne uživateli. Agentova
+    nová citace se řadí za hlavní, nikdy ji nenahradí;
+  - `strom person show`, `strom family show` a `strom event show` vypíšou citace v tomto pořadí, hlavní s „(hlavní,
+    volba uživatele)“; `--json` má `citationOrder`.
+- **Hranice:** obecné vrácení hlavní citace z terminálu není: zruší se `--clear`, nebo se znovu nastaví předchozí.
+- **Ovládání:** terminál: `strom event main E0001 S0001`, `strom event main E0001 S0001 --locator "fol. 12"`,
+  `strom event main E0001 --clear`, `strom event show E0001`.
+- **Platí od:** výzkum 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts (pořadí K1.1, SOURCE_EVENTS, FACT_RECORDS, monthsApart, quayAt, mainCitation), src/gedcom/export.ts (1 DATA / 2 EVEN, _STROM_MAIN) · ce8dc753 src/commands/people.ts ["event","main"] (personWrites, code main.person, a source or --clear, which source?, --locator not with --clear), core chooseMainCitation · src/core/actions.ts citeEvent (main nikdy) · assets/lang/cs.json ui.event.main, ui.event.main.off, ui.event.main.same, ui.show.main · ZADANI_VYZKUM_hlavni-citace.md Odpověď V1–V3 · dirigent:prace/1115-vyzkum-095-cli-drobnosti (U6: undo není) · spec 095 K1.1, K2.3 -->
+
+<a id="R3.4.6"></a>
+### R3.4.6 Citace odebraná uživatelem
+
+Citaci, kterou uživatel od údaje odebral ([A3.2.3](A3-evidence-in-the-app.md#A3.2.3), [S2.3.1](S2-edits-from-the-app.md#S2.3.1)),
+si výzkum u údaje pamatuje: pramen, místo v něm a kdy. Agent ji tam sám nevrátí.
+
+- **Hlídá kód:**
+  - `strom cite` agentovi takový pramen u téhož údaje odmítne (`cite.removedByUser`: „the user removed S… from E…
+    (datum): it is not cited there again on its own“) s radou citovat jen s novým důvodem, proč zápis k údaji patří:
+    `strom cite E… S… --reason "<proč>"`. S důvodem se citace zapíše a odebrání se uzavře;
+  - člověk ve svém terminálu citovat smí vždy; tím odebrání uzavře. Totéž udělá aplikace Strom, která citaci znovu
+    přidá;
+  - podle místa: odebrání bez místa brání každému místu pramene; odebrání jednoho místa brání tomu místu a citaci
+    bez místa. Jiné místo téhož pramene jde citovat (jedna kniha mívá křest i pohřeb téže osoby);
+  - `strom … show` vypíše u údaje „(odebráno uživatelem: S…)“, brief agenta totéž.
+- **Hranice:** pokyny metodiky o odebraných citacích nic neříkají; hlídá je jen kód.
+- **Ovládání:** terminál: `strom cite E0001 S0001 --reason "…"`, `strom event show E0001`.
+- **Platí od:** výzkum 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts removedByUser (locator), refuseRemoved (cite.removedByUser), clearRemoved · src/core/actions.ts:690 citeEvent (personWrites, --reason) · src/core/model.ts Event.uncited · src/core/sync.ts:5268 (aplikace cituje znovu) · src/brief/brief.ts:169 · assets/lang/cs.json ui.show.uncited · 4cd81f14 (vrácení: značka odebrání patří svému poslání) · spec 095 K3.2, K3.3 -->
+
 <a id="R3.5"></a>
 ## R3.5 Slepé druhé čtení
 

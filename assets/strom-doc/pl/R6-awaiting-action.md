@@ -47,8 +47,8 @@ Rodzaj oczekiwania wyznacza sekcję, grupę i możliwe akcje: **skany**, **witry
   w przeciwnym razie rozstrzyga pierwsze zdanie, potem cały tekst, gdy wymienia dokładnie jeden rodzaj; w przeciwnym
   razie **inne**. Tekst zwracający się do człowieka badanie odrzuca. Nowe ustawienie oczekiwania usuwa poprzednie
   i znacznik wysłania.
-- **Obsługa:** terminal: `strom task wait T… --on "<co>" --kind <druh> --to "<komu>" --request notes/<soubor>
-  --url <adresa>`, później `strom task edit T… --kind --to --request`.
+- **Obsługa:** terminal: `strom task wait T… --on "<co>" --kind <rodzaj> --to "<komu>" --request notes/<plik>
+  --url <adres>`, później `strom task edit T… --kind --to --request`.
 - **Od badania 1.26.0:** `--kind images` przy `--images` i `--kind check` przy `--check` traktuje się jako powtórzenie,
   nie błąd.
 - **Obowiązuje od:** badanie 1.0.0. Rodzaje, `--to` i `--request` od 1.14.0.
@@ -75,7 +75,7 @@ i skany**, **Tylko do przeglądania** lub **Nie działa**, z opcjonalną notatk�
 
 - **Granice:** `--check` wymaga wyszukiwania zapisanego w tej sesji lub przy zadaniu, które wymienia tę samą witrynę.
   Odpowiada tylko człowiek ([R6.6](#R6.6)). Pozycja należy do **decyzji**, nie do **internetu**.
-- **Obsługa:** terminal: `strom task wait T… --check <adresa> --on "<co>"`; w **Co czeka** **Co tam jest?**,
+- **Obsługa:** terminal: `strom task wait T… --check <adres> --on "<co>"`; w **Co czeka** **Co tam jest?**,
   `strom task wake T… --check=works|view|no`.
 - **Obowiązuje od:** badanie 1.14.0
 
@@ -216,7 +216,7 @@ człowieka w oknie systemowym albo odrzuca polecenie.
     pytanie do odczytu skanów i na pytanie o miejsce; zadania czekającego na sprawdzenie witryny agent bez odpowiedzi
     nie budzi;
   - zatwierdzenie opowieści i **Wysłano** agent wykonuje tylko na słowo człowieka; tak mówi metodyka.
-- **Obsługa:** terminal: **Odpowiedz tekstem** (najwyżej 300 znaków), `strom task wake T… --answer "<text>"`.
+- **Obsługa:** terminal: **Odpowiedz tekstem** (najwyżej 300 znaków), `strom task wake T… --answer "<tekst>"`.
 - **Obowiązuje od:** badanie 1.14.0. Miejsca od 1.25.0.
 - **Od badania 1.26.0:** tylko człowiek także: zatwierdzenie i odrzucenie opowieści (`strom story approve|discard`;
   agentowi badanie odrzuca też `strom story set --final`), odpowiedź na rosnącą gałąź (`strom offline answer`),
@@ -254,7 +254,7 @@ zadanie do kolejki, a agent przetwarza ją przy następnej pracy.
 - **Słowami:** odpowiedź zapisuje się przy zadaniu razem z pytaniem, a zadanie wraca do kolejki. `intake --text`
   z `--answers` badanie odrzuca: odpowiedź słowami należy tylko do człowieka.
 - **Obsługa:** aplikacja: **Dodaj plik** · terminal: **Dodaj plik**, **Odpowiedz tekstem**;
-  `strom intake <soubor> --answers T…`, `strom task wake T… --answer "<text>"`.
+  `strom intake <plik> --answers T…`, `strom task wake T… --answer "<tekst>"`.
 - **Obowiązuje od:** badanie 1.3.0 (słowami). Plikiem od 1.14.0.
 
 <!-- zdroj: research:src/commands/intake.ts:164-205 (--answers) · src/core/taskfiles.ts fileRefused · src/commands/tasks.ts:969 answers · src/core/live.ts PUT /media X-Strom-Task -->
@@ -266,7 +266,7 @@ zadanie do kolejki, a agent przetwarza ją przy następnej pracy.
   dostanie decyzję ([R6.3.1](#R6.3.1)).
 - Zadania odłożonego nie ma na liście ani w kolejce. Z datą `--until` wraca samo, otwarte jest już w tym dniu. Bez daty
   czeka, aż ktoś je obudzi. Odłożenie wymaga powodu.
-- **Obsługa:** terminal: `strom task park T… --reason "<proč>" --until RRRR-MM-DD`, cofnięcie `strom task wake T…`.
+- **Obsługa:** terminal: `strom task park T… --reason "<dlaczego>" --until RRRR-MM-DD`, cofnięcie `strom task wake T…`.
   Aplikacja: sekcja **Kolejka**, **Odłóż** (odnośnik do terminala, bez daty).
 - **Obowiązuje od:** badanie 1.0.0. Powrót po skanach od 1.15.0, po decyzji archiwum od 1.14.0.
 - **Od badania 1.26.0:**

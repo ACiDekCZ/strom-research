@@ -6,7 +6,7 @@ import { table } from "./format.ts";
 import type { ShownAppUrl } from "../core/stromapp.ts";
 import { RENAMED, suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
-import { docLangOf } from "../core/doc.ts";
+import { docLangOf, docUrl } from "../core/doc.ts";
 import { REPORT_TABLE_ARCHIVE } from "../core/report.ts";
 
 function optionRows(opts: OptionDef[]): string[][] {
@@ -242,7 +242,7 @@ export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "error", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review", "verify bulk", "verify stop",
-  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
@@ -282,7 +282,7 @@ function humanOverview(as: HelpAs): string {
   });
   const more = ui(as.lang, as.archive ? "ui.help.more.archive" : "ui.help.more");
   // the last line: "How Strom works", the documentation carried with strom and its pages on the web (spec 051 K2.1)
-  const doc = ui(as.lang, "ui.help.doc", { lang: docLangOf(as.lang).lang });
+  const doc = ui(as.lang, "ui.help.doc", { site: docUrl(docLangOf(as.lang).lang).replace(/^https:\/\//u, "") });
   return [ui(as.lang, "ui.help.title"), "", table(rows), "", more, ui(as.lang, "ui.help.source", { url: SOURCE_URL }), doc].join("\n");
 }
 

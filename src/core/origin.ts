@@ -21,6 +21,7 @@
 
 import type { Citation, Conflict, Event, Family, Name, Person, Sex, Source, ValueOrigin } from "./model.ts";
 import { UsageError } from "./errors.ts";
+import { refuseRemoved } from "./citeorder.ts";
 import { isWeak, defaultStatus, checkStatus } from "./evidence.ts";
 import { editEvent, editPerson, findEventOwner, markPrimaryName, retractEvent } from "./actions.ts";
 import { create, update } from "./records.ts";
@@ -134,6 +135,8 @@ function keptWas(tree: Tree, before: Event, parts: FactPart[], because: string[]
  * kept (`was`), the import's citation gone, the fact the research's (no origin). A lead cited by a record is probable.
  */
 export function researchChangedFact(tree: Tree, before: Event, next: Event, cite: Citation | undefined): Event {
+  // a record the user removed from the fact comes back only through strom cite with its own reason (spec 095 K3.2)
+  if (cite && !before.citations.some((c) => c.source === cite.source && (c.locator ?? "") === (cite.locator ?? ""))) refuseRemoved(before, cite.source, cite.locator);
   const changed = factChanges(before, { date: next.date ?? "", place: next.place ?? "", value: next.value ?? "" });
   const imported = changed.filter((p) => ownerOf(before.origin, p) === "import");
   const out: Event = { ...next };

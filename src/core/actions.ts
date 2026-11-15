@@ -6,6 +6,7 @@ import { workOrder } from "./order.ts";
 import { normalizeDate, reversedRange } from "./gdate.ts";
 import { normalizeAge } from "./age.ts";
 import { checkStatus, defaultStatus } from "./evidence.ts";
+import { clearRemoved, refuseRemoved } from "./citeorder.ts";
 import {
   eventKind,
   FAMILY_EVENT_KINDS,
@@ -681,14 +682,23 @@ export function notRetracted(tree: Tree, eventId: string, what: "cite" | "edit")
 }
 
 /** Attach a citation to a fact; optionally raise its status. */
-export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string): Event {
+/**
+ * Cite a fact. A citation the user removed from it (spec 095 K3.2) an agent adds again only with `reason` — why the
+ * record belongs to the fact after all — which closes the removal; the person in the terminal always (theirs).
+ * Never the main citation (K2.3): a new one stands in the order behind it (core/citeorder.ts).
+ */
+export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string, reason?: string): Event {
   notRetracted(tree, eventId, "cite");
   const src = tree.get(citation.source);
   if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: citation.source } });
   const newStatus = status === undefined ? undefined : parseStatus(status, "lead");
+  const why = reason?.trim();
+  const { main: _main, ...plain } = citation;
   return replaceEvent(tree, eventId, (e) => {
     if (e.citations.some((c) => c.source === citation.source && c.locator === citation.locator)) throw new UsageError(`${e.id} already cites ${citation.source} there`);
-    const next = { ...e, citations: [...e.citations, citation] };
+    if (!why && !tree.personWrites) refuseRemoved(e, citation.source, citation.locator);
+    const base = clearRemoved(e, citation.source, why || "cited again by the user", now(), citation.locator ?? "");
+    const next = { ...base, citations: [...e.citations, plain] };
     // A record raises a lead to probable; a family tree or a memory does not. A fact the person confirmed against the
     // scan keeps the status they confirmed: only the person changes it (spec 065 K2.3; commands/people.ts refuses a
     // --status of an agent's).
@@ -697,6 +707,56 @@ export function citeEvent(tree: Tree, eventId: string, citation: Citation, statu
     checkStatus(tree, next.status, next.citations);
     return next;
   }, { op: "event.cite", summary: (e) => `${e.id} ${e.kind} ← ${citation.source} [${e.status}]` });
+}
+
+/** The main citation a fact had before a choice: what `strom event main` answers as `was` (none: none). */
+export interface MainWas {
+  source: string;
+  locator?: string;
+}
+
+/**
+ * The user's main citation of a fact chosen in the terminal, or cancelled (`source` none) — spec 095 K2, P2. The
+ * person's alone (the command refuses an agent): marked as the user's with the time, every other citation of the fact
+ * unmarked; the order of the rest is the research's (core/citeorder.ts). `locator` picks one of several citations of
+ * the source at the fact. Nothing to change: nothing written (`changed` false).
+ */
+export function chooseMainCitation(tree: Tree, eventId: string, source: string | undefined, locator?: string, reason?: string): { event: Event; was?: MainWas; changed: boolean } {
+  notRetracted(tree, eventId, "edit");
+  const { event: before } = findEventOwner(tree, eventId);
+  const old = before.citations.find((c) => c.main);
+  const was: MainWas | undefined = old ? { source: old.source, ...(old.locator ? { locator: old.locator } : {}) } : undefined;
+  const at = (l: string | undefined) => (l ?? "").normalize("NFC").trim();
+  let index = -1;
+  if (source !== undefined) {
+    const of = before.citations.map((c, i) => [c, i] as const).filter(([c]) => c.source === source);
+    if (!of.length)
+      throw new UsageError(`${before.id} does not cite ${source}`, {
+        hint: before.citations.length ? `its citations: ${before.citations.map((c) => `${c.source}${c.locator ? ` (${c.locator})` : ""}`).join(", ")} · strom cite ${before.id} ${source} first` : `strom cite ${before.id} ${source} first`,
+        code: "main.notCited",
+        params: { fact: before.id, source },
+      });
+    const picked = locator === undefined ? of : of.filter(([c]) => at(c.locator) === at(locator));
+    if (!picked.length)
+      throw new UsageError(`${before.id} does not cite ${source} at "${locator}"`, { hint: `its places in ${source}: ${of.map(([c]) => `"${c.locator ?? ""}"`).join(", ")}`, code: "main.notCited", params: { fact: before.id, source } });
+    if (picked.length > 1)
+      throw new UsageError(`${before.id} cites ${source} at ${picked.length} places: which one?`, { hint: `strom event main ${before.id} ${source} --locator "<where>" — ${picked.map(([c]) => `"${c.locator ?? ""}"`).join(", ")}` });
+    index = picked[0]![1];
+  }
+  const marked = before.citations.filter((c) => c.main);
+  if (index < 0 ? !marked.length : marked.length === 1 && before.citations[index]!.main) return { event: before, ...(was ? { was } : {}), changed: false };
+  const why = reason?.trim();
+  const event = replaceEvent(
+    tree,
+    eventId,
+    (e) => ({ ...e, citations: e.citations.map(({ main: _m, ...c }, i) => (i === index ? { ...c, main: { by: "user" as const, at: now() } } : c)) }),
+    {
+      op: "event.main",
+      summary: (e) => (index < 0 ? `${e.id} has no main citation (chosen in the terminal)` : `${e.id} main citation ${source} (chosen in the terminal)`),
+      ...(why ? { reason: why } : {}),
+    },
+  );
+  return { event, ...(was ? { was } : {}), changed: true };
 }
 
 /** Cite a person (the name they are shown by) or a family itself. */

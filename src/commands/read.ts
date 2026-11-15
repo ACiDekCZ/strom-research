@@ -19,7 +19,7 @@ import { cropOf, halves, makeView, mediaOrient, parseCrop, readInHalves, tiles, 
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
-import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, READER_STALLED, readerStall, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
+import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, readerStall, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
 import { exifOrientation, shownSize } from "../image/index.ts";
 import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
@@ -34,7 +34,9 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersWithoutCli } from "./readers.ts";
+import { claimStem, noReaderFor, readerAgent, readerAuthSaid, readerDesk, readersLang, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersLoggedOut, refuseReadersWithoutCli } from "./readers.ts";
+import { ui } from "../cli/ui.ts";
+import { claudeLoginCommand } from "../core/claudedir.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
@@ -308,6 +310,8 @@ register({
     const agentId = readerAgent(ctx, tree);
     const runner = RUNNERS[agentId];
     if (!runner) throw noReaderFor(agentId, "strom read");
+    // Claude Code in the terminal said outright not logged in: no reader started, said with how to log in (K040)
+    refuseReadersLoggedOut(ctx, agentId, "strom read");
     const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
     const effort = ctx.settings.effort(agentId, tree.config)?.value;
     // as at the start of the session at work: what strom tuned for the readers' agent and model holds for all of it
@@ -592,7 +596,16 @@ register({
         minutesFrom: limit.from,
         report: tree.relative(report),
       });
-      progress(`■ reader ${k + 1}: ${r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit (${minutes} min)` : r.outcome}${r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : ""} · ${findings.filter((f) => f.result === "found").length} with finds`);
+      // in the research's language for a person, in English for an agent (readersLang)
+      const said = readersLang(ctx, tree);
+      progress(
+        ui(said, "ui.read.done", {
+          k: k + 1,
+          outcome: r.stalled ? ui(said, "ui.read.stalled") : r.outcome === "timeout" ? ui(said, "ui.read.timeout", { minutes }) : r.outcome === "auth" ? `auth — ${readerAuthSaid(ctx, tree, agentId)}` : r.outcome,
+          cost: r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : "",
+          n: findings.filter((f) => f.result === "found").length,
+        }),
+      );
       return { group, report, outcome: r.outcome, cost: r.metrics.costUsd, findings, minutes, stalled: Boolean(r.stalled) };
     };
     const stop = untilFound ? stopped : undefined;
@@ -674,7 +687,9 @@ register({
         : undefined,
       notReadSaid,
       missing.length ? `NOT reported: ${runs(missing.map((m) => m.image ?? 0))} — read these again` : undefined,
-      failed.length ? `readers that failed: ${failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit, ${r.minutes} min` : r.outcome})`).join(", ")}` : undefined,
+      failed.length ? ui(readersLang(ctx, tree), "ui.read.failed", { list: failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.stalled ? ui(readersLang(ctx, tree), "ui.read.stalled") : r.outcome === "timeout" ? ui(readersLang(ctx, tree), "ui.read.failed.timeout", { minutes: r.minutes }) : r.outcome})`).join(", ") }) : undefined,
+      // not logged in: what to do, never only "auth" (K040)
+      failed.some((r) => r.outcome === "auth") ? readerAuthSaid(ctx, tree, agentId) : undefined,
       late.length
         ? `a reader stopped at its time limit gave no answer for ${late.length === 1 && late[0]!.group.length === 1 ? "its image" : "its images"}: look at ${late.flatMap((r) => r.group).length === 1 ? "it" : "them"} yourself — ${late
             .flatMap((r) => r.group)
@@ -704,6 +719,8 @@ register({
         // --until-found: the reader that found it stopped the reading (its batch), the images left unread
         stoppedAtFind: atFind ? { batch: foundBy! + 1, notRead } : undefined,
         failed: failed.map((r) => ({ images: r.group.map((g) => g.id), outcome: r.outcome, ...(r.outcome === "timeout" ? { minutes: r.minutes } : {}), ...(r.stalled ? { stalled: true } : {}) })),
+        // a reader not logged in: the command that logs its agent in (K040)
+        login: failed.some((r) => r.outcome === "auth") ? (agentId === "claude" ? claudeLoginCommand(ctx.env) : runner.command) : undefined,
         reports: results.map((r) => r.report),
         reading: stem,
         blocks: (mine?.blocks ?? []).filter((x) => x.result !== "nothing" || x.illegible?.length || x.gaps?.length || x.section?.length).map((x) => ({ image: x.num, media: x.media, result: x.result, pages: x.pages, entries: x.entries, certainty: x.certainty, illegible: x.illegible, gaps: x.gaps, section: x.section })),

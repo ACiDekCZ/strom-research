@@ -96,6 +96,13 @@ not start now, strom tells you why and asks whether to start anyway (no is
 suggested). An agent starting them needs your yes in a window of the system;
 a script nobody can ask keeps to the gate.
 
+When the agent's plan limit cuts off a session of a run that goes on by
+itself, the run does not end: it waits until the limit resets as the agent
+said it (a minute more; not said: 15 minutes), then asks the gate again and
+goes on — the interrupted task back in the queue. With `--until`, a reset
+after that time ends the run. A run you started yourself ends there, saying
+when the limit resets.
+
 Every answer is recorded, so a run can be checked afterwards: one line of
 `strom run`'s output, and one line of JSON in the tree's `.strom/gate.log`
 (and at the head of the next session's log, `.strom/runs/<session>.log`) —

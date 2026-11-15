@@ -796,6 +796,73 @@ export function appDataDecidesShares(dataVersion: number | undefined, gate: numb
   return gate !== undefined && typeof dataVersion === "number" && dataVersion >= gate;
 }
 
+/**
+ * The first Strom app that reads the main citation of a fact (spec 095 K2; the app's ZADANI_VYZKUM_hlavni-citace.md,
+ * oddíl 6): from it the file for it carries `3 _STROM_MAIN Y` under the user's main citation and `1 DATA / 2 EVEN` on a
+ * source, the bridge says `citations.main`, and a file of it without the main citation it was given says the user
+ * cancelled it. None (the app has not said its version yet): nothing of it, in production and in another copy alike —
+ * the order of the citations (K1.1) goes to every app at once.
+ */
+export const APP_READS_MAIN_CITATION: string | undefined = "3.29.0";
+
+/** The first beta of the app that reads the main citation (another copy of the app from it; none: never). */
+export const APP_READS_MAIN_CITATION_BETA: string | undefined = "3.29.0-beta.3";
+
+/**
+ * The first Strom app whose file without a citation it was given says the user removed it from the fact (spec 095 K3,
+ * oddíl 4.1) — a real version, not a gate, as APP_KEEPS_SOURCE_FIELDS: an older app (or a version unknown) leaves a
+ * citation out of what it carries, so nothing is removed and the difference is only reported (`cite.olderApp`).
+ * None (the app has not said it yet): never.
+ */
+export const APP_SENDS_UNCITE: string | undefined = "3.29.0";
+
+/**
+ * The first Strom app whose file gives the note of someone a fact names whole (the app's full check of 3.29.0, N1: the
+ * 3.28.0 reads a longer note of a participant in part and sends it cut short) — a real version, not a gate, as
+ * APP_SENDS_UNCITE: from it the user's edit of such a note comes back into the research (fact.part.note); of an older
+ * app, or one that says no version, nothing of it. None (not set yet): never. Not 3.29.0 itself: a tree the app has
+ * kept since 3.28.0 gives the note cut short under 3.29.0 too, and taken as an edit it would cut the research's.
+ */
+export const APP_SENDS_PART_NOTES: string | undefined = undefined;
+
+/** The data version of the Strom app's JSON that gives a participant's note whole (as APP_SENDS_PART_NOTES). None: never. */
+export const APP_DATA_PART_NOTES: number | undefined = undefined;
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) give the note of someone a fact names whole? No version said: no. */
+export function appSendsPartNotes(version: string | undefined, gate: string | undefined = APP_SENDS_PART_NOTES): boolean {
+  const v = version?.trim();
+  return !!gate && !!v && isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
+/** Does the Strom app's JSON of this data version give the note of someone a fact names whole? None said: no. */
+export function appDataPartNotes(dataVersion: number | undefined, gate: number | undefined = APP_DATA_PART_NOTES): boolean {
+  return gate !== undefined && typeof dataVersion === "number" && dataVersion >= gate;
+}
+
+/** The data version of the Strom app's JSON with the main citation of a fact (citationMain) and a source's events (its answer: 21). */
+export const APP_DATA_MAIN_CITATION: number | undefined = 21;
+
+/** Does the Strom app of this version read the main citation of a fact (_STROM_MAIN, 1 DATA / 2 EVEN)? Unknown or no gate: no. */
+export function appReadsMainCitation(settings: Settings, version?: string, gate: string | undefined = APP_READS_MAIN_CITATION, beta: string | undefined = APP_READS_MAIN_CITATION_BETA): boolean {
+  // as appDecidesShares, never through it: a gate not set given there is its own default (APP_DECIDES_SHARES); a gate
+  // not set passes nothing, not even another copy of the app (unlike newTagsFor)
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) say a citation left out was removed by the user? No version said: no. */
+export function appSendsUncite(version: string | undefined, gate: string | undefined = APP_SENDS_UNCITE): boolean {
+  const v = version?.trim();
+  return !!gate && !!v && isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
+/** Does the Strom app's JSON of this data version carry the main citation of a fact (citationMain)? None said: no. */
+export function appDataMainCitation(dataVersion: number | undefined, gate: number | undefined = APP_DATA_MAIN_CITATION): boolean {
+  return gate !== undefined && typeof dataVersion === "number" && dataVersion >= gate;
+}
+
 /** Does the Strom app of this version read a source's location field by field (_STROM_FOLIO, _STROM_IMAGE, _STROM_LOCATOR)? */
 export function appReadsSourceFields(settings: Settings, version?: string, gate: string | undefined = APP_READS_SOURCE_FIELDS, beta: string | undefined = APP_READS_SOURCE_FIELDS_BETA): boolean {
   return newTagsFor(settings, version, gate, beta);

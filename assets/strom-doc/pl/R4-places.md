@@ -67,7 +67,7 @@ miejsce należało: parafia, gmina, powiat i inne, zawsze z latami od–do.
   badanie usuwa tylko z podaniem powodu.
 - **Obsługa:** aplikacja: w szczegółach miejsca **Dziś**, **Wcześniej**, **Inna nazwa**, **Inny zapis**; etykiety
   **forma główna**, **inny zapis**, **dawna nazwa**, **inna nazwa** · terminal: `strom place identify|verify --name --alt
-  <název@jazyk:od-do> --form --jurisdiction <druh:název:od-do>`, `strom place names <L…> --drop <název> --why`
+  <název@jazyk:od-do> --form --jurisdiction <druh:název:od-do>`, `strom place names <L…> --drop <nazwa> --why`
 - **Obowiązuje od:** badanie 1.25.0; dzisiejsza nazwa jako pierwsza i `strom place names` od badania 1.25.2
 
 <!-- zdroj: research:src/core/placeid.ts todayName, parseJurisdiction, dropPlaceNames · research:src/core/places.ts JURISDICTIONS = parish, civil, diocese, manor, district, county, state, other · research:src/commands/placeid.ts:167 verify, :258 names · research:src/brief/places.ts (today's name rule) · app:src/strings.ts cs places tags/detail -->

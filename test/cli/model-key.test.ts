@@ -83,6 +83,7 @@ function fakeClaude(w: World): string {
   fs.writeFileSync(
     path.join(bin, "claude"),
     `#!/bin/sh
+[ "$1 $2" = "auth status" ] && { echo '{"loggedIn": true}'; exit 0; }
 cat > "${heard}/\${STROM_SESSION:-reader}-\$\$.txt"
 echo '{"type":"system","subtype":"init","session_id":"s-'\$\$'","model":"claude-opus-5-5[1m]","tools":["Bash","Read"]}'
 echo '{"type":"assistant","message":{"id":"m-'\$\$'","model":"claude-opus-5-5[1m]","content":[],"usage":{"input_tokens":5,"cache_read_input_tokens":40000,"cache_creation_input_tokens":0,"output_tokens":10}},"parent_tool_use_id":null}'

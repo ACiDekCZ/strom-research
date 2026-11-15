@@ -103,6 +103,77 @@ ke sňatku a ke společné události páru. Z citací aplikace počítá úrove�
 
 <!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
+<a id="A3.2.2"></a>
+### A3.2.2 Pořadí citací a hlavní citace
+
+Údaj s víc citacemi je má všude v jednom pořadí: štítky v úpravě osoby a u sňatku, bublina stavu údaje, **Prameny**
+osoby. Kde aplikace bere jen jednu citaci, bere první: výňatek na stránce osoby, sňatek na stránkách rodiny, čísla
+pramenů v knize rodu, sloupce citací v **Tabulce** ([A6.7](A6-views.md#A6.7)) a první pramen u **Ověřit**
+([S7.3](S7-reliability-and-verification.md#S7.3)). Stejné pořadí má výzkum ([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+
+- **Pořadí:**
+  1. hlavní citace, kterou zvolil uživatel;
+  2. primární záznam události: pramen, který zapisuje tento druh události, s citací **Originál** a zapsaný nejvýš
+     12 měsíců od údaje. U narození a křtu záznam narození nebo křtu, u úmrtí, pohřbu a kremace záznam úmrtí nebo
+     pohřbu, u sňatku, ohlášek a zasnoubení záznam sňatku, u sčítání sčítání. Dřív zapsaný stojí před později
+     zapsaným, pramen bez **Datum zápisu** za zapsanými s datem. Chybějící nebo nečitelné datum údaje nerozhoduje;
+  3. ostatní citace se spolehlivostí **Originál**;
+  4. ostatní podle spolehlivosti: **Opis / index**, **Nejisté**, pak bez spolehlivosti;
+  5. podle číselné části čísla pramene (pramen bez čísla za číslovanými), nakonec pořadí, ve kterém byly citace
+     přidány.
+- Jaké události pramen zapisuje, aplikace ví ze souboru GEDCOM (`1 DATA` › `2 EVEN`, [A2.6](A2-loading-a-family-tree.md#A2.6));
+  výzkum to píše u svých pramenů. Pramen bez toho primárním záznamem není.
+- **Hlavní citace:** jednu citaci údaje může uživatel označit jako hlavní. Stojí první, štítek má ★ před názvem
+  a zvýrazněný okraj, jeho tlačítko říká „hlavní citace“. V bublině stavu je u ní „★ hlavní“, v **Prameny** osoby
+  a v **Dokládá** prohlížeče pramene ★ za údajem. Citace, která je první jen podle pořadí, značku nemá.
+- **Pruh v prohlížeči pramene:** prohlížeč otevřený z citace údaje (štítek, řádek bubliny stavu, řádek **Prameny**
+  osoby) ukáže nahoře, co citace dokládá („Narození · Marie Vlková“) a kde v pořadí stojí: „2. ze 3 citací“; u první
+  i proč („stojí první: zápis narození, originál“, „originál“, „nejvyšší spolehlivost“); „Hlavní citace u narození“;
+  „Jediná citace u narození“. Pod tím tlačítka **Označit jako hlavní** nebo **Zrušit hlavní** a **Odebrat citaci**
+  ([A3.2.3](#A3.2.3)).
+- **Hranice:**
+  - uložené seznamy citací se nepřeřazují; pořadí se počítá při zobrazení a exportu;
+  - **Označit jako hlavní** je jen u údaje se 2 a víc citacemi, a jen u stromu bez výzkumu nebo s výzkumem, který
+    hlavní citaci drží (výzkum 1.34.0 a novější). Jen tam se ukazuje i ★;
+  - strom výzkumu, který pořadí citací určuje sám, má citace v pořadí ze souboru výzkumu; hlavní citace stojí první;
+  - u zamčené osoby a u stromu jen pro čtení tlačítka nejsou;
+  - označení, výměna i zrušení je jeden krok **Zpět** („Hlavní citace u narození: …“, „Hlavní citace u narození
+    zrušena, pořadí řídí automatika“). Odebrání hlavní citace nebo jejího pramene a úprava události bez ní značku
+    zruší v tomtéž kroku; **Zpět** vrátí místo i ★;
+  - společná událost ([A10.1](A10-shared-events.md#A10.1)) má hlavní citaci společnou pro všechny kopie; kopie, které
+    se v ní liší, jsou kopie, které se liší ([A10.3](A10-shared-events.md#A10.3));
+  - pramen sloučený do jiného přenese značku na pramen, do kterého se sloučil. Sloučení stromů
+    ([A8](A8-merging-trees.md)) nechá značku té strany, která ji má; když ji mají obě, ponechané strany.
+- **Ovládání:** prohlížeč pramene otevřený z citace údaje → **Označit jako hlavní** · **Zrušit hlavní**. Terminál
+  výzkumu: `strom event main` ([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+- **Platí od:** aplikace 3.29.0
+
+<!-- zdroj: app:e361220d src/citation-order.ts FACT_RECORDS, recordOfFact, PRIMARY_RECORD_MONTHS 12, orderedCitationSteps (main, primary jen QUAY 3, written, QUAY, number, list), citationMain (jeden krok Zpět, sdílená kopie, remap, merge/executor.ts), data v21 · 9c0ca227 (★ a pořadí: sources.ts chipy, relationships-panel, status-tip „★ hlavní“, person-sources, person-page, family-pages-html, book-blocks, table-sources, verify.ts) · 192d53ec src/citation-bar.ts citeBar, whyFirst, citeMainToast · src/citation-gates.ts citationMainOffered, citationFileOrder, citationMainShown · strings.ts sources.mainMark, citeAt, citePos, citeFirstWhy, whyPrimary, whyOriginal, whyQuality, citeMainAt, citeOnly, setMain, clearMain, mainSetToast, mainClearedToast · spec 095 K1.1, §2 -->
+
+<a id="A3.2.3"></a>
+### A3.2.3 Odebrat citaci
+
+**Odebrat citaci** odpojí pramen od jednoho údaje. Pramen zůstane v **Prameny** stromu i se svými výřezy
+a přílohami, ostatní údaje ho citují dál.
+
+- **Hlídá kód:**
+  - bez potvrzení, i u hlavní citace. Pruh v prohlížeči pak říká „Odpojeno od narození · pramen zůstává v katalogu“
+    a tlačítka zmizí;
+  - hláška jmenuje údaj a pramen: „Citace odebrána od narození: … · pramen zůstává“, u hlavní citace „…, hlavní
+    zrušena: …“, u společné události „… u všech N osob: …“ (odebere se ze všech kopií);
+  - jeden krok **Zpět**: **Vrátit** v hlášce vrátí citaci na její místo i s ★. Hláška stojí i nad otevřeným
+    prohlížečem, takže **Vrátit** jde použít tam;
+  - u stromu výzkumu, který odebrání nepřebírá, je pod tlačítky „Výzkum odebrání zatím nepřevezme.“ a první odebrání
+    v okně řekne „Výzkum toto odebrání nepřevezme; po načtení jeho verze se citace vrátí.“, další už jen „výzkum
+    nepřevezme“. Co výzkum s odebráním udělá, popisuje [S2.3.1](S2-edits-from-the-app.md#S2.3.1).
+- **Hranice:** u zamčené osoby a u stromu jen pro čtení tlačítko není. Celý pramen se maže v **Akce → Prameny**
+  ([A3.1](#A3.1)).
+- **Ovládání:** prohlížeč pramene otevřený z citace údaje → **Odebrat citaci**; × na štítku citace v úpravě osoby
+  ([A3.2](#A3.2)).
+- **Platí od:** aplikace 1.4.0 (× na štítku); pruh a hláška 3.29.0
+
+<!-- zdroj: app:192d53ec src/citation-bar.ts citeBar (gone, note = editable && removeNotTaken), unciteToast (unciteWarned jednou na strom v okně), citeBarHtml · src/citation-gates.ts citationRemoveTaken (feature citations.remove) · strings.ts sources.citeGone, uncitedToast, uncitedMainToast, uncitedSharedToast, sourceStays, uncitedNotTaken, uncitedNotTakenShort, unciteNote, undo.uncite · spec 095 §3 -->
+
 <a id="A3.3"></a>
 ## A3.3 Výřez zápisu
 

@@ -60,6 +60,7 @@ async function capWorld(answers: { code: number; say?: unknown }[]) {
   fs.writeFileSync(
     path.join(bin, "claude"),
     `#!/bin/sh
+[ "$1 $2" = "auth status" ] && { echo '{"loggedIn": true}'; exit 0; }
 cat > /dev/null
 event() { echo '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"seven_day","utilization":'"$1"',"resetsAt":${reset},"unifiedWindows":{"five_hour":{"utilization":0.2,"resetsAt":${reset}},"seven_day":{"utilization":'"$1"',"resetsAt":${reset}}}}}'; }
 echo '{"type":"system","subtype":"init","model":"m","tools":["Task","Bash","Read","Edit","Write","WebFetch","WebSearch","ToolSearch","SendMessage"]}'

@@ -18,7 +18,7 @@ test("outside a research: the contents, a rule, a chapter, in the person's langu
   assert.match(contents.out, /^ {2}R2 +\S/mu);
   assert.match(contents.out, /^ {2}A1 +\S/mu);
   assert.match(contents.out, /strom doc R2\.3/u);
-  assert.match(contents.out, /\nhttps:\/\/stromapp\.info\/doc\/cs\/\n?$/u);
+  assert.match(contents.out, /\nhttps:\/\/stromapp\.info\/cs\/doc\/\n?$/u);
   const json = (await w.ok(["doc", "--json"], { env: { STROM_LANG: "cs" } })).json;
   assert.equal(json.lang, "cs");
   assert.equal(json.pin, PIN);
@@ -27,24 +27,24 @@ test("outside a research: the contents, a rule, a chapter, in the person's langu
     json.parts.map((p: { part: string }) => p.part),
     ["R", "A", "S"],
   );
-  assert.deepEqual(json.parts[0].chapters[1], { number: "R2", title: json.parts[0].chapters[1].title, url: "https://stromapp.info/doc/cs/R2/" });
+  assert.deepEqual(json.parts[0].chapters[1], { number: "R2", title: json.parts[0].chapters[1].title, url: "https://stromapp.info/cs/doc/R2/" });
 
   // a rule as typed (r2-3 = R2.3): its title, text, the rules under it, its link
   const rule = await w.ok(["doc", "r2-3"], { env: { STROM_LANG: "de" } });
   assert.match(rule.out, /^R2\.3 \S/u, rule.out);
   assert.match(rule.out, /^ {2}R2\.3\.1 +\S/mu);
-  assert.match(rule.out, /\nhttps:\/\/stromapp\.info\/doc\/de\/R2\/#R2\.3\n?$/u);
+  assert.match(rule.out, /\nhttps:\/\/stromapp\.info\/de\/doc\/R2\/#R2\.3\n?$/u);
   const r = (await w.ok(["doc", "R2.3", "--json"], { env: { STROM_LANG: "de" } })).json;
   assert.deepEqual(Object.keys(r).sort(), ["chapter", "lang", "number", "pin", "rules", "text", "title", "url"]);
   assert.equal(r.number, "R2.3");
   assert.equal(r.chapter, "R2");
   assert.ok(r.text.length > 20);
-  assert.equal(r.url, "https://stromapp.info/doc/de/R2/#R2.3");
+  assert.equal(r.url, "https://stromapp.info/de/doc/R2/#R2.3");
   assert.ok(r.rules.some((x: { number: string }) => x.number === "R2.3.1"));
   // a chapter: its rules, its page
   const chapter = (await w.ok(["doc", "R2", "--json"], { env: { STROM_LANG: "en" } })).json;
-  assert.equal(chapter.url, "https://stromapp.info/doc/en/R2/");
-  assert.ok(chapter.rules.every((x: { number: string; url: string }) => x.number.startsWith("R2.") && x.url.startsWith("https://stromapp.info/doc/en/R2/#")));
+  assert.equal(chapter.url, "https://stromapp.info/doc/R2/");
+  assert.ok(chapter.rules.every((x: { number: string; url: string }) => x.number.startsWith("R2.") && x.url.startsWith("https://stromapp.info/doc/R2/#")));
   assert.deepEqual(fs.readdirSync(w.dir).sort(), before, "nothing written: no research, no settings");
   w.cleanup();
 });
@@ -75,7 +75,7 @@ test("a search: any accent, NFD as NFC, best first, the rest counted; nothing fo
   assert.equal(nfc.query, "pořadí linií");
   assert.ok(nfc.total >= 1);
   assert.equal(nfc.results[0].number, "R2.1.4", JSON.stringify(nfc.results));
-  assert.match(nfc.results[0].url, /^https:\/\/stromapp\.info\/doc\/cs\/R2\/#R2\.1\.4$/u);
+  assert.match(nfc.results[0].url, /^https:\/\/stromapp\.info\/cs\/doc\/R2\/#R2\.1\.4$/u);
   const nfd = (await w.ok(["doc", "pořadí linií".normalize("NFD"), "--json"], cs)).json;
   assert.deepEqual(nfd.results, nfc.results, "NFD");
   assert.deepEqual((await w.ok(["doc", "PORADI", "LINII", "--json"], cs)).json.results, nfc.results, "no accents, upper case");
@@ -142,7 +142,7 @@ test("the language: --lang over the research's, the research's over the person's
   // Slovak: English, and a line saying so
   const sk = await w.ok(["doc", "R2", "--lang", "sk"]);
   assert.match(sk.out, /^R2 \S.*\n.*not written in /u, sk.out);
-  assert.match(sk.out, /https:\/\/stromapp\.info\/doc\/en\/R2\//u);
+  assert.match(sk.out, /https:\/\/stromapp\.info\/doc\/R2\//u);
   const skj = (await w.ok(["doc", "--json", "--lang", "sk"])).json;
   assert.equal(skj.lang, "en");
   assert.equal(skj.fallback, "sk");
@@ -152,16 +152,16 @@ test("the language: --lang over the research's, the research's over the person's
 test("a person's help ends with how Strom works, in each language", async () => {
   const w = new World();
   for (const [lang, line] of [
-    ["en", "How Strom works: strom doc · stromapp.info/doc/en/"],
-    ["cs", "Jak Strom funguje: strom doc · stromapp.info/doc/cs/"],
-    ["de", "Wie Strom funktioniert: strom doc · stromapp.info/doc/de/"],
-    ["pl", "Jak działa Strom: strom doc · stromapp.info/doc/pl/"],
+    ["en", "How Strom works: strom doc · stromapp.info/doc/"],
+    ["cs", "Jak Strom funguje: strom doc · stromapp.info/cs/doc/"],
+    ["de", "Wie Strom funktioniert: strom doc · stromapp.info/de/doc/"],
+    ["pl", "Jak działa Strom: strom doc · stromapp.info/pl/doc/"],
   ] as const) {
     const own = (await w.ok(["help", "--human"], { tty: true, env: { STROM_LANG: lang } })).out;
     assert.equal(own.trimEnd().split("\n").at(-1), line, `${lang}:\n${own}`);
   }
   // a language strom has no catalog of: the English line, the English documentation
-  assert.equal((await w.ok(["help", "--human"], { tty: true, env: { STROM_LANG: "sk" } })).out.trimEnd().split("\n").at(-1), "How Strom works: strom doc · stromapp.info/doc/en/");
+  assert.equal((await w.ok(["help", "--human"], { tty: true, env: { STROM_LANG: "sk" } })).out.trimEnd().split("\n").at(-1), "How Strom works: strom doc · stromapp.info/doc/");
   w.cleanup();
 });
 

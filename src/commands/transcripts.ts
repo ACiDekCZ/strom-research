@@ -25,7 +25,8 @@ import { makeNote } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
-import { readers, refuseReadersInArchive } from "./readers.ts";
+import { readers, readersLang, refuseReadersInArchive } from "./readers.ts";
+import { ui } from "../cli/ui.ts";
 import { namesIn } from "./clips.ts";
 import { addReaders } from "../core/session.ts";
 
@@ -196,7 +197,7 @@ register({
         unread.length ? `not read (unreadable, or not this entry in the cut-out): ${unread.map((x) => `${x.source} ${x.result}`).slice(0, 20).join(", ")}` : undefined,
         missed.length ? `without words: ${missed.map((s) => s.id).slice(0, 20).join(", ")}${missed.length > 20 ? ` … (${missed.length})` : ""} — strom transcripts again, or strom source edit S… --transcript @<file>` : undefined,
         away.length ? `on images not on this computer: ${away.length}` : undefined,
-        failed.length ? `readers that failed: ${failed.join(", ")}` : undefined,
+        failed.length ? ui(readersLang(ctx, tree), "ui.read.failed", { list: failed.join(", ") }) : undefined,
         "the words go into the Strom app with the entry's image: strom app (output/tree-strom.ged)",
       ),
       data: {

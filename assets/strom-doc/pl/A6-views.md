@@ -126,6 +126,40 @@ głębokość i powiększenie zostają, karta osoby stoi w tym samym miejscu ekr
 
 <!-- zdroj: app:f5d56ed3 src/bulk-family.ts collectBulkFamily (childrenOf osoba; siblingsOf osoba a předci v pohledu s rodiči v pohledu; maxGeneration), bulkParents, bulkNewIds (drawnPersonIds, kroky 1–5 pipeline), BULK_CONFIRM_ABOVE 150, BULK_TWO_GENERATIONS 2 · src/renderer.ts bulkFamilyPlan (jen family), bulkFamilyState (offer/on/none), bulkFamilyScreens (ceil šířka × zoom / plátno), showBulkFamily → showChildrenOf (jeden krok historie, zoom beze změny, kotva), undoBulkFamily, bulkStepOf (jen při stejné hloubce), forgetBulkSteps při změně hloubky, resetChildrenShown při změně fokusu, pohledu, stromu, hiddenShownCount (+1 za krok) · src/ui/bulk-family-ui.ts confirmBulkFamily (Esc, klik vedle, resize = zrušit; two jen m > 0 a m ≠ n), runBulkFamily, updateBulkFamilySwitches (title treeTip/menuOff/treeNone, aria-disabled) · src/ui/context-menu.ts bulkFamilyRows (offer: menu, +n, menuSub; on: menuOff) · src/ui/toolbar-fit.ts (tablet: přepínač ustoupí před hledáním, f5d56ed3) · index.html button.bulk-family (telefon skrytý) · strings.ts bulk.*, menu.showChildrenHere, showSiblingsHere, focusBar hideAllShown, history back · app 2eb013ba, cecea43f, 8dc34565, f5d56ed3 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §3 -->
 
+<a id="A6.1.4"></a>
+### A6.1.4 Zdjęcie na karcie
+
+Ustawienie **Zdjęcie na karcie** określa rozmiar i kształt zdjęcia osoby na karcie w drzewie. Domyślne **Małe**
+i **Koło** zostawiają kartę jak dotąd.
+
+| | **Małe** | **Średnie** | **Duże** |
+|---|---|---|---|
+| karta **Normalne** | 188 × 64 px | 200 × 64 px | 236 × 96 px |
+| zdjęcie na karcie **Normalne** | 34 px | 48 px | 80 px |
+| zdjęcie w nagłówku karty **Szczegółowe**, **Metrykalne**, **Własne** | 30 px | 44 px | 72 px |
+
+- Większa karta jest tylko w widoku, w którym co najmniej jedna pokazana osoba ma zdjęcie. Karty bez zdjęcia są w tym
+  widoku tak samo szerokie, z małymi inicjałami, a imiona w rzędzie stoją na tej samej wysokości. Widok bez zdjęć ma
+  karty 188 × 64 px.
+- Karta **Normalne** ma zdjęcie obok imienia. **Szczegółowe**, **Metrykalne** i **Własne** mają je w nagłówku obok
+  imienia i lat, wiersze danych pod nim na pełną szerokość; karta jest wyższa o zdjęcie (**Własne** 70 lub 98 px
+  i 17 px na wiersz zamiast 56 px).
+- **Kształt:** **Koło** albo **Zaokrąglony kwadrat** (zaokrąglenie 12 px przy dużym zdjęciu, 5 px przy małym; tak
+  samo inicjały). Znaczniki karty stoją na brzegu zdjęcia w obu kształtach.
+- **Eksport:** eksport obrazu, plakat i jego PDF na wielu arkuszach ([A7](A7-book-pages-and-export.md)) rysują karty
+  z wybranym rozmiarem i kształtem zdjęcia jak ekran: karta **Normalne** ma wymiar jak na ekranie, **Szczegółowe**
+  i **Metrykalne** mają zdjęcie po lewej w nagłówku. Zdjęcie ukryte dla osoby żyjącej zostawia na karcie inicjały.
+  Wynik, w którym nikt nie ma zdjęcia, oraz domyślne **Małe** z **Koło** wyglądają jak dotąd. Zdanie pod
+  ustawieniem: „Dotyczy drzewa, eksportu obrazu i plakatu na tym urządzeniu.”
+- **Granice:** karta **Kompaktowe** nie ma zdjęcia: wiersz zostaje, opcje są wyłączone, a pod nimi jest „Karta
+  kompaktowa nie ma zdjęcia.”; wybrany rozmiar się zachowuje. Ustawienie należy do urządzenia i nie zapisuje się
+  z drzewem. Podgląd w ustawieniach pokazuje wymiar karty („karta 236 × 96 px”).
+- **Obsługa:** **Ustawienia** → **Karta osoby** → **Zdjęcie na karcie** (między **Szczegóły kart** a podglądem):
+  **Rozmiar** **Małe** · **Średnie** · **Duże**; **Kształt** **Koło** · **Zaokrąglony kwadrat**.
+- **Obowiązuje od:** aplikacja 3.29.0
+
+<!-- zdroj: app:28480ea1 src/types.ts NORMAL_PHOTO_BOX (188×64/34, 200×64/48, 236×96/80), src/settings.ts (zařízení, výchozí small + circle), src/ui/card-fields-ui.ts, src/renderer.ts · b71d561a src/card-width.ts cardAvatarSize (30/44/72), výška Vlastní 70/98 + 17 na řádek · strings.ts cardDensity.photoTitle, photoSize, photoSmall, photoMedium, photoLarge, photoShape, photoCircle, photoRounded, photoCompact, size · CHANGELOG.cs.md 3.29.0 „Fotka na kartě“ · dirigent:test/vysledek-1115-app-096-fotka.md · spec 096 P1 · export: app:64ae50ca src/export-image.ts, src/renderer.ts (poster, PDF po listech; výchozí small + circle bajt po bajtu jako dřív), strings.ts cardDensity.photoScope · spec 096 P2 -->
+
 <a id="A6.2"></a>
 ## A6.2 Widok Potomkowie
 

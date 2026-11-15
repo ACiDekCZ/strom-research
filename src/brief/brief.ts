@@ -6,6 +6,7 @@
 // what does not fit is cut to a pointer: the command that shows the rest.
 
 import { noteWhole } from "../core/model.ts";
+import { orderCitations } from "../core/citeorder.ts";
 import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -160,13 +161,16 @@ export interface Brief {
   budget: number;
 }
 
-function eventLine(e: Person["events"][number]): string {
-  const cites = citesOf(e.citations);
-  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}`;
+function eventLine(tree: Tree, e: Person["events"][number]): string {
+  // in the order every program shows them (spec 095 K1.1): the first is the fact's record, the user's main one first
+  const cites = citesOf(orderCitations(e.citations, (id) => tree.get<Source>(id), { kind: e.kind, date: e.date }));
+  // what the user removed from the fact: never cited there again without a reason (strom cite … --reason)
+  const removed = (e.uncited ?? []).filter((u) => !u.cleared).map((u) => u.source);
+  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}${removed.length ? ` (removed by the user: ${[...new Set(removed)].join(", ")})` : ""}`;
 }
 
 function citesOf(citations: Citation[] | undefined): string {
-  return (citations ?? []).map((c) => `${c.source}${c.locator ? ` ${c.locator}` : ""}`).join(", ");
+  return (citations ?? []).map((c) => `${c.source}${c.locator ? ` ${c.locator}` : ""}${c.main ? " (main: the user's choice, never changed by an agent)" : ""}`).join(", ");
 }
 
 /** The notes of a person in short: the start of the last one, the others counted — what tells namesakes apart. */
@@ -182,7 +186,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
     out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.primary ? " (shown by it)" : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
-  for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(e));
+  for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(tree, e));
   const parents = parentsOf(tree, p.id);
   const birthFamily = familiesAsChild(tree, p.id)[0];
   out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}${birthFamily?.citations?.length ? ` (${birthFamily.id} ← ${citesOf(birthFamily.citations)})` : ""}`);
@@ -357,7 +361,7 @@ function identityBlock(tree: Tree, p: Person, role: string): string[] {
 function familyBlock(tree: Tree, f: Family, short = false): string[] {
   const partners = f.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(label);
   const out = [`  ${f.id} family of ${partners.join(" & ") || "?"}${f.union ? ` [${f.union}]` : ""}${f.children.length ? ` · ${f.children.length} child${f.children.length > 1 ? "ren" : ""}` : ""}`];
-  for (const e of f.events.filter((x) => !x.retracted)) out.push(eventLine(e));
+  for (const e of f.events.filter((x) => !x.retracted)) out.push(eventLine(tree, e));
   if (f.citations?.length) out.push(`    sources: ${citesOf(f.citations)}`);
   for (const n of f.notes.slice(short ? -1 : -3)) out.push(`    note: ${noteStart(noteWhole(n), short ? NOTE_LINE : NOTE_SHOWN)}`);
   return out;

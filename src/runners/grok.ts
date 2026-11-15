@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { heardResponse, runJsonLines, webUse } from "./jsonl.ts";
-import { commandLine, refusedByStrom, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, deniedCall, refusedByStrom, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import { isolated, type Env } from "../core/paths.ts";
 import type { AgentWeb } from "../core/metrics.ts";
@@ -138,8 +138,10 @@ export const grokRunner: Runner = {
         if (typeof msg.toolCallId === "string") {
           // "Bash: ls", "web_fetch: https://…" (the tool's name once)
           const name = String(msg.toolName ?? "tool");
-          const shown = what.startsWith(`${name} `) ? what.slice(name.length + 1) : what.replace(/^\$ /, "");
-          calls.set(msg.toolCallId, `${name === "run_terminal_command" ? "Bash" : name}: ${shown.slice(0, 120)}`);
+          // (a command whole, not its line as shown: a refusal keeps it as long as strom error reads it — K031 N1)
+          const command = ((msg.rawInput ?? {}) as Record<string, unknown>).command;
+          const shown = typeof command === "string" ? command : what.startsWith(`${name} `) ? what.slice(name.length + 1) : what.replace(/^\$ /, "");
+          calls.set(msg.toolCallId, deniedCall(name === "run_terminal_command" ? "Bash" : name, shown));
         }
         const w = webUse(msg.toolName, msg.rawInput as Record<string, unknown> | undefined, GROK_WEB);
         // with its id: the tree's hook (.grok/hooks/strom.json) records the same call by it — counted once
