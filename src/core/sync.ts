@@ -456,19 +456,29 @@ function gedPlaces(records: GedNode[]): Map<string, SPlace> {
 /** The same point: the Strom app keeps six decimals. */
 const samePoint = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => Math.abs(a.lat - b.lat) < 5e-7 && Math.abs(a.lon - b.lon) < 5e-7;
 
-/** The Strom app's "Birth (alternative record)": a second birth or death of ours coming back as an event of its own. */
-const ALTERNATIVE: Record<string, string> = {
-  "birth (alternative record)": "BIRT", "death (alternative record)": "DEAT",
-  "narozeni (alternativni zaznam)": "BIRT", "umrti (alternativni zaznam)": "DEAT",
-  "geburt (alternativer eintrag)": "BIRT", "tod (alternativer eintrag)": "DEAT",
+/**
+ * The Strom app's words for what it adds of its own (its gedcomNotes in each language it runs in: en, cs, de, pl), as
+ * it writes them — the TYPE of an EVEN comes back in the language the app ran in when it read our file:
+ * - altBirth, altDeath ("Birth (alternative record)"): a second birth or death of ours as an event of its own;
+ * - birthRecord, deathRecord ("Birth record"): its entry of a birth, a death, carrying the people of the entry.
+ * A language the app adds goes here with all four.
+ */
+const APP_WORDS: Record<"altBirth" | "altDeath" | "birthRecord" | "deathRecord", readonly string[]> = {
+  altBirth: ["Birth (alternative record)", "Narození (alternativní záznam)", "Geburt (alternativer Eintrag)", "Urodzenie (alternatywny zapis)"],
+  altDeath: ["Death (alternative record)", "Úmrtí (alternativní záznam)", "Tod (alternativer Eintrag)", "Zgon (alternatywny zapis)"],
+  birthRecord: ["Birth record", "Zápis o narození", "Geburtseintrag", "Akt urodzenia"],
+  deathRecord: ["Death record", "Zápis o úmrtí", "Sterbeeintrag", "Akt zgonu"],
 };
 
+/** The app's words of each language, folded, → the fact they are of. */
+const appWords = (birth: readonly string[], death: readonly string[]): Map<string, string> =>
+  new Map([...birth.map((w) => [fold(w), "BIRT"] as const), ...death.map((w) => [fold(w), "DEAT"] as const)]);
+
+/** The Strom app's "Birth (alternative record)": a second birth or death of ours coming back as an event of its own. */
+const ALTERNATIVE = appWords(APP_WORDS.altBirth, APP_WORDS.altDeath);
+
 /** The Strom app's entry of a birth, a death (its gedcomNotes.birthRecord, deathRecord) → the fact it is of. */
-const ENTRY: Record<string, string> = {
-  "birth record": "BIRT", "death record": "DEAT",
-  "zapis o narozeni": "BIRT", "zapis o umrti": "DEAT",
-  geburtseintrag: "BIRT", sterbeeintrag: "DEAT",
-};
+const ENTRY = appWords(APP_WORDS.birthRecord, APP_WORDS.deathRecord);
 
 /** Facts there is one of: an edit of one is a change, not a second fact. */
 const ONE = new Set(["BIRT", "BAPM", "DEAT", "BURI", "CREM", "MARR", "DIV"]);
@@ -482,7 +492,7 @@ function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
 /** What the Strom app adds of its own: an alternative birth or death as an event, a "Birth record" beside a birth, every couple married. */
 function cleanFacts(facts: SFact[]): SFact[] {
   for (const f of facts) {
-    const alt = f.kind === "EVEN" && f.label ? ALTERNATIVE[fold(f.label)] : undefined;
+    const alt = f.kind === "EVEN" && f.label ? ALTERNATIVE.get(fold(f.label)) : undefined;
     if (alt) {
       f.kind = alt;
       if (f.value === f.label) delete f.value;
@@ -493,7 +503,7 @@ function cleanFacts(facts: SFact[]): SFact[] {
   // baptism or burial): theirs are the birth's, the death's — or it is that birth, that death
   let out = facts;
   for (const f of facts) {
-    const of = f.kind === "EVEN" && f.label ? ENTRY[fold(f.label)] : undefined;
+    const of = f.kind === "EVEN" && f.label ? ENTRY.get(fold(f.label)) : undefined;
     if (!of) continue;
     const host = facts.find((o) => o !== f && o.kind !== "EVEN" && (o.kind === of || kindOf(o.kind) === (of === "BIRT" ? "BAPM" : "BURI")));
     if (host) {
