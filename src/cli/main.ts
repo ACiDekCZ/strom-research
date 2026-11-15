@@ -28,6 +28,7 @@ import { settleReaders } from "../core/readerfix.ts";
 import { settleProven } from "../core/provenfix.ts";
 import { settleHeldProposals, settleOrigins } from "../core/originfix.ts";
 import { settleClips } from "../core/clipmerge.ts";
+import { settleNotes } from "../core/notefix.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { revivePhone } from "../core/phone.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
@@ -482,6 +483,13 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
           settleClips(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its bridge's start joins them
+        }
+        // …and the notes a send of the Strom app wrote to a fact alike (before 1.34.0): set right once (one commit)
+        try {
+          const done = settleNotes(Tree.open(k.root, env), last ? { from: last } : {});
+          if (done?.backup) io.stderr(`${backupSaid(ctx, done.backup)}\n`);
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start sets them right
         }
         // …and the strom its agents' hooks and conversations start (.strom/bin) leads to this one — an older strom's, or one
         // whose mark went with the program folder an update replaced; only where a research has one, never an archive

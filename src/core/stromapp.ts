@@ -816,6 +816,28 @@ export const APP_READS_MAIN_CITATION_BETA: string | undefined = undefined;
  */
 export const APP_SENDS_UNCITE: string | undefined = undefined;
 
+/**
+ * The first Strom app whose file gives the note of someone a fact names whole (the app's full check of 3.29.0, N1: the
+ * 3.28.0 reads a longer note of a participant in part and sends it cut short) — a real version, not a gate, as
+ * APP_SENDS_UNCITE: from it the user's edit of such a note comes back into the research (fact.part.note); of an older
+ * app, or one that says no version, nothing of it. None (not set yet): never.
+ */
+export const APP_SENDS_PART_NOTES: string | undefined = undefined;
+
+/** The data version of the Strom app's JSON that gives a participant's note whole (as APP_SENDS_PART_NOTES). None: never. */
+export const APP_DATA_PART_NOTES: number | undefined = undefined;
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) give the note of someone a fact names whole? No version said: no. */
+export function appSendsPartNotes(version: string | undefined, gate: string | undefined = APP_SENDS_PART_NOTES): boolean {
+  const v = version?.trim();
+  return !!gate && !!v && isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
+/** Does the Strom app's JSON of this data version give the note of someone a fact names whole? None said: no. */
+export function appDataPartNotes(dataVersion: number | undefined, gate: number | undefined = APP_DATA_PART_NOTES): boolean {
+  return gate !== undefined && typeof dataVersion === "number" && dataVersion >= gate;
+}
+
 /** The data version of the Strom app's JSON with the main citation of a fact (citationMain) and a source's events (its answer: 21). */
 export const APP_DATA_MAIN_CITATION: number | undefined = 21;
 

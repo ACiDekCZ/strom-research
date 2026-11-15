@@ -12,8 +12,10 @@ import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
-import { planSync, readStromJson } from "../../src/core/sync.ts";
-import type { Event, Person } from "../../src/core/model.ts";
+import { applySync, planSync, readGedcom, readStromJson, type Snapshot, type SyncInput } from "../../src/core/sync.ts";
+import { create, update } from "../../src/core/records.ts";
+import { APP_DATA_PART_NOTES, APP_SENDS_PART_NOTES, appDataPartNotes, appSendsPartNotes } from "../../src/core/stromapp.ts";
+import type { Event, Person, Source } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 const PERSON = { tty: true };
@@ -44,6 +46,21 @@ async function setUp(as: { tty?: boolean } = PERSON): Promise<World> {
   return w;
 }
 
+/** A sync written straight (the gate of participants' notes open as the test needs it), with its input and the day's source as `strom sync` makes them, committed. */
+function apply(w: World, incoming: Snapshot, gates: { partNotes?: boolean }) {
+  const tree = open(w);
+  tree.personWrites = true;
+  return tree.withTreeLock(() => {
+    const plan = planSync(tree, incoming, "conflict", gates);
+    const made = create<SyncInput>(tree, "input", { name: "app.ged", sha: "0", size: 1, mime: "text/plain", from: "app.ged", kind: "tree", state: "processed" } as never, (i) => `+${i} input tree "app.ged" (sync)`);
+    const source = create<Source>(tree, "source", { kind: "family-tree", title: "Strom", input: made.id, information: "secondary", form: "authored" } as never, (s) => `+${s} source "app.ged" (sync)`);
+    const r = applySync(tree, plan, incoming, source, undefined, { decidePerson: false, input: made.id });
+    update<SyncInput>(tree, made.id, "input", (i) => ({ ...i, source: source.id, sync: { ...(incoming.head ? { head: incoming.head } : {}), edits: "conflict", applied: r.applied } }), { op: "input.sync", summary: `${made.id} synced` });
+    tree.commit(`sync ${made.id}`);
+    return { plan, input: made.id, source: source.id, ...r };
+  });
+}
+
 function send(w: World, name: string, text: string): string {
   const file = path.join(w.dir, name);
   fs.writeFileSync(file, text);
@@ -69,21 +86,18 @@ test("an unedited tree from the app changes no note of a fact nor of someone it 
   }
 });
 
-test("the user's note of a fact and of a godmother come back: corrected (the earlier kept), added where none was; undone back", opts, async () => {
+test("the user's note of a fact comes back: corrected (the earlier kept), added where none was; undone back", opts, async () => {
   const w = await setUp();
   try {
     const t = appFile(w)
       // the research's note corrected in the app — typed decomposed (NFD)
       .replace("3 CONT Kmotr z Lhoty.", `3 CONT ${"Kmotr byl z Horní Lhoty.".normalize("NFD")}`)
       // a note where the research has none: in another script too
-      .replace(/(2 _WITN Anna Lhotová\r?\n3 RELA Midwife\r?\n2 NOTE Vodítko — nedoloženo záznamem\.\r?\n)/u, "$13 CONT Narozena v noci — Записано в книге.\n")
-      // the godmother's note
-      .replace("3 NOTE selka z Lhoty", "3 NOTE selka z Horní Lhoty, vdova");
+      .replace(/(2 _WITN Anna Lhotová\r?\n3 RELA Midwife\r?\n2 NOTE Vodítko — nedoloženo záznamem\.\r?\n)/u, "$13 CONT Narozena v noci — Записано в книге.\n");
     const file = send(w, "edited.ged", t);
     const plan = await w.ok(["sync", file], PERSON);
     assert.match(plan.out, /Václav Lhoták \[P0001\]: křest .*— poznámka „Kmotr z Lhoty\.“ → „Kmotr byl z Horní Lhoty\.“ → poznámka se opraví \(verze výzkumu zůstane v historii\)/u);
     assert.match(plan.out, /Ludmila Lhotáková \[P0002\]: narození .*— poznámka „—“ → „Narozena v noci — Записано в книге\.“ → poznámka se doplní k údaji/u);
-    assert.match(plan.out, /Václav Lhoták \[P0001\]: křest .*— kmotr\/kmotra Marie Lhotáková, poznámka „selka z Lhoty“ → „selka z Horní Lhoty, vdova“ → poznámka se opraví/u);
     const before = { chr: fact(w, "P0001", "CHR"), birt: fact(w, "P0002", "BIRT") };
     const r = await w.ok(["sync", file, "--apply", "--json"], FROM_APP);
     const chr = fact(w, "P0001", "CHR");
@@ -91,7 +105,6 @@ test("the user's note of a fact and of a godmother come back: corrected (the ear
     assert.ok(chr.note!.normalize("NFC") === chr.note, "stored in NFC");
     assert.deepEqual(chr.noteEdits?.map((x) => x.text), ["Kmotr z Lhoty."], "the earlier note kept in its history");
     assert.equal(fact(w, "P0002", "BIRT").note, "Narozena v noci — Записано в книге.", "nothing of strom's status line taken");
-    assert.equal(chr.participants?.find((p) => p.role === "godparent")?.note, "selka z Horní Lhoty, vdova");
     assert.equal(chr.date, "3 MAR 1871", "nothing else of the fact changed");
     // the next send of the same tree: nothing more
     const next = await w.ok(["sync", send(w, "next.ged", appFile(w)), "--json"]);
@@ -103,6 +116,43 @@ test("the user's note of a fact and of a godmother come back: corrected (the ear
     assert.equal(back.noteEdits, undefined);
     assert.deepEqual(back.participants, before.chr.participants);
     assert.equal(fact(w, "P0002", "BIRT").note, undefined);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a godmother's note comes back only of an app that gives it whole (APP_SENDS_PART_NOTES): corrected, undone back; cut short by an older one: nothing", opts, async () => {
+  const w = await setUp();
+  try {
+    assert.equal(APP_SENDS_PART_NOTES, undefined, "not set until the release says the app's version");
+    assert.equal(APP_DATA_PART_NOTES, undefined);
+    assert.equal(appSendsPartNotes("3.29.0", "3.29.0"), true);
+    assert.equal(appSendsPartNotes("3.28.0", "3.29.0"), false, "the 3.28.0 sends a longer note cut short");
+    assert.equal(appSendsPartNotes(undefined, "3.29.0"), false, "no version said: no");
+    assert.equal(appDataPartNotes(30, 30), true);
+    assert.equal(appDataPartNotes(29, 30), false);
+    const long = "selka z Lhoty, " + "vdova po sedlákovi z Horní Lhoty, matka šesti dětí, kmotra mnoha dětí celé obce. ".repeat(4).trim();
+    await w.ok(["event", "edit", fact(w, "P0001", "CHR").id, "--with", `godparent:Marie Lhotáková (${long})`, "--without", "godparent:Marie Lhotáková", "--reason", "slovo záznamu"], PERSON);
+    const version = (t: string, v: string) => t.replace(/^1 SOUR STROM\r?\n2 VERS [^\n]*\n/mu, `1 SOUR STROM\n2 VERS ${v}\n`);
+    const given = appFile(w);
+    assert.ok(given.includes(long.slice(0, 40)));
+    // the 3.28.0 gives a longer note cut short: no edit of the user's, whatever the gate
+    const cut = version(given, "3.28.0").replace(/^(3 NOTE selka z Lhoty, [^\n]{0,60})[^\n]*(\r?\n(?:4 CON[CT] [^\n]*\r?\n)*)/mu, "$1\n");
+    assert.notEqual(cut, version(given, "3.28.0"));
+    const old = readGedcom(cut);
+    assert.equal(old.appVersion, "3.28.0");
+    assert.equal(noteKinds(planSync(open(w), old, "conflict", { partNotes: true }).changes).length, 1, "taken unasked, the cut note would correct the research's");
+    assert.deepEqual(noteKinds(planSync(open(w), old, "conflict", { partNotes: appSendsPartNotes(old.appVersion, "3.29.0") }).changes), [], "of the 3.28.0 never");
+    assert.deepEqual(noteKinds(planSync(open(w), old, "conflict").changes), []);
+    // the user's edit of it, of an app that gives it whole
+    const edited = version(given, "3.29.0").replace(/^3 NOTE selka z Lhoty, [^\n]*(\r?\n(?:4 CON[CT] [^\n]*\r?\n)*)/mu, "3 NOTE selka z Horní Lhoty, vdova\n");
+    const before = fact(w, "P0001", "CHR");
+    const r = apply(w, readGedcom(edited), { partNotes: true });
+    assert.deepEqual(noteKinds(r.plan.changes).map((c) => `${c.kind} ${c.action}`), ["fact.part.note correct"], JSON.stringify(r.plan.changes));
+    assert.equal(fact(w, "P0001", "CHR").participants?.find((p) => p.role === "godparent")?.note, "selka z Horní Lhoty, vdova");
+    assert.equal(fact(w, "P0001", "CHR").note, before.note, "nothing else of the fact changed");
+    await w.ok(["sync", "undo", r.input], PERSON);
+    assert.deepEqual(fact(w, "P0001", "CHR").participants, before.participants);
   } finally {
     w.cleanup();
   }
@@ -215,7 +265,7 @@ test("the app's JSON brings a fact's note and a godmother's note as its GEDCOM d
       },
       partnerships: {},
     };
-    const plan = planSync(tree, readStromJson(json), "conflict");
+    const plan = planSync(tree, readStromJson(json), "conflict", { partNotes: true });
     assert.deepEqual(
       noteKinds(plan.changes).map((c) => {
         const x = c as { kind: string; action: string; person?: string; text?: string; part?: { note?: string } };

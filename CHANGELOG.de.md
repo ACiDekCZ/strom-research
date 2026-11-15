@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.34.0
 
-*In Vorbereitung: die Betas bis 1.34.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.34.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Das Hauptzitat und eine Reihenfolge der Zitate:** Die Zitate jeder Angabe stehen in jeder Datei in einer
   Reihenfolge – zuerst das Hauptzitat, dann der Eintrag des Ereignisses selbst, die weiteren Originale und der Rest
@@ -23,8 +23,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   weiter; die unterbrochene Aufgabe kommt zurück in die Warteschlange. Die Meldung eines Agenten, dass sein Limit erreicht
   ist, gilt als Limit des Plans samt seiner Zeit.
 - **Notizen aus der Strom-App:** Die Änderungen des Benutzers an der Notiz einer Angabe und an der Notiz eines
-  Beteiligten kommen in die Forschung zurück, der frühere Text bleibt in der Geschichte der Notiz; eine entfernte Notiz
-  entfernt nichts. Das eigene Ereignis eines Paten oder Zeugen im GEDCOM der App wird in der Sprache der Forschung
+  Beteiligten kommen in die Forschung zurück, jede zu ihrer eigenen Angabe, der frühere Text bleibt in der Geschichte der
+  Notiz; die Notiz eines Beteiligten nur von einer App, die sie ganz sendet; eine entfernte Notiz entfernt nichts. Das eigene Ereignis eines Paten oder Zeugen im GEDCOM der App wird in der Sprache der Forschung
   benannt. Die eigene zweite Geburt oder der zweite Tod der App und ihr Eintrag einer Geburt oder eines Todes werden
   auch auf Polnisch erkannt und nie als nicht übernommen gemeldet.
 - **Ein Zuhause, in dem schon eine Forschung liegt:** `strom setup --home <Ordner> --use-existing` (und die Einrichtung

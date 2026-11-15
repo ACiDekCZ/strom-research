@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.34.0
 
-*In preparation: the betas up to 1.34.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.34.0-beta.4. The section is complete with the release.*
 
 - **The main citation and one order of citations:** every fact's citations come in one order in every file — the
   main citation first, then the record of the event itself, the other originals, the rest by how sure they are. The
@@ -20,7 +20,8 @@ The changes of each version in short. The full notes and the install lines are o
   resets (shown as paused in the terminal and the Strom app), then asks the condition again and goes on — the
   interrupted task back in the queue. An agent's notice that its limit was hit is read as the plan's limit, with its time.
 - **Notes from the Strom app:** the user's edits of a fact's note and of a participant's note come back into the
-  research, the earlier text kept in the note's history; a note taken away takes nothing away. A godparent's or a
+  research, each to its own fact, the earlier text kept in the note's history; a participant's note only from an app
+  that sends it whole; a note taken away takes nothing away. A godparent's or a
   witness's own event in the app's GEDCOM is named in the research's language.
   The app's own second birth or death and its entry of a birth or a death are known in Polish too, never reported as
   not taken over.

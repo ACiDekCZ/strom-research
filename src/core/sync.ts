@@ -50,7 +50,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appReadsMainCitation, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -687,7 +687,7 @@ function knownNote(text: string, said: Set<string>): boolean {
 }
 
 /** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
-const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+export const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
 
 /** A line strom intake writes into a fact's note itself: what a file said that the fact has no place for. */
 const STROM_NOTE_LINE = /^(?:source there|date as written|age as written): |^(?:husband|wife) aged /u;
@@ -703,7 +703,7 @@ const exportSays = (line: string) => EXPORT_SAYS.some((x) => x.exact.includes(li
  * A fact's note as compared: its lines as compared, none empty, without the labelled details the Strom app writes
  * back into it ("Věk: 61 let" — the fact's age, compared as one); undefined when nothing is left.
  */
-function factNote(text: string): string | undefined {
+export function factNote(text: string): string | undefined {
   const lines = text.split(/\r?\n/).map(noteLine).filter((l) => l && !detailLine(l));
   return lines.length ? lines.join("\n") : undefined;
 }
@@ -2728,7 +2728,7 @@ export function planSync(
   tree: Tree,
   incoming: Snapshot,
   edits: "conflict" | "user",
-  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean } = {},
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean; partNotes?: boolean } = {},
 ): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
@@ -2826,6 +2826,9 @@ export function planSync(
       ? appReadsMainCitation(new Settings(tree.env, {}), incoming.appVersion) && (!base?.appVersion || appReadsMainCitation(new Settings(tree.env, {}), base.appVersion))
       : appDataMainCitation(incoming.dataVersion));
   const sendsUncite = opts.sendsUncite ?? (incoming.format === "gedcom" && appSendsUncite(incoming.appVersion));
+  // the note of someone a fact names: only of an app that gives it whole (APP_SENDS_PART_NOTES; its JSON from
+  // APP_DATA_PART_NOTES) — an older one sends a longer note cut short, never an edit of the user's
+  const partNotes = opts.partNotes ?? (incoming.format === "gedcom" ? appSendsPartNotes(incoming.appVersion) : appDataPartNotes(incoming.dataVersion));
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
   /** What the file no longer has: an archive takes it away — unless the window that sends never had it (kept, said). */
@@ -2878,7 +2881,7 @@ export function planSync(
      * the user called "porodní bába") changed into another role is no edit of a note (the role read from it differs).
      */
     const partNoteDiff = (f: SFact, o: SFact | undefined, p: SPart) => {
-      if (!o?.id || !p.note) return;
+      if (!partNotes || !o?.id || !p.note) return;
       const mine = (o.parts ?? []).find((x) => x.role === p.role && sameWho(p, incoming, x, ours));
       if (!mine || noteLine(mine.note ?? "") === noteLine(p.note)) return;
       const given = was ? givenOf(o)?.parts?.find((x) => x.role === p.role && sameWho(p, incoming, x, base!)) : undefined;
@@ -2887,14 +2890,14 @@ export function planSync(
       push({ kind: "fact.part.note", action, ...owner, fact: f, was: o, part: { ...p, note: noteLine(p.note) }, wasPart: mine });
     };
     /** Who the file names at a fact the research has (`o`): one more is added, another role a change, as a fact's. */
-    const partsDiff = (f: SFact, o: SFact | undefined) => {
+    const partsDiff = (f: SFact, o: SFact | undefined, sure = true) => {
       for (const p of f.parts ?? []) {
         const known = ourParts.find((x) => sameWho(p, incoming, x.part, ours) && sameRole(p, x.part));
         if (known) {
           // a name of the research's the user linked to a person of the tree
           const linked = was && baseParts.some((x) => sameWho(p, incoming, x.part, base!) && x.part.person);
           if (p.person && !known.part.person && known.fact.id && !linked) push({ kind: "fact.part", action: "add", ...owner, fact: f, was: known.fact, part: p, wasPart: known.part });
-          partNoteDiff(f, o, p);
+          if (sure) partNoteDiff(f, o, p);
           continue;
         }
         if (was && baseParts.some((x) => sameWho(p, incoming, x.part, base!) && sameRole(p, x.part))) continue; // as given: the research changed it since
@@ -3079,12 +3082,19 @@ export function planSync(
           return Object.keys(x).every((d) => exact(x[d]) === exact(y[d]));
         };
         const mates = our.filter((x) => factKey(x) === k);
-        // the sources the user gave it in the app that it does not cite yet (nor did it when given)
-        const paired = mates.find((x) => sameDetails(f, x)) ?? mates[0]!;
-        partsDiff(f, paired);
+        // the research's fact it is: by the ID the app was given (`2 _STROM_EID`), else the one of the same details,
+        // then of the same name (two events of one day and one source, told apart by their names only — 1115 B1)
+        const byId = f.eid ? mates.find((x) => x.id?.toUpperCase() === f.eid) : undefined;
+        const alike = mates.filter((x) => sameDetails(f, x));
+        const named = (alike.length ? alike : mates).filter((x) => fold(x.label) === fold(f.label));
+        const paired = byId ?? (named.length === 1 ? named[0]! : (alike[0] ?? mates[0]!));
+        // what the user wrote of one fact (its note, a note of someone it names) only to the one it surely is: never
+        // guessed among facts alike (the note of one would correct its twin's)
+        const sure = !!byId || mates.length === 1 || alike.length === 1 || named.length === 1;
+        partsDiff(f, paired, sure);
         confirmDiff(f, paired);
         shareDiff(f, paired);
-        noteDiff(f, paired);
+        if (sure) noteDiff(f, paired);
         // facts alike (two events of a year, told apart by their names only) pair loosely: a source any of them cites is no news
         const fresh = newCites(tree, f, mates, was?.filter((x) => factKey(x) === k) ?? [], sources, owner.family);
         if (fresh.length) push({ kind: "fact.cite", action: "add", ...owner, fact: { ...f, cites: fresh }, was: paired, reads: fresh.some((c) => reads(c.source)) });

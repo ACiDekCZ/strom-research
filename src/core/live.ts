@@ -512,6 +512,7 @@ import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
 import { settleHeldProposals, settleOrigins } from "./originfix.ts";
 import { settleClips } from "./clipmerge.ts";
+import { settleNotes } from "./notefix.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
@@ -2830,6 +2831,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (done) noteLive(root, `overlapping clips of one image: ${counted(done.joined.length, "source")} joined into one, ${counted(done.left.length, "source")} left as they are (a person's, or not told whose)`);
   } catch (e) {
     noteLive(root, `the overlapping clips of one image not joined now: ${errorText(e)}`);
+  }
+  // the notes a send of the Strom app wrote to a fact alike (before 1.34.0): set right once, the wrong one kept in its history
+  try {
+    const done = settleNotes(Tree.open(root, env));
+    if (done) noteLive(root, `notes a send of the app wrote to a fact alike: ${counted(done.notes, "note")} of ${counted(done.facts, "fact")} set right, ${counted(done.left.length, "fact")} changed since, left as they are${done.left.length ? ` (${done.left.join(", ")})` : ""}${done.backup ? `; backed up first: ${done.backup.path}` : ""}`);
+  } catch (e) {
+    noteLive(root, `the notes a send of the app wrote to a fact alike not set right now: ${errorText(e)}`);
   }
   // the phone connection on and its server gone (the computer started again): started again beside the bridge
   try {

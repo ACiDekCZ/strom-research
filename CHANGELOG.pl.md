@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.34.0
 
-*W przygotowaniu: bety do 1.34.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.34.0-beta.4. Sekcja będzie kompletna z wydaniem.*
 
 - **Główny przypis i jedna kolejność przypisów:** przypisy każdej danej idą w każdym pliku w jednej kolejności – najpierw
   główny przypis, potem zapis samego zdarzenia, inne oryginały, a reszta według tego, jak są pewne. Główny przypis
@@ -20,8 +20,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Samodzielna praca z warunkiem:** gdy limit planu agenta przerwie sesję, praca czeka do odnowienia limitu (w
   terminalu i w aplikacji Strom jako pauza), potem ponownie pyta warunek i idzie dalej; przerwane zadanie wraca do
   kolejki. Komunikat agenta o wyczerpaniu limitu jest odczytywany jako limit planu razem z czasem odnowienia.
-- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej i w notatce uczestnika wracają do badania, wcześniejszy
-  tekst zostaje w historii notatki; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
+- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej i w notatce uczestnika wracają do badania, każda do
+  swojej danej, wcześniejszy tekst zostaje w historii notatki; notatka uczestnika tylko z aplikacji, która wysyła ją w
+  całości; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
   GEDCOM aplikacji jest nazwane w języku badania. Własne drugie urodzenie lub zgon aplikacji i jej akt urodzenia lub
   zgonu są rozpoznawane także po polsku i nigdy nie są zgłaszane jako nieprzejęte.
 - **Folder domowy, w którym badanie już jest:** `strom setup --home <folder> --use-existing` (i konfiguracja po

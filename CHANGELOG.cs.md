@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.34.0
 
-*Připravuje se: bety do 1.34.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.34.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Hlavní citace a jedno pořadí citací:** citace každého údaje jdou v každém souboru v jednom pořadí – nejdřív hlavní
   citace, pak záznam samotné události, další originály a zbytek podle toho, jak jsou jisté. Hlavní citaci volí jen
@@ -19,8 +19,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Samostatná práce s podmínkou:** když limit plánu agenta přeruší sezení, práce počká do obnovy limitu (v terminálu
   i v aplikaci Strom jako pauza), pak se znovu zeptá podmínky a pokračuje; přerušený úkol se vrátí do fronty. Hlášení
   agenta, že limit došel, se čte jako limit plánu i s časem obnovy.
-- **Poznámky z aplikace Strom:** úpravy poznámky údaje a poznámky účastníka od uživatele se vracejí do výzkumu, dřívější
-  text zůstane v historii poznámky; odebraná poznámka nic neodebere. Vlastní událost kmotra nebo svědka z GEDCOM
+- **Poznámky z aplikace Strom:** úpravy poznámky údaje a poznámky účastníka od uživatele se vracejí do výzkumu, každá
+  ke svému údaji, dřívější text zůstane v historii poznámky; poznámka účastníka jen od aplikace, která ji posílá celou;
+  odebraná poznámka nic neodebere. Vlastní událost kmotra nebo svědka z GEDCOM
   aplikace se pojmenuje v jazyce výzkumu.
   Vlastní druhé narození nebo úmrtí aplikace a její zápis narození či úmrtí se poznají i v polštině a nehlásí se jako
   nepřevzaté.
