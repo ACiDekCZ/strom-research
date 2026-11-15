@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.34.0
 
-*In Vorbereitung: die Betas bis 1.34.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.34.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Das Hauptzitat und eine Reihenfolge der Zitate:** Die Zitate jeder Angabe stehen in jeder Datei in einer
   Reihenfolge – zuerst das Hauptzitat, dann der Eintrag des Ereignisses selbst, die weiteren Originale und der Rest
@@ -34,6 +34,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Ein anderer Stammbaum unter dem Namen der Forschung:** Eine Sendung aus der Strom-App, die kaum Personen der
   Forschung trägt, nur andere (etwa den Beispielstammbaum der App), wird abgelehnt und nichts wird geschrieben; ist es so
   gemeint, nimmt sie `strom sync <Datei> --force`.
+- **Der Agent im Terminal nicht angemeldet:** die Leser von `strom read` und das selbstständige Arbeiten starten das
+  Programm des Agenten im Terminal, das eine eigene Anmeldung hat, nicht die der Desktop-App. Sagt es, dass es nicht
+  angemeldet ist, wird nichts gestartet und die Meldung sagt, wie man sich anmeldet; ein Leser, der so endet, wird
+  ebenso gemeldet, nie nur „auth“. `strom doctor` sagt in einer eigenen Zeile, ob der Agent im Terminal angemeldet ist.
 
 ## 1.33.0
 

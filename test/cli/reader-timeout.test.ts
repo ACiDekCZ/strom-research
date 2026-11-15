@@ -58,8 +58,8 @@ test("strom read: a reader stuck on one crop is stopped at its limit and strom r
     assert.ok(took < 30_000, `answered at once after the limit: ${took} ms`);
     assert.equal(r.code, 1);
     const said = r.out + r.err;
-    assert.match(said, /■ reader 1: stopped at its time limit \(0\.05 min\)/);
-    assert.match(said, /readers that failed: 1 \(stopped at its time limit, 0\.05 min\)/);
+    assert.match(said, /■ čtenář 1: zastaven na svém časovém limitu \(0\.05 min\) · nálezy: 0/u);
+    assert.match(said, /neúspěšní čtenáři: 1 \(zastaven na svém časovém limitu, 0\.05 min\)/u);
     assert.match(said, /a reader stopped at its time limit gave no answer for its image: look at it yourself — strom media view M\d+ --crop 0\.1,0\.2,0\.3,0\.2 \(or read again, with more time: --minutes <n>\)/);
     // the default by what it is given: one crop a few minutes, two images more
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "quick-reader.mjs");
@@ -147,6 +147,10 @@ function silentClaude(w: World): () => { args: string[]; stdin: string }[] {
     script,
     `import fs from "node:fs";
 const args = process.argv.slice(2);
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: true }));
+  process.exit(0);
+}
 const stdin = fs.readFileSync(0, "utf8");
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ args, stdin }) + "\\n");
 const say = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
@@ -192,8 +196,8 @@ test("strom read: a reader silent after a retry of its service is resumed once a
     assert.equal(halted.code, 1);
     assert.equal(calls().length, 2, "resumed once, not more");
     const said = halted.out + halted.err;
-    assert.match(said, /■ reader 1: its agent's service went silent after a retry, also when resumed — stopped/);
-    assert.match(said, /readers that failed: 1–2 \(its agent's service went silent after a retry, also when resumed — stopped\)/);
+    assert.match(said, /■ čtenář 1: služba jeho agenta po novém pokusu zmlkla, i po obnovení – zastaven/u);
+    assert.match(said, /neúspěšní čtenáři: 1–2 \(služba jeho agenta po novém pokusu zmlkla, i po obnovení – zastaven\)/u);
     assert.match(said, /NOT reported: 1–2 — read these again/);
     // recorded as halted ("error", as an older strom reads it too), never as a reader without a result
     const rec = last();

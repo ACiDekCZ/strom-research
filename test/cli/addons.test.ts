@@ -153,6 +153,7 @@ async function world(): Promise<World> {
   fs.writeFileSync(
     path.join(bin, "claude"),
     `#!/bin/sh
+[ "$1 $2" = "auth status" ] && { echo '{"loggedIn": true}'; exit 0; }
 { printf 'ARGS'; for a in "$@"; do printf ' [%s]' "$a"; done; printf '\\n'; echo "MEM=\${CLAUDE_CODE_DISABLE_AUTO_MEMORY:-} TTL=\${CLAUDE_CODE_PROMPT_CACHE_TTL:-} CC=\${CLAUDECODE:-}"; } >> "${calls}"
 cat > /dev/null
 if [ -n "\${FAKE_WEBFETCH_AGENT:-}" ]; then

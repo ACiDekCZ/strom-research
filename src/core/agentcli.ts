@@ -10,6 +10,7 @@ import { StromError } from "./errors.ts";
 import { AGENTS, findAgent } from "./which.ts";
 import { DESKTOP_APPS, hasDesktopApp } from "./apps.ts";
 import { PROFILES } from "../agents/profiles.ts";
+import { claudeLoggedIn, claudeLoginCommand } from "./claudedir.ts";
 
 /** The code of the error (and the bridge's `why` for the readers). */
 export const CLI_MISSING = "agent.cli-missing";
@@ -59,4 +60,32 @@ export function agentCliMissing(agent: string, env: Env, command: string, platfo
 /** Throw agentCliMissing when the agent's CLI is not here (the script runner and agents strom does not start pass). */
 export function requireAgentCli(agent: string, env: Env, command: string): void {
   if (cliMissing(agent, env)) throw agentCliMissing(agent, env, command);
+}
+
+/** The code of the error: Claude Code in the terminal not logged in (the bridge's `why` for the readers too). */
+export const LOGGED_OUT = "agent.logged-out";
+
+/**
+ * The error of a command that starts Claude Code in the terminal by itself (strom read, the readers, strom run) where
+ * `claude auth status` says it is not logged in (K040: a conversation in the Claude app goes on with the app's own
+ * login, the CLI strom starts has its own) — thrown before any reader or session is started. English for an agent and
+ * a program; a person reads ui.error.agent.logged-out.
+ */
+export function agentLoggedOut(env: Env, command: string): StromError {
+  const login = claudeLoginCommand(env);
+  return new StromError(`Claude Code in the terminal (claude) is not logged in — ${command} starts it itself (not the Claude app, which has its own login)`, {
+    hint: `the user logs in once in a terminal: ${login}, then /login (claude auth status says whether it is logged in)`,
+    code: LOGGED_OUT,
+    params: { command, login },
+  });
+}
+
+/**
+ * Throw agentLoggedOut when the agent is Claude Code and `claude auth status`, in the environment of what strom starts
+ * (`env`), says outright it is not logged in. Anything else (another agent, an older Claude Code, a stand-in, no answer)
+ * decides nothing.
+ */
+export function requireClaudeLogin(agent: string, env: Env, command: string): void {
+  if (agent !== "claude" || cliMissing(agent, env)) return;
+  if (claudeLoggedIn(env) === false) throw agentLoggedOut(env, command);
 }

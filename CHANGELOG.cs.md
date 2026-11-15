@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.34.0
 
-*Připravuje se: bety do 1.34.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.34.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Hlavní citace a jedno pořadí citací:** citace každého údaje jdou v každém souboru v jednom pořadí – nejdřív hlavní
   citace, pak záznam samotné události, další originály a zbytek podle toho, jak jsou jisté. Hlavní citaci volí jen
@@ -28,6 +28,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   vidí celý; zkracuje ho až jeho hlášení.
 - **Jiný rodokmen pod jménem výzkumu:** odeslání z aplikace Strom, ve kterém skoro nejsou osoby výzkumu, jen jiné
   (třeba ukázkový strom aplikace), se odmítne a nic se nezapíše; je-li to záměr, vezme ho `strom sync <soubor> --force`.
+- **Nepřihlášený agent v terminálu:** čtenáři `strom read` i samostatná práce spouštějí program agenta v terminálu,
+  který má vlastní přihlášení, ne to z desktopové aplikace. Když řekne, že není přihlášený, nic se nespustí a hláška
+  řekne, jak se přihlásit; stejně se řekne i u čtenáře, který tak skončí, nikdy jen „auth“. `strom doctor` má vlastní
+  řádek, jestli je agent v terminálu přihlášený.
 
 ## 1.33.0
 

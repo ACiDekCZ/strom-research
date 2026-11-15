@@ -81,9 +81,6 @@ export const READER_STALL_MS = 150_000;
 export const READER_STALL_PROMPT =
   "The connection to the model's service broke off and you are started again. Go on where you stopped: the images not yet in your report, each block added as before — never a block that is in it already. Then the done line.";
 
-/** How a reader that ended so is said (its images: read again later). */
-export const READER_STALLED = "its agent's service went silent after a retry, also when resumed — stopped";
-
 /** The watch of a reader's silence after a retry of its service (RunOptions.stalled). */
 export function readerStall(env: Env): { ms: number; prompt: string } {
   const set = Number(env.STROM_READER_STALL_MS);

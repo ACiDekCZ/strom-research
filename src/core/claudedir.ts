@@ -84,6 +84,9 @@ export function isClaudeCommand(command: string): boolean {
   return /^claude(?:\.(?:cmd|exe|bat))?$/iu.test(path.basename(command));
 }
 
+/** How long `claude auth status` may take: it answers from its own files at once; one that hangs decides nothing. */
+const AUTH_STATUS_MS = 5_000;
+
 /**
  * Is the `claude` strom starts logged in (`claude auth status`, in its environment: forClaude)? false only when it says
  * so; undefined when it cannot tell (an older Claude Code, a stand-in, no answer in time) — then nothing is decided by it.
@@ -92,7 +95,7 @@ export function claudeLoggedIn(env: Env, command = "claude"): boolean | undefine
   const program = findAgent(command, env) ?? command;
   const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(program);
   try {
-    const r = spawnSync(shell ? `"${program}"` : program, ["auth", "status"], { env: forClaude(env) as NodeJS.ProcessEnv, encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "ignore"], windowsHide: true, shell });
+    const r = spawnSync(shell ? `"${program}"` : program, ["auth", "status"], { env: forClaude(env) as NodeJS.ProcessEnv, encoding: "utf8", timeout: AUTH_STATUS_MS, stdio: ["ignore", "pipe", "ignore"], windowsHide: true, shell });
     const said = JSON.parse((r.stdout ?? "").trim()) as { loggedIn?: unknown };
     return typeof said?.loggedIn === "boolean" ? said.loggedIn : undefined;
   } catch {

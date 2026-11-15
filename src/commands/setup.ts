@@ -21,7 +21,7 @@ import { appWithoutCli, claudeInstallLine, CLI_MISSING } from "../core/agentcli.
 import { createShortcut } from "../core/shortcut.ts";
 import { openForUser } from "../core/open.ts";
 import { isValidLang, langName } from "../core/lang.ts";
-import { detectAgent, isAgent } from "../core/which.ts";
+import { detectAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
 import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
@@ -45,7 +45,7 @@ import { appDirsInUse, checked, installUpdate, oldVersions, isNewer, knownNewerV
 import { privateCopies, writesPrivately } from "../core/packaged.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { configDir, defaultHome, desktopDir, expandHome, isolated, noLinks, ownCommand, type Env } from "../core/paths.ts";
-import { claudeConfigDir } from "../core/claudedir.ts";
+import { claudeConfigDir, claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, planUseExisting, researchHome, sameFolder, useExistingHome, type UsePlan } from "../core/relocate.ts";
@@ -274,7 +274,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "cli", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "login", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -516,6 +516,15 @@ function diagnoseInto(
       if (other.app && !other.cli) {
         add("cli", "warn", t("ui.doc.cli.missing", { cli: PROFILES[chosen]!.name }), chosen === "claude" ? `${FIX}  (${claudeInstallLine()})` : PROFILES[chosen]!.url, "cli");
         checks.at(-1)!.code = CLI_MISSING;
+      }
+      // Claude Code in the terminal logged in? What strom starts by itself (working alone, the readers, work from the
+      // Strom app) has its login, not the Claude app's (K040): said when `claude auth status` tells, nothing when it cannot
+      // (not in an archive: that line is not shown there, so nothing of the agent is started for it)
+      if (chosen === "claude" && other.cli && !ctx.archiveHere()) {
+        const env = withoutAgentMarks(ctx.env);
+        const loggedIn = timed("doctor.login", () => claudeLoggedIn(env));
+        if (loggedIn === true) add("login", "ok", t("ui.doc.login.ok"));
+        else if (loggedIn === false) add("login", "warn", t("ui.doc.login.no"), t("ui.doc.login.fix", { command: claudeLoginCommand(env) }));
       }
     }
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));

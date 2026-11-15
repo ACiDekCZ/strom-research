@@ -21,7 +21,8 @@ import { mergeOverlappingClips } from "../core/clipmerge.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkPrompt, locatePrompt, parseChecked, parseLocated, widen, type CheckJob, type Checked, type ClipJob, type Located } from "../core/clipfinder.ts";
 import { displayName } from "../core/people.ts";
-import { readers, refuseReadersInArchive } from "./readers.ts";
+import { readers, readersLang, refuseReadersInArchive } from "./readers.ts";
+import { ui } from "../cli/ui.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
 import type { Tree } from "../core/tree.ts";
@@ -199,7 +200,7 @@ register({
       rejected.length ? `the check turned down: ${rejected.map((v) => `${v.source} (${v.verdict}${v.why ? `: ${truncate(v.why, 40)}` : ""})`).join(", ")}` : undefined,
       missed.length ? `without a clip: ${missed.map((s) => s.id).slice(0, 20).join(", ")}${missed.length > 20 ? ` … (${missed.length})` : ""} — strom source edit S… --clip M…@x,y,w,h, or strom clips again` : undefined,
       away.length ? `on images not on this computer (or not JPEG/PNG): ${away.length}` : undefined,
-      failed.length ? `readers that failed: ${failed.join(", ")}` : undefined,
+      failed.length ? ui(readersLang(ctx, tree), "ui.read.failed", { list: failed.join(", ") }) : undefined,
       "the entries cut out for the Strom app: strom app (output/tree-strom.ged)",
     );
     return {

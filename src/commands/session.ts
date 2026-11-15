@@ -72,7 +72,7 @@ import { isArchive } from "../core/mode.ts";
 import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
-import { claudeConfigSet, claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
+import { claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -998,8 +998,9 @@ register(
     const gateTrail: GateRecord[] = [];
     // The Strom app opened to follow the run (--follow): once, when its first session starts.
     let followed = false;
-    // Why the run stopped: a code for the exit status and for data, words for the user (their language).
-    const lang = Tree.open(root, runEnv).lang;
+    // Why the run stopped: a code for the exit status and for data, words for the user (their language — the run's
+    // --lang or STROM_LANG before the tree's own, as for every command)
+    const lang = ctx.settings.lang(Tree.open(root, runEnv).config).value;
     type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
@@ -1063,9 +1064,9 @@ register(
       // how the gate is asked (before each session, once, its cap) is said in its first answer's line, never a line of its own
       let gateTold = false;
       let capTold = false;
-      // Claude Code of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir) not logged in there: no session
-      // would work — said before the first one, with how to log in (found 2026-11-03)
-      const loggedOut = runnerId === "claude" && claudeConfigSet(runEnv) !== undefined && claudeLoggedIn(runEnv, runner.command) === false;
+      // Claude Code not logged in — of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir, found 2026-11-03)
+      // or its own default one (K040) —: no session would work, said before the first one with how to log in
+      const loggedOut = runnerId === "claude" && claudeLoggedIn(runEnv, runner.command) === false;
       if (loggedOut) {
         stopCode = "auth";
         stopValues = { command: claudeLoginCommand(runEnv) };

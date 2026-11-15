@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.34.0
 
-*W przygotowaniu: bety do 1.34.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.34.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Główny przypis i jedna kolejność przypisów:** przypisy każdej danej idą w każdym pliku w jednej kolejności – najpierw
   główny przypis, potem zapis samego zdarzenia, inne oryginały, a reszta według tego, jak są pewne. Główny przypis
@@ -30,6 +30,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Inne drzewo pod nazwą badania:** wysłanie z aplikacji Strom, w którym prawie nie ma osób badania, tylko inne
   (na przykład przykładowe drzewo aplikacji), jest odrzucane i nic nie jest zapisane; jeśli to zamierzone, przyjmie je
   `strom sync <plik> --force`.
+- **Agent w terminalu niezalogowany:** czytelnicy `strom read` i praca samodzielna uruchamiają program agenta
+  w terminalu, który ma własne logowanie, nie to z aplikacji desktopowej. Gdy mówi, że nie jest zalogowany, nic się nie
+  uruchamia, a komunikat mówi, jak się zalogować; tak samo przy czytelniku, który tak kończy, nigdy tylko „auth”.
+  `strom doctor` ma osobny wiersz, czy agent w terminalu jest zalogowany.
 
 ## 1.33.0
 

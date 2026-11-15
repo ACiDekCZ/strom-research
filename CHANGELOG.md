@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.34.0
 
-*In preparation: the betas up to 1.34.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.34.0-beta.2. The section is complete with the release.*
 
 - **The main citation and one order of citations:** every fact's citations come in one order in every file — the
   main citation first, then the record of the event itself, the other originals, the rest by how sure they are. The
@@ -29,6 +29,10 @@ The changes of each version in short. The full notes and the install lines are o
 - **Another family tree under the research's name:** a send from the Strom app that carries hardly any of the
   research's people, only others (the app's sample tree, say), is refused and nothing is written; if it is meant,
   `strom sync <file> --force` takes it.
+- **The agent in the terminal not logged in:** the readers of `strom read` and working alone start the agent's own
+  program in the terminal, which has a login of its own, not the desktop app's. When it says it is not logged in,
+  nothing is started and the message says how to log in; a reader that ends so is said the same way, never only "auth".
+  `strom doctor` says in a line of its own whether the agent in the terminal is logged in.
 
 ## 1.33.0
 
