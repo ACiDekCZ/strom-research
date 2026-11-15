@@ -10,6 +10,7 @@ import { World, hasGit } from "../helpers.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { blank } from "../../src/image/image.ts";
 import { suggest } from "../../src/cli/execute.ts";
+import { Tree } from "../../src/core/tree.ts";
 
 const opts = { skip: !hasGit };
 /** An agent's shell: what it guessed is answered in its own English (a person reads the person's sentence). */
@@ -196,6 +197,36 @@ test("a similar option only where it is near: --whole is no --home, a typo still
     assert.match(whole.err, /unknown option --whole for strom person add/);
     assert.doesNotMatch(whole.err, /similar option: --home/);
     assert.match((await w.run(["recordset", "show", "B0001", "--imgaes"])).err, /similar option: --images/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("another name agents type, taken where it means nothing else: recordset list --repo-of, task wake --note (its why in the history), search add --by agent, task list --all", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["repo", "add", "Archiv Lhota"]); // R0002
+    await w.ok(["recordset", "add", "Lhota O 1850–1870", "--repo", "R0002", "--kinds", "marriage", "--places", "Lhota", "--years", "1850-1870"]); // B0002
+    const of = (await w.ok(["recordset", "list", "--repo-of", "R2", "--json"])).json;
+    assert.deepEqual(of.recordsets.map((b: { id: string }) => b.id), ["B0002"]);
+    assert.match((await w.ok(["help", "recordset", "list"])).out, /--repo-of \(= --repo\)/);
+    await w.ok(["person", "add", "Jan /Lhoták/"]);
+    await w.ok(["task", "add", "Sňatek Jana Lhotáka", "--level", "link", "--where", "B0002", "--why", "rodiče", "--done-when", "nalezen", "--about", "P0001"]); // T0001
+    await w.ok(["task", "park", "T1", "--reason", "čeká na snímky"]);
+    await w.ok(["task", "wake", "T1", "--note", "snímky jsou tu – Лхота"]);
+    const wake = Tree.open(w.cwd, w.env).readOps().filter((o) => o.op === "task.wake").at(-1)!;
+    assert.equal(wake.reason, "snímky jsou tu – Лхота");
+    // never said in its help (--reason is every writing command's)
+    assert.doesNotMatch((await w.ok(["help", "task", "wake"])).out, /--note/);
+    const s = (await w.ok(["search", "add", "Sňatky Lhoták 1850–1870", "--recordset", "B2", "--method", "index", "--result", "negative", "--by", "agent", "--json"])).json;
+    assert.equal(s.search.by, "main");
+    assert.equal((await w.run(["search", "add", "x", "--method", "index", "--result", "negative", "--by", "robot"])).code, 2);
+    await w.ok(["task", "add", "Křest Jana Lhotáka", "--level", "link", "--where", "B0002", "--why", "rodiče", "--done-when", "nalezen", "--about", "P0001"]); // T0002
+    await w.ok(["task", "drop", "T2", "--reason", "jinde"]);
+    const every = (await w.ok(["task", "list", "--all", "--json"])).json.tasks.map((t: { id: string }) => t.id);
+    assert.deepEqual(every, (await w.ok(["task", "list", "--state", "all", "--json"])).json.tasks.map((t: { id: string }) => t.id));
+    assert.ok(every.includes("T0002"));
+    assert.equal((await w.run(["task", "list", "--all", "--state", "done"])).code, 2);
   } finally {
     w.cleanup();
   }

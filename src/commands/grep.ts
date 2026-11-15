@@ -101,7 +101,9 @@ register({
         code: "grep.outside",
         params: { where: outside },
       });
-    const { targets, error, code, params } = grepTargets(tree.root, wanted);
+    const { targets, error, code, params, prefixed } = grepTargets(tree.root, wanted);
+    // a path no file has, the start of the names of files beside it: those files, said
+    const starts = (prefixed ?? []).map((p) => `--in ${p.where}: no such file — the files beginning so: ${p.names.join(", ")}`);
     if (error) throw new UsageError(error, { ...(code ? { code, params } : {}), hint: `strom grep ${patterns.map(shellArg).join(" ")} --in ${GREP_FOLDERS.join("|")}|all` });
     let match: (line: string) => number;
     try {
@@ -123,7 +125,7 @@ register({
     const tooBig = found.tooBig.length ? `left out, over 64 MB: ${found.tooBig.join(", ")}` : undefined;
     if (!found.hits.length)
       return {
-        text: lines(`not found in ${counted(found.searched, "text file")} of ${where}`, tooBig, cut, "→ the records: strom find <text>"),
+        text: lines(...starts, `not found in ${counted(found.searched, "text file")} of ${where}`, tooBig, cut, "→ the records: strom find <text>"),
         data: { total: 0, searched: found.searched, hits: [], ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
       };
     const total = `${found.hits.length}${found.capped ? "+" : ""}`;
@@ -134,13 +136,13 @@ register({
       const files = [...found.counts].map(([file, n]) => ({ file, lines: n }));
       const page = paginate(files, ctx.limit, ctx.page);
       return {
-        text: lines(head + ":", ...page.items.map((f) => `${f.file}: ${f.lines}`), moreLine(page, again) || undefined, tooBig),
+        text: lines(...starts, head + ":", ...page.items.map((f) => `${f.file}: ${f.lines}`), moreLine(page, again) || undefined, tooBig),
         data: { total: found.hits.length, capped: found.capped, searched: found.searched, files: page.items, ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
       };
     }
     const page = paginate(found.hits, ctx.limit, ctx.page);
     return {
-      text: lines(head + ":", ...grepLines(page.items), moreLine(page, again) || undefined, tooBig, cut),
+      text: lines(...starts, head + ":", ...grepLines(page.items), moreLine(page, again) || undefined, tooBig, cut),
       data: { total: found.hits.length, capped: found.capped, searched: found.searched, files: found.counts.size, hits: page.items, ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
     };
   },

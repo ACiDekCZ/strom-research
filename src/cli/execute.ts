@@ -103,6 +103,11 @@ export function resolveCommand(argv: string[]): Resolved {
   if (words.length === 0 && extra[0] !== undefined && Object.hasOwn(RENAMED, extra[0])) throw renamedCommand(argv, extra[0]);
   if (found && leftover.length === 0) {
     if (found.def.path.length === 0 && extra.length && rest[0] !== "--") throw unknownCommand(extra.slice(0, 2));
+    // a group that is a command of its own too (strom history) and takes no argument: a word after it is a subcommand
+    // it does not have (strom history read) — the near ones said, never "unexpected argument"
+    const next = rest[0];
+    if (found.def.path.length && !found.def.args?.length && next !== undefined && !next.startsWith("-") && subcommandsOf(found.def.path, true).length)
+      throw unknownCommand([...found.def.path, next], undefined, true);
     return { def: found.def, rest };
   }
   // A group ("person") with a wrong or missing subcommand.
@@ -139,17 +144,22 @@ export class GroupOnly extends Error {
 
 /**
  * An unknown command, said as typed (`said`: another name of a group — strom book … — when `words` name the group it
- * stands for) with the commands near it; a group's ID after it (strom book B1) offers the group's show.
+ * stands for) with the commands near it; a group's ID after it (strom book B1) offers the group's show; `hidden`: the
+ * group's commands behind a gate are near ones too (a group that is a command of its own: strom history read).
  */
-function unknownCommand(words: string[], said = words): UsageError {
+function unknownCommand(words: string[], said = words, hidden = false): UsageError {
   const typed = said.join(" ");
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
-  // A known group narrows the choice ("person ad" → "person add", not "lesson add").
-  const inGroup = all.filter((c) => c.startsWith(`${words[0]} `));
+  // A known group narrows the choice ("person ad" → "person add", not "lesson add"); `hidden`: a group that is a
+  // command too (strom history), its commands behind a gate among them, as they run when named
+  const inGroup = hidden ? subcommandsOf([words[0]!], true).map((c) => c.path.join(" ")) : all.filter((c) => c.startsWith(`${words[0]} `));
   const same = (inGroup.length ? inGroup : all).filter((c) => c.split(" ").length === words.length);
   const hits = suggest(words.join(" "), same.length ? same : all);
+  // another word for a command of the group (strom task view → task show, strom history read → history show · list),
+  // before the commands a few letters away (read is no redo)
+  const synonyms = words.length === 2 ? (SUBCOMMAND_WORDS[words[1]!.toLowerCase()] ?? []).map((w) => `${words[0]} ${w}`).filter((c) => inGroup.includes(c)) : [];
   const show = !hits.length && words.length === 2 && /^\p{Lu}\p{N}+$/u.test(words[1]!) && inGroup.includes(`${words[0]} show`) ? `${said[0]} show ${said[1]}` : undefined;
-  const more = show ? [show] : hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
+  const more = show ? [show] : synonyms.length ? synonyms : hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
   // in the words typed: the group's other name kept (strom book show, not strom recordset show)
   const asTyped = (c: string) => (said[0] !== words[0] && c.split(" ")[0] === words[0] ? [said[0], ...c.split(" ").slice(1)].join(" ") : c);
   const near = more.map((c) => `strom ${asTyped(c)}`).join(" · ");
@@ -158,6 +168,26 @@ function unknownCommand(words: string[], said = words): UsageError {
     ...(more.length ? { code: "command.near", params: { cmd: typed, near } } : { code: "command.unknown", params: { cmd: typed } }),
   });
 }
+
+/** Other words agents type for a command of a group: the commands they mean, those the group has said. */
+const SUBCOMMAND_WORDS: Readonly<Record<string, string[]>> = {
+  view: ["show", "list"],
+  get: ["show", "list"],
+  read: ["show", "list"],
+  display: ["show", "list"],
+  open: ["show"],
+  print: ["show", "list"],
+  info: ["show"],
+  detail: ["show"],
+  details: ["show"],
+  ls: ["list"],
+  all: ["list"],
+  new: ["add"],
+  create: ["add"],
+  update: ["edit"],
+  change: ["edit"],
+  modify: ["edit"],
+};
 
 /** One option as the usage under a mistake says it: --name <value>, "…" when repeatable, its limit. */
 function optionWord(o: OptionDef): string {
@@ -323,10 +353,12 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
           code: "option.unknown", hintCode: "option.unknown.status", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") }, usage,
         });
       // a name agents type meaning another option (--timeout for --minutes): that one, with what it takes
-      const meant = optionsOf(def).find((o) => o.mistaken?.includes(opt.replace(/^-+/u, "")));
-      if (meant) {
-        const near = `--${meant.name}${meant.value ? ` ${meant.value}` : ""}`;
-        throw new UsageError(`unknown option ${opt} for ${cmd}`, { hint: `meant: ${near} — ${meant.description}`, code: "option.near", params: { opt, cmd, near }, usage });
+      // (several of them: each, what it takes and is — strom search add --about: its task, the surnames looked for)
+      const meant = optionsOf(def).filter((o) => o.mistaken?.includes(opt.replace(/^-+/u, "")));
+      if (meant.length) {
+        const word = (o: OptionDef) => `--${o.name}${o.value ? ` ${o.value}` : ""}`;
+        const near = meant.map(word).join(" · ");
+        throw new UsageError(`unknown option ${opt} for ${cmd}`, { hint: `meant: ${meant.map((o) => `${word(o)} — ${o.description}`).join(" · ")}`, code: "option.near", params: { opt, cmd, near }, usage });
       }
       const near = suggest(opt, optionsOf(def).filter((o) => !o.hidden).map((o) => `--${o.name}`));
       const help = `strom help${def.path.length ? ` ${def.path.join(" ")}` : ""}`;

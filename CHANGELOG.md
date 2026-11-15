@@ -5,6 +5,31 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.33.0
+
+*2026-11-15 · goes with the Strom app 3.28.0.*
+
+- **Archives only a person's browser may enter:** the agent no longer tries strom's downloader or catalogue search
+  there. Their images go one at a time through the agent's browser (`strom media save`) once the person allows "through
+  the browser", else the person saves them by hand; the brief and the refusals say this next step at once.
+- **Images saved through the browser:** the book is taken from what the task waits for or from the archive's page; the
+  saved file carries the research's mark, so a file of another research in the shared downloads folder is never taken. Image viewers built into a page's own code (OpenSeadragon
+  inside React) are found too; a viewer strom cannot reach is said with what the person does instead.
+- **Searches and history:** a search that found something is recorded after its source, and says the order when the
+  source is missing; a source found by mistake is taken off with `strom search edit --drop-found`. `strom history
+  hide|show` check what they are given before anyone is asked; one event is read with `strom history list --event <id>`.
+- **Writes after images that just came:** a session started on a task whose saved images had just come is committed; a
+  research whose every write was refused after it writes again by itself.
+- **From the Strom app:** a fact sent back in another shape of the same kind (an event of type Census for a census) is
+  recognized as that fact — no change when nothing changed, an edit of that fact when its date did.
+- **Weak and awaited images:** a weak scan is saved once more with `strom media save --again` as a new copy beside the
+  first, nothing removed, and the sharpest copy is the image; an image a task waits for says who waits and the next step;
+  a download still being written is waited for, and `strom fetch --take` takes a list of images even beside a page plan.
+- **Indexes:** an index of another parish is never offered through a jurisdiction that does not say which parish; the
+  years of a jurisdiction count.
+- **Commands as agents type them:** another name for an option or a command is taken, or answered with the right one;
+  `strom grep --in` with the start of file names reads those files.
+
 ## 1.32.0
 
 *2026-11-14 · goes with the Strom app 3.28.0.*

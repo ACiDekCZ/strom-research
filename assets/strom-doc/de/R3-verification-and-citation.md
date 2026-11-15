@@ -342,7 +342,13 @@ Eine vergebliche Suche ist ein Ergebnis. Jede Suche wird erfasst, auch ohne Fund
 hat. Der teuerste Fehler ist, dasselbe Buch zweimal zu durchsuchen.
 
 - **Grenzen (prüft der Code):**
-  - `--result found|negative|partial|inconclusive`; `found` braucht `--found S…` (die Quelle wird zuerst erfasst);
+  - `--result found|negative|partial|inconclusive`; `found` braucht `--found S…`: die Quelle wird zuerst erfasst
+    (`strom source add`). Ohne `--found` lehnt der Code die Suche ab und nennt diese Reihenfolge mit dem genauen
+    nächsten Befehl (seit Forschung 1.33.0);
+  - eine versehentlich an eine Suche gehängte Quelle entfernt `strom search edit Q… --drop-found S… --reason "…"`
+    (auch mehrere Quellen), `--no-found` entfernt alle. Eine Suche `found`, der keine Quelle bleibt, muss sagen, was
+    sie jetzt ist (`--result negative|partial|inconclusive`), sonst wird die Änderung abgelehnt (seit Forschung
+    1.33.0);
   - `negative` lehnt der Code ab, solange im durchsuchten Bereich eine Stelle bleibt, die ein Leser als unklar
     gemeldet hat, und niemand sie seitdem in voller Größe angesehen hat, auf der richtigen Seite der Doppelseite.
     Gezählt werden Lesungen seit der ersten Sitzung der Aufgabe (sonst der letzten 24 Stunden). Dann bleibt
@@ -354,10 +360,12 @@ hat. Der teuerste Fehler ist, dasselbe Buch zweimal zu durchsuchen.
 - **Nur Methodik:** negativ erst nach einem Blick auf die Seiten in voller Größe. Fehlende Seiten eines Buches sind
   nicht durchsucht (`--pages 40-52,55-69`). Nach `--until-found` nur die gelesenen Bilder, als `--result partial`.
 - **Bedienung:** Terminal: `strom search add "…" --recordset B… --years … --surname … --pages … --method
-  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`.
-- **Gilt seit:** Forschung 1.0.0; Ablehnung über einer unklaren Stelle und „nur im Register“ 1.14.0
+  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`
+  (`--by agent` ist dasselbe wie `main`); Korrektur `strom search edit Q… --drop-found S…|--no-found --reason "…"`.
+- **Gilt seit:** Forschung 1.0.0; Ablehnung über einer unklaren Stelle und „nur im Register“ 1.14.0; die Reihenfolge
+  mit der Quelle, `search edit --drop-found|--no-found` und `--by agent` 1.33.0
 
-<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 -->
+<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 · 1.33.0: research:7bdba196 search add (search.found.first), search edit --drop-found/--no-found (search.found.none|empty|not|which), strom help search edit · c50f80f5 --by agent (= main) · CHANGELOG.cs.md 1.33.0 -->
 
 <a id="R3.7"></a>
 ## R3.7 Wann der Agent den Menschen fragt

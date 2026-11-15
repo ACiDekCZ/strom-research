@@ -101,7 +101,21 @@ export interface Integrity {
   findings: Finding[];
   /** Tree-relative paths whose content is not what strom sealed. */
   tampered: string[];
+  /**
+   * Files changed since the last commit as an operation the last commit holds already sealed them (verifyFast): strom's
+   * own work a commit left behind — the next commit takes them (cli/commit.ts autoCommit), never "changed outside strom".
+   */
+  sealedBefore?: string[];
+  /**
+   * Logs added since the last commit that nobody wrote into for a while (LEFT_BEHIND_MS), with the files their operations
+   * sealed last and as they are: a write whose commit was refused (strom 1.31 refused it for a check of its own), its
+   * process long gone — the next commit takes them (cli/commit.ts autoCommit), the research whole in git again.
+   */
+  leftBehind?: string[];
 }
+
+/** How long a log added since the last commit lies untouched before it is taken as a write left behind. */
+export const LEFT_BEHIND_MS = 10 * 60_000;
 
 const RECORD_DIRS = new Set(Object.values(RECORD_TYPES).map((d) => `data/${d.dir}/`));
 
@@ -381,6 +395,12 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
   const opsChanged = changes.filter((c) => c.path.startsWith("data/ops/") && c.path.endsWith(".jsonl"));
   const latest = new Map<string, string>();
   const cloud = new Set<string>();
+  // what every changed log added, ordered by time across them as verifyFull orders them — never by the order git names
+  // the logs in (found on Windows, 1.31: a session's start woke its task in the agent's log and took it up in the
+  // session's own, "N0442.…" named before "agent-…": the older operation had the last word, the task said edited outside
+  // strom, the start not committed and every write after it refused)
+  const addedAll: Op[] = [];
+  const logOf = new Map<Op, string>();
   for (const c of opsChanged) {
     const before = committed.get(c.path) ?? "";
     const abs = path.join(tree.root, c.path);
@@ -400,8 +420,33 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
     const prior = parseOps(before, c.path, findings);
     const added = parseOps(now.slice(before.length), c.path, findings, prior.length);
     checkOps(tree, added, prior.at(-1)?.sig ?? "", c.path, findings, keys);
-    for (const op of added) for (const f of op.files ?? []) latest.set(f.path, f.sha);
+    for (const op of added) logOf.set(op, c.path);
+    addedAll.push(...added);
   }
+  addedAll.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const lastLog = new Map<string, string>();
+  for (const op of addedAll)
+    for (const f of op.files ?? []) {
+      latest.set(f.path, f.sha);
+      lastLog.set(f.path, logOf.get(op)!);
+    }
+  // A file changed since the last commit that no operation added since sealed: its last word is the newest operation of
+  // every log, as strom verify judges it — an operation the last commit holds while its file stayed out of that commit
+  // (found on Windows, 1.31: every write refused, "the history is older", while strom verify was content) is strom's own
+  // work, not a change outside strom. Read only when such a file is there: the logs of the whole research, once.
+  // Only where git's index holds nothing else than the folder: an edit taken back after its git add ("MM") would go
+  // into the next commit from the index, never sealed — still said.
+  let everyLog: Map<string, string> | undefined;
+  const sealedBefore = new Set<string>();
+  const indexOdd = new Set(changes.filter((c) => !asInFolder(c)).map((c) => c.path));
+  const expectedOf = (p: string): string | undefined => {
+    const own = latest.get(p);
+    if (own !== undefined || indexOdd.has(p)) return own;
+    everyLog ??= sealedByEveryLog(tree);
+    const before = everyLog.get(p);
+    if (before !== undefined) sealedBefore.add(p);
+    return before;
+  };
 
   for (const c of changes) {
     // iCloud's placeholder of a file: the file it stands for says it (a record, a log of the history)
@@ -414,7 +459,9 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
     if (c.path.startsWith("data/ops/") || c.path === "data/_counters.json") continue;
     if (c.path === "strom.json") {
       // strom changes its config through a logged operation (strom config set --for-tree).
-      if (latest.get(c.path) !== undefined && latest.get(c.path) === fileSha(path.join(tree.root, c.path))) continue;
+      const sealed = expectedOf(c.path);
+      if (sealed !== undefined && sealed === fileSha(path.join(tree.root, c.path))) continue;
+      sealedBefore.delete(c.path);
       findings.push({ level: "error", code: "config-edited", file: c.path, message: "strom.json was changed outside strom", hint: "strom repair" });
       tampered.add(c.path);
       continue;
@@ -422,8 +469,10 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
     if (isHistoryPath(c.path)) {
       // written whole by strom through a sealed operation (strom history …), as a record
       const abs = path.join(tree.root, c.path);
-      if (latest.get(c.path) !== undefined && fs.existsSync(abs) && latest.get(c.path) === fileSha(abs)) continue;
-      findings.push(historyFinding(c.path, fs.existsSync(abs) ? (c.code === "??" && latest.get(c.path) === undefined ? "unsealed" : "edited") : "deleted"));
+      const sealed = expectedOf(c.path);
+      if (sealed !== undefined && fs.existsSync(abs) && sealed === fileSha(abs)) continue;
+      sealedBefore.delete(c.path);
+      findings.push(historyFinding(c.path, fs.existsSync(abs) ? (c.code === "??" && sealed === undefined ? "unsealed" : "edited") : "deleted"));
       tampered.add(c.path);
       continue;
     }
@@ -432,10 +481,86 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
       tampered.add(c.path);
       continue;
     }
-    checkRecordFile(tree, c.path, latest.get(c.path), c.code === "??", findings, tampered, cloud);
+    checkRecordFile(tree, c.path, expectedOf(c.path), c.code === "??", findings, tampered, cloud);
+    if (tampered.has(c.path) || cloud.has(c.path)) sealedBefore.delete(c.path);
   }
   if (cloud.size) findings.unshift(notDownloadedFinding([...cloud].sort()));
-  return { findings: united(findings, keys), tampered: [...tampered] };
+  const left = leftBehindOf(tree, opsChanged, lastLog, findings, indexOdd);
+  const fast = { findings: united(findings, keys), tampered: [...tampered], ...(sealedBefore.size ? { sealedBefore: [...sealedBefore].sort() } : {}), ...(left.length ? { leftBehind: left } : {}) };
+  return agreeWithFull(tree, fast, indexOdd);
+}
+
+/**
+ * The logs added since the last commit untouched for LEFT_BEHIND_MS, and the files whose last word is theirs (Integrity
+ * leftBehind) — only in a tree with nothing else to say: what is wrong is never taken into a commit.
+ */
+function leftBehindOf(tree: Tree, opsChanged: git.Change[], lastLog: Map<string, string>, findings: Finding[], indexOdd: Set<string>): string[] {
+  if (findings.some((f) => f.level === "error")) return [];
+  const old = Date.now() - LEFT_BEHIND_MS;
+  const stale = new Set<string>();
+  for (const c of opsChanged) {
+    if (indexOdd.has(c.path)) continue;
+    try {
+      if (fs.statSync(path.join(tree.root, c.path)).mtimeMs < old) stale.add(c.path);
+    } catch {
+      // gone or only in the cloud: said otherwise
+    }
+  }
+  if (!stale.size) return [];
+  const files = [...lastLog].filter(([p, log]) => stale.has(log) && !indexOdd.has(p)).map(([p]) => p);
+  return [...stale, ...files].sort();
+}
+
+/** A change whose file in git's index is the last commit's or the folder's: a commit of it takes what is in the folder. */
+function asInFolder(c: git.Change): boolean {
+  return c.code[0] === " " || c.code[0] === "?" || c.code[1] === " ";
+}
+
+/** What the fast check may say of a file that the full one judges otherwise: a record or a file of the history. */
+const FILE_FINDINGS = new Set(["unsealed", "manual-edit", "history-edited", "quality-edited"]);
+
+/**
+ * The fast check never refuses what strom verify finds in order (a write refused while strom verify and strom seal
+ * accept had nothing to say left the person no way on, 1.31): files the fast check alone says changed outside strom,
+ * the full check content with every one of them and git's index holding nothing else than the folder (indexOdd), are
+ * strom's own work — taken by the next commit (sealedBefore).
+ * Only then is the full check run: a tree in order never pays for it.
+ */
+function agreeWithFull(tree: Tree, fast: Integrity, indexOdd: Set<string>): Integrity {
+  const errors = fast.findings.filter((f) => f.level === "error");
+  if (!errors.length || !errors.every((f) => FILE_FINDINGS.has(f.code) && f.file && !indexOdd.has(f.file))) return fast;
+  let full: Integrity;
+  try {
+    full = verifyFull(tree);
+  } catch {
+    return fast;
+  }
+  if (full.findings.some((f) => f.level === "error")) return fast;
+  const files = new Set([...(fast.sealedBefore ?? []), ...errors.map((f) => f.file!)]);
+  return { findings: fast.findings.filter((f) => f.level !== "error"), tampered: [], sealedBefore: [...files].sort() };
+}
+
+/**
+ * What the newest operation of every log of the research sealed of each file (path → sha), as verifyFull orders them:
+ * by their time across all logs. A log only in iCloud is left out (its file is said not downloaded on its own).
+ */
+function sealedByEveryLog(tree: Tree): Map<string, string> {
+  const all: Op[] = [];
+  const ignored: Finding[] = [];
+  for (const file of opsLogs(tree.dataDir)) {
+    if (inCloudOnly(file)) continue;
+    let text: string;
+    try {
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    all.push(...parseOps(text, file, ignored));
+  }
+  all.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const out = new Map<string, string>();
+  for (const op of all) for (const f of op.files ?? []) out.set(f.path, f.sha);
+  return out;
 }
 
 /** Another key of this computer among the findings: one way with what strom repair undoes (oneWay). */

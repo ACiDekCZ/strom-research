@@ -5,6 +5,37 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.33.0
+
+*15.11.2026 · gehört zur Strom-App 3.28.0.*
+
+- **Archive, die nur der Browser eines Menschen betreten darf:** Der Agent versucht dort weder den Downloader von strom
+  noch die Katalogsuche. Ihre Bilder kommen einzeln über den Browser des Agenten (`strom media save`), sobald der
+  Mensch „über den Browser“ erlaubt, sonst speichert der Mensch sie von Hand; Brief und Ablehnungen nennen diesen
+  nächsten Schritt sofort.
+- **Über den Browser gespeicherte Bilder:** Das Buch wird aus dem genommen, worauf die Aufgabe wartet, oder aus der
+  Seite des Archivs; die gespeicherte Datei trägt das Zeichen der Forschung, sodass nie eine Datei einer anderen
+  Forschung aus dem gemeinsamen Download-Ordner genommen wird. Auch Bildbetrachter im eigenen Code einer Seite (OpenSeadragon in React) werden gefunden; ein Betrachter,
+  den strom nicht erreicht, wird mit dem genannt, was der Mensch stattdessen tut.
+- **Suchen und Verlauf:** Eine Suche, die etwas gefunden hat, wird nach ihrer Quelle eingetragen und nennt ohne Quelle
+  die Reihenfolge; eine versehentlich gefundene Quelle wird mit `strom search edit --drop-found` entfernt. `strom history
+  hide|show` prüfen, was sie bekommen, bevor jemand gefragt wird; ein einzelnes Ereignis liest `strom history list
+  --event <id>`.
+- **Schreiben nach eben gekommenen Bildern:** Eine Sitzung, die bei einer Aufgabe begann, deren gespeicherte Bilder
+  eben gekommen waren, wird festgeschrieben; eine Forschung, deren jedes Schreiben danach abgelehnt wurde, schreibt von
+  selbst wieder.
+- **Aus der Strom-App:** Eine Angabe, die in einer anderen Form derselben Art zurückkommt (ein Ereignis vom Typ Census
+  für eine Volkszählung), wird als dieselbe Angabe erkannt – keine Änderung, wenn sich nichts geändert hat, eine
+  Bearbeitung dieser Angabe, wenn sich ihr Datum geändert hat.
+- **Schwache und erwartete Bilder:** Ein schwacher Scan wird mit `strom media save --again` noch einmal als neue Kopie
+  neben der ersten gespeichert, nichts wird entfernt, und die schärfste Kopie ist das Bild; ein Bild, auf das eine Aufgabe
+  wartet, nennt, wer wartet, und den nächsten Schritt; auf einen Download, der noch geschrieben wird, wird gewartet, und
+  `strom fetch --take` nimmt eine Liste von Bildern auch neben einem Seitenplan.
+- **Indizes:** Ein Index einer anderen Pfarrei wird nie über eine Zuständigkeit angeboten, die nicht sagt, welche
+  Pfarrei; die Jahre einer Zuständigkeit zählen.
+- **Befehle, wie Agenten sie tippen:** Ein anderer Name für eine Option oder einen Befehl wird angenommen oder mit dem
+  richtigen beantwortet; `strom grep --in` mit dem Anfang von Dateinamen liest diese Dateien.
+
 ## 1.32.0
 
 *14.11.2026 · gehört zur Strom-App 3.28.0.*

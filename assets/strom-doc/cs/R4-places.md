@@ -201,7 +201,9 @@ Výzkum k tomu přiřadí místa k regionům dějin.
   `strom task next --history`, v rozhovoru sám ne. Místo, které nejde přiřadit, se označí jako nedohledané.
 - **Ovládání:** aplikace: **Dějiny míst**, **Najít dějiny místa a okolí…**, **Přiřadit region**, stavy **Dějiny místa:
   čeká**, **Dějiny místa: hledá se**, **Výzkum místo nedohledal** · terminál: **Nastavení → Samostatná práce agenta →
-  Dějiny**; `strom config set experiments.history on`, `strom history place <L…>`, `strom history map --unlocated`
-- **Platí od:** výzkum 1.22.0
+  Dějiny**; `strom config set experiments.history on`, `strom history place <L…>`,
+  `strom history map "<místo>" --region <id>[:<od>-<do>]` (jednou za každý region, ke kterému místo patřilo) nebo
+  `--unlocated --why "…"`, `strom history list --event <id>` (jedna událost dějin)
+- **Platí od:** výzkum 1.22.0; `history list --event` 1.33.0
 
-<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) -->
+<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) · 1.33.0: research:926375ea history list --event · c50f80f5 history map bez --region (nápověda celého řádku) · strom help history map, history list -->

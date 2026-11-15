@@ -81,12 +81,19 @@ Signatur.
 - **Grenzen:** ab 30 Bildern; eine andere Grenze (oder nie) bestimmt die Antwort des Menschen auf die Frage
   `index.first` (`strom media calibrate --questions`). Im Gespräch sagt strom es nur, in einer Sitzung `strom run`
   lehnt es das Lesen ab, bis der Agent `--no-index` gibt.
+- **Grenzen (welche Pfarrei, seit Forschung 1.33.0):** ein Register gehört zu einem Buch, wenn sie einen Ort teilen
+  oder wenn die Pfarrei des einen ein Ort oder eine Pfarrei des anderen ist. Die Pfarrei eines Ortes zählt nur mit
+  Jahren, die in die Jahre des Buches reichen; eine Pfarrei mit Jahren innerhalb der Jahre des Buches geht Pfarreien
+  ohne Jahre vor. Mehrere Pfarreien ohne Jahre an einem Ort sagen nicht, welche Pfarrei, und passen über die Pfarrei
+  zu nichts (der Ort selbst weiterhin). Ein als `L…` geschriebener Ort nimmt nur seine eigenen Pfarreien, ein als Text
+  geschriebener Ort nur dann, wenn er der einzige Ort dieses Namens in der Forschung ist. So wird ein Register einer
+  anderen Pfarrei nie angeboten.
 - **Warum:** nach einem Kommentar im Code lohnt sich ab etwa 20–40 Bildern das Register mehr als das Durchblättern.
   Ein Fall aus einer echten Forschung: Leser lasen 61 Bilder eines Trauungsbuches, während das Register der Pfarrei
   heruntergeladen bereitlag.
-- **Gilt seit:** Forschung 1.14.0
+- **Gilt seit:** Forschung 1.14.0; Abgleich der Pfarrei 1.33.0
 
-<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst -->
+<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst · 1.33.0: research:a722a101 src/core/indexfirst.ts covers, sameParish (roky farnosti, víc nedatovaných farností nepáruje, L-ID jen vlastní) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub2.md B4 -->
 
 <a id="R8.1.2"></a>
 ### R8.1.2 Eine Lehre zu einem Buch

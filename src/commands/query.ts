@@ -97,7 +97,7 @@ register({
     { name: "source", type: "string", value: "<S…|words>", description: "facts citing this source (its ID, or words of its title)" },
     { name: "status", type: "string", multiple: true, value: "<status>", description: `only facts this sure: ${ASKED_STATUSES.join(", ")} (repeatable); disproven only so` },
     { name: "story", type: "string", multiple: true, value: "<word>", description: "the stories holding this word, a row per story (repeatable: any of them)" },
-    { name: "of", type: "string", value: "<P…>", description: "the person the relations are to (default: the main person, strom config get main.person)" },
+    { name: "of", type: "string", value: "<P…>", description: "the person the relations are to (default: the main person, strom config get main.person)", mistaken: ["person"] },
     { name: "kin", type: "string", value: "<set>", description: `whose facts: ${KIN_SETS.join(", ")} (default blood)` },
     { name: "count", type: "boolean", description: "only the numbers (people, facts); with --by for each group" },
     { name: "by", type: "string", value: "<group>", description: `group by ${FACT_GROUPS.join(", ")} (with --count: numbers only)` },

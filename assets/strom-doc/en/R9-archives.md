@@ -281,23 +281,57 @@ images itself, one at a time: it opens the image in Chrome and saves what the ar
     window). A tab not drawn for 30 s is reported as such ("the browser did not draw the tab with the viewer for 30 s
     …": the tab in front, its window uncovered, then the script again); a viewer that meanwhile pages to another
     image saves nothing;
-  - the command sets the task to waiting for that image. The file is saved into the downloads folder
-    (`strom-T…-<number>.jpg`), and `strom media add --inbox --waiting` moves it into the task's folder under the
-    image's number ([R9.6](#R9.6)).
+  - the command sets the task to waiting for that image. The file is saved into the downloads folder as
+    `strom-<research mark>-T…-<number>.jpg` (e.g. `strom-3f2a9c1b-T0007-0040.jpg`, the image's number in four
+    digits), and `strom media add --inbox --waiting` moves it into the task's folder under the image's number
+    ([R9.6](#R9.6));
+  - the research mark is the first 8 hexadecimal characters of the research's id. All researches on the computer
+    share the downloads folder: a file of another research is never taken. A file saved before research 1.33.0
+    (`strom-T…-<number>.jpg`, without the mark) is taken only by the research whose record of the save names it;
+  - a copy the browser saves late or twice ("… (1).jpg") is removed from the downloads folder by `strom media add
+    --inbox --waiting` once the image is in the research (the record of the save is kept 14 days). Never a file strom
+    did not name;
+  - without `--recordset` the book is the one the task waits for, else one of the task's books on the archive of the
+    `--at` address. Several such books are listed and nothing is saved;
+  - an image viewer that is on the page but strom cannot reach is reported: nothing is saved and the message says what
+    the person does (saves the image in their own browser into the task's folder).
 - **Limits:** Chrome saves only one file from one page. Further downloads from the same page must be allowed by a
   person in Chrome's address bar; the agent never changes Chrome's settings. An image whose file is not in the
   downloads folder even 5 s after the instruction to save it counts as held back for `strom media add --inbox
   --waiting`: it tells the agent, and the task's wait tells the person which website to allow to download several
   files (“the browser held image {n} back: {website} to be allowed to download several files, once (the icon at the
-  right end of the browser's address bar)”).
+  right end of the browser's address bar)”). A download still being written (`.crdownload`, `.part` and the like) is
+  waited for briefly; if it does not finish even then, the command says so and does not count it as held back.
 - **Method only:** a downloader for an archive whose viewer shows images in tiles also saves through the browser,
   even part of an image; it opens the book's page once and never reloads it.
 - **Why:** the permission "through the browser" allows what a person would do in their own browser, at their pace.
 - **Controls:** terminal (agent): `strom media save T… --image <number> --at <address> [--recordset B…]`, then
   `strom media add --inbox --waiting`.
-- **Since:** research 1.27.0. A held-back image is reported since research 1.30.0, a tab not drawn since 1.31.0.
+- **Since:** research 1.27.0. A held-back image is reported since research 1.30.0, a tab not drawn since 1.31.0. The
+  research mark in the file's name, the book without `--recordset`, tidying late copies, waiting for a download being
+  written and an image viewer out of reach since 1.33.0.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 · 1.33.0: research:7306f2a7 src/core/browser.ts researchMark (8 hex z id), waitFileBase (strom-<značka>-T…-NNNN), staré jméno jen podle SaveRecord.file · f6de01b7 src/commands/media.ts saveBookOf (kniha bez --recordset), tidyDownloads, TAKEN_KEEP_MS 14 dní · 903ce928 media add --inbox --waiting (zapisované stahování, STROM_DOWNLOAD_WAIT_MS, heldSaves dl.unfinished) · f5339b36 findViewer (OpenSeadragon v kódu stránky), hláška „strom cannot reach it … nothing saved“ · strom help media save · CHANGELOG.cs.md 1.33.0 -->
+
+<a id="R9.5.1"></a>
+### R9.5.1 A sharper copy of an image
+
+An image already in the research that is too weak to read is saved through the browser once more by the agent: with
+the archive's viewer zoomed in, or at its full resolution.
+
+- **Enforced by the code:**
+  - `strom media save … --again` saves a registered image as a new copy beside the old one; nothing is removed;
+  - the image is the whole copy with the most pixels (width × height). Views, readings and excerpts through
+    `B…:<number>` take it; a citation that already points to a particular copy (`M…`) stays on it;
+  - until the new copy comes, the task keeps waiting for the image. If the same scan comes, nothing is registered
+    twice and the task returns to the queue;
+  - without `--again`, saving a registered image is refused and the message offers `--again`. The brief offers
+    `--again` for weak scans of an archive the agent's browser goes to, instead of a request to the person.
+- **Limits:** only the whole image, not an excerpt of it.
+- **Controls:** terminal (agent): `strom media save T… --image <number> --recordset B… --at <address> --again`.
+- **Since:** research 1.33.0
+
+<!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Waiting for images and the task's return
@@ -315,6 +349,8 @@ research.
   - taking in: at once while the bridge to the Strom app runs (it looks into the folders of waiting tasks, again
     every 30 s); otherwise at the start of the next session; or at once by the command
     `strom media add --inbox --waiting`;
+  - `strom media view B…:<number>` of an image a task waits for says who waits for it (the agent's browser, a
+    downloader's plan in the browser, or the person) and the exact next step (since research 1.33.0);
   - the task returns once all images are there, with a note of what came. With only some of them it goes on waiting,
     and What waits shows how many of how many are saved and which are missing;
   - images from the app go straight to the task: numbered by the image the app gives, otherwise by the file name,
@@ -352,7 +388,7 @@ research.
   part of the images, the answer and images from the app and an archive under one name from research 1.27.0 and app
   3.23.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
 
 <a id="R9.7"></a>
 ## R9.7 An automatic session and a chat

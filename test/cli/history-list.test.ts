@@ -167,6 +167,41 @@ test("history list --place / --region: the events at one place (its record or it
   }
 });
 
+test("history show <event> alone, typed to read it: a usage error with how one event is read, nobody asked first; history list --event (1114 A3)", opts, async () => {
+  const w = await world();
+  try {
+    for (const env of [AGENT, {}]) {
+      for (const argv of [["history", "show", "cz-lhota-0002"], ["history", "hide", "cz-lhota-0002"], ["history", "show", "cz-lhota-0002", "--place", "Lhota", "--tree"]]) {
+        const r = await w.run(argv, { env });
+        assert.equal(r.code, 2, `${argv.join(" ")}: ${r.err}`);
+        assert.match(r.err, /an event with --place, --person or --tree \(one of them\) — or --region alone/);
+        assert.match(r.err, /→ one event read: strom history list --event cz-lhota-0002 \(--json\)/);
+        assert.doesNotMatch(r.err + r.out, /needs the person|Show this again\?|Hide this\?/u, "nobody asked");
+      }
+    }
+    // an event that is not there, a person who is not: said before the person is asked
+    const none = await w.run(["history", "show", "cz-nikde-0001", "--tree"], { env: AGENT });
+    assert.equal(none.code, 2, none.err);
+    assert.match(none.err, /there is no event cz-nikde-0001\n→ strom history list: the events, each with its ID/);
+    assert.equal((await w.run(["history", "hide", "cz-lhota-0002", "--person", "P0099"], { env: AGENT })).code, 2);
+    // given right, it is still the person's
+    assert.equal((await w.run(["history", "show", "cz-lhota-0002", "--tree"], { env: AGENT })).code, 4);
+    // one event read: by its ID, any case; a local one too; an unknown one refused with the way on
+    assert.deepEqual(ids(await list(w, ["--event", "cz-lhota-0002"])), ["cz-lhota-0002"]);
+    const local = await list(w, ["--event", "l0001"]);
+    assert.deepEqual(ids(local), ["L0001"]);
+    assert.equal(local.events[0].text, "Пожар села");
+    assert.match((await w.ok(["history", "list", "--event", "cz-lhota-0002"], { env: AGENT })).out, /Velká válka/);
+    const unknown = await w.run(["history", "list", "--event", "cz-nikde-0001", "--json"]);
+    assert.equal(unknown.code, 2);
+    assert.match(unknown.out + unknown.err, /"history\.event"/);
+    assert.match(unknown.out + unknown.err, /strom history list: the events, each with its ID/);
+    assert.equal(git(w, ["status", "--porcelain"]), "", "nothing written");
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("history list: read only — the history off (what was found stays, said in one line), in an archive too; nothing written", opts, async () => {
   const w = await world();
   try {

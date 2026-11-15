@@ -27,7 +27,8 @@ Before anything can be proven, know where the records are.
    `strom task wait T… --on "…" --kind web --url <the catalogue>`.
 5. Record where you looked, also what gave nothing: `strom search add "<what>"
    --method web|catalog --result found|negative --task T…` — the next session
-   must not search the same catalogues again.
+   must not search the same catalogues again. Found: the source first, in this
+   order — `strom source add …` → `strom search add … --result found --found <S…>`.
 6. Done when a record set with access (URL or call number) exists and the next
    `link` task points at it: `strom task edit T… --where B…` for a task that
    was written before the book was known, `strom task add … --where B…` for a

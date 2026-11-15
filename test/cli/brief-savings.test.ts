@@ -224,7 +224,7 @@ test("brief: the commands of the task's level, every option and limit from the r
   assert.match(sheet, /^ {2}values with spaces in quotes \(--note "two words"\); a repeatable option once per value \(--found S0001 --found S0002\); a batch file in notes\/: change it with your file-editing tool, not sed$/m);
   // a status: a fact's only, proven only with primary information (N0190, N0191)
   assert.match(sheet, /^ {2}--status is a fact's \(E…\) only, never a name's or a family's; proven only with a record of the time read directly \(--information primary\), else probable$/m);
-  assert.match(sheet, /--note <text ≤500> — found: the source first \(in a batch source add … #s, then --found @s\)$/m);
+  assert.match(sheet, /--note <text ≤500> — found: in this order — strom source add … → strom search add … --result found --found <S…> \(in a batch source add … #s, then --found @s\)$/m);
   // every line names a command and only its options
   for (const line of sheet.split("\n").slice(1).filter((l) => l.trim().startsWith("strom "))) {
     const words = line.trim().split(" ");

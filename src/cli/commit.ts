@@ -35,7 +35,8 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
     // Incremental gate: records were validated when written; here only what
     // changed since the last commit is checked, so the cost stays flat.
     const snap = snapshot(tree);
-    const findings = [...verifyFast(tree, snap).findings, ...guard(tree, snap)];
+    const fast = verifyFast(tree, snap);
+    const findings = [...fast.findings, ...guard(tree, snap)];
     if (hasErrors(findings)) {
       const errors = findings.filter((f) => f.level === "error");
       return {
@@ -56,6 +57,11 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
     // what an interrupted write left in git's index (core/integrity.ts leftoverOf): its paths with the commit's own, so
     // the commit takes the folder as it is there — never a record or log of nobody's into the history
     for (const f of snap.leftovers) written.add(f);
+    // files an earlier commit left behind although the operation that wrote them is in the history (verifyFast
+    // sealedBefore): taken now, so the research is whole in git again
+    for (const f of fast.sealedBefore ?? []) written.add(f);
+    // and a write whose commit never came (its log untouched for long, its process gone): its log and files with it
+    for (const f of fast.leftBehind ?? []) written.add(f);
     // an archive: no agent edits its free-form folders — a person's own file in notes/ is theirs, never swept into a
     // commit of something else (found on Windows: strom mode committed a file of the user's) — nor by the switch itself
     const free = isArchive(tree) || def.path[0] === "mode" ? ["inputs", "output"] : ["notes", "tools", "inputs", "output"];

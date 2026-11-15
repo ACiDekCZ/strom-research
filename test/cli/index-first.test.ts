@@ -15,7 +15,7 @@ import { blank } from "../../src/image/image.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { startSession } from "../../src/core/session.ts";
 import { buildBrief } from "../../src/brief/brief.ts";
-import { INDEX_FIRST_DEFAULT, indexFirst, indexFirstFrom, questionNames } from "../../src/core/indexfirst.ts";
+import { INDEX_FIRST_DEFAULT, indexBooksOf, indexFirst, indexFirstFrom, questionNames } from "../../src/core/indexfirst.ts";
 import type { RecordSet, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
@@ -116,6 +116,56 @@ test("index first: from 30 images without the person's answer, never when the pe
     // the index's own book, another kind of record: no index of it
     assert.equal(indexFirst(tree, tree.get<RecordSet>("B0001")!, 300, { from: 1 }).length, 0);
     assert.deepEqual(questionNames("Křest IVANA Петрова, syn Jana NFD: Šaniel".normalize("NFD")), ["ivana", "петрова", "jana", "nfd", "saniel"]);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the index of another parish is never offered through a parish that does not say which: several undated, years outside the book's, another place of one name; a place or the one parish of its years still matches (any script, NFD)", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree();
+    const nfd = (s: string) => s.normalize("NFD");
+    const place = async (name: string, ...jurisdictions: string[][]) => {
+      const id = (await w.ok(["place", "add", name, "--json"])).json.place.id as string;
+      for (const j of jurisdictions) await w.ok(["place", "jurisdiction", id, "--kind", "parish", "--name", j[0]!, ...(j.slice(1))]);
+      return id;
+    };
+    // two places, each with its parish and a vicariate written as a parish beside it (no years: which one is not said)
+    const lhota = await place("Lhota", ["Lhota"], ["Vikariát Horní Újezd"]); // L0001
+    const lhotka = await place("Lhotka", ["Lhotka"], [nfd("Vikariát Horní Újezd")]); // L0002
+    // a parish until 1849, another from 1850
+    const lesa = await place("Lhota u Lesa", ["Lhota u Lesa", "--to", "1849"], ["Hora", "--from", "1850"]); // L0003
+    // two places of one name, of two parishes
+    const lhotice = await place("Lhotice", ["Lhotice"]); // L0004
+    await place("Lhotice", ["Hora"]); // L0005
+    // one undated parish: it says which
+    await place(nfd("Malá Lhota"), [nfd("Velká Lhota")]); // L0006
+    // in another script: two places of one vicariate written as a parish, beside their parish
+    const luga = await place("Луга", ["Луга"], ["Благочиние Гора"]); // L0007
+    await place("Лужки", ["Лужки"], [nfd("Благочиние Гора")]); // L0008
+    const book = async (title: string, kinds: string, places: string, years: string) =>
+      (await w.ok(["recordset", "add", title, "--kinds", kinds, "--places", places, "--years", years, "--json"])).json.recordset.id as string;
+    const lhotkaIndex = await book("Index Lhotka 1790–1870", "index", "Lhotka", "1790-1870");
+    const horaIndex = await book("Rejstřík Hora 1790–1870", "index", "Hora", "1790-1870");
+    const velkaIndex = await book("Index Velká Lhota 1790–1870", "index", nfd("Velká Lhota"), "1790-1870");
+    const luzkiIndex = await book("Указатель Лужки 1790–1870", "index", "Лужки", "1790-1870");
+    const indexes = (id: string) => indexBooksOf(Tree.open(w.cwd, w.env), Tree.open(w.cwd, w.env).get<RecordSet>(id)!).map((x) => x.set.id);
+    // a vicariate written as a parish at two places: no index of the other place
+    assert.deepEqual(indexes(await book("Lhota O 1800–1830", "marriage", lhota, "1800-1830")), []);
+    assert.deepEqual(indexes(await book("Луга 1800–1830", "marriage", luga, "1800-1830")), []);
+    // the place itself: its index
+    assert.deepEqual(indexes(await book("Lhotka O 1800–1830", "marriage", lhotka, "1800-1830")), [lhotkaIndex]);
+    // a parish of other years: not its index; of the book's years: its index (by the place's ID or its one name)
+    assert.deepEqual(indexes(await book("Lhota u Lesa N 1800–1840", "baptism", "Lhota u Lesa", "1800-1840")), []);
+    assert.deepEqual(indexes(await book("Lhota u Lesa N 1855–1869", "baptism", lesa, "1855-1869")), [horaIndex]);
+    assert.deepEqual(indexes(await book("Lhota u Lesa N 1855–1869 b", "baptism", nfd("Lhota u Lesa"), "1855-1869")), [horaIndex]);
+    // two places of one name: an ID says its own parish; the name alone says none
+    assert.deepEqual(indexes(await book("Lhotice Z 1800–1830", "burial", lhotice, "1800-1830")), []);
+    assert.deepEqual(indexes(await book("Lhotice Z 1800–1830 b", "burial", "Lhotice", "1800-1830")), []);
+    // one undated parish of the place (decomposed input on both sides): its index
+    assert.deepEqual(indexes(await book("Malá Lhota Z 1800–1830", "burial", "Malá Lhota", "1800-1830")), [velkaIndex]);
+    assert.ok(luzkiIndex);
   } finally {
     w.cleanup();
   }

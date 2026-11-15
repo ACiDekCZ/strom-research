@@ -22,7 +22,10 @@ conclusion so the next researcher can follow it.
   what would decide it.
 - **Negative results are results.** Every search is recorded (`strom search add
   … --result negative`), with exactly what was covered. The most expensive
-  mistake is to search the same book twice.
+  mistake is to search the same book twice. A search that found something is
+  recorded after its source, in this order: `strom source add …` →
+  `strom search add … --result found --found <S…>` (in a batch the source line
+  ends `#s`, the search takes `--found @s`).
 <!-- end -->
 - **Check the premise first.** Before opening anything, read the brief's
   *Already known* — the searches of the task's books, people and surnames;

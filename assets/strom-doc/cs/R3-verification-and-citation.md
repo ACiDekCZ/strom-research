@@ -297,7 +297,12 @@ Marné hledání je výsledek. Každé hledání se zapíše, i bez nálezu, s t
 prohledat stejnou knihu dvakrát.
 
 - **Hranice (hlídá kód):**
-  - `--result found|negative|partial|inconclusive`; `found` potřebuje `--found S…` (pramen se zapíše první);
+  - `--result found|negative|partial|inconclusive`; `found` potřebuje `--found S…`: pramen se zapíše první
+    (`strom source add`). Bez `--found` kód hledání odmítne a řekne toto pořadí s přesným dalším příkazem (od výzkumu
+    1.33.0);
+  - pramen připojený k hledání omylem odebere `strom search edit Q… --drop-found S… --reason "…"` (i víc pramenů),
+    `--no-found` odebere všechny. Hledání `found`, kterému nezbude žádný pramen, musí říct, čím je teď
+    (`--result negative|partial|inconclusive`), jinak se úprava odmítne (od výzkumu 1.33.0);
   - `negative` kód odmítne, dokud v prohledaném rozsahu zůstává místo, které čtenář nahlásil jako nejasné, a nikdo
     se na ně od té doby nepodíval v plné velikosti, na správné straně dvoustrany. Počítají se čtení od prvního
     sezení úkolu (jinak posledních 24 hodin). Pak zbývá `--result inconclusive` s místem v `--note`, nebo
@@ -308,10 +313,12 @@ prohledat stejnou knihu dvakrát.
 - **Jen metodika:** negativ až po pohledu na strany v plné velikosti. Chybějící strany knihy nejsou prohledané
   (`--pages 40-52,55-69`). Po `--until-found` jen přečtené snímky, jako `--result partial`.
 - **Ovládání:** terminál: `strom search add "…" --recordset B… --years … --surname … --pages … --method
-  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`.
-- **Platí od:** výzkum 1.0.0; odmítnutí nad nejasným místem a „jen v rejstříku“ 1.14.0
+  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`
+  (`--by agent` je totéž co `main`); oprava `strom search edit Q… --drop-found S…|--no-found --reason "…"`.
+- **Platí od:** výzkum 1.0.0; odmítnutí nad nejasným místem a „jen v rejstříku“ 1.14.0; pořadí s pramenem,
+  `search edit --drop-found|--no-found` a `--by agent` 1.33.0
 
-<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 -->
+<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 · 1.33.0: research:7bdba196 search add (search.found.first), search edit --drop-found/--no-found (search.found.none|empty|not|which), strom help search edit · c50f80f5 --by agent (= main) · CHANGELOG.cs.md 1.33.0 -->
 
 <a id="R3.7"></a>
 ## R3.7 Kdy se agent ptá člověka

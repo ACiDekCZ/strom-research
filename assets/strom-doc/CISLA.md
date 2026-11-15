@@ -151,6 +151,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R9.4.2 | R9-archives.md | výzkum 1.27.0 | koncept | Vestavěné prohlížeče a ovládání počítače: nedoporučené | Built-in browsers and computer use: not recommended | Eingebaute Browser und Computersteuerung: nicht empfohlen | Wbudowane przeglądarki i sterowanie komputerem: niepolecane |
 | R9.4.3 | R9-archives.md | výzkum 1.27.0 | koncept | Stav prohlížeče ve strom doctor a v aplikaci | The browser's state in strom doctor and the app | Zustand des Browsers in strom doctor und in der App | Stan przeglądarki w strom doctor i w aplikacji |
 | R9.5 | R9-archives.md | výzkum 1.27.0 | koncept | Snímek přes prohlížeč agenta | An image through the agent's browser | Ein Bild über den Browser des Agenten | Skan przez przeglądarkę agenta |
+| R9.5.1 | R9-archives.md | výzkum 1.33.0 | koncept | Ostřejší kopie snímku | A sharper copy of an image | Eine schärfere Kopie eines Bildes | Ostrzejsza kopia skanu |
 | R9.6 | R9-archives.md | výzkum 1.0.0 | koncept | Čekání na snímky a návrat úkolu | Waiting for images and the task's return | Warten auf Bilder und Rückkehr der Aufgabe | Oczekiwanie na skany i powrót zadania |
 | R9.7 | R9-archives.md | výzkum 1.14.0 | koncept | Automatické sezení a chat | An automatic session and a chat | Automatische Sitzung und Chat | Sesja automatyczna i czat |
 | R9.8 | R9-archives.md | výzkum 1.27.0 | koncept | Co se stane s úkolem: tabulka | What happens to a task: a table | Was mit einer Aufgabe geschieht: eine Tabelle | Co dzieje się z zadaniem: tabela |

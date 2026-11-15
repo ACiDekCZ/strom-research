@@ -5,6 +5,34 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.33.0
+
+*15.11.2026 · współpracuje z aplikacją Strom 3.28.0.*
+
+- **Archiwa, do których wolno wejść tylko przeglądarką człowieka:** agent nie próbuje już tam pobierania przez strom ani
+  wyszukiwania w katalogu. Ich skany idą pojedynczo przez przeglądarkę agenta (`strom media save`), gdy człowiek zezwoli
+  „przez przeglądarkę”, w przeciwnym razie człowiek zapisuje je ręcznie; brief i odmowy od razu podają ten następny krok.
+- **Skany zapisywane przez przeglądarkę:** księga jest brana z tego, na co czeka zadanie, albo ze strony archiwum;
+  zapisany plik nosi znak badania, więc nigdy nie zostanie wzięty plik innego badania ze wspólnego folderu pobranych
+  plików. Znajdowane są też przeglądarki skanów wbudowane w kod
+  strony (OpenSeadragon w React); przeglądarka, do której strom nie sięga, jest zgłaszana razem z tym, co zamiast tego
+  robi człowiek.
+- **Wyszukiwania i historia:** wyszukiwanie, które coś znalazło, zapisuje się po swoim źródle, a bez źródła podaje
+  kolejność; źródło znalezione omyłkowo usuwa `strom search edit --drop-found`. `strom history hide|show` sprawdzają,
+  co dostały, zanim o cokolwiek zapytają; jedno zdarzenie czyta `strom history list --event <id>`.
+- **Zapisy po skanach, które właśnie przyszły:** sesja rozpoczęta przy zadaniu, którego zapisane skany właśnie
+  przyszły, zostaje zapisana; badanie, którego każdy zapis był potem odrzucany, znowu zapisuje samo.
+- **Z aplikacji Strom:** fakt odesłany w innej postaci tego samego rodzaju (zdarzenie typu Census zamiast spisu) jest
+  rozpoznawany jako ten sam fakt – bez zmiany, gdy nic się nie zmieniło, jako edycja tego faktu, gdy zmieniła się data.
+- **Słabe i oczekiwane skany:** słaby skan zapisuje się jeszcze raz przez `strom media save --again` jako nową kopię obok
+  pierwszej, nic nie jest usuwane, a skanem jest najostrzejsza kopia; skan, na który czeka zadanie, podaje, kto czeka,
+  i następny krok; na pobieranie, które jeszcze się zapisuje, strom czeka, a `strom fetch --take` bierze listę skanów
+  także obok planu stron.
+- **Indeksy:** indeks innej parafii nigdy nie jest proponowany przez przynależność, która nie mówi, o którą parafię
+  chodzi; liczą się lata przynależności.
+- **Polecenia tak, jak wpisują je agenci:** inna nazwa opcji lub polecenia zostaje przyjęta albo strom odpowiada właściwą;
+  `strom grep --in` z początkiem nazw plików czyta te pliki.
+
 ## 1.32.0
 
 *14.11.2026 · współpracuje z aplikacją Strom 3.28.0.*

@@ -5,6 +5,31 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.33.0
+
+*15. 11. 2026 · patří k aplikaci Strom 3.28.0.*
+
+- **Archivy, kam smí jen prohlížeč člověka:** agent tam už nezkouší stahovač stromu ani hledání v katalogu. Jejich
+  snímky jdou po jednom přes prohlížeč agenta (`strom media save`), jakmile to člověk povolí „přes prohlížeč“, jinak je
+  člověk uloží ručně; brief i odmítnutí hned říkají tento další krok.
+- **Snímky ukládané přes prohlížeč:** kniha se vezme z toho, na co úkol čeká, nebo ze stránky archivu; uložený soubor
+  nese značku výzkumu, takže se nikdy nevezme soubor jiného výzkumu ze sdílené složky stažených souborů. Najdou se i prohlížeče snímků vestavěné do kódu stránky (OpenSeadragon
+  uvnitř Reactu); prohlížeč, ke kterému strom nedosáhne, je ohlášen spolu s tím, co místo toho udělá člověk.
+- **Hledání a historie:** hledání, které něco našlo, se zapisuje až po svém zdroji a bez zdroje řekne pořadí; zdroj
+  nalezený omylem se odebere přes `strom search edit --drop-found`. `strom history hide|show` zkontrolují, co dostaly,
+  dřív než se na cokoli zeptají; jedna událost se čte přes `strom history list --event <id>`.
+- **Zápisy po snímcích, které právě přišly:** sezení začaté na úkolu, jehož uložené snímky právě přišly, se zapíše;
+  výzkum, jehož každý zápis byl potom odmítnut, zapisuje znovu sám od sebe.
+- **Z aplikace Strom:** údaj poslaný zpět v jiném tvaru téhož druhu (událost typu Census místo sčítání) se pozná jako
+  tentýž údaj – beze změny, když se nic nezměnilo, úprava toho údaje, když se změnilo datum.
+- **Slabé a očekávané snímky:** slabý snímek se uloží ještě jednou přes `strom media save --again` jako nová kopie vedle
+  první, nic se neodebere a snímkem je ta nejostřejší; snímek, na který čeká úkol, řekne, kdo na něj čeká a další krok;
+  stahování, které se ještě zapisuje, se počká, a `strom fetch --take` vezme seznam snímků i vedle plánu stránek.
+- **Indexy:** index jiné farnosti se nikdy nenabídne přes příslušnost, která neříká kterou farnost; počítají se roky
+  příslušnosti.
+- **Příkazy, jak je agenti píší:** jiný název volby nebo příkazu se přijme, nebo se odpoví tím správným;
+  `strom grep --in` se začátkem názvů souborů čte tyto soubory.
+
 ## 1.32.0
 
 *14. 11. 2026 · patří k aplikaci Strom 3.28.0.*

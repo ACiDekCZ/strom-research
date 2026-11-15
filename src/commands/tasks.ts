@@ -749,14 +749,19 @@ register(
     tree: true,
     options: [
       { name: "state", type: "string", value: "<state>", description: "open (default queue), doing, done, parked, waiting, dropped, all" },
+      { name: "all", type: "boolean", description: "every task, whatever its state (the same as --state all)" },
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
       { name: "about", type: "string", value: "<who>", description: "only tasks about this person/record (also X…, H…)" },
       { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
-    run(ctx, { opts }) {
+    run(ctx, input) {
       const tree = ctx.tree();
+      if (input.opts.all && input.opts.state !== undefined && input.opts.state !== "all")
+        throw new UsageError(`--all is every state, --state ${String(input.opts.state)} one of them — not both`, { hint: `strom task list --state ${String(input.opts.state)}` });
+      // --all: what --state all lists
+      const opts = input.opts.all ? { ...input.opts, state: "all" } : input.opts;
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
       let all: Task[];
       const why = new Map<string, string>();
@@ -966,6 +971,8 @@ register(
       { name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for (the user's alone; at most 4000 characters)" },
       { name: "expect", type: "string", value: "<at>", description: "only if the task is still as it was then (its updated time): else refused, task.changed (the bridge's answer from the app)" },
       { name: "check", type: "string", value: "works|view|no", description: "the user's answer to a check of a site: works, view (only to be viewed there), no (the user's alone)" },
+      // what agents type for --reason here (the write option every writing command has): taken as it
+      { name: "note", type: "string", value: "<text>", description: "the same as --reason: why it comes back", hidden: true },
     ],
     examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"', 'strom task wake T0004 --check view --answer "the book is there, its images only in the viewer"'],
     run(ctx, { args, opts }) {
@@ -1035,7 +1042,9 @@ register(
                 ...(fromApp ? { givenIn: "app" as const } : {}),
               }
             : undefined;
-        return stateChange(tree, id, "open", said ? { answers: [...(before.answers ?? []), said] } : {}, undefined, "wake");
+        // why it comes back (--reason, or --note as agents type it): kept with the change in the history
+        const why = [opts.reason, opts.note].find((v): v is string => typeof v === "string" && !!v.trim());
+        return stateChange(tree, id, "open", said ? { answers: [...(before.answers ?? []), said] } : {}, why?.trim(), "wake");
       });
       return { text: written(tree), data: { task: t } };
     },

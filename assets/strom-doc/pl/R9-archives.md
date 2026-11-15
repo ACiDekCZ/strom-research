@@ -283,23 +283,56 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
     Karta nierysowana przez 30 s zostaje zgłoszona jako taka („the browser did not draw the tab with the viewer for
     30 s …”: karta na wierzch, okno odkryte, potem skrypt jeszcze raz); przeglądarka archiwum, która w tym czasie
     przejdzie na inny skan, nie zapisuje nic;
-  - polecenie ustawia zadanie na oczekiwanie na ten skan. Plik zapisuje się do folderu pobranych plików
-    (`strom-T…-<číslo>.jpg`), a `strom media add --inbox --waiting` przenosi go do folderu zadania pod numerem skanu
-    ([R9.6](#R9.6)).
+  - polecenie ustawia zadanie na oczekiwanie na ten skan. Plik zapisuje się do folderu pobranych plików jako
+    `strom-<znacznik badania>-T…-<numer>.jpg` (np. `strom-3f2a9c1b-T0007-0040.jpg`, numer skanu czterocyfrowo), a
+    `strom media add --inbox --waiting` przenosi go do folderu zadania pod numerem skanu ([R9.6](#R9.6));
+  - znacznik badania to pierwsze 8 znaków szesnastkowych jego id. Folder pobranych plików dzielą wszystkie badania
+    komputera: plik innego badania nigdy nie zostaje wzięty. Plik zapisany przed badaniem 1.33.0
+    (`strom-T…-<numer>.jpg`, bez znacznika) przejmuje tylko badanie, którego zapis o zapisaniu podaje tę nazwę;
+  - kopię, którą przeglądarka zapisze późno lub dwa razy („… (1).jpg”), `strom media add --inbox --waiting` usuwa z
+    folderu pobranych plików, gdy skan jest już w badaniu (zapis o zapisaniu trzyma się 14 dni). Nigdy pliku, któremu
+    strom nie nadał nazwy;
+  - bez `--recordset` księga jest ta, na którą czeka zadanie, w przeciwnym razie jedna z ksiąg zadania w archiwum
+    adresu `--at`. Kilka takich ksiąg strom wymienia i nic nie zapisuje;
+  - przeglądarka skanów, która jest na stronie, ale strom do niej nie sięga, zostaje zgłoszona: nic się nie zapisuje,
+    a komunikat mówi, co zrobi człowiek (zapisze skan w swojej przeglądarce do folderu zadania).
 - **Granice:** Chrome zapisuje z jednej strony tylko jeden plik. Na kolejne pobrania z tej samej strony musi zezwolić
   człowiek w pasku adresu Chrome; agent nigdy nie zmienia ustawień Chrome. Skan, którego pliku nie ma w folderze
   pobranych plików nawet 5 s po poleceniu zapisu, `strom media add --inbox --waiting` uznaje za wstrzymany: mówi to
   agentowi, a oczekiwanie zadania mówi człowiekowi, której witrynie zezwolić na pobieranie wielu plików („przeglądarka
   wstrzymała skan {n}: zezwolić witrynie {witryna} na pobieranie wielu plików, jednorazowo (ikona po prawej stronie
-  paska adresu przeglądarki)”).
+  paska adresu przeglądarki)”). Na pobieranie, które jeszcze się zapisuje (`.crdownload`, `.part` i podobne),
+  polecenie krótko czeka; gdy i wtedy się nie skończy, mówi to i nie uznaje go za wstrzymane.
 - **Tylko metodyka:** program pobierający archiwum, którego przeglądarka pokazuje skany kafelkami, także zapisuje
   przez przeglądarkę, nawet część skanu; stronę księgi otwiera raz i nigdy jej nie odświeża.
 - **Dlaczego:** zgoda „przez przeglądarkę” pozwala na to, co zrobiłby człowiek w swojej przeglądarce, w jego tempie.
-- **Obsługa:** terminal (agent): `strom media save T… --image <číslo> --at <adresa> [--recordset B…]`, potem
+- **Obsługa:** terminal (agent): `strom media save T… --image <numer> --at <adres> [--recordset B…]`, potem
   `strom media add --inbox --waiting`.
 - **Obowiązuje od:** badanie 1.27.0. Wstrzymany skan jest zgłaszany od badania 1.30.0, nierysowana karta od 1.31.0.
+  Znacznik badania w nazwie pliku, księga bez `--recordset`, sprzątanie późnych kopii, czekanie na zapisywane
+  pobieranie i nieosiągalna przeglądarka skanów od 1.33.0.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser, Downloads strom-T…-n.jpg) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 · 1.33.0: research:7306f2a7 src/core/browser.ts researchMark (8 hex z id), waitFileBase (strom-<značka>-T…-NNNN), staré jméno jen podle SaveRecord.file · f6de01b7 src/commands/media.ts saveBookOf (kniha bez --recordset), tidyDownloads, TAKEN_KEEP_MS 14 dní · 903ce928 media add --inbox --waiting (zapisované stahování, STROM_DOWNLOAD_WAIT_MS, heldSaves dl.unfinished) · f5339b36 findViewer (OpenSeadragon v kódu stránky), hláška „strom cannot reach it … nothing saved“ · strom help media save · CHANGELOG.cs.md 1.33.0 -->
+
+<a id="R9.5.1"></a>
+### R9.5.1 Ostrzejsza kopia skanu
+
+Skan, który jest już w badaniu, a do czytania jest za słaby, agent zapisuje przez przeglądarkę jeszcze raz: z
+przeglądarką archiwum przybliżoną albo w pełnej rozdzielczości.
+
+- **Pilnuje kod:**
+  - `strom media save … --again` zapisuje zarejestrowany skan jako nową kopię obok starej; nic się nie usuwa;
+  - obrazem skanu jest cała kopia z największą liczbą pikseli (szerokość × wysokość). Widok, czytanie i wycinki przez
+    `B…:<numer>` biorą ją; cytat, który już wskazuje na konkretną kopię (`M…`), przy niej zostaje;
+  - dopóki nowa kopia nie przyjdzie, zadanie dalej czeka na skan. Jeśli przyjdzie ten sam skan, nic nie rejestruje się
+    dwa razy, a zadanie wraca do kolejki;
+  - bez `--again` zapisanie zarejestrowanego skanu zostaje odrzucone, a komunikat proponuje `--again`. Brief przy
+    słabych skanach archiwum, do którego chodzi przeglądarka agenta, proponuje `--again` zamiast prośby do człowieka.
+- **Granice:** tylko cały skan, nie jego wycinek.
+- **Obsługa:** terminal (agent): `strom media save T… --image <numer> --recordset B… --at <adres> --again`.
+- **Obowiązuje od:** badanie 1.33.0
+
+<!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
 
 <a id="R9.6"></a>
 ## R9.6 Oczekiwanie na skany i powrót zadania
@@ -315,6 +348,8 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
   - plik zostaje przejęty, gdy przez 3 s się nie zmienia (duży skan nigdy nie zostanie przejęty w połowie);
   - przejęcie: od razu, gdy działa most do aplikacji Strom (zagląda do folderów czekających zadań, ponownie co
     30 s); w przeciwnym razie przy starcie kolejnej sesji; albo od razu poleceniem `strom media add --inbox --waiting`;
+  - `strom media view B…:<numer>` skanu, na który czeka zadanie, mówi, kto na niego czeka (przeglądarka agenta, plan
+    programu pobierającego w przeglądarce albo człowiek) i dokładny następny krok (od badania 1.33.0);
   - zadanie wraca, gdy są tam wszystkie skany, z notatką, co przyszło. Przy części czeka dalej, a Co czeka pokazuje,
     ile zapisano z ilu i których brakuje;
   - skany z aplikacji idą prosto do zadania: ponumerowane według skanu, który poda aplikacja, w przeciwnym razie
@@ -351,7 +386,7 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
 - **Obowiązuje od:** badanie 1.0.0 (folder w `inbox/`), budzenie po zapisaniu od 1.15.0. Przejęcie bez polecenia,
   części skanów, odpowiedź i skany z aplikacji oraz archiwum pod jedną nazwą od badania 1.27.0 i aplikacji 3.23.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
 
 <a id="R9.7"></a>
 ## R9.7 Sesja automatyczna i czat
