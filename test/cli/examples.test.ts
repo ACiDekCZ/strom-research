@@ -169,6 +169,8 @@ async function seeded(): Promise<World> {
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
   await w.ok(["cite", "E0001", baptism]);
+  // Jan's birth cited by the baptism register too (strom event main)
+  await w.ok(["cite", "E0001", "S0001", "--locator", "fol. 12"]);
   return w;
 }
 
@@ -188,7 +190,7 @@ test("every example in the help runs", opts, async () => {
       // --with-data): in their terminal — this test's own settings (R8)
       const withData = def.path.join(" ") === "error" && argv.includes("--with-data");
       const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" || withData ||
-        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event revert", "person revert"].includes(def.path.join(" "));
+        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event main", "event revert", "person revert"].includes(def.path.join(" "));
       // putting back a family tree's value (the person's): this world imported none — its answer that nothing is to put back
       // a reading again asked about at the person's terminal (no --take): left undecided (0)
       // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it

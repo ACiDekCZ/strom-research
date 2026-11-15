@@ -318,7 +318,13 @@ Daremne wyszukiwanie to wynik. Każde wyszukiwanie się zapisuje, także bez zna
 objęło. Najdroższy błąd to przeszukać tę samą księgę dwa razy.
 
 - **Granice (pilnuje kod):**
-  - `--result found|negative|partial|inconclusive`; `found` wymaga `--found S…` (źródło zapisuje się najpierw);
+  - `--result found|negative|partial|inconclusive`; `found` wymaga `--found S…`: źródło zapisuje się najpierw
+    (`strom source add`). Bez `--found` kod odrzuca wyszukiwanie i podaje tę kolejność z dokładnym następnym
+    poleceniem (od badania 1.33.0);
+  - źródło dołączone do wyszukiwania omyłkowo usuwa `strom search edit Q… --drop-found S… --reason "…"` (także kilka
+    źródeł), `--no-found` usuwa wszystkie. Wyszukiwanie `found`, któremu nie zostanie żadne źródło, musi powiedzieć,
+    czym jest teraz (`--result negative|partial|inconclusive`), w przeciwnym razie zmiana zostaje odrzucona (od
+    badania 1.33.0);
   - `negative` kod odrzuca, dopóki w przeszukanym zakresie zostaje miejsce, które czytelnik zgłosił jako niejasne,
     a nikt od tego czasu nie obejrzał go w pełnym rozmiarze, na właściwej stronie rozkładówki. Liczą się odczyty od
     pierwszej sesji zadania (w przeciwnym razie z ostatnich 24 godzin). Wtedy zostaje `--result inconclusive`
@@ -329,10 +335,12 @@ objęło. Najdroższy błąd to przeszukać tę samą księgę dwa razy.
 - **Tylko metodyka:** wynik negatywny dopiero po obejrzeniu stron w pełnym rozmiarze. Brakujące strony księgi nie są
   przeszukane (`--pages 40-52,55-69`). Po `--until-found` tylko odczytane skany, jako `--result partial`.
 - **Obsługa:** terminal: `strom search add "…" --recordset B… --years … --surname … --pages … --method
-  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`.
-- **Obowiązuje od:** badanie 1.0.0; odrzucenie przy niejasnym miejscu i „tylko w indeksie” 1.14.0
+  index|page-by-page|full-text|catalog|web|request|other --result negative --by main|reader|user --note "…"`
+  (`--by agent` to to samo co `main`); poprawka `strom search edit Q… --drop-found S…|--no-found --reason "…"`.
+- **Obowiązuje od:** badanie 1.0.0; odrzucenie przy niejasnym miejscu i „tylko w indeksie” 1.14.0; kolejność ze
+  źródłem, `search edit --drop-found|--no-found` i `--by agent` 1.33.0
 
-<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 -->
+<!-- zdroj: research:assets/method/core.md:22-25 · reading.md:22-30, :70-84 · src/commands/analysis.ts:208-268 · src/core/model.ts:484-485 · src/commands/readings.ts:347-380 openUnclear, :414 refuseNegativeOverUnclear · src/core/evidence.ts:21 searchedAs · src/commands/tasks.ts:348-351 · 1.33.0: research:7bdba196 search add (search.found.first), search edit --drop-found/--no-found (search.found.none|empty|not|which), strom help search edit · c50f80f5 --by agent (= main) · CHANGELOG.cs.md 1.33.0 -->
 
 <a id="R3.7"></a>
 ## R3.7 Kiedy agent pyta człowieka

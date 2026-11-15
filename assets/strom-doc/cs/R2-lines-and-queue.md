@@ -87,14 +87,15 @@ Otevřené úkoly všech běžících linií tvoří jednu frontu. Agent vždy b
   9. druh úkolu: podklady → kde jsou záznamy → doložení vazby → ověření → obohacení osoby → žádost do archivu →
      vyprávění;
   10. stáří úkolu.
-- **Ovládání:** terminál: `strom task list`, `strom task next`. Aplikace: oddíl **Fronta**.
+- **Ovládání:** terminál: `strom task list` (`--all`: všechny úkoly v každém stavu, od výzkumu 1.33.0),
+  `strom task next`. Aplikace: oddíl **Fronta**.
 - **Platí od:** výzkum 1.0.0 (klíče 1, 7–10). Klíč 6 od 1.1.0, propojení hypotéz od 1.17.0, klíč 3 od 1.22.0,
   klíč 4 a místa na žádost od 1.25.0. Klíč 2 od 1.26.0.
 - **Od výzkumu 1.32.0:** most hledá v celé frontě (číslo úkolu nebo osoby, jména osob, slova úkolu, jeho kniha,
   signatura, archiv a místo, bez ohledu na diakritiku) a hledaný text se nikam neukládá, ani do záznamu mostu.
   V aplikaci: pole hledání ve **Frontě** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 -->
+<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategie fronty

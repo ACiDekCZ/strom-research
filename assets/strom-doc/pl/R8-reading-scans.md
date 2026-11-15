@@ -76,12 +76,18 @@ miejsca w danym czasie, archiwum i konkretną księgę (zbiór aktów) z dostęp
 - **Granice:** od 30 skanów; inną granicę (albo nigdy) wyznacza odpowiedź człowieka na pytanie `index.first`
   (`strom media calibrate --questions`). W rozmowie strom tylko o tym mówi, w sesji `strom run` odczyt odrzuca, dopóki
   agent nie poda `--no-index`.
+- **Granice (która parafia, od badania 1.33.0):** indeks należy do księgi, gdy mają wspólne miejsce albo gdy parafia
+  jednego jest miejscem lub parafią drugiego. Parafia miejsca liczy się tylko z latami, które sięgają w lata księgi;
+  parafia z latami w latach księgi ma pierwszeństwo przed parafiami bez lat. Kilka parafii bez lat przy jednym
+  miejscu nie mówi, która parafia, i przez parafię nie pasuje do niczego (samo miejsce nadal tak). Miejsce zapisane
+  jako `L…` bierze tylko swoje własne parafie, miejsce zapisane tekstem tylko wtedy, gdy jest jedynym miejscem tej
+  nazwy w badaniu. Indeks innej parafii nie zostaje więc nigdy zaproponowany.
 - **Dlaczego:** według komentarza w kodzie od mniej więcej 20–40 skanów indeks opłaca się bardziej niż przeglądanie.
   Przypadek z rzeczywistego badania: czytelnicy odczytali 61 skanów księgi ślubów, podczas gdy indeks parafii leżał już
   pobrany.
-- **Obowiązuje od:** badanie 1.14.0
+- **Obowiązuje od:** badanie 1.14.0; dopasowanie parafii 1.33.0
 
-<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst -->
+<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst · 1.33.0: research:a722a101 src/core/indexfirst.ts covers, sameParish (roky farnosti, víc nedatovaných farností nepáruje, L-ID jen vlastní) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub2.md B4 -->
 
 <a id="R8.1.2"></a>
 ### R8.1.2 Wniosek o księdze

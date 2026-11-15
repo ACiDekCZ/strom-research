@@ -127,8 +127,10 @@ test("export: two files from the same evidence — standard and for Strom; valid
   assert.match(ged, /1 FAM[\s\S]*?1 ENGA\n2 DATE 1897/);
   assert.match(ged, /1 REPO @R0001@\n2 CALN Sig\. 12\/7/);
   assert.match(ged, /marie@@example\.cz/, "a literal @ is doubled");
-  // QUAY is the quality of the evidence: an original with primary information is 3 even for a possible conclusion.
-  assert.match(ged, /2 DATE 1950\n2 AGE 74y\n2 SOUR @S0002@\n3 PAGE fol\. 3\n3 QUAY 3/);
+  // QUAY is the quality of the evidence: an original with primary information is 3 even for a possible conclusion —
+  // for its own event; a marriage entry at a death says it second-hand (spec 095 V1), the marriage it records is 3.
+  assert.match(ged, /2 DATE 1950\n2 AGE 74y\n2 SOUR @S0002@\n3 PAGE fol\. 3\n3 QUAY 2/);
+  assert.match(ged, /2 WIFE\n3 AGE 22y\n2 SOUR @S0002@\n3 PAGE fol\. 3\n3 QUAY 3/);
   // One note per source (the Strom importer keeps only the last one).
   const s1 = ged.slice(ged.indexOf("0 @S0001@ SOUR"), ged.indexOf("\n0 ", ged.indexOf("0 @S0001@ SOUR")));
   assert.equal(s1.match(/^1 NOTE/gm)?.length, 1, s1);

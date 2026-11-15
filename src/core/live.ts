@@ -502,7 +502,7 @@ import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerp
 import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedImages, type GedMade } from "./liveged.ts";
 import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
-import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
+import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
@@ -552,7 +552,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -1581,7 +1581,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -1589,7 +1589,14 @@ export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBac
  * told so takes the research's file as the IDs' keeper and drops its own (found by the joint check of spec 066).
  */
 export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
-  return appShowsOrigin(settings, version, gate, beta) ? BRIDGE_FEATURES : BRIDGE_FEATURES.filter((f) => f !== "origin.ids");
+  // spec 095: the main citation only to an app that reads it (its /tree.ged carries _STROM_MAIN), a citation removed
+  // only from one whose file says it (APP_SENDS_UNCITE); the order and the codes of what is not written to every one
+  const off = new Set<string>([
+    ...(appShowsOrigin(settings, version, gate, beta) ? [] : ["origin.ids"]),
+    ...(appReadsMainCitation(settings, version) ? [] : ["citations.main"]),
+    ...(appSendsUncite(version) ? [] : ["citations.remove"]),
+  ]);
+  return off.size ? BRIDGE_FEATURES.filter((f) => !off.has(f)) : BRIDGE_FEATURES;
 }
 
 /** /status work: the gate the agent works alone under (its title and what it is given), none set null; a session's minutes. */
@@ -1642,14 +1649,7 @@ function taskTitle(tree: Tree, task: Task): string {
   return `${task.id} ${humanTask(tree, task.what, tree.lang)}`;
 }
 
-/**
- * What a change not written is about besides a person or a family, for the app to put it to its line: a source (the
- * research's S…, or the file's @xref@ of one the research does not have) and a place (its name as the file has it).
- */
-export function notWrittenOf(c: Change): { source?: string; place?: string } {
-  const source = c.sourceId ?? (c.source ? (c.source.startsWith("x:") ? `@${c.source.slice(2)}@` : c.source) : undefined);
-  return { ...(source && c.kind.startsWith("source.") ? { source } : {}), ...(c.kind === "place.coords" && c.place?.name ? { place: c.place.name } : {}) };
-}
+export { notWrittenOf } from "./sync.ts";
 
 /** The commits as the app reads them — what depends on the research now (names, tasks, directions) worked out afresh. */
 function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
@@ -3944,13 +3944,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             // every change not written, and why (never a silent nothing): taken back since, kept for a window that never
             // had it, only said (no longer in the file: the research never deletes), the user to pick (no state given) —
             // with the sources the user gave it that went unwritten with it (`cites`: the file's own keys, as `ids` has them)
-            ...(changes.some((c) => c.action === "report" || c.action === "pick")
-              ? {
-                  notWritten: changes
-                    .filter((c) => c.action === "report" || c.action === "pick")
-                    .map((c) => ({ kind: c.kind, ...(c.person ? { person: c.person } : {}), ...(c.family ? { family: c.family } : {}), ...notWrittenOf(c), ...(c.fact?.kind ?? c.was?.kind ? { fact: c.fact?.kind ?? c.was?.kind } : {}), why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.kind === "person.removed" ? "removed" : c.action, ...(c.removedBy ? { removedBy: c.removedBy } : {}), ...(c.uncited?.length ? { cites: c.uncited.map((k) => (k.startsWith("x:") ? `@${k.slice(2)}@` : k)) } : {}) })),
-                }
-              : {}),
+            // each with its stable code and params (spec 095 K3.4), the app says it in its language by them
+            ...(changes.some((c) => c.action === "report" || c.action === "pick") ? { notWritten: notWrittenList(changes) } : {}),
             // the changes the research could not write (the rest is written): what and why
             ...(data.skipped?.length ? { skipped: data.skipped } : {}),
             // the sources that said they are an entry of a reading of a document (_STROM_READING): taken as the

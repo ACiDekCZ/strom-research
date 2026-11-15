@@ -263,6 +263,36 @@ export function shellUnwrapped(command: string): string {
 }
 
 /**
+ * How many refused commands of a session are kept for strom error, and how long each in the report (K031: the report
+ * stays small) — and how long each as the run keeps it (masked whole before it is cut for the report).
+ */
+export const DENIED_KEPT = 10;
+export const DENIED_CHARS = 200;
+export const DENIED_KEPT_CHARS = 2000;
+
+/**
+ * A refused command cut to `max` characters, "…" where it was cut: whole characters, never part of a word (a name cut
+ * in half would no longer be known to the masker) nor of a masked word's code (‹3fa9c›) — any script.
+ */
+export function cutDenied(command: string, max = DENIED_CHARS): string {
+  const chars = [...command];
+  if (chars.length <= max) return command;
+  const head = chars.slice(0, max - 1).join("");
+  // (alternatives, not a class: Node 26's V8 misses a class of properties before $ when the last character is astral)
+  const inWord = /(?:\p{L}|\p{M}|\p{N})$/u.test(head) && /^(?:\p{L}|\p{M}|\p{N})/u.test(chars[max - 1]!);
+  return (inWord ? head.replace(/(?:\p{L}|\p{M}|\p{N})+$/u, "") : head).replace(/‹[0-9a-f]{0,5}$/u, "") + "…";
+}
+
+/**
+ * A refused tool call as a runner keeps it: "Bash: …", "WebFetch: …" — what was refused up to DENIED_KEPT_CHARS whole
+ * characters, so strom error masks a quote and a path whole before it cuts the command for its report (K031 N1: a
+ * runner cut at 120 cut "strom session note …" to "strom s", and a quote open).
+ */
+export function deniedCall(tool: string, what: string): string {
+  return what ? `${tool}: ${cutDenied(what, DENIED_KEPT_CHARS)}` : tool;
+}
+
+/**
  * Whether a refused tool call ("Bash: …", "PowerShell: …", as a run collects them) ran strom itself: strom, strom.cmd,
  * strom.exe, strom.ps1 or a second installation's strom-<suffix>, by its name or its path, first in the command — never
  * inside quotes (`echo "x; strom brief"`) or as another program's argument. `whole`: the command was refused whole
@@ -311,9 +341,9 @@ export function commandLine(command: string): string {
   return `$ ${first.slice(0, cut ? 139 : 140).join("")}${cut ? "…" : ""}`;
 }
 
-/** Recognise a subscription/usage limit in an agent's message. */
+/** Recognise a subscription/usage limit in an agent's message (Claude Code: "You've hit your limit · resets 3pm"). */
 export function looksLikeLimit(text: string): { limit: boolean; resumeAt?: string } {
-  if (!/(usage|rate|session|weekly|5-hour|daily)\s+limit|limit (reached|exceeded)|quota|too many requests|out of (credits|usage)/i.test(text)) return { limit: false };
+  if (!/(usage|rate|session|weekly|5-hour|daily)\s+limit|limit (reached|exceeded)|quota|too many requests|out of (credits|usage)|hit your (?:[\p{L}\p{N}-]+\s+)?limit/iu.test(text)) return { limit: false };
   // (Codex: "… or try again at Oct 12th, 2026 3:05 PM." — its time has dots and commas of its own)
   const at = /resets?\s+(?:at\s+)?([^.\n]+)/i.exec(text)?.[1]?.trim() ?? /try again (?:at\s+)?((?:in\s+)?[^\n]+?)\.?[ \t]*$/im.exec(text)?.[1]?.trim();
   return at ? { limit: true, resumeAt: at } : { limit: true };

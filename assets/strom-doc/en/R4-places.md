@@ -216,7 +216,8 @@ switches it on. For it, the research assigns places to history regions.
 - **Controls:** app: **History of places**, **Find local history…**, **Assign region**, the states **Local history:
   waiting**, **Local history: searching**, **The research could not locate the place** · terminal: **Settings → The
   agent working alone → History**; `strom config set experiments.history on`, `strom history place <L…>`,
-  `strom history map --unlocated`
-- **Since:** research 1.22.0
+  `strom history map "<place>" --region <id>[:<from>-<to>]` (once for each region the place belonged to) or
+  `--unlocated --why "…"`, `strom history list --event <id>` (one event of history)
+- **Since:** research 1.22.0; `history list --event` 1.33.0
 
-<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) -->
+<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) · 1.33.0: research:926375ea history list --event · c50f80f5 history map bez --region (nápověda celého řádku) · strom help history map, history list -->

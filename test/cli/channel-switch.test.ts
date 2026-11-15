@@ -621,8 +621,10 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         const s = (await res.json()) as Record<string, any>;
         assert.equal(s.strom, isBeta ? BETA : STABLE);
         // only what this strom does, never more: the features of its code
-        // (origin.ids only where /tree.ged sends the IDs, by the gate of the origins: test/cli/origin-app.test.ts)
-        const noIds = (l: readonly string[]) => l.filter((f) => f !== "origin.ids");
+        // (origin.ids only where /tree.ged sends the IDs, by the gate of the origins: test/cli/origin-app.test.ts; the main
+        // citation and a removed one by theirs, spec 095: test/cli/sync-citations.test.ts)
+        const gated = new Set(["origin.ids", "citations.main", "citations.remove"]);
+        const noIds = (l: readonly string[]) => l.filter((f) => !gated.has(f));
         assert.deepEqual(noIds(s.features), noIds(BRIDGE_FEATURES));
         if (isBeta) assert.equal(s.channel, "beta");
         else assert.ok(!("channel" in s), "the releases: no channel said");

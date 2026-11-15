@@ -5,9 +5,33 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.34.0
+
+*Připravuje se: bety do 1.34.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Hlavní citace a jedno pořadí citací:** citace každého údaje jdou v každém souboru v jednom pořadí – nejdřív hlavní
+  citace, pak záznam samotné události, další originály a zbytek podle toho, jak jsou jisté. Hlavní citaci volí jen
+  člověk, v aplikaci Strom nebo v terminálu přes `strom event main`; agent ji nikdy nemění. `strom person|family|event
+  show` ukážou pořadí i to, která citace je hlavní.
+- **Citace odebrané v aplikaci Strom:** citace, kterou uživatel v aplikaci odebere, zůstane odebraná i po novém načtení
+  verze výzkumu a výzkum ji znovu necituje; vrácení toho odeslání ji vrátí. Změna údaje, který výzkum mezitím stáhl, se
+  v tichosti nikdy nezapíše: aplikace se dozví proč.
+- **Samostatná práce s podmínkou:** když limit plánu agenta přeruší sezení, práce počká do obnovy limitu (v terminálu
+  i v aplikaci Strom jako pauza), pak se znovu zeptá podmínky a pokračuje; přerušený úkol se vrátí do fronty. Hlášení
+  agenta, že limit došel, se čte jako limit plánu i s časem obnovy.
+- **Poznámky z aplikace Strom:** úpravy poznámky údaje a poznámky účastníka od uživatele se vracejí do výzkumu, dřívější
+  text zůstane v historii poznámky; odebraná poznámka nic neodebere. Vlastní událost kmotra nebo svědka z GEDCOM
+  aplikace se pojmenuje v jazyce výzkumu.
+- **Domov, ve kterém už výzkum je:** `strom setup --home <složka> --use-existing` (i nastavení po souhlasu) vezme tu
+  složku za domov tak, jak je – nic se nepřesouvá a stará složka zůstane, jak byla.
+- **Odmítnuté příkazy:** příkaz, který oprávnění agenta odmítla, se uchová celý, i víceřádkový, takže ho `strom error`
+  vidí celý; zkracuje ho až jeho hlášení.
+- **Jiný rodokmen pod jménem výzkumu:** odeslání z aplikace Strom, ve kterém skoro nejsou osoby výzkumu, jen jiné
+  (třeba ukázkový strom aplikace), se odmítne a nic se nezapíše; je-li to záměr, vezme ho `strom sync <soubor> --force`.
+
 ## 1.33.0
 
-*Připravuje se: bety do 1.33.0-beta.2. Oddíl bude úplný s vydáním.*
+*15. 11. 2026 · patří k aplikaci Strom 3.28.0.*
 
 - **Archivy, kam smí jen prohlížeč člověka:** agent tam už nezkouší stahovač stromu ani hledání v katalogu. Jejich
   snímky jdou po jednom přes prohlížeč agenta (`strom media save`), jakmile to člověk povolí „přes prohlížeč“, jinak je
@@ -15,10 +39,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Snímky ukládané přes prohlížeč:** kniha se vezme z toho, na co úkol čeká, nebo ze stránky archivu; uložený soubor
   nese značku výzkumu, takže se nikdy nevezme soubor jiného výzkumu ze sdílené složky stažených souborů. Najdou se i prohlížeče snímků vestavěné do kódu stránky (OpenSeadragon
   uvnitř Reactu); prohlížeč, ke kterému strom nedosáhne, je ohlášen spolu s tím, co místo toho udělá člověk.
-- **Hledání:** hledání, které něco našlo, se zapisuje až po svém zdroji a bez zdroje řekne pořadí; zdroj nalezený omylem
-  se odebere přes `strom search edit --drop-found`.
-- **Historie:** `strom history hide|show` zkontrolují, co dostaly, dřív než se na cokoli zeptají; jedna událost se čte
-  přes `strom history list --event <id>`.
+- **Hledání a historie:** hledání, které něco našlo, se zapisuje až po svém zdroji a bez zdroje řekne pořadí; zdroj
+  nalezený omylem se odebere přes `strom search edit --drop-found`. `strom history hide|show` zkontrolují, co dostaly,
+  dřív než se na cokoli zeptají; jedna událost se čte přes `strom history list --event <id>`.
+- **Zápisy po snímcích, které právě přišly:** sezení začaté na úkolu, jehož uložené snímky právě přišly, se zapíše;
+  výzkum, jehož každý zápis byl potom odmítnut, zapisuje znovu sám od sebe.
 - **Z aplikace Strom:** údaj poslaný zpět v jiném tvaru téhož druhu (událost typu Census místo sčítání) se pozná jako
   tentýž údaj – beze změny, když se nic nezměnilo, úprava toho údaje, když se změnilo datum.
 - **Slabé a očekávané snímky:** slabý snímek se uloží ještě jednou přes `strom media save --again` jako nová kopie vedle

@@ -14,8 +14,8 @@ export const DOC_LANGS = ["cs", "en", "de", "pl"] as const;
 export type DocLang = (typeof DOC_LANGS)[number];
 /** The folder of the documentation in assets/. */
 export const DOC_DIR = "strom-doc";
-/** Where the web shows it (the build of stromapp.info's /doc/). */
-export const DOC_SITE = "https://stromapp.info/doc";
+/** Where the web shows it (the build of stromapp.info's /doc/): English at /doc/, another language at /<lang>/doc/. */
+export const DOC_SITE = "https://stromapp.info";
 export const DOC_PARTS = ["R", "A", "S"] as const;
 
 /** A number of the documentation: part letter, chapter, up to three levels, a letter for one inserted between two (R2.3a). */
@@ -79,9 +79,10 @@ export function docNumber(input: string): string | undefined {
 
 /** The page of a number on the web (none: the contents). */
 export function docUrl(lang: DocLang, number?: string): string {
-  if (!number) return `${DOC_SITE}/${lang}/`;
+  const site = `${DOC_SITE}${lang === "en" ? "" : `/${lang}`}/doc`;
+  if (!number) return `${site}/`;
   const chapter = number.split(".")[0]!;
-  return `${DOC_SITE}/${lang}/${chapter}/${number === chapter ? "" : `#${number}`}`;
+  return `${site}/${chapter}/${number === chapter ? "" : `#${number}`}`;
 }
 
 /** The pinned commit (assets/strom-doc/PIN). */
@@ -202,7 +203,7 @@ export function docBook(lang: DocLang): DocBook {
   } catch {
     files = [];
   }
-  if (!files.length) throw new StromError(`How Strom works is missing from this installation (${dir})`, { hint: `the same text on the web: ${DOC_SITE}/${lang}/` });
+  if (!files.length) throw new StromError(`How Strom works is missing from this installation (${dir})`, { hint: `the same text on the web: ${docUrl(lang)}` });
   files.sort((a, b) => chapterOrder(CHAPTER_FILE.exec(a)![1]!, CHAPTER_FILE.exec(b)![1]!));
   const entries = new Map<string, DocEntry>();
   const order: string[] = [];

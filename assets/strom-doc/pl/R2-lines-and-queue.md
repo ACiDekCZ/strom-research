@@ -95,7 +95,8 @@ rozpoczęte idzie przed wszystkimi.
   9. rodzaj zadania: materiały → gdzie są akty → potwierdzenie powiązania → weryfikacja → wzbogacenie osoby →
      wniosek do archiwum → opowieść;
   10. wiek zadania.
-- **Obsługa:** terminal: `strom task list`, `strom task next`. Aplikacja: sekcja **Kolejka**.
+- **Obsługa:** terminal: `strom task list` (`--all`: wszystkie zadania w każdym stanie, od badania 1.33.0),
+  `strom task next`. Aplikacja: sekcja **Kolejka**.
 - **Obowiązuje od:** badanie 1.0.0 (klucze 1, 7–10). Klucz 6 od 1.1.0, łączenie hipotez od 1.17.0, klucz 3 od 1.22.0,
   klucz 4 i miejsca na prośbę od 1.25.0. Klucz 2 od 1.26.0.
 - **Od badania 1.32.0:** most szuka w całej kolejce (numer zadania lub osoby, imiona i nazwiska osób, słowa zadania,
@@ -103,7 +104,7 @@ rozpoczęte idzie przed wszystkimi.
   zapisywany, nawet w dzienniku mostu.
   W aplikacji: pole wyszukiwania w **Kolejce** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 -->
+<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategia kolejki

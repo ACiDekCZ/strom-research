@@ -48,7 +48,8 @@ import { configDir, defaultHome, desktopDir, expandHome, isolated, noLinks, ownC
 import { claudeConfigDir } from "../core/claudedir.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
-import { planMove, sameFolder } from "../core/relocate.ts";
+import { planMove, planUseExisting, researchHome, sameFolder, useExistingHome, type UsePlan } from "../core/relocate.ts";
+import { knownTreesIn } from "../core/tree.ts";
 import { parseArchivePace } from "../core/terms.ts";
 import { HUMAN_PACE } from "../core/net.ts";
 import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
@@ -69,7 +70,7 @@ import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, 
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
 import { ownModel } from "../agents/models.ts";
-import { EXIT, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { EXIT, NeedsInputError, StromError, UsageError, type Need } from "../core/errors.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
 import { resetReading } from "../cli/tunereset.ts";
 import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
@@ -110,6 +111,11 @@ register({
   options: [
     { name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" },
     { name: "research", type: "boolean", description: "the wizard for research being switched on (the menu): the agent's steps asked in an archive too", hidden: true },
+    {
+      name: "use-existing",
+      type: "boolean",
+      description: "--home names the folder of a research already (a copy put back, a restore): it becomes the home as it is — nothing moved, the old folder left as it was, its trees out of the list (the person's decision: an agent asks them)",
+    },
   ],
   examples: ["strom setup", "strom setup --yes --lang cs", "strom setup --yes --where terminal", 'strom setup --home "~/Documents/Strom" --shared "/Volumes/Big/strom-shared" --lang cs'],
   run: async (ctx, { opts }) => {
@@ -152,7 +158,9 @@ register({
     for (const key of ["home", "shared", "trees"] as const) if (flags[key]) refuseInProgram(ctx, key, flags[key]);
     // none named: the default — refused where it lies inside it (settings in node/), the way on said (--home)
     if (!flags.home && !s.home() && !ctx.interactive) ctx.refuseProgramFolder("home", s.suggestedHome(), { asDefault: true });
-    if (cfg.home && flags.home) guardResearchFolder(ctx, "home", flags.home);
+    // the folder named is the home of a research already: taken as it is on the person's word (--use-existing)
+    const existing = cfg.home && flags.home ? existingHome(ctx, flags.home, opts["use-existing"] === true) : undefined;
+    if (cfg.home && flags.home && !existing) guardResearchFolder(ctx, "home", flags.home);
     if (flags.shared) guardResearchFolder(ctx, "shared", flags.shared);
     if (flags.trees) guardResearchFolder(ctx, "trees", flags.trees);
     let home = flags.home ? ctx.resolvePath(flags.home) : suggestedHome;
@@ -185,6 +193,7 @@ register({
     // a first setup without the wizard (--yes, an agent): nothing to tell as new after an update — the history of the
     // places is in the settings from the start, never asked at the menu as news (K1.6); set up before: asked there once
     if (!cfg.home) markHistoryAsked(ctx);
+    if (existing) useExistingHome(s, existing.from, home);
     cfg.home = home;
     cfg.lang = lang;
     cfg.agent = agent;
@@ -235,10 +244,11 @@ register({
       // the ChatGPT app chosen: its browser strom does not watch, and what to do in ChatGPT's dialog (spec 062 K6.2)
       ...(agent === "codex" && where === "app" ? ["", t("ui.setup.chatgpt", { browser: t("ui.doc.chatgptapp.browser"), advice: t("ui.doc.chatgptapp.advice") })] : []),
       "",
+      ...(existing ? [...usedSaid(ctx, lang, existing), ""] : []),
       ...(found.lines.length ? [...found.lines, ""] : []),
       t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
     );
-    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), ...(cliGone ? { cliMissing: true } : {}), config: configFile(ctx.env), ...(found.lines.length ? { found: ctx.knownTrees().map((k) => ({ name: k.name, root: k.root, sealed: !found.foreign.some((f) => f.root === k.root) })) } : {}) } };
+    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), ...(cliGone ? { cliMissing: true } : {}), config: configFile(ctx.env), ...(existing ? { usedExisting: { from: existing.from, left: existing.left } } : {}), ...(found.lines.length ? { found: ctx.knownTrees().map((k) => ({ name: k.name, root: k.root, sealed: !found.foreign.some((f) => f.root === k.root) })) } : {}) } };
   },
 });
 
@@ -1564,15 +1574,65 @@ function raises(now: AgentPermissions, value: string | number | undefined): bool
  * the old one would lose the trees from the list and the plugins and images from sight.
  */
 function guardResearchFolder(ctx: Context, key: string, next: string | undefined): void {
-  const now = key === "home" ? ctx.settings.home()?.value : key === "trees" ? ctx.settings.trees()?.value : key === "shared" ? ctx.settings.shared()?.value : undefined;
+  if (key !== "home" && key !== "trees" && key !== "shared") return;
+  // the folder as it is set (strom setup --home names the new one by a flag, which the settings would give back)
+  const flagged = Boolean(ctx.settings.flags.home || ctx.settings.flags.trees || ctx.settings.flags.shared);
+  const now = flagged ? storedFolder(ctx, key) : (key === "home" ? ctx.settings.home() : key === "trees" ? ctx.settings.trees() : ctx.settings.shared())?.value;
   // unset: back to the default under home (none for home itself)
-  const home = ctx.settings.home()?.value;
+  const home = flagged ? storedFolder(ctx, "home") : ctx.settings.home()?.value;
   const target = next !== undefined ? ctx.resolvePath(next) : key === "shared" && home ? path.join(home, "shared") : key === "trees" ? home : undefined;
   if (!now || (target && path.resolve(target) === path.resolve(now))) return;
   if (!planMove(now, target ?? now, []).content) return;
+  // the home of a research already: taken as it is, on the person's word — the way to it said
+  if (key === "home" && target && researchHome(target)) throw new NeedsInputError([useNeed(ctx, now, target)]);
   throw new UsageError(`the research is in ${ctx.display(now)} — changing ${key} would leave it behind`, {
     hint: "the user moves it: strom setup in their terminal (or the menu: Settings → the setup), which moves the trees and the shared folder along",
   });
+}
+
+/** What the person is asked before a folder that is the home of a research already becomes the home (strom setup --use-existing). */
+function useNeed(ctx: Context, from: string, to: string): Need {
+  const trees = researchHome(to)?.trees.map((t) => t.name) ?? [];
+  return {
+    key: "home",
+    kind: "config",
+    question: `${ctx.display(to)} is the home of a research already (family trees: ${trees.length ? trees.join(", ") : "none, its shared folder"}) — the user decides whether to use it as it is: nothing moved, ${ctx.display(from)} left as it was, its trees out of the list`,
+    default: ctx.display(from),
+    scopes: ["user"],
+    set: `strom setup --home "${ctx.display(to)}" --use-existing`,
+  };
+}
+
+/**
+ * strom setup --home <a folder that is the home of a research already> with the research in the folder set before:
+ * the plan of taking it as it is (planUseExisting) — without --use-existing the person is asked (needs-input with the
+ * command), an agent's --use-existing asks the person themselves (a window, else needs-consent). Undefined where the
+ * folder is no research's (moved into, refused when it holds something: guardResearchFolder) or nothing is left behind.
+ */
+function existingHome(ctx: Context, next: string, use: boolean): UsePlan | undefined {
+  const from = storedFolder(ctx, "home");
+  if (!from) return undefined;
+  const to = ctx.resolvePath(next);
+  if (sameFolder(to, from) || !planMove(from, to, []).content || !researchHome(to)) return undefined;
+  // the trees known as the settings keep them (the flag names the new folder)
+  const known = knownTreesIn(storedFolder(ctx, "trees"), ctx.settings.config.extraTrees ?? []);
+  const plan = planUseExisting(from, to, known, { settings: configDir(ctx.env) });
+  const where = `${ctx.display(to)} (the research in ${ctx.display(from)})`;
+  if (plan.problem === "busy")
+    throw new UsageError(`somebody works in ${plan.busy.join(", ")} of ${ctx.display(from)} now (an agent, a run, or the Strom app following it live) — ${where} can be taken once that has finished`, { hint: "strom setup again then", code: "home.busy" });
+  if (plan.problem === "inside") throw new UsageError(`${ctx.display(to)} is inside ${ctx.display(from)} (or the other way round)`, { hint: "a folder beside it", code: "home.inside" });
+  if (plan.problem) ctx.refuseProgramFolder("home", to);
+  const need = useNeed(ctx, from, to);
+  if (!use) throw new NeedsInputError([need]);
+  // the person's decision: an agent asks them, nobody else can (a window; no window: needs-consent)
+  if (isAgent(ctx.env)) ctx.requireHuman(need.question, need.set, "home", ui(ctx.uiLang(), "ui.home.existing.ask", { from: ctx.display(from), to: ctx.display(to) }));
+  return plan;
+}
+
+/** What taking the home of a research as it is did, in the person's language: the folder used, the old one as it was, its trees left there. */
+function usedSaid(ctx: Context, lang: string, plan: UsePlan): string[] {
+  const where = { from: ctx.display(plan.from), to: ctx.display(plan.to) };
+  return [ui(lang, "ui.home.used", where), ...(plan.left.length ? [ui(lang, "ui.home.left", { ...where, trees: plan.left.map((t) => t.name).join(", ") })] : [])];
 }
 
 /** The folder of the research as the settings of this computer keep it (a flag of this command aside). */

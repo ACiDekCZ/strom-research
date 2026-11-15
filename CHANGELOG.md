@@ -5,9 +5,34 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.34.0
+
+*In preparation: the betas up to 1.34.0-beta.1. The section is complete with the release.*
+
+- **The main citation and one order of citations:** every fact's citations come in one order in every file — the
+  main citation first, then the record of the event itself, the other originals, the rest by how sure they are. The
+  main citation is the person's own choice, in the Strom app or in the terminal with `strom event main`; an agent never
+  changes it. `strom person|family|event show` say the order and which one is the main.
+- **Citations removed in the Strom app:** a citation the user removes in the app stays removed, also after the
+  research's version is loaded again, and the research does not cite it again; undoing that send brings it back. A
+  change in the app of a fact the research has taken back since is never written in silence: the app is told why.
+- **Working alone under a condition:** when the agent's plan limit cuts off a session, the work waits until the limit
+  resets (shown as paused in the terminal and the Strom app), then asks the condition again and goes on — the
+  interrupted task back in the queue. An agent's notice that its limit was hit is read as the plan's limit, with its time.
+- **Notes from the Strom app:** the user's edits of a fact's note and of a participant's note come back into the
+  research, the earlier text kept in the note's history; a note taken away takes nothing away. A godparent's or a
+  witness's own event in the app's GEDCOM is named in the research's language.
+- **A home that holds a research already:** `strom setup --home <folder> --use-existing` (and the setup on a yes) takes
+  that folder as the home as it is — nothing is moved and the old folder stays as it was.
+- **Refused commands:** a command the agent's permissions refused is kept whole, also one of several lines, so
+  `strom error` sees all of it; only its report shortens it.
+- **Another family tree under the research's name:** a send from the Strom app that carries hardly any of the
+  research's people, only others (the app's sample tree, say), is refused and nothing is written; if it is meant,
+  `strom sync <file> --force` takes it.
+
 ## 1.33.0
 
-*In preparation: the betas up to 1.33.0-beta.2. The section is complete with the release.*
+*2026-11-15 · goes with the Strom app 3.28.0.*
 
 - **Archives only a person's browser may enter:** the agent no longer tries strom's downloader or catalogue search
   there. Their images go one at a time through the agent's browser (`strom media save`) once the person allows "through
@@ -15,10 +40,11 @@ The changes of each version in short. The full notes and the install lines are o
 - **Images saved through the browser:** the book is taken from what the task waits for or from the archive's page; the
   saved file carries the research's mark, so a file of another research in the shared downloads folder is never taken. Image viewers built into a page's own code (OpenSeadragon
   inside React) are found too; a viewer strom cannot reach is said with what the person does instead.
-- **Searches:** a search that found something is recorded after its source, and says the order when the source is
-  missing; a source found by mistake is taken off with `strom search edit --drop-found`.
-- **History:** `strom history hide|show` check what they are given before anyone is asked; one event is read with
-  `strom history list --event <id>`.
+- **Searches and history:** a search that found something is recorded after its source, and says the order when the
+  source is missing; a source found by mistake is taken off with `strom search edit --drop-found`. `strom history
+  hide|show` check what they are given before anyone is asked; one event is read with `strom history list --event <id>`.
+- **Writes after images that just came:** a session started on a task whose saved images had just come is committed; a
+  research whose every write was refused after it writes again by itself.
 - **From the Strom app:** a fact sent back in another shape of the same kind (an event of type Census for a census) is
   recognized as that fact — no change when nothing changed, an edit of that fact when its date did.
 - **Weak and awaited images:** a weak scan is saved once more with `strom media save --again` as a new copy beside the

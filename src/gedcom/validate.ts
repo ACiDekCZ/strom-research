@@ -99,7 +99,11 @@ const CHILDREN: Record<string, string[]> = {
   SUBM: ["NAME", "ADDR", "LANG", "NOTE", "RIN", "CHAN"],
   NOTE: ["SOUR", "REFN", "RIN", "CHAN"],
   EVENT: EVENT_DETAIL,
-  CITATION: ["PAGE", "QUAY", "NOTE", "DATA", "EVEN"],
+  // the user's main citation of a fact (the Strom profile, APP_READS_MAIN_CITATION, spec 095)
+  CITATION: ["PAGE", "QUAY", "NOTE", "DATA", "EVEN", "_STROM_MAIN"],
+  // the events a source records (GEDCOM 5.5.1 EVENTS_RECORDED: what the order of a fact's citations goes by)
+  "SOUR.DATA": ["EVEN", "AGNC", "NOTE"],
+  "SOUR.DATA.EVEN": ["DATE", "PLAC"],
   "CITATION.DATA": ["DATE", "TEXT"],
   PLAC: ["MAP", "FORM", "NOTE", "_STROM_PLACE"],
   // the research's place record (the Strom profile, APP_READS_PLACE_RECORDS)
@@ -161,6 +165,8 @@ const EXTENSIONS = new Set([
   "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_WHY", "_READERS",
   // a shared event of the Strom app: a person's copy of it and the role in it, a role at another's event (spec 085)
   "_STROM_SHARE", "_ROLE", "_STROM_ROLE",
+  // the user's main citation of a fact (spec 095)
+  "_STROM_MAIN",
   // the research in the app's table: its lines, the branches off them, each person's places, what waits outside, who it added
   "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH", "_FOCUS", "_VIA", "_NEAREST", "_DIRECTION", "_MODE", "_BRANCH",
   "_STROM_WAIT", "_ON", "_GROUP", "_KEY", "_SENT", "_PRIO", "_STROM_ADDED",
@@ -189,6 +195,8 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_GROUP" && anc[1] === "_STROM_WAIT" && depth === 3) return "_STROM_WAIT._GROUP";
   if ((parent === "_STROM_VERIFY" || parent === "_STROM_CHECKED" || parent === "_STROM_SHARE" || parent === "_STROM_ROLE") && depth === 3) return parent;
   if (parent === "_STROM_AT" && anc[2] === "_STROM_ROLE" && depth === 4) return "_STROM_ROLE._STROM_AT";
+  if (record === "SOUR" && depth === 2 && parent === "DATA") return "SOUR.DATA";
+  if (record === "SOUR" && depth === 3 && parent === "EVEN" && anc[1] === "DATA") return "SOUR.DATA.EVEN";
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {
     if (record === "INDI" && INDI_EVENTS.includes(parent)) return "EVENT";

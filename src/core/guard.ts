@@ -13,7 +13,7 @@ import * as git from "./git.ts";
 import { RECORD_TYPES } from "./model.ts";
 import type { Finding } from "./check.ts";
 import type { Tree, Op } from "./tree.ts";
-import { inCloudOnly, snapshot, type Snapshot } from "./integrity.ts";
+import { inCloudOnly, snapshot, verifyFast, type Snapshot } from "./integrity.ts";
 
 type Rec = Record<string, unknown> & { id?: string };
 
@@ -78,6 +78,11 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
     }
   }
 
+  // a record as an operation the last commit holds already wrote it (its file left out of that commit): strom's own
+  // write, its operation in the history — nothing lost since then (verifyFast sealedBefore); asked only when needed
+  let sealedBefore: Set<string> | undefined;
+  const writtenBefore = (p: string): boolean => (sealedBefore ??= new Set(verifyFast(tree, snap).sealedBefore ?? [])).has(p);
+
   for (const c of changes) {
     const dir = c.path.slice(0, c.path.lastIndexOf("/") + 1);
     if (!RECORD_DIRS.has(dir) || !c.path.endsWith(".json")) continue;
@@ -100,6 +105,7 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
     }
     const cur = parse(fs.readFileSync(abs, "utf8"));
     if (!cur) continue;
+    const found = out.length;
     for (const [field, keyOf] of Object.entries(KEPT_ARRAYS)) {
       const a = prev[field];
       if (!Array.isArray(a)) continue;
@@ -120,6 +126,7 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
         });
       }
     }
+    if (out.length > found && writtenBefore(c.path)) out.length = found;
   }
   return out;
 }

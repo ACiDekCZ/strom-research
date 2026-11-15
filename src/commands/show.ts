@@ -11,7 +11,7 @@ import type { Lesson } from "../core/model.ts";
 import { findEventOwner } from "../core/actions.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { typeOfId } from "../core/tree.ts";
-import { eventLine, wordsFor } from "./people.ts";
+import { citationOrder, eventLine, sourcesOf, wordsFor } from "./people.ts";
 import { displayName } from "../core/people.ts";
 
 function showLesson(ctx: Context, id: string): Result {
@@ -34,10 +34,10 @@ function showEvent(ctx: Context, id: string): Result {
   return {
     text: lines(
       w.say("ui.show.eventOf", `${event.id} of ${owner.id} (strom ${owner.type} show ${owner.id}: the whole record)`, { id: event.id, who, type: owner.type, owner: owner.id }),
-      eventLine(event, w),
+      eventLine(event, w, sourcesOf(tree)),
       event.note ? `${w.say("ui.show.note", "note")}: ${event.note}` : undefined,
     ),
-    data: { owner: owner.id, event },
+    data: { owner: owner.id, event, citationOrder: citationOrder(tree, event) },
   };
 }
 

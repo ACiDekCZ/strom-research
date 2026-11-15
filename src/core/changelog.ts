@@ -339,6 +339,14 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         continue;
       }
     }
+    // the user's main citation of a fact (spec 095 K2.2): chosen, or cancelled
+    if (o.op === "event.main") {
+      const f = fact(first, second ?? /^(E\d+) /.exec(o.summary)?.[1]);
+      if (f) {
+        say(phrase(lang, / has no main citation /.test(o.summary) || / main citation none again/.test(o.summary) ? "log.event.main.off" : "log.event.main", { who: who(first), fact: f }));
+        continue;
+      }
+    }
     if (EVENT_SAID[o.op]) {
       // an undo names its fact in what it says, its owner alone in its targets
       const id = second ?? /^(E\d+) /.exec(o.summary)?.[1];

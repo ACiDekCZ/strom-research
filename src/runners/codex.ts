@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runJsonLines, type Heard } from "./jsonl.ts";
-import { commandLine, looksLikeLimit, shellUnwrapped, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, deniedCall, looksLikeLimit, shellUnwrapped, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { AgentWeb } from "../core/metrics.ts";
 import { codexConfigFile, codexModel, effortArgs } from "../agents/effort.ts";
 import { CODEX_BROWSER_SERVERS } from "../core/browser.ts";
@@ -277,7 +277,7 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
     if (command === undefined) return;
     // refused whole before any of it ran: strom counts refused in any part of it (deniedStrom's `whole`)
     (heard.deniedWhole ??= []).push(heard.denied.length);
-    heard.denied.push(`Bash: ${command.slice(0, 120)}`);
+    heard.denied.push(deniedCall("Bash", command));
   };
   return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
     if (msg.type === "thread.started" && typeof msg.thread_id === "string") {
@@ -307,7 +307,7 @@ function runCodex(opts: RunOptions): Promise<RunResult> {
         (item.exit_code !== 0 && ((item.aggregated_output ?? "").includes(SANDBOX_REFUSAL) || /operation not permitted|sandbox|read-only file system|access (?:to the path .{1,200} )?is denied/i.test(item.aggregated_output ?? ""))) ||
         (item.exit_code === 0 && codexRefusedStrom(item.aggregated_output ?? "", opts.env?.STROM_SESSION)))
     )
-      heard.denied.push(`Bash: ${shellUnwrapped(String(item.command ?? "")).slice(0, 120)}`);
+      heard.denied.push(deniedCall("Bash", shellUnwrapped(String(item.command ?? ""))));
     // its web search, once its item is done (counted after the fact: core/metrics.ts)
     if (msg.type === "item.completed") {
       const w = codexWeb(msg.item as Record<string, unknown> | undefined);

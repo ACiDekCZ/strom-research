@@ -5,9 +5,35 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.34.0
+
+*W przygotowaniu: bety do 1.34.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Główny przypis i jedna kolejność przypisów:** przypisy każdej danej idą w każdym pliku w jednej kolejności – najpierw
+  główny przypis, potem zapis samego zdarzenia, inne oryginały, a reszta według tego, jak są pewne. Główny przypis
+  wybiera tylko człowiek, w aplikacji Strom albo w terminalu przez `strom event main`; agent nigdy go nie zmienia.
+  `strom person|family|event show` pokazują kolejność i który przypis jest główny.
+- **Przypisy usunięte w aplikacji Strom:** przypis usunięty przez użytkownika w aplikacji pozostaje usunięty, także po
+  ponownym wczytaniu wersji badania, a badanie go znowu nie cytuje; cofnięcie tego wysłania go przywraca. Zmiana w
+  aplikacji danej, którą badanie w międzyczasie wycofało, nigdy nie jest zapisana po cichu: aplikacja dowiaduje się
+  dlaczego.
+- **Samodzielna praca z warunkiem:** gdy limit planu agenta przerwie sesję, praca czeka do odnowienia limitu (w
+  terminalu i w aplikacji Strom jako pauza), potem ponownie pyta warunek i idzie dalej; przerwane zadanie wraca do
+  kolejki. Komunikat agenta o wyczerpaniu limitu jest odczytywany jako limit planu razem z czasem odnowienia.
+- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej i w notatce uczestnika wracają do badania, wcześniejszy
+  tekst zostaje w historii notatki; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
+  GEDCOM aplikacji jest nazwane w języku badania.
+- **Folder domowy, w którym badanie już jest:** `strom setup --home <folder> --use-existing` (i konfiguracja po
+  zgodzie) przyjmuje ten folder za domowy takim, jaki jest – nic nie jest przenoszone, a stary folder zostaje bez zmian.
+- **Odrzucone polecenia:** polecenie odrzucone przez uprawnienia agenta jest zachowane w całości, także wielowierszowe,
+  więc `strom error` widzi je całe; skraca je dopiero jego raport.
+- **Inne drzewo pod nazwą badania:** wysłanie z aplikacji Strom, w którym prawie nie ma osób badania, tylko inne
+  (na przykład przykładowe drzewo aplikacji), jest odrzucane i nic nie jest zapisane; jeśli to zamierzone, przyjmie je
+  `strom sync <plik> --force`.
+
 ## 1.33.0
 
-*W przygotowaniu: bety do 1.33.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*15.11.2026 · współpracuje z aplikacją Strom 3.28.0.*
 
 - **Archiwa, do których wolno wejść tylko przeglądarką człowieka:** agent nie próbuje już tam pobierania przez strom ani
   wyszukiwania w katalogu. Ich skany idą pojedynczo przez przeglądarkę agenta (`strom media save`), gdy człowiek zezwoli
@@ -17,10 +43,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   plików. Znajdowane są też przeglądarki skanów wbudowane w kod
   strony (OpenSeadragon w React); przeglądarka, do której strom nie sięga, jest zgłaszana razem z tym, co zamiast tego
   robi człowiek.
-- **Wyszukiwania:** wyszukiwanie, które coś znalazło, zapisuje się po swoim źródle, a bez źródła podaje kolejność;
-  źródło znalezione omyłkowo usuwa `strom search edit --drop-found`.
-- **Historia:** `strom history hide|show` sprawdzają, co dostały, zanim o cokolwiek zapytają; jedno zdarzenie czyta
-  `strom history list --event <id>`.
+- **Wyszukiwania i historia:** wyszukiwanie, które coś znalazło, zapisuje się po swoim źródle, a bez źródła podaje
+  kolejność; źródło znalezione omyłkowo usuwa `strom search edit --drop-found`. `strom history hide|show` sprawdzają,
+  co dostały, zanim o cokolwiek zapytają; jedno zdarzenie czyta `strom history list --event <id>`.
+- **Zapisy po skanach, które właśnie przyszły:** sesja rozpoczęta przy zadaniu, którego zapisane skany właśnie
+  przyszły, zostaje zapisana; badanie, którego każdy zapis był potem odrzucany, znowu zapisuje samo.
 - **Z aplikacji Strom:** fakt odesłany w innej postaci tego samego rodzaju (zdarzenie typu Census zamiast spisu) jest
   rozpoznawany jako ten sam fakt – bez zmiany, gdy nic się nie zmieniło, jako edycja tego faktu, gdy zmieniła się data.
 - **Słabe i oczekiwane skany:** słaby skan zapisuje się jeszcze raz przez `strom media save --again` jako nową kopię obok

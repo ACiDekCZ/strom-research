@@ -50,3 +50,13 @@ test("antigravity: denied_actions alone (no step said it) are still counted", ()
   assert.deepEqual(heard.denied, ["Bash: (a command)"]);
   assert.equal(heard.metrics.outputTokens, 5);
 });
+
+test("antigravity: a refused command of several lines is kept whole, as Codex and OpenCode keep it", () => {
+  const heard: Heard = { metrics: {}, text: "", isError: false, denied: [] };
+  const command = 'strom note add P0001 "Lhoták z Lhoty\nи Лотаки"\nstrom session close --summary "Žofie"';
+  const step = (state: string, error?: string) => ({ event: "step_update", step_update: { step_index: 2, state, step_type: "tool", tool_name: "run_command", tool_info: { name: "run_command", parameters: { CommandLine: command }, ...(error ? { error: { type: "TOOL_ERROR", message: error } } : {}) } } });
+  const said = new Map<number, string>();
+  readEvent(step("ACTIVE"), heard, said);
+  readEvent(step("ERROR", "permission check failed: user denied permission to run command"), heard, said);
+  assert.deepEqual(heard.denied, [`Bash: ${command}`]);
+});

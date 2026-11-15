@@ -71,11 +71,16 @@ knihu (soubor záznamů) s přístupem: adresou nebo signaturou.
 - **Hranice:** od 30 snímků; jinou hranici (nebo nikdy) určí odpověď člověka na otázku `index.first`
   (`strom media calibrate --questions`). V rozhovoru jen řekne, v sezení `strom run` čtení odmítne, dokud agent
   nedá `--no-index`.
+- **Hranice (která farnost, od výzkumu 1.33.0):** rejstřík patří ke knize, když mají společné místo, nebo když farnost
+  jednoho je místem nebo farností druhého. Farnost místa se bere jen s roky, které zasahují do let knihy; farnost s
+  roky v letech knihy má přednost před farnostmi bez roků. Víc farností bez roků u jednoho místa farnost neurčuje a
+  přes farnost nepáruje nic (místo samo dál ano). Místo zapsané jako `L…` bere jen své vlastní farnosti, místo
+  zapsané textem jen tehdy, když je ve výzkumu jediné místo toho jména. Rejstřík jiné farnosti se tak nenabídne.
 - **Proč:** podle komentáře v kódu se od zhruba 20–40 snímků vyplatí rejstřík víc než listování. Případ ze skutečného
   výzkumu: čtenáři přečetli 61 snímků knihy oddaných, zatímco rejstřík farnosti ležel stažený.
-- **Platí od:** výzkum 1.14.0
+- **Platí od:** výzkum 1.14.0; párování farnosti 1.33.0
 
-<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst -->
+<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst · 1.33.0: research:a722a101 src/core/indexfirst.ts covers, sameParish (roky farnosti, víc nedatovaných farností nepáruje, L-ID jen vlastní) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub2.md B4 -->
 
 <a id="R8.1.2"></a>
 ### R8.1.2 Poučení ke knize

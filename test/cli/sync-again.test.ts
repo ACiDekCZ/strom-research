@@ -102,7 +102,13 @@ test("a send taken back stays taken back: the app's next send from the state bef
     assert.equal(await born(), "1870", "what was taken back stays taken back");
     assert.deepEqual(next.json.undoneSince, [sent.json.intake]);
     assert.equal(next.json.takenBack, 1, JSON.stringify(next.json));
-    assert.deepEqual(next.json.notWritten, [{ kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack" }], "never a silent nothing");
+    // each with its stable code and params (spec 095 K3.4): the send that brought it named
+    assert.deepEqual(next.json.notWritten, [{ kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack", code: "takenBack", params: { person: "P0001", fact: "BIRT", event: "E0001", send: sent.json.intake } }], "never a silent nothing");
+    // and the send says them later too (/status sends, spec 095 V5)
+    const status = (await (await fetch(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } })).json()) as { sends: { intake: string; notWritten?: unknown[]; notWrittenCount?: number }[] };
+    const kept = status.sends.find((x) => x.intake === next.json.intake);
+    assert.deepEqual(kept?.notWritten, next.json.notWritten, JSON.stringify(status.sends));
+    assert.equal(kept?.notWrittenCount, 1);
     assert.equal(next.json.applied, 1, JSON.stringify(next.json));
     // the day's one source of the app's edits, withdrawn by the undo, is the same again — never one more
     const cites = (input: string) => w.ok(["input", "show", input, "--json"]).then((r) => (r.json.input ?? r.json).source as string);
@@ -584,7 +590,14 @@ test("a change not written leaves out the sources the user gave its fact: named 
     await new Promise((r) => setTimeout(r, 1100));
     await w.ok(["sync", "undo", sent.input]);
     const next = await post("sync", copy("Marietta"));
-    assert.deepEqual(next.notWritten, [{ kind: "source.new", source: "@S5@", why: "takenBack" }, { kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack", cites: ["@S5@"] }], JSON.stringify(next));
+    assert.deepEqual(
+      next.notWritten,
+      [
+        { kind: "source.new", source: "@S5@", why: "takenBack", code: "takenBack", params: { source: "@S5@", send: sent.intake } },
+        { kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack", code: "takenBack", params: { person: "P0001", fact: "BIRT", event: "E0001", send: sent.intake }, cites: ["@S5@"] },
+      ],
+      JSON.stringify(next),
+    );
   } finally {
     await w.ok(["live", "stop"]);
   }

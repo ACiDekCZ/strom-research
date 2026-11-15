@@ -111,7 +111,7 @@ test("a person's help ends with where the source code is and how Strom works, in
     const own = (await w.ok(["help", "--human"], { tty: true, env: { STROM_LANG: lang } })).out;
     const lines = own.trimEnd().split("\n");
     assert.equal(lines.at(-2), `${line}: ${url}`, `${lang}:\n${own}`);
-    assert.match(lines.at(-1)!, new RegExp(`: strom doc · stromapp\\.info/doc/${lang}/$`, "u"), `${lang}: how Strom works, last`);
+    assert.match(lines.at(-1)!, new RegExp(`: strom doc · stromapp\\.info/${lang === "en" ? "" : `${lang}/`}doc/$`, "u"), `${lang}: how Strom works, last`);
     assert.equal(own.split(url).length, 2, `${lang}: once`);
   }
   for (const args of [["help"], ["help", "--agent"], ["--version"], ["guide"]]) assert.doesNotMatch((await w.ok(args, { tty: true, env: { STROM_LANG: "en" } })).out, /GNU AGPL|Source code \(/, args.join(" "));

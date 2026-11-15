@@ -12,7 +12,7 @@ import { DOC_LANGS, DOC_NUMBER, docBook, docLangOf, docNear, docNumber, docPin, 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DOC = path.join(ROOT, "assets", "strom-doc");
 /** The web's address of the contents, a chapter, a rule. */
-const URL_SHAPE = new RegExp(`^https://stromapp\\.info/doc/(cs|en|de|pl)/(?:([ARS][0-9]+[a-z]?)/(?:#(${DOC_NUMBER}))?)?$`, "u");
+const URL_SHAPE = new RegExp(`^https://stromapp\\.info/(?:(cs|de|pl)/)?doc/(?:([ARS][0-9]+[a-z]?)/(?:#(${DOC_NUMBER}))?)?$`, "u");
 
 /** Every file of the research's own (not the documentation itself, not the tests): its code, texts, method, README. */
 function researchFiles(): string[] {
@@ -66,7 +66,7 @@ test("every language has the same numbers, each with a title, in the same order"
 test("every number and address the research points to exists in the pin, in all four languages", () => {
   const books = DOC_LANGS.map((l) => docBook(l));
   const refs: string[] = [];
-  const addresses = new RegExp(`https://stromapp\\.info/doc/[^\\s"'\`)>]*`, "gu");
+  const addresses = new RegExp(`https://stromapp\\.info/(?:(?:cs|de|pl)/)?doc/[^\\s"'\`)>]*`, "gu");
   const asCommand = new RegExp(`strom doc (${DOC_NUMBER})(?![\\p{L}\\p{N}])`, "gu");
   const seeAlso = new RegExp(`\\b(?:see|viz|siehe|zob\\.) (${DOC_NUMBER})(?![\\p{L}\\p{N}])`, "gu");
   for (const file of researchFiles()) {
@@ -79,7 +79,7 @@ test("every number and address the research points to exists in the pin, in all 
       // a template the code fills (${lang}, <chapter>) is checked by its shape where it is made: docUrl
       if (/[${<]/u.test(url)) continue;
       const shape = URL_SHAPE.exec(url);
-      assert.ok(shape, `${where}: ${url} — https://stromapp.info/doc/<lang>/<chapter>/#<number>`);
+      assert.ok(shape, `${where}: ${url} — https://stromapp.info[/<lang>]/doc/<chapter>/#<number>`);
       if (shape[3]) refs.push(`${where}: ${shape[3]}`);
       else if (shape[2]) refs.push(`${where}: ${shape[2]}`);
     }
@@ -92,9 +92,11 @@ test("every number and address the research points to exists in the pin, in all 
 });
 
 test("the web's addresses: the contents, a chapter, a rule — its chapter in the pin", () => {
-  assert.equal(docUrl("cs"), "https://stromapp.info/doc/cs/");
-  assert.equal(docUrl("de", "R2"), "https://stromapp.info/doc/de/R2/");
-  assert.equal(docUrl("pl", "R2.3.1"), "https://stromapp.info/doc/pl/R2/#R2.3.1");
+  assert.equal(docUrl("cs"), "https://stromapp.info/cs/doc/");
+  assert.equal(docUrl("en"), "https://stromapp.info/doc/");
+  assert.equal(docUrl("de", "R2"), "https://stromapp.info/de/doc/R2/");
+  assert.equal(docUrl("en", "R2"), "https://stromapp.info/doc/R2/");
+  assert.equal(docUrl("pl", "R2.3.1"), "https://stromapp.info/pl/doc/R2/#R2.3.1");
   for (const lang of DOC_LANGS) {
     const book = docBook(lang);
     for (const n of book.order) {

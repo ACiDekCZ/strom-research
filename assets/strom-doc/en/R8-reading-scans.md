@@ -80,11 +80,17 @@ place at the time, the archive and the particular book (record set) with access:
 - **Limits:** from 30 images; a different threshold (or never) is set by a person's answer to the question
   `index.first` (`strom media calibrate --questions`). In a conversation it only says so; in a `strom run` session it
   refuses the reading until the agent gives `--no-index`.
+- **Limits (which parish, since research 1.33.0):** an index belongs to a book when they share a place, or when the
+  parish of one is a place or a parish of the other. A place's parish is taken only with years that reach into the
+  book's years; a parish with years within the book's years comes before parishes without years. Several parishes
+  without years at one place do not say which parish and match nothing through the parish (the place itself still
+  does). A place written as `L…` takes only its own parishes, a place written as text only when it is the only place
+  of that name in the research. So an index of another parish is never offered.
 - **Why:** according to a comment in the code, from roughly 20–40 images an index pays more than browsing. A case from
   real research: readers read 61 images of a marriage book while the parish index lay downloaded.
-- **Since:** research 1.14.0
+- **Since:** research 1.14.0; matching the parish 1.33.0
 
-<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst -->
+<!-- zdroj: research:src/core/indexfirst.ts:1-28 INDEX_FIRST_DEFAULT · src/commands/read.ts:217 --no-index, :265 guardIndexFirst · 1.33.0: research:a722a101 src/core/indexfirst.ts covers, sameParish (roky farnosti, víc nedatovaných farností nepáruje, L-ID jen vlastní) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub2.md B4 -->
 
 <a id="R8.1.2"></a>
 ### R8.1.2 A lesson about a book

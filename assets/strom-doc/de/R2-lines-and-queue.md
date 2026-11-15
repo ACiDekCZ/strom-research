@@ -99,7 +99,8 @@ begonnene Aufgabe geht allen voran.
   9. Art der Aufgabe: Unterlagen → wo die Einträge liegen → Beleg einer Verbindung → Prüfung → Ergänzung einer
      Person → Anfrage an ein Archiv → Erzählung;
   10. Alter der Aufgabe.
-- **Bedienung:** Terminal: `strom task list`, `strom task next`. App: Abschnitt **Warteschlange**.
+- **Bedienung:** Terminal: `strom task list` (`--all`: alle Aufgaben in jedem Zustand, seit Forschung 1.33.0),
+  `strom task next`. App: Abschnitt **Warteschlange**.
 - **Gilt seit:** Forschung 1.0.0 (Schlüssel 1, 7–10). Schlüssel 6 seit 1.1.0, Verknüpfung von Hypothesen seit
   1.17.0, Schlüssel 3 seit 1.22.0, Schlüssel 4 und Orte auf Anforderung seit 1.25.0. Schlüssel 2 seit 1.26.0.
 - **Ab Forschung 1.32.0:** die Brücke sucht in der ganzen Warteschlange (Nummer der Aufgabe oder Person, Namen der
@@ -107,7 +108,7 @@ begonnene Aufgabe geht allen voran.
   und der gesuchte Text wird nirgends gespeichert, auch nicht im Protokoll der Brücke.
   In der App: das Suchfeld in der **Warteschlange** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 -->
+<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategie der Warteschlange

@@ -17,7 +17,7 @@
 // is on: --strict-mcp-config, --tools <what strom uses>, no auto-memory.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, commandLine, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, refusedByStrom, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { appendLog, commandLine, deniedCall, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, refusedByStrom, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import type { SessionMetrics } from "../core/model.ts";
 import { addResponses, type Responses } from "./jsonl.ts";
@@ -212,11 +212,11 @@ export function apiRetry(msg: Record<string, unknown>): { delayMs: number } | un
   return { delayMs: d !== undefined && d > 0 ? d : 0 };
 }
 
-/** A tool call in one line, as a refusal is listed: "Bash: strom input show I0001", "WebFetch: https://…". */
+/** A tool call as a refusal is listed: "Bash: strom input show I0001", "WebFetch: https://…" — a command of several lines kept whole. */
 function callLabel(name: string | undefined, input: Record<string, unknown> | undefined): string {
   const i = input ?? {};
   const what = typeof i.command === "string" ? i.command : typeof i.file_path === "string" ? i.file_path : typeof i.url === "string" ? i.url : "";
-  return `${name ?? "tool"}${what ? `: ${String(what).split("\n")[0]!.slice(0, 120)}` : ""}`;
+  return deniedCall(name ?? "tool", String(what));
 }
 
 function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: number | undefined, sid?: string): Promise<Attempt> {
@@ -470,8 +470,12 @@ export const claudeRunner: Runner = {
     if (denied.length) metrics.denied = denied.length;
     if (refused.length) metrics.refused = refused.length;
     const all = `${a.text}\n${a.stderr}`;
-    const limit = looksLikeLimit(all);
     const code = a.code;
+    // a failed session with a window of the plan said full (a rejected rate_limit_event) is the plan's limit, whatever
+    // its words — the reset then is the window's
+    const full = ((code ?? 0) !== 0 || a.isError) && !!limits?.some((l) => l.used >= 1);
+    const said = looksLikeLimit(all);
+    const limit = said.limit || !full ? said : { limit: true };
     const outcome: RunResult["outcome"] = opts.signal?.aborted
       ? "stopped"
       : a.stalled

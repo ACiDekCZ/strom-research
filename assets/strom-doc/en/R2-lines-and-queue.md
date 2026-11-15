@@ -92,7 +92,8 @@ before all others.
   9. the kind of task: material → where the records are → proving a link → verification → enriching a person →
      request to an archive → story;
   10. the age of the task.
-- **Controls:** terminal: `strom task list`, `strom task next`. App: section **Queue**.
+- **Controls:** terminal: `strom task list` (`--all`: every task in any state, since research 1.33.0),
+  `strom task next`. App: section **Queue**.
 - **Since:** research 1.0.0 (keys 1, 7–10). Key 6 from 1.1.0, linking hypotheses from 1.17.0, key 3 from 1.22.0,
   key 4 and places on request from 1.25.0. Key 2 from 1.26.0.
 - **From research 1.32.0:** the bridge searches the whole queue (a task or person number, the names of persons, the
@@ -100,7 +101,7 @@ before all others.
   kept nowhere, not even in the bridge's log. In the app: the search field in the **Queue**
   ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 -->
+<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 The queue strategy

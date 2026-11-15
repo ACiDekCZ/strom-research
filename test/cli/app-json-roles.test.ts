@@ -265,3 +265,76 @@ test("intake of a GEDCOM: an event's long note whole (no limit of a note strom w
     w.cleanup();
   }
 });
+
+/**
+ * The app's GEDCOM of Ida's own events as the app writes them: their TYPE in the language the app runs in (B6: the
+ * JSON gives the app's types, the research names them; the GEDCOM the app's words, "Godparent" in a Czech research).
+ */
+function appGed(godparent: string, witness: string, program = "STROM"): string {
+  return [
+    "0 HEAD",
+    `1 SOUR ${program}`,
+    "1 GEDC",
+    "2 VERS 5.5.1",
+    "2 FORM LINEAGE-LINKED",
+    "1 CHAR UTF-8",
+    "0 @I1@ INDI",
+    "1 NAME Marie /Lhotová/",
+    "1 SEX F",
+    "1 BAPM",
+    "2 DATE 14 MAR 1910",
+    "0 @I2@ INDI",
+    "1 NAME Prokop /Lhoták/",
+    "1 SEX M",
+    "0 @I3@ INDI",
+    "1 NAME Terezie /Lhotáková/",
+    "1 SEX F",
+    "0 @I4@ INDI",
+    "1 NAME Ida /Lhotáková/",
+    "1 SEX F",
+    "1 EVEN",
+    `2 TYPE ${godparent}`,
+    "2 DATE 14 MAR 1910",
+    "2 _STROM_ROLE godparent",
+    "3 _STROM_AT @I1@",
+    "4 TYPE BAPM",
+    "1 EVEN",
+    `2 TYPE ${witness}`,
+    "2 DATE 1905",
+    "2 _STROM_ROLE witness",
+    "3 _STROM_AT @F1@",
+    "4 TYPE MARR",
+    "0 @F1@ FAM",
+    "1 HUSB @I2@",
+    "1 WIFE @I3@",
+    "1 MARR",
+    "2 DATE 1905",
+    "0 TRLR",
+    "",
+  ].join("\n");
+}
+
+test("a godparent's and a wedding witness's own event named in the research's language, from the app's JSON and its GEDCOM alike; another program's TYPE kept (B6)", opts, async () => {
+  const labels = async (lang: string, name: string, text: string): Promise<(string | undefined)[]> => {
+    const w = new World();
+    try {
+      await w.withTree("Lhotákovi");
+      await w.ok(["lang", lang]);
+      const file = path.join(w.dir, name);
+      fs.writeFileSync(file, text);
+      await w.ok(["intake", file]);
+      return person(open(w), "Ida").events.filter((e) => e.kind === "EVEN").map((e) => e.label);
+    } finally {
+      w.cleanup();
+    }
+  };
+  const json = JSON.stringify(appJson());
+  // a Czech research: the app in English writes "Godparent", its JSON the types — both "Kmotrovství"
+  assert.deepEqual(await labels("cs", "a.json", json), ["Kmotrovství", "Svědek při sňatku"]);
+  assert.deepEqual(await labels("cs", "a.ged", appGed("Godparent", "Wedding witness")), ["Kmotrovství", "Svědek při sňatku"]);
+  // a German research: the app in Czech writes its words decomposed (NFD) — both German
+  assert.deepEqual(await labels("de", "a.json", json), ["Patenschaft", "Trauzeuge"]);
+  assert.deepEqual(await labels("de", "a.ged", appGed("Kmotrovství".normalize("NFD"), "Svědek při sňatku".normalize("NFD"))), ["Patenschaft", "Trauzeuge"]);
+  // another program's file: its TYPE is the user's name of the event, kept as it is
+  assert.deepEqual(await labels("cs", "b.ged", appGed("Кумовство", "Svědectví", "OTHER")), ["Кумовство", "Svědectví"]);
+});

@@ -229,7 +229,9 @@ der Mensch sie einschaltet. Die Forschung ordnet dazu die Orte Regionen der Gesc
 - **Bedienung:** App: **Geschichte der Orte**, **Ortsgeschichte suchen…**, **Region zuordnen**, Zustände
   **Ortsgeschichte: wartet**, **Ortsgeschichte: wird gesucht**, **Die Forschung konnte den Ort nicht bestimmen** ·
   Terminal: **Einstellungen → Der Agent allein → Geschichte**; `strom config set experiments.history on`,
-  `strom history place <L…>`, `strom history map --unlocated`
-- **Gilt seit:** Forschung 1.22.0
+  `strom history place <L…>`, `strom history map "<Ort>" --region <id>[:<von>-<bis>]` (einmal für jede Region,
+  zu der der Ort gehörte) oder `--unlocated --why "…"`, `strom history list --event <id>` (ein Ereignis der
+  Geschichte)
+- **Gilt seit:** Forschung 1.22.0; `history list --event` 1.33.0
 
-<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) -->
+<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) · 1.33.0: research:926375ea history list --event · c50f80f5 history map bez --region (nápověda celého řádku) · strom help history map, history list -->

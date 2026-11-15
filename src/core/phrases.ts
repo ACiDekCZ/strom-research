@@ -258,6 +258,8 @@ export const PHRASES = {
   "log.event.edit": "Refined: {who} – {fact}",
   "log.event.cite": "A record for: {who} – {fact}",
   "log.event.uncite": "A record no longer cited: {who} – {fact}",
+  "log.event.main": "The main record of a fact chosen: {who} – {fact}",
+  "log.event.main.off": "A fact without its main record: {who} – {fact}",
   "log.event.recite": "The record the fact was taken from is cited again: {who} – {fact}",
   "log.person.uncite": "A record no longer cited for {who}",
   "log.family.uncite": "A record no longer cited for the family {who}",

@@ -21,7 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { addResponses, heardResponse, runJsonLines, webUse, type Heard } from "./jsonl.ts";
 import type { AgentWeb } from "../core/metrics.ts";
-import { commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { commandLine, deniedCall, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import { DOC_NEXT } from "../core/document.ts";
 import { inRoom, readerRoom } from "./room.ts";
@@ -101,11 +101,11 @@ function describe(s: Step): { line: string; denied: string } {
   const p = s.tool_info?.parameters ?? {};
   const tool = String(s.tool_name ?? s.tool_info?.name ?? "tool");
   if (typeof p.CommandLine === "string") {
-    return { line: commandLine(p.CommandLine), denied: `Bash: ${p.CommandLine.split("\n")[0]!.slice(0, 120)}` };
+    return { line: commandLine(p.CommandLine), denied: deniedCall("Bash", p.CommandLine) };
   }
   const file = p.AbsolutePath ?? p.TargetFile ?? p.DirectoryPath ?? p.Url;
   const line = typeof file === "string" ? `${tool} ${file}` : tool;
-  return { line, denied: `${tool}: ${line.slice(tool.length).trim().slice(0, 120)}`.replace(/: $/, "") };
+  return { line, denied: deniedCall(tool, line.slice(tool.length).trim()) };
 }
 
 /**

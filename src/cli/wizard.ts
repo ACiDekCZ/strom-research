@@ -25,11 +25,11 @@ import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, linksTakeable, registerLinks, type Sys } from "../core/links.ts";
 import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { chooseHistory, ensureShared, historySuggested, markHistoryAsked, setTreeSetting } from "../commands/setup.ts";
-import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
+import { moveHome, planMove, planUseExisting, repointSettings, researchHome, sameFolder, useExistingHome, type UsePlan } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
 import type { TreeConfig } from "../core/model.ts";
 import { adoptSeal, foundTrees, offerAdopt } from "./seal.ts";
-import { Tree } from "../core/tree.ts";
+import { knownTreesIn, Tree } from "../core/tree.ts";
 import { isAgent } from "../core/which.ts";
 
 export interface WizardResult {
@@ -93,9 +93,16 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     }
   }
   // Another folder while the research is in the old one: it moves along (trees, the shared folder) — or stays where it is.
-  if (was && !sameFolder(home, was)) home = await moveResearch(ctx, lang, was, home);
+  // A folder that holds a research already: taken as it is, nothing moved.
+  let used: UsePlan | undefined;
+  if (was && !sameFolder(home, was)) ({ home, used } = await moveResearch(ctx, lang, was, home));
   cfg.lang = lang;
-  if (was && !sameFolder(home, was)) repointSettings(s, ctx.env, was, home);
+  if (used) {
+    useExistingHome(s, was!, home);
+    const where = { from: ctx.display(was!), to: ctx.display(home) };
+    ctx.io.stdout(ui(lang, "ui.home.used", where) + "\n");
+    if (used.left.length) ctx.io.stdout(ui(lang, "ui.home.left", { ...where, trees: used.left.map((t) => t.name).join(", ") }) + "\n");
+  } else if (was && !sameFolder(home, was)) repointSettings(s, ctx.env, was, home);
   else if (!was) cfg.home = home;
   s.save();
   fs.mkdirSync(home, { recursive: true });
@@ -497,36 +504,61 @@ export async function askStromApp(ctx: Context, lang: string, back: string | und
 /**
  * The research to another folder: what moves is said (the trees, the shared folder with the plugins and images), and it
  * moves on the person's yes. Where it cannot (somebody at work, a folder with something in it, into itself) it stays.
+ * A folder that is the home of a research already is offered to be taken as it is, nothing moved (`used`).
  * Returns the folder the research is in afterwards.
  */
-async function moveResearch(ctx: Context, lang: string, from: string, to: string): Promise<string> {
+async function moveResearch(ctx: Context, lang: string, from: string, to: string): Promise<{ home: string; used?: UsePlan }> {
   const out = (line: string) => ctx.io.stdout(line + "\n");
   // Set from outside (STROM_HOME): the folder is not the wizard's to change.
   if (ctx.settings.home()?.source !== "config") {
     out(ui(lang, "ui.home.env", { from: ctx.display(from) }));
-    return from;
+    return { home: from };
   }
   const plan = planMove(from, to, ctx.knownTrees().map((k) => k.root), { settings: configDir(ctx.env) });
-  if (!plan.content && !plan.problem) return to;
+  if (!plan.content && !plan.problem) return { home: to };
   const where = { from: ctx.display(from), to: ctx.display(plan.to) };
+  if (plan.problem === "notEmpty" && researchHome(to)) return useExisting(ctx, lang, from, to);
   if (plan.problem) {
     out(ui(lang, `ui.home.${plan.problem}`, { ...where, trees: plan.busy.join(", ") }));
     out(ui(lang, "ui.home.stays", where));
-    return from;
+    return { home: from };
   }
   out(ui(lang, "ui.home.what", { ...where, trees: plan.trees.length ? plan.trees.join(", ") : "–" }));
   if (!(await ctx.confirm(ui(lang, "ui.home.sure"), true))) {
     out(ui(lang, "ui.home.stays", where));
-    return from;
+    return { home: from };
   }
   try {
     const how = moveHome(plan);
     out(ui(lang, how === "moved" ? "ui.home.moved" : "ui.home.copied", where));
-    return plan.to;
+    return { home: plan.to };
   } catch (err) {
     out(ui(lang, "ui.home.failed", { ...where, reason: (err as Error).message }));
-    return from;
+    return { home: from };
   }
+}
+
+/**
+ * The folder chosen holds a research already: what it holds is said, and what the old folder keeps out of the list,
+ * and it is taken as it is on the person's yes.
+ */
+async function useExisting(ctx: Context, lang: string, from: string, to: string): Promise<{ home: string; used?: UsePlan }> {
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  const plan = planUseExisting(from, to, knownTreesIn(ctx.treesDir(), ctx.settings.config.extraTrees ?? []), { settings: configDir(ctx.env) });
+  const where = { from: ctx.display(from), to: ctx.display(to) };
+  if (plan.problem) {
+    const key = plan.problem === "busy" ? ("ui.home.existing.busy" as const) : (`ui.home.${plan.problem}` as const);
+    out(ui(lang, key, { ...where, trees: plan.busy.join(", ") }));
+    out(ui(lang, "ui.home.stays", where));
+    return { home: from };
+  }
+  out(ui(lang, "ui.home.existing", { ...where, trees: plan.trees.length ? plan.trees.join(", ") : "–" }));
+  if (plan.left.length) out(ui(lang, "ui.home.existing.left", { ...where, trees: plan.left.map((t) => t.name).join(", ") }));
+  if (!(await ctx.confirm(ui(lang, "ui.home.existing.sure", where), true))) {
+    out(ui(lang, "ui.home.stays", where));
+    return { home: from };
+  }
+  return { home: to, used: plan };
 }
 
 /**

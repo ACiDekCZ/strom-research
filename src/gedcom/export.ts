@@ -35,7 +35,7 @@ import { foldText } from "../core/text.ts";
 import { relaForApp } from "../core/roles.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
-import { quay } from "../core/evidence.ts";
+import { orderCitations, quayAt, sourceEvents, type OrderOf } from "../core/citeorder.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
@@ -242,6 +242,12 @@ export interface ExportOptions {
    * registered images give) and 1 _STROM_LOCATOR (the rest), each where it has one.
    */
   sourceFields?: boolean;
+  /**
+   * The Strom profile, for an app that reads the main citation (APP_READS_MAIN_CITATION, spec 095): `_STROM_MAIN Y`
+   * under the user's main citation of a fact (first in the order in every file anyway) and the events a record records
+   * (`1 DATA / 2 EVEN`) on its source — the file for other programs has them always (GEDCOM 5.5.1 EVENTS_RECORDED).
+   */
+  mainCitations?: boolean;
   /**
    * The Strom profile, for an app that shows the research in its table (APP_SHOWS_RESEARCH_TABLE; core/tablemarks.ts):
    * in the header `1 _STROM_DIRECTIONS Y` (the file says the lines, all of them) with `1 _STROM_DIRECTION G…` per line
@@ -575,7 +581,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);
       if (!strict && n.primary) w.line(2, "_STROM_PRIMARY", "Y");
-      for (const c of n.citations ?? []) {
+      for (const c of ordered(n.citations ?? [])) {
         const q = citation(2, c);
         if (q) nameQuotes.push(`${L("name")} ${formatName(n)} — ${L("quote")}: „${q}“`);
       }
@@ -687,7 +693,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     }
     if (!strict && (f.union === "partners" || f.union === "separated")) w.line(1, "_STAT", f.union === "partners" ? "Partners" : "Separated");
     originalIdLines(f);
-    for (const c of f.citations ?? []) {
+    for (const c of ordered(f.citations ?? [])) {
       const q = citation(1, c);
       if (q) deferred.push(`${L("family")} — ${L("quote")}: „${q}“`);
     }
@@ -707,6 +713,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   function writeSource(s: Source): void {
     stats.sources++;
     w.record(x(s.id), "SOUR");
+    // the events the record records (GEDCOM 5.5.1 EVENTS_RECORDED): what the order of a fact's citations goes by
+    const recorded = strict || opts.mainCitations ? sourceEvents(s) : [];
+    if (recorded.length) {
+      w.line(1, "DATA");
+      w.line(2, "EVEN", recorded.join(", "));
+    }
     w.text(1, "TITL", s.title);
     const set = s.recordset ? recordsets.get(s.recordset) : undefined;
     const repo = s.repository ?? set?.repository;
@@ -1017,7 +1029,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age ?? raw, lang)}`);
       }
     if (opts.for === "strom") shareLines(e, on);
-    for (const c of e.citations) citation(2, c);
+    const cites = ordered(e.citations, { kind: e.kind, date: e.date });
+    for (const c of cites) citation(2, c, e.kind);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
     if (opts.factStatus && opts.for === "strom") w.line(2, "_STROM_STATUS", e.status);
     else if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
@@ -1032,7 +1045,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
     if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
-    if (!strict) for (const c of e.citations) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
+    if (!strict) for (const c of cites) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
     if (e.note) noteParts.push(e.note);
     if (noteParts.length) {
       // Under a value tag a NOTE would be glued onto the fact; it goes to the person instead.
@@ -1359,14 +1372,20 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
    * for Strom also where in the entry the fact was read, when that is not the source's PAGE; returns the
    * quote when it has to go into a note (Strom does not read DATA TEXT yet).
    */
-  function citation(level: number, c: Citation): string | undefined {
+  /** Citations in the order of spec 095 K1.1 (core/citeorder.ts): the stored order stays as it is. */
+  function ordered(citations: readonly Citation[], fact?: OrderOf): Citation[] {
+    return orderCitations(citations, (id) => sourceById.get(id), fact);
+  }
+
+  function citation(level: number, c: Citation, factKind?: string): string | undefined {
     const src = sourceById.get(c.source);
     if (!src) return undefined;
     citedSources.add(c.source);
     const page = strict ? (c.locator ?? composedPage(src, lang)) : stromPage(src, c);
     w.line(level, "SOUR", x(c.source));
     if (page) w.text(level + 1, "PAGE", page);
-    w.line(level + 1, "QUAY", quay(src, c));
+    w.line(level + 1, "QUAY", quayAt(src, c, factKind));
+    if (c.main && opts.mainCitations && !strict) w.line(level + 1, "_STROM_MAIN", "Y");
     const where = !strict && c.locator && c.locator !== page ? c.locator : undefined;
     const quote = [where, c.quote].filter(Boolean).join(" — ") || undefined;
     const date = entries ? src.date : undefined;

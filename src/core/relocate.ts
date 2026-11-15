@@ -4,7 +4,9 @@
 // list, the plugins and images not found. So the whole folder moves with it:
 // renamed where it can be (one disk), else copied and the old one left for the
 // user to delete. Never while somebody works in a tree, never into a folder
-// that holds something already, never into itself.
+// that holds something already, never into itself. A folder that is the home of a research already (a copy put
+// back, another computer's folder) is taken as it is instead, on the person's yes: nothing moves, the old folder
+// stays as it was, its trees out of the list (planUseExisting, useExistingHome).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -15,6 +17,8 @@ import { liveRunning } from "./live.ts";
 import type { Env } from "./paths.ts";
 import { liveWorkers, runsAtWork } from "./workers.ts";
 import { insideProgram } from "./self.ts";
+import { knownTreesIn, TREE_FILE, type KnownTree } from "./tree.ts";
+import { readJsonIfExists } from "./json.ts";
 
 export type MoveProblem = "inside" | "notEmpty" | "busy" | "program";
 
@@ -102,6 +106,88 @@ export function moveHome(plan: MovePlan): "moved" | "copied" {
     throw err;
   }
   return "copied";
+}
+
+/**
+ * A folder that is the home of a research already (a copy put back, a restore, another computer's folder synced here):
+ * a family tree in it (a folder with strom.json) or strom's shared folder (`shared` with its plugins or images).
+ * Undefined for any other folder. `trees`: the trees in it.
+ */
+export function researchHome(dir: string): { trees: KnownTree[] } | undefined {
+  const trees = knownTreesIn(dir);
+  const shared = path.join(dir, "shared");
+  const hasShared = ["plugins", "media"].some((d) => {
+    try {
+      return fs.statSync(path.join(shared, d)).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+  return trees.length || hasShared ? { trees } : undefined;
+}
+
+export type UseProblem = "inside" | "busy" | "program";
+
+export interface UsePlan {
+  from: string;
+  to: string;
+  /** The trees in the folder taken (their names). */
+  trees: string[];
+  /** The trees of the old folder with no copy (the same id) in the new one: they stay there, out of the list. */
+  left: { name: string; root: string }[];
+  /** Trees of the old folder somebody works in now (as planMove says it). */
+  busy: string[];
+  problem?: UseProblem;
+}
+
+/**
+ * Taking a folder that is the home of a research already as the home (`researchHome`), nothing moved: what the old
+ * folder keeps out of the list then, and whether it can be now — never while somebody works in a tree of the old
+ * folder (its bridge would go on with the folder left), never a folder in the old one (or the other way round), never
+ * strom's program folder. `known`: the trees strom knows (those in the old folder are its).
+ */
+export function planUseExisting(from: string, to: string, known: readonly KnownTree[], opts: { settings?: string } = {}): UsePlan {
+  const there = researchHome(to)?.trees ?? [];
+  const ids = new Set(there.map((t) => t.id).filter(Boolean));
+  const inOld = known.filter((t) => within(t.root, from));
+  const plan: UsePlan = {
+    from,
+    to,
+    trees: there.map((t) => path.basename(t.root)),
+    left: inOld.filter((t) => !t.id || !ids.has(t.id)).map((t) => ({ name: t.name, root: t.root })),
+    busy: inOld.filter((t) => atWork(t.root)).map((t) => path.basename(t.root)),
+  };
+  if (insideProgram(to, opts)) plan.problem = "program";
+  else if (within(to, from) || within(from, to)) plan.problem = "inside";
+  else if (plan.busy.length) plan.problem = "busy";
+  return plan;
+}
+
+/**
+ * The settings point to the folder taken (planUseExisting), the old folder left as it is — nothing in it moved,
+ * written or deleted: the folders set under the old one (trees, shared) back to their places under the new one, the
+ * tree worked on its copy there (else none), the trees remembered from the old folder out of the list. A folder set
+ * elsewhere (shared on another disk) stays. The consents to connectors stay with the old folder's connectors: those
+ * of the new one are asked for again (a consent is the person's, for the code it was given to).
+ */
+export function useExistingHome(settings: Settings, from: string, to: string): void {
+  const cfg = settings.config;
+  const old = (p: string | undefined) => !!p && within(p, from);
+  cfg.home = to;
+  if (old(cfg.shared)) delete cfg.shared;
+  if (old(cfg.trees)) delete cfg.trees;
+  if (cfg.extraTrees) {
+    const kept = cfg.extraTrees.filter((p) => !old(p));
+    if (kept.length) cfg.extraTrees = kept;
+    else delete cfg.extraTrees;
+  }
+  if (old(cfg.currentTree)) {
+    const id = readJsonIfExists<{ id?: string }>(path.join(cfg.currentTree!, TREE_FILE))?.id;
+    const twin = id ? knownTreesIn(settings.trees()?.value, cfg.extraTrees ?? []).find((t) => t.id === id) : undefined;
+    if (twin) cfg.currentTree = twin.root;
+    else delete cfg.currentTree;
+  }
+  settings.save();
 }
 
 /**

@@ -217,7 +217,9 @@ człowiek ją włączy. Badanie przypisuje w tym celu miejsca do regionów histo
 - **Obsługa:** aplikacja: **Historia miejsc**, **Znajdź historię miejsca i okolic…**, **Przypisz region**, stany
   **Historia miejsca: czeka**, **Historia miejsca: trwa wyszukiwanie**, **Badanie nie odnalazło miejsca** · terminal:
   **Ustawienia → Samodzielna praca agenta → Historia**; `strom config set experiments.history on`,
-  `strom history place <L…>`, `strom history map --unlocated`
-- **Obowiązuje od:** badanie 1.22.0
+  `strom history place <L…>`, `strom history map "<miejsce>" --region <id>[:<od>-<do>]` (raz dla każdego regionu,
+  do którego miejsce należało) albo `--unlocated --why "…"`, `strom history list --event <id>` (jedno wydarzenie
+  historii)
+- **Obowiązuje od:** badanie 1.22.0; `history list --event` 1.33.0
 
-<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) -->
+<!-- zdroj: research:src/core/pastevents.ts PACE_EVERY (:2621), experiments.historyPace · research:src/core/placehistory.ts · research:src/commands/history.ts place, map --unlocated, adopt · research:assets/lang/cs.json ui.alone.title, ui.alone.history · app:src/strings.ts history.* (v3.21.2 :13121–13235) · CHANGELOG.cs.md 1.22.0 (l.229) · 1.33.0: research:926375ea history list --event · c50f80f5 history map bez --region (nápověda celého řádku) · strom help history map, history list -->
