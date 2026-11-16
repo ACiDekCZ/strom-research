@@ -11,12 +11,13 @@ import { Tree, VERSION } from "../../src/core/tree.ts";
 import { create, update } from "../../src/core/records.ts";
 import { buildGed } from "../../src/core/liveged.ts";
 import { head as headOf } from "../../src/core/git.ts";
-import { applySync, planSync, readGedcom, type SyncInput } from "../../src/core/sync.ts";
-import { NOTES_SETTLED, noteFixes, settleNotes } from "../../src/core/notefix.ts";
+import { applySync, planSync, readGedcom, type Change, type SyncInput } from "../../src/core/sync.ts";
+import { NOTES_LEFT_ORIGIN, NOTES_SETTLED, noteFixes, settleNotes } from "../../src/core/notefix.ts";
 import { backupsMade } from "../../src/core/backup.ts";
+import { answersInApp, inApp, waitingFor } from "../../src/core/waiting.ts";
 import fs from "node:fs";
 import path from "node:path";
-import type { Person, Source } from "../../src/core/model.ts";
+import type { Person, Source, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 const PERSON = { tty: true };
@@ -51,12 +52,13 @@ async function setUp(witnessNote = "kovář z Lhoty"): Promise<World> {
  * What a sync before 1.34.0 wrote: E0001's note and witness's note "corrected" with E0002's (`wrote`: the file it
  * planned from), its input keeping the file the app really sent (`sent`; none: no file kept).
  */
-function wrongSync(w: World, wrote: string, sent: string | undefined, partNotes = true) {
+function wrongSync(w: World, wrote: string, sent: string | undefined, partNotes = true, as?: (c: Change) => Change) {
   const tree = open(w);
   tree.personWrites = true;
   return tree.withTreeLock(() => {
     const incoming = readGedcom(wrote);
-    const plan = planSync(tree, incoming, "conflict", { partNotes });
+    const planned = planSync(tree, incoming, "conflict", { partNotes });
+    const plan = as ? { ...planned, changes: planned.changes.map(as) } : planned;
     const made = create<SyncInput>(tree, "input", { name: "app.ged", sha: "0", size: 1, mime: "text/plain", from: "app.ged", kind: "tree", state: "processed", ...(sent !== undefined ? { text: sent } : {}) } as never, (i) => `+${i} input tree "app.ged" (sync)`);
     const source = create<Source>(tree, "source", { kind: "family-tree", title: "Strom", input: made.id, information: "secondary", form: "authored" } as never, (s) => `+${s} source "app.ged" (sync)`);
     const r = applySync(tree, plan, incoming, source, undefined, { decidePerson: false, input: made.id });
@@ -83,7 +85,7 @@ for (const kept of ["the file kept", "no file kept"]) {
       assert.equal(ev(w, "E0001").note, B, "as the sync before 1.34.0 left it");
       assert.equal(witness(w, "E0001"), "kovář z Lhoty");
       const { backup: _b, ...done } = settleNotes(open(w)) ?? {};
-      assert.deepEqual(done, { facts: 1, notes: 2, left: [] });
+      assert.deepEqual(done, { facts: 1, notes: 2, left: [], asked: [] });
       const e = ev(w, "E0001");
       assert.equal(e.note, A, "the note before put back");
       assert.equal(e.noteEdits?.at(-1)?.text, B, "the wrong one kept in the note's history");
@@ -98,7 +100,7 @@ for (const kept of ["the file kept", "no file kept"]) {
   });
 }
 
-test("the user's own edit (the file gave that fact those words) is never set right; one changed since is left and said", opts, async () => {
+test("the user's own edit (the file gave that fact those words) is never set right; one changed since is left and asked of the person", opts, async () => {
   const w = await setUp();
   try {
     // the user really gave the first fact its twin's words in the app: the file says so under its ID
@@ -121,6 +123,19 @@ test("the user's own edit (the file gave that fact those words) is never set rig
     assert.deepEqual(done && { facts: done.facts, left: done.left }, { facts: 1, left: ["E0001"] }, "only the witness's set right");
     assert.equal(ev(v, "E0001").note, "Poznámka A, opravená");
     assert.equal(witness(v, "E0001"), "soused");
+    // …and asked of the person: one task waiting for them, in the research's language, its notes in its words
+    assert.equal(done?.asked.length, 1);
+    const t = open(v).get<Task>(done!.asked[0]!)!;
+    assert.equal(t.state, "waiting");
+    assert.equal(t.origin, NOTES_LEFT_ORIGIN);
+    assert.deepEqual([t.where, t.subject], [["E0001"], ["P0001"]]);
+    assert.match(t.what, /^Zkontrolovat poznámku E0001 \(Václav Lhoták\)/u);
+    assert.match(t.waitingOn ?? "", /E0001/u);
+    for (const said of [A, B, "Poznámka A, opravená"]) assert.ok(t.why.includes(`„${said}“`), `${said} in ${t.why}`);
+    const item = waitingFor(open(v)).find((i) => i.task?.id === t.id);
+    assert.ok(item && inApp(item) && answersInApp(t), "in What waits, the Strom app's too, answered there");
+    assert.equal(settleNotes(open(v)), undefined, "once: asked once");
+    assert.equal(open(v).list<Task>("task").filter((x) => x.origin === NOTES_LEFT_ORIGIN).length, 1);
   } finally {
     v.cleanup();
   }
@@ -134,7 +149,10 @@ test("a witness's longer note the 3.28.0 sent cut short is set right; of an app 
       const sent = appFile(w, app);
       const cut = sent.replace(/^(3 NOTE kovář z Horní Lhoty, [^\n]{0,60})[^\n]*(\r?\n(?:4 CON[CT] [^\n]*\r?\n)*)/mu, "$1\n");
       assert.notEqual(cut, sent);
-      wrongSync(w, cut, cut);
+      // as a strom before 1.35.0 planned it (it took the beginning alone for an edit; core/sync.ts cutShort now never)
+      const short = /^3 NOTE (kovář z Horní Lhoty, [^\n]*)$/mu.exec(cut)![1]!;
+      const marked = cut.replace(`3 NOTE ${short}`, "3 NOTE MARKER");
+      wrongSync(w, marked, cut, true, (c) => (c.kind === "fact.part.note" && c.part?.note === "MARKER" ? { ...c, part: { ...c.part, note: short } } : c));
       assert.notEqual(witness(w, "E0002"), long, "as the sync before 1.34.0 left it");
       const done = settleNotes(open(w));
       if (app === "3.28.0") {

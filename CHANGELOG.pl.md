@@ -5,9 +5,25 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.35.0
+
+*W przygotowaniu: bety do 1.35.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Notatka uczestnika z aplikacji Strom:** notatka chrzestnego lub świadka zmieniona w aplikacji Strom 3.29.0 lub
+  nowszej wraca do badania, z pliku i z tego, co aplikacja wysyła wprost przez most. Notatka, która jest tylko
+  początkiem notatki badania (jak trzymała ją starsza aplikacja albo skrócona w aplikacji – także cięciem między
+  literą a jej akcentem), nigdy nie jest przejmowana sama: strom sync mówi o tym jednym wierszem, a na człowieka czeka
+  pytanie (w tym, co czeka, i w aplikacji Strom), czy przejąć krótszą notatkę, czy zachować notatkę badania. Pytanie
+  pada raz: to samo drzewo wysłane ponownie już o nic nie pyta.
+- **Notatka zmieniona po wysłaniu z aplikacji:** gdy strom przywraca notatki, które wysłanie z aplikacji Strom zapisało
+  przy podobnej danej, notatkę zmienioną od tego czasu zostawia, a na człowieka czeka zadanie, by ją sprawdzić (w tym,
+  co czeka, i w aplikacji Strom), nigdy tylko wiersz w historii.
+- **Windows: po sprawdzeniu logowania nic nie działa dalej:** sprawdzenie, czy agent w terminalu jest zalogowany,
+  kończy wszystko, co uruchomiło, gdy trwa za długo, a czytniki nie wypisują już ostrzeżenia Node DEP0190.
+
 ## 1.34.0
 
-*W przygotowaniu: bety do 1.34.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*15.11.2026 · współpracuje z aplikacją Strom 3.29.0.*
 
 - **Główny przypis i jedna kolejność przypisów:** przypisy każdej danej idą w każdym pliku w jednej kolejności – najpierw
   główny przypis, potem zapis samego zdarzenia, inne oryginały, a reszta według tego, jak są pewne. Główny przypis
@@ -20,9 +36,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Samodzielna praca z warunkiem:** gdy limit planu agenta przerwie sesję, praca czeka do odnowienia limitu (w
   terminalu i w aplikacji Strom jako pauza), potem ponownie pyta warunek i idzie dalej; przerwane zadanie wraca do
   kolejki. Komunikat agenta o wyczerpaniu limitu jest odczytywany jako limit planu razem z czasem odnowienia.
-- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej i w notatce uczestnika wracają do badania, każda do
-  swojej danej, wcześniejszy tekst zostaje w historii notatki; notatka uczestnika tylko z aplikacji, która wysyła ją w
-  całości; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
+- **Notatki z aplikacji Strom:** zmiany użytkownika w notatce danej wracają do badania, każda do swojej danej,
+  wcześniejszy tekst zostaje w historii notatki; usunięta notatka niczego nie usuwa. Własne zdarzenie chrzestnego lub świadka w
   GEDCOM aplikacji jest nazwane w języku badania. Własne drugie urodzenie lub zgon aplikacji i jej akt urodzenia lub
   zgonu są rozpoznawane także po polsku i nigdy nie są zgłaszane jako nieprzejęte.
 - **Folder domowy, w którym badanie już jest:** `strom setup --home <folder> --use-existing` (i konfiguracja po

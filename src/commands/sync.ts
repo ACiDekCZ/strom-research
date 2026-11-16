@@ -13,14 +13,15 @@ import { lines, truncate } from "../cli/format.ts";
 import { decodingSaid, UI, ui, type UIKey } from "../cli/ui.ts";
 import { eventName, humanDate, humanDay, humanPlace } from "../cli/human.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
-import type { Family, Person, Source } from "../core/model.ts";
+import type { Family, Person, Source, Task } from "../core/model.ts";
+import { decideShorterNote } from "../core/shorternote.ts";
 import { fileSha256, MAX_IN_TREE, mimeOf } from "../core/media.ts";
 import { create, update } from "../core/records.ts";
 import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
+import { applySync, asksPerson, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -36,6 +37,9 @@ import { isAgent } from "../core/which.ts";
  * names (the person follows it in the agent's session; found on Windows: an undo told in English). A person at the
  * terminal reads the sentence alone.
  */
+/** A task's ID as typed: "12", "t12", "T0012". */
+const normTask = (id: string) => id.trim().toUpperCase().replace(/^T?(\d+)$/, (_, n: string) => `T${n.padStart(4, "0")}`);
+
 function opsFor(ctx: Context, tree: Tree): string[] {
   // an archive's tasks wait put aside for research to come: not said
   const ops = actsAsArchive(tree) ? tree.written.filter((o) => !o.op.startsWith("task.")) : tree.written;
@@ -434,7 +438,8 @@ register(
           throw new UsageError("the research changed while this was shown — look again", { hint: `strom sync ${args[0] ?? file}` });
         written = fresh;
         // nothing to write (only what is said): no input, no commit — a send of the app brought nothing new
-        if (!fresh.changes.some((c) => (only ? only.has(c.n) : c.action !== "pick") && c.action !== "report")) return;
+        // (a question to the person is written: its task — core/shorternote.ts)
+        if (!fresh.changes.some((c) => (only ? only.has(c.n) : c.action !== "pick") && (c.action !== "report" || asksPerson(c)))) return;
         const id = tree.peekId("I");
         const size = fs.statSync(file).size;
         // what the app sent through the bridge is not kept as a file: the app sends the whole tree, maybe every few
@@ -548,6 +553,41 @@ register(
       return {
         text: lines(...opsFor(ctx, tree), "", ui(tree.lang, "ui.sync.undone", { input: id, n }), ...still.map((r) => ui(tree.lang, "ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict }))),
         data: { input: id, undone: n, ...(still.length ? { stillRemoved: still.map((r) => ({ person: r.person, conflict: r.conflict, back: `strom conflict resolve ${r.conflict} --take research --reasoning "<why>" --reason "<why>"` })) } : {}) },
+      };
+    },
+  },
+  {
+    path: ["sync", "note"],
+    summary: "Decide a note of someone a fact names the Strom app sent shorter than the research's: take it, or keep the research's",
+    group: "research",
+    tree: true,
+    writes: true,
+    person: "Whether a shorter note from the Strom app is taken is the user's own: strom → Waiting, the Strom app, or this command in their own terminal",
+    agentMay: {
+      when: "the task holds the user's answer (they answered it in the Strom app or at their terminal): carry it out — take or keep as they said",
+      check(ctx, { args }) {
+        const t = args[0] ? ctx.tree().get<Task>(normTask(args[0])) : undefined;
+        return !!t?.shorterNote && !!t.answers?.length;
+      },
+    },
+    description:
+      "A note the Strom app sends that is only the beginning of the research's is never taken by a sync: an older app\n" +
+      "may have cut it, or it was shortened in the app. The sync asks instead — a task waiting for the user. take writes\n" +
+      "the shorter note as the participant's; keep leaves the research's. The task is done either way and not asked again.",
+    args: [
+      { name: "task", description: "the task (T…) that asks it", required: true },
+      { name: "choice", description: "take (the shorter note from the app) or keep (the research's)", required: true },
+    ],
+    examples: ["strom sync note T0008 keep"],
+    run(ctx: Context, { args }) {
+      const tree = ctx.tree();
+      const choice = args[1]!.toLowerCase();
+      if (choice !== "take" && choice !== "keep") throw new UsageError(`take or keep, not ${args[1]}`, { hint: `strom sync note ${args[0]} take|keep`, code: "shorter.choice" });
+      const { task, changed } = decideShorterNote(tree, normTask(args[0]!), choice);
+      const s = task.shorterNote!;
+      return {
+        text: ui(tree.lang, choice === "take" ? "ui.wait.shorter.taken" : "ui.wait.shorter.kept"),
+        data: { task: task.id, event: s.event, take: choice, changed },
       };
     },
   },

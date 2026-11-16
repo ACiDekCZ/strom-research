@@ -13,7 +13,7 @@ import { Tree } from "../../src/core/tree.ts";
 import { create, update } from "../../src/core/records.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { applySync, notWrittenList, planSync, readGedcom, type Snapshot, type SyncInput } from "../../src/core/sync.ts";
-import { APP_DATA_MAIN_CITATION, APP_READS_MAIN_CITATION, APP_SENDS_UNCITE, appDataMainCitation, appReadsMainCitation, appSendsUncite } from "../../src/core/stromapp.ts";
+import { APP_DATA_MAIN_CITATION, APP_READS_MAIN_CITATION, APP_READS_MAIN_CITATION_BETA, APP_SENDS_UNCITE, appDataMainCitation, appReadsMainCitation, appSendsUncite } from "../../src/core/stromapp.ts";
 import { BRIDGE_FEATURES, bridgeFeatures } from "../../src/core/live.ts";
 import { Settings } from "../../src/core/config.ts";
 import { changeLines } from "../../src/core/changelog.ts";
@@ -77,16 +77,20 @@ function apply(w: World, incoming: Snapshot, gates: { readsMain?: boolean; sends
   });
 }
 
-test("the gates of the main citation and of a removed one: none set until the app says its version; the JSON's from data version 21", () => {
-  assert.equal(APP_READS_MAIN_CITATION, undefined);
-  assert.equal(APP_SENDS_UNCITE, undefined);
+test("the gates of the main citation and of a removed one: the app 3.29.0 (its beta 3.29.0-beta.3); the JSON's from data version 21", () => {
+  assert.equal(APP_READS_MAIN_CITATION, "3.29.0");
+  assert.equal(APP_READS_MAIN_CITATION_BETA, "3.29.0-beta.3");
+  assert.equal(APP_SENDS_UNCITE, "3.29.0");
   assert.equal(APP_DATA_MAIN_CITATION, 21);
   const production = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
-  for (const v of ["3.29.0", "9.0.0", undefined]) assert.equal(appReadsMainCitation(production, v), false, String(v));
-  assert.equal(appReadsMainCitation(production, "3.29.0", "3.29.0"), true);
+  const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  for (const v of ["3.29.0", "9.0.0"]) assert.equal(appReadsMainCitation(production, v), true, String(v));
+  for (const v of ["3.28.9", "3.29.0-beta.3", undefined]) assert.equal(appReadsMainCitation(production, v), false, String(v));
+  assert.equal(appReadsMainCitation(beta, "3.29.0-beta.3"), true, "another copy from its beta");
+  assert.equal(appReadsMainCitation(beta, "3.29.0-beta.2"), false);
   assert.equal(appReadsMainCitation(production, "3.28.9", "3.29.0"), false);
-  for (const v of ["3.29.0", undefined]) assert.equal(appSendsUncite(v), false, String(v));
-  assert.equal(appSendsUncite("3.29.1", "3.29.0"), true);
+  for (const v of ["3.29.0", "3.29.1"]) assert.equal(appSendsUncite(v), true, String(v));
+  for (const v of ["3.28.0", undefined]) assert.equal(appSendsUncite(v), false, String(v));
   assert.equal(appSendsUncite(undefined, "3.29.0"), false, "no version said: no");
   for (const v of [21, 30]) assert.equal(appDataMainCitation(v), true, String(v));
   for (const v of [20, undefined]) assert.equal(appDataMainCitation(v), false, String(v));
@@ -94,7 +98,10 @@ test("the gates of the main citation and of a removed one: none set until the ap
   assert.ok(BRIDGE_FEATURES.includes("citations.order") && BRIDGE_FEATURES.includes("sync.notWritten.codes"));
   const now = bridgeFeatures(production, "3.29.0");
   assert.ok(now.includes("citations.order") && now.includes("sync.notWritten.codes"));
-  assert.ok(!now.includes("citations.main") && !now.includes("citations.remove"), now.join(" "));
+  assert.ok(now.includes("citations.main") && now.includes("citations.remove"), now.join(" "));
+  const older = bridgeFeatures(production, "3.28.0");
+  assert.ok(older.includes("citations.order") && older.includes("sync.notWritten.codes"));
+  assert.ok(!older.includes("citations.main") && !older.includes("citations.remove"), older.join(" "));
 });
 
 test("K1.1, K1.3, V1: the baptism of a birth before the later death entry in every file; QUAY 2 for the death entry at a birth; the events a source records", opts, async () => {

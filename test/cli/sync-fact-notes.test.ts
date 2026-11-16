@@ -12,10 +12,12 @@ import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
-import { applySync, planSync, readGedcom, readStromJson, type Snapshot, type SyncInput } from "../../src/core/sync.ts";
+import { applySync, cutShort, planSync, readGedcom, readStromJson, type Snapshot, type SyncInput } from "../../src/core/sync.ts";
 import { create, update } from "../../src/core/records.ts";
 import { APP_DATA_PART_NOTES, APP_SENDS_PART_NOTES, appDataPartNotes, appSendsPartNotes } from "../../src/core/stromapp.ts";
-import type { Event, Person, Source } from "../../src/core/model.ts";
+import type { Event, Person, Source, Task } from "../../src/core/model.ts";
+import { SHORTER_ORIGIN } from "../../src/core/shorternote.ts";
+import { answersInApp, inApp, waitingFor } from "../../src/core/waiting.ts";
 
 const opts = { skip: !hasGit };
 const PERSON = { tty: true };
@@ -26,7 +28,9 @@ const FROM_APP = { env: { STROM_FOR_APP: "1" } };
 const open = (w: World) => Tree.open(w.cwd, w.env);
 const fact = (w: World, who: string, kind: string): Event => open(w).get<Person>(who)!.events.find((e) => e.kind === kind && !e.retracted)!;
 const gitHead = (w: World) => execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).trim();
-const noteKinds = (changes: { kind: string; action?: string }[]) => changes.filter((c) => c.kind === "fact.note" || c.kind === "fact.part.note");
+const noteKinds = (changes: { kind: string; action?: string; code?: string }[]) => changes.filter((c) => c.kind === "fact.note" || c.kind === "fact.part.note");
+/** The changes of a note that write it (not a question to the person). */
+const edits = (changes: { kind: string; action?: string; code?: string }[]) => noteKinds(changes).filter((c) => c.action !== "report");
 
 /** What the research gives the Strom app (with the state it is of), as the app sends it back. */
 const appFile = (w: World) => exportGedcom(open(w), { for: "strom", head: gitHead(w) }).text.replace("1 SOUR STROM_RESEARCH", "1 SOUR STROM");
@@ -124,8 +128,8 @@ test("the user's note of a fact comes back: corrected (the earlier kept), added 
 test("a godmother's note comes back only of an app that gives it whole (APP_SENDS_PART_NOTES): corrected, undone back; cut short by an older one: nothing", opts, async () => {
   const w = await setUp();
   try {
-    assert.equal(APP_SENDS_PART_NOTES, undefined, "not set until the release says the app's version");
-    assert.equal(APP_DATA_PART_NOTES, undefined);
+    assert.equal(APP_SENDS_PART_NOTES, "3.29.0", "the first app that gives it whole");
+    assert.equal(APP_DATA_PART_NOTES, 21, "its JSON: never cut it (the app's answer, 16. 11.)");
     assert.equal(appSendsPartNotes("3.29.0", "3.29.0"), true);
     assert.equal(appSendsPartNotes("3.28.0", "3.29.0"), false, "the 3.28.0 sends a longer note cut short");
     assert.equal(appSendsPartNotes(undefined, "3.29.0"), false, "no version said: no");
@@ -141,13 +145,18 @@ test("a godmother's note comes back only of an app that gives it whole (APP_SEND
     assert.notEqual(cut, version(given, "3.28.0"));
     const old = readGedcom(cut);
     assert.equal(old.appVersion, "3.28.0");
-    assert.equal(noteKinds(planSync(open(w), old, "conflict", { partNotes: true }).changes).length, 1, "taken unasked, the cut note would correct the research's");
+    assert.deepEqual(edits(planSync(open(w), old, "conflict", { partNotes: true }).changes), [], "the beginning alone of the research's: never an edit, the gate open or not");
     assert.deepEqual(noteKinds(planSync(open(w), old, "conflict", { partNotes: appSendsPartNotes(old.appVersion, "3.29.0") }).changes), [], "of the 3.28.0 never");
     assert.deepEqual(noteKinds(planSync(open(w), old, "conflict").changes), []);
+    // a tree the app kept since 3.28.0 sends it cut short under 3.29.0 too: no edit (the gate as released) — the person
+    // asked whether the shorter note is taken (core/shorternote.ts)
+    const kept = noteKinds(planSync(open(w), readGedcom(version(cut, "3.29.0")), "conflict").changes);
+    assert.deepEqual(kept.map((c) => `${c.action} ${c.code}`), ["report note.shorter"], "3.29.0, cut short: no edit, a question");
     // the user's edit of it, of an app that gives it whole
     const edited = version(given, "3.29.0").replace(/^3 NOTE selka z Lhoty, [^\n]*(\r?\n(?:4 CON[CT] [^\n]*\r?\n)*)/mu, "3 NOTE selka z Horní Lhoty, vdova\n");
+    assert.deepEqual(noteKinds(planSync(open(w), readGedcom(version(edited, "3.28.0")), "conflict").changes), [], "the same edit of the 3.28.0: nothing");
     const before = fact(w, "P0001", "CHR");
-    const r = apply(w, readGedcom(edited), { partNotes: true });
+    const r = apply(w, readGedcom(edited), {});
     assert.deepEqual(noteKinds(r.plan.changes).map((c) => `${c.kind} ${c.action}`), ["fact.part.note correct"], JSON.stringify(r.plan.changes));
     assert.equal(fact(w, "P0001", "CHR").participants?.find((p) => p.role === "godparent")?.note, "selka z Horní Lhoty, vdova");
     assert.equal(fact(w, "P0001", "CHR").note, before.note, "nothing else of the fact changed");
@@ -156,6 +165,18 @@ test("a godmother's note comes back only of an app that gives it whole (APP_SEND
   } finally {
     w.cleanup();
   }
+});
+
+test("a note cut short is the beginning alone of the longer one: any script, decomposed, a character broken at the cut", () => {
+  const whole = "selka z Lhoty, Lhotáková — Записано 👩‍👧 a 🌾 dál\nkmotra mnoha dětí";
+  assert.equal(cutShort("selka z Lhoty, Lhotáková — Записано 👩‍👧 a 🌾 dál", whole), true, "its first line");
+  assert.equal(cutShort("selka z Lhoty, Lhotáková".normalize("NFD"), whole), true, "typed decomposed");
+  assert.equal(cutShort("selka z Lhoty, Lhotáková — Записано 👩‍👧 a \uD83C", whole), true, "half of a pair at the cut");
+  assert.equal(cutShort("selka z Lhoty, Lhotáková — Записано 👩‍👧 a �", whole), true, "a byte sequence broken at the cut");
+  assert.equal(cutShort(whole.replace("\n", " "), whole), false, "the whole note: not cut");
+  assert.equal(cutShort("selka z Horní Lhoty", whole), false, "another note");
+  assert.equal(cutShort("", whole), false);
+  assert.equal(cutShort("selka", undefined), false, "nothing to be cut of");
 });
 
 test("a note taken away in the app takes nothing away; a midwife's note naming her role is no note edit", opts, async () => {
@@ -278,6 +299,147 @@ test("the app's JSON brings a fact's note and a godmother's note as its GEDCOM d
       ],
       JSON.stringify(plan.changes),
     );
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the app's JSON of data 21 brings a godmother's note as its GEDCOM 3.29.0: an edit taken, one cut short not (asked), of older data nothing (APP_DATA_PART_NOTES)", opts, async () => {
+  const w = await setUp();
+  try {
+    const tree = open(w);
+    /** The app's JSON of this data version, its godmother's note as given. */
+    const json = (version: number, note: string) => ({
+      version,
+      research: { id: tree.config.id, head: gitHead(w) },
+      persons: {
+        p1: {
+          id: "p1", firstName: "Václav", lastName: "Lhoták", gender: "male", refn: "P0001",
+          events: [{ id: "ev1", type: "baptism", date: "1871-03-03", place: "Lhota", note: "Kmotr z Lhoty.", participants: [{ role: "godparent", name: "Marie Lhotáková", note }] }],
+        },
+        p2: {
+          id: "p2", firstName: "Ludmila", lastName: "Lhotáková", gender: "female", refn: "P0002",
+          events: [{ id: "ev2", type: "birth", date: "1874", place: "Lhota", participants: [{ role: "other", name: "Anna Lhotová", note: "Midwife" }] }],
+        },
+      },
+      partnerships: {},
+    });
+    const plan = (version: number, note: string) => noteKinds(planSync(open(w), readStromJson(json(version, note)), "conflict").changes);
+    // the user's edit (decomposed as typed, another script beside): taken of data 21 and newer, the gate as released
+    const edit = "selka z Horní Lhoty, кума".normalize("NFD");
+    assert.deepEqual(plan(21, edit).map((c) => `${c.kind} ${c.action}`), ["fact.part.note correct"]);
+    assert.deepEqual(plan(25, edit).map((c) => `${c.kind} ${c.action}`), ["fact.part.note correct"]);
+    // a tree the app read from a GEDCOM in its 3.28 keeps the note cut short in its JSON too: never an edit, the person asked
+    assert.deepEqual(plan(21, "selka z").map((c) => `${c.action} ${c.code}`), ["report note.shorter"], "cut short: no edit, a question");
+    // of data before 21: nothing of a participant's note
+    assert.deepEqual(plan(20, edit), []);
+    assert.deepEqual(plan(20, "selka z"), []);
+    // written: the godmother's note corrected, nothing else of the fact
+    const before = fact(w, "P0001", "CHR");
+    const r = apply(w, readStromJson(json(21, edit)), {});
+    assert.deepEqual(noteKinds(r.plan.changes).map((c) => `${c.kind} ${c.action}`), ["fact.part.note correct"]);
+    assert.equal(fact(w, "P0001", "CHR").participants?.find((p) => p.role === "godparent")?.note, edit.normalize("NFC"));
+    assert.equal(fact(w, "P0001", "CHR").note, before.note);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a cut between a letter and its accent is a beginning too (NFD): never an edit (1116, nález 2)", opts, async () => {
+  const whole = "selka z Lhoty, vdova po sedlákovi";
+  assert.equal(cutShort("selka z Lhoty, vdova po sedla", whole), true, "the accent of á cut off (decomposed: a + U+0301)");
+  assert.equal(cutShort("selka z Lhoty, vdova po sedla".normalize("NFD"), whole.normalize("NFD")), true);
+  assert.equal(cutShort("selka z Lhoty, vdova po sedlá", whole), true, "cut after the accent");
+  assert.equal(cutShort("selka z Lhoty, vdova po sedlo", whole), false, "another letter");
+  const w = await setUp();
+  try {
+    await w.ok(["event", "edit", fact(w, "P0001", "CHR").id, "--with", `godparent:Marie Lhotáková (${whole})`, "--without", "godparent:Marie Lhotáková", "--reason", "slovo záznamu"], PERSON);
+    const t = appFile(w).replace(/^1 SOUR STROM\r?\n2 VERS [^\n]*\n/mu, "1 SOUR STROM\n2 VERS 3.29.0\n").replace(`3 NOTE ${whole}`, `3 NOTE ${whole.normalize("NFD").slice(0, whole.normalize("NFD").indexOf("́"))}`);
+    assert.ok(t.includes("vdova po sedla\n"), "the file cut between a and its accent");
+    const plan = planSync(open(w), readGedcom(t), "conflict");
+    assert.deepEqual(edits(plan.changes), [], JSON.stringify(plan.changes));
+  } finally {
+    w.cleanup();
+  }
+});
+
+/** A godmother's longer note in the research, and the Strom app 3.29.0's file of it with only its beginning (`cut` its length). */
+async function shorterWorld(): Promise<{ w: World; whole: string; short: string; text: string; file: (name: string) => string }> {
+  const w = await setUp();
+  const whole = "selka z Lhoty, vdova po sedlákovi, matka šesti dětí 😀 a kmotra — Записано";
+  const short = "selka z Lhoty, vdova po sedlákovi, matka šesti dětí";
+  await w.ok(["event", "edit", fact(w, "P0001", "CHR").id, "--with", `godparent:Marie Lhotáková (${whole})`, "--without", "godparent:Marie Lhotáková", "--reason", "slovo záznamu"], PERSON);
+  const t = appFile(w).replace(/^1 SOUR STROM\r?\n2 VERS [^\n]*\n/mu, "1 SOUR STROM\n2 VERS 3.29.0\n").replace(`3 NOTE ${whole}`, `3 NOTE ${short}`);
+  assert.ok(t.includes(`3 NOTE ${short}\n`));
+  return { w, whole, short, text: t, file: (name) => send(w, name, t) };
+}
+
+const shorterTasks = (w: World) => open(w).list<Task>("task").filter((t) => t.origin === SHORTER_ORIGIN);
+const godmother = (w: World) => fact(w, "P0001", "CHR").participants?.find((p) => p.role === "godparent")?.note;
+
+test("a participant's note sent shorter than the research's: not taken, said in one line, the person asked once — kept, never asked again (1116, nález 1)", opts, async () => {
+  const { w, whole, short, text, file } = await shorterWorld();
+  try {
+    const f = file("short.ged");
+    const plan = await w.ok(["sync", f], PERSON);
+    assert.doesNotMatch(plan.out, /nic nového/u);
+    assert.match(plan.out, /kmotr\S* Marie Lhotáková, poznámka „selka z Lhoty, .*“ → „selka z Lhoty, vdova po sedlákovi, matka šesti dětí“ → nepřevezme se: je kratší než ve výzkumu — zda ji převzít, čeká v Čeká/u);
+    const r = await w.ok(["sync", f, "--apply", "--json"], FROM_APP);
+    assert.equal(godmother(w), whole, "nothing taken");
+    const [t, ...more] = shorterTasks(w);
+    assert.ok(t && !more.length, "one task");
+    assert.equal(t.state, "waiting");
+    assert.deepEqual(t.shorterNote, { event: fact(w, "P0001", "CHR").id, role: "godparent", name: "Marie Lhotáková", sent: short, whole });
+    assert.match(t.what, /^Poznámka z aplikace Strom u E\d+ \(Václav Lhoták\), Marie Lhotáková, je kratší než ve výzkumu – převzít, nebo ponechat\?$/u);
+    assert.ok(t.why.includes(`„${short}“`) && t.why.includes(`„${whole}“`), t.why);
+    assert.ok((r.json.applied as { do: string; id: string }[]).some((a) => a.do === "task.add" && a.id === t.id));
+    const item = waitingFor(open(w)).find((i) => i.task?.id === t.id);
+    assert.ok(item && inApp(item) && answersInApp(t), "in What waits, the Strom app's too, answered there");
+    // the same tree sent again (another send of it, the file not the one synced): nothing more — no change, no second task
+    assert.deepEqual(noteKinds(planSync(open(w), readGedcom(text), "conflict").changes), [], "asked already: no change");
+    await w.ok(["sync", file("again.ged"), "--apply"], FROM_APP);
+    assert.equal(shorterTasks(w).length, 1, "asked once");
+    // an agent decides nothing without the person's answer
+    const agent = await w.run(["sync", "note", t.id, "keep"], AGENT);
+    assert.equal(agent.code, 4, agent.out + agent.err);
+    assert.equal(shorterTasks(w)[0]!.state, "waiting");
+    // the person keeps the research's: done, the note as it was, never asked again
+    await w.ok(["sync", "note", t.id, "keep"], PERSON);
+    const done = shorterTasks(w)[0]!;
+    assert.equal(done.state, "done");
+    assert.match(done.result ?? "", /ponechaná/u);
+    assert.equal(godmother(w), whole);
+    assert.deepEqual(noteKinds(planSync(open(w), readGedcom(text), "conflict").changes), [], "decided: not asked again");
+    assert.equal(shorterTasks(w).length, 1);
+    const twice = await w.run(["sync", "note", t.id, "take"], PERSON);
+    assert.notEqual(twice.code, 0, "decided already");
+    assert.equal(godmother(w), whole);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a note sent shorter taken on the person's word — by an agent carrying out their answer; a sync undone drops its question", opts, async () => {
+  const { w, short, whole, file } = await shorterWorld();
+  try {
+    const r = await w.ok(["sync", file("short.ged"), "--apply", "--json"], FROM_APP);
+    let t = shorterTasks(w)[0]!;
+    // the sync undone: its question dropped, asked again by the next send
+    await w.ok(["sync", "undo", r.json.input as string], PERSON);
+    assert.equal(open(w).get<Task>(t.id)!.state, "dropped");
+    await w.ok(["sync", file("again.ged"), "--apply"], FROM_APP);
+    const waiting = shorterTasks(w).filter((x) => x.state === "waiting");
+    assert.equal(waiting.length, 1, "asked again");
+    t = waiting[0]!;
+    // the person answers it (as in the Strom app); the agent carries the answer out
+    await w.ok(["task", "wake", t.id, "--answer", "převzít kratší"], PERSON);
+    await w.ok(["sync", "note", t.id, "take"], AGENT);
+    assert.equal(godmother(w), short, "the shorter note taken");
+    assert.equal(open(w).get<Task>(t.id)!.state, "done");
+    assert.ok(whole.startsWith(short));
+    // the research has the app's note now: nothing more
+    const next = await w.ok(["sync", file("next.ged"), "--json"], PERSON);
+    assert.deepEqual(noteKinds(next.json.changes), []);
   } finally {
     w.cleanup();
   }

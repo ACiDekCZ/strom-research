@@ -10,6 +10,7 @@ import type { AgentPermissions } from "../core/config.ts";
 import type { AgentWeb } from "../core/metrics.ts";
 import { findAgent } from "../core/which.ts";
 import { forClaude, isClaudeCommand } from "../core/claudedir.ts";
+import { startOf } from "../core/runsync.ts";
 
 export interface RunOptions {
   cwd: string;
@@ -423,12 +424,6 @@ export function prependPath(env: Env, dir: string): Env {
   return out;
 }
 
-/** Quote one argument for cmd.exe (only used for .cmd/.bat launchers on Windows). */
-function cmdQuote(arg: string): string {
-  if (/^[\w.\-/:=@]+$/.test(arg)) return arg;
-  return `"${arg.replace(/"/g, '""')}"`;
-}
-
 /**
  * Start an agent CLI found on PATH. npm installs agents on Windows as .cmd
  * launchers, which Node can only start through cmd.exe. Claude Code gets its folder (agent.claudeConfigDir) when the
@@ -437,11 +432,8 @@ function cmdQuote(arg: string): string {
 export function spawnAgent(command: string, args: string[], given: SpawnOptions & { env: Env }): ChildProcess {
   const opts = isClaudeCommand(command) ? { ...given, env: forClaude(given.env) } : given;
   const found = findAgent(command, opts.env) ?? command;
-  if (process.platform === "win32" && /\.(cmd|bat)$/i.test(found)) {
-    const line = [cmdQuote(found), ...args.map(cmdQuote)].join(" ");
-    return spawn(opts.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${line}"`], { ...opts, windowsVerbatimArguments: true, env: opts.env as NodeJS.ProcessEnv });
-  }
-  return spawn(found, args, { ...opts, env: opts.env as NodeJS.ProcessEnv });
+  const start = startOf(found, args, opts.env);
+  return spawn(start.file, start.args, { ...opts, ...(start.verbatim ? { windowsVerbatimArguments: true } : {}), env: opts.env as NodeJS.ProcessEnv });
 }
 
 /**

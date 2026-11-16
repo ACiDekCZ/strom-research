@@ -109,6 +109,84 @@ of evidence of a person ([R3.8.1](R3-verification-and-citation.md#R3.8.1)).
 
 <!-- zdroj: app:src/ui/sources.ts:1427 renderSourcePickerList, :322 sourceMatches, :1475 currentCitationSourceIds, :1505 noteRecentSource, :1526 otherPageFromPicker, :1554 createSourceFromPicker, :1569 suggestedSourceTitle, :1181 startSameBookEntry · src/settings.ts:12 RECENT_SOURCES_MAX · strings.ts sources.pickTitle/searchPlaceholder/recent/all/createNew/newTitleMarriage/otherPage/otherPageTitle/sameBook · 3.25.0: app:7327b758 src/source-page.ts sameBookReference (ENTRY_PART, DATE_PART, whole), src/ui/sources.ts:1217 (nepoznaný tvar označený) · CHANGELOG.cs.md 3.25.0 · dirigent:test/vysledek-1107-nejista-mista.md · 3.27.0: app:9732853b (další zápis s poli, Jiná stránka se signaturou), c3278633 sourcePlaceSearchText -->
 
+<a id="A3.2.2"></a>
+### A3.2.2 The order of citations and the main citation
+
+A fact with more than one citation has them in one order everywhere: the chips when editing a person and at a
+marriage, the tip at the fact's mark, the person's **Sources**. Where the app takes only one citation, it takes the
+first: the extract on the person page, the marriage on the family pages, the source numbers in the family book, the
+citation columns in the **Table** ([A6.7](A6-views.md#A6.7)) and the first source at **Verify**
+([S7.3](S7-reliability-and-verification.md#S7.3)). The research has the same order
+([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+
+- **Order:**
+  1. the main citation the user chose;
+  2. the primary record of the event: a source that records this kind of event, with an **Original** citation and
+     written at most 12 months from the fact. For a birth and a baptism a birth or baptism record, for a death, a
+     burial and a cremation a death or burial record, for a marriage, banns and an engagement a marriage record, for
+     a census a census. One written earlier stands before one written later, a source without **Record date** after
+     those written with a date. A missing or unreadable date of the fact does not decide;
+  3. the other citations with the reliability **Original**;
+  4. the others by reliability: **Copy / index**, **Uncertain**, then without reliability;
+  5. by the numeric part of the source's number (a source without a number after the numbered ones), finally the
+     order in which the citations were added.
+- Which events a source records, the app knows from the GEDCOM file (`1 DATA` › `2 EVEN`,
+  [A2.6](A2-loading-a-family-tree.md#A2.6)); the research writes it at its sources. A source without it is not a
+  primary record.
+- **Main citation:** the user can mark one citation of a fact as the main one. It stands first, its chip has ★ before
+  the title and a highlighted border, and its button says "main citation". In the tip at the mark it has "★ main",
+  in the person's **Sources** and in **Supports** of the source viewer ★ after the fact. A citation that is first only
+  by the order has no mark.
+- **The bar in the source viewer:** the viewer opened from a citation of a fact (a chip, a row of the tip at the mark,
+  a row of the person's **Sources**) shows at the top what the citation supports ("Birth · Marie Vlková") and where
+  it stands in the order: "2 of 3 citations"; at the first one also why ("first because: the birth record,
+  original", "original", "highest reliability"); "Main citation for the birth"; "The only citation for the birth".
+  Below that the buttons **Mark as main** or **Unmark main** and **Remove citation** ([A3.2.3](#A3.2.3)).
+- **Limits:**
+  - saved lists of citations are not reordered; the order is computed on display and on export;
+  - **Mark as main** is only at a fact with 2 or more citations, and only in a tree without the research or with a
+    research that holds the main citation (research 1.34.0 and later). Only there is ★ shown as well;
+  - a research's tree whose research sets the order of citations itself has the citations in the order of the
+    research's file; the main citation stands first;
+  - for a locked person and in a read-only tree there are no buttons;
+  - marking, changing and unmarking is one **Undo** step ("Main citation for the birth: …", "Main citation for the
+    birth unmarked; the order is automatic again"). Removing the main citation or its source, and editing the event
+    without it, unmarks it in the same step; **Undo** puts back the place and the ★;
+  - a shared event ([A10.1](A10-shared-events.md#A10.1)) has one main citation common to all copies; copies that
+    differ in it are copies that differ ([A10.3](A10-shared-events.md#A10.3));
+  - a source merged into another carries the mark over to the source it was merged into. Merging trees
+    ([A8](A8-merging-trees.md)) keeps the mark of the side that has it; when both have it, that of the kept side.
+- **Controls:** the source viewer opened from a citation of a fact → **Mark as main** · **Unmark main**. The
+  research's terminal: `strom event main` ([R3.4.5](R3-verification-and-citation.md#R3.4.5)).
+- **Since:** app 3.29.0
+
+<!-- zdroj: app:e361220d src/citation-order.ts FACT_RECORDS, recordOfFact, PRIMARY_RECORD_MONTHS 12, orderedCitationSteps (main, primary jen QUAY 3, written, QUAY, number, list), citationMain (jeden krok Zpět, sdílená kopie, remap, merge/executor.ts), data v21 · 9c0ca227 (★ a pořadí: sources.ts chipy, relationships-panel, status-tip „★ hlavní“, person-sources, person-page, family-pages-html, book-blocks, table-sources, verify.ts) · 192d53ec src/citation-bar.ts citeBar, whyFirst, citeMainToast · src/citation-gates.ts citationMainOffered, citationFileOrder, citationMainShown · strings.ts sources.mainMark, citeAt, citePos, citeFirstWhy, whyPrimary, whyOriginal, whyQuality, citeMainAt, citeOnly, setMain, clearMain, mainSetToast, mainClearedToast · spec 095 K1.1, §2 -->
+
+<a id="A3.2.3"></a>
+### A3.2.3 Remove citation
+
+**Remove citation** unlinks a source from one fact. The source stays in the tree's **Sources** with its excerpts and
+attachments, and the other facts go on citing it.
+
+- **Enforced by the code:**
+  - without confirmation, also for the main citation. The bar in the viewer then says "Unlinked from the birth · the
+    source stays in the catalog" and the buttons disappear;
+  - the toast names the fact and the source: "Citation removed from the birth: … · the source stays", for the main
+    citation "…, no longer main: …", for a shared event "… for all N people: …" (it is removed from all copies);
+  - one **Undo** step: **Undo** in the toast puts the citation back in its place, with the ★. The toast stands above
+    the open viewer too, so **Undo** can be used there;
+  - in a research's tree whose research does not take the removal, under the buttons is "The research does not take
+    removals yet." and the first removal in the window says "The research will not take this removal; the citation
+    comes back when its version is loaded.", the next ones only "not taken by the research". What the research does
+    with the removal is described in [S2.3.1](S2-edits-from-the-app.md#S2.3.1).
+- **Limits:** for a locked person and in a read-only tree there is no button. A whole source is deleted in
+  **Actions → Sources** ([A3.1](#A3.1)).
+- **Controls:** the source viewer opened from a citation of a fact → **Remove citation**; × on the citation chip when
+  editing a person ([A3.2](#A3.2)).
+- **Since:** app 1.4.0 (× on the chip); the bar and the toast 3.29.0
+
+<!-- zdroj: app:192d53ec src/citation-bar.ts citeBar (gone, note = editable && removeNotTaken), unciteToast (unciteWarned jednou na strom v okně), citeBarHtml · src/citation-gates.ts citationRemoveTaken (feature citations.remove) · strings.ts sources.citeGone, uncitedToast, uncitedMainToast, uncitedSharedToast, sourceStays, uncitedNotTaken, uncitedNotTakenShort, unciteNote, undo.uncite · spec 095 §3 -->
+
 <a id="A3.3"></a>
 ## A3.3 Excerpt of the entry
 

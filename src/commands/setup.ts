@@ -853,7 +853,7 @@ register({
     { name: "check", type: "boolean", description: "only say whether there is a new version" },
     { name: "now", type: "boolean", description: "update while work goes on in a research (it finishes with the version it started with)" },
     // which versions the installation takes from now on: the newest of that channel installed, an older one too
-    { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true },
+    { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true, beta: true },
   ],
   examples: ["strom update --check", "strom update"],
   async run(ctx, { opts }) {

@@ -270,6 +270,70 @@ fields at once: code, without an agent and free of charge.
 
 <!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
+<a id="R3.4.5"></a>
+### R3.4.5 The order of a fact's citations and the main citation
+
+The research orders a fact's citations the same way as the app ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)): first
+the main citation the user chose, then the primary record of the event, then the others by reliability. The stored
+order does not change; the order holds in every GEDCOM file (for the Strom app, `/tree.ged`, the file for other
+programs), in the agent's brief and in the listings of `strom … show`.
+
+- **Enforced by the code:**
+  - the order: 1. the main citation; 2. the primary record of the event: an entry of this kind of event (a baptism or
+    birth for a birth and a baptism, a death or burial for a death, a burial and a cremation, a marriage for
+    a marriage, banns and an engagement, a census for a census), an original with primary information (`QUAY` 3) or
+    an original whose information nobody assessed (`QUAY` 2 only for want of the word, [R3.2.1](#R3.2.1)), written at
+    most 12 months from the fact; the one written earlier first, one without a date of writing after those with
+    a date; a missing or unreadable date does not decide; 3. the other `QUAY` 3; 4. the others by `QUAY`, highest
+    first; 5. the numeric part of the source's number (one without a number after the numbered ones), then the order
+    of adding;
+  - a citation of an entry of another event that has no information of its own has, in the order and in the export,
+    the `QUAY` of secondary information (a burial entry for a birth). The fact's degree of certainty does not change
+    by this;
+  - names and the citations of a person and a family (`1 SOUR`) are ordered without step 2;
+  - which events a source records, the export writes as `1 DATA` › `2 EVEN` at the source: always in the file for
+    other programs, to the Strom app only to one that reads it;
+  - `strom event main <E> <S>` marks the citation of source S as the main one, `--locator "<where>"` picks one of
+    several citations of the same source, `--clear` removes the main citation (the research's order holds). Output:
+    “the main record of the fact chosen: …”, “the fact without a main record (the research's order): …”, “nothing to
+    change: …”;
+  - only a person chooses the main citation, in the Strom app ([S2.3.1](S2-edits-from-the-app.md#S2.3.1)) or in
+    their own terminal. To the agent `strom event main` refuses (`main.person`) with the advice to tell the user. The
+    agent's new citation is ordered after the main one and never replaces it;
+  - `strom person show`, `strom family show` and `strom event show` list the citations in this order, the main one
+    with “(main, the user's)”; `--json` has `citationOrder`.
+- **Limits:** there is no general undo of the main citation from the terminal: it is removed with `--clear`, or the
+  previous one is set again.
+- **Controls:** terminal: `strom event main E0001 S0001`, `strom event main E0001 S0001 --locator "fol. 12"`,
+  `strom event main E0001 --clear`, `strom event show E0001`.
+- **Since:** research 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts (pořadí K1.1, SOURCE_EVENTS, FACT_RECORDS, monthsApart, quayAt, mainCitation), src/gedcom/export.ts (1 DATA / 2 EVEN, _STROM_MAIN) · ce8dc753 src/commands/people.ts ["event","main"] (personWrites, code main.person, a source or --clear, which source?, --locator not with --clear), core chooseMainCitation · src/core/actions.ts citeEvent (main nikdy) · assets/lang/cs.json ui.event.main, ui.event.main.off, ui.event.main.same, ui.show.main · ZADANI_VYZKUM_hlavni-citace.md Odpověď V1–V3 · dirigent:prace/1115-vyzkum-095-cli-drobnosti (U6: undo není) · spec 095 K1.1, K2.3 -->
+
+<a id="R3.4.6"></a>
+### R3.4.6 A citation the user removed
+
+A citation the user removed from a fact ([A3.2.3](A3-evidence-in-the-app.md#A3.2.3),
+[S2.3.1](S2-edits-from-the-app.md#S2.3.1)) the research remembers at the fact: the source, the place in it and when.
+The agent does not put it back by itself.
+
+- **Enforced by the code:**
+  - `strom cite` refuses the agent such a source at the same fact (`cite.removedByUser`: “the user removed S… from
+    E… (date): it is not cited there again on its own”) with the advice to cite only with a new reason why the entry
+    belongs to the fact: `strom cite E… S… --reason "<why>"`. With a reason the citation is written and the removal
+    is closed;
+  - a person in their own terminal may always cite; that closes the removal. The Strom app that adds the citation
+    again does the same;
+  - by place: a removal without a place bars every place of the source; a removal of one place bars that place and
+    a citation without a place. Another place of the same source can be cited (one book often holds the baptism and
+    the burial of the same person);
+  - `strom … show` prints “(removed by the user: S…)” at the fact, the agent's brief the same.
+- **Limits:** the method's instructions say nothing about removed citations; only the code enforces them.
+- **Controls:** terminal: `strom cite E0001 S0001 --reason "…"`, `strom event show E0001`.
+- **Since:** research 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts removedByUser (locator), refuseRemoved (cite.removedByUser), clearRemoved · src/core/actions.ts:690 citeEvent (personWrites, --reason) · src/core/model.ts Event.uncited · src/core/sync.ts:5268 (aplikace cituje znovu) · src/brief/brief.ts:169 · assets/lang/cs.json ui.show.uncited · 4cd81f14 (vrácení: značka odebrání patří svému poslání) · spec 095 K3.2, K3.3 -->
+
 <a id="R3.5"></a>
 ## R3.5 A blind second reading
 

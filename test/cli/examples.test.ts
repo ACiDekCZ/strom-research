@@ -14,6 +14,7 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
+import type { Task } from "../../src/core/model.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
@@ -166,6 +167,16 @@ async function seeded(): Promise<World> {
   // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
   await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
+  // a godmother's note the Strom app 3.29.0 sent shorter than the research's: a task asks the person (strom sync note) — before any fact cites its original, so no sync queues one to verify
+  await w.ok(["event", "add", "P0006", "CHR", "--date", "1872", "--with", "godparent:Anna Lhotová (selka z Lhoty, vdova po sedlákovi)"]);
+  const shorter = path.join(w.dir, "kratsi.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", shorter]);
+  const cut = fs.readFileSync(shorter, "utf8").replace(/^1 SOUR STROM_RESEARCH\r?\n2 VERS [^\n]*\n/mu, "1 SOUR STROM\n2 VERS 3.29.0\n").replace("selka z Lhoty, vdova po sedlákovi", "selka z Lhoty");
+  assert.ok(cut.includes("2 VERS 3.29.0") && !cut.includes("vdova po sedlákovi"), "the app's file with the note cut");
+  fs.writeFileSync(shorter, cut);
+  await w.ok(["sync", shorter, "--apply"], { env: { STROM_FOR_APP: "1" } });
+  const asked = Tree.open(w.cwd, w.env).list<Task>("task").filter((t) => t.origin === "sync:note-shorter").map((t) => t.id);
+  assert.deepEqual(asked, ["T0008"], "the sync note example's ID");
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
   await w.ok(["cite", "E0001", baptism]);
@@ -190,7 +201,7 @@ test("every example in the help runs", opts, async () => {
       // --with-data): in their terminal — this test's own settings (R8)
       const withData = def.path.join(" ") === "error" && argv.includes("--with-data");
       const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" || withData ||
-        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event main", "event revert", "person revert"].includes(def.path.join(" "));
+        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event main", "event revert", "person revert", "sync note"].includes(def.path.join(" "));
       // putting back a family tree's value (the person's): this world imported none — its answer that nothing is to put back
       // a reading again asked about at the person's terminal (no --take): left undecided (0)
       // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it

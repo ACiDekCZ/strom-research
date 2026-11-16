@@ -5,9 +5,25 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.35.0
+
+*In preparation: the betas up to 1.35.0-beta.1. The section is complete with the release.*
+
+- **A participant's note from the Strom app:** a godparent's or a witness's note edited in the Strom app 3.29.0 or
+  newer comes back into the research, from its file and from what it sends straight through the bridge alike. A note
+  that is only the beginning of the research's own (as an older app kept it, or shortened in the app — a cut between a
+  letter and its accent too) is never taken by itself: strom sync says so in one line, and a question waits for the
+  person (in what waits and in the Strom app) whether the shorter note is taken or the research's kept. It is asked
+  once: the same tree sent again asks nothing more.
+- **A note changed since a send from the app:** when strom puts back the notes that a send of the Strom app wrote to a
+  fact alike, a note changed since is left as it is and a task to check it waits for the person (in what waits and in
+  the Strom app), never only a line in the history.
+- **Windows: nothing left running after the login check:** the check whether the agent in the terminal is logged in
+  ends everything it started when it takes too long, and the readers no longer print Node's warning DEP0190.
+
 ## 1.34.0
 
-*In preparation: the betas up to 1.34.0-beta.4. The section is complete with the release.*
+*2026-11-15 · goes with the Strom app 3.29.0.*
 
 - **The main citation and one order of citations:** every fact's citations come in one order in every file — the
   main citation first, then the record of the event itself, the other originals, the rest by how sure they are. The
@@ -19,9 +35,8 @@ The changes of each version in short. The full notes and the install lines are o
 - **Working alone under a condition:** when the agent's plan limit cuts off a session, the work waits until the limit
   resets (shown as paused in the terminal and the Strom app), then asks the condition again and goes on — the
   interrupted task back in the queue. An agent's notice that its limit was hit is read as the plan's limit, with its time.
-- **Notes from the Strom app:** the user's edits of a fact's note and of a participant's note come back into the
-  research, each to its own fact, the earlier text kept in the note's history; a participant's note only from an app
-  that sends it whole; a note taken away takes nothing away. A godparent's or a
+- **Notes from the Strom app:** the user's edits of a fact's note come back into the research, each to its own fact,
+  the earlier text kept in the note's history; a note taken away takes nothing away. A godparent's or a
   witness's own event in the app's GEDCOM is named in the research's language.
   The app's own second birth or death and its entry of a birth or a death are known in Polish too, never reported as
   not taken over.

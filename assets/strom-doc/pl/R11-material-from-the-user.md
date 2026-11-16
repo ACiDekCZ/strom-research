@@ -28,7 +28,7 @@ to, co w nim rzeczywiście stoi.
     i zapisuje się je jako księgę;
   - 20 MB: historii drzewa nigdy się nie przepisuje i idzie ona z drzewem przy kopii zapasowej i przeniesieniu. Duże
     pliki (wideo, nieskompresowane skany) powiększyłyby ją na trwałe, dlatego leżą we wspólnym magazynie mediów.
-- **Obsługa:** terminal: `strom intake <soubory nebo složky>`, `strom intake --text "…"` (to, co powie użytkownik),
+- **Obsługa:** terminal: `strom intake <pliki lub foldery>`, `strom intake --text "…"` (to, co powie użytkownik),
   `strom input list`, `strom input show I…`. Aplikacja: **Wyślij materiał…**, **Dodaj materiały…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Obowiązuje od:** badanie 1.0.0
@@ -91,7 +91,7 @@ w całości, ale tylko jako wskazówki.
 - **Od badania 1.32.0:**
   - drzewo z aplikacji Strom daje z pliku JSON i GEDCOM to samo. Przejmuje się też wspólne wydarzenie kilku osób
     z rolą każdej osoby ([A10.1](A10-shared-events.md#A10.1)), własne wydarzenia **Chrzestny** i **Świadek ślubu**
-    nazwane w języku badania, z odniesieniem do chrztu lub ślubu ([A10.5.1](A10-shared-events.md#A10.5.1)),
+    nazwane w języku badania (z pliku GEDCOM od badania 1.34.0, wcześniej według TYPE pliku w języku, w którym działała aplikacja), z odniesieniem do chrztu lub ślubu ([A10.5.1](A10-shared-events.md#A10.5.1)),
     chrzestni, świadkowie, celebrans i akuszerka przy wydarzeniach osoby (powiązanie z osobą lub tylko z nazwiska),
     świadkowie ślubu i inne wydarzenia pary z uczestnikami i notatką. Badanie trzyma je przy każdej danej i zwraca je
     aplikacji tak, jak przyszły;
@@ -103,7 +103,7 @@ w całości, ale tylko jako wskazówki.
   - `ROLE` uczestnika według GEDCOM 7 czyta się także w pliku innego programu;
   - akuszerka trafia do aplikacji jako **Obecny** z notatką „akuszerka”.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) -->
 
 <a id="R11.4"></a>
 ## R11.4 Partia z aplikacji

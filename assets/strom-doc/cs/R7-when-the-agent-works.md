@@ -232,12 +232,26 @@ jeho obnovení (den ≈ 14,3 %), s využitím týdne. Sezení začne, jen když 
 ## R7.6 Limit předplatného zastaví běh
 
 Když agent během sezení narazí na limit svého předplatného, sezení se zavře a běh skončí: **limit předplatného
-(obnoví se …)**. Běh nečeká ani s `--loop`. Nezávisí to na podmínce.
+(obnoví se …)**. Do výzkumu 1.33.0 běh nečeká ani s `--loop` a nezávisí to na podmínce; od 1.34.0 viz níže.
 
 - **Hranice:** úkol se vrátí do fronty; čas obnovení se ukáže, jen když ho agent řekl. Čekat umí jen podmínka.
 - **Platí od:** výzkum 1.0.0
+- **Od výzkumu 1.34.0:** běh, který pokračuje sám (`--loop`, `--until`) a má podmínku ([R7.4](#R7.4)), po limitu
+  neskončí. Úkol se vrátí do fronty (jako další může přijít jiný), běh počká do obnovy limitu a minutu navíc, pak se
+  znovu zeptá podmínky a pokračuje. Terminál: „⏸ limit plánu agenta se vyčerpal (pětihodinové okno) – čekání do jeho
+  obnovy (…), pak nový dotaz na podmínku a práce pokračuje (Ctrl-C běh ukončí)“; aplikace Strom ukazuje běh jako
+  pozastavený s důvodem.
+  - čas obnovy: z údaje agenta o vyčerpaném okně plánu (pětihodinové okno, týden; vyčerpaná obě: pozdější z nich),
+    jinak z času, který agent řekl (datum a čas, „in 2 hours“, „7pm“ jen v časovém pásmu počítače). Čas za víc než
+    8 dní nebo v minulosti se nebere. Neznámý čas: běh čeká 15 minut („…, čas obnovy neznámý – čekání do …, pak nový
+    dotaz na podmínku“);
+  - obnova až po čase `--until`: běh skončí **časový limit**;
+  - sezení přerušené limitem se úkolu nepočítá jako neúspěch agenta;
+  - beze změny: ruční běh (jeden úkol, `--tasks n`, `--max` bez `--loop`) a běh bez podmínky skončí **limit
+    předplatného** jako dřív. Claude Code hláška „You've hit your limit · resets …“ i odmítnutí agenta kvůli limitu
+    se berou jako limit.
 
-<!-- zdroj: research:src/commands/session.ts:1196-1206 closeSession (session.limit), :1255-1259 · src/core/session.ts:248-262 · runners/runner.ts:226 looksLikeLimit · cs.json ui.run.stop.limit, ui.run.stop.resets -->
+<!-- zdroj: research:src/commands/session.ts:1196-1206 closeSession (session.limit), :1255-1259 · src/core/session.ts:248-262 · runners/runner.ts:226 looksLikeLimit · cs.json ui.run.stop.limit, ui.run.stop.resets · 1.34.0: research:8f24e9f7 src/commands/session.ts:1453-1483 (gateHolds && gate, limitResume, limitReserve, DEFAULT_WAIT_MS 15 min, until → time, markPaused), :1363 metrics.limit, src/core/planlimit.ts limitResume, timeOf, LIMIT_RESERVE_MS 60 s, FURTHEST_MS · 03146702 (B8: „You've hit your limit“, odmítnutý rate_limit_event) · cs.json ui.run.limit.wait, ui.run.limit.unknown, ui.run.limit.why, ui.run.limit.five_hour, ui.run.limit.seven_day · dirigent:prace/1115-vyzkum-k036-limit-obnova -->
 
 <a id="R7.7"></a>
 ## R7.7 Nepřihlášený agent
@@ -246,13 +260,27 @@ Agent, který není přihlášený ke svému předplatnému, sezení neudělá. 
 spustit … a přihlásit se**.
 
 - **Hranice:**
-  - před prvním sezením to strom ověří jen u Claude Code se zvláštní složkou (`agent.claudeConfigDir` nebo
-    `CLAUDE_CONFIG_DIR`, jiná než `~/.claude`). Běh pak skončí bez sezení a bez dotazu na podmínku;
+  - před prvním sezením to strom ověří u Claude Code: do výzkumu 1.33.0 jen se zvláštní složkou
+    (`agent.claudeConfigDir` nebo `CLAUDE_CONFIG_DIR`, jiná než `~/.claude`), od 1.34.0 i s výchozí. Běh pak skončí
+    bez sezení a bez dotazu na podmínku;
   - jinak to pozná podmínka `claude-usage` (zastaví; u ručního běhu padne **Spustit přesto?**,
     [R7.4.1](#R7.4.1)), nebo sezení, které skončí chybou přihlášení.
 - **Platí od:** výzkum 1.25.2; zastavení po sezení s chybou přihlášení od 1.0.0
+- **Od výzkumu 1.34.0:** Claude Code v terminálu, který strom spouští sám (samostatná práce, čtenáři skenů
+  a dokumentů, [R8.3](R8-reading-scans.md#R8.3)), má vlastní přihlášení, ne přihlášení aplikace Claude. Když
+  `claude auth status` řekne, že přihlášený není:
+  - `strom read` a další čtení čtenáři (výřezy, přepisy, dokument z aplikace) nespustí žádného čtenáře a hned
+    skončí: **Claude Code v terminálu není přihlášený – … ho spouští sám (ne aplikace Claude, ta má vlastní
+    přihlášení)**, s radou **jednou se přihlásit v terminálu: …, pak /login**;
+  - čtenář, který skončí chybou přihlášení, to řekne i s návodem k přihlášení, v průběhu i ve shrnutí, nikdy jen
+    „auth“;
+  - `strom doctor` má vlastní řádek **přihlášení Claude Code**: **Claude Code v terminálu přihlášen**, nebo varování
+    **Claude Code v terminálu není přihlášený – …** s opravou **… v terminálu, pak /login**. V archivu Stromu se
+    přihlášení neověřuje ani neříká.
 
-<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 -->
+  Odpověď, ze které přihlášení nejde poznat, nic nerozhoduje. Terminál: `claude`, pak `/login`; `strom doctor`.
+
+<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 -->
 
 <a id="R7.8"></a>
 ## R7.8 Archiv Stromu: výzkum, na kterém agent nepracuje

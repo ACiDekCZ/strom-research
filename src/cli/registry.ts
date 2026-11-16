@@ -17,6 +17,8 @@ export interface OptionDef {
   value?: string;
   /** Taken, but never shown: not in help, strom commands, the guide or a hint of the options. */
   hidden?: boolean;
+  /** With hidden: shown in the command's help of a strom on the beta channel alone (the releases say nothing of a beta). */
+  beta?: boolean;
   /** Other names it is taken by (a mistake agents make often: --surnames for --surname); said once in help. */
   aliases?: string[];
   /**

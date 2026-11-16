@@ -136,7 +136,7 @@ function notHere(name: string, waiting: boolean): string {
     : `strom ${name}: not in an archive (research is switched on by the user: strom mode research)`;
 }
 
-export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppUrl, waiting = false): string {
+export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false): string {
   const summary = archive ? inArchive(def) : def.summary;
   if (summary === undefined) return notHere(def.path.join(" "), waiting);
   const out: string[] = [usageLine(def), "", summary];
@@ -146,7 +146,8 @@ export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppU
   const examples = archive ? archiveExamples(def) : (def.examples ?? []);
   if (examples.length) out.push("", "Examples:", ...examples.map((e) => `  ${e}`));
   if (def.args?.length) out.push("", "Arguments:", table(def.args.map((a) => [`  ${a.name}`, a.description])));
-  const all = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
+  // an option of the beta channel (strom update --channel) in a beta's help alone
+  const all = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden || (beta && o.beta));
   const own = archive ? archiveOptions(def, all) : all;
   if (own.length) out.push("", "Options:", table(optionRows(own).map(([a, b]) => [`  ${a}`, b ?? ""])));
   const also = aliasLine(def, own);
@@ -215,18 +216,18 @@ function renamedHelp(words: string[]): { old: string; now: string } | undefined 
   return words.length === 1 && Object.hasOwn(RENAMED, words[0]!) ? { old: words[0]!, now: RENAMED[words[0]!]! } : undefined;
 }
 
-export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false): string {
+export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false): string {
   // "strom help 'research new'" — one quoted argument with several words.
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
   if (words.length === 0) return overview(archive);
   const found = match(words);
-  if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl, waiting);
+  if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl, waiting, beta);
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive, waiting);
   const real = aliasGroup(words);
   if (real) return groupHelp(real, archive, waiting);
   // a command strom renamed (strom help facts): said as running it says it, then the help of its new name
   const renamed = renamedHelp(words);
-  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting)}`;
+  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting, beta)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return `unknown command "${words.join(" ")}"${near.length ? ` — similar command: ${near.map((c) => `strom help ${c}`).join(" · ")}` : ""}\nall commands: strom help`;
@@ -242,7 +243,7 @@ export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "error", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review", "verify bulk", "verify stop",
-  "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "conflict leave", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "sync note", "conflict list", "conflict resolve", "conflict leave", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
@@ -256,6 +257,8 @@ export interface HelpAs {
   archive: boolean;
   /** A research waiting for its agent (not on this computer): an archive's help, said as the research's. */
   waiting?: boolean;
+  /** A strom on the beta channel: the options of the beta channel shown too (OptionDef.beta). */
+  beta?: boolean;
   /** A person's help in `lang` (strom help --human); else the catalog an agent reads — the default, whoever asks. */
   human: boolean;
   lang: string;
@@ -329,7 +332,7 @@ function pointer(words: string[], as: HelpAs): string {
  */
 export function helpAs(input: string[], as: HelpAs): string {
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
-  if (!as.human) return helpFor(words, as.archive, as.appUrl, as.waiting) + pointer(words, as);
+  if (!as.human) return helpFor(words, as.archive, as.appUrl, as.waiting, as.beta) + pointer(words, as);
   if (words.length === 0) return humanOverview(as);
   const found = match(words);
   if (found && found.used === words.length) return humanCommand(found.def, as);

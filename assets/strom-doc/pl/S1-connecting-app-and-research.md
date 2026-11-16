@@ -111,6 +111,24 @@ badania i wersję, z której powstało. Dzięki temu aplikacja wie, dokąd je od
 
 <!-- zdroj: app:src/research-link.ts _STROM_TREE, _STROM_HEAD · src/types.ts:1695 ResearchLink (copy, mode) · src/research-others.ts researchAgentless · src/ui/research-sync-ui.ts researchKindOf :654, researchAgentAway · strings.ts treeSwitcher.kindArchive, kindResearch · spec 002 · CHANGELOG.cs.md 3.12.0, 3.16.0 -->
 
+<a id="S1.3.1"></a>
+### S1.3.1 Drzewo przykładowe
+
+Drzewo przykładowe służy do wypróbowania aplikacji. Nigdy nie zostaje połączone z badaniem i nic z niego nie jest
+wysyłane do badania.
+
+- **Badanie przodków** w drzewie przykładowym niczego nie ustawia i mówi: „Drzewo przykładowe służy do wypróbowania
+  aplikacji i nigdy nie zostaje połączone z badaniem. Badanie zaczyna się od prawdziwego drzewa rodzinnego.”
+- Otwarcie drzewa przykładowego kończy śledzenie otwartego badania tak samo jak przełączenie na inne drzewo
+  ([S1.4](#S1.4)).
+- **Granice:** drzewo przykładowe ze starszej wersji aplikacji aplikacja rozpoznaje po zawartości i przy otwarciu
+  lub imporcie je oznacza. Przykład, który już jest połączony z badaniem, nie zostaje oznaczony i zostaje
+  połączony.
+- **Obsługa:** aplikacja: **Wypróbuj drzewo przykładowe**
+- **Obowiązuje od:** aplikacja 3.29.0
+
+<!-- zdroj: app:bbcc2b17 src/types.ts TreeMetadata.demo · src/demo-sample.ts (starší ukázka podle obsahu; propojená se neoznačí) · src/tree-manager.ts, src/ui/import-export.ts (označení při otevření a importu) · src/ui/research-promo-ui.ts showResearchInfoDialog (demo → demo.noResearch, nic se nenastaví) · src/ui/research-adopt-ui.ts (nikdy ukázka) · src/ui/research-follow-ui.ts researchFollowBeforeSwitch(null) · strings.ts demo.tryDemo, demo.noResearch, research.menuItem · CHANGELOG.cs.md 3.29.0 „Přepnutí stromu“ · prace/1115-app-prepnuti-stromu -->
+
 <a id="S1.4"></a>
 ## S1.4 Śledzenie na żywo
 

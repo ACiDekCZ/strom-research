@@ -90,10 +90,11 @@ for (const labels of [["Odvod k vojsku", "Prodej pole"], ["Zápis do knihy", "Z�
       // the witness's note, of an app that gives it whole (APP_SENDS_PART_NOTES, open here): to that fact alone
       assert.deepEqual(which(planSync(Tree.open(w.cwd, w.env), readGedcom(edited), "conflict", { partNotes: true }).changes), ["fact.note E0002", "fact.part.note E0002"]);
       const r = await w.ok(["sync", send(w, "edited.ged", edited), "--apply", "--json"], FROM_APP);
-      assert.deepEqual(which(r.json.changes), ["fact.note E0002"], JSON.stringify(r.json.changes));
+      assert.deepEqual(which(r.json.changes), ["fact.note E0002", "fact.part.note E0002"], JSON.stringify(r.json.changes));
       assert.equal(noteOf(w, "E0001"), "Poznámka A k odvodu", "its twin's note untouched");
       assert.equal(noteOf(w, "E0002"), "Poznámka B — opravená");
       assert.equal(partNote(w, "E0001"), "soused");
+      assert.equal(partNote(w, "E0002"), "kovář z Horní Lhoty", "the witness's of that fact alone");
     } finally {
       w.cleanup();
     }

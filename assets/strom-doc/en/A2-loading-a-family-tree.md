@@ -263,8 +263,16 @@ index**, 1 and 0 **Uncertain**.
   no. 5, image 34"; the word for the image in the app's language). A number the other location already names is not
   repeated. A source without a folio and an image is exported exactly as before. The source's fields are described in
   [A3.9](A3-evidence-in-the-app.md#A3.9).
+- **From app 3.29.0:**
+  - `1 DATA` › `2 EVEN` at a source record (the events the entry records, e.g. `2 EVEN BIRT, CHR`) is read and serves
+    the order of citations ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)); the import summary no longer shows it as not
+    read. `DATE` and `AGNC` under `DATA` are not read, and the summary lists them once as `DATA`;
+  - `3 _STROM_MAIN Y` under a citation of a fact (`2 SOUR`) marks the fact's main citation; under a citation of a
+    person or a family (`1 SOUR`) it is not read. It is not reported as a skipped tag;
+  - citations are saved in the order of the file; they are shown in the order of
+    [A3.2.2](A3-evidence-in-the-app.md#A3.2.2).
 
-<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 -->
+<!-- zdroj: app:src/ged-parser.ts:2140–2230 záznam SOUR, :1700 noteQuay, :3010–3055 citace a odvozené prameny, :3099–3140 převod pramenů · app:src/ui/sources.ts:75 qualityLabel · app:src/ged-exporter.ts pushCitation · strings.ts gedcom.quality1–3, gedcom.reliabilityLabel · research:src/sync.ts:4660 QUAY_EVIDENCE · 3.27.0: app:c3278633 src/ged-parser.ts (REPO jen první, CALN → callNumber), src/ged-exporter.ts (1 REPO / 2 CALN, composePage), src/source-location.ts composePage, imageWord · datum zápisu: app:fcfc71d2 (v3.26.0) pageSources klíč s datem, spec 066 K3.1 · 3.29.0: app:e361220d src/ged-parser.ts:3952 (DATA › EVEN → Source.events, ostatní count('DATA')), :3410 _STROM_MAIN pod 2 SOUR · spec 095 -->
 
 <a id="A2.6.1"></a>
 ### A2.6.1 Reliability at the citation
@@ -336,8 +344,15 @@ new load. The header `1 SOUR STROM` says that Strom wrote the file.
   - a rejected link of a godparent or witness ([A10.5.2](A10-shared-events.md#A10.5.2)) as
     `3 _STROM_NOT_LINK @I…@` under the participant (`_WITN`, `ASSO`). A reference to a person who is not in the file
     is dropped on load.
+- **From app 3.29.0:** every GEDCOM export writes the citations of facts in the order of
+  [A3.2.2](A3-evidence-in-the-app.md#A3.2.2) and, at a source, `1 DATA` › `2 EVEN` when it is known which events the
+  source records. It writes the main citation as `3 _STROM_MAIN Y` under its citation, only at a fact with 2 or more
+  citations; never in **Back to {program}** (there only the first one stands), and for the research only when the
+  research says it holds the main citation. At citations of a divorce, which go under `1 MARR`, `_STROM_MAIN` is not
+  written (it would come back as the main citation of the marriage). A page of an entry given by the research goes
+  back to the research as a citation of its source with its own `PAGE`, not as a second source.
 
-<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents -->
+<!-- zdroj: app:src/ged-exporter.ts:506 STROM_SEX_U_LINE, :508 exportToGedcom, :680 TYPE married · app:src/ged-parser.ts:2174 _STROM_VERIFIED/_STROM_READ, :2324 výzkumné bloky, :2574 _DRAFT, :2654 _STROM_STATUS, :1914 _STROM_PLACE · app:src/research-link.ts:2936 researchHeaderLines · 3.27.0: app:c3278633 src/ged-exporter.ts sourceFields (false pro výzkum bez sources.fields, nikdy u backTo), src/ged-parser.ts placeFields (s _STROM_* platí pole) · 3.28.0: app:80c2ffb9 src/ged-shares.ts (_STROM_SHARE + _ROLE/ROLE, _STROM_ROLE + _STROM_AT + 4 TYPE, LINK_REJECTED_TAG _STROM_NOT_LINK), src/ged-exporter.ts (_STROM_SHARE jen s ≥ 2 kopiemi v souboru), strings.ts exportHelp sharedEvents · 3.29.0: app:e361220d, d32eedf1 src/ged-exporter.ts citationMain, citationFileOrder, pushCitations (markMain, ≥ 2 citace, level ≥ 2), 1 DATA / 2 EVEN · ZADANI_VYZKUM_hlavni-citace.md Implementace aplikace (V8) -->
 
 <a id="A2.8"></a>
 ## A2.8 Repeated import and merging

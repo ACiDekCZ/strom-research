@@ -72,7 +72,7 @@ von–bis.
   Zugehörigkeit entfernt die Forschung nur mit Begründung.
 - **Bedienung:** App: im Detail des Ortes **Heute**, **Früher**, **Anderer Name**, **Andere Schreibung**; Etiketten
   **Hauptform**, **andere Schreibung**, **alter Name**, **anderer Name** · Terminal: `strom place identify|verify
-  --name --alt <název@jazyk:od-do> --form --jurisdiction <druh:název:od-do>`, `strom place names <L…> --drop <název>
+  --name --alt <název@jazyk:od-do> --form --jurisdiction <druh:název:od-do>`, `strom place names <L…> --drop <Name>
   --why`
 - **Gilt seit:** Forschung 1.25.0; der heutige Name als erster und `strom place names` seit Forschung 1.25.2
 
@@ -192,7 +192,7 @@ Warteschlange und auch eine einmalige Korrektur der Einträge von Orten. Die Rü
 
 - **Grenzen:** die letzten 20 Schritte, jeder einzeln nach seiner Kennung. Ein Schritt lässt sich nicht zurücknehmen,
   wenn sich der Ort seitdem geändert hat.
-- **Bedienung:** App: **Rückgängig** · Terminal: `strom place undo <krok>`
+- **Bedienung:** App: **Rückgängig** · Terminal: `strom place undo <Schritt>`
 - **Gilt seit:** Forschung 1.25.2 (in der Forschung 1.25.0 nur der letzte Schritt)
 
 <!-- zdroj: research:src/core/placeid.ts UNDO_KEPT=20 (:102), undoPlaces · research:src/commands/placeid.ts:399 undo (person only) · CHANGELOG.cs.md 1.25.0 / 1.25.2 -->

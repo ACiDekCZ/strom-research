@@ -79,7 +79,7 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
 - **Dlaczego:** metodyka chce przestrzegać warunków każdego archiwum. Tam, gdzie robots.txt wpuszcza tylko
   przeglądarkę, idzie najwyżej przeglądarka, za zgodą człowieka i w jego tempie; to, co lista archiwów zostawia
   ręce człowieka, zapisuje człowiek.
-- **Obsługa:** terminal: `strom net web --check <adresa>` (co strom zrobiłby z adresem), menu archiwów, `strom
+- **Obsługa:** terminal: `strom net web --check <adres>` (co strom zrobiłby z adresem), menu archiwów, `strom
   allow archive` (tylko człowiek). Aplikacja: Czeka na załatwienie.
 - **Obowiązuje od:** badanie 1.14.0. Kolejne archiwa Czech, Niemiec i Polski oraz serwer obrazów od 1.27.0.
 
@@ -93,7 +93,7 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
   poziom **nieznane**, czyli jak ograniczone.
 - Strony takiej witryny agent może pobrać, w granicach [R9.3](#R9.3). Skanów nie: skany archiwum, które nie jest
   dozwolone, nigdy nie idą przez pobieranie stron.
-- **Obsługa:** terminal: `strom net web --check <adresa>`.
+- **Obsługa:** terminal: `strom net web --check <adres>`.
 - **Obowiązuje od:** badanie 1.14.0
 
 <!-- zdroj: research:src/core/terms.ts:566-680 archiveLevel (unknown → restricted) · src/core/webgate.ts webGate (images of a non-allowed archive) -->
@@ -128,7 +128,7 @@ ją tylko człowiek.
   w folderze, nie wraca: skany zostaną przejęte ([R9.6](#R9.6)). Zadanie **witryna do sprawdzenia** nie budzi się
   nigdy ([R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Dlaczego:** złagodzić archiwum lub je otworzyć może tylko człowiek; agent może archiwum tylko zaostrzyć.
-- **Obsługa:** terminal: `strom allow archive <web|stahovač> --way slow|browser|manual`, `--revoke`, menu archiwów.
+- **Obsługa:** terminal: `strom allow archive <witryna|pobieracz> --way slow|browser|manual`, `--revoke`, menu archiwów.
   Aplikacja: odnośnik **Zgoda…** w notatce przy pozycji, która czeka na skany archiwum tylko przez przeglądarkę,
   i w wierszu **Przeglądarka** ([R9.4.3](#R9.4.3)). Otwiera pytanie w badaniu w terminalu, nawet gdy do archiwum nie
   prowadzi żaden program pobierający.
@@ -147,7 +147,7 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
   - archiwum zakazane lub witryna, która odrzuciła klienta strom: tylko strona warunków, najwyżej 3 razy dziennie,
     i robots.txt;
   - archiwum tylko przez przeglądarkę człowieka: żadnego pobierania stron. Agent dostaje radę: zgoda „przez
-    przeglądarkę” albo oczekiwanie na skany (`strom task wait T… --images B…:<čísla>`);
+    przeglądarkę” albo oczekiwanie na skany (`strom task wait T… --images B…:<numery>`);
   - archiwum tylko ręcznie, zgoda tylko ręcznie i zakazana ścieżka z listy archiwów: tylko ręcznie, nawet nie
     przeglądarka agenta;
   - ścieżka, której zabrania robots.txt: odrzucone;
@@ -164,7 +164,7 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
   czeka na człowieka, aby sprawdził witrynę (`strom task wait --check`, [R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Dlaczego:** pobieranie stron i przeglądarka agenta liczą się i zwalniają razem, aby żadna droga nie szła szybciej
   niż inna.
-- **Obsługa:** terminal (agent): `strom net web --check <adresa>`.
+- **Obsługa:** terminal (agent): `strom net web --check <adres>`.
 - **Obowiązuje od:** badanie 1.14.0
 
 <!-- zdroj: research:src/core/webgate.ts webGate (TERMS_PER_DAY, browserOnly advice, otherWay) · src/core/web.ts WEB_SOFT 12, WEB_SOFT_GAP_MS, WEB_PER_HOST 30, WEB_WAIT_MAX_MS · src/core/config.ts web.perHost · assets/method/locate.md -->
@@ -278,7 +278,7 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
   - zapisuje się tylko skan, który karta pokazuje pod swoim własnym adresem. Przeglądarka przesunięta na inny skan
     zostaje odrzucona i nic się nie zapisuje. Nigdy więcej, niż daje przeglądarka archiwum, nigdy większy niż
     oryginał;
-  - zapisywanie czeka, aż przeglądarka archiwum pokaże cały skan, najwyżej 30 s. Od badania 1.31.0 liczy się tylko
+  - zapisywanie czeka, aż przeglądarka archiwum pokaże cały skan, najwyżej 30 s (przeglądarka, która rysuje kartę powoli: [R9.5.2](#R9.5.2)). Od badania 1.31.0 liczy się tylko
     czas, gdy przeglądarka rysuje kartę (nie rysuje karty za inną kartą ani w zakrytym lub zminimalizowanym oknie).
     Karta nierysowana przez 30 s zostaje zgłoszona jako taka („the browser did not draw the tab with the viewer for
     30 s …”: karta na wierzch, okno odkryte, potem skrypt jeszcze raz); przeglądarka archiwum, która w tym czasie
@@ -334,6 +334,40 @@ przeglądarką archiwum przybliżoną albo w pełnej rozdzielczości.
 
 <!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
 
+<a id="R9.5.2"></a>
+### R9.5.2 Przeglądarka, która rysuje kartę powoli
+
+Przeglądarka skanów archiwum, która składa skan z kafelków (OpenSeadragon, np. ACTA PUBLICA), prosi mniej więcej
+o jeden kafelek przy każdym narysowaniu karty. Gdzie przeglądarka rysuje kartę tylko mniej więcej raz na sekundę,
+kafelki jednego skanu trwają minuty, a zapisywanie kończy się po 30 s komunikatem „the viewer's tiles did not all come
+in 30 s …”.
+
+- **Najpierw przeglądarka:** powoli rysuje się karta bez akceleracji graficznej, na pulpicie zdalnym lub w maszynie
+  wirtualnej. W Chrome: w `chrome://settings/system` włączyć akcelerację graficzną i uruchomić Chrome ponownie;
+  `chrome://gpu` pokazuje, czy Canvas i Compositing nie są „Software only” (wtedy pomaga nowszy sterownik grafiki).
+  Pole „last frame … s ago” w komunikacie mówi, jak dawno przeglądarka ostatnio narysowała kartę.
+- **Pilnuje kod:**
+  - ustawienie `browser.tileWait` jest ukryte: ani `strom config where`, ani `strom help config` go nie pokazują,
+    dopóki nie jest ustawione. Przyjmuje całe sekundy od 60 do 600 (zalecane 180), inną wartość odrzuca z podpowiedzią.
+    Jest zapisane w ustawieniach użytkownika i obowiązuje dla wszystkich badań na komputerze;
+  - nieustawione: na kafelki czeka się 30 s jak dotąd; komunikat „tiles did not all come in 30 s” mówi ponadto
+    agentowi, że pomoże `strom config set browser.tileWait 180`, a potem to samo polecenie strom jeszcze raz (nowy
+    skrypt);
+  - ustawione: dopóki kafelki jeszcze przychodzą (któryś w ostatnich 10 s), skrypt czeka dalej, dopóki przychodzą.
+    Kończy po 30 s bez nowego kafelka, najpóźniej po ustawionym czasie;
+  - jedno wywołanie skryptu po 35 s odpowiada „strom-wait …”: agent uruchamia ten sam skrypt jeszcze raz w tej samej
+    karcie, a ten czeka dalej tam, gdzie był. Liczy się dopiero ostatnia odpowiedź „strom-result …”; z odpowiedzi
+    „strom-wait” `strom fetch … --take` niczego nie przejmuje;
+  - dotyczy `strom media save` ([R9.5](#R9.5)) i programu pobierającego, który przez przeglądarkę zapisuje
+    z przeglądarki skanów archiwum (`strom fetch`, [R8.2](R8-reading-scans.md#R8.2)).
+- **Granice:** karta rysowana szybko zapisuje się tak samo z ustawieniem i bez niego. Bez ustawienia nic się nie
+  zmienia.
+- **Dlaczego:** kafelki przychodzą tylko tak szybko, jak przeglądarka rysuje kartę; 30 s zostaje dla wszystkich innych.
+- **Obsługa:** terminal: `strom config set browser.tileWait 180`, powrót do 30 s: `strom config unset browser.tileWait`.
+- **Obowiązuje od:** badanie 1.32.0
+
+<!-- zdroj: research:75245c94 src/core/browser.ts TILE_WAIT_MIN_S 60, TILE_WAIT_MAX_S 600, TILE_WAIT_SUGGESTED_S 180, TILE_RECENT_MS 10_000, TILE_QUIET_MS 30_000, WAIT_CALL_MS 35_000, CAPTURE_JS ("the viewer's tiles did not all come in 30 s" + věta strom config set browser.tileWait 180; "last frame … s ago"), "strom-wait" · src/core/config.ts browser.tileWait (hidden, tree false, rozsah, hint config unset) · src/commands/media.ts:1686 media save · src/commands/connectors.ts:3152 viewerScript, takeOver (strom-wait nic nepřevezme) · test/cli/connector-mza.test.ts:303 (skryté do nastavení: config where, help config) · CHANGELOG.cs.md 1.32.0 · dirigent:prace/1112-vyzkum-dlazdice-pokrok/karta.md (OSD ~1 dlaždice na snímek; závěr 2: grafická akcelerace, chrome://gpu, neověřeno u reportéra) -->
+
 <a id="R9.6"></a>
 ## R9.6 Oczekiwanie na skany i powrót zadania
 
@@ -341,7 +375,7 @@ Gdzie agent skanów nie zdobędzie, zadanie czeka na człowieka. Badanie podaje 
 nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego skany.
 
 - **Pilnuje kod:**
-  - `strom task wait T… --images B…:<čísla>` przygotowuje folder `inbox/<B… název knihy>` w folderze współdzielonym
+  - `strom task wait T… --images B…:<numery>` przygotowuje folder `inbox/<B… tytuł księgi>` w folderze współdzielonym
     (nazwa najwyżej 80 znaków);
   - plik nosi numer skanu (`40.jpg`, `9a.jpg`). Inaczej nazwane pliki numeruje się według kolejności, gdy jest ich
     tyle, ile skanów brakuje;
@@ -464,7 +498,7 @@ Kroki przy zadaniu, które czeka na skany archiwum, do którego agentowi nie wol
    stanu **Czeka: N**. Pozycja podaje księgę, numery skanów i czego do tego brakuje.
 2. **Wybrać drogę:**
    - z Claude Code i rozszerzeniem Claude in Chrome można dać archiwum zgodę **przez przeglądarkę** (aplikacja:
-     odnośnik **Zgoda…** w notatce przy pozycji, terminal `strom allow archive <web> --way browser`). Zadanie wraca,
+     odnośnik **Zgoda…** w notatce przy pozycji, terminal `strom allow archive <witryna> --way browser`). Zadanie wraca,
      a agent zapisuje skany sam ([R9.5](#R9.5));
    - w przeciwnym razie, albo przy archiwum tylko ręcznie, zapisać skany ręcznie (kolejne kroki).
 3. **Otworzyć księgę** w przeglądarce na witrynie archiwum, z logowaniem i sprawdzeniem człowieka, gdzie archiwum ich
@@ -572,7 +606,7 @@ Horáków jest zmyślona.
 - Zadanie: wpis Marie Horákovej w księdze metrykalnej w DigiArchivie. Zadanie zawsze czeka na skany, które wybiera
   i zapisuje człowiek. Zgoda tego nie otwiera; nie wolno tam wchodzić ani programowi pobierającemu, ani pobieraniu
   stron, ani przeglądarce agenta.
-- Cytat: trwały odnośnik do skanu to adres jego strony `https://digi.ceskearchivy.cz/<kniha>/<snímek>` albo
+- Cytat: trwały odnośnik do skanu to adres jego strony `https://digi.ceskearchivy.cz/<księga>/<skan>` albo
   **Odkaz na snímek** w panelu **POPIS**.
 - **Obowiązuje od:** badanie 1.28.0
 

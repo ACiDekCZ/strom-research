@@ -256,7 +256,7 @@ snímek v Chrome a uloží to, co ukazuje prohlížeč snímků archivu.
   - adresa snímku projde kontrolou prohlížeče agenta ([R9.4](#R9.4));
   - uloží se jen snímek, který karta ukazuje na své vlastní adrese. Prohlížeč posunutý na jiný snímek se odmítne a
     nic se neuloží. Nikdy víc, než prohlížeč archivu dává, nikdy větší než originál;
-  - ukládání čeká, až prohlížeč archivu ukáže celý snímek, nejvýš 30 s. Od výzkumu 1.31.0 se počítá jen čas, kdy
+  - ukládání čeká, až prohlížeč archivu ukáže celý snímek, nejvýš 30 s (prohlížeč, který kreslí kartu pomalu: [R9.5.2](#R9.5.2)). Od výzkumu 1.31.0 se počítá jen čas, kdy
     prohlížeč kartu kreslí (nekreslí kartu za jinou kartou ani v zakrytém či minimalizovaném okně). Karta nekreslená
     30 s se ohlásí jako taková („the browser did not draw the tab with the viewer for 30 s …“: karta dopředu, okno
     odkryté, pak skript znovu); prohlížeč archivu, který mezitím přestránkuje na jiný snímek, neuloží nic;
@@ -309,6 +309,37 @@ přiblíženým, nebo v plném rozlišení.
 - **Platí od:** výzkum 1.33.0
 
 <!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
+
+<a id="R9.5.2"></a>
+### R9.5.2 Prohlížeč, který kreslí kartu pomalu
+
+Prohlížeč snímků archivu, který skládá snímek z dlaždic (OpenSeadragon, např. ACTA PUBLICA), si řekne zhruba o jednu
+dlaždici za každé nakreslení karty. Kde prohlížeč kreslí kartu jen asi jednou za sekundu, trvají dlaždice jednoho
+snímku minuty a ukládání po 30 s skončí hláškou „the viewer's tiles did not all come in 30 s …“.
+
+- **Nejdřív prohlížeč:** pomalu kreslí karta bez grafické akcelerace, na vzdálené ploše nebo ve virtuálním počítači.
+  V Chrome: `chrome://settings/system` zapnout grafickou akceleraci a Chrome restartovat; `chrome://gpu` ukáže, zda
+  Canvas a Compositing nejsou „Software only“ (pak pomůže novější ovladač grafiky). Údaj „last frame … s ago“ v hlášce
+  říká, jak dávno prohlížeč kartu naposledy nakreslil.
+- **Hlídá kód:**
+  - nastavení `browser.tileWait` je skryté: `strom config where` ani `strom help config` ho neukazují, dokud není
+    nastavené. Bere celé sekundy od 60 do 600 (doporučeno 180), jinou hodnotu odmítne s nápovědou. Je uložené
+    v nastavení uživatele a platí pro všechny výzkumy na počítači;
+  - nenastavené: dlaždice se čekají 30 s jako dosud; hláška „tiles did not all come in 30 s“ navíc agentovi řekne, že
+    pomůže `strom config set browser.tileWait 180` a pak tentýž příkaz strom znovu (nový skript);
+  - nastavené: když dlaždice ještě přicházejí (některá za posledních 10 s), skript čeká dál, dokud chodí. Skončí po
+    30 s bez nové dlaždice, nejpozději po nastavené době;
+  - jedno volání skriptu po 35 s odpoví „strom-wait …“: agent pustí tentýž skript znovu ve stejné kartě a ten čeká
+    dál, kde byl. Platí až poslední odpověď „strom-result …“; odpověď „strom-wait“ `strom fetch … --take` nic
+    nepřevezme;
+  - platí pro `strom media save` ([R9.5](#R9.5)) i pro stahovač, který přes prohlížeč ukládá z prohlížeče snímků
+    archivu (`strom fetch`, [R8.2](R8-reading-scans.md#R8.2)).
+- **Hranice:** karta kreslená rychle se uloží stejně s nastavením i bez něj. Bez nastavení se nemění nic.
+- **Proč:** dlaždice přicházejí jen tak rychle, jak prohlížeč kartu kreslí; 30 s zůstává pro všechny ostatní.
+- **Ovládání:** terminál: `strom config set browser.tileWait 180`, zpět na 30 s `strom config unset browser.tileWait`.
+- **Platí od:** výzkum 1.32.0
+
+<!-- zdroj: research:75245c94 src/core/browser.ts TILE_WAIT_MIN_S 60, TILE_WAIT_MAX_S 600, TILE_WAIT_SUGGESTED_S 180, TILE_RECENT_MS 10_000, TILE_QUIET_MS 30_000, WAIT_CALL_MS 35_000, CAPTURE_JS ("the viewer's tiles did not all come in 30 s" + věta strom config set browser.tileWait 180; "last frame … s ago"), "strom-wait" · src/core/config.ts browser.tileWait (hidden, tree false, rozsah, hint config unset) · src/commands/media.ts:1686 media save · src/commands/connectors.ts:3152 viewerScript, takeOver (strom-wait nic nepřevezme) · test/cli/connector-mza.test.ts:303 (skryté do nastavení: config where, help config) · CHANGELOG.cs.md 1.32.0 · dirigent:prace/1112-vyzkum-dlazdice-pokrok/karta.md (OSD ~1 dlaždice na snímek; závěr 2: grafická akcelerace, chrome://gpu, neověřeno u reportéra) -->
 
 <a id="R9.6"></a>
 ## R9.6 Čekání na snímky a návrat úkolu

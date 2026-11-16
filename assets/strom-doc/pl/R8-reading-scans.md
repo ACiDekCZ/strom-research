@@ -52,7 +52,7 @@ miejsca w danym czasie, archiwum i konkretną księgę (zbiór aktów) z dostęp
   1. miejsce i czas wyznaczają przynależność (`strom place jurisdiction L… --kind parish|civil|manor|district --from
      --to`). Miejsce odczytane tylko niepewnie nie daje parafii ani księgi, dopóki nie jest pewne ([R8.5.2](#R8.5.2));
   2. archiwum (`strom repo add`, z warunkami korzystania) i księga (`strom recordset add … --places --years --kinds
-     --access --url`). Program pobierający archiwum sam znajduje księgi: `strom fetch <stahovač> --find "<místo>"
+     --access --url`). Program pobierający archiwum sam znajduje księgi: `strom fetch <program pobierający> --find "<miejsce>"
      --years 1780-1850`;
   3. z katalogu korzysta się jak człowiek: wyszukiwanie albo strona jednej księgi, nigdy przechodzenie kolejnych
      numerów rekordów;
@@ -104,7 +104,7 @@ zobaczy go.
   lub w dzienniku tym nie jest: tej przy księdze nikt nie zobaczy.
 - **Dlaczego:** osobliwość księgi powinien zobaczyć każdy, kto otworzy ją następnym razem (metodyka „Lessons belong
   where they apply”).
-- **Obsługa:** terminal: `strom lesson add "<poučení>" --on B…`, `strom lesson list`, `strom lesson edit`.
+- **Obsługa:** terminal: `strom lesson add "<wniosek>" --on B…`, `strom lesson list`, `strom lesson edit`.
 - **Obowiązuje od:** badanie 1.0.0
 
 <!-- zdroj: research:src/commands/analysis.ts lesson add (LESSON_MAX, --on repository|recordset|place) · research:src/core/model.ts:732 LESSON_MAX=200, LESSON_DETAIL_MAX=2000 · research:src/commands/tasks.ts:354 taskDetail lessons · research:assets/method/core.md "Lessons belong where they apply" -->
@@ -151,7 +151,7 @@ nigdy nie pobiera sam: ani poleceniem, ani skryptem, ani swoją przeglądarką.
 - **Dlaczego:** metodyka chce przestrzegać warunków każdego archiwum; portalu, którego warunki tego zabraniają, nie
   przegląda się automatycznie. Godzinowy limit archiwum zatrzymuje resztę pracy, dlatego najpierw całe skany, a części
   tylko tam, gdzie wymaga ich wpis.
-- **Obsługa:** terminal: `strom fetch <stahovač> … --images 40-69 --recordset B…`, `strom allow archive` (tylko
+- **Obsługa:** terminal: `strom fetch <program pobierający> … --images 40-69 --recordset B…`, `strom allow archive` (tylko
   człowiek). Aplikacja: Czeka na załatwienie.
 - **Obowiązuje od:** badanie 1.0.0 (pobieranie tylko przez strom); poziomy warunków i tempo człowieka 1.14.0; skan
   z kafelków zgłasza `strom connector test` od 1.30.0, `strom fetch` od 1.31.0
@@ -315,7 +315,7 @@ Czytelnik pisze raport na bieżąco, po każdym skanie, nie na końcu. Na każdy
   `strom search add … --by reader` z wynikiem `found`, `partial`, `inconclusive` lub `negative` i z lukami w `--note`.
   Raporty zapisują się w badaniu.
 - Skany, których nikt nie zgłosił, i czytelnicy, którzy zawiedli, są wypisani osobno.
-- **Tylko metodyka:** raportów nie czyta się w całości, tylko przez `strom readings` (`--match <příjmení>`, `--list`,
+- **Tylko metodyka:** raportów nie czyta się w całości, tylko przez `strom readings` (`--match <nazwisko>`, `--list`,
   jeden skan: `strom readings B… --image 57`). Każdy raport zapisuje się od razu, zanim zaczną kolejni czytelnicy.
   Skany odczytane wcześniej: inne pytanie albo ślepa kontrola jest w porządku, to samo pytanie nie.
 - **Dlaczego:** główny agent trzyma w kontekście tylko to, co znaleźli czytelnicy, nie obrazy ani całe raporty.
@@ -415,7 +415,7 @@ model, nigdy szybki ani tani odczyt.
 Znaleziony wpis zapisuje się za jednym razem: źródło z wycinkiem, transkrypcją i miejscem w księdze, dane z niego
 i wyszukiwanie, które go znalazło.
 
-- **Pilnuje kod:** `strom batch --file notes/<soubor>` zapisuje wszystkie wiersze albo żaden; błędne wiersze podaje
+- **Pilnuje kod:** `strom batch --file notes/<plik>` zapisuje wszystkie wiersze albo żaden; błędne wiersze podaje
   wszystkie naraz.
 - **Tylko metodyka:**
   - źródło ze skanu dostaje `--clip` (wycinek, w którym wpis czytano), `--transcript` (słowa wpisu wiersz po

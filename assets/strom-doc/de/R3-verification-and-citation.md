@@ -291,6 +291,71 @@ einmal in Felder auf: Code, ohne Agenten und kostenlos.
 
 <!-- zdroj: research:c6260e50 src/commands/sourcesplit.ts (SHOWN 10, PERSON, agentMay jen bez --apply a --undo), src/core/sourcesplit.ts splitOf, UNDO_KEPT 5, SOURCE_SPLIT_FILE quality/source-split.json, undoSplit (po změně odmítne celé) · c4fe4fac most GET/POST <token>/sources/split, /sources/split/undo, feature sources.split, 409 plan/changed/archive, 503 busy · assets/method/recording.md:30-31 · CHANGELOG.cs.md 1.31.0 · spec 075 K4.1, K4.3 · příklady nerozpoznaných a nic u zbytku vedle pole: research:ff760309 src/core/sourcesplit.ts splitPlan (unrecognizedExamples, EXAMPLES 3, nothing), src/commands/sourcesplit.ts:67 -->
 
+<a id="R3.4.5"></a>
+### R3.4.5 Reihenfolge der Zitate einer Angabe und Hauptzitat
+
+Die Zitationen einer Angabe ordnet die Forschung genauso wie die App ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)):
+zuerst das Hauptzitat, das der Benutzer gewählt hat, dann der primäre Eintrag des Ereignisses, dann die übrigen nach
+Verlässlichkeit. Die gespeicherte Reihenfolge ändert sich nicht; die Reihenfolge gilt in jeder GEDCOM-Datei (für die
+Strom-App, `/tree.ged`, die Datei für andere Programme), im Briefing des Agenten und in den Ausgaben von
+`strom … show`.
+
+- **Prüft der Code:**
+  - Reihenfolge: 1. das Hauptzitat; 2. der primäre Eintrag des Ereignisses: ein Eintrag dieser Art von Ereignis
+    (Taufe oder Geburt bei Geburt und Taufe, Tod oder Begräbnis bei Tod, Begräbnis und Einäscherung, Heirat bei
+    Heirat, Aufgebot und Verlobung, Volkszählung bei Volkszählung), eine Originalquelle mit Primärinformation
+    (`QUAY` 3) oder eine Originalquelle, deren Information niemand beurteilt hat (`QUAY` 2 nur mangels des Wortes,
+    [R3.2.1](#R3.2.1)), geschrieben höchstens 12 Monate von der Angabe entfernt; der früher geschriebene zuerst, einer
+    ohne Datum der Niederschrift hinter denen mit Datum; ein fehlendes oder unlesbares Datum entscheidet nicht;
+    3. die übrigen mit `QUAY` 3; 4. die übrigen nach `QUAY` absteigend; 5. der Zahlenteil der Nummer der Quelle
+    (ohne Nummer hinter den nummerierten), dann die Reihenfolge des Hinzufügens;
+  - die Zitation eines Eintrags eines anderen Ereignisses, die keine eigene Information hat, hat in der Reihenfolge
+    und im Export das `QUAY` einer Sekundärinformation (ein Begräbniseintrag bei einer Geburt). Der Grad der
+    Sicherheit der Angabe ändert sich dadurch nicht;
+  - Namen und die Zitationen einer Person und einer Familie (`1 SOUR`) werden ohne Schritt 2 geordnet;
+  - welche Ereignisse eine Quelle verzeichnet, schreibt der Export als `1 DATA` › `2 EVEN` bei der Quelle: immer in
+    der Datei für andere Programme, der Strom-App nur einer, die es liest;
+  - `strom event main <E> <S>` markiert die Zitation der Quelle S als Hauptzitat, `--locator "<Stelle>"` wählt eine
+    von mehreren Zitationen derselben Quelle, `--clear` hebt das Hauptzitat auf (es gilt die Reihenfolge der
+    Forschung). Ausgabe: „Hauptbeleg der Angabe gewählt: …“, „Angabe ohne Hauptbeleg (Reihenfolge der Forschung): …“,
+    „nichts zu ändern: …“;
+  - das Hauptzitat wählt nur der Mensch, in der Strom-App ([S2.3.1](S2-edits-from-the-app.md#S2.3.1)) oder in
+    seinem Terminal. Dem Agenten verweigert `strom event main` es (`main.person`) mit dem Rat, es dem Benutzer zu
+    sagen. Eine neue Zitation des Agenten wird hinter das Hauptzitat geordnet und ersetzt es nie;
+  - `strom person show`, `strom family show` und `strom event show` geben die Zitationen in dieser Reihenfolge aus,
+    das Hauptzitat mit „(Hauptbeleg, Wahl des Nutzers)“; `--json` hat `citationOrder`.
+- **Grenzen:** ein allgemeines Zurücknehmen des Hauptzitats aus dem Terminal gibt es nicht: es wird mit `--clear`
+  aufgehoben, oder das vorige wird wieder gesetzt.
+- **Bedienung:** Terminal: `strom event main E0001 S0001`, `strom event main E0001 S0001 --locator "fol. 12"`,
+  `strom event main E0001 --clear`, `strom event show E0001`.
+- **Gilt seit:** Forschung 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts (pořadí K1.1, SOURCE_EVENTS, FACT_RECORDS, monthsApart, quayAt, mainCitation), src/gedcom/export.ts (1 DATA / 2 EVEN, _STROM_MAIN) · ce8dc753 src/commands/people.ts ["event","main"] (personWrites, code main.person, a source or --clear, which source?, --locator not with --clear), core chooseMainCitation · src/core/actions.ts citeEvent (main nikdy) · assets/lang/cs.json ui.event.main, ui.event.main.off, ui.event.main.same, ui.show.main · ZADANI_VYZKUM_hlavni-citace.md Odpověď V1–V3 · dirigent:prace/1115-vyzkum-095-cli-drobnosti (U6: undo není) · spec 095 K1.1, K2.3 -->
+
+<a id="R3.4.6"></a>
+### R3.4.6 Vom Benutzer entferntes Zitat
+
+Eine Zitation, die der Benutzer von einer Angabe entfernt hat ([A3.2.3](A3-evidence-in-the-app.md#A3.2.3),
+[S2.3.1](S2-edits-from-the-app.md#S2.3.1)), merkt sich die Forschung bei der Angabe: die Quelle, die Stelle darin und
+wann. Der Agent setzt sie dort nicht von selbst wieder ein.
+
+- **Prüft der Code:**
+  - `strom cite` verweigert dem Agenten eine solche Quelle bei derselben Angabe (`cite.removedByUser`: „the user
+    removed S… from E… (Datum): it is not cited there again on its own“) mit dem Rat, nur mit einem neuen Grund zu
+    zitieren, warum der Eintrag zur Angabe gehört: `strom cite E… S… --reason "<warum>"`. Mit Grund wird die Zitation
+    geschrieben und das Entfernen abgeschlossen;
+  - der Mensch darf in seinem Terminal immer zitieren; damit schließt er das Entfernen ab. Dasselbe tut die
+    Strom-App, die die Zitation wieder hinzufügt;
+  - nach Stelle: ein Entfernen ohne Stelle sperrt jede Stelle der Quelle; das Entfernen einer Stelle sperrt diese
+    Stelle und eine Zitation ohne Stelle. Eine andere Stelle derselben Quelle lässt sich zitieren (ein Buch enthält
+    oft Taufe und Begräbnis derselben Person);
+  - `strom … show` gibt bei der Angabe „(vom Nutzer entfernt: S…)“ aus, das Briefing des Agenten ebenso.
+- **Grenzen:** die Anweisungen der Methodik sagen über entfernte Zitationen nichts; es prüft nur der Code.
+- **Bedienung:** Terminal: `strom cite E0001 S0001 --reason "…"`, `strom event show E0001`.
+- **Gilt seit:** Forschung 1.34.0
+
+<!-- zdroj: research:355df0a5 src/core/citeorder.ts removedByUser (locator), refuseRemoved (cite.removedByUser), clearRemoved · src/core/actions.ts:690 citeEvent (personWrites, --reason) · src/core/model.ts Event.uncited · src/core/sync.ts:5268 (aplikace cituje znovu) · src/brief/brief.ts:169 · assets/lang/cs.json ui.show.uncited · 4cd81f14 (vrácení: značka odebrání patří svému poslání) · spec 095 K3.2, K3.3 -->
+
 <a id="R3.5"></a>
 ## R3.5 Blinde zweite Lesung
 

@@ -72,6 +72,13 @@ test("a strom on the releases: help, the catalog of commands, the guide, doctor 
   // a beta install says it (the look above would see it)
   const beta = await w.run(["doctor"], { env: { STROM_CHANNEL: "beta" } });
   assert.match(beta.out + beta.err, BETA);
+  // the beta channel's option of strom update: in a beta's help alone (a release's above says nothing of it)
+  for (const args of [["update", "--help"], ["help", "update"]]) {
+    const onBeta = await w.run(args, { tty: true, env: { STROM_CHANNEL: "beta" } });
+    assert.match(onBeta.out, /^ {2}--channel <beta\|stable> +the versions to take from now on$/mu, onBeta.out);
+    const onStable = said.find(([label]) => label === `strom ${args.join(" ")}`)![1];
+    assert.doesNotMatch(onStable, /--channel/u, onStable);
+  }
 });
 
 test("an address that is no Strom app's: the releases name stromapp.info and a copy on this computer, never a beta — the beta channel its beta too (en, cs, de; typed, in STROM_APP_URL, written by hand) (B1-d)", async () => {

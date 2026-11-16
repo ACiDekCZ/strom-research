@@ -5,9 +5,24 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.35.0
+
+*Připravuje se: bety do 1.35.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Poznámka účastníka z aplikace Strom:** poznámka kmotra nebo svědka upravená v aplikaci Strom 3.29.0 a novější se
+  vrací do výzkumu, ze souboru i z toho, co aplikace posílá rovnou přes most. Poznámka, která je jen začátkem poznámky
+  výzkumu (jak ji držela starší aplikace, nebo zkrácená v aplikaci – i řezem mezi písmenem a jeho čárkou), se sama
+  nikdy nepřevezme: strom sync to řekne jedním řádkem a na člověka čeká otázka (v tom, co čeká, i v aplikaci Strom),
+  zda kratší poznámku převzít, nebo ponechat poznámku výzkumu. Ptá se jednou: stejný strom poslaný znovu už se neptá.
+- **Poznámka změněná po odeslání z aplikace:** když strom vrací poznámky, které odeslání z aplikace Strom zapsalo
+  k podobnému údaji, poznámku změněnou od té doby nechá být a na člověka čeká úkol ji zkontrolovat (v tom, co čeká,
+  i v aplikaci Strom), nikdy jen řádek v historii.
+- **Windows: po kontrole přihlášení nic neběží dál:** kontrola, zda je agent v terminálu přihlášený, ukončí vše, co
+  spustila, když trvá příliš dlouho, a čtečky už nevypisují varování Node DEP0190.
+
 ## 1.34.0
 
-*Připravuje se: bety do 1.34.0-beta.4. Oddíl bude úplný s vydáním.*
+*15. 11. 2026 · patří k aplikaci Strom 3.29.0.*
 
 - **Hlavní citace a jedno pořadí citací:** citace každého údaje jdou v každém souboru v jednom pořadí – nejdřív hlavní
   citace, pak záznam samotné události, další originály a zbytek podle toho, jak jsou jisté. Hlavní citaci volí jen
@@ -19,9 +34,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Samostatná práce s podmínkou:** když limit plánu agenta přeruší sezení, práce počká do obnovy limitu (v terminálu
   i v aplikaci Strom jako pauza), pak se znovu zeptá podmínky a pokračuje; přerušený úkol se vrátí do fronty. Hlášení
   agenta, že limit došel, se čte jako limit plánu i s časem obnovy.
-- **Poznámky z aplikace Strom:** úpravy poznámky údaje a poznámky účastníka od uživatele se vracejí do výzkumu, každá
-  ke svému údaji, dřívější text zůstane v historii poznámky; poznámka účastníka jen od aplikace, která ji posílá celou;
-  odebraná poznámka nic neodebere. Vlastní událost kmotra nebo svědka z GEDCOM
+- **Poznámky z aplikace Strom:** úpravy poznámky údaje od uživatele se vracejí do výzkumu, každá ke svému údaji,
+  dřívější text zůstane v historii poznámky; odebraná poznámka nic neodebere. Vlastní událost kmotra nebo svědka z GEDCOM
   aplikace se pojmenuje v jazyce výzkumu.
   Vlastní druhé narození nebo úmrtí aplikace a její zápis narození či úmrtí se poznají i v polštině a nehlásí se jako
   nepřevzaté.

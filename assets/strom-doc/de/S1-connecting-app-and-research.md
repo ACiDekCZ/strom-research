@@ -115,6 +115,25 @@ App, wohin sie ihn zurückschickt.
 
 <!-- zdroj: app:src/research-link.ts _STROM_TREE, _STROM_HEAD · src/types.ts:1695 ResearchLink (copy, mode) · src/research-others.ts researchAgentless · src/ui/research-sync-ui.ts researchKindOf :654, researchAgentAway · strings.ts treeSwitcher.kindArchive, kindResearch · spec 002 · CHANGELOG.cs.md 3.12.0, 3.16.0 -->
 
+<a id="S1.3.1"></a>
+### S1.3.1 Der Beispiel-Stammbaum
+
+Der Beispiel-Stammbaum dient zum Ausprobieren der App. Er wird nie mit einer Forschung verbunden, und nichts aus ihm
+wird an eine Forschung gesendet.
+
+- **Ahnenforschung** im Beispiel-Stammbaum richtet nichts ein und sagt: „Der Beispiel-Stammbaum dient zum
+  Ausprobieren der App und wird nie mit einer Forschung verbunden. Eine Forschung beginnt mit einem echten
+  Stammbaum.“
+- Das Öffnen des Beispiel-Stammbaums beendet das Verfolgen der offenen Forschung wie ein Wechsel zu einem anderen
+  Stammbaum ([S1.4](#S1.4)).
+- **Grenzen:** einen Beispiel-Stammbaum aus einer älteren Version der App erkennt die App an seinem Inhalt und
+  markiert ihn beim Öffnen oder Importieren. Ein Beispiel, das schon mit einer Forschung verbunden ist, wird nicht
+  markiert und bleibt verbunden.
+- **Bedienung:** App: **Beispiel-Stammbaum ausprobieren**
+- **Gilt seit:** App 3.29.0
+
+<!-- zdroj: app:bbcc2b17 src/types.ts TreeMetadata.demo · src/demo-sample.ts (starší ukázka podle obsahu; propojená se neoznačí) · src/tree-manager.ts, src/ui/import-export.ts (označení při otevření a importu) · src/ui/research-promo-ui.ts showResearchInfoDialog (demo → demo.noResearch, nic se nenastaví) · src/ui/research-adopt-ui.ts (nikdy ukázka) · src/ui/research-follow-ui.ts researchFollowBeforeSwitch(null) · strings.ts demo.tryDemo, demo.noResearch, research.menuItem · CHANGELOG.cs.md 3.29.0 „Přepnutí stromu“ · prace/1115-app-prepnuti-stromu -->
+
 <a id="S1.4"></a>
 ## S1.4 Live verfolgen
 

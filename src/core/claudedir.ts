@@ -12,10 +12,10 @@
 // logged in with.
 
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { loadUserConfig, Settings, type UserConfig } from "./config.ts";
 import { expandHome, userHome, type Env } from "./paths.ts";
 import { findAgent } from "./which.ts";
+import { runSync } from "./runsync.ts";
 
 /** Is this folder Claude Code's own default, ~/.claude (with a separator at the end, ~ unexpanded; case aside where the disk ignores it)? */
 export function isDefaultClaudeDir(dir: string, env: Env): boolean {
@@ -93,10 +93,10 @@ const AUTH_STATUS_MS = 5_000;
  */
 export function claudeLoggedIn(env: Env, command = "claude"): boolean | undefined {
   const program = findAgent(command, env) ?? command;
-  const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(program);
+  // claude.cmd on Windows: through cmd.exe, at the limit its whole tree ended — never a node left running (runSync)
+  const r = runSync(program, ["auth", "status"], { env: forClaude(env), timeout: AUTH_STATUS_MS });
   try {
-    const r = spawnSync(shell ? `"${program}"` : program, ["auth", "status"], { env: forClaude(env) as NodeJS.ProcessEnv, encoding: "utf8", timeout: AUTH_STATUS_MS, stdio: ["ignore", "pipe", "ignore"], windowsHide: true, shell });
-    const said = JSON.parse((r.stdout ?? "").trim()) as { loggedIn?: unknown };
+    const said = JSON.parse(r.stdout.trim()) as { loggedIn?: unknown };
     return typeof said?.loggedIn === "boolean" ? said.loggedIn : undefined;
   } catch {
     return undefined;

@@ -111,6 +111,23 @@ its file the number of the research and the version it came from. By that the ap
 
 <!-- zdroj: app:src/research-link.ts _STROM_TREE, _STROM_HEAD · src/types.ts:1695 ResearchLink (copy, mode) · src/research-others.ts researchAgentless · src/ui/research-sync-ui.ts researchKindOf :654, researchAgentAway · strings.ts treeSwitcher.kindArchive, kindResearch · spec 002 · CHANGELOG.cs.md 3.12.0, 3.16.0 -->
 
+<a id="S1.3.1"></a>
+### S1.3.1 The sample tree
+
+The sample tree is for trying out the app. It is never connected to a research, and nothing of it is sent to a
+research.
+
+- **Ancestor research** in the sample tree sets nothing up and says: "The sample tree is for trying out the app and
+  is never connected to a research. A research starts with a real family tree."
+- Opening the sample tree ends the following of the open research, as a switch to another tree does
+  ([S1.4](#S1.4)).
+- **Limits:** a sample tree from an older version of the app is recognised by its content and marked when it is
+  opened or imported. A sample that is already connected to a research is not marked and stays connected.
+- **Controls:** app: **Try a sample tree**
+- **Since:** app 3.29.0
+
+<!-- zdroj: app:bbcc2b17 src/types.ts TreeMetadata.demo · src/demo-sample.ts (starší ukázka podle obsahu; propojená se neoznačí) · src/tree-manager.ts, src/ui/import-export.ts (označení při otevření a importu) · src/ui/research-promo-ui.ts showResearchInfoDialog (demo → demo.noResearch, nic se nenastaví) · src/ui/research-adopt-ui.ts (nikdy ukázka) · src/ui/research-follow-ui.ts researchFollowBeforeSwitch(null) · strings.ts demo.tryDemo, demo.noResearch, research.menuItem · CHANGELOG.cs.md 3.29.0 „Přepnutí stromu“ · prace/1115-app-prepnuti-stromu -->
+
 <a id="S1.4"></a>
 ## S1.4 Following live
 

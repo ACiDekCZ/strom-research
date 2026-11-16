@@ -126,6 +126,46 @@ głębokość i powiększenie zostają, karta osoby stoi w tym samym miejscu ekr
 
 <!-- zdroj: app:f5d56ed3 src/bulk-family.ts collectBulkFamily (childrenOf osoba; siblingsOf osoba a předci v pohledu s rodiči v pohledu; maxGeneration), bulkParents, bulkNewIds (drawnPersonIds, kroky 1–5 pipeline), BULK_CONFIRM_ABOVE 150, BULK_TWO_GENERATIONS 2 · src/renderer.ts bulkFamilyPlan (jen family), bulkFamilyState (offer/on/none), bulkFamilyScreens (ceil šířka × zoom / plátno), showBulkFamily → showChildrenOf (jeden krok historie, zoom beze změny, kotva), undoBulkFamily, bulkStepOf (jen při stejné hloubce), forgetBulkSteps při změně hloubky, resetChildrenShown při změně fokusu, pohledu, stromu, hiddenShownCount (+1 za krok) · src/ui/bulk-family-ui.ts confirmBulkFamily (Esc, klik vedle, resize = zrušit; two jen m > 0 a m ≠ n), runBulkFamily, updateBulkFamilySwitches (title treeTip/menuOff/treeNone, aria-disabled) · src/ui/context-menu.ts bulkFamilyRows (offer: menu, +n, menuSub; on: menuOff) · src/ui/toolbar-fit.ts (tablet: přepínač ustoupí před hledáním, f5d56ed3) · index.html button.bulk-family (telefon skrytý) · strings.ts bulk.*, menu.showChildrenHere, showSiblingsHere, focusBar hideAllShown, history back · app 2eb013ba, cecea43f, 8dc34565, f5d56ed3 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §3 -->
 
+<a id="A6.1.4"></a>
+### A6.1.4 Zdjęcie na karcie
+
+Ustawienie **Zdjęcie na karcie** określa rozmiar i kształt zdjęcia osoby na karcie w drzewie. Domyślne **Małe**
+i **Koło** zostawiają kartę jak dotąd.
+
+| | **Małe** | **Średnie** | **Duże** |
+|---|---|---|---|
+| karta **Normalne** | 188 × 64 px | 200 × 64 px | 236 × 96 px |
+| zdjęcie na karcie **Normalne** | 34 px | 48 px | 80 px |
+| zdjęcie w nagłówku karty **Szczegółowe**, **Metrykalne**, **Własne** | 30 px | 44 px | 72 px |
+
+- Większa karta jest tylko w widoku, w którym co najmniej jedna pokazana osoba ma zdjęcie. Karty bez zdjęcia są w tym
+  widoku tak samo szerokie, z małymi inicjałami, a imiona w rzędzie stoją na tej samej wysokości. Widok bez zdjęć ma
+  karty 188 × 64 px.
+- Karta **Normalne** ma zdjęcie obok imienia. **Szczegółowe**, **Metrykalne** i **Własne** mają je w nagłówku obok
+  imienia i lat, wiersze danych pod nim na pełną szerokość; karta jest wyższa o zdjęcie (**Własne** 70 lub 98 px
+  i 17 px na wiersz zamiast 56 px).
+- **Od aplikacji 3.30.0:** wybrany rozmiar dotyczy każdej karty z awatarem, ze zdjęciem i bez. Inicjały karty bez
+  zdjęcia mają rozmiar i kształt zdjęcia (**Normalne** 48 lub 80 px, w nagłówku karty 44 lub 72 px) i proporcjonalną
+  czcionkę (17 i 29 px, w nagłówku 16 i 26 px). Widok ma większe karty, gdy tylko jest w nim co najmniej jedna karta
+  z awatarem (wcześniej tylko ze zdjęciem); osoba zastępcza awatara nie ma. Eksport obrazu, plakat i jego PDF rysują
+  inicjały tak samo. **Małe** wygląda jak dotąd. Zdanie pod ustawieniem: „Osoby bez zdjęcia mają inicjały w tym samym
+  rozmiarze. Dotyczy drzewa, eksportu obrazu i plakatu na tym urządzeniu.”
+- **Kształt:** **Koło** albo **Zaokrąglony kwadrat** (zaokrąglenie 12 px przy dużym zdjęciu, 5 px przy małym; tak
+  samo inicjały). Znaczniki karty stoją na brzegu zdjęcia w obu kształtach.
+- **Eksport:** eksport obrazu, plakat i jego PDF na wielu arkuszach ([A7](A7-book-pages-and-export.md)) rysują karty
+  z wybranym rozmiarem i kształtem zdjęcia jak ekran: karta **Normalne** ma wymiar jak na ekranie, **Szczegółowe**
+  i **Metrykalne** mają zdjęcie po lewej w nagłówku. Zdjęcie ukryte dla osoby żyjącej zostawia na karcie inicjały.
+  Wynik, w którym nikt nie ma zdjęcia, oraz domyślne **Małe** z **Koło** wyglądają jak dotąd. Zdanie pod
+  ustawieniem: „Dotyczy drzewa, eksportu obrazu i plakatu na tym urządzeniu.”
+- **Granice:** karta **Kompaktowe** nie ma zdjęcia: wiersz zostaje, opcje są wyłączone, a pod nimi jest „Karta
+  kompaktowa nie ma zdjęcia.”; wybrany rozmiar się zachowuje. Ustawienie należy do urządzenia i nie zapisuje się
+  z drzewem. Podgląd w ustawieniach pokazuje wymiar karty („karta 236 × 96 px”).
+- **Obsługa:** **Ustawienia** → **Karta osoby** → **Zdjęcie na karcie** (między **Szczegóły kart** a podglądem):
+  **Rozmiar** **Małe** · **Średnie** · **Duże**; **Kształt** **Koło** · **Zaokrąglony kwadrat**.
+- **Obowiązuje od:** aplikacja 3.29.0; 3.30.0: inicjały w rozmiarze zdjęcia
+
+<!-- zdroj: app:28480ea1 src/types.ts NORMAL_PHOTO_BOX (188×64/34, 200×64/48, 236×96/80), src/settings.ts (zařízení, výchozí small + circle), src/ui/card-fields-ui.ts, src/renderer.ts · b71d561a src/card-width.ts cardAvatarSize (30/44/72), výška Vlastní 70/98 + 17 na řádek · strings.ts cardDensity.photoTitle, photoSize, photoSmall, photoMedium, photoLarge, photoShape, photoCircle, photoRounded, photoCompact, size · CHANGELOG.cs.md 3.29.0 „Fotka na kartě“ · dirigent:test/vysledek-1115-app-096-fotka.md · spec 096 P1 · export: app:64ae50ca src/export-image.ts, src/renderer.ts (poster, PDF po listech; výchozí small + circle bajt po bajtu jako dřív), strings.ts cardDensity.photoScope · spec 096 P2 · 3.30.0: app:0bed2a88 src/types.ts NORMAL_PHOTO_BOX (avatar = fotka i iniciály), src/renderer.ts viewHasAvatar (dřív viewHasPhoto), src/card-width.ts normalCardTextWidth (126 px u každého avataru), avatarInitialsSize (avatar × 0,36: 17/29, 16/26), src/export-image.ts getPosterCardPhoto (každá karta s avatarem), strings.ts cardDensity.photoScope · e2e/card-photo.spec.ts, poster-card-photo.spec.ts · CHANGELOG.cs.md 3.30.0 „Fotka na kartě“ · spec 103 K2.1–K2.3 · dirigent:test/vysledek-1116-app-103-tabulka.md -->
+
 <a id="A6.2"></a>
 ## A6.2 Widok Potomkowie
 
@@ -479,7 +519,9 @@ Widok Tabela opiera się na tabeli Ondřeja Chrpy.
     tylko pokazuje: „Tylko do odczytu: edycji i „To nie błąd” tu nie ma.” Przeglądanie, filtr, sortowanie i eksport
     CSV i XLSX działają; widoku nie można zapisać, przemianować ani usunąć;
   - strzałek **↩ ↪** w lewym dolnym rogu (poprzednia i następna osoba centralna) ani Alt+← / Alt+→ w Tabeli nie ma:
-    tabela nie pokazuje osoby centralnej i nie zmienia jej podczas pracy.
+    tabela nie pokazuje osoby centralnej i nie zmienia jej podczas pracy;
+  - **od aplikacji 3.30.0** Alt+← / Alt+→ w tabeli prowadzą wstecz i naprzód po skokach przez imiona osób
+    ([A6.7.16](#A6.7.16)); osoby centralnej i tak nie zmieniają.
 - **Obsługa:** w przełączniku widoków **Tabela** (za **Mapa**); na telefonie, tablecie i w oknie do 1024 px **Tabela**
   na dolnym pasku ([A9.5](A9-using-the-app.md#A9.5); do aplikacji 3.27.0 **Więcej → Widok → Tabela**). Widok jest zapamiętywany jak pozostałe ([A6.1.1](#A6.1.1)).
 - **Obowiązuje od:** aplikacja 3.27.0
@@ -672,8 +714,26 @@ Filtr wybiera wiersze, wyszukiwanie zawęża je dalej, sortowanie ustala kolejno
   odwraca, trzecie usuwa). Strzałka ↑ ↓ przy nagłówku ma numer kolejności klucza. Puste wartości są zawsze na końcu,
   w obu kierunkach. Liczby w tekście sortują się jak liczby.
 - **Granice:** wyszukiwanie nie zapisuje się w widoku ([A6.7.7](#A6.7.7)).
+- **Od aplikacji 3.30.0:**
+  - wykluczenia się sumują: każde **Bez „{wartość}”** z menu komórki ([A6.7.15](#A6.7.15)) jest osobnym chipem
+    „{Kolumna} ≠ {wartość} ×” obok głównego filtru kolumny, w tej samej i w innej kolumnie. × usuwa tylko swój chip,
+    **Wyczyść filtry** wszystkie. Formularz chipu edytuje tylko ten chip, formularz w nagłówku główny filtr kolumny;
+  - drugie **Tylko „{wartość}”** w kolumnie dodaje wartość: „Ojciec = A lub B” (od czterech wartości „A, B +2”),
+    wiersz przechodzi z dowolną z nich. **Bez** takiej wartości znowu ją usuwa (przy ostatniej staje się z niej
+    wykluczenie), **Tylko** wykluczonej wartości wykluczenie usuwa. W kolumnie z wartościami z listy wybrane wartości
+    dodają się i ubywają tak samo;
+  - chip „= …” (i nagłówek kolumny, dopóki jego filtr to **jest**) ma zamiast pola tekstowego wartości kolumny do
+    zaznaczenia: na górze zaznaczone, pod nimi pozostałe w kolejności kolumny, każda raz (ta sama osoba, w przeciwnym
+    razie ten sam tekst bez względu na wielkość liter i znaki diakrytyczne). Zaznaczona wartość przybywa, odznaczona
+    znika, a z ostatnią znika chip. **zawiera**, **zaczyna się od** lub **nie jest** przywraca pole tekstowe
+    z pierwszą zaznaczoną wartością. Na telefonie wiersze listy mają 48 px;
+  - osoba, której imię i nazwisko w drzewie pokazuje też inna osoba, ma w chipie, na liście wartości i w podsumowaniu
+    filtrów rok urodzenia: „Jan Horák (ur. 1850)”. Pozostałe wartości są bez zmian;
+  - widok zapisuje chipy ([A6.7.7](#A6.7.7)), widok zapisany wcześniej otwiera się bez zmian, a wersja danych
+    zostaje. Starsza aplikacja stosuje wszystkie wykluczenia, a z „A lub B” tylko pierwszą wartość;
+  - wiele chipów skraca się „…”, **Wyczyść filtry** zostaje w wierszu.
 
-<!-- zdroj: app:src/ui/table-view/table-filter.ts CHIP_ORDER, setChip (Žijící × Zemřelí), personPassesChip (finding: chyba nebo k ověření; unusual; unconfirmed jen researchTree, relN/relB/relD), CHECK_CHIPS, rodChoices, generationSpan, filterKindOf, cellPasses, foldText · table-filterbar.ts SEARCH_DELAY_MS, columnFilterForm, chipChoiceForm · table-state.ts řazení (vzestupně → sestupně → vypnuto; Shift přidá, otočí, odebere; prázdné na konci; Intl.Collator numeric) · strings.ts table.chip.*, chipRod, chipGen, moreN, filters, clearFilters, search, matches, noMatch, checksWait, matchContains, matchStarts, rangeFrom, rangeTo, rangeYears, onlyEmpty, onlyFilled · commity dd1d74bc, e64b8b06, fc746037 · je / není: strings.ts table.matchEquals, matchNotEquals (commit 05d9a9ab, T54 F4) -->
+<!-- zdroj: app:src/ui/table-view/table-filter.ts CHIP_ORDER, setChip (Žijící × Zemřelí), personPassesChip (finding: chyba nebo k ověření; unusual; unconfirmed jen researchTree, relN/relB/relD), CHECK_CHIPS, rodChoices, generationSpan, filterKindOf, cellPasses, foldText · table-filterbar.ts SEARCH_DELAY_MS, columnFilterForm, chipChoiceForm · table-state.ts řazení (vzestupně → sestupně → vypnuto; Shift přidá, otočí, odebere; prázdné na konci; Intl.Collator numeric) · strings.ts table.chip.*, chipRod, chipGen, moreN, filters, clearFilters, search, matches, noMatch, checksWait, matchContains, matchStarts, rangeFrom, rangeTo, rangeYears, onlyEmpty, onlyFilled · commity dd1d74bc, e64b8b06, fc746037 · je / není: strings.ts table.matchEquals, matchNotEquals (commit 05d9a9ab, T54 F4) · 3.30.0: app:ec39d469 table-filter.ts isExclusionItem, addWithoutFilter, addOnlyFilter (or, picked), removeColumnItemAt, mainItemIndex, setColumnFilter(at), equalValues · strings.ts joinOr (od 4 hodnot „A, B +2“), table.filterOr · app:8891a860 table-filter.ts columnEqualValues, equalChoices, equalsOf, equalValueLabel, namesakes, table.nameBorn (nar.), table-filterbar.ts (.tv-ff-values, 48 px na telefonu) · CHANGELOG.cs.md 3.30.0 „Filtry Tabulky“ · spec 103 K1.1–K1.5 · dirigent:test/vysledek-1116-app-103-tabulka.md, vysledek-1116-app-103-odkazy-083-razeni.md -->
 
 <a id="A6.7.7"></a>
 ### A6.7.7 Widoki tabeli
@@ -821,6 +881,9 @@ Tabela wydarzeń ma wiersz dla każdego wydarzenia drzewa: kto, kiedy, gdzie, w 
   **Otwórz osobę**). Filtr to chip „Chrzestny: … ×” (Świadek, Celebrans, Obecny) i zastępuje poprzedni filtr
   uczestnika. Osobę drzewa szuka według osoby, zapisane imię według liter bez względu na wielkość, znaki diakrytyczne
   i spacje.
+  **Od aplikacji 3.30.0** menu (także panel od dołu na telefonie i urządzeniu dotykowym) uczestnika, który jest
+  osobą drzewa, zaczyna się pozycją **Przejdź do {imię}**: skok do jego wiersza w tabeli osób ([A6.7.16](#A6.7.16)).
+  Imiona w kolumnie **Osoba lub para** zostają, jak były.
 - **Chrzestny, który się powtarza** ([A5.5](A5-tree-check.md#A5.5)), jest w komórce uczestnika jako **trop**.
 - **Obsługa:** wbudowany widok **Wszystkie wydarzenia**; akcje wiersza ([A6.7.8](#A6.7.8)) dotyczą pierwszej osoby
   wiersza. **Edytuj…** otwiera przy wydarzeniu osoby edycję osoby na tym wydarzeniu (przy wspólnym na pierwszej
@@ -828,9 +891,9 @@ Tabela wydarzeń ma wiersz dla każdego wydarzenia drzewa: kto, kiedy, gdzie, w 
   w tym związku.
 - **Granice:** osoby zastępcze nie mają wierszy; urodzenie i zgon bez zapisanej danej nie mają wiersza.
 - **Obowiązuje od:** aplikacja 3.27.0; 3.28.0: spis ludności przy osobie jest wspólnym wydarzeniem, wspólne
-  wydarzenie to jeden wiersz
+  wydarzenie to jeden wiersz; 3.30.0: **Przejdź do …** w menu uczestnika
 
-<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES (od 3.28.0 i census, app:34b2174c), shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · 3.28.0: app:80c2ffb9 table-events.ts (shareId → jeden řádek, bez shareId odhad podle shareKey), strings.ts table agePerPerson, sharedDiffers, events.sharedCellChanged · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 -->
+<!-- zdroj: app:src/ui/table-view/table-events.ts buildEventRows (narození/úmrtí jen se zapsaným údajem, weddingRow: manželství vždy kromě marriageUnrecorded, partnersStart jen se zápisem; divorceRow), SHARED_TYPES (od 3.28.0 i census, app:34b2174c), shareKey (typ, vlastní název, datum, místo, adresa, poznámka, prameny; datum a místo nebo pramen), mergeParticipants, eventEditTarget, MARRIAGE_COUPLE_TYPES · table-columns.ts EVENT_COLUMNS, eventPersons (pokrevní první), eventAgeCell, eventAge (dny < 366), eventValueCell, eventSourceCell, eventPill, DEFAULT_VIEWS.events · table-filter.ts EVENT_CHIP_ORDER, EVENT_KIND_CHIPS, lifeCategory, participantChip, eventHasParticipant (foldName), setParticipantFilter · table-ui.ts tableNameAction, tableRowAction (event → editTableEvent) · table-checks.ts PARTICIPANT_ROLE, recurring (recurringGodparent v buňkách účastníků) · 3.28.0: app:80c2ffb9 table-events.ts (shareId → jeden řádek, bez shareId odhad podle shareKey), strings.ts table agePerPerson, sharedDiffers, events.sharedCellChanged · strings.ts table.rows.events, group.event, participants, source, col.ev*, godparents, witnesses, officiants, others, chip.ev*, chipParticipant.*, filterParticipant.*, evKind.*, ageDays, viewName.events · commity 8de751c2, 63ed9def · spec 073 §14.1 · dirigent:prace/1110-app-tabulka-p2 · 3.30.0: app:0b833e3d table-ui.ts tableNameAction (goTo první, i v listu isPhoneBar | isCoarsePointer; jména Osoba nebo pár beze změny), strings.ts table.link.goTo · spec 103 rozhodnutí D6 c -->
 
 <a id="A6.7.11"></a>
 ### A6.7.11 Źródła w wierszach
@@ -1054,6 +1117,8 @@ zapisuje.
 - **Obsługa:** panel **Kolumny** → grupa **Badanie**; chip **Badanie ▾**; **Widok** → sekcja **Badanie**;
   **Oznaczenia ⓘ**.
 - **Obowiązuje od:** aplikacja 3.27.0 z badaniem 1.31.0
+- **Od aplikacji 3.30.0:** badanie w Tabeli innego okna, wiersz agenta i przewinięcie do niego, etykieta „Filtr
+  badania nie jest teraz stosowany”: [A6.7.18](#A6.7.18).
 
 <!-- zdroj: app:src/ui/table-view/table-research.ts RESEARCH_COLUMNS, RESEARCH_DEFAULT_COLUMNS (rSum, rWait, rConf, rHyp, rAgent), LIVE_ONLY (rTasks, rAgent), NEEDS_AGENT (rWait, rTasks, rAgent), rSum pořadí (čeká 5 › rozpor 4 › otázka 3 › agent 2 › fronta 1), researchLinesOf (živě /directions/people, jinak soubor _STROM_DIRECTION), personLineRole, isOffLine, researchChips, RESEARCH_SIGNAL_CHIPS, RESEARCH_MORE_CHIPS, researchChipOffer (xUnsent, xDecideHere jen research a ne jen ke čtení), researchChipActive (live), unionLineRole, unionResearchCell (UNION_FACTS), sourceImageCell, unionResearchIdCell, sourceResearchIdCell · table-views.ts pohledy Výzkum, Linie, Mimo linie, Výměna s výzkumem · table-research-bubble.ts, table-research-ui.ts · table-grid.ts conflictMarkHtml · table-export.ts (exportNotLive) · strings.ts table.res.*, table.col.r*, uResearchId, srcResearchId, srcImage · commity 53137620, 99b60acb, a2e1dc73, 02e88e9a, 32958eb4, fd9c220f, cf9e63d8, 4635c16e, 5857be6b, 970e6b88, 6b66e037, 9e51ff66 · research: GET /directions/people, funkce directions.places, brána APP_SHOWS_RESEARCH_TABLE (src/core/stromapp.ts), CHANGELOG.cs.md 1.31.0 „Výzkum v tabulce aplikace Strom“ · spec 073 §16, K7.1–K7.8 · bez sledování s mostem: app 8d564b35 src/ui/research-ui.ts unfollowedAgentNow (onComputer, researchStatusNow, status.working a queue), src/ui/table-view/table-ui.ts tableResearchAgentChanged · spec 057 K1.12 -->
 
@@ -1077,6 +1142,10 @@ komórkę można skopiować, filtrować według jej wartości i edytować daną 
     Komórka bez jednej wartości do porównania (oznaczenie badań, kilka imion, kompletność, liczba związków) oferuje
     tylko **Kopiuj**; własne imię i nazwisko lub tytuł wiersza ma tylko akcje wiersza.
   - Filtr zapisuje się z widokiem ([A6.7.7](#A6.7.7)).
+  - **Od aplikacji 3.30.0:** **Bez** dodaje kolejne wykluczenie obok wcześniejszych, a drugie **Tylko** w kolumnie
+    dodaje swoją wartość („= A lub B”), zamiast zastąpić filtr kolumny ([A6.7.6](#A6.7.6)). Komórka z imieniem
+    i nazwiskiem osoby jest odnośnikiem do jej wiersza ([A6.7.16](#A6.7.16)); menu wiersza ma dodatkowo **Przypnij
+    wiersz** ([A6.7.17](#A6.7.17)).
 - **Edycja w miejscu:** edytować można komórkę, która odpowiada jednej danej drzewa:
   - **Imię**, **Nazwisko** (gdy pokazuje nazwisko po ślubie, edytuje je), **Nazwisko rodowe**, **Nazwisko po
     ślubie**;
@@ -1109,7 +1178,125 @@ komórkę można skopiować, filtrować według jej wartości i edytować daną 
   ustalenia), w menu wiersza **Edytuj komórkę** (F2). Edytowalna komórka ma po najechaniu myszą kursor tekstowy.
 - **Obowiązuje od:** aplikacja 3.27.0
 
-<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) · pole v buňce: table-grid.ts EDITOR_MIN_WIDTH (text 100, date 100, place 140, select 90), placeEditor, commit 80c2ffb9 · panel klepnutím: commit ee38c7a6 -->
+<!-- zdroj: app:src/ui/table-view/table-grid.ts copyKey (Ctrl/Cmd+C, copyPlainText), F2, Enter (has-issue → onIssue, has-finds → onFindings, jinak startEditAt, jinak open), Escape, Tab · table-ui.ts showTableRowMenu (cellPart, cell-edit „Upravit buňku“ s F2), tableCellChoices, tableCellSheetBlocks, :1663 úprava na místě ne v jen ke čtení, archivu, na telefonu (isPhoneBar) · table-edit.ts editTargetOf, PERSON_FIELDS (surname: marriedSurname || lastName, birthSurname, marriedSurname, bDate…burPlace, occ), UNION_FIELDS (wDate, wPlace), editChangeOf (normalizeDateInput, první křest a pohřeb, prázdné pole smaže jen údaj, beze jména neuloží) · strings.ts table.cell.copy, only, without, edit, badDate, nameNeeded, editLabel, onlyEmpty, onlyFilled, matchEquals, matchNotEquals, savedToast · commity 05d9a9ab, be9ca8cd, 28aabdc8 · spec 073 U9 (T54 F4, F8, F9) · T54 2. kolo: table-edit.ts PERSON_FIELDS (firstName, gender, refn, dCause, dAgeRec), UNION_FIELDS (wAgeRec, pAgeRec, rec1, rec2, divDate, divPlace, uStatus), WEDDING_FIELDS (ne u unionWithoutWedding), editOptionsOf (GENDERS, UNION_STATUSES v pořadí formuláře svazku), table-grid.ts select (klik myší uloží hned), commity 8fdf52ca, 79764eba (T54 G3, G10) · nabídka u buňky jiného řádku: commit 400ccda8 (T54 G7) · pole v buňce: table-grid.ts EDITOR_MIN_WIDTH (text 100, date 100, place 140, select 90), placeEditor, commit 80c2ffb9 · panel klepnutím: commit ee38c7a6 · 3.30.0: app:ec39d469 table-ui.ts tableCellChoices (addOnlyFilter, addWithoutFilter) -->
+
+<a id="A6.7.16"></a>
+### A6.7.16 Odnośniki do osób i skoki ‹ ›
+
+W tabeli osób i związków imię i nazwisko osoby drzewa w komórce jest odnośnikiem do jej wiersza. Od ojca, matki,
+partnera, chrzestnego lub świadka prowadzi tak do ich wiersza bez szukania i z powrotem.
+
+- **Gdzie:** komórki tabeli osób i związków, które wymieniają osobę drzewa: **Ojciec**, **Matka**, **Partner**,
+  chrzestni, świadkowie, partnerzy związku. Własne imię i nazwisko wiersza (**Imię i nazwisko**) odnośnikiem nie jest.
+  Imię wygląda jak tekst komórki i podkreśla się tylko pod wskaźnikiem myszy; dymek pokazuje pełne imię i nazwisko.
+  Kilka imion w jednej komórce ma każde własny odnośnik.
+- **Skok:** prowadzi zawsze do tabeli osób (także z tabeli związków). Wiersz osoby jest pośrodku, kolumna przewija się
+  w pole widzenia, komórka jest aktywna, a wiersz krótko mignie. Komórka docelowa:
+  - przez partnera komórka **Partner** w wierszu tego związku (związek się rozwija), a w niej jest wyróżnione imię,
+    skąd się przyszło, dopóki komórka jest aktywna;
+  - w przeciwnym razie komórka **Imię i nazwisko**; także gdy kolumna **Partner** nie jest widoczna.
+- **‹ ›:** na początku paska tabeli od pierwszego skoku. ‹ przywraca typ wierszy, przewinięcie i komórkę, z której
+  skok wyszedł, i zwija związek, który skok rozwinął; › powtarza skok. Dymek mówi dokąd („Wróć do Jan Horák”,
+  „Ponownie do Marie Vlková”); bez kroku w tym kierunku przycisk jest wyłączony. Kroki to tylko skoki przez imiona,
+  nie ręczna zmiana typu wierszy, widoku lub filtru. Pamięć ma 50 kroków, a każde okno ([A6.8](#A6.8)) własną; inne
+  drzewo zaczyna ją od nowa.
+- **Osoba ukryta przez filtr lub wyszukiwanie:** skok się nie wykonuje, a pod paskiem pojawia się komunikat „Ukryte
+  przez filtr: {imię}.”:
+  - **Pokaż tymczasowo** pokazuje wiersz na jego miejscu w sortowaniu, przygaszony z „poza filtrem”, poza liczbą
+    wierszy. Znika przy zmianie filtru, sortowania, widoku lub typu wierszy i po ‹;
+  - **Wyczyść filtry** wyłącza filtr i wyszukiwanie i wykonuje skok;
+  - × lub Esc zamyka komunikat, nic się nie zmienia.
+  - osoba, której wiersz jest przypięty ([A6.7.17](#A6.7.17)): skok prowadzi wprost do jej przypiętego wiersza
+    pod nagłówkiem tabeli, bez komunikatu.
+- **Wydarzenia:** w tabeli wydarzeń imiona nie są odnośnikami; menu uczestnika zaczyna się od **Przejdź do {imię}**
+  ([A6.7.10](#A6.7.10)).
+- **Granice:**
+  - skok uruchamia tylko zwykłe kliknięcie myszą lub piórem (bez Ctrl, Shift, Alt i bez przeciągania). Zaznaczanie
+    tekstu, edycja komórki dwuklikiem w innym miejscu komórki i F2 działają jak dotąd; dwuklik zaraz po skoku nic nie
+    robi;
+  - stuknięcie palcem otwiera panel wiersza jak dotąd; zaczyna się on sekcją **Osoby w komórce** z wierszem **Przejdź
+    do {imię}** dla każdej osoby komórki;
+  - osoba w centrum drzewa skokiem się nie zmienia.
+- **Obsługa:** kliknięcie imienia; **Enter** na aktywnej komórce z jednym imieniem skacze, z kilkoma imionami
+  proponuje **Przejdź do…**; ‹ › na pasku i Alt+← / Alt+→ w tabeli.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:0b833e3d src/ui/table-view/table-grid.ts personLinks (osoba bez role účastníka, ne agregát), namesHtml (tv-nm--jump, title celé jméno), linksIn (ne sloupec name), klik jen isMouseLikePointer bez modifikátorů a e.detail 1, jumpedAt + JUMP_DOUBLE_MS (dvojklik po skoku nic), Enter (tableLinkPick), Alt+←/→ onHistory · table-ui.ts tableNameAction (persons, unions), tableJumpStep (přes p1/p2 nebo partner → via partner), tableJumpBy, tablePersonShown, tableRunJump (rowType persons, setExpanded, flash, jumpTo), tableHistory (rowType, scroll, buňka, zavře rozbalený svazek, ruší dočasné zobrazení), tableLinkPick, showTableRowSheet (link.inCell) · table-jump.ts JUMP_HISTORY_MAX 50, JumpHistory, jumpTargetCell (partner jen je-li sloupec vidět, jinak name) · table-notice.ts (role status, Zobrazit dočasně, Zrušit filtry, ×, Esc) · table-bar.ts updateNav (vidět od prvního skoku, aria-disabled) · strings.ts table.link.goTo, pick, inCell, enterHint, hidden, showTemp; table.nav.back, backTo, forward, forwardTo; table.outsideFilter · e2e/table-view-links.spec.ts · CHANGELOG.cs.md 3.30.0 „Odkazy v Tabulce“ · spec 103 K3.1–K3.3, ZADANI_DEV_tabulka-odkazy-ukotveni D1–D4, D6 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md · ukotvená osoba skrytá filtrem: app:9b2b6dca table-ui.ts tablePersonPinned, grid.jumpToPin (bez pruhu) · spec 103 Rozhodnutí 16. 11. (díl C) -->
+
+<a id="A6.7.17"></a>
+### A6.7.17 Przypięte wiersze
+
+Przypięty wiersz zostaje pod nagłówkiem tabeli, gdy tabela się przewija. Służy do porównania wierszy, które są
+w tabeli daleko od siebie.
+
+- **Jak się przypina:** menu wiersza → **Przypnij wiersz** (za **Edytuj…**). Tekst zaznaczony przez kilka wierszy
+  (przeciąganiem lub Shift+kliknięciem) i kliknięcie w niego prawym przyciskiem proponuje **Przypnij wiersze (n)** dla
+  osób tych wierszy; podwiersz związku liczy się jako jego osoba. Na przypiętym wierszu jest zamiast tego **Odepnij
+  wiersz**.
+- **Jak wyglądają:** pod nagłówkiem w kolejności tabeli, osoba razem z podwierszami związków jak w treści tabeli. Imię
+  przypiętego wiersza ma pełną pinezkę, jego własny wiersz w treści tabeli konturową. Zajmują najwyżej jedną trzecią
+  wysokości tabeli, więcej wierszy przewija się na własnym pasku przewijania. Aktywna komórka, edycja w komórce,
+  klawiatura i akcje wiersza działają w nich.
+- **Filtr przypiętego wiersza nie ukrywa:** wiersz, który filtr lub wyszukiwanie ukrywa, zostaje przypięty,
+  przygaszony z „poza filtrem”.
+- **Chip** „Przypięte wiersze (n) ×” na początku rzędu filtrów: × odpina wszystkie. **Wyczyść filtry** przypięcie
+  zostawia.
+- **Granice:**
+  - najwyżej 10 wierszy; pozycja, która przekroczyłaby limit, jest wyłączona z „Można przypiąć najwyżej 10
+    wierszy.”;
+  - przypięcie obowiązuje dla jednego drzewa i jednego typu wierszy w tym oknie: inne drzewo lub typ wierszy je
+    odpina, widok, filtr ani wyszukiwanie nie. Nie zapisuje się w widoku i widok nie ma przez nie **zmieniono**. Po
+    zamknięciu drzewa lub odświeżeniu strony go nie ma;
+  - kolejność przypiętych wierszy po edycji się nie zmienia, dopóki nie zmieni się sortowanie, filtr, wyszukiwanie
+    lub widok;
+  - wiersz, który zniknie z drzewa, odpina się sam;
+  - tylko komputer i tablet (na tablecie w panelu wiersza). Telefon, nawet obrócony poziomo, przypinania nie ma.
+- **Obsługa:** menu wiersza (prawy przycisk, Shift+F10) **Przypnij wiersz** / **Przypnij wiersze (n)** / **Odepnij
+  wiersz**; chip **Przypięte wiersze (n)** z ×.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:354e3675 src/ui/table-view/table-pins.ts PIN_MAX 10, TablePins (jeden strom a typ řádků; pohled, filtr, hledání je nechají; jen paměť okna, ne v pohledu), prune, ordered (pořadí do změny řazení, filtru, hledání, pohledu; D7 a), pinRanks · table-ui.ts tableRowPinEntry (ne isPhoneBar; many z tableAreaRowKeys, unpin, disabled + limit), tablePinnedLines (podřádky svazků jako v těle, D5 a; outside), showTableRowSheet (tablet), changeTablePins · table-grid.ts .tv-pinrows (role rowgroup, nejvýš třetina těla s vlastním posuvem), tv-outside · table-filterbar.ts štítek pinRow.chip s × (unpinAll; Zrušit filtry ukotvení nechá) · strings.ts table.pinRow.one, many, unpin, chip, unpinAll, zone, rowSr, limit; table.outsideFilter · e2e/table-view-pins.spec.ts · CHANGELOG.cs.md 3.30.0 „Odkazy v Tabulce“ · spec 103 K4.1–K4.4, D5, D7 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+
+<a id="A6.7.18"></a>
+### A6.7.18 Badanie w tabeli innego okna
+
+Tabela w innym oknie ([A6.8](#A6.8)) pokazuje badanie tak, jak ma je okno główne: kolumny, chipy i widoki badania,
+znacznik agenta przy osobie, nad którą pracuje, i jego kolejkę ([A6.7.14](#A6.7.14)). Z badaniem rozmawia tylko okno
+główne; inne okno dostaje jego stan. Podczas śledzenia badania Tabela innego okna śledzi agenta
+([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
+
+- **Chipy i widoki:** grupa **Badanie** jest w Tabeli każdego okna z drzewem badania. Chipy, które obowiązują tylko
+  przy śledzeniu, są żywe, gdy okno główne śledzi badanie, w przeciwnym razie są jak w oknie głównym
+  ([A6.7.14](#A6.7.14)). Zapisany widok z filtrami badania otwiera się w obu oknach tak samo.
+- **Filtr badania bez badania** (w każdym oknie, także w głównym): widok, który filtruje według badania (chip badania
+  lub filtr kolumny badania), gdy tabela nie ma danych badania, pokazuje wszystkie wiersze i obok nazwy widoku mówi
+  „Filtr badania nie jest teraz stosowany”. Na telefonie jest tam tylko bursztynowa kropka z tym tekstem w podpowiedzi.
+- **Wiersz agenta:** wiersz osoby, nad którą agent pracuje, ma w innym oknie tło w kolorze śledzenia, linię
+  w komórce imienia i imię pogrubione, także w odłączonym oknie. Okno główne zachowuje pionowy pasek przy imieniu
+  ([A6.7.14](#A6.7.14)).
+- **Przewinięcie do agenta:** okno, które śledzi agenta i nie jest wstrzymane, przewija wiersz agenta na środek, gdy
+  agent przejdzie do innej osoby, a jej wiersza nie widać w całości. Przewinięcie jest płynne (300 ms, przy
+  ograniczonym ruchu od razu); aktywna komórka, zaznaczenie ani fokus się nie zmieniają i nic nie przewija się
+  w poziomie. Widoczny wiersz i przypięty wiersz agenta ([A6.7.17](#A6.7.17)) tabeli nie przewijają. Wstrzymane
+  i odłączone okno nie przewija.
+- **Wstrzymanie:** kółko nad siatką, przeciągnięcie suwaka, naciśnięcie w wierszach (komórka, imię) i klawisze ruchu
+  i przewijania w siatce wstrzymują śledzenie w oknie ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Pasek, nagłówek
+  i wiersz stanu Tabeli wstrzymania nie uruchamiają, tylko przedłużają trwające.
+- **Wiersz agenta ukryty przez filtr:** w oknie, które śledzi agenta (także wstrzymanym), tabela się nie przewija,
+  a wiersz stanu mówi „Wiersz agenta ukrywa filtr” z **Pokaż tymczasowo**. To pokazuje tymczasowy wiersz jak przy
+  skoku do osoby ([A6.7.16](#A6.7.16)) i przewija do niego. Uwaga znika, gdy tylko wiersz agenta jest widoczny.
+  Dopóki uwaga jest widoczna, stan badania i „Tylko do odczytu” w wierszu stanu ustępują (oba mówi pasek okna);
+  w oknie do 400 px ustępują też liczba wierszy i **Oznaczenia ⓘ**. Przypięty wiersz agenta uwagi nie ma.
+- **Dymki badania:** akcję z dymka komórki badania ([A6.7.14](#A6.7.14)) wykonuje okno główne: uruchamia ją tylko
+  wtedy, gdy jego dymek przy tej osobie właśnie ją proponuje, i przechodzi na wierzch (nie przy akcji, która otwiera
+  terminal badania). Źródło w tabeli źródeł i strona archiwum otwierają się w innym oknie. Własna odpowiedź na
+  czekającą pozycję nie jest w innym oknie proponowana; **Czeka na załatwienie ›** otwiera panel w oknie głównym. Gdy
+  okno główne jest zamknięte, akcji, które by wykonało, w dymku nie ma.
+- **Obsługa:** aplikacja: **Pokaż tymczasowo** w wierszu stanu Tabeli; stan śledzenia na pasku okna
+  ([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:34513c94 src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (zrcadlo stavu agenta, Tabulka čte vstup výzkumu z hlavního okna) · src/ui/table-view/table-filter.ts researchFilterIdle (čip výzkumu nebo sloupec fromResearch, bez ctx.research) · table-viewbar.ts .tv-view-note (role status) · index.html .tv-view-note na telefonu jen tečka · d24ff2ec src/ui/table-view/table-ui.ts tableAgentRow (jen windowAgentFollow, tj. další okno; attached posune, attached/paused poznámka, ukotvený ne), tableShowAgentRow, tableAgentFollowChanged · table-grid.ts revealKey(center, smooth, keepSelection), REVEAL_GLIDE_MS 300, prefers-reduced-motion · index.html .tv-row.is-agent (--follow-c1-soft, linka, font-weight 600, bez tv-agent-bar) · src/ui/live-follow-ui.ts (pauza Tabulky: kolečko, posuvník, stisk v řádcích, klávesy; lišta, hlava, stavový řádek ne) · table-bar.ts updateAgentNote (tv-status-agent, aria-live polite, showTemp) · 18dbb544 (poznámka: stav výzkumu a jen ke čtení ustoupí; do 400 px počet, Značky, ◎) · b8d21457 src/windows/window-table-research.ts (TABLE_BUBBLE_ACTION, bubbleRunsHere source / web, hlavní okno ověří nabídku, do popředí ne u terminálu, bez odpovědi čekající položky, při zavřeném hlavním okně vynechané) · strings.ts table.agentRowHidden, table.researchFilterOff, table.link.showTemp · CHANGELOG.cs.md 3.30.0 „Výzkum v Tabulce dalšího okna“, „Sledování agenta ve všech oknech“ · spec 097 K1.2, K3.1, K3.2, O4, dotaz 6 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §5; ZADANI_UIX dotazy 11, 14, 15 · prace/1116-app-097-sledovani-okna -->
 
 <a id="A6.8"></a>
 ## A6.8 Widok w osobnym oknie
@@ -1149,6 +1336,10 @@ i dostają od niego drzewo.
   **Eksport ▾**; na karcie widoku Ctrl+klik (macOS ⌘+klik), środkowy przycisk albo prawy klik (Shift+F10) →
   **{widok} w nowym oknie**.
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od aplikacji 3.30.0:** podczas śledzenia badania na żywo każde okno śledzi agenta we własnym widoku, a pasek okna
+  mówi, jak okno śledzi, zamiast „Tylko do odczytu · okno główne śledzi badanie”
+  ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Tabela w oknie pokazuje badanie jak w oknie głównym
+  ([A6.7.18](#A6.7.18)).
 
 <!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
 
@@ -1175,6 +1366,9 @@ w nagłówku okna.
     obowiązuje tryb domyślny nowego widoku.
 - **Obsługa:** aplikacja: w nagłówku okna **Śledź wybór: {tryb} ▾**.
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od aplikacji 3.30.0:** okno, które podczas śledzenia badania śledzi agenta i nie jest wstrzymane, osobę wybraną
+  w innym oknie tylko zaznacza, także w trybie **przełączaj**; przeskok za agentem nie jest wysyłany jako wybór osoby
+  ([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
 
 <!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
 
@@ -1198,6 +1392,9 @@ Okno bez okna głównego nic nie traci i nic nie zamyka się samo. Zostaje tylko
   - odświeżenie okna głównego (F5) paska nie pokazuje.
 - **Obsługa:** aplikacja: przyciski na pasku i w miejscu zawartości okna.
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od aplikacji 3.30.0:** gdy okno główne zamknie się podczas śledzenia badania, jedno z innych okien samo staje się
+  oknem głównym i śledzenie trwa w nim ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Gdy to niemożliwe, okna
+  pokazują „Nie można wznowić śledzenia · okno główne zamknięte” z **Ustaw jako główne** i **Otwórz Strom**.
 
 <!-- zdroj: app:4b1373a7 src/windows/satellite.ts MAIN_SILENCE_MS 3000, lastHeardAt, treeGone · src/windows/sat-states.ts (closed strip mainClosed, treeGone, treeLocked, SWITCHED_TOAST_MS) · src/windows/become-main.ts (zámek ifAvailable, znovunačtení jako hlavní z IndexedDB) · src/windows/window-research-menu.ts researchMainOnly · strings.ts win.mainClosed, openStrom, makeMain, treeGone, treeGoneNote, treeLocked, treeLockedNote, closeWindow, goToMain, treeSwitched · spec 079 K1.5 · prace/1112-app-okna-zaklad (stavy 1–6) -->
 

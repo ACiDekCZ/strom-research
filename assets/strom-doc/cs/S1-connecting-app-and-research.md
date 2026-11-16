@@ -105,6 +105,22 @@ výzkumu a verzi, ze které vznikl. Podle toho aplikace ví, kam ho poslat zpět
 
 <!-- zdroj: app:src/research-link.ts _STROM_TREE, _STROM_HEAD · src/types.ts:1695 ResearchLink (copy, mode) · src/research-others.ts researchAgentless · src/ui/research-sync-ui.ts researchKindOf :654, researchAgentAway · strings.ts treeSwitcher.kindArchive, kindResearch · spec 002 · CHANGELOG.cs.md 3.12.0, 3.16.0 -->
 
+<a id="S1.3.1"></a>
+### S1.3.1 Ukázkový strom
+
+Ukázkový strom slouží k vyzkoušení aplikace. S výzkumem se nikdy nepropojí a do výzkumu se z něj nic nepošle.
+
+- **Výzkum předků** v ukázkovém stromu nic nenastaví a řekne: „Ukázkový strom slouží k vyzkoušení aplikace
+  a s výzkumem se nikdy nepropojí. Výzkum začíná se skutečným rodokmenem.“
+- Otevření ukázkového stromu ukončí sledování otevřeného výzkumu stejně jako přepnutí na jiný strom
+  ([S1.4](#S1.4)).
+- **Hranice:** ukázkový strom ze starší verze aplikace aplikace pozná podle obsahu a při otevření nebo importu ho
+  označí. Ukázka, která už s výzkumem propojená je, se neoznačí a zůstane propojená.
+- **Ovládání:** aplikace: **Vyzkoušet ukázkový strom**
+- **Platí od:** aplikace 3.29.0
+
+<!-- zdroj: app:bbcc2b17 src/types.ts TreeMetadata.demo · src/demo-sample.ts (starší ukázka podle obsahu; propojená se neoznačí) · src/tree-manager.ts, src/ui/import-export.ts (označení při otevření a importu) · src/ui/research-promo-ui.ts showResearchInfoDialog (demo → demo.noResearch, nic se nenastaví) · src/ui/research-adopt-ui.ts (nikdy ukázka) · src/ui/research-follow-ui.ts researchFollowBeforeSwitch(null) · strings.ts demo.tryDemo, demo.noResearch, research.menuItem · CHANGELOG.cs.md 3.29.0 „Přepnutí stromu“ · prace/1115-app-prepnuti-stromu -->
+
 <a id="S1.4"></a>
 ## S1.4 Sledování živě
 

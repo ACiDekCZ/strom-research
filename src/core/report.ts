@@ -28,6 +28,7 @@ import { installation } from "./self.ts";
 import * as stromApp from "./stromapp.ts";
 import type { Tree } from "./tree.ts";
 import { cutDenied, DENIED_KEPT, DENIED_KEPT_CHARS } from "../runners/runner.ts";
+import { runSync } from "./runsync.ts";
 
 // (kept with the runners, which keep a refused command as long: K031 N1)
 export { cutDenied, DENIED_CHARS, DENIED_KEPT, DENIED_KEPT_CHARS } from "../runners/runner.ts";
@@ -107,13 +108,9 @@ export function freeBytes(dir: string): number | undefined {
 
 /** The version a program says of itself (its first line), within a few seconds; none: undefined. */
 export function versionOf(program: string, args = ["--version"], env: Env = process.env, timeoutMs = 4000): string | undefined {
-  try {
-    const r = spawnSync(program, args, { encoding: "utf8", timeout: timeoutMs, env: env as NodeJS.ProcessEnv, windowsHide: true, shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(program) });
-    const first = `${r.stdout ?? ""}`.split(/\r?\n/).find((l) => l.trim());
-    return r.status === 0 && first ? first.trim().slice(0, 120) : undefined;
-  } catch {
-    return undefined;
-  }
+  const r = runSync(program, args, { env, timeout: timeoutMs });
+  const first = r.stdout.split(/\r?\n/).find((l) => l.trim());
+  return r.status === 0 && first ? first.trim().slice(0, 120) : undefined;
 }
 
 /** The system: its kind and version, the processor, the language, the time zone. */

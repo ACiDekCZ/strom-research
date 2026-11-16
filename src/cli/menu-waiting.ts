@@ -463,6 +463,17 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
       answer();
       file();
     } else {
+      // a note the Strom app sent shorter than the research's (core/shorternote.ts): taken, or the research's kept
+      if (x.shorterNote)
+        for (const take of ["take", "keep"] as const)
+          choices.push({
+            label: t(take === "take" ? "ui.wait.a.shorter.take" : "ui.wait.a.shorter.keep"),
+            act: async () => {
+              if ((await run(["sync", "note", x.id, take], true)) !== 0) return false;
+              out(t(take === "take" ? "ui.wait.shorter.taken" : "ui.wait.shorter.kept"));
+              return true;
+            },
+          });
       if (url) open(kind === "web" ? "ui.wait.a.web" : "ui.wait.a.link", url);
       // a site of the one book of the task: its images saved into its folder bring it back
       if (inbox)

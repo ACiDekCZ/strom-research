@@ -36,7 +36,7 @@ one village are common.
 When two records in the research turn out to be one person, they are merged. The second record does not disappear:
 it stays retracted, with a note saying into whom it was merged.
 
-- **Enforced by the code** (`strom person merge <zůstává> <druhý> --reason "…"`):
+- **Enforced by the code** (`strom person merge <kept> <other> --reason "…"`):
   - a merge needs a reason;
   - names, facts, notes, families and all references (tasks, hypotheses, godparents…) pass to the person who stays;
   - facts are not merged: two births after a merge are two. strom points out which facts are now there twice; the
@@ -70,7 +70,7 @@ A, B, C… with what speaks for each and what against.
     decided.
 - **Method only:** what would decide the hypothesis is a task (`strom task add … --about H…`), not a detour in another
   task. The connection of a version is recorded only when the claim states it beyond doubt; a namesake stays out.
-- **Controls:** terminal: `strom hypothesis add "<otázka>" --about P… --variant "…" --variant "…"`,
+- **Controls:** terminal: `strom hypothesis add "<question>" --about P… --variant "…" --variant "…"`,
   `hypothesis argue`, `hypothesis variant`, `hypothesis link`, `hypothesis show`, `hypothesis list`. The app shows the
   versions and lets them be drawn into the tree for the view only ([S3.5](S3-what-the-research-knows.md#S3.5),
   [S3.5.1](S3-what-the-research-knows.md#S3.5.1)).

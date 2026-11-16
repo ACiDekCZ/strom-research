@@ -107,7 +107,7 @@ sees it.
   in a task or in the diary is not such a place: nobody would see it at the book.
 - **Why:** a book's peculiarity should be seen by everyone who opens it next time (the method “Lessons belong where
   they apply”).
-- **Controls:** terminal: `strom lesson add "<poučení>" --on B…`, `strom lesson list`, `strom lesson edit`.
+- **Controls:** terminal: `strom lesson add "<lesson>" --on B…`, `strom lesson list`, `strom lesson edit`.
 - **Since:** research 1.0.0
 
 <!-- zdroj: research:src/commands/analysis.ts lesson add (LESSON_MAX, --on repository|recordset|place) · research:src/core/model.ts:732 LESSON_MAX=200, LESSON_DETAIL_MAX=2000 · research:src/commands/tasks.ts:354 taskDetail lessons · research:assets/method/core.md "Lessons belong where they apply" -->

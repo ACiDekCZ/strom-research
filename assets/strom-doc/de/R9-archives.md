@@ -84,7 +84,7 @@ Die Stufe sagt, was strom automatisch tun darf; die ausführliche Tabelle der St
 - **Warum:** die Methodik will die Bedingungen jedes Archivs einhalten. Wohin robots.txt nur einen Browser lässt,
   geht höchstens ein Browser, mit Erlaubnis des Menschen und in seinem Tempo; was die Liste der Archive der Hand des
   Menschen überlässt, speichert der Mensch.
-- **Bedienung:** Terminal: `strom net web --check <adresa>` (was strom mit einer Adresse tun würde), Menü der Archive,
+- **Bedienung:** Terminal: `strom net web --check <Adresse>` (was strom mit einer Adresse tun würde), Menü der Archive,
   `strom allow archive` (nur der Mensch). App: Wartet auf Bearbeitung.
 - **Gilt seit:** Forschung 1.14.0. Weitere Archive Tschechiens, Deutschlands und Polens und der Bildserver seit
   1.27.0.
@@ -99,7 +99,7 @@ Die Stufe sagt, was strom automatisch tun darf; die ausführliche Tabelle der St
   weitere Angabe hat sie die Stufe **unbekannt**, also wie eingeschränkt.
 - Die Seiten einer solchen Website darf der Agent abrufen, in den Grenzen von [R9.3](#R9.3). Bilder nicht: Bilder
   eines Archivs, das nicht erlaubt ist, gehen nie über einen Webabruf.
-- **Bedienung:** Terminal: `strom net web --check <adresa>`.
+- **Bedienung:** Terminal: `strom net web --check <Adresse>`.
 - **Gilt seit:** Forschung 1.14.0
 
 <!-- zdroj: research:src/core/terms.ts:566-680 archiveLevel (unknown → restricted) · src/core/webgate.ts webGate (images of a non-allowed archive) -->
@@ -136,7 +136,7 @@ hat drei Arten, und nur der Mensch gibt sie.
   übernommen ([R9.6](#R9.6)). Eine Aufgabe **Seite prüfen** wird nie geweckt
   ([R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Warum:** ein Archiv lockern oder öffnen darf nur der Mensch; der Agent darf ein Archiv nur verschärfen.
-- **Bedienung:** Terminal: `strom allow archive <web|stahovač> --way slow|browser|manual`, `--revoke`, Menü der
+- **Bedienung:** Terminal: `strom allow archive <Website|Downloader> --way slow|browser|manual`, `--revoke`, Menü der
   Archive. App: der Link **Erlaubnis…** im Hinweis bei einem Eintrag, der auf Bilder eines Archivs nur über den
   Browser wartet, und in der Zeile **Browser** ([R9.4.3](#R9.4.3)). Er öffnet die Frage in der Forschung im Terminal,
   auch wenn zum Archiv kein Downloader führt.
@@ -155,7 +155,7 @@ Web ab. strom prüft ihn mit einem Hook vor jedem Abruf und zählt die Anfragen 
   - ein verbotenes Archiv oder eine Website, die den Client von strom abgelehnt hat: nur die Seite der Bedingungen,
     höchstens 3-mal am Tag, und robots.txt;
   - ein Archiv nur über den Browser eines Menschen: kein Webabruf. Der Agent bekommt einen Rat: die Erlaubnis „über
-    den Browser“ oder das Warten auf Bilder (`strom task wait T… --images B…:<čísla>`);
+    den Browser“ oder das Warten auf Bilder (`strom task wait T… --images B…:<Nummern>`);
   - ein Archiv nur von Hand, die Erlaubnis nur von Hand und ein verbotener Pfad aus der Liste der Archive: nur von
     Hand, auch nicht der Browser des Agenten;
   - ein Pfad, den robots.txt verbietet: abgelehnt;
@@ -173,7 +173,7 @@ Web ab. strom prüft ihn mit einem Hook vor jedem Abruf und zählt die Anfragen 
   [R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Warum:** Webabrufe und der Browser des Agenten werden zusammen gezählt und gebremst, damit kein Weg schneller geht
   als ein anderer.
-- **Bedienung:** Terminal (Agent): `strom net web --check <adresa>`.
+- **Bedienung:** Terminal (Agent): `strom net web --check <Adresse>`.
 - **Gilt seit:** Forschung 1.14.0
 
 <!-- zdroj: research:src/core/webgate.ts webGate (TERMS_PER_DAY, browserOnly advice, otherWay) · src/core/web.ts WEB_SOFT 12, WEB_SOFT_GAP_MS, WEB_PER_HOST 30, WEB_WAIT_MAX_MS · src/core/config.ts web.perHost · assets/method/locate.md -->
@@ -294,7 +294,7 @@ Archivs zeigt.
   - gespeichert wird nur ein Bild, das der Tab unter seiner eigenen Adresse zeigt. Ein auf ein anderes Bild
     weitergeschalteter Betrachter wird abgelehnt, und nichts wird gespeichert. Nie mehr, als der Betrachter des
     Archivs gibt, nie größer als das Original;
-  - das Speichern wartet, bis der Betrachter des Archivs das ganze Bild zeigt, höchstens 30 s. Seit Forschung 1.31.0
+  - das Speichern wartet, bis der Betrachter des Archivs das ganze Bild zeigt, höchstens 30 s (ein Browser, der den Tab langsam zeichnet: [R9.5.2](#R9.5.2)). Seit Forschung 1.31.0
     zählt nur die Zeit, in der der Browser den Tab zeichnet (er zeichnet keinen Tab hinter einem anderen Tab und
     keinen in einem verdeckten oder minimierten Fenster). Ein 30 s nicht gezeichneter Tab wird als solcher gemeldet
     („the browser did not draw the tab with the viewer for 30 s …“: Tab nach vorn, Fenster frei, dann das Skript
@@ -355,6 +355,42 @@ einmal: mit dem Betrachter des Archivs vergrößert oder in voller Auflösung.
 
 <!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
 
+<a id="R9.5.2"></a>
+### R9.5.2 Ein Browser, der den Tab langsam zeichnet
+
+Ein Bildbetrachter eines Archivs, der ein Bild aus Kacheln zusammensetzt (OpenSeadragon, z. B. ACTA PUBLICA), fordert
+etwa eine Kachel pro Zeichnen des Tabs an. Wo der Browser den Tab nur etwa einmal pro Sekunde zeichnet, dauern die
+Kacheln eines Bildes Minuten, und das Speichern endet nach 30 s mit „the viewer's tiles did not all come in 30 s …“.
+
+- **Zuerst der Browser:** langsam zeichnet ein Tab ohne Grafikbeschleunigung, auf einem Remote-Desktop oder in einer
+  virtuellen Maschine. In Chrome: in `chrome://settings/system` die Grafikbeschleunigung einschalten und Chrome neu
+  starten; `chrome://gpu` zeigt, ob Canvas und Compositing „Software only“ sind (dann hilft ein neuerer
+  Grafiktreiber). Die Angabe „last frame … s ago“ in der Meldung sagt, wie lange es her ist, dass der Browser den Tab
+  zuletzt gezeichnet hat.
+- **Prüft der Code:**
+  - die Einstellung `browser.tileWait` ist verborgen: weder `strom config where` noch `strom help config` zeigt sie,
+    bis sie gesetzt ist. Sie nimmt ganze Sekunden von 60 bis 600 (empfohlen 180) und lehnt einen anderen Wert mit
+    einem Hinweis ab. Sie ist in den Einstellungen des Benutzers gespeichert und gilt für alle Forschungen auf dem
+    Computer;
+  - nicht gesetzt: auf die Kacheln wird 30 s gewartet wie bisher; die Meldung „tiles did not all come in 30 s“ sagt
+    dem Agenten zusätzlich, dass `strom config set browser.tileWait 180` hilft, danach derselbe Befehl strom erneut
+    (ein neues Skript);
+  - gesetzt: solange noch Kacheln kommen (eine in den letzten 10 s), wartet das Skript weiter, solange sie kommen. Es
+    endet nach 30 s ohne neue Kachel, spätestens nach der eingestellten Zeit;
+  - ein Aufruf des Skripts antwortet nach 35 s „strom-wait …“: der Agent startet dasselbe Skript erneut im selben Tab,
+    und es wartet weiter, wo es war. Es gilt erst die letzte Antwort „strom-result …“; aus einer Antwort „strom-wait“
+    übernimmt `strom fetch … --take` nichts;
+  - das gilt für `strom media save` ([R9.5](#R9.5)) und für einen Downloader, der über den Browser aus dem
+    Bildbetrachter eines Archivs speichert (`strom fetch`, [R8.2](R8-reading-scans.md#R8.2)).
+- **Grenzen:** ein schnell gezeichneter Tab wird mit der Einstellung und ohne sie gleich gespeichert. Ohne die
+  Einstellung ändert sich nichts.
+- **Warum:** die Kacheln kommen nur so schnell, wie der Browser den Tab zeichnet; 30 s bleiben für alle anderen.
+- **Bedienung:** Terminal: `strom config set browser.tileWait 180`, zurück auf 30 s mit
+  `strom config unset browser.tileWait`.
+- **Gilt seit:** Forschung 1.32.0
+
+<!-- zdroj: research:75245c94 src/core/browser.ts TILE_WAIT_MIN_S 60, TILE_WAIT_MAX_S 600, TILE_WAIT_SUGGESTED_S 180, TILE_RECENT_MS 10_000, TILE_QUIET_MS 30_000, WAIT_CALL_MS 35_000, CAPTURE_JS ("the viewer's tiles did not all come in 30 s" + věta strom config set browser.tileWait 180; "last frame … s ago"), "strom-wait" · src/core/config.ts browser.tileWait (hidden, tree false, rozsah, hint config unset) · src/commands/media.ts:1686 media save · src/commands/connectors.ts:3152 viewerScript, takeOver (strom-wait nic nepřevezme) · test/cli/connector-mza.test.ts:303 (skryté do nastavení: config where, help config) · CHANGELOG.cs.md 1.32.0 · dirigent:prace/1112-vyzkum-dlazdice-pokrok/karta.md (OSD ~1 dlaždice na snímek; závěr 2: grafická akcelerace, chrome://gpu, neověřeno u reportéra) -->
+
 <a id="R9.6"></a>
 ## R9.6 Warten auf Bilder und Rückkehr der Aufgabe
 
@@ -363,7 +399,7 @@ Nummern der Bilder und bereitet für sie einen Ordner vor. Die Aufgabe kehrt von
 sobald alle ihre Bilder in der Forschung sind.
 
 - **Prüft der Code:**
-  - `strom task wait T… --images B…:<čísla>` bereitet den Ordner `inbox/<B… název knihy>` im gemeinsamen Ordner vor
+  - `strom task wait T… --images B…:<Nummern>` bereitet den Ordner `inbox/<B… Buchtitel>` im gemeinsamen Ordner vor
     (der Name höchstens 80 Zeichen);
   - eine Datei trägt die Nummer des Bildes (`40.jpg`, `9a.jpg`). Anders benannte Dateien werden der Reihe nach
     nummeriert, wenn es so viele sind, wie Bilder fehlen;
@@ -497,7 +533,7 @@ Schritte bei einer Aufgabe, die auf Bilder eines Archivs wartet, wohin der Agent
    Statuszeile **Wartet: N**. Der Eintrag nennt das Buch, die Nummern der Bilder und was dafür fehlt.
 2. **Den Weg entscheiden:**
    - mit Claude Code und der Erweiterung Claude in Chrome lässt sich dem Archiv die Erlaubnis **über den Browser**
-     geben (App: der Link **Erlaubnis…** im Hinweis beim Eintrag, Terminal `strom allow archive <web> --way
+     geben (App: der Link **Erlaubnis…** im Hinweis beim Eintrag, Terminal `strom allow archive <Website> --way
      browser`). Die Aufgabe kehrt zurück, und der Agent speichert die Bilder selbst ([R9.5](#R9.5));
    - sonst, oder bei einem Archiv nur von Hand, die Bilder von Hand speichern (die nächsten Schritte).
 3. **Das Buch öffnen** im Browser auf der Website des Archivs, mit Anmeldung und der Prüfung auf einen Menschen, wo
@@ -508,7 +544,7 @@ Schritte bei einer Aufgabe, die auf Bilder eines Archivs wartet, wohin der Agent
    Nummer des Bildes nimmt die App aus dem Dateinamen, sonst vergibt sie sie der Reihe nach.
 5. **Fertig:** mit der Brücke zur App werden die Bilder von selbst übernommen; sonst bei der nächsten Sitzung oder
    sofort mit `strom media add --inbox --waiting`. Fehlen einige, sagt es Was wartet.
-6. **Es geht nicht:** eine Antwort in Worten (App **Antworten**, Terminal `strom task wake T… --answer "<co>"`) bringt
+6. **Es geht nicht:** eine Antwort in Worten (App **Antworten**, Terminal `strom task wake T… --answer "<was>"`) bringt
    die Aufgabe mit der Antwort zurück, z. B. dass das Buch nicht online ist.
 
 - **Grenzen:** Erlaubnis, Antwort und das Speichern der Bilder gehören nur dem Menschen; der Agent tut sie nicht an
@@ -608,7 +644,7 @@ Stufen und Grenzen stammen aus der Liste der Archive der Forschung 1.27.0, DigiA
 - Aufgabe: der Eintrag von Marie Horáková in einer Matrik im DigiArchiv. Die Aufgabe wartet immer auf Bilder, die der
   Mensch auswählt und speichert. Eine Erlaubnis öffnet das nicht; weder der Downloader noch ein Webabruf noch der
   Browser des Agenten darf dorthin.
-- Zitation: der dauerhafte Link auf ein Bild ist die Adresse seiner Seite `https://digi.ceskearchivy.cz/<kniha>/<snímek>`
+- Zitation: der dauerhafte Link auf ein Bild ist die Adresse seiner Seite `https://digi.ceskearchivy.cz/<Buch>/<Bild>`
   oder **Odkaz na snimek** (Link auf das Bild) im Panel **POPIS**.
 - **Gilt seit:** Forschung 1.28.0
 

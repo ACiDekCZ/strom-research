@@ -30,7 +30,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 | places off the map | the map's status bar → **In the research**; in the research the section **Awaiting action** | [A6.5.2](A6-views.md#A6.5.2), [R4.5](R4-places.md#R4.5) |
 | the research's work | the research panel, **⤢ Open overview**; menu **Research → Research overview** | [S4.1](S4-research-from-the-app.md#S4.1) |
 | what waits for a person | the panel, section **Awaiting action**; menu **Research → Awaiting action** | [S4.4](S4-research-from-the-app.md#S4.4) |
-| following the research | **Follow live**; the end **Stop following** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
+| following the research | **Follow live**; the end **End following** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
 | sending edits to the research | **Research → Other actions → Research for this tree… → Sending changes** | [S2.2](S2-edits-from-the-app.md#S2.2) |
 | rules and terms | **Actions → How Strom works** | [A1.7](A1-the-app-in-brief.md#A1.7) |
 
@@ -70,11 +70,11 @@ edit does not go and how to stop following.
 
 - **Limits:**
   - while following, the person menu shows a greyed-out **Edit** with the reason **Read-only while following the
-    research.** and right under it **Stop following**. It applies on a computer and on a phone;
-  - **Stop following** in the person menu stops following the same way as the button in the research panel;
+    research.** and right under it **End following**. It applies on a computer and on a phone;
+  - **End following** in the person menu stops following the same way as the button in the research panel;
   - after following stops, the app right away asks once **How should changes go to the research?**, when it has not
     asked at the tree yet and the research runs and takes edits ([S2.2](S2-edits-from-the-app.md#S2.2)).
-- **Controls:** app: person menu → **Stop following**; the research panel → **Stop following**.
+- **Controls:** app: person menu → **End following**; the research panel → **End following**.
 - **Since:** app 3.25.0
 
 <!-- zdroj: app:src/ui/context-menu.ts (edit-following disabled + note, live-stop link), src/ui/bottom-sheet.ts (aria-disabled), src/ui/research-sync-ui.ts researchAskSendModeAfterFollow · strings.ts contextMenu.editFollowing, research.stop, treeSettings.askTitle · commity ffed0d42, cc26c35a, cf0352cd · CHANGELOG.cs.md 3.25.0 „Úpravy během sledování výzkumu“ · dirigent:spec/063-computer-use-usnadnit K1.4 -->

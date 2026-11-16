@@ -58,7 +58,7 @@ Signatur.
   1. Ort und Zeit bestimmen die Zuständigkeit (`strom place jurisdiction L… --kind parish|civil|manor|district --from --to`).
      Ein nur unsicher gelesener Ort ergibt keine Pfarrei und kein Buch, solange er nicht sicher ist ([R8.5.2](#R8.5.2));
   2. Archiv (`strom repo add`, mit den Nutzungsbedingungen) und Buch (`strom recordset add … --places --years --kinds
-     --access --url`). Der Downloader des Archivs findet Bücher selbst: `strom fetch <stahovač> --find "<místo>" --years 1780-1850`;
+     --access --url`). Der Downloader des Archivs findet Bücher selbst: `strom fetch <Downloader> --find "<Ort>" --years 1780-1850`;
   3. der Katalog wird wie von einem Menschen benutzt: die Suche oder die Seite eines Buches, nie die Nummern der
      Datensätze der Reihe nach;
   4. wo gesucht wurde, auch ohne Ergebnis, wird erfasst (`strom search add … --method web|catalog`).
@@ -110,7 +110,7 @@ dem Buch arbeitet, sieht sie.
   1 schreibt. Eine Notiz in der Aufgabe oder im Tagebuch ist dafür nicht der Ort: dort sieht sie beim Buch niemand.
 - **Warum:** die Besonderheit eines Buches soll jeder sehen, der es das nächste Mal öffnet (Methodik „Lessons belong
   where they apply“).
-- **Bedienung:** Terminal: `strom lesson add "<poučení>" --on B…`, `strom lesson list`, `strom lesson edit`.
+- **Bedienung:** Terminal: `strom lesson add "<Lehre>" --on B…`, `strom lesson list`, `strom lesson edit`.
 - **Gilt seit:** Forschung 1.0.0
 
 <!-- zdroj: research:src/commands/analysis.ts lesson add (LESSON_MAX, --on repository|recordset|place) · research:src/core/model.ts:732 LESSON_MAX=200, LESSON_DETAIL_MAX=2000 · research:src/commands/tasks.ts:354 taskDetail lessons · research:assets/method/core.md "Lessons belong where they apply" -->
@@ -159,7 +159,7 @@ Agent lädt selbst nie herunter: weder mit einem Befehl noch mit einem Skript no
 - **Warum:** die Methodik will die Bedingungen jedes Archivs einhalten; ein Portal, dessen Bedingungen es verbieten,
   wird nicht automatisch durchsucht. Das Stundenlimit des Archivs hält die übrige Arbeit an, darum zuerst ganze Bilder
   und Teile nur dort, wo der Eintrag sie braucht.
-- **Bedienung:** Terminal: `strom fetch <stahovač> … --images 40-69 --recordset B…`, `strom allow archive` (nur der
+- **Bedienung:** Terminal: `strom fetch <Downloader> … --images 40-69 --recordset B…`, `strom allow archive` (nur der
   Mensch). App: Wartet auf Bearbeitung.
 - **Gilt seit:** Forschung 1.0.0 (Herunterladen nur über strom); Stufen der Bedingungen und Tempo eines Menschen 1.14.0; ein Bild aus Kacheln
   meldet `strom connector test` seit 1.30.0, `strom fetch` seit 1.31.0
@@ -326,7 +326,7 @@ Der Leser schreibt den Bericht fortlaufend, nach jedem Bild, nicht am Ende. Für
   fertigen Befehl `strom search add … --by reader` mit dem Ergebnis `found`, `partial`, `inconclusive` oder `negative`
   und den Lücken in `--note`. Die Berichte werden in der Forschung gespeichert.
 - Bilder, die niemand gemeldet hat, und Leser, die versagt haben, sind getrennt aufgeführt.
-- **Nur Methodik:** die Berichte werden nicht ganz gelesen, nur über `strom readings` (`--match <příjmení>`,
+- **Nur Methodik:** die Berichte werden nicht ganz gelesen, nur über `strom readings` (`--match <Nachname>`,
   `--list`, ein Bild: `strom readings B… --image 57`). Jeder Bericht wird sofort erfasst, bevor weitere Leser
   beginnen. Früher gelesene Bilder: eine andere Frage oder eine blinde Kontrolle ist in Ordnung, dieselbe Frage nicht.
 - **Warum:** der Hauptagent hält im Kontext nur, was die Leser gefunden haben, keine Bilder und keine ganzen Berichte.
@@ -430,7 +430,7 @@ sich das stärkste Modell, nie ein schnelles oder billiges Lesen.
 Ein gefundener Eintrag wird auf einmal erfasst: die Quelle mit Ausschnitt, Abschrift und Stelle im Buch, die Angaben
 daraus und die Suche, die ihn gefunden hat.
 
-- **Prüft der Code:** `strom batch --file notes/<soubor>` erfasst alle Zeilen oder keine; fehlerhafte Zeilen nennt es
+- **Prüft der Code:** `strom batch --file notes/<Datei>` erfasst alle Zeilen oder keine; fehlerhafte Zeilen nennt es
   alle auf einmal.
 - **Nur Methodik:**
   - eine Quelle aus einem Scan bekommt `--clip` (den Ausschnitt, in dem der Eintrag gelesen wurde), `--transcript`

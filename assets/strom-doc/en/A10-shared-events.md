@@ -147,7 +147,9 @@ A godparent, witness, officiant and another participant are recorded at the even
 marriage, death. When the participant is linked to a person in the tree, that event shows in the person's life too.
 
 - **Roles:** **Godparent**, **Witness**, **Officiant**, **Present**; from files also **Midwife** and **Informant**.
-  A participant is recorded by name as in the source, and with a detail (trade, “neighbour”…).
+  A participant is recorded by name as in the source, and with a detail (trade, “neighbour”…). English role words
+  have one form; a role word at the start of a participant's note from a file is read in the other languages'
+  feminine forms too (cs “Oznamovatelka”, pl “Zgłaszająca”).
 - **In the life of the linked person:** a derived row, for example “Godparent · baptism: …”, “Witness · marriage:
   …”, “Officiant · marriage: …”, “Midwife · baptism: …”, “Informant · death: …” (the same for a woman). It is in the
   person's list of events and on the person page in the section **Life timeline**; the summary of the person page has
@@ -160,9 +162,9 @@ marriage, death. When the participant is linked to a person in the tree, that ev
 - **Controls:** editing the event, the section **Godparents & witnesses**: **+ Add**, **Link to someone in the
   tree**; a linked participant has the mark **in the tree**. The menu of a derived row: **Open person**, **Also
   record as an own event**, **Unlink**.
-- **Since:** app 3.28.0
+- **Since:** app 3.28.0; feminine role words read from 3.29.0
 
-<!-- zdroj: app:80c2ffb9 strings.ts events.roles, extraRoles, participants, addParticipant, participantName, participantNote, participantLink, participantInTree, derived*, derivedMenu, recordOwn, unlink · personPage godparentWitness · src/ui/shared-event-ui.ts (odvozené řádky jen v seznamu událostí a v Časové ose života) · spec 085 K2.1 · dirigent:prace/1113-app-sdilena-udalost Výsledek -->
+<!-- zdroj: app:80c2ffb9 strings.ts events.roles, extraRoles, participants, addParticipant, participantName, participantNote, participantLink, participantInTree, derived*, derivedMenu, recordOwn, unlink · personPage godparentWitness · src/ui/shared-event-ui.ts (odvozené řádky jen v seznamu událostí a v Časové ose života) · spec 085 K2.1 · dirigent:prace/1113-app-sdilena-udalost Výsledek · 3.29.0: app:844985bc ženské tvary (cs Oznamovatelka, de Anzeigende, pl Zgłaszająca; pl Udzielająca ślubu / Celebrantka; de Amtsperson všude; en jeden tvar, pl świadek, cs oddávající beze změny) · 8bbc2ec6 src/godparents.ts EXTRA_ROLE_WORDS (oznamovatel(ka), zgłaszający/a, akuszerka) -->
 
 <a id="A10.5.1"></a>
 ### A10.5.1 Also record as an own event

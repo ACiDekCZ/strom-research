@@ -854,8 +854,27 @@ export interface Task extends BaseRecord {
    * proposal; an earlier one is in the notes. Optional: an older strom keeps it and ignores it.
    */
   proposal?: TranscriptProposal;
+  /**
+   * A participant's note the Strom app sent that is only the beginning of the research's (core/shorternote.ts): the
+   * person's decision whether the shorter one is taken or the research's kept. Optional: an older strom keeps it and
+   * ignores it.
+   */
+  shorterNote?: ShorterNote;
   origin: string;
   notes: Note[];
+}
+
+/** A participant's note sent shorter than the research's (Task.shorterNote): the fact, who, the notes as compared (core/sync.ts noteLine). */
+export interface ShorterNote {
+  event: string;
+  role: string;
+  /** Who: a person of the tree, else the name as written. */
+  person?: string;
+  name?: string;
+  /** The note the file gave (a character the cut broke at its end left out). */
+  sent: string;
+  /** The research's note it is the beginning of. */
+  whole: string;
 }
 
 /** A new wording proposed for a transcript the person read or confirmed (Task.proposal). */

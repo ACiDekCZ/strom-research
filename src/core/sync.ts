@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type ShorterNote, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { checkStatus, isCompiled } from "./evidence.ts";
 import { clearRemoved } from "./citeorder.ts";
@@ -60,6 +60,7 @@ import { earlierNoteTexts } from "./retractions.ts";
 import { mendAll } from "./damaged.ts";
 import { cleanTitle, currentName, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 import { canonicalize } from "./json.ts";
+import { askShorterNote, shorterAsked, SHORTER_ORIGIN } from "./shorternote.ts";
 import { appIdBlocks, entryOf, idsAdded, joinIds, livePerson, matchByIds, personIndex, withoutIds, type AddedIds, type IdBlock } from "./originalids.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -688,6 +689,32 @@ function knownNote(text: string, said: Set<string>): boolean {
 
 /** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
 export const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+
+/** A note sent as compared with the one it may be the beginning of: a character the cut broke at its end (U+FFFD, half of a pair) left out. */
+export const sentNote = (sent: string) => noteLine(sent.replace(/(?:\uFFFD|[\uD800-\uDBFF])+$/u, ""));
+
+/**
+ * Whether a note sent (`sent`) is the beginning alone of a longer one (`whole`): cut short — as the Strom app 3.28.0
+ * sent the note of someone a fact names (its first line), and a tree it kept since sends it still. Compared as lines
+ * (noteLine, sentNote), decomposed: a cut between a letter and its accent ("sedla" of "sedlák") is a beginning too. No
+ * `whole`: no.
+ */
+export function cutShort(sent: string, whole: string | undefined): boolean {
+  if (!whole) return false;
+  const a = sentNote(sent).normalize("NFD");
+  const b = noteLine(whole).normalize("NFD");
+  return a.length > 0 && a.length < b.length && b.startsWith(a);
+}
+
+/** A change that asks the person (a participant's note sent shorter than the research's): written as a task, though nothing of it is. */
+export const asksPerson = (c: Change) => c.code === "note.shorter";
+
+/** What a change of a participant's note sent shorter asks the person (core/shorternote.ts): none without the fact or the notes. */
+export function shorterOf(c: Pick<Change, "was" | "part" | "wasPart">): ShorterNote | undefined {
+  const [p, w] = [c.part, c.wasPart];
+  if (!c.was?.id || !p?.note || !w?.note) return undefined;
+  return { event: c.was.id, role: w.role, ...(w.person ? { person: w.person } : { name: w.name ?? "" }), sent: sentNote(p.note), whole: noteLine(w.note) };
+}
 
 /** A line strom intake writes into a fact's note itself: what a file said that the fact has no place for. */
 const STROM_NOTE_LINE = /^(?:source there|date as written|age as written): |^(?:husband|wife) aged /u;
@@ -2592,6 +2619,7 @@ export interface Change {
  */
 export type NotWrittenCode =
   | "takenBack"
+  | "note.shorter"
   | "kept"
   | "gone"
   | "person.removed"
@@ -2886,6 +2914,16 @@ export function planSync(
       if (!mine || noteLine(mine.note ?? "") === noteLine(p.note)) return;
       const given = was ? givenOf(o)?.parts?.find((x) => x.role === p.role && sameWho(p, incoming, x, base!)) : undefined;
       if (given && noteLine(given.note ?? "") === noteLine(p.note)) return;
+      // the beginning alone of the research's note: a tree the app kept since its 3.28.0 sends a longer note cut short
+      // still, or the user cut it — never taken (nothing guessed), the person asked once (core/shorternote.ts)
+      if (cutShort(p.note, mine.note)) {
+        const asked = { ...p, note: sentNote(p.note) };
+        const ask = shorterOf({ was: o, part: asked, wasPart: mine });
+        if (ask && !shorterAsked(tree, ask)) push({ kind: "fact.part.note", action: "report", code: "note.shorter", ...owner, fact: f, was: o, part: asked, wasPart: mine });
+        return;
+      }
+      // …or of what the app was given, the research's changed since: the app's cut, never an edit
+      if (cutShort(p.note, given?.note)) return;
       const action: ChangeAction = !mine.note ? "add" : !given || noteLine(given.note ?? "") !== noteLine(mine.note) ? "pick" : "correct";
       push({ kind: "fact.part.note", action, ...owner, fact: f, was: o, part: { ...p, note: noteLine(p.note) }, wasPart: mine });
     };
@@ -4920,7 +4958,7 @@ export function applySync(
     }
     return out;
   };
-  const taken = (c: Change) => (only ? only.has(c.n) : c.action !== "pick") && c.action !== "report";
+  const taken = (c: Change) => (only ? only.has(c.n) : c.action !== "pick") && (c.action !== "report" || asksPerson(c));
   const changes = plan.changes.filter(taken).length;
   const ids = new Map<string, string>(); // a new person's key → their ID
   const who = (key: string | undefined) => (key ? (ids.get(key) ?? (key.startsWith("x:") ? undefined : key)) : undefined);
@@ -5405,6 +5443,13 @@ export function applySync(
           break;
         }
         case "fact.part.note": {
+          // only the beginning of the research's note: the person asked whether it is taken, nothing written
+          if (asksPerson(c)) {
+            const ask = shorterOf(c);
+            const t = ask ? askShorterNote(tree, ask, guard.input ?? source.input ?? source.id) : undefined;
+            if (t) applied.push({ do: "task.add", id: t.id });
+            break;
+          }
           // the note of someone the record names at the research's fact, as the user wrote it in the app
           const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
           if (!owner || !mine || mine.retracted || !c.part?.note || !c.wasPart) break;
@@ -6964,7 +7009,8 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         update<Repository>(tree, a.id, "repository", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "repo.retract", summary: `${a.id} retracted: ${reason}`, reason });
         break;
       case "task.add":
-        update<Task>(tree, a.id, "task", (t) => (t.state === "open" || t.state === "parked" ? { ...t, state: "dropped", result: reason } : t), { op: "task.drop", summary: `${a.id} dropped: ${reason}` });
+        // …and the person's question of a note sent shorter, while it waits for them
+        update<Task>(tree, a.id, "task", (t) => (t.state === "open" || t.state === "parked" || (t.state === "waiting" && t.origin === SHORTER_ORIGIN) ? { ...t, state: "dropped", result: reason } : t), { op: "task.drop", summary: `${a.id} dropped: ${reason}` });
         break;
       case "sex.edit": {
         // where the sex came from, as before (a sync before spec 066 kept none: as it is)

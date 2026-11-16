@@ -47,7 +47,8 @@ most.
   - W wierszu linii w sekcji **Linie** stoi przy pracy tylko „trwa praca”, gdy sekcja **Teraz** jest widoczna
     (rozwinięta i zwinięta); całe „Teraz: …” jest w tekście po najechaniu. Przy ukrytym **Teraz** wiersz mówi
     „Teraz: …” w całości.
-- **Od aplikacji 3.28.0:** na komputerze Przegląd otwiera się także w osobnym oknie ([S4.1.6](#S4.1.6)).
+- **Od aplikacji 3.28.0:** na komputerze Przegląd otwiera się także w osobnym oknie ([S4.1.6](#S4.1.6)). Od
+  aplikacji 3.30.0 mały panel obok tego okna ma tylko nagłówek i **Trwa praca**.
 - **Od aplikacji 3.28.0:** mały panel pamięta na tym urządzeniu, czy jest zwinięty: jeden wybór dla wszystkich
   badań, domyślnie rozwinięty. Przejmuje go odświeżenie strony, nowe śledzenie i panel innego badania; zapisuje go
   tylko strzałka panelu. Otwarty Przegląd nie rozwija już panelu za sobą. Telefon wyboru nie czyta ani nie zapisuje
@@ -67,8 +68,10 @@ Drzewo może samo przechodzić do osoby, nad którą agent właśnie pracuje (pi
 - **Obsługa:** aplikacja: **Przegląd badania → Śledź agenta w drzewie** / **Przestań śledzić**.
 - **Obowiązuje od:** aplikacja 3.5.0
 - **Od aplikacji 3.24.0:** śledzić można także w wachlarzu i na mapie ([S4.1.3](#S4.1.3)); przesunięcie mapy wstrzymuje je tak samo.
+- **Od aplikacji 3.30.0:** ◎ **Przestań śledzić** zatrzymuje przeskoki tylko w oknie, w którym zostanie kliknięte;
+  inne okna śledzą dalej, każde we własnym widoku ([S4.1.7](#S4.1.7)).
 
-<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff -->
+<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) -->
 
 <a id="S4.1.2"></a>
 ### S4.1.2 Dostosowanie panelu
@@ -160,8 +163,11 @@ pokazuje miejsce pracy pierścieniem.
 - **Obowiązuje od:** aplikacja 3.24.0
 - **Od aplikacji 3.25.0:** legenda mapy mówi „Pusty znacznik: miejsce bez osoby wśród pokazanych miejsc”, a miejsce
   pracy bez osoby na mapie „na razie bez osoby na mapie” (wcześniej „poza zakresem mapy”).
+- **Od aplikacji 3.30.0:** **Śledzenie agenta w** dotyczy tylko okna głównego; inne okna śledzą w widoku, który
+  pokazują ([S4.1.7](#S4.1.7)). Na komputerze z myszą (okno szersze niż 640 px) mówi to pomoc w Ustawieniach:
+  „Dotyczy okna głównego przy włączeniu śledzenia i przy Powrót do agenta. Inne okna śledzą we własnym widoku.”
 
-<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 -->
+<!-- zdroj: app:src/ui/live-follow-ui.ts (hlavička, followIn) · src/live-follow-prefs.ts · src/live-follow-targets.ts TRAIL_MAX=8, TRAIL_MAX_AGE_MS=60 min, fanCenter, sessionNumbers, sessionTone · src/live-follow-map.ts · src/fan-follow-anchor.ts MAX_UP=12 · src/ui/fan-follow-ui.ts · src/ui/map-follow-ui.ts PAN_MARGIN=64, PAN_MS=400, telefon bez čáry · strings.ts settings.groupResearchFollow, researchFollowNote, followView(Help), followFanCenter*, followTrail(Help); live.followIn, mapPaused, legendTitle, legendTrail, legendRecord, legendPerson, legendOut; fan.pin, unpin, centerLabel, workOutside; map workRecord, workPerson, outScope, noCoords, noPlace, locate · CHANGELOG.cs.md 3.24.0, 3.25.0 · spec 043 · 3.30.0: app:e7e79873 src/ui/live-section-edit-ui.ts (isMouseWide → settings.followViewHelpWindows) · src/breakpoints.ts MQ_MOUSE_WIDE · spec 097 O5, ZADANI_DEV §8 -->
 
 <a id="S4.1.4"></a>
 ### S4.1.4 Zmiany z badania bez migania
@@ -285,11 +291,93 @@ okno nie rozmawia.
   po otwarciu okna. Mały panel badania zostaje. **⤢ Otwórz przegląd**, **Badanie → Przegląd badania** i pozycja
   w menu ⧉ wtedy tylko przenoszą okno Przeglądu na wierzch („Przegląd badania jest w osobnym oknie · kliknięcie
   przeniesie je na wierzch”). Po zamknięciu okna wszystko jest jak wcześniej.
+- **Od aplikacji 3.30.0:** dopóki okno Przeglądu jest otwarte, mały panel w oknie głównym na komputerze (okno
+  szersze niż 1024 px) pokazuje tylko nagłówek i **Trwa praca**. **Czeka na załatwienie**, **Ostatnie zmiany**
+  i **W kolejce** są w oknie Przeglądu.
+  - sekcja **Trwa praca** jest zawsze rozwinięta, także gdy w **Dostosuj panel** ([S4.1.2](#S4.1.2)) jest zwinięta
+    albo ukryta; wybór się zachowuje i obowiązuje znowu po zamknięciu okna. Gdy agent nie pracuje, stoi tam „Teraz
+    nie trwa żadna praca”;
+  - etykiety **Czeka N** w nagłówku, etykiet czekających pozycji i nowych zmian w podsumowaniu zwiniętego panelu ani
+    „Wszystkie sekcje są ukryte.” wtedy nie ma. Paski pod nagłówkiem (na przykład **Śledzenie w**) i liczba sesji pod
+    panelem zostają;
+  - panel sam się nie zwija; gdy **Trwa praca** się nie mieści, przewija się;
+  - po zamknięciu okna Przeglądu panel jest cały, a sekcje są zwinięte i rozwinięte jak wcześniej. Przy zwężeniu
+    okna do 1024 px i mniej panel jest cały, po poszerzeniu znowu tylko **Trwa praca**;
+  - **⤢** w panelu przenosi okno Przeglądu na wierzch;
+  - telefon, tablet, zakończone śledzenie i panel bez śledzenia są bez zmian.
 - **Obsługa:** aplikacja: ⧉ w nagłówku Przeglądu (między ⋯ a ⤡); ⧉ **Otwórz w nowym oknie** obok przełącznika
   widoków → **Przegląd badania**.
-- **Obowiązuje od:** aplikacja 3.28.0
+- **Obowiązuje od:** aplikacja 3.28.0; 3.30.0: mały panel obok okna tylko z **Trwa praca**
 
-<!-- zdroj: app:4b1373a7 src/windows/overview-window.ts (research-state bez adresy a tokenu mostu, OVERVIEW_ACTION_IDS, OVERVIEW_ACTIONS_TO_MAIN, 6g) · src/windows/overview-main.ts · src/ui/research-overview-ui.ts OVERVIEW_WINDOW_COLS_MIN 1100, WINDOW_LEFT (working, waiting, directions), overviewMode 'window', overviewWindowButton (jen canOpenWindows, ne sheet), canOpenResearchOverview · index.html html.window-overview (bez ⤡, ×, ⧉, Follow in) · src/windows/window-controls.ts renderMenu (overview: focusOverviewWindow / openInNewWindow) · strings.ts win.overviewHead, overviewOffNote, noResearch, noResearchNote, overviewInWindow, mainClosed · CHANGELOG.cs.md 3.28.0 · spec 079 P3 (K3), ZADANI_DEV §6 · prace/1113-app-okna-prehled (8a7575f0..4387a662) · app:3c2fde77 src/ui/overview-window-view.ts readQueuePage přes akci queue-list do hlavního okna (okno most nevolá) · app:3f9a5ca4 overview-window-view.ts treeVerifyNow (extras.verify), verifyStop → verify-stop, showVerifyBulkDialog → verify-bulk; evidenceHighlightNow (extras.highlight), endEvidenceHighlight → highlight-end, startPersonHighlight quiet · src/ui/research-ui.ts lightsGroup, markOverviewLit (is-lit, aria-current; nic při zavřeném hlavním okně) · research-overview-ui.ts lightsGroup direction (show-in-tree v Teď), changed (showChanged) · research-directions-ui.ts lightsGroup direction (dirShow), direction-found (dirFoundPersons) · strings.ts verify.section, bulkRow, stop, live.showInTree, dirShow, showChanged · spec 079 K3 · prace/1113-app-dorovnani-052-okna (2876d570..27f0bafb) · app:7f307c74 src/overview-columns.ts OVERVIEW_WINDOW_COLS_2 1100, OVERVIEW_WINDOW_COLS_3 1600, OVERVIEW_COLS_HYSTERESIS 24, OVERVIEW_SMALL_COLUMN 0.2, OVERVIEW_COLUMN_MAX 660, partitionContiguous, planOverviewColumns · src/ui/overview-columns-ui.ts (souhrn a pruhy nad sloupci, každý sloupec se posouvá sám, nové rozdělení jen při změně sloupců, sbalení, skrytí, přesunu, Načíst další; lepkavá hlava: pole nebo > 8 řádků; fokus, výběr v poli a oddíl na očích při změně šířky) · e2e/windows-overview-columns.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 U3 · prace/1113-app-hledani-v-prehledu -->
+<!-- zdroj: app:4b1373a7 src/windows/overview-window.ts (research-state bez adresy a tokenu mostu, OVERVIEW_ACTION_IDS, OVERVIEW_ACTIONS_TO_MAIN, 6g) · src/windows/overview-main.ts · src/ui/research-overview-ui.ts OVERVIEW_WINDOW_COLS_MIN 1100, WINDOW_LEFT (working, waiting, directions), overviewMode 'window', overviewWindowButton (jen canOpenWindows, ne sheet), canOpenResearchOverview · index.html html.window-overview (bez ⤡, ×, ⧉, Follow in) · src/windows/window-controls.ts renderMenu (overview: focusOverviewWindow / openInNewWindow) · strings.ts win.overviewHead, overviewOffNote, noResearch, noResearchNote, overviewInWindow, mainClosed · CHANGELOG.cs.md 3.28.0 · spec 079 P3 (K3), ZADANI_DEV §6 · prace/1113-app-okna-prehled (8a7575f0..4387a662) · app:3c2fde77 src/ui/overview-window-view.ts readQueuePage přes akci queue-list do hlavního okna (okno most nevolá) · app:3f9a5ca4 overview-window-view.ts treeVerifyNow (extras.verify), verifyStop → verify-stop, showVerifyBulkDialog → verify-bulk; evidenceHighlightNow (extras.highlight), endEvidenceHighlight → highlight-end, startPersonHighlight quiet · src/ui/research-ui.ts lightsGroup, markOverviewLit (is-lit, aria-current; nic při zavřeném hlavním okně) · research-overview-ui.ts lightsGroup direction (show-in-tree v Teď), changed (showChanged) · research-directions-ui.ts lightsGroup direction (dirShow), direction-found (dirFoundPersons) · strings.ts verify.section, bulkRow, stop, live.showInTree, dirShow, showChanged · spec 079 K3 · prace/1113-app-dorovnani-052-okna (2876d570..27f0bafb) · app:7f307c74 src/overview-columns.ts OVERVIEW_WINDOW_COLS_2 1100, OVERVIEW_WINDOW_COLS_3 1600, OVERVIEW_COLS_HYSTERESIS 24, OVERVIEW_SMALL_COLUMN 0.2, OVERVIEW_COLUMN_MAX 660, partitionContiguous, planOverviewColumns · src/ui/overview-columns-ui.ts (souhrn a pruhy nad sloupci, každý sloupec se posouvá sám, nové rozdělení jen při změně sloupců, sbalení, skrytí, přesunu, Načíst další; lepkavá hlava: pole nebo > 8 řádků; fokus, výběr v poli a oddíl na očích při změně šířky) · e2e/windows-overview-columns.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 U3 · prace/1113-app-hledani-v-prehledu · 3.30.0: app:965e83f8 src/ui/live-panel-working-only.ts livePanelWorkingOnly (okno Přehledu, isDesktop > 1024 px, ne ukončené), livePanelDrawnSections (jen working), livePanelNothingAtWork · src/ui/research-ui.ts (třída working-only, bez štítků waiting a nových změn, bez samoskládání; overviewWindowOpenChanged, placeLivePanel při přechodu 1024 px; openResearchOverview → focusOverviewWindow) · strings.ts live.nothingAtWork · e2e/windows-overview-panel.spec.ts · CHANGELOG.cs.md 3.30.0 „Panel výzkumu vedle okna Přehledu“ · spec 079 U9 (rozhodnutí 27, 16. 11.) · dirigent:test/vysledek-1116-app-079-panel.md -->
+
+<a id="S4.1.7"></a>
+### S4.1.7 Śledzenie agenta w innych oknach
+
+Podczas śledzenia badania ([S1.4](S1-connecting-app-and-research.md#S1.4)) agenta śledzi też każde inne okno drzewa
+([A6.8](A6-views.md#A6.8)), każde we własnym widoku. Jedno okno można odłączyć i w międzyczasie oglądać w nim coś
+innego; pozostałe okna śledzą dalej. Wszystkie okna są przy tym tylko do odczytu.
+
+- **Kiedy:** gdy okno główne śledzi badanie na żywo. Dołącza każde inne okno, także otwarte przed włączeniem
+  śledzenia (bez odświeżenia) albo dopiero w jego trakcie. Inne okno nie łączy się z mostem badania: stan agenta
+  wysyła mu okno główne, bez adresu mostu.
+- **Widok:** okno śledzi w widoku, który właśnie pokazuje. **Śledzenie agenta w** ([S4.1.3](#S4.1.3)) dotyczy tylko
+  okna głównego, a **Powrót do agenta** nie przełącza widoku innego okna.
+  - **Rodzina**, **Wachlarz**, **Mapa:** przeskok za agentem, znaczniki, ślad i legenda jak w oknie głównym
+    ([S4.1.1](#S4.1.1), [S4.1.3](#S4.1.3));
+  - **Tabela:** wiersz agenta ([A6.7.18](A6-views.md#A6.7.18));
+  - **Potomkowie**, **Oś czasu:** bez przeskoków, mówi to pasek. Przesuwanie w nich nie wstrzymuje śledzenia. Po
+    przełączeniu na Rodzinę, Wachlarz lub Mapę okno od razu przeskakuje do agenta.
+- **Pasek pod nagłówkiem okna** mówi, jak okno śledzi (ikoną i tekstem). Ostatni jest zawsze **Przejdź do okna
+  głównego**.
+
+| Stan okna | Pasek | Przyciski |
+|---|---|---|
+| śledzi | „Śledzenie agenta · tylko do odczytu”; w Potomkach i na Osi czasu „Śledzenie agenta · w tym widoku bez przeskoków · tylko do odczytu” | **Odłącz to okno** |
+| śledzi, agent nie pracuje nad nikim z tego drzewa | „Agent teraz nie pracuje · tylko do odczytu” | **Odłącz to okno** |
+| wstrzymane | „Śledzenie wstrzymane · tylko do odczytu” | **Powrót do agenta**, **Odłącz to okno** |
+| odłączone | „To okno nie śledzi agenta · tylko do odczytu” | **Śledź agenta** |
+| połączenie z mostem przerwane | „Połączenie z badaniem przerwane · ponawianie” (bursztynowo) | **Odłącz to okno**, w odłączonym oknie **Śledź agenta** |
+
+- **Wstrzymanie:** ręczne przesunięcie, powiększenie lub wybór osoby w oknie (w Tabeli przewinięcie lub kliknięcie
+  w wiersze) wstrzymuje śledzenie tylko w tym oknie. Przywraca je **Powrót do agenta** albo wraca samo po 20 s bez
+  dotyku. Wstrzymanie pokazuje pasek; pływającej etykiety wstrzymania ani „Przesuwanie mapy wstrzymane” inne okno nie
+  ma. Wstrzymanie w oknie głównym nie wpływa na inne okna, a wstrzymanie w innym oknie nie wpływa na okno główne ani
+  na pozostałe okna. Odświeżenie okna (F5) wstrzymanie anuluje.
+- **Odłączenie:** **Odłącz to okno** zatrzymuje przeskoki za agentem w tym oknie; okno można swobodnie przeglądać
+  i zostaje tylko do odczytu. Znaczniki agenta (karta osoby, nad którą trwa praca, wiersz agenta w Tabeli, znaczniki
+  i ślad w Wachlarzu i na Mapie) w nim zostają. **Śledź agenta** ponownie dołącza okno i od razu przeskakuje do
+  agenta. Odłączenie przetrwa odświeżenie okna (F5) i zostaje zapomniane wraz z końcem śledzenia.
+- **Wybór z innego okna:** śledzące okno, które nie jest wstrzymane, osobę wybraną w innym oknie tylko zaznacza, także
+  przy **Śledź wybór: przełączaj** ([A6.8.1](A6-views.md#A6.8.1)); centrum zostaje przy agencie. Tabela zaznacza
+  wiersz tej osoby, ale do niego nie przewija. Przeskok za agentem nie jest wysyłany innym oknom jako wybór osoby.
+  Wstrzymane i odłączone okno kieruje się **Śledź wybór** jak poza śledzeniem.
+- **Koniec:**
+  - ◎ **Przestań śledzić** w oknie głównym zatrzymuje przeskoki tylko w oknie głównym; inne okna śledzą dalej;
+  - **Zakończ śledzenie** (panel badania, menu **Badanie**, menu osoby) i koniec sesji kończą śledzenie we wszystkich
+    oknach: pasek znika, drzewo znów można edytować, odłączenie zostaje zapomniane, a każde inne okno to zgłasza
+    („Śledzenie badania zakończone · drzewo można edytować”).
+- **Zamknięcie okna głównego podczas śledzenia:** jedno z innych okien samo staje się oknem głównym i śledzenie trwa
+  w nim.
+  - Zamknięcie rozpoznaje się po 3 s bez wiadomości od okna głównego ([A6.8.2](A6-views.md#A6.8.2)). Odświeżenie okna
+    głównego (F5) niczego z tego nie uruchamia;
+  - kolejność: najpierw okna, które śledzą agenta (śledzące i wstrzymane), potem odłączone; w każdej grupie od
+    najstarszego okna. Okno Przeglądu badania ([S4.1.6](#S4.1.6)) głównym nie zostaje. Każde okno w kolejności czeka
+    o 400 ms dłużej niż poprzednie i głównym zostaje tylko jedno;
+  - to okno pokazuje „Okno główne zamknięte · śledzenie trwa w tym oknie…”, wczytuje się ponownie jako główne z tym
+    samym widokiem i z ◎ włączonym, jeśli był włączony w zamkniętym oknie głównym. Pozostałe okna zgłaszają
+    „Śledzenie przejęło inne okno” i zostają takie, jakie były (odłączone zostaje odłączone);
+  - gdy ta przeglądarka nie ma zapisanego adresu mostu badania, żadne okno nie zostaje głównym, a okna pokazują „Nie
+    można wznowić śledzenia · okno główne zamknięte” z **Ustaw jako główne** i **Otwórz Strom**
+    ([A6.8.2](A6-views.md#A6.8.2));
+  - bez śledzenia obowiązuje [A6.8.2](A6-views.md#A6.8.2) bez zmian.
+- **Granice:** inne okna są tylko na komputerze ([A6.8](A6-views.md#A6.8)); telefon i tablet są bez zmian. Okno
+  główne nie pokazuje, ile okien śledzi.
+- **Obsługa:** aplikacja: na pasku innego okna **Odłącz to okno**, **Śledź agenta**, **Powrót do agenta**,
+  **Przejdź do okna głównego**; w oknie głównym ◎ **Przestań śledzić** i **Zakończ śledzenie**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:9cec9c30 (od 3714c539) src/windows/agent-follow-state.ts AgentFollow attached/paused/detached, agentFollowKey (sessionStorage jen detached), setLive (konec sezení zapomene odpojení), detach, attach, setPaused · src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (stav agenta z hlavního okna bez adresy a tokenu mostu, K1.3) · src/windows/sat-states.ts SatStrip, liveStrip (lost › paused › detached › idle › attachedNoJump › attached), STRIP_ICON, AMBER, writeStrip (tlačítka, goToMain poslední) · src/main.ts noJump (descendants, timeline) · src/ui/live-follow-ui.ts (další okno: pohled okna, Zpět pohled nepřepne, bez štítku pauzy ani mapPaused, pauza jen v okně, návrat po 20 s) · src/windows/window-selection.ts (připojené okno výběr jen vyznačí; skok agenta se nerozesílá) · src/windows/takeover.ts TAKEOVER_STEP_MS 400, takeoverOrder (sledující, pak odpojená; okno bez vlastního sledování ne), hasBridge (storedResearchBridge) · src/windows/become-main.ts, window-start.ts (◎ jako v zavřeném hlavním okně) · strings.ts win.agentAttached, agentAttachedNoJump, agentIdle, agentPaused, agentDetached, detach, attach, bridgeLost, followEnded, takingOver, takenOver, takeoverFailed, goToMain; live.followOff, followBack; research.stop · CHANGELOG.cs.md 3.30.0 „Sledování agenta ve všech oknech“ · spec 097 K1.1–K1.4, K2.1–K2.6, Rozhodnutí 16. 11. O1–O5, dotazy 3–5, 8 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §1–§4, §6, §7; ZADANI_UIX dotazy 10, 12 · prace/1116-app-097-sledovani-okna -->
 
 <a id="S4.2"></a>
 ## S4.2 Kolejka w aplikacji
@@ -411,6 +499,10 @@ Praca agenta zużywa subskrypcję AI.
   w Archiwum Strom ani w badaniu, które czeka na agenta), tylko tam, gdzie aplikacja otwiera linki badania
   ([S4.5](#S4.5)); nie na telefonie. Gdy agent pracuje albo trwa przebieg, działania nie ma; w nagłówku **Kolejki**
   jest zamiast niego **● Trwa praca ›**, które rozwija **Teraz** i przechodzi do **Dokończ i zakończ**.
+- **W sekcji Teraz:** gdy agent nie pracuje i nie trwa żaden przebieg, **Praca nad kolejką…** z tym samym
+  oznaczeniem, oknem i warunkami oferuje też sekcja **Teraz** w **Przeglądzie badania**, także w jego osobnym
+  oknie. Gdy agent pracuje, w **Teraz** zostaje tylko **Dokończ i zakończ**. Zamknięcie okna przywraca fokus na
+  przycisk w **Teraz**.
 - **Okno Praca nad kolejką:**
   - **Automatycznie** (domyślnie): „Agent bierze zadanie za zadaniem, dopóki pozwala limit subskrypcji.” Gdy badanie
     zgłasza, że bramka subskrypcji (warunek, [R7.4](R7-when-the-agent-works.md#R7.4)) nie jest ustawiona, stoi pod tym
@@ -420,15 +512,23 @@ Praca agenta zużywa subskrypcję AI.
     razie jest tylko **Automatycznie**;
   - **Jako pierwsze**: zadanie oznaczone jako następne ([S4.2.2](#S4.2.2)), w przeciwnym razie pierwsze zadanie
     kolejki;
+  - **Kolejne (n)** pod zadaniem **Jako pierwsze** rozwija kolejne zadania kolejki w kolejności badania: najpierw
+    zadanie oznaczone jako następne, potem według miejsca w kolejce; zadań odłożonych i zadań poza liniami, które
+    nie są podejmowane, w nim nie ma. Nad nimi stoi **W kolejności w kolejce** i „Agent nie musi brać ich dokładnie
+    w tej kolejności.” Wiersz to numer i tekst zadania z etykietą **jako następne** i rodzajem zadania; z miejscami
+    w kolejce wiersze są numerowane „2.”, „3.”. Pod nimi „i jeszcze N zadań w kolejce” z **Przegląd badania ›**
+    (rozwija **Kolejkę**) albo „Kolejka może mieć więcej zadań.” Rozwiniętą listę zwija **Ukryj kolejne**. Liczba
+    w **Tylko 5 zadań** nie zmienia listy; każde otwarcie okna zaczyna się zwinięte, a bez kolejnych zadań przycisku
+    nie ma;
   - gdy badanie to zgłasza, długość sesji i bramka („Sesja najwyżej 3 godz. · bramka subskrypcji: …”);
   - **Anuluj** i **Otwórz terminal** (oznaczenie AI i terminal) ze zdaniem **Uruchomienie potwierdza terminal badania.
     Pracę zatrzymuje Ctrl-C w jego oknie lub „Dokończ i zakończ” w sekcji Teraz.**
 - **Obsługa:** aplikacja: **Praca nad kolejką…** po prawej w nagłówku rozwiniętej **Kolejki** w **Przeglądzie
   badania**; menu **Badanie → Praca nad kolejką…** ([S4.5.2](#S4.5.2)). Terminal: `strom run --tasks N`,
   `strom run --loop` ([R7.1](R7-when-the-agent-works.md#R7.1)).
-- **Obowiązuje od:** aplikacja 3.28.0 (badanie 1.32.0)
+- **Obowiązuje od:** aplikacja 3.28.0 (badanie 1.32.0); w sekcji **Teraz** i **Kolejne (n)** od aplikacji 3.29.0
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie w aplikacji
@@ -516,11 +616,16 @@ z [R2.3](R2-lines-and-queue.md#R2.3) i [R2.3.1](R2-lines-and-queue.md#R2.3.1) mo
     z własnym wyborem** i zadania z ręczną kolejnością. Od aplikacji 3.27.0 wstęp grupy mówi, co pomaga linii
     i zawsze idzie z nią: „pytanie linii, dołączenie osób do kogoś z linii lub do jego partnera, powód podany przez
     agenta” ([R2.3](R2-lines-and-queue.md#R2.3)).
+  - Wybór badania obok nagłówka **Poza liniami** (np. „na końcu”) otwiera **Badanie dla tego drzewa…** na grupie
+    **Praca poza liniami** z wybraną kartą, także bez śledzenia i z osobnego okna przeglądu (okno dialogowe otwiera się
+    w oknie głównym). Przy Archiwum Strom i przy badaniu, które czeka na agenta, tej grupy nie ma i wybór jest tylko
+    tekstem. Etykieta gałęzi nie jest odnośnikiem: rozwija gałąź jak cały jej nagłówek.
 - **Obsługa:** aplikacja: **Przegląd badania**, sekcja pracy poza liniami, przy gałęzi **⋯** (**Opcje gałęzi**);
   **Badanie dla tego drzewa…**.
-- **Obowiązuje od:** aplikacja 3.22.0 (badanie 1.26.0)
+- **Obowiązuje od:** aplikacja 3.22.0 (badanie 1.26.0); wybór przy **Poza liniami** bez śledzenia i z okna przeglądu
+  od aplikacji 3.29.0
 
-<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) -->
+<!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
 
 <a id="S4.4"></a>
 ## S4.4 Czeka na załatwienie w aplikacji
@@ -553,6 +658,8 @@ w aplikacji, a co tylko w badaniu, mówi [R6.5](R6-awaiting-action.md#R6.5).
   działają tak od aplikacji 3.26.0. Hipotezy od aplikacji 3.27.0 z badaniem 1.31.0. Kilka oznaczeń na karcie od
   aplikacji 3.27.0 ([S4.4.1](#S4.4.1)).
 - **Od aplikacji 3.28.0:** w **Przeglądzie badania** sekcja ma od 10 pozycji pole wyszukiwania ([S4.4.2](#S4.4.2)).
+- **Od aplikacji 3.30.0:** w **Przeglądzie badania** sekcję można posortować od najnowszych albo najstarszych pozycji
+  ([S4.4.3](#S4.4.3)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -637,6 +744,46 @@ Aplikacja szuka sama w pozycjach, które już ma, i nic nie wysyła do badania. 
 - **Obowiązuje od:** aplikacja 3.28.0
 
 <!-- zdroj: app:8cbada1c src/section-search-match.ts foldSearch2 (ß ł đ ø æ œ), tokenize (mezera, čárka, středník; p/t/h + číslo, samotné číslo), matchDoc (každé slovo; n: úkol, hypotéza, text), textMatches (≥ 5 znaků bez posledního na začátku slova), fieldVisible (≥ 10 nebo text) · src/ui/section-search.ts (×, Escape: nejdřív hledání, prázdné pole zavře Přehled; ↓; searchOpen se vymaže s textem; zavření Přehledu text zahodí) · app:9ebf7f2c src/section-search-filter.ts searchSection, chipCount, sectionPartOpen, toggleSectionPart, sheetOverKeyboard · src/ui/section-search-view.ts mountSectionSearch, paintSearchChip (čárkovaný), appendSearchOutcome (sectionSearchFound, queueSearchNone, sectionSearchNoneKind + sectionSearchAllKinds, queueSearchCancel), searchHitTag, searchSummaryEl (lupa a text), bindSheetSearch, keepSheetOverKeyboard · src/ui/research-overview-ui.ts appendOverviewWaiting (pole jen v rozbaleném oddílu, starší výzkum bez skupin), waitingSearchDoc (what, on, osoby, person, partner, task, hypo, group.name / otázky k místům, host, to), overviewWaitingRow (hit t, p) · app:cd0030b0 src/ui/hypothesis-waiting-ui.ts hypothesisAcceptHeadEl (bulkSelectFound), hypothesisAcceptFootEl (bulkSelectedHidden, bulkDeselectHidden), hwr-id hit h · strings.ts live.waitingSearchPlaceholder, waitingSearchAria, sectionSearchFound, sectionSearchNoneKind, sectionSearchAllKinds, bulkSelectFound, bulkSelectedHidden, bulkDeselectHidden, sectionSearchQuoted, waitingPhaseTodo, waitingPhaseSent, waitingChips · e2e/overview-waiting-search.spec.ts · CHANGELOG.cs.md 3.28.0 (e540e4b5) · spec 083 K1.1–K1.3 · prace/1113-app-hledani-v-prehledu (pole 44 px na telefonu) -->
+
+<a id="S4.4.3"></a>
+### S4.4.3 Kolejność w Czeka na załatwienie
+
+Sekcję **Czeka na załatwienie** w **Przeglądzie badania** można posortować także według tego, od kiedy pozycja czeka.
+Nowo dodana pozycja jest wtedy na górze i nie gubi się między miejscami i grupami.
+
+- **Kolejność:**
+  - **Zalecana** (domyślna): kolejność badania według faz, miejsc i linii jak dotąd;
+  - **Najnowsze na górze** i **Najstarsze na górze**: według czasu, od kiedy pozycja czeka, tak jak go wysłało
+    badanie. Sortuje się w każdej fazie (**Do załatwienia** i **Czeka na odpowiedź**). Ten sam czas zachowuje
+    kolejność badania, pozycje bez czasu są w obu kierunkach na końcu.
+- **Grupy** (przełącznik obok kolejności, tylko przy kolejności według czasu i przy badaniu z grupami według
+  miejsc):
+  - włączone: sortuje się wewnątrz grup, a każde miejsce stoi tam, gdzie jego najnowsza (albo najstarsza) pozycja;
+    także **Pozostałe** i **Miejsca**, które przy kolejności **Zalecana** stoją na końcu. Nagłówek miejsca pokazuje
+    czas swojej pierwszej pozycji;
+  - wyłączone: każda faza jest jedną listą, a każdy wiersz ma etykietę swojego miejsca (cała nazwa w tekście po
+    najechaniu).
+- **Czas przy wierszu** (tylko przy kolejności według czasu): do godziny względnie („25 min temu”), dziś godzina
+  („08:30”), „wczoraj”, w tym roku dzień („4.11”), wcześniej dzień i rok („6.10.2025”). Czas sam się odświeża.
+- **Etykieta „nowe”** (przy każdej kolejności): pozycje do załatwienia, których na tym urządzeniu jeszcze nie było
+  widać w rozwiniętej sekcji **Czeka na załatwienie** (ten sam zapis co **N nowych**, [S4.1.2](#S4.1.2)). Etykieta
+  zostaje do zamknięcia Przeglądu; zwinięte miejsce powie „nowe: 2”. Drzewo, na które na tym urządzeniu jeszcze nikt
+  nie patrzył, nie ma nic nowego.
+- **Granice:**
+  - wybór kolejności jest od dwóch pozycji w sekcji;
+  - kolejność i przełącznik **Grupy** zapamiętują się na tym urządzeniu dla wszystkich drzew (za pierwszym razem
+    **Zalecana**, **Grupy** włączone); inne okno tego samego urządzenia, także okno Przeglądu ([S4.1.6](#S4.1.6)),
+    się dostosuje;
+  - kolejność obowiązuje także z wyszukiwaniem ([S4.4.2](#S4.4.2)) i chipami rodzaju. Głowa i stopka wyboru hipotez
+    przy wyłączonych grupach dotyczą hipotez całej fazy;
+  - obowiązuje w Przeglądzie (jako panel boczny i nad drzewem), w oknie Przeglądu i na telefonie. Mały panel jest bez
+    zmian.
+- **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, przycisk „⇅ Zalecana ▾” za chipami rodzaju
+  (w oknie Przeglądu w przyklejonej głowie sekcji) z menu **Zalecana** · **Najnowsze na górze** · **Najstarsze na
+  górze**, na telefonie panel wysuwany **Kolejność**; przełącznik **Grupy**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
 
 <a id="S4.5"></a>
 ## S4.5 Działania, które otwierają badanie

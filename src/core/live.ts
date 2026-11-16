@@ -2835,7 +2835,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   // the notes a send of the Strom app wrote to a fact alike (before 1.34.0): set right once, the wrong one kept in its history
   try {
     const done = settleNotes(Tree.open(root, env));
-    if (done) noteLive(root, `notes a send of the app wrote to a fact alike: ${counted(done.notes, "note")} of ${counted(done.facts, "fact")} set right, ${counted(done.left.length, "fact")} changed since, left as they are${done.left.length ? ` (${done.left.join(", ")})` : ""}${done.backup ? `; backed up first: ${done.backup.path}` : ""}`);
+    if (done) noteLive(root, `notes a send of the app wrote to a fact alike: ${counted(done.notes, "note")} of ${counted(done.facts, "fact")} set right, ${counted(done.left.length, "fact")} changed since, left as they are${done.left.length ? ` (${done.left.join(", ")}; asked of the person: ${done.asked.join(", ")})` : ""}${done.backup ? `; backed up first: ${done.backup.path}` : ""}`);
   } catch (e) {
     noteLive(root, `the notes a send of the app wrote to a fact alike not set right now: ${errorText(e)}`);
   }

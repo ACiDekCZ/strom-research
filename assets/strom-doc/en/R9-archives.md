@@ -276,7 +276,7 @@ images itself, one at a time: it opens the image in Chrome and saves what the ar
   - the image's address passes the check of the agent's browser ([R9.4](#R9.4));
   - only an image that the tab shows at its own address is saved. A viewer moved to another image is refused and
     nothing is saved. Never more than the archive's viewer gives, never larger than the original;
-  - saving waits until the archive's viewer shows the whole image, 30 s at most. Since research 1.31.0 only the time
+  - saving waits until the archive's viewer shows the whole image, 30 s at most (a browser that draws the tab slowly: [R9.5.2](#R9.5.2)). Since research 1.31.0 only the time
     while the browser draws the tab counts (it does not draw a tab behind another tab or in a covered or minimized
     window). A tab not drawn for 30 s is reported as such ("the browser did not draw the tab with the viewer for 30 s
     …": the tab in front, its window uncovered, then the script again); a viewer that meanwhile pages to another
@@ -332,6 +332,38 @@ the archive's viewer zoomed in, or at its full resolution.
 - **Since:** research 1.33.0
 
 <!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
+
+<a id="R9.5.2"></a>
+### R9.5.2 A browser that draws the tab slowly
+
+An archive's image viewer that builds an image from tiles (OpenSeadragon, e.g. ACTA PUBLICA) asks for about one tile
+each time the tab is drawn. Where the browser draws the tab only about once a second, the tiles of one image take
+minutes, and saving ends after 30 s with "the viewer's tiles did not all come in 30 s …".
+
+- **The browser first:** a tab draws slowly without graphics acceleration, on a remote desktop or in a virtual
+  machine. In Chrome: turn graphics acceleration on in `chrome://settings/system` and restart Chrome; `chrome://gpu`
+  shows whether Canvas and Compositing are "Software only" (then a newer graphics driver helps). The field "last frame
+  … s ago" in the message says how long ago the browser last drew the tab.
+- **Enforced by the code:**
+  - the setting `browser.tileWait` is hidden: neither `strom config where` nor `strom help config` shows it until it
+    is set. It takes whole seconds from 60 to 600 (180 suggested) and refuses another value with a hint. It is saved
+    in the user's settings and holds for all researches on the computer;
+  - unset: the tiles are waited for 30 s, as before; the message "tiles did not all come in 30 s" also tells the agent
+    that `strom config set browser.tileWait 180` helps, then the same strom command again (a new script);
+  - set: while tiles still come (one within the last 10 s), the script goes on waiting as long as they come. It ends
+    after 30 s without a new tile, at the latest after the time set;
+  - one call of the script answers "strom-wait …" after 35 s: the agent runs the same script again in the same tab,
+    and it goes on waiting where it was. Only the last answer, "strom-result …", counts; `strom fetch … --take` takes
+    nothing over from a "strom-wait" answer;
+  - it holds for `strom media save` ([R9.5](#R9.5)) and for a downloader that saves from an archive's image viewer
+    through the browser (`strom fetch`, [R8.2](R8-reading-scans.md#R8.2)).
+- **Limits:** a tab drawn quickly is saved the same with the setting or without it. Without the setting nothing
+  changes.
+- **Why:** the tiles come only as fast as the browser draws the tab; 30 s stays for everyone else.
+- **Controls:** terminal: `strom config set browser.tileWait 180`, back to 30 s with `strom config unset browser.tileWait`.
+- **Since:** research 1.32.0
+
+<!-- zdroj: research:75245c94 src/core/browser.ts TILE_WAIT_MIN_S 60, TILE_WAIT_MAX_S 600, TILE_WAIT_SUGGESTED_S 180, TILE_RECENT_MS 10_000, TILE_QUIET_MS 30_000, WAIT_CALL_MS 35_000, CAPTURE_JS ("the viewer's tiles did not all come in 30 s" + věta strom config set browser.tileWait 180; "last frame … s ago"), "strom-wait" · src/core/config.ts browser.tileWait (hidden, tree false, rozsah, hint config unset) · src/commands/media.ts:1686 media save · src/commands/connectors.ts:3152 viewerScript, takeOver (strom-wait nic nepřevezme) · test/cli/connector-mza.test.ts:303 (skryté do nastavení: config where, help config) · CHANGELOG.cs.md 1.32.0 · dirigent:prace/1112-vyzkum-dlazdice-pokrok/karta.md (OSD ~1 dlaždice na snímek; závěr 2: grafická akcelerace, chrome://gpu, neověřeno u reportéra) -->
 
 <a id="R9.6"></a>
 ## R9.6 Waiting for images and the task's return

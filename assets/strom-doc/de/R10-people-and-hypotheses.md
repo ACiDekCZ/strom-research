@@ -37,7 +37,7 @@ einem Dorf sind häufig.
 Stellt sich heraus, dass zwei Datensätze in der Forschung eine Person sind, werden sie zusammengeführt. Der zweite
 Datensatz verschwindet nicht: er bleibt zurückgezogen, mit einer Notiz, in wen er zusammengeführt wurde.
 
-- **Prüft der Code** (`strom person merge <zůstává> <druhý> --reason "…"`):
+- **Prüft der Code** (`strom person merge <bleibt> <andere> --reason "…"`):
   - das Zusammenführen braucht einen Grund;
   - Namen, Angaben, Notizen, Familien und alle Verweise (Aufgaben, Hypothesen, Paten…) gehen auf die Person über,
     die bleibt;
@@ -76,7 +76,7 @@ A, B, C… mit dem, was für jede spricht und was dagegen.
 - **Nur Methodik:** was die Hypothese entscheiden würde, ist eine Aufgabe (`strom task add … --about H…`), kein Umweg
   in einer anderen Aufgabe. Die Verbindung einer Version wird nur erfasst, wenn die Behauptung sie ohne Zweifel
   nennt; ein Namensvetter bleibt außen vor.
-- **Bedienung:** Terminal: `strom hypothesis add "<otázka>" --about P… --variant "…" --variant "…"`,
+- **Bedienung:** Terminal: `strom hypothesis add "<Frage>" --about P… --variant "…" --variant "…"`,
   `hypothesis argue`, `hypothesis variant`, `hypothesis link`, `hypothesis show`, `hypothesis list`. Die App zeigt die
   Versionen und lässt sie nur für die Ansicht in den Stammbaum zeichnen ([S3.5](S3-what-the-research-knows.md#S3.5),
   [S3.5.1](S3-what-the-research-knows.md#S3.5.1)).

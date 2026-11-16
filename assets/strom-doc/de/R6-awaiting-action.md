@@ -48,8 +48,8 @@ gebraucht wird. Die Art des Wartens bestimmt den Abschnitt, die Gruppe und die m
   Menschen ist **Familie**, sonst entscheidet der erste Satz, danach der ganze Text, wenn er genau eine Art nennt;
   sonst **Sonstiges**. Einen Text, der den Menschen anredet, lehnt die Forschung ab. Ein neues Setzen auf Warten
   löscht das vorige und auch die Markierung des Sendens.
-- **Bedienung:** Terminal: `strom task wait T… --on "<co>" --kind <druh> --to "<komu>" --request notes/<soubor>
-  --url <adresa>`, nachträglich `strom task edit T… --kind --to --request`.
+- **Bedienung:** Terminal: `strom task wait T… --on "<was>" --kind <Art> --to "<an wen>" --request notes/<Datei>
+  --url <Adresse>`, nachträglich `strom task edit T… --kind --to --request`.
 - **Ab Forschung 1.26.0:** `--kind images` bei `--images` und `--kind check` bei `--check` gilt als Wiederholung, nicht als
   Fehler.
 - **Gilt seit:** Forschung 1.0.0. Arten, `--to` und `--request` seit 1.14.0.
@@ -63,7 +63,7 @@ gebraucht wird. Die Art des Wartens bestimmt den Abschnitt, die Gruppe und die m
   (`9.jpg`, `9a.jpg`).
 - Nach dem Speichern der Bilder in die Forschung wird die Aufgabe geweckt, mit einer Notiz, welche Bilder fehlen
   ([R6.7.2](#R6.7.2)).
-- **Bedienung:** Terminal: `strom task wait T… --images B…:<od>-<do>`, danach `strom media add --inbox`; in **Was
+- **Bedienung:** Terminal: `strom task wait T… --images B…:<von>-<bis>`, danach `strom media add --inbox`; in **Was
   wartet** **Den Ordner öffnen (M/N gespeichert)**. App: **Ordner öffnen** (seit App 3.23.0; vorher **Ordner**).
 - Archive nur über den Browser, Bilder aus der App und was der Mensch tut: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
 - **Gilt seit:** Forschung 1.0.0. Wecken nach dem Speichern seit 1.15.0.
@@ -80,7 +80,7 @@ freiwilligen Notiz.
 - **Grenzen:** `--check` verlangt eine in dieser Sitzung oder bei der Aufgabe erfasste Suche, die dieselbe Seite
   nennt. Antworten darf nur der Mensch ([R6.6](#R6.6)). Der Eintrag gehört zu den **Entscheidungen**, nicht zu
   **Web**.
-- **Bedienung:** Terminal: `strom task wait T… --check <adresa> --on "<co>"`; in **Was wartet** **Was ist dort?**,
+- **Bedienung:** Terminal: `strom task wait T… --check <Adresse> --on "<was>"`; in **Was wartet** **Was ist dort?**,
   `strom task wake T… --check=works|view|no`.
 - **Gilt seit:** Forschung 1.14.0
 
@@ -227,7 +227,7 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
     auf das Prüfen einer Seite wartet, weckt der Agent ohne Antwort nicht;
   - die Freigabe einer Erzählung und **Gesendet** setzt der Agent nur auf das Wort des Menschen; so sagt es die
     Methodik.
-- **Bedienung:** Terminal: **Mit Text antworten** (höchstens 300 Zeichen), `strom task wake T… --answer "<text>"`.
+- **Bedienung:** Terminal: **Mit Text antworten** (höchstens 300 Zeichen), `strom task wake T… --answer "<Text>"`.
 - **Gilt seit:** Forschung 1.14.0. Orte seit 1.25.0.
 - **Ab Forschung 1.26.0:** nur der Mensch auch: Freigabe und Verwerfen einer Erzählung (`strom story
   approve|discard`; dem Agenten lehnt die Forschung auch `strom story set --final` ab), die Antwort auf einen
@@ -269,7 +269,7 @@ Eine Antwort bringt die Aufgabe in die Warteschlange zurück, und der Agent vera
   Warteschlange zurück. `intake --text` mit `--answers` lehnt die Forschung ab: eine Antwort in Worten gehört nur dem
   Menschen.
 - **Bedienung:** App: **Datei hinzufügen** · Terminal: **Eine Datei hinzufügen**, **Mit Text antworten**;
-  `strom intake <soubor> --answers T…`, `strom task wake T… --answer "<text>"`.
+  `strom intake <Datei> --answers T…`, `strom task wake T… --answer "<Text>"`.
 - **Gilt seit:** Forschung 1.3.0 (in Worten). Als Datei seit 1.14.0.
 
 <!-- zdroj: research:src/commands/intake.ts:164-205 (--answers) · src/core/taskfiles.ts fileRefused · src/commands/tasks.ts:969 answers · src/core/live.ts PUT /media X-Strom-Task -->
@@ -282,7 +282,7 @@ Eine Antwort bringt die Aufgabe in die Warteschlange zurück, und der Agent vera
 - Eine zurückgestellte Aufgabe steht weder in der Liste noch in der Warteschlange. Mit einem Datum `--until` kehrt sie
   von selbst zurück und ist an diesem Tag schon offen. Ohne Datum wartet sie, bis sie jemand weckt. Das Zurückstellen
   verlangt einen Grund.
-- **Bedienung:** Terminal: `strom task park T… --reason "<proč>" --until RRRR-MM-DD`, zurück mit `strom task wake T…`.
+- **Bedienung:** Terminal: `strom task park T… --reason "<warum>" --until JJJJ-MM-TT`, zurück mit `strom task wake T…`.
   App: Abschnitt **Warteschlange**, **Zurückstellen** (Link ins Terminal, ohne Datum).
 - **Gilt seit:** Forschung 1.0.0. Rückkehr nach Bildern seit 1.15.0, nach der Entscheidung eines Archivs seit 1.14.0.
 - **Ab Forschung 1.26.0:**

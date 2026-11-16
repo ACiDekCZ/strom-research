@@ -53,7 +53,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | de | Wartet auf Bearbeitung (app) · Was wartet (terminal) | Eine einzige geordnete Liste von allem, worauf die Forschung vom Menschen wartet: wartende Aufgaben, Fragen der Archive, neue Fassungen von Erzählungen, Fragen zu Orten und im Terminal auch Entscheidungen, die nur dort gehen. |
 | pl | Czeka na załatwienie (app) · Co czeka (terminal) | Jedna uporządkowana lista wszystkiego, na co badanie czeka od człowieka: czekające zadania, pytania archiwów, nowe wersje opowieści, pytania o miejsca, a w terminalu także decyzje, które załatwia się tylko tam. |
 
-- **Čísla:** [R6.1](cs/R6-awaiting-action.md#R6.1), R6.1.1, R6.4, R6.5, S2.3
+- **Čísla:** [R6.1](cs/R6-awaiting-action.md#R6.1), R6.1.1, R6.4, R6.5, S2.3, S4.4, S4.4.2, S4.4.3
 
 <a id="reader"></a>
 ### Čtenář
@@ -708,6 +708,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
 
+<a id="main-citation"></a>
+### Hlavní citace
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Hlavní citace (★); Označit jako hlavní · Zrušit hlavní (app); `strom event main` (terminal) | Citace údaje, kterou uživatel zvolil jako první. Ostatní citace stojí za ní v pořadí aplikace a výzkumu: primární záznam události, ostatní originály, pak podle spolehlivosti. Volí ji jen člověk. |
+| en | Main citation (★); Mark as main · Unmark main (app); `strom event main` (terminal) | The citation of a fact the user chose to stand first. The other citations follow in the order of the app and the research: the primary record of the event, the other originals, then by reliability. Only a person chooses it. |
+| de | Hauptzitat (★); Als Hauptzitat markieren · Hauptzitat aufheben (app); `strom event main` (terminal) | Die Zitation einer Angabe, die der Benutzer an die erste Stelle gesetzt hat. Die übrigen Zitationen folgen in der Reihenfolge von App und Forschung: der primäre Eintrag des Ereignisses, die übrigen Originale, dann nach Zuverlässigkeit. Nur ein Mensch wählt sie. |
+| pl | Cytat główny (★); Oznacz jako główny · Usuń oznaczenie głównego (app); `strom event main` (terminal) | Cytat danej, który użytkownik wybrał jako pierwszy. Pozostałe cytaty idą za nim w kolejności aplikacji i badania: pierwotny zapis zdarzenia, pozostałe oryginały, potem według wiarygodności. Wybiera go tylko człowiek. |
+
+- **Čísla:** [A3.2.2](cs/A3-evidence-in-the-app.md#A3.2.2), [R3.4.5](cs/R3-verification-and-citation.md#R3.4.5), S2.3.1
+
 <a id="hypothesis"></a>
 ### Hypotéza
 
@@ -1194,11 +1206,11 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | Jazyk | Termín | Definice |
 |---|---|---|
 | cs | Sledovat agenta ve stromu (`live.followOn`) · Přestat sledovat (`live.followOff`) | Strom sám přechází na osobu, na které agent právě pracuje. Dotyk stromu to přeruší, po chvíli klidu se to vrátí. |
-| en | Follow the agent in the tree (`live.followOn`) · Stop following (`live.followOff`) | The tree moves by itself to the person the agent is working on right now. Touching the tree interrupts it; after a moment of quiet it comes back. |
-| de | Agenten im Stammbaum folgen (`live.followOn`) · Nicht mehr folgen (`live.followOff`) | Der Stammbaum wechselt von selbst zu der Person, an der der Agent gerade arbeitet. Eine Berührung des Stammbaums unterbricht das, nach einer Weile Ruhe kehrt es zurück. |
+| en | Follow the agent in the tree (`live.followOn`) · Stop following here (`live.followOff`) | The tree moves by itself to the person the agent is working on right now. Touching the tree interrupts it; after a moment of quiet it comes back. |
+| de | Agenten im Stammbaum folgen (`live.followOn`) · Hier nicht mehr folgen (`live.followOff`) | Der Stammbaum wechselt von selbst zu der Person, an der der Agent gerade arbeitet. Eine Berührung des Stammbaums unterbricht das, nach einer Weile Ruhe kehrt es zurück. |
 | pl | Śledź agenta w drzewie (`live.followOn`) · Przestań śledzić (`live.followOff`) | Drzewo samo przechodzi do osoby, nad którą agent właśnie pracuje. Dotknięcie drzewa to przerywa, po chwili spokoju wraca. |
 
-- **Čísla:** [S4.1.1](cs/S4-research-from-the-app.md#S4.1.1)
+- **Čísla:** [S4.1.1](cs/S4-research-from-the-app.md#S4.1.1), S4.1.7
 
 <a id="follow-live"></a>
 ### Sledovat živě
@@ -1330,7 +1342,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Tabelle (Ansicht) · Personen · Verbindungen · Ereignisse · Quellen (Zeilen) | Die Ansicht der App auf den ganzen Stammbaum in Zeilen von Personen, Verbindungen, Ereignissen oder Quellen: Angaben, berechnete Werte, Vollständigkeit, Quellenangaben und Befunde der Prüfung in Spalten, mit Filter, Sortierung, gespeicherten Ansichten und CSV- und XLSX-Export. |
 | pl | Tabela (widok) · Osoby · Związki · Wydarzenia · Źródła (wiersze) | Widok aplikacji na całe drzewo w wierszach osób, związków, wydarzeń lub źródeł: dane, wartości obliczone, kompletność, cytowania i wyniki kontroli w kolumnach, z filtrem, sortowaniem, zapisanymi widokami i eksportem CSV i XLSX. |
 
-- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15
+- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15, A6.7.16, A6.7.17, A6.7.18
 
 <a id="surname-spellings"></a>
 ### Tvary příjmení

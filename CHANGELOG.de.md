@@ -5,9 +5,28 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.35.0
+
+*In Vorbereitung: die Betas bis 1.35.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Die Notiz eines Beteiligten aus der Strom-App:** Die Notiz eines Paten oder Zeugen, in der Strom-App 3.29.0 oder
+  neuer bearbeitet, kommt in die Forschung zurück, aus ihrer Datei wie aus dem, was sie direkt über die Brücke sendet.
+  Eine Notiz, die nur der Anfang der Notiz der Forschung ist (wie eine ältere App sie hielt, oder in der App gekürzt –
+  auch zwischen einem Buchstaben und seinem Akzent), wird nie von selbst übernommen: strom sync sagt es in einer
+  Zeile, und eine Frage wartet auf den Menschen (in dem, was wartet, und in der Strom-App), ob die kürzere Notiz
+  übernommen oder die der Forschung beibehalten wird. Gefragt wird einmal: derselbe Baum, erneut gesendet, fragt
+  nichts mehr.
+- **Eine Notiz, seit einer Sendung der App geändert:** Wenn strom die Notizen zurücksetzt, die eine Sendung der
+  Strom-App bei einer ähnlichen Angabe geschrieben hat, bleibt eine seitdem geänderte Notiz, wie sie ist, und eine
+  Aufgabe, sie zu prüfen, wartet auf den Menschen (in dem, was wartet, und in der Strom-App), nie nur eine Zeile in der
+  Geschichte.
+- **Windows: nach der Anmeldeprüfung läuft nichts weiter:** Die Prüfung, ob der Agent im Terminal angemeldet ist,
+  beendet alles, was sie gestartet hat, wenn sie zu lange dauert, und die Leser geben die Node-Warnung DEP0190 nicht
+  mehr aus.
+
 ## 1.34.0
 
-*In Vorbereitung: die Betas bis 1.34.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*15.11.2026 · gehört zur Strom-App 3.29.0.*
 
 - **Das Hauptzitat und eine Reihenfolge der Zitate:** Die Zitate jeder Angabe stehen in jeder Datei in einer
   Reihenfolge – zuerst das Hauptzitat, dann der Eintrag des Ereignisses selbst, die weiteren Originale und der Rest
@@ -22,9 +41,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   zur Erneuerung des Limits (im Terminal und in der Strom-App als Pause), fragt dann die Bedingung erneut und geht
   weiter; die unterbrochene Aufgabe kommt zurück in die Warteschlange. Die Meldung eines Agenten, dass sein Limit erreicht
   ist, gilt als Limit des Plans samt seiner Zeit.
-- **Notizen aus der Strom-App:** Die Änderungen des Benutzers an der Notiz einer Angabe und an der Notiz eines
-  Beteiligten kommen in die Forschung zurück, jede zu ihrer eigenen Angabe, der frühere Text bleibt in der Geschichte der
-  Notiz; die Notiz eines Beteiligten nur von einer App, die sie ganz sendet; eine entfernte Notiz entfernt nichts. Das eigene Ereignis eines Paten oder Zeugen im GEDCOM der App wird in der Sprache der Forschung
+- **Notizen aus der Strom-App:** Die Änderungen des Benutzers an der Notiz einer Angabe kommen in die Forschung
+  zurück, jede zu ihrer eigenen Angabe, der frühere Text bleibt in der Geschichte der Notiz; eine entfernte Notiz
+  entfernt nichts. Das eigene Ereignis eines Paten oder Zeugen im GEDCOM der App wird in der Sprache der Forschung
   benannt. Die eigene zweite Geburt oder der zweite Tod der App und ihr Eintrag einer Geburt oder eines Todes werden
   auch auf Polnisch erkannt und nie als nicht übernommen gemeldet.
 - **Ein Zuhause, in dem schon eine Forschung liegt:** `strom setup --home <Ordner> --use-existing` (und die Einrichtung
