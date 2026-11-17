@@ -6,7 +6,9 @@
 //     once all of them are registered — a part of them, it waits on and says which are missing;
 //   - a site the person looks at (kind web) of a task whose `where` names one book alone: the images of that book saved
 //     into its folder (inboxFolderFor), which numbers not known — any of them bring it back. A task strom 1.26 set
-//     waiting so is woken the same way: nothing of it to rewrite.
+//     waiting so is woken the same way: nothing of it to rewrite. The book to be searched, when it is not that one
+//     (core/books.ts waitTarget: the book given with --book, else the one its words name beyond its where): its folder;
+//     a book still to be found (a place in words beside the book of the trail): no folder.
 //
 // The files of a folder are numbered by their names (the number the portal's viewer counts); named otherwise (a
 // screenshot's time, a download's own name), by their order when there are as many as images missing; else nothing is
@@ -24,7 +26,7 @@ import type { Media, RecordSet, Repository, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { collectFiles, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, numberInName, parseImageList } from "./media.ts";
 import { waitKindOf } from "./waitkind.ts";
-import { booksOfTask, needsBooks } from "./books.ts";
+import { booksOfTask, needsBooks, waitTarget } from "./books.ts";
 import { imageFileTimesOf } from "./knownterms.ts";
 import { hostOf } from "./terms.ts";
 import { imagesIndex } from "./mediaindex.ts";
@@ -53,12 +55,21 @@ export function singleBook(tree: Tree, t: Task): RecordSet | undefined {
   return b && !b.retracted && !b.mergedInto ? b : undefined;
 }
 
+/**
+ * The book whose images saved by hand bring back a task waiting for a site the person looks at: the book it is to be
+ * searched in (core/books.ts waitTarget), else the one book its where names; none when that is not known.
+ */
+export function webWaitBook(tree: Tree, t: Task): RecordSet | undefined {
+  const target = waitTarget(tree, t);
+  return target === undefined ? singleBook(tree, t) : (target ?? undefined);
+}
+
 /** What a task waits for in the shared inbox, if it does. */
 export function inboxWaitOf(tree: Tree, t: Task): InboxWait | undefined {
   if (t.state !== "waiting") return undefined;
   if (t.awaits) return { task: t.id, recordset: t.awaits.recordset, folder: t.awaits.folder, want: parseImageList(t.awaits.images) ?? [], by: "images" };
   if (t.awaitsCheck || t.awaitsPermission || waitKindOf(t) !== "web") return undefined;
-  const b = singleBook(tree, t);
+  const b = webWaitBook(tree, t);
   return b ? { task: t.id, recordset: b.id, folder: inboxFolderFor(b), by: "web" } : undefined;
 }
 

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.35.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
   otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
@@ -24,6 +24,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   zadanie tej samej księgi, najwyżej 5 sesji po kolei) ma każde badanie własne – ustawia się w aplikacji Strom, w menu
   stroma (Ustawienia › Archiwa › Księgi z największą liczbą zadań) albo poleceniem `strom config set … --for-tree`. Link z aplikacji otwiera
   folder księgi, bez terminala.
+- **Czekające zadanie pod księgą do przeszukania:** zadanie, które czeka na przeszukanie księgi na stronie archiwum,
+  jest w „Co czeka” i w aplikacji Strom pod tą księgą, a nie pod księgą, w której znaleziono ślad: pod księgą, którą
+  nadał mu agent (`strom task wait|edit --book`), inaczej pod jedyną księgą, którą wymienia jego tekst. Dopóki księgę
+  trzeba dopiero znaleźć, zadanie czeka bez księgi i dla jego skanów nie jest proponowany folder innej księgi.
 - **Skany zapisane do folderu księgi:** skany zapisane ręcznie do folderu księgi, na którą nie czeka żadne zadanie,
   strom bierze (most albo następna sesja) według numeru skanu w nazwie, a wszystkie zadania tej księgi czytają je z
   dysku; pliki JPEG 2000 portalu, którego nazwy liczą skan × 10 (MZA Brno), są przeliczane z powrotem.

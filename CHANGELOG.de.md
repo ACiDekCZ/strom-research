@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.35.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
   brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
@@ -25,6 +25,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bilder auf der Festplatte sind, kommt zuerst eine weitere Aufgabe desselben Buchs, höchstens 5 Sitzungen nacheinander),
   hat jede Forschung für sich – eingestellt in der Strom-App, im Menü von strom (Einstellungen › Archive › Bücher mit den meisten Aufgaben) oder
   mit `strom config set … --for-tree`. Ein Link aus der App öffnet den Ordner eines Buchs, ohne Terminal.
+- **Eine wartende Aufgabe unter dem zu durchsuchenden Buch:** Eine Aufgabe, die darauf wartet, dass ein Buch auf der
+  Seite eines Archivs durchsucht wird, steht in „Was wartet“ und in der Strom-App unter diesem Buch, nicht unter dem
+  Buch, in dem die Spur gefunden wurde: unter dem Buch, das ihr der Agent gibt (`strom task wait|edit --book`), sonst
+  unter dem einen Buch, das ihr Text nennt. Solange das Buch erst noch zu finden ist, wartet die Aufgabe unter keinem
+  Buch, und für ihre Bilder wird kein Ordner eines anderen Buchs angeboten.
 - **Bilder, in den Ordner eines Buchs gespeichert:** Bilder, die von Hand in den Ordner eines Buchs gespeichert werden,
   auf das keine Aufgabe wartet, nimmt strom (die Brücke oder die nächste Sitzung) nach der Bildnummer im Namen, und alle
   Aufgaben des Buchs lesen sie von der Festplatte; JPEG-2000-Dateien eines Portals, dessen Namen das Bild × 10 zählen

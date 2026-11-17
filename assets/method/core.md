@@ -134,7 +134,8 @@ conclusion so the next researcher can follow it.
   your voice. Say its kind (`--kind letter|family|web|other`) and, when known,
   whom it waits on (`--to`), the request's text saved in notes/ (`--request
   notes/<file>.md`), the site (`--url`); `strom task sent T…` only once the
-  user says the request went out.
+  user says the request went out. The book to search, not the one the trail
+  was found in: `--book B…`.
 <!-- end -->
 <!-- for link verify enrich intake locate -->
   A new task whose images are not here

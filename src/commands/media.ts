@@ -33,7 +33,7 @@ import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, bookFolders, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, singleBook, unsettled, type InboxWait } from "../core/inboxwait.ts";
+import { askedNow, bookFolders, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
@@ -143,13 +143,14 @@ export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { e
   // a task that waits for images of a book is woken by that book alone, whatever other books it names; the person's
   // check of a site never (only the person answers it, as an archive's decision leaves it: core/archivewait.ts);
   // somebody's answer (a letter, the family) only by the book it waits on, never by a book it merely works in; a site
-  // the person looks at also by the one book it works in (the images saved there are what it waited for)
+  // the person looks at also by the book it is to be searched in, else the one book it works in (the images saved there
+  // are what it waited for)
   const wakes = (t: Task, b: string) => {
     if (t.awaits) return t.awaits.recordset === b;
     const kind = waitKindOf(t);
     if (kind === "check" || t.awaitsCheck) return false;
     const named = (t.waitingOn ?? "").includes(b);
-    if (kind === "web") return named || singleBook(tree, t)?.id === b;
+    if (kind === "web") return named || webWaitBook(tree, t)?.id === b;
     return kind === "letter" || kind === "family" ? named : named || t.where.includes(b);
   };
   if (count) {

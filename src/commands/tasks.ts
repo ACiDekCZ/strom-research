@@ -49,7 +49,7 @@ import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
 import { requestNote, requestPath } from "../core/waiting.ts";
 import { addressesPerson } from "../core/impersonal.ts";
-import { BOOKS_MIN_TASKS, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
+import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 
 
 function written(tree: Tree): string {
@@ -378,6 +378,7 @@ function taskDetail(tree: Tree, t: Task): string {
     t.state === "waiting" && t.wait?.to ? `to     ${t.wait.to}` : undefined,
     request ? `text   ${request}` : undefined,
     t.state === "waiting" && t.wait?.url ? `url    ${t.wait.url}` : undefined,
+    t.state === "waiting" && t.wait?.book ? `book   ${t.wait.book} — the book to be searched` : undefined,
     // the person's own answers (only theirs: strom task wake --answer/--check), apart from the notes
     ...(t.answers ?? []).map((a) => `person ${a.at.slice(0, 10)} answered${a.givenIn === "app" ? " in the Strom app" : ""}${a.check ? ` ${a.check}` : ""}${a.answer ? `: ${a.whole ?? a.answer}` : ""} (asked: ${truncate(a.asked, 80)})`),
     // the files that came for what it waited for: only that they came (strom intake --answers, the Strom app)
@@ -540,6 +541,7 @@ const WAIT_OPTIONS = [
   { name: "to", type: "string", value: "<whom>", description: "whom it waits on, as the user names them: the registry office, the archive, the family (impersonal)", max: 300 },
   { name: "request", type: "string", value: "notes/<file>.md", description: "the request's text, saved in the tree's notes/ first (the letter, the question to the family)" },
   { name: "url", type: "string", value: "<URL>", description: "the site it is about (http or https)" },
+  { name: "book", type: "string", value: "<B…>", description: "the book the user is to search, when not the one --where names (where the trail was found)" },
 ] as const;
 
 /**
@@ -556,8 +558,8 @@ function impersonal(tree: Tree, flag: string, text: string): string {
   return text.trim();
 }
 
-/** What --kind, --to, --request and --url say of a wait, checked; undefined: none given. */
-function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has: { images?: boolean; check?: boolean } = {}): NonNullable<Task["wait"]> | undefined {
+/** What --kind, --to, --request, --url and --book say of a wait, checked; undefined: none given. */
+function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has: { images?: string | boolean; check?: boolean } = {}): NonNullable<Task["wait"]> | undefined {
   const wait: NonNullable<Task["wait"]> = {};
   if (opts.kind !== undefined) {
     const k = String(opts.kind).trim().toLowerCase();
@@ -577,6 +579,14 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
     const raw = String(opts.url).trim();
     if (!URL.canParse(raw) || !/^https?:$/.test(new URL(raw).protocol)) throw new UsageError(`--url takes an http(s) address — not "${raw}"`);
     wait.url = new URL(raw).href;
+  }
+  if (opts.book !== undefined) {
+    const b = liveBook(tree, requireRecord<RecordSet>(tree, String(opts.book).trim(), "recordset").id);
+    if (!b) throw new UsageError(`--book: ${String(opts.book).trim()} was taken back — the book the user is to search is another one`, { hint: "strom recordset list" });
+    // --images names its book itself: the same one only repeats it (strom task wait checks it once the images are read)
+    if (typeof has.images === "string") {
+      if (b.id !== has.images) throw new UsageError(`--book with --images: the images are of ${has.images} — the book they are saved for is that one`, { hint: "leave out --book" });
+    } else wait.book = b.id;
   }
   return Object.keys(wait).length ? wait : undefined;
 }
@@ -922,7 +932,7 @@ register(
     writes: true,
     description:
       "--where and --about replace the old values (repeat them for several). A task written before its books were\nknown is pointed at them here — that is how a locate task hands over to a link task.\n" +
-      "A waiting task: --on, --kind, --to, --request, --url change what it waits for (as strom task wait says them) —\nhow a task set waiting before gets its kind and whom it waits on.",
+      "A waiting task: --on, --kind, --to, --request, --url, --book change what it waits for (as strom task wait says\nthem) — how a task set waiting before gets its kind, whom it waits on and the book to be searched.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
       { name: "what", type: "string", value: "<text>", description: "what to find" },
@@ -961,7 +971,7 @@ register(
       const helps = typeof opts.helps === "string" ? helpsOpt(opts.helps) : undefined;
       if (typeof opts.helps === "string") change.helps = helps;
       // what a waiting task waits for: only a waiting task's
-      const waitAsked = ["on", "kind", "to", "request", "url"].filter((k) => opts[k] !== undefined);
+      const waitAsked = ["on", "kind", "to", "request", "url", "book"].filter((k) => opts[k] !== undefined);
       if (waitAsked.length) {
         const before = requireRecord<Task>(tree, id, "task");
         if (before.state !== "waiting")
@@ -973,7 +983,7 @@ register(
           change.waitingOn = impersonal(tree, "--on", opts.on);
           if (before.awaitsCheck) change.awaitsCheck = { ...before.awaitsCheck, ask: change.waitingOn };
         }
-        const w = waitOptions(tree, id, opts, { images: !!before.awaits, check: !!before.awaitsCheck });
+        const w = waitOptions(tree, id, opts, { images: before.awaits ? (liveBook(tree, before.awaits.recordset)?.id ?? before.awaits.recordset) : false, check: !!before.awaitsCheck });
         if (w) change.wait = { ...before.wait, ...w };
       }
       const note = typeof opts.note === "string" ? makeNotes(tree, opts.note) : undefined;
@@ -1158,6 +1168,9 @@ register(
       "otherwise are taken by their order when there are as many as images missing.\n" +
       "--kind web on a task whose --where names one book: images of that book saved into its folder of the inbox bring it\n" +
       "back too (which ones not known yet) — with the numbers known, --images in its place (it says the kind itself).\n" +
+      "--book B…: the book the user is to search when it is not the one --where names (where the trail was found) — a\n" +
+      "record set you added for it: the task waits under it in What waits and the Strom app, and with --kind web images\n" +
+      "saved into its folder bring it back.\n" +
       "--check <URL>: the user looks at a site strom and your web tools may not read (it refused strom, or its terms\n" +
       "forbid or restrict automation) — only after another way to the same records was tried and the blocked way recorded\n" +
       "in this session (strom search add … --note \"<host>: …\"); --on says what to check there. They answer in strom's\n" +
@@ -1186,11 +1199,11 @@ register(
       const tree = ctx.tree();
       if (!opts.on) throw new UsageError("--on is required", { hint: 'e.g. --on "reply of the archive to the request of 21 Sep"' });
       const on = impersonal(tree, "--on", String(opts.on));
-      const wait = waitOptions(tree, normId(args[0]!, "task"), opts, { images: opts.images !== undefined, check: opts.check !== undefined });
       let awaits: Task["awaits"];
       let awaitsCheck: Task["awaitsCheck"];
       let b: RecordSet | undefined;
       if (opts.check !== undefined && opts.images !== undefined) throw new UsageError("--check or --images, not both: the check first; the images by hand after the user's answer");
+      const wait = waitOptions(tree, normId(args[0]!, "task"), opts, { images: opts.images !== undefined, check: opts.check !== undefined });
       if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: on };
       if (opts.images !== undefined) {
         const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/.exec(String(opts.images));
@@ -1198,6 +1211,11 @@ register(
         if (!m || !nums) throw new UsageError(`--images: a record set and its image numbers, e.g. B0001:40-45 or B0001:9,12 — not "${opts.images}"`);
         b = requireRecord<RecordSet>(tree, m[1]!, "recordset");
         awaits = { recordset: b.id, images: runs(nums), folder: inboxFolderFor(b) };
+      }
+      if (b && wait?.book) {
+        // --images names its book itself: the same one only repeats it
+        if (wait.book !== (liveBook(tree, b.id)?.id ?? b.id)) throw new UsageError(`--book with --images: the images are of ${b.id} — the book they are saved for is that one`, { hint: "leave out --book" });
+        delete wait.book;
       }
       const id = normId(args[0]!, "task");
       const task = tree.get<Task>(id);
@@ -1208,9 +1226,16 @@ register(
       // a site the person looks at for the one book the task works in: images of it saved into its folder bring it back
       const byBook = !awaits ? inboxWaitOf(tree, t) : undefined;
       if (!awaits && !byBook) {
-        const sendable = SENDABLE.includes(waitKindOf(t));
+        const kind = waitKindOf(t);
+        const sendable = SENDABLE.includes(kind);
         return {
-          text: lines(written(tree), `waits  ${waitSaid(tree, t)}`, sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : `comes back with the user's answer (strom's menu, What waits; the Strom app)`),
+          text: lines(
+            written(tree),
+            `waits  ${waitSaid(tree, t)}`,
+            sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : `comes back with the user's answer (strom's menu, What waits; the Strom app)`,
+            // a site the person looks at or checks, its book not known: the book to be searched, once there is one
+            (kind === "web" || kind === "check") && !bookOfTask(tree, t) ? `the book the user is to search, once it is a record set (strom recordset add): strom task edit ${t.id} --book B… — the task then waits under it` : undefined,
+          ),
           data: { task: t, ...waitState(tree, t) },
         };
       }

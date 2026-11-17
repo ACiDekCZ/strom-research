@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
@@ -22,6 +22,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nad knihou, jejíž snímky jsou na disku, přijde na řadu nejdřív další úkol téže knihy, nejvýš 5 sezení po sobě) má
   každý výzkum svoje – nastaví se v aplikaci Strom, v nabídce stromu (Nastavení › Archivy › Knihy s nejvíc úkoly) nebo příkazem
   `strom config set … --for-tree`. Odkaz z aplikace otevře složku knihy, bez terminálu.
+- **Čekající úkol pod knihou, kterou je třeba prohledat:** úkol, který čeká na prohledání knihy na webu archivu, je
+  v Co čeká a v aplikaci Strom zařazený pod tou knihou, ne pod knihou, kde se našla stopa: pod knihou, kterou mu dal
+  agent (`strom task wait|edit --book`), jinak pod jedinou knihou, kterou jmenuje jeho text. Dokud se kniha teprve
+  hledá, čeká úkol bez knihy a pro jeho snímky se nenabízí složka jiné knihy.
 - **Snímky uložené do složky knihy:** snímky uložené ručně do složky knihy, na kterou nečeká žádný úkol, si strom vezme
   (most nebo příští sezení) podle čísla snímku v názvu a všechny úkoly té knihy je čtou z disku; soubory JPEG 2000
   portálu, jehož názvy počítají snímek × 10 (MZA Brno), se přepočtou zpět.

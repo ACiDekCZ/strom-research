@@ -11,6 +11,7 @@ import { BOOKS_MIN_TASKS, Settings } from "./config.ts";
 import { hostOf, wholeBookFor } from "./terms.ts";
 import type { RecordSet, Repository, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
+import { waitKindOf } from "./waitkind.ts";
 
 /** How many tasks a book needs for the offer to download it, unless the setting books.minTasks says otherwise. */
 export { BOOKS_MIN_TASKS };
@@ -23,6 +24,10 @@ const DOWNLOADABLE: ReadonlySet<string> = new Set(["online-free", "online-login"
 
 /** A record set's ID as a task's where names it. */
 const BOOK_ID = /^B\d{4,}$/u;
+/** A record set's ID within a task's words (waitingOn): bounded by no letter, mark or digit — in any script. */
+const BOOK_ID_IN = /(?<![\p{L}\p{M}\p{N}])B\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
+/** A record's ID as a where names it (a book B…, an archive R…): no free text. */
+const RECORD_ID = /^\p{Lu}\d{4,}$/u;
 
 /** At most this many task IDs named in a sentence to the agent (the rest counted). */
 export const SAME_BOOK_IDS_MAX = 10;
@@ -88,6 +93,7 @@ export function liveBook(tree: Tree, id: string): RecordSet | undefined {
 export function booksOfTask(tree: Tree, t: Task): RecordSet[] {
   const ids = new Set(t.where.map((w) => w.trim()).filter((w) => BOOK_ID.test(w)));
   if (t.awaits?.recordset) ids.add(t.awaits.recordset);
+  if (t.state === "waiting" && t.wait?.book) ids.add(t.wait.book);
   const out = new Map<string, RecordSet>();
   for (const id of ids) {
     const b = liveBook(tree, id);
@@ -96,13 +102,45 @@ export function booksOfTask(tree: Tree, t: Task): RecordSet[] {
   return [...out.values()];
 }
 
+/** The books a task's where names, as they stand, each once (by their IDs). */
+function whereBooks(tree: Tree, t: Task): Set<string> {
+  return new Set(t.where.map((w) => w.trim()).filter((w) => BOOK_ID.test(w)).map((w) => liveBook(tree, w)?.id).filter((x): x is string => !!x));
+}
+
 /**
- * The one book a task is about, for the Strom app's groups by book (spec 105): the book it waits for (awaits), else the
- * one book its where names — as they stand. Several books, or none: undefined.
+ * The book a waiting task is to be searched in, when it is not the one book its where names (that one may be only where
+ * the trail was found: a note in a book of births pointing to the marriages of another parish) — read, nothing written:
+ *   - the book the agent gave it (strom task wait|edit --book: wait.book);
+ *   - else the one book its words name (waitingOn) beyond its where: an ID is the same in every language;
+ *   - else none (null) for a site the person looks at or checks (kind web, check) whose where names one book beside a
+ *     place or book in words (one still to be found): better no book than the book of the trail.
+ * undefined: none of these — the task's book is the one its where names. Not for a task waiting for images by their
+ * numbers (awaits says the book), nor for a task not waiting (the queue: the book a session reads is its where's).
+ */
+export function waitTarget(tree: Tree, t: Task): RecordSet | null | undefined {
+  if (t.state !== "waiting" || t.awaits) return undefined;
+  const given = t.wait?.book ? liveBook(tree, t.wait.book) : undefined;
+  if (given) return given;
+  const where = whereBooks(tree, t);
+  const named = new Set(
+    [...(t.waitingOn ?? "").normalize("NFC").matchAll(BOOK_ID_IN)].map((m) => liveBook(tree, m[0])?.id).filter((x): x is string => !!x && !where.has(x)),
+  );
+  if (named.size === 1) return liveBook(tree, [...named][0]!) ?? undefined;
+  const kind = waitKindOf(t);
+  if ((kind === "web" || kind === "check") && where.size === 1 && t.where.some((w) => w.trim() && !RECORD_ID.test(w.trim()))) return null;
+  return undefined;
+}
+
+/**
+ * The one book a task is about, for the Strom app's groups by book (spec 105): the book it waits for (awaits), else for
+ * a waiting task the book it is to be searched in (waitTarget: none when that is not known), else the one book its
+ * where names — as they stand. Several books, or none: undefined.
  */
 export function bookOfTask(tree: Tree, t: Task): string | undefined {
   if (t.awaits?.recordset) return liveBook(tree, t.awaits.recordset)?.id;
-  const ids = new Set(t.where.map((w) => w.trim()).filter((w) => BOOK_ID.test(w)).map((w) => liveBook(tree, w)?.id).filter((x): x is string => !!x));
+  const target = waitTarget(tree, t);
+  if (target !== undefined) return target?.id;
+  const ids = whereBooks(tree, t);
   return ids.size === 1 ? [...ids][0] : undefined;
 }
 

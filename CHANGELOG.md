@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.35.0-beta.3. The section is complete with the release.*
 
 - **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
   put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
@@ -23,6 +23,10 @@ The changes of each version in short. The full notes and the install lines are o
   (`queue.sameBook`, off by default: after a session in a book whose images are on disk, another task of that book
   comes first, at most 5 sessions in a row) are each research's own — set in the Strom app, in strom's menu (Settings ›
   Archives › Books with the most tasks) or with `strom config set … --for-tree`. A link from the app opens a book's folder, no terminal.
+- **A waiting task under the book to be searched:** a task that waits for a book to be searched on an archive's site
+  waits in what waits and in the Strom app under that book, not under the book where the trail was found: the book the
+  agent gives it (`strom task wait|edit --book`), else the one book its words name. While the book is still to be found,
+  the task waits under no book, and no folder of another book is offered for its images.
 - **Images saved into a book's folder:** images saved by hand into the folder of a book that no task waits on are
   taken by strom (the bridge, or the next session) by the image number in their names, and every task of the book reads
   them from disk; a portal's JPEG 2000 files whose names count the image × 10 (MZA Brno) are counted back.

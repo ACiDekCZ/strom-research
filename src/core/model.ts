@@ -812,10 +812,11 @@ export interface Task extends BaseRecord {
   /**
    * What it waits for, as the agent says it (strom task wait --kind/--to/--request/--url): a letter (by post or e-mail),
    * the family, a site, other; whom (an office, an archive, the family); the request's text saved in the tree's notes/;
-   * the site. Optional: what a task waits for is otherwise read from its words (core/waitkind.ts). Gone when it waits
-   * no more.
+   * the site; the book the person is to search (--book), when it is not the one its where names (core/books.ts
+   * waitTarget). Optional, each: what a task waits for is otherwise read from its words (core/waitkind.ts); an older
+   * strom keeps book and ignores it. Gone when it waits no more.
    */
-  wait?: { kind?: (typeof WAIT_KINDS)[number]; to?: string; note?: string; url?: string };
+  wait?: { kind?: (typeof WAIT_KINDS)[number]; to?: string; note?: string; url?: string; book?: string };
   /**
    * The request it waits on went out (strom task sent): the letter mailed, the family asked — when, by whom. Not a
    * consent, not a wake: the task still waits. Gone when it waits no more, or is set waiting again.
