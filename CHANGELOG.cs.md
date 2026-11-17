@@ -7,8 +7,24 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.2. Oddíl bude úplný s vydáním.*
 
+- **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
+  i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
+  úkoly) a příkazem `strom task books`, u každé archiv, roky, kolik úkolů čeká, snímky na disku a chybějící, potřebné
+  snímky, které ještě nejsou na disku, a složka pro její snímky. Nabízí jen knihy, které jde stáhnout a nejsou ještě
+  celé na disku: celou knihu tam, kde to podmínky archivu dovolují (s vlastními slovy archivu), jinak snímky, na které
+  čekají úkoly. Stažení je dobrovolné: bez něj agent čte knihu dál online. Agent se na začátku úkolu dozví, které další
+  úkoly potřebují stejnou knihu, aby je udělal spolu, a `strom task list --book` je vypíše.
+- **Knihy v aplikaci Strom a jejich nastavení:** most dává aplikaci Strom knihy s nejvíc úkoly a u každé, co z ní jde
+  stáhnout, a v tom, co čeká, i ve frontě říká u každého úkolu jeho knihu. Od kolika úkolů se kniha nabízí
+  (`books.minTasks`, výchozí 5) a zda další sezení pokračuje v téže knize (`queue.sameBook`, výchozí vypnuto: po sezení
+  nad knihou, jejíž snímky jsou na disku, přijde na řadu nejdřív další úkol téže knihy, nejvýš 5 sezení po sobě) má
+  každý výzkum svoje – nastaví se v aplikaci Strom, v nabídce stromu (Nastavení › Archivy › Knihy s nejvíc úkoly) nebo příkazem
+  `strom config set … --for-tree`. Odkaz z aplikace otevře složku knihy, bez terminálu.
+- **Snímky uložené do složky knihy:** snímky uložené ručně do složky knihy, na kterou nečeká žádný úkol, si strom vezme
+  (most nebo příští sezení) podle čísla snímku v názvu a všechny úkoly té knihy je čtou z disku; soubory JPEG 2000
+  portálu, jehož názvy počítají snímek × 10 (MZA Brno), se přepočtou zpět.
 - **Poznámka účastníka z aplikace Strom:** poznámka kmotra nebo svědka upravená v aplikaci Strom 3.29.0 a novější se
   vrací do výzkumu, ze souboru i z toho, co aplikace posílá rovnou přes most. Poznámka, která je jen začátkem poznámky
   výzkumu (jak ji držela starší aplikace, nebo zkrácená v aplikaci – i řezem mezi písmenem a jeho čárkou), se sama

@@ -214,8 +214,11 @@ citace pramene ([A3.2](#A3.2)). Z obrázkové přílohy jde vyříznout výřez 
 - **Ovládání:** úprava osoby, sekce **Přílohy** → **Přidat přílohu**; sekce je vidět s **Pokročilá pole** nebo
   když osoba přílohy má.
 - **Platí od:** aplikace 1.4.0; TIFF, HEIC a velké PDF pro výzkum 3.9.0
+- **Od aplikace 3.30.0:** celá fotka, ze které je portrét osoby, je příloha se štítkem **Portrét**. Vznikne sama při
+  výběru nové fotky portrétu. Jiná obrázková příloha nabízí **Jako portrét…** (v materiálech a prohlížeči **Použít
+  jako portrét…**). Smazání přílohy se štítkem portrét nechá ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originály pro výzkum

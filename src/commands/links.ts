@@ -24,6 +24,8 @@ import { openForUser } from "../core/open.ts";
 import { openInNewTerminal } from "../core/shortcut.ts";
 import { systemNotice } from "../core/dialog.ts";
 import { configDir, noLinks } from "../core/paths.ts";
+import { liveBook } from "../core/books.ts";
+import { inboxFolderFor } from "../core/media.ts";
 import { startLive } from "../core/live.ts";
 import { stateOf } from "../core/state.ts";
 import { isEditConflict } from "../core/conflicts.ts";
@@ -119,7 +121,7 @@ function aboutConflict(root: string, ctx: Context, id: string): string | undefin
   return c && c.type === "conflict" && c.state === "open" ? ui(tree.lang, "ui.link.conflict.say", { id: c.id, title: c.title }) : undefined;
 }
 
-type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" }>;
+type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" | "book" }>;
 
 /**
  * What a link asks of an agent — a conversation, tasks written for it — refused where nobody researches (an archive, a
@@ -462,6 +464,8 @@ register(
       "viewer of the system (the page in the online archive when the scan is not here). Nothing is written.\n" +
       "strom-research://media?tree=<id>&sha=<sha256> — an original the Strom app sent (or any file the research keeps by\n" +
       "that content), in the viewer of the system. Nothing is written.\n" +
+      "strom-research://book?tree=<id>&id=B0003&do=folder — the book's folder of the shared inbox opened (made first when\n" +
+      "not there), no terminal. Nothing is written; images saved there are taken by the bridge or the next session.\n" +
       "strom-research://app?tree=<id> — the research as it is now into the app's open window (strom app).\n" +
       "strom-research://live?tree=<id> — the research followed live in the app's window (strom app --live).\n" +
       "strom-research://open?tree=<id> — the research's menu in a terminal.\n" +
@@ -547,6 +551,19 @@ register(
         const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env, process.platform, windowOf(ctx));
         if (opened === false) return say(ctx, "ui.link.noterminal.new", {}, { action: "new", trees });
         return { text: "", data: { done: true, action: "new", trees, ...fellBack(opened) } };
+      }
+      if (link.action === "book") {
+        // a book's folder of the shared inbox (spec 105): opened, made first when not there — no terminal, nothing
+        // written in the research; the images saved there are taken by the bridge or the next session (K1.4)
+        const shared = ctx.settings.shared()?.value;
+        const copies = researchesWithId(ctx, link.tree);
+        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        const b = liveBook(Tree.open(copies[0]!.root, ctx.env), link.id);
+        if (!b || !shared) return say(ctx, "ui.link.book.none", { book: link.id }, { tree: link.tree, book: link.id });
+        const dir = path.join(shared, "inbox", inboxFolderFor(b));
+        fs.mkdirSync(dir, { recursive: true });
+        openForUser(dir, ctx.env);
+        return { text: ctx.display(dir), data: { done: true, action: "book", do: link.do, book: b.id, dir, tree: copies[0]!.root } };
       }
       if (link.action === "media") {
         // an original the app sent: the file itself, in the viewer of the system; nothing written

@@ -12,13 +12,21 @@
 // screenshot's time, a download's own name), by their order when there are as many as images missing; else nothing is
 // taken and it is said what is needed. A file is taken once it has settled (not written for SETTLE_MS): a large scan
 // being copied is never taken half.
+//
+// The folder of a book the tasks still need, with no task waiting on it (spec 105 K1.4: "one download serves them
+// all"): its images are taken by the numbers in their names alone (never by their order: nothing says which images they
+// are) — a portal's .jp2 of an archive whose file names count the image × N (strom's list, imageFileTimes: MZA × 10)
+// counted back. The tasks of the book then read them from disk.
 
 import fs from "node:fs";
 import path from "node:path";
-import type { Media, RecordSet, Task } from "./model.ts";
+import type { Media, RecordSet, Repository, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { collectFiles, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, numberInName, parseImageList } from "./media.ts";
 import { waitKindOf } from "./waitkind.ts";
+import { booksOfTask, needsBooks } from "./books.ts";
+import { imageFileTimesOf } from "./knownterms.ts";
+import { hostOf } from "./terms.ts";
 import { imagesIndex } from "./mediaindex.ts";
 import { runs } from "../cli/format.ts";
 
@@ -90,6 +98,65 @@ export function unsettled(files: string[], now = Date.now()): string[] {
     }
   });
 }
+
+/** The folder of a book that tasks still need (core/books.ts), no task waiting on it — K1.4. */
+export interface BookFolder {
+  recordset: string;
+  /** Its folder in the shared inbox (the name alone). */
+  folder: string;
+  /** The tasks that need the book (open, at work, put aside — those waiting wait on a folder of their own). */
+  tasks: string[];
+  /** By how much a portal's .jp2 names the image (imageFileTimes), when strom's list says. */
+  times?: number;
+}
+
+/**
+ * The folders of the books tasks still need that no task waits on (those are inboxWaits'), each once, by the books'
+ * IDs. Nothing made: a folder the person never made has nothing to take.
+ */
+export function bookFolders(tree: Tree): BookFolder[] {
+  const waited = new Set(inboxWaits(tree).map((w) => w.folder.normalize("NFC")));
+  const by = new Map<string, BookFolder>();
+  for (const t of tree.list<Task>("task")) {
+    if (!needsBooks(t)) continue;
+    for (const b of booksOfTask(tree, t)) {
+      const folder = inboxFolderFor(b);
+      if (waited.has(folder.normalize("NFC"))) continue;
+      let f = by.get(b.id);
+      if (!f) {
+        const url = b.url ?? (b.repository ? tree.get<Repository>(b.repository)?.url : undefined);
+        const times = url ? imageFileTimesOf(hostOf(url)) : undefined;
+        f = { recordset: b.id, folder, tasks: [], ...(times ? { times } : {}) };
+        by.set(b.id, f);
+      }
+      f.tasks.push(t.id);
+    }
+  }
+  return [...by.values()].sort((a, b) => a.recordset.localeCompare(b.recordset, undefined, { numeric: true }));
+}
+
+/**
+ * The image numbers of the files of a book's folder by their names alone (K1.4): a portal's .jp2 counted back by `times`
+ * (one that is no multiple: its number is not known). The files with a number are taken, each as named; a file with no
+ * number (or one that is no image's) is left lying — it never holds back the rest (`left`). None with a number: nothing
+ * taken, and what the files need is said.
+ */
+export function numberBookFiles(files: string[], recordset: string, times?: number): BookNumbered {
+  const all = imageNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
+  const named = files.map((file, i) => ({ file, n: all[i] })).filter((x): x is { file: string; n: number } => x.n !== undefined && x.n > 0);
+  const left = files.length - named.length;
+  if (named.length) return { files: named.map((x) => x.file), numbers: named.map((x) => x.n), by: "names", left };
+  return {
+    problem: `${left === 1 ? "a file" : `${left} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg)`,
+    code: "inbox.unnamed",
+    params: { files: String(left), recordset },
+  };
+}
+
+/** The files of a book's folder with a number in the name, and how many are left lying without one — or why none is taken. */
+export type BookNumbered =
+  | { files: string[]; numbers: number[]; by: "names"; left: number }
+  | { problem: string; code: "inbox.unnamed"; params: Record<string, string> };
 
 /** How the files of a folder are numbered, or why they cannot be taken (for the person: what is needed). */
 export type Numbered =

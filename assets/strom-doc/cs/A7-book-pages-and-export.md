@@ -63,6 +63,8 @@ v knize rodu **Ochrana žijících**.
   citace a přílohy **u všech osob, i zemřelých** (aplikace to u volby napíše). Kniha rodu, stránky a stránka osoby
   berou prameny jen žijícím; pramen citovaný jen u žijících vypadne.
 - **Platí od:** aplikace 1.2.0; prameny zemřelých v knize a na stránkách aplikace 3.18.0
+- **Od aplikace 3.30.0:** žijící osoba ztratí s fotkou i originál portrétu; svazek se žijícím partnerem ztratí fotku
+  svazku ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Od aplikace 3.26.0:** export GEDCOM drží prameny a citace zemřelých v každé volbě; vynechá jen citace žijících
   osob a řekne to („U N žijících osob se vynechá K citací. Zemřelým prameny zůstanou.“, volba **Ponechat prameny**).
   Export Aplikace i s daty a JSON se nemění. Export GEDCOM se nejdřív ptá, **K čemu soubor je**: **Zpět do
@@ -106,9 +108,14 @@ Při exportu se vedle ochrany volí **Obsah**: co se uloží do souboru.
 - **Hranice:** struktura stromu a jména zůstávají vždy. Pracovní dílna výzkumu (fronta, úkoly, koncepty
   vyprávění) se do exportu nedává nikdy. Volba ochrany může zdroje a přílohy vynechat i při Kompletním archivu
   ([A7.2](#A7.2)).
+- **Od aplikace 3.30.0:** volba **Co exportovat** má vedle **Celý strom** a **Jen aktuální pohled** i **Seznam osob**:
+  záloha JSON a GEDCOM jen s osobami seznamu ([A11.9](A11-lists-of-people.md#A11.9)).
+- **Od aplikace 3.30.0:** **Fotky** jsou i originály portrétů a fotky svazků. Bez fotek zmizí i ty, také když se
+  přílohy exportují; bez příloh zůstanou portréty bez propojení na originál
+  ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Platí od:** aplikace 2.4.0
 
-<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent -->
+<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent · 3.30.0: app:33fa6cd4 src/ui/import-export.ts scope 'list', strings.ts exportMenu.scopeLabel, scopeWhole, scopeView, scopeList -->
 
 <a id="A7.4"></a>
 ## A7.4 Kniha rodu
@@ -132,6 +139,8 @@ Kniha rodu je kniha ke čtení od začátku: rodokmen, rodiny po generacích, vy
 - Volby se pamatují pro každý strom.
 - **Ovládání:** export **Kniha rodu**; okno knihy: tisk na A4 a **Uložit jako HTML**.
 - **Platí od:** aplikace 3.19.0; předvolba Vlastní aplikace 3.21.0
+- **Od aplikace 3.30.0:** část **Výřezy zápisů a fotky** dává do kapitoly rodiny i fotku svazku nad události páru;
+  strom, jehož jediné obrázky jsou fotky svazků, tu část nabídne ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 
 <!-- zdroj: app:src/book-options.ts (části, předvolby, výchozí :55) · strings.ts book.dlg.kind, book.dlg.parts, book.dlg.preset, book.dlg.lang, book.parts, book.unavailable · CHANGELOG.cs.md 3.19.0, 3.21.0 -->
 
@@ -177,6 +186,10 @@ na mapě, osu života s dějinami, výřezy z matrik a prameny a oddíl **Pro ba
 - **Od aplikace 3.28.0:** v okně aplikace vede **◎ Cesta předků na mapě ›** na cestu předků osoby v Migraci
   v čase ([A6.5.4](A6-views.md#A6.5.4)). Uložená stránka ho nemá. Stojí v oddílu **Místa života**; osoba s nejvýš
   jedním vlastním místem, která má předky na mapě, ho má na vlastním řádku tam, kde by oddíl byl.
+- **Od aplikace 3.30.0:** galerie **Obrázky a dokumenty** začíná fotkou každého svazku osoby („{A} a {B} · fotka
+  svazku“). Zvětšení portrétu s originálem má přepínač **Portrét** | **Celá fotka**, uložená stránka odkaz **Celá
+  fotka**, když soubor tu fotku nese. ⋯ **Další akce** nabízí **Upravit výřez portrétu**
+  ([A12.3](A12-portrait-and-couple-photo.md#A12.3), [A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 - **Ovládání:** nabídka karty osoby, **Stránka osoby**; také z vějíře.
 - **Platí od:** aplikace 3.18.0
 

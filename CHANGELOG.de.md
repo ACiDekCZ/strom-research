@@ -7,8 +7,28 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.35.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
+- **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
+  brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
+  Menü von strom (Was wartet › die Bücher mit den meisten Aufgaben) und mit `strom task books`, jedes mit seinem
+  Archiv, seinen Jahren, wie viele Aufgaben warten, seinen Bildern auf der Festplatte und den fehlenden, den benötigten
+  Bildern, die noch nicht auf der Festplatte sind, und dem Ordner für seine Bilder. Angeboten werden nur Bücher, die
+  sich herunterladen lassen und noch nicht ganz auf der Festplatte sind: das ganze Buch, wo die Bedingungen des Archivs
+  es erlauben (mit den eigenen Worten des Archivs), sonst die Bilder, auf die Aufgaben warten. Das Herunterladen ist
+  freiwillig: ohne es liest der Agent das Buch online weiter. Der Agent erfährt zu Beginn einer Aufgabe, welche anderen
+  Aufgaben dasselbe Buch brauchen, um sie zusammen zu erledigen, und `strom task list --book` listet sie auf.
+- **Die Bücher in der Strom-App und ihre Einstellungen:** Die Brücke gibt der Strom-App die Bücher mit den meisten
+  Aufgaben und zu jedem, was davon heruntergeladen werden darf, und nennt bei jeder Aufgabe ihr Buch in dem, was wartet,
+  und in der Warteschlange. Ab wie vielen Aufgaben ein Buch angeboten wird (`books.minTasks`, Standard 5) und ob die
+  nächste Sitzung im selben Buch weitergeht (`queue.sameBook`, Standard aus: nach einer Sitzung in einem Buch, dessen
+  Bilder auf der Festplatte sind, kommt zuerst eine weitere Aufgabe desselben Buchs, höchstens 5 Sitzungen nacheinander),
+  hat jede Forschung für sich – eingestellt in der Strom-App, im Menü von strom (Einstellungen › Archive › Bücher mit den meisten Aufgaben) oder
+  mit `strom config set … --for-tree`. Ein Link aus der App öffnet den Ordner eines Buchs, ohne Terminal.
+- **Bilder, in den Ordner eines Buchs gespeichert:** Bilder, die von Hand in den Ordner eines Buchs gespeichert werden,
+  auf das keine Aufgabe wartet, nimmt strom (die Brücke oder die nächste Sitzung) nach der Bildnummer im Namen, und alle
+  Aufgaben des Buchs lesen sie von der Festplatte; JPEG-2000-Dateien eines Portals, dessen Namen das Bild × 10 zählen
+  (MZA Brünn), werden zurückgerechnet.
 - **Die Notiz eines Beteiligten aus der Strom-App:** Die Notiz eines Paten oder Zeugen, in der Strom-App 3.29.0 oder
   neuer bearbeitet, kommt in die Forschung zurück, aus ihrer Datei wie aus dem, was sie direkt über die Brücke sendet.
   Eine Notiz, die nur der Anfang der Notiz der Forschung ist (wie eine ältere App sie hielt, oder in der App gekürzt –

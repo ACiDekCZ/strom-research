@@ -23,6 +23,8 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 | edit a person | person menu → **Edit** | [S2](S2-edits-from-the-app.md), while following [A9.3](#A9.3) |
 | the Map view and other views | the view switch in the bar; on a phone, a tablet and in a window up to 1024 px the bottom bar and **More → View** | [A6](A6-views.md), [A9.5](#A9.5) |
 | the whole tree in rows, CSV and XLSX export | **Table** in the view switch; on a phone, a tablet and in a window up to 1024 px **Table** on the bottom bar | [A6.7](A6-views.md#A6.7) |
+| lists of people (fixed, automatic, checklists) | **Actions → Lists of people…**; on a phone **More → Lists of people** | [A11](A11-lists-of-people.md) |
+| portrait crop, couple's photo | editing a person → **Choose photo**, **Edit crop**; editing a person → **Manage relationships** → the row **Photo** | [A12](A12-portrait-and-couple-photo.md) |
 | fold the minimap or the tree legend | the tab above the minimap; **◯** in the legend | [A9.6](#A9.6) |
 | full screen (phone and tablet) | **More → Full screen**; on an iPhone in Safari **More → Full screen…** | [A9.5](#A9.5) |
 | a view or the Research overview in a separate window (on a computer) | ⧉ **Open in a new window** next to the view switch; Ctrl+click (macOS ⌘+click) on a view's tab; ⧉ in the Table's bar and in the overview's heading | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
@@ -41,7 +43,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 - **Controls:** as in the table.
 - **Since:** app 3.25.0 (summary; each place applies since the version in its rule)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
 
 <a id="A9.2"></a>
 ## A9.2 Controls have a readable name
@@ -50,8 +52,9 @@ Every control has a name that a screen reader reads, and so does a browser's too
 not change by it.
 
 - **Limits:**
-  - buttons with only an icon have a name: zoom, filters, back and forward, rotating a photo, the preview, the list at
-    the person search (**Show list**), a linked file, the link to a place's source (**Open the source**) and others;
+  - buttons with only an icon have a name: zoom, filters, back and forward, rotating a photo (from app 3.30.0 in the
+    portrait crop editor, [A12.1](A12-portrait-and-couple-photo.md#A12.1)), the preview, the list at the person search
+    (**Show list**), a linked file, the link to a place's source (**Open the source**) and others;
   - closed dialogs and menus are not read: they are neither in the accessibility tree nor in what a browser's tool
     finds on the page;
   - the bottom sheet takes no click or tap while it slides in, so that no other item is hit;

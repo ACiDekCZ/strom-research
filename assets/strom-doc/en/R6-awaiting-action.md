@@ -187,6 +187,9 @@ message.
   **Archives and offices**, **Family**, **Web**, **Other**) · terminal: in **What waits** the section's letter,
   `?` switches to **Waiting for a reply**.
 - **Since:** research 1.14.0
+- **From research 1.35.0:** the research sends with an item also its book. The app 3.30.0 can group the items by book
+  ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); **What waits** has an overview of the books with the most tasks
+  ([R6.8](#R6.8)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
 
@@ -234,8 +237,11 @@ asks the person in a system window, or refuses the command.
   removing that choice, only a person may do. Only a person also decides what to do next with a source read again
   (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), and a proposed wording of a transcription they wrote
   or confirmed (`strom source proposal`, also undoing it, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+- **From research 1.35.0:** only a person also decides whether to take a participant's shorter note from the app
+  (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); the agent only carries out the person's answer to
+  that task.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
 <a id="R6.7"></a>
 ## R6.7 Sent, the answer and the return to the queue
@@ -287,3 +293,124 @@ the task to the queue, and the agent deals with it in its next work.
     tasks out.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.8"></a>
+## R6.8 Books with the most tasks
+
+The research counts which books most of its tasks need. One download of a book by hand then serves all its tasks at
+once. It is an offer, not an item that waits: it does not count into **Waiting: N**, and without a download the agent
+goes on reading the book online.
+
+- **Enforced by the code:**
+  - the tasks counted are open (also in progress), parked and waiting. The book of a task is a book (B…) the task
+    names in where it works, and a book whose images it waits for. A task that names no book is not counted, and no
+    book is guessed for it: the counts are a lower bound, not an estimate;
+  - a book merged into another counts as that other one, a book retracted as none;
+  - the order: the most tasks, on a tie the most waiting, then the book's number;
+  - at a book: the archive, the years, the access, how many tasks need it (of these waiting and parked), images in
+    total, on disk and missing (in total and missing only where the catalog knows the number of images), the images
+    needed that are not on disk yet (the numbers its waiting tasks wait for), the folder in the shared folder and the
+    book's address;
+  - a book is **offered** for download when at least `books.minTasks` tasks need it (default 5, [R6.8.3](#R6.8.3)),
+    the access is free or with a sign-in (`online-free`, `online-login`), it is not whole on disk and there is
+    something to offer: the whole book where the archive's terms allow it, otherwise the images needed that are not
+    on disk yet ([R6.8.1](#R6.8.1)). A book from which the terms allow downloading nothing is never offered;
+  - a Strom archive offers no books ([R7.8](R7-when-the-agent-works.md#R7.8)).
+- **The agent at a task:** at the start of a task the agent learns which other tasks need the same book, so as to do
+  them together: in the brief at the book and in `strom task show` the line "the same book is needed by N more tasks:
+  …". Open ones first, then waiting and parked, at most 10 task numbers, the rest as a count.
+- **Controls:** terminal:
+  - `strom task books`: the books offered; `--min <n>` another threshold only for this listing (1–999), `--all` every
+    book some task needs, `--json`;
+  - `strom task list --book B…`: the tasks of one book, open ones first, then parked and waiting; with `--state` only
+    the tasks in that state;
+  - the menu **What waits**: the key **b** "books with the most tasks N"; when nothing waits, the books show under
+    **Nothing waits.** The screen shows at most 9 books, the others `strom task books`.
+
+  App: Awaiting action, groups by book and **Faster by downloading**
+  ([S4.4.4](S4-research-from-the-app.md#S4.4.4), [S4.4.5](S4-research-from-the-app.md#S4.4.5)).
+- **Why:** images belong to a book, not to a task: one folder and one download serve all the tasks of the book.
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:c533bc0e, 198eed31, b1749433 src/core/books.ts needsBooks (open, doing, parked, waiting; ne proposal ani shorterNote), liveBook (mergedInto, retracted), booksOfTask (where B…, awaits.recordset), bookRows (registered, missing jen s images, need = awaits.images bez registrovaných, řazení tasks ↓, waiting ↓, id), offerable (minTasks, DOWNLOADABLE online-free/online-login, missing !== 0, whole nebo range/selected s needCount), tasksOfBook (open, parked, waiting), sameBookLine (SAME_BOOK_IDS_MAX 10) · src/brief/brief.ts sameBookLine u knihy (ne u odhadnutého místa) · src/commands/tasks.ts task books (--min 1–999, --all, --json), task list --book (task.book), taskDetail řádek book · src/cli/menu-waiting.ts booksHere (actsAsArchive → žádné), showBooks (BOOKS_SHOWN 9), ui.wait.c.books · src/cli/menu.ts (Nic nečeká → showBooks) · assets/lang/cs.json ui.wait.c.books, ui.books.* · CHANGELOG.cs.md 1.35.0 „Knihy s nejvíc úkoly“ · dirigent:spec/105-co-nejvic-pomuze K1.1–K1.3 -->
+
+<a id="R6.8.1"></a>
+### R6.8.1 What can be downloaded from a book: the archive's terms
+
+What the research offers from a book is set by the archive's terms. The list of archives the tree keeps states at an
+archive what a person may download from a book by hand, with a word-for-word quotation of the terms, their page or a
+written answer of the archive.
+
+- **Enforced by the code:**
+
+  | The archive's terms | What is offered |
+  |---|---|
+  | the archive offers the whole book (a button, a ZIP) or its terms allow downloading it | the whole book |
+  | only selected images, never the whole book or a substantial part of it | only the images needed that are not on disk |
+  | nothing | nothing, the book is not offered |
+  | the list does not know the archive | the images needed that are not on disk |
+
+  - the book's address decides, otherwise the address of its archive;
+  - only tasks that wait for images know which images are needed. A book without a waiting task is therefore not
+    offered, except at archives that allow the whole book.
+- **Examples from the list:** the whole book: eBadatelna SOA Praha (registered users may download) and other
+  archives whose terms allow it; only selected images: DigiArchiv SOA Třeboň (a written answer of the
+  archive); nothing: FamilySearch, Archion. Moravský zemský archiv has no entry in
+  the list (the word-for-word quotation is missing): the images needed are offered
+  ([R9.10.1](R9-archives.md#R9.10.1)).
+- **Limits:** the archive's terms come before the offer. The app and the terminal offer the whole book only when the
+  terms say so.
+- **Controls:** terminal: `strom task books --json` (the field `download`: `whole`, `range`, `selected`, `none`, and
+  the quotation `downloadTerms`). App: "Whole book can be downloaded", "Images … can be downloaded", "Selected images
+  … can be downloaded" ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:b1749433 assets/archives.json wholeBook {how offered|allowed|selected|never, says, from terms|termsPage|reply} (ebadatelna.soapraha.cz offered termsPage; digi.ceskearchivy.cz, www.ceskearchivy.cz selected reply; aron./imgx.vychodoceskearchivy.cz, vychodoceskearchivy.cz, www.landesarchiv-nrw.de, apertus.rlp.de allowed terms; agad.gov.pl, agadd*.home.net.pl allowed reply; familysearch.org, www.archion.de never; mza.cz bez wholeBook) · src/core/terms.ts wholeBookFor · src/core/books.ts downloadOf (b.url, jinak repo.url; bez údaje range), offerable · karta prace/1116-vyzkum-105-knihy-a (V4: čísla snímků znají jen čekající úkoly), -b (MZA bez citace, range) · spec 105 rozhodnutí U1 -->
+
+<a id="R6.8.2"></a>
+### R6.8.2 Images saved to the book's folder
+
+Images a person saves into a book's folder in the shared folder are taken in by strom by itself, even when no task
+waits for the book. They belong to the book, and all its tasks then read them from disk.
+
+- **Enforced by the code:**
+  - the folder is the same as when waiting for images, `inbox/<B… book title>` ([R9.6](R9-archives.md#R9.6)). It is
+    created by the link **Open folder** in the app, without a terminal; the bridge watches only folders that already
+    exist;
+  - taking in: at once while the bridge to the Strom app runs (a file only after 3 s without a change); otherwise at
+    the start of the next session; or by the command `strom media add --inbox --waiting`. The folders of waiting
+    tasks first, then the folders of books;
+  - the number of an image is taken **only from the file name** (`40.jpg`), never from the order. A file without a
+    number stays lying in the folder, and the listing says how many stayed; the others are taken in. When no file
+    has a number, nothing is taken in and the research says how to name the files;
+  - JPEG 2000 files (`.jp2`) from the portal of Moravský zemský archiv have the image × 10 in their name: strom
+    counts them back. A number that is not a multiple of 10 is not an image number, and the file stays lying;
+  - a book that is whole on disk disappears from the offer. Files that lie in the folder and have not been taken in
+    yet the app shows as "N files to be taken in".
+- **Limits:** the folders of waiting tasks follow [R9.6](R9-archives.md#R9.6) (there files named otherwise are also
+  numbered by their order).
+- **Controls:** terminal: `strom media add --inbox --waiting`, the folder in `strom task books`. App: **Open folder**
+  at the book ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/inboxwait.ts bookFolders (knihy, které úkoly potřebují, bez čekající složky; nic se nevytváří), imageFileTimesOf (assets/archives.json mza.cz imageFileTimes 10) · edfd2b88 numberBookFiles (jen čísla ze jmen, .jp2 ÷ times, nenásobek → bez čísla, left; žádné číslo → inbox.unnamed), src/commands/media.ts (po čekajících složky knih, book: true, „N file(s) left lying“), src/core/live.ts (live.log) · src/core/inboxwatch.ts (most hlídá i složky knih) · src/commands/links.ts book?tree=&id=&do=folder (mkdir, openForUser, bez terminálu) · src/core/live.ts booksStatus pending · CHANGELOG.cs.md 1.35.0 „Snímky uložené do složky knihy“ · karta prace/1116-vyzkum-105-knihy-c -->
+
+<a id="R6.8.3"></a>
+### R6.8.3 The books' settings
+
+From how many tasks a book is offered, and whether the queue goes on in the same book, each research has its own.
+
+- **Enforced by the code:**
+  - `books.minTasks`: from how many tasks a book is offered ([R6.8](#R6.8)). A whole number from 1 to 999, default 5;
+  - `queue.sameBook`: `no` (default: the agent only gets a sentence about the other tasks of the book) or `yes` (after
+    a session in a book with images on disk the queue takes the next task of the same book first,
+    [R2.2.4](R2-lines-and-queue.md#R2.2.4));
+  - a change in the terminal shows in the app and the other way round (the app writes through the bridge with the same
+    commands).
+- **Controls:** terminal: `strom config set books.minTasks <1–999> --for-tree`,
+  `strom config set queue.sameBook yes|no --for-tree`, the default value `strom config unset … --for-tree`; the menu
+  **Settings › Archives › Books with the most tasks** (**A book offered to download by hand from N tasks**, **The next
+  session in the same book**). App: **Research for this tree › Books** ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/config.ts BOOKS_MIN_TASKS 5, BOOKS_MIN_TASKS_MAX 999, SETTINGS books.minTasks, queue.sameBook (tree, no|yes), validace „whole number from 1 to 999“ · src/cli/menu-settings.ts booksSettings (1 ui.books.min, 2 ui.books.same), položka Archivy ui.archives.books (poslední) · src/core/live.ts POST /books (config set/unset --for-tree), booksSettings · assets/lang/cs.json ui.books.settings.title, ui.books.min, ui.books.same · CHANGELOG.cs.md 1.35.0 „Knihy v aplikaci Strom a jejich nastavení“ -->

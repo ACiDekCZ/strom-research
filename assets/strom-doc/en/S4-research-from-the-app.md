@@ -675,6 +675,9 @@ with in the app and what only in the research is said in [R6.5](R6-awaiting-acti
 - **From app 3.28.0:** in the **Research overview** the section has a search field from 10 items ([S4.4.2](#S4.4.2)).
 - **From app 3.30.0:** in the **Research overview** the section can be sorted from the newest or the oldest items
   ([S4.4.3](#S4.4.3)).
+- **From app 3.30.0 with research 1.35.0:** the items can be grouped by book, with the order **Most tasks** and the
+  subsection **Faster by downloading** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5)); the books' settings in **Research for
+  this tree** ([S4.4.6](#S4.4.6)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -788,13 +791,119 @@ waiting. A newly added item is then at the top and does not get lost among place
   - the order holds also with a search ([S4.4.2](#S4.4.2)) and the kind chips. With groups off, the head and the
     foot of the hypotheses' selection concern the hypotheses of the whole phase;
   - it holds in the overview (as a side panel and over the tree), in the overview window and on a phone. The small
-    panel is unchanged.
+    panel is unchanged (except with a research with books, [S4.4.4](#S4.4.4)).
+- **With a research that knows books** (research 1.35.0): the switch **Groups** is a choice **Archive** | **Book** |
+  **No groups**, and the order has a fourth option **Most tasks** ([S4.4.4](#S4.4.4)).
 - **Controls:** app: **Research overview → Awaiting action**, the button "⇅ Recommended ▾" after the kind chips (in
   the overview window in the section's sticky head) with the menu **Recommended** · **Newest first** · **Oldest
   first**, on a phone the sheet **Order**; the switch **Groups**.
 - **Since:** app 3.30.0
 
 <!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+
+<a id="S4.4.4"></a>
+### S4.4.4 Awaiting action by book
+
+With a research that knows books ([R6.8](R6-awaiting-action.md#R6.8)), the items of **Awaiting action** can be grouped
+by the book they need. At a book it shows how many tasks wait for it, what can be downloaded from it and where to save
+the images.
+
+- **Groups** (a choice next to the order):
+  - **Archive**: groups as before (places, archives, **Other**, [S4.4.3](#S4.4.3));
+  - **Book**: in each phase the groups of books first, then the other items in groups of archives under the
+    subheading **No book** (only when there is some book). The book of an item is the book the item waits for,
+    otherwise the only book the task works in;
+  - **No groups**: one list (only with an order by time, like **Groups** off).
+
+  In the **Recommended** order the choice is **Archive** | **Book**; the groups of books stand by their first item, in
+  an order by time by the time of their first item.
+- **The order Most tasks:** the groups are always books (the choice of groups disappears). The books go from the one
+  most tasks need, on a tie more waiting, then the book's number. Within a book the items are in the **Recommended**
+  order. Items without a book are at the end in groups of archives.
+- **The book's heading:**
+  - the book's title (with the years), the tag **Book**, **new: N** at a collapsed book and the number of items. On
+    hover the title, the archive and how many tasks need the book (of these parked);
+  - the second line: the archive · "3 waiting" · "+M in the queue" (the book's tasks that do not wait) · images ("240
+    images · on disk 12 · missing 228") · "N files to be taken in" (files that lie in the book's folder and have not
+    been taken in yet) · "archive website requires sign-in". In the order **Most tasks** the counts are first and
+    in bold;
+  - actions: what can be downloaded by the archive's terms ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – "Whole book can
+    be downloaded · N images", "Images 31–36 can be downloaded · 6 images" or "Selected images … can be downloaded";
+    **Archive website ↗**; **Open folder** (the book's folder in the shared folder, the research opens it without a
+    terminal and creates it if needed, [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (not on a phone). A click on
+    an action does not collapse the book;
+  - a book the research did not send in the overview of books: only the title (or the book's number), the tag and the
+    count.
+- **Search** ([S4.4.2](#S4.4.2)) also finds items by the title and archive of their book.
+- **Small panel:** the order button and "Groups: Book ▾" with a menu; the book's heading only with the title and
+  "N waiting", the subheading **No book**; the books' actions are only in the **Research overview**. The numbers of
+  items are the same as before.
+- **Limits:**
+  - the choice **Book** and the order **Most tasks** are there only with a research that sends books, and not in a
+    Strom archive or a research waiting for an agent. Otherwise everything looks as before, and a saved choice
+    **Book** or **Most tasks** shows as **Archive** and **Recommended** without being overwritten;
+  - the choice of groups is remembered on this device with the order ([S4.4.3](#S4.4.3)).
+- **Controls:** app: **Research overview → Awaiting action**, next to the order button the switch **Groups**
+  (**Archive** | **Book** | **No groups**); on a phone (also sideways) and in the small panel the button "Groups: Book
+  ▾" with a menu (on a phone a sheet). The order "⇅ … ▾" › **Most tasks**.
+- **Since:** research 1.35.0, app 3.30.0
+
+<!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
+
+<a id="S4.4.5"></a>
+### S4.4.5 Faster by downloading
+
+Books that enough tasks need and that nothing waits for are offered by the app for download separately. Images saved
+to the book's folder are read by the agent from disk, faster and cheaper. Nothing waits for them, and so they are not
+counted among the items.
+
+- **What is there:** books the research offers ([R6.8](R6-awaiting-action.md#R6.8): at least `books.minTasks` tasks,
+  something can be downloaded) and that no task waits for. A book something waits for is in the list as a group
+  ([S4.4.4](#S4.4.4)). The order as **Most tasks**.
+- **The subsection** **Faster by downloading · N books** stands at the bottom under **Awaiting a reply**, collapsed
+  at first:
+  - the sentence "Images saved to the book’s folder are read by the agent from disk – faster and cheaper. Nothing
+    waits for them." and the link **Settings…** (opens **Research for this tree** at the group **Books**,
+    [S4.4.6](#S4.4.6));
+  - a book's row: the title; the archive · "N tasks in the queue" · images · "N files to be taken in" · sign-in; what
+    can be downloaded · **Archive website ↗** · **Open folder**. A click on the title unfolds the details: **Tasks**
+    (of these parked), **Folder**, **Access**;
+  - books beyond the list only as a count: "and N more books are in the research" (the whole list in the terminal,
+    `strom task books`).
+- **Limits:**
+  - only with the kind chip **All** and **Images**; with a search only books whose title or archive matches;
+  - an empty subsection is not shown. It shows also when nothing waits (under the empty section);
+  - it does not count into the section's number, the summary, "Waiting N" or the small panel.
+- **Small panel:** under the list the line "Faster by downloading · N books ⤢", which opens the **Research overview**
+  with the subsection unfolded.
+- **Controls:** app: **Research overview → Awaiting action → Faster by downloading**. Terminal: `strom task books`
+  ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Since:** research 1.35.0, app 3.30.0
+
+<!-- zdroj: app:bc8fc5fd src/research-books.ts urgentBooks (offer && waiting === 0, sortBooksMost), urgentBooksShown (filtr all/images, hledání název a archiv) · src/ui/research-overview-ui.ts appendOverviewBooksOffer (sectionPartOpen urgent, výchozí zavřený; urgentText, Nastavení… → openBooksSettings; more), overviewUrgentBookRow (detail Úkoly, Složka, Přístup) · src/ui/research-ui.ts renderLivePanel panelUrgent (showOverviewBooksOffer) · strings.ts live.books.urgent* · research:b1749433 src/core/live.ts booksStatus (offer, more) · ZADANI_DEV_knihy-ukolu.md §3, §5 -->
+
+<a id="S4.4.6"></a>
+### S4.4.6 Research for this tree › Books
+
+The research's books settings ([R6.8.3](R6-awaiting-action.md#R6.8.3)) can be changed in the app too. They are written
+through the bridge into the research, so they hold just as in the terminal.
+
+- **The group Books** (after **Reading documents**, collapsed with the summary "from 5 tasks · no preference"):
+  - **Book offered from this many tasks**: a whole number from 1 to 999. It is saved on leaving the field or with
+    Enter. Another value shows "A whole number from 1 to 999." and nothing is sent; an empty field returns the saved
+    value. The default value has "(default)", the link **Restore default (5)** returns it;
+  - **Downloaded book first** (a switch): after a task of a book that is on disk the queue takes the next task of the
+    same book, at most 5 sessions in a row ([R2.2.4](R2-lines-and-queue.md#R2.2.4)).
+- **Writing:** right after a change "Saving to the research…", then "The research confirmed. Also applies to changes
+  in the terminal." A busy research: "The research is busy right now; nothing changed." and **Try again**. Without
+  the bridge the group is dimmed. A change from the terminal redraws the dialog, but not the field being typed into.
+- **Limits:** only with a research that sends books; not in a Strom archive or a research waiting for an agent. When
+  the research meanwhile switches to a Strom archive, the group disappears.
+- **Controls:** app: **Research → Other actions → Research for this tree… → Books**, or **Settings…** in **Faster by
+  downloading** ([S4.4.5](#S4.4.5)). Terminal: [R6.8.3](R6-awaiting-action.md#R6.8.3).
+- **Since:** research 1.35.0, app 3.30.0
+
+<!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
 <a id="S4.5"></a>
 ## S4.5 Actions that open the research

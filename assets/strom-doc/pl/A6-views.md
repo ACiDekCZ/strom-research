@@ -7,7 +7,7 @@ Jak aplikacja Strom wybiera, które osoby pokaże, i jak pokazują je poszczegó
 Widok to inne odczytanie **tego samego wyboru osób**. Wybór określa osoba w centrum (ta, którą się kliknie)
 i głębokość **Przodkowie** oraz **Potomkowie**. Rodzina, Potomkowie, Oś czasu i Mapa pokazują to samo otoczenie
 osoby w centrum. Wachlarz liczy przodków i potomków sam według liczby pokoleń ([A6.4](#A6.4)). Tabela pokazuje
-całe drzewo ([A6.7](#A6.7)).
+całe drzewo ([A6.7](#A6.7)), od aplikacji 3.30.0 także tylko jedną listę osób ([A6.7.19](#A6.7.19)).
 Na komputerze każdy widok można otworzyć także w osobnym oknie ([A6.8](#A6.8)).
 
 Widoki: **Rodzina**, **Potomkowie**, **Oś czasu**, **Wachlarz**, **Mapa**, **Tabela**.
@@ -522,6 +522,9 @@ Widok Tabela opiera się na tabeli Ondřeja Chrpy.
     tabela nie pokazuje osoby centralnej i nie zmienia jej podczas pracy;
   - **od aplikacji 3.30.0** Alt+← / Alt+→ w tabeli prowadzą wstecz i naprzód po skokach przez imiona osób
     ([A6.7.16](#A6.7.16)); osoby centralnej i tak nie zmieniają.
+- **Od aplikacji 3.30.0:** **Zakres ▾** zawęża tabelę do listy osób ([A6.7.19](#A6.7.19)), a **⋯** Tabeli (przy każdej
+  szerokości; na komputerze ukryte, dopóki tabela nie ma wierszy) oferuje **Grupuj według ›** ([A6.7.20](#A6.7.20))
+  i **Zapisz jako listę osób…** ([A11.6](A11-lists-of-people.md#A11.6)).
 - **Obsługa:** w przełączniku widoków **Tabela** (za **Mapa**); na telefonie, tablecie i w oknie do 1024 px **Tabela**
   na dolnym pasku ([A9.5](A9-using-the-app.md#A9.5); do aplikacji 3.27.0 **Więcej → Widok → Tabela**). Widok jest zapamiętywany jak pozostałe ([A6.1.1](#A6.1.1)).
 - **Obowiązuje od:** aplikacja 3.27.0
@@ -576,6 +579,12 @@ Kolumny są w grupach. Które są widoczne i w jakiej kolejności, jest części
 - Kolumny **Wiarygodność …** i **Pewność z badania** mają wartość tylko w drzewie z badania
   ([S7](S7-reliability-and-verification.md)).
 - Kolumny **Imię**, **Nr ref.**, **Otwarte pytanie**, **⇄ W innym drzewie** i **Stan osoby** są domyślnie ukryte.
+- **Od aplikacji 3.30.0:** przy związkach w grupie **Dzieci i źródła** kolumna **Zdjęcie** z miniaturą zdjęcia pary,
+  domyślnie ukryta; filtr **ze zdjęciem** / **bez zdjęcia** ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
+- **Od aplikacji 3.30.0:** przy osobach w grupie **Osoba** kolumna **Dodano**, domyślnie ukryta: dzień, w którym osoba
+  doszła do drzewa ([A11.7](A11-lists-of-people.md#A11.7)), w języku aplikacji. Osoba bez tej danej ma „wcześniej”
+  szarą kursywą; komórka jest pusta, więc jest na końcu w obu kierunkach sortowania i znajduje ją **Tylko puste**.
+  Sortuje się według chwili dodania (w obrębie dnia według czasu), filtr daty według roku.
 - **Granice:** zwinięta grupa to wąski pasek; pokazuje najwyższy poziom ustalenia w swoich komórkach. Na telefonie
   przypięte imię i nazwisko jest węższe, a nagłówek można tylko czytać, nie zmieniać.
 - **Obsługa:**
@@ -596,7 +605,7 @@ Kolumny są w grupach. Które są widoczne i w jakiej kolejności, jest części
   nie dało się wykonać, było wyszarzone.
 
 <!-- zdroj: app:4b1373a7 src/ui/table-view/table-state.ts normalizeColumns (zamčený sloupec ukotvený, kdekoli v ukotvené části), columnRun (ukotvená část: [0, pinned − 1]; mimo ni skupina), canMoveColumn, moveColumnBy · table-headmenu.ts headMenuItems (moveLeft/moveRight jen canMove; Skrýt ne u zamčeného; Uvolnit ne u zamčeného) · table-colpanel.ts (šipka jen pro možný posun) · commit 19dbb595 (dřív columnRun locked = 1, disabled/aria-disabled) · dirigent:spec/082-tester-3.28 K2.1 -->
-<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) -->
+<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) · 3.30.0: app:45f7ca2a table-columns.ts:732 uPhoto (group uextra, skrytý) · app:0971647c table-columns.ts addedCell (dateCell, sortKey + zlomek dne, bez údaje emptyCell s textem earlier), sloupec added (group person, nenabízí se ve výchozím stavu), strings.ts table.col.added, table.earlier · e2e/person-list-table.spec.ts, src/__tests__/table-view-added.test.ts -->
 
 <a id="A6.7.3"></a>
 ### A6.7.3 Wartości obliczone i zastępcze
@@ -754,7 +763,9 @@ sobie człowiek.
 | **Wszystkie źródła** (domyślny dla źródeł) | źródła | tytuł, archiwum, księga i sygnatura, online, osób, faktów, przeczytane w badaniu, transkrypcja; sortowanie według tytułu |
 
 - **Widok zapisuje:** typ wierszy, kolumny (kolejność, szerokości, przypięcie, zwinięte grupy), wiersz pokrycia, filtr,
-  sortowanie i rozwinięcie związków. Nie zapisuje wyszukiwania, wyboru wiersza ani przewinięcia.
+  sortowanie i rozwinięcie związków; od aplikacji 3.30.0 także zakres ([A6.7.19](#A6.7.19)) i grupowanie wierszy
+  ze zwiniętymi grupami wierszy ([A6.7.20](#A6.7.20)), przy źródłach nie. Nie zapisuje wyszukiwania, wyboru wiersza
+  ani przewinięcia.
 - Zmieniony widok ma etykietę **zmieniono** i opcje **Zapisz**, **Zapisz jako nowy**, **Odrzuć zmiany**. Widok
   wbudowany się nie zmienia ani nie można go przemianować czy usunąć; jego zmiany można tylko **Zapisz jako nowy**.
   Własny widok: **Zmień nazwę…**, **Usuń** (z potwierdzeniem). Własne widoki są uporządkowane według nazwy.
@@ -792,7 +803,10 @@ anuluje.
   spełnia filtru, zostaje z etykietą „nie pasuje do filtru” do następnej zmiany sortowania, filtru lub widoku. Zmianę
   z badania zgłasza „Badanie zmieniło 3 dane: …”.
 - Jedną daną można edytować także bezpośrednio w komórce ([A6.7.15](#A6.7.15)).
-- **Granice:** w drzewie tylko do odczytu **Edytuj…** nie ma.
+- **Od aplikacji 3.30.0:** menu wiersza (i panel wiersza na telefonie) ma **Dodaj do listy ›** dla osób wiersza, wybór
+  przez kilka wierszy **Dodaj N osób do listy ›**; w zakresie listy stałej także **Usuń z listy**
+  ([A11.5](A11-lists-of-people.md#A11.5), [A6.7.19](#A6.7.19)).
+- **Granice:** w drzewie tylko do odczytu **Edytuj…** nie ma ani **Dodaj do listy ›**.
 - **Obsługa:** przyciski ⌖ ▤ ✎ na końcu wiersza, nad żadnym tekstem komórki: przy myszy pokażą się, gdy wskaźnik
   był na wierszu poza nimi, przy wybranym wierszu także ze wskaźnikiem gdzie indziej; menu wiersza (prawy przycisk;
   także rozwinięcie związków). Stuknięcie palcem w wiersz (telefon, wąskie okno, urządzenie obsługiwane głównie
@@ -835,6 +849,8 @@ Eksport zapisuje tabelę tak, jak jest widoczna, do pliku dla programów arkuszy
   - Liczby, wiek w pełnych latach i kompletność są liczbami (kompletność i pokrycie jako procent); reszta to tekst,
     tak jak pisze go tabela (także „≈ 67”, „28–29”, daty). Tekst nigdy nie staje się formułą. Link źródła jest
     w komórce jako link.
+- **Od aplikacji 3.30.0:** w zakresie listy osób pierwsze kolumny to **#** i przy liście roboczej **Gotowe** (✓)
+  ([A6.7.19](#A6.7.19)); pogrupowana tabela ma przed nimi kolumnę **Grupa** ([A6.7.20](#A6.7.20)).
 - **Plik:** `{drzewo}_{widok}_{RRRR-MM-DD}.csv` lub `.xlsx`, bez znaków diakrytycznych.
 - **Obsługa:** **Eksport ▾** na pasku tabeli (na telefonie w **⋯**): **Format** „CSV · dla Excela i Arkuszy Google”
   lub „XLSX · grupy, zablokowane kolumny, kolory kontroli”, **Wiersze**, **Pobierz CSV** / **Pobierz XLSX**;
@@ -919,13 +935,19 @@ i mówi, ile źródło w drzewie dokumentuje.
 - Cytowania osób zastępczych i źródeł opowieści się nie liczą.
 - **Chipy:** **Bez osoby** (żadna osoba go nie cytuje), **Nieprzeczytane**, **Z transkrypcją**, **Online** (tak samo jak
   kolumna **Online**, także z adresem bez `https://`).
-- **Obsługa:** wbudowany widok **Wszystkie źródła**. Przy wierszu **Otwórz źródło** i **Edytuj…**: oba otwierają
-  menedżera źródeł na tym źródle; **Pokaż w drzewie** tu nie ma.
-- **Granice:** w zablokowanym drzewie źródło tylko się pokazuje, bez edycji.
+- **Obsługa:** wbudowany widok **Wszystkie źródła**. Przy wierszu **Otwórz źródło** i **Edytuj…**; **Pokaż w drzewie**
+  tu nie ma.
+  - **Otwórz źródło** otwiera podgląd źródła (wycinki, cytowania; w nim **Edytuj**, gdy drzewo można zmieniać).
+  - **Edytuj…** (także dwuklik, na telefonie **Edytuj…** w panelu wiersza) otwiera od razu edycję źródła, taką samą
+    jak w menedżerze źródeł.
+  - Po zamknięciu tabela jest taka, jaka była: wybór, przewinięcie i aktywna komórka. Menedżer źródeł (**Akcje →
+    Źródła**) otwiera się dalej z menu.
+  - Do aplikacji 3.29.0 **Otwórz źródło** i **Edytuj…** otwierały menedżera źródeł na tym źródle.
+- **Granice:** w drzewie tylko do odczytu (także zablokowanym) źródło tylko się pokazuje, bez edycji.
 - **Obowiązuje od:** aplikacja 3.27.0; **Sygnatura**, **Folio/strona**, **Skan** i **Dalsza lokalizacja** (wcześniej
-  **Księga, sygnatura, folio**) także 3.27.0
+  **Księga, sygnatura, folio**) także 3.27.0; podgląd źródła i edycja od razu 3.30.0
 
-<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
+<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly; od 3.30.0 app:05e24806: bez edit → showSourceViewer, s edit → showEditSourceModal, jen ke čtení → prohlížeč, focusTableAfterSource) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
 
 <a id="A6.7.12"></a>
 ### A6.7.12 Cytowania i chrzestni w tabeli osób
@@ -948,10 +970,11 @@ Tabela osób ma kolumny, które pokazują, z jakiego źródła jest urodzenie, �
 - **Chrzestni** (grupa **Urodzenie i chrzest**): chrzestni wydarzeń urodzenia i chrztu, każdy raz; osoba drzewa jest
   linkiem. Chrzestny, który się powtarza ([A5.5](A5-tree-check.md#A5.5)), ma w komórce oznaczenie **trop**.
 - **Obsługa:** kolumny włącza się pojedynczo w panelu **Kolumny** ([A6.7.2](#A6.7.2)). Kliknięcie „+N” otwiera dymek
-  **Pozostałe cytowania** (na telefonie panel od dołu); kliknięcie źródła otwiera je w menedżerze źródeł.
-- **Obowiązuje od:** aplikacja 3.27.0
+  **Pozostałe cytowania** (na telefonie panel od dołu); kliknięcie źródła w nim otwiera podgląd źródła (w nim
+  **Edytuj**), do aplikacji 3.29.0 menedżera źródeł. Po zamknięciu tabela jest taka, jaka była.
+- **Obowiązuje od:** aplikacja 3.27.0; podgląd źródła 3.30.0
 
-<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
+<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId (od 3.30.0 prohlížeč pramene, app:05e24806) · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
 
 <a id="A6.7.13"></a>
 ### A6.7.13 Oznaczenia w komórkach
@@ -1297,6 +1320,73 @@ główne; inne okno dostaje jego stan. Podczas śledzenia badania Tabela innego 
 - **Obowiązuje od:** aplikacja 3.30.0
 
 <!-- zdroj: app:34513c94 src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (zrcadlo stavu agenta, Tabulka čte vstup výzkumu z hlavního okna) · src/ui/table-view/table-filter.ts researchFilterIdle (čip výzkumu nebo sloupec fromResearch, bez ctx.research) · table-viewbar.ts .tv-view-note (role status) · index.html .tv-view-note na telefonu jen tečka · d24ff2ec src/ui/table-view/table-ui.ts tableAgentRow (jen windowAgentFollow, tj. další okno; attached posune, attached/paused poznámka, ukotvený ne), tableShowAgentRow, tableAgentFollowChanged · table-grid.ts revealKey(center, smooth, keepSelection), REVEAL_GLIDE_MS 300, prefers-reduced-motion · index.html .tv-row.is-agent (--follow-c1-soft, linka, font-weight 600, bez tv-agent-bar) · src/ui/live-follow-ui.ts (pauza Tabulky: kolečko, posuvník, stisk v řádcích, klávesy; lišta, hlava, stavový řádek ne) · table-bar.ts updateAgentNote (tv-status-agent, aria-live polite, showTemp) · 18dbb544 (poznámka: stav výzkumu a jen ke čtení ustoupí; do 400 px počet, Značky, ◎) · b8d21457 src/windows/window-table-research.ts (TABLE_BUBBLE_ACTION, bubbleRunsHere source / web, hlavní okno ověří nabídku, do popředí ne u terminálu, bez odpovědi čekající položky, při zavřeném hlavním okně vynechané) · strings.ts table.agentRowHidden, table.researchFilterOff, table.link.showTemp · CHANGELOG.cs.md 3.30.0 „Výzkum v Tabulce dalšího okna“, „Sledování agenta ve všech oknech“ · spec 097 K1.2, K3.1, K3.2, O4, dotaz 6 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §5; ZADANI_UIX dotazy 11, 14, 15 · prace/1116-app-097-sledovani-okna -->
+
+<a id="A6.7.19"></a>
+### A6.7.19 Zakres: lista osób
+
+Tabela pokazuje całe drzewo albo jedną listę osób ([A11](A11-lists-of-people.md)). Zakres zawęża wiersze do osób
+listy; filtr, wyszukiwanie i chipy obowiązują wtedy w jego obrębie.
+
+| Wiersze | W zakresie listy |
+|---|---|
+| **Osoby** | osoby listy w kolejności listy; pierwsza kolumna **#** to kolejność, sortowanie „Sortowanie: # (kolejność listy)” |
+| **Związki** | związki, w których co najmniej jeden partner jest na liście; partner spoza listy jest szary |
+| **Wydarzenia** | wydarzenia, w których uczestniczy co najmniej jedna osoba listy |
+| **Źródła** | zawsze całe drzewo: „Źródła nie mają zakresu według listy.” |
+
+- Zakres obowiązuje dla Osób, Związków i Wydarzeń naraz. Liczby w przełączniku **Wiersze** i nad tabelą liczą tylko
+  zakres. Sortowanie według innej kolumny jest możliwe; po powrocie do całego drzewa kolejność listy znika.
+- Zakres nie jest chipem filtru: **Wyczyść filtry** go nie anuluje.
+- **Lista robocza** ([A11.8](A11-lists-of-people.md#A11.8)): za **#** jest kolumna **Gotowe** (pole wyboru, kliknięcie
+  lub spacja), a wśród chipów **Zostało** i **Gotowe** (wykluczają się).
+- **Usuń z listy:** w zakresie listy stałej jest w menu wiersza osoby (także dla wyboru przez kilka wierszy); osoba
+  od razu znika z tabeli, powiadomienie ma **Cofnij**.
+- **Osoba spoza listy:** skok odnośnikiem ([A6.7.16](#A6.7.16)) do osoby, której nie ma na liście, mówi
+  „Nie ma na liście: {imię}.” z **Pokaż tymczasowo** · **Całe drzewo** · ×. Tymczasowo pokazany lub przypięty wiersz
+  ([A6.7.17](#A6.7.17)) spoza listy jest przygaszony, ma **#** „–” i etykietę „poza listą”.
+- **Usunięta lista:** tabela wraca do całego drzewa i mówi „Listy widoku już nie ma, pokazano całe drzewo.”
+- Zakres zapamiętuje się z widokiem ([A6.7.7](#A6.7.7)), z bieżącym stanem tabeli i w nowym oknie (⧉, [A6.8](#A6.8)).
+- **Eksport CSV i XLSX** ([A6.7.9](#A6.7.9)) w zakresie niesie kolumny **#** i **Gotowe** jako pierwsze; **Wszystkie …
+  bez filtru** znaczy wszystkie wiersze zakresu.
+- **Granice:** drzewo bez list ma w **Zakres** tylko **Całe drzewo** i **Zarządzaj listami…**; w drzewie tylko do
+  odczytu nie ma ani **Zarządzaj listami…**, ani **Gotowe** i **Usuń z listy** jako edycji.
+- **Obsługa:** **Zakres ▾** na pasku tabeli: **Całe drzewo**, **Listy osób** (ikona rodzaju, liczba osób, ✓ przy
+  wybranej), **Zarządzaj listami…**. Na komputerze pierwszy rząd paska zostaje jeden: gdzie jest mało miejsca, napis
+  **Zakres** się ukrywa, a całe drzewo jest tylko znakiem. Na telefonie **⋯ → Zakres ›**. Z listy: **Otwórz w tabeli**
+  ([A11.3](A11-lists-of-people.md#A11.3)).
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
+
+<a id="A6.7.20"></a>
+### A6.7.20 Grupuj według
+
+Wiersze tabeli można pogrupować według jednej wartości. Każda grupa ma nagłówek z wartością i liczbą wierszy i można
+ją zwinąć.
+
+| Wiersze | Grupuj według |
+|---|---|
+| **Osoby** | **Linia badania** (tylko drzewo z liniami), **Ród**, **Nazwisko**, **Miejsce urodzenia**, **Wiek urodzenia**, **Dekada urodzenia**, **Pokolenie**, **Płeć**, **Zawód**, **Dodano – dzień** / **miesiąc** / **rok** ([A11.7](A11-lists-of-people.md#A11.7)), **Gotowe / zostało** (tylko w zakresie listy roboczej) |
+| **Związki** | **Dekada ślubu**, **Miejsce ślubu**, **Ród partnerów**, **Liczba dzieci** |
+| **Wydarzenia** | **Rodzaj wydarzenia**, **Dekada**, **Miejsce** |
+| **Źródła** | nie grupują się |
+
+- Grupuje się tylko na jednym poziomie. Grupy idą rosnąco według wartości (czas, liczba, alfabet); wiersze bez wartości
+  są ostatnią grupą „bez wartości” (przy Dodano „wcześniej”). Wewnątrz grupy obowiązuje sortowanie tabeli. Pusta
+  grupa się nie pokazuje.
+- Wiersz z kilkoma wartościami (kilka linii, kilka zawodów, związek dwóch rodów) jest w każdej swojej grupie. Wiersz
+  stanu mówi wtedy „N różnych osób · K grup”.
+- Grupowanie jest widoczne jako chip „Pogrupowano: …” z ×; filtr i wyszukiwanie obowiązują dalej. Skok do wiersza
+  w zwiniętej grupie ją otwiera.
+- Grupowanie zapamiętuje się z widokiem ([A6.7.7](#A6.7.7)). Wartość, której typ wierszy lub drzewo nie oferuje, nie
+  jest używana.
+- **Eksport CSV i XLSX** pogrupowanej tabeli ma pierwszą kolumnę **Grupa**; wiersz w kilku grupach jest tam w każdej.
+- **Obsługa:** **⋯** Tabeli → **Grupuj według ›** (**Bez grupowania** anuluje), **Zwiń wszystkie grupy** /
+  **Rozwiń wszystkie grupy**. Nagłówek grupy: kliknięcie, Enter lub spacja zwija i rozwija, ← zwija, → rozwija.
+  Na telefonie **⋯ → Grupuj według**; nagłówek grupy zostaje na górze przy przewijaniu.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-group.ts PERSON_KEYS, UNION_KEYS, EVENT_KEYS, offeredGroupKeys (lines jen s liniemi, done jen pracovní seznam), multiValued, groupRows (vzestupně, NO_VALUE_KEY poslední, řazení uvnitř, prázdné ne), noValueLabel (lists.earlier), groupKeysOfRow (skok otevře), groupedExportRows · table-export.ts:131 groupCol · table-views.ts:259, :273 view.group, groupingFits · table-ui.ts tableGroupOffer, tableExportGroups, setTableGroupBy, ⋯ Tabulky :3377, telefon :3423 · strings.ts table.groupBy, groupNone, grouped, groupsCollapse, groupsExpand, groupKey.*, groupNoValue, distinct, groupsN, groupCol · app:84331c31 · ZADANI_DEV §10, §11 · spec 084 K4.* -->
 
 <a id="A6.8"></a>
 ## A6.8 Widok w osobnym oknie

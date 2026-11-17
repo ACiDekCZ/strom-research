@@ -100,6 +100,8 @@ before all others.
   words of the task, its book, call number, archive and place, ignoring diacritics), and the text searched for is
   kept nowhere, not even in the bridge's log. In the app: the search field in the **Queue**
   ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
+- **From research 1.35.0:** with `queue.sameBook yes`, between keys 7 and 8 the next task of the book the last
+  session worked in goes first ([R2.2.4](#R2.2.4)).
 
 <!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
@@ -151,6 +153,29 @@ Material (a task of the kind material) and a task in progress never wait.
 - **Since:** research 1.9.0 (off the tree); the other reasons by the versions in the rules referred to.
 
 <!-- zdroj: research:src/core/queue.ts:205-210 waits · src/core/kin.ts:98 offTree · assets/method/core.md „The tree first, then above it“ -->
+
+<a id="R2.2.4"></a>
+### R2.2.4 The next task of the same book: `queue.sameBook`
+
+With the choice `queue.sameBook yes`, after a session in a book that has images on disk the queue takes the next task
+of the same book first. The images are already downloaded and the agent reads them from disk.
+
+- **Enforced by the code:**
+  - the book of the last session: the book of its task that has at least one image on disk;
+  - the tasks of the same book that can be done now go first (not waiting for images downloaded by a person). Not
+    local history tasks;
+  - at most 5 sessions in a row in one book, then the queue's own order again;
+  - in the order of [R2.2](#R2.2) this is a key between 7 and 8: a task in progress, a manual choice, work off the
+    lines, short work and a story when due still go first. In the strategy **priority** it comes only after the
+    order of the lines;
+  - `no` (default): the order does not change. The agent only gets a sentence saying which other tasks need the book
+    ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Controls:** terminal: `strom config set queue.sameBook yes|no --for-tree`, the menu **Settings › Archives › Books
+  with the most tasks**; `strom task list` gives the reason at such a task ("the same book as the last session …").
+  App: **Research for this tree › Books › Downloaded book first** ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/queue.ts SAME_BOOK_MAX 5, sameBookTurn (ended[0], kniha se snímky: setsWithImages count > 0; inRow < 5), rankTasks inBook (!blocked, !forHistory), cmp (za a.blocked a lineRank u priority, před score), why „the same book as the last session …“ · src/core/mediaindex.ts setsWithImages · src/core/config.ts queue.sameBook (no výchozí) · CHANGELOG.cs.md 1.35.0 -->
 
 <a id="R2.3"></a>
 ## R2.3 Work off the lines

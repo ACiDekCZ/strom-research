@@ -39,8 +39,11 @@ lost silently.
   **Attach media files…** ([A2.1.1](A2-loading-a-family-tree.md#A2.1.1)).
 - **Controls:** **Import → Import GEDCOM**; the import summary (the window **GEDCOM conversion**).
 - **Since:** app 3.26.0 (IDs, media records, own tags, the Windows-1250 encoding), research 1.30.0
+- **From app 3.30.0:** a family's photo is not only counted: the first picture of a family contained in the file is
+  the couple's photo in the tree, and a family photo referenced by a path is offered for linking among the unions
+  ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 
-<!-- zdroj: app:1c9b2392 src/ged-parser.ts (původní ID, OBJE přes odkazy, _XXX úrovně 1, výřezy MyHeritage evidenční), docs/GEDCOM-IMPORT.md (kódování) · strings.ts gedcom.keptTags, encodingLabel, encodingSample, attachMedia · dirigent:prace/1108-app-066-u8/karta.md Výsledek (f9735c6a, d2551dbc, 281e19e1; FAM se podle ID nepárují; fotka rodiny přes OBJE jen spočítaná) · prace/1108-app-066-u1u2 · research:v1.30.0 src/core/import.ts candidates, notTaken -->
+<!-- zdroj: app:1c9b2392 src/ged-parser.ts (původní ID, OBJE přes odkazy, _XXX úrovně 1, výřezy MyHeritage evidenční), docs/GEDCOM-IMPORT.md (kódování) · strings.ts gedcom.keptTags, encodingLabel, encodingSample, attachMedia · dirigent:prace/1108-app-066-u8/karta.md Výsledek (f9735c6a, d2551dbc, 281e19e1; FAM se podle ID nepárují; fotka rodiny přes OBJE jen spočítaná) · prace/1108-app-066-u1u2 · research:v1.30.0 src/core/import.ts candidates, notTaken · 3.30.0: app:68c232ad ged-parser.ts první obrázek rodiny → Partnership.photo, ExternalMediaRef.partnershipId -->
 
 <a id="S6.2"></a>
 ## S6.2 Reliability marks: where a fact comes from
@@ -221,6 +224,10 @@ share with others**. By that it protects living people and returns program IDs.
 - **From app 3.27.0:** a family's photo from another program's file goes back at the family in **Back to
   {program}** as the file wrote it; a reference to a media record goes back as a photo written directly at the family
   ([A2.2](A2-loading-a-family-tree.md#A2.2)).
+- **From app 3.30.0:** a picture of a family that became the couple's photo at the import and a family photo linked
+  from a file do not come back in **Back to {program}**: that export has no photos. The other pictures of the family
+  come back as in 3.27.0. **To share with others** writes the couple's photo at the family as `OBJE` when the content
+  of the export has photos ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 
 <!-- zdroj: app:7cf409bd src/ged-exporter.ts backSourceRecordCount (sourceGroups: jeden záznam za skupinu) · src/ui/export-gedcom-ui.ts backSources → exportGed.sumSources · e2e/export-gedcom-back.spec.ts · app:1c9b2392 src/ged-exporter.ts backToXrefs (původní xref, ID řádky úrovně 1, REFN + TYPE {prog} xref, _XXX téhož programu, jinak _STROM_IMPORT / _STROM_XID) · src/ui/import-export.ts:267 keepDeceasedSources: true (jen GEDCOM) · strings.ts exportGed.* -->
 

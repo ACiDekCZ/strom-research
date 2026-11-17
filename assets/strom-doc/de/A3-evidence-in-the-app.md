@@ -251,8 +251,12 @@ Ausschnitt des Eintrags ausschneiden ([A3.3](#A3.3)).
 - **Bedienung:** Bearbeiten der Person, Abschnitt **Anhänge** → **Anhang hinzufügen**; der Abschnitt ist mit
   **Erweiterte Felder** zu sehen oder wenn die Person Anhänge hat.
 - **Gilt seit:** App 1.4.0; TIFF, HEIC und große PDF für die Forschung 3.9.0
+- **Ab App 3.30.0:** Das ganze Foto, aus dem das Porträt der Person stammt, ist ein Anhang mit der Markierung
+  **Porträt**. Er entsteht von selbst, wenn ein neues Foto für das Porträt gewählt wird. Ein anderer Bildanhang bietet
+  **Als Porträt…** (in den Materialien und im Betrachter **Als Porträt verwenden…**). Das Löschen des Anhangs mit der
+  Markierung Porträt lässt das Porträt bestehen ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originale für die Forschung

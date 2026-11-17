@@ -139,7 +139,7 @@ test("/status?parts=1 leaves out the parts that weigh, says their revs; GET /sta
     const lite = await json(`${info.url}/status?poll=1&parts=1`);
     for (const f of ["waiting", "queue", "queueMore", "queueCounts", "offLine", "researches"]) assert.equal(lite[f], undefined, f);
     assert.equal(lite.head, full.head);
-    assert.deepEqual(Object.keys(lite.parts).sort(), ["offLine", "queue", "researches", "waiting"]);
+    assert.deepEqual(Object.keys(lite.parts).sort(), ["books", "offLine", "queue", "researches", "waiting"]);
     for (const rev of Object.values(lite.parts)) assert.match(rev as string, /^[0-9a-f]{16}$/u);
     // each part as the whole /status carries it, with the rev the light one said
     const waiting = await json(`${info.url}/status/waiting`);

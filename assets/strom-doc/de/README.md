@@ -39,6 +39,8 @@ dauerhaft.
 - [A8 Zusammenführen von Stammbäumen](A8-merging-trees.md): Zusammenführen einer Datei, eines Stammbaums oder einer Ansicht in einen neuen Stammbaum, Abgleich der Personen
 - [A9 Bedienung der App](A9-using-the-app.md): wo was ist, lesbare Namen der Bedienelemente, Bearbeiten beim Verfolgen der Forschung, der Agent in der App, die untere Leiste auf Telefon und Tablet
 - [A10 Ein Ereignis mehrerer Personen](A10-shared-events.md): das gemeinsame Ereignis eines Haushalts (Gemeinsam mit), Angleichen, Zu einem Ereignis verbinden, Paten und Zeugen im Leben einer Person, Zusammenführen und ältere Stammbäume
+- [A11 Personenlisten](A11-lists-of-people.md): feste, automatische Liste und Arbeitsliste, Regeln, Einfrieren, manuelle Reihenfolge, Zur Personenliste hinzufügen, Als Personenliste speichern, das Hinzufügedatum, Erledigtes abhaken, Export einer Liste
+- [A12 Porträt und Paarfoto](A12-portrait-and-couple-photo.md): der Editor für den Porträtausschnitt, das Original mit der Markierung Porträt, Ausschnitt bearbeiten, Als Porträt…, das Paarfoto und Porträts daraus, wo sie erscheinen, Export, GEDCOM und Datenversion 23
 
 ## S App und Forschung zusammen
 

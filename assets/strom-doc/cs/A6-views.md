@@ -5,7 +5,8 @@ Jak aplikace Strom vybírá, které osoby ukáže, a jak je ukazují jednotlivé
 
 Pohled je jiné čtení **téhož výběru osob**. Výběr určuje ústřední osoba (ta, na kterou se klikne) a hloubka
 **Předci** a **Potomci**. Rodina, Potomci, Časová osa a Mapa ukazují stejné okolí ústřední osoby. Vějíř si
-předky a potomky počítá sám podle počtu generací ([A6.4](#A6.4)). Tabulka ukazuje celý strom ([A6.7](#A6.7)).
+předky a potomky počítá sám podle počtu generací ([A6.4](#A6.4)). Tabulka ukazuje celý strom ([A6.7](#A6.7)),
+od aplikace 3.30.0 i jen jeden seznam osob ([A6.7.19](#A6.7.19)).
 Na počítači jde každý pohled otevřít i v samostatném okně ([A6.8](#A6.8)).
 
 Pohledy: **Rodina**, **Potomci**, **Časová osa**, **Vějíř**, **Mapa**, **Tabulka**.
@@ -492,6 +493,9 @@ Pohled Tabulka vychází z tabulky od Ondřeje Chrpy.
     osobu neukazuje ani během práce nemění;
   - **od aplikace 3.30.0** vedou Alt+← / Alt+→ v tabulce zpět a vpřed po skocích přes jména osob
     ([A6.7.16](#A6.7.16)); ústřední osobu ani tak nemění.
+- **Od aplikace 3.30.0:** **Rozsah ▾** zúží tabulku na seznam osob ([A6.7.19](#A6.7.19)) a **⋯** Tabulky (na každé
+  šířce; na počítači skryté, dokud tabulka nemá řádky) nabízí **Seskupit podle ›** ([A6.7.20](#A6.7.20)) a **Uložit
+  jako seznam osob…** ([A11.6](A11-lists-of-people.md#A11.6)).
 - **Ovládání:** v liště pohledů **Tabulka** (za **Mapa**); na telefonu, tabletu a v okně do 1024 px **Tabulka** na dolní
   liště ([A9.5](A9-using-the-app.md#A9.5); do aplikace 3.27.0 **Více → Pohled → Tabulka**).
   Pohled se pamatuje jako ostatní ([A6.1.1](#A6.1.1)).
@@ -547,6 +551,12 @@ Sloupce jsou ve skupinách. Které jsou vidět a v jakém pořadí, je část po
 - Sloupce **Spolehlivost …** a **Jistota z výzkumu** mají hodnotu jen ve stromu z výzkumu
   ([S7](S7-reliability-and-verification.md)).
 - Sloupce **Křestní jméno**, **Ref. číslo**, **Otevřená otázka**, **⇄ V jiném stromu** a **Stav osoby** jsou ve výchozím stavu skryté.
+- **Od aplikace 3.30.0:** u svazků ve skupině **Děti a prameny** sloupec **Fotka** s náhledem fotky svazku, ve
+  výchozím stavu skrytý; filtr **s fotkou** / **bez fotky** ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
+- **Od aplikace 3.30.0:** u osob ve skupině **Osoba** sloupec **Přidáno**, ve výchozím stavu skrytý: den, kdy osoba
+  přibyla do stromu ([A11.7](A11-lists-of-people.md#A11.7)), v jazyce aplikace. Osoba bez údaje má „dříve“ šedou
+  kurzívou; buňka je prázdná, takže je na konci v obou směrech řazení a najde ji **Jen prázdné**. Řadí se podle
+  okamžiku přidání (v rámci dne podle času), filtr data podle roku.
 - **Hranice:** sbalená skupina je úzký pruh; ukazuje nejvyšší úroveň nálezu ve svých buňkách. Na telefonu je
   ukotvené jméno užší a hlavičku jde jen číst, ne měnit.
 - **Ovládání:**
@@ -566,7 +576,7 @@ Sloupce jsou ve skupinách. Které jsou vidět a v jakém pořadí, je část po
   posunout, ukotvené sloupce se posouvaly jen v rámci své skupiny a posun, který nešel, byl zašedlý.
 
 <!-- zdroj: app:4b1373a7 src/ui/table-view/table-state.ts normalizeColumns (zamčený sloupec ukotvený, kdekoli v ukotvené části), columnRun (ukotvená část: [0, pinned − 1]; mimo ni skupina), canMoveColumn, moveColumnBy · table-headmenu.ts headMenuItems (moveLeft/moveRight jen canMove; Skrýt ne u zamčeného; Uvolnit ne u zamčeného) · table-colpanel.ts (šipka jen pro možný posun) · commit 19dbb595 (dřív columnRun locked = 1, disabled/aria-disabled) · dirigent:spec/082-tester-3.28 K2.1 -->
-<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) -->
+<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) · 3.30.0: app:45f7ca2a table-columns.ts:732 uPhoto (group uextra, skrytý) · app:0971647c table-columns.ts addedCell (dateCell, sortKey + zlomek dne, bez údaje emptyCell s textem earlier), sloupec added (group person, nenabízí se ve výchozím stavu), strings.ts table.col.added, table.earlier · e2e/person-list-table.spec.ts, src/__tests__/table-view-added.test.ts -->
 
 <a id="A6.7.3"></a>
 ### A6.7.3 Dopočtené a náhradní hodnoty
@@ -714,7 +724,8 @@ uloží člověk.
 | **Všechny prameny** (výchozí pro prameny) | prameny | titul, archiv, kniha a signatura, online, osob, údajů, přečteno výzkumem, přepis; řazeno podle titulu |
 
 - **Pohled ukládá:** typ řádků, sloupce (pořadí, šířky, ukotvení, sbalené skupiny), řádek pokrytí, filtr, řazení
-  a rozbalení svazků. Neukládá hledání, výběr řádku ani posun.
+  a rozbalení svazků; od aplikace 3.30.0 i rozsah ([A6.7.19](#A6.7.19)) a seskupení řádků se sbalenými
+  skupinami řádků ([A6.7.20](#A6.7.20)), u pramenů ne. Neukládá hledání, výběr řádku ani posun.
 - Změněný pohled má štítek **změněno** a volby **Uložit**, **Uložit jako nový**, **Zahodit změny**. Vestavěný
   pohled se nemění ani nejde přejmenovat či smazat; jeho změny jdou jen **Uložit jako nový**. Vlastní pohled:
   **Přejmenovat…**, **Smazat** (s potvrzením). Vlastní pohledy jsou seřazené podle jména.
@@ -750,7 +761,10 @@ Klik vybere řádek (i podřádek svazku); šipky, Page Up/Down a Ctrl+Home/End 
   nevyhovuje, zůstane se štítkem „nevyhovuje filtru“ do další změny řazení, filtru nebo pohledu. Změnu z výzkumu
   ohlásí „Výzkum změnil 3 údaje: …“.
 - Jeden údaj jde upravit i přímo v buňce ([A6.7.15](#A6.7.15)).
-- **Hranice:** ve stromu jen ke čtení **Upravit…** není.
+- **Od aplikace 3.30.0:** nabídka řádku (a panel řádku na telefonu) má **Přidat do seznamu ›** pro osoby řádku, výběr
+  přes více řádků **Přidat N osob do seznamu ›**; v rozsahu pevného seznamu i **Odebrat ze seznamu**
+  ([A11.5](A11-lists-of-people.md#A11.5), [A6.7.19](#A6.7.19)).
+- **Hranice:** ve stromu jen ke čtení **Upravit…** není, ani **Přidat do seznamu ›**.
 - **Ovládání:** tlačítka ⌖ ▤ ✎ na konci řádku, nad žádným textem buňky: u myši se ukážou, až ukazatel stál na
   řádku mimo ně, u vybraného řádku i s ukazatelem jinde; nabídka řádku (pravé tlačítko; i rozbalení svazků).
   Klepnutí prstem na řádek (telefon, úzké okno, zařízení ovládané hlavně dotykem) otevře panel s akcemi a se svazky („Svazek 1: … ·
@@ -790,6 +804,8 @@ Export uloží tabulku, jak je vidět, do souboru pro tabulkové programy: **CSV
     ani komentář nemají.
   - Počty, věky v celých letech a úplnost jsou čísla (úplnost a pokrytí jako procento); ostatní je text, jak ho píše
     tabulka (i „≈ 67“, „28–29“, data). Text se nikdy nestane vzorcem. Odkaz pramene je v buňce jako odkaz.
+- **Od aplikace 3.30.0:** v rozsahu seznamu osob jsou první sloupce **#** a u pracovního seznamu **Hotovo** (✓)
+  ([A6.7.19](#A6.7.19)); seskupená tabulka má před nimi sloupec **Skupina** ([A6.7.20](#A6.7.20)).
 - **Soubor:** `{strom}_{pohled}_{RRRR-MM-DD}.csv` nebo `.xlsx`, bez diakritiky.
 - **Ovládání:** **Export ▾** v liště tabulky (na telefonu v **⋯**): **Formát** „CSV · pro Excel a Tabulky Google“ nebo
   „XLSX · skupiny, ukotvení, barvy kontrol“, **Řádky**, **Stáhnout CSV** / **Stáhnout XLSX**; oznámení „Staženo: …“
@@ -871,13 +887,19 @@ kolik toho pramen ve stromu dokládá.
 - Citace zástupných osob a pramenů příběhu se nepočítají.
 - **Čipy:** **Bez osoby** (žádná osoba ho necituje), **Nepřečteno**, **S přepisem**, **Online** (stejně jako sloupec
   **Online**, i s adresou bez `https://`).
-- **Ovládání:** vestavěný pohled **Všechny prameny**. U řádku **Otevřít pramen** a **Upravit…**: obojí otevře správce
-  pramenů na tom pramenu; **Ukázat ve stromu** tu není.
-- **Hranice:** v zamčeném stromu se pramen jen ukáže, bez úprav.
+- **Ovládání:** vestavěný pohled **Všechny prameny**. U řádku **Otevřít pramen** a **Upravit…**; **Ukázat ve stromu**
+  tu není.
+  - **Otevřít pramen** otevře prohlížeč pramene (výřezy, citace; v něm **Upravit**, když jde strom měnit).
+  - **Upravit…** (i dvojklik, na telefonu **Upravit…** v panelu řádku) otevře rovnou úpravu pramene, stejnou jako ve
+    správě pramenů.
+  - Po zavření je tabulka, jak byla: výběr, posun i aktivní buňka. Správa pramenů (**Akce → Prameny**) se otevírá
+    dál z menu.
+  - Do aplikace 3.29.0 otevíralo **Otevřít pramen** i **Upravit…** správce pramenů na tom pramenu.
+- **Hranice:** ve stromu jen ke čtení (i zamčeném) se pramen jen ukáže, bez úprav.
 - **Platí od:** aplikace 3.27.0; **Signatura**, **Folium/strana**, **Snímek** a **Další umístění** (dřív **Kniha,
-  signatura, folio**) také 3.27.0
+  signatura, folio**) také 3.27.0; prohlížeč pramene a úprava rovnou 3.30.0
 
-<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
+<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly; od 3.30.0 app:05e24806: bez edit → showSourceViewer, s edit → showEditSourceModal, jen ke čtení → prohlížeč, focusTableAfterSource) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
 
 <a id="A6.7.12"></a>
 ### A6.7.12 Citace a kmotři v tabulce osob
@@ -900,10 +922,11 @@ Tabulka osob má sloupce, které ukážou, z jakého pramene je narození, sňat
 - **Kmotři** (skupina **Narození a křest**): kmotři událostí narození a křtu, každý jednou; osoba stromu je odkaz.
   Kmotr, který se opakuje ([A5.5](A5-tree-check.md#A5.5)), má v buňce značku **stopa**.
 - **Ovládání:** sloupce se zapínají po jednom v panelu **Sloupce** ([A6.7.2](#A6.7.2)). Klik na „+N“ otevře bublinu
-  **Další citace** (na telefonu panel zdola); klik na pramen ho otevře ve správci pramenů.
-- **Platí od:** aplikace 3.27.0
+  **Další citace** (na telefonu panel zdola); klik na pramen v ní otevře prohlížeč pramene (v něm **Upravit**), do
+  aplikace 3.29.0 správce pramenů. Po zavření je tabulka, jak byla.
+- **Platí od:** aplikace 3.27.0; prohlížeč pramene 3.30.0
 
-<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
+<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId (od 3.30.0 prohlížeč pramene, app:05e24806) · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
 
 <a id="A6.7.13"></a>
 ### A6.7.13 Značky v buňkách
@@ -1223,6 +1246,71 @@ další okno dostává jeho stav. Při sledování výzkumu Tabulka dalšího ok
 - **Platí od:** aplikace 3.30.0
 
 <!-- zdroj: app:34513c94 src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (zrcadlo stavu agenta, Tabulka čte vstup výzkumu z hlavního okna) · src/ui/table-view/table-filter.ts researchFilterIdle (čip výzkumu nebo sloupec fromResearch, bez ctx.research) · table-viewbar.ts .tv-view-note (role status) · index.html .tv-view-note na telefonu jen tečka · d24ff2ec src/ui/table-view/table-ui.ts tableAgentRow (jen windowAgentFollow, tj. další okno; attached posune, attached/paused poznámka, ukotvený ne), tableShowAgentRow, tableAgentFollowChanged · table-grid.ts revealKey(center, smooth, keepSelection), REVEAL_GLIDE_MS 300, prefers-reduced-motion · index.html .tv-row.is-agent (--follow-c1-soft, linka, font-weight 600, bez tv-agent-bar) · src/ui/live-follow-ui.ts (pauza Tabulky: kolečko, posuvník, stisk v řádcích, klávesy; lišta, hlava, stavový řádek ne) · table-bar.ts updateAgentNote (tv-status-agent, aria-live polite, showTemp) · 18dbb544 (poznámka: stav výzkumu a jen ke čtení ustoupí; do 400 px počet, Značky, ◎) · b8d21457 src/windows/window-table-research.ts (TABLE_BUBBLE_ACTION, bubbleRunsHere source / web, hlavní okno ověří nabídku, do popředí ne u terminálu, bez odpovědi čekající položky, při zavřeném hlavním okně vynechané) · strings.ts table.agentRowHidden, table.researchFilterOff, table.link.showTemp · CHANGELOG.cs.md 3.30.0 „Výzkum v Tabulce dalšího okna“, „Sledování agenta ve všech oknech“ · spec 097 K1.2, K3.1, K3.2, O4, dotaz 6 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §5; ZADANI_UIX dotazy 11, 14, 15 · prace/1116-app-097-sledovani-okna -->
+
+<a id="A6.7.19"></a>
+### A6.7.19 Rozsah: seznam osob
+
+Tabulka ukazuje celý strom, nebo jeden seznam osob ([A11](A11-lists-of-people.md)). Rozsah zúží řádky na osoby
+seznamu; filtr, hledání a čipy pak platí uvnitř něj.
+
+| Řádky | V rozsahu seznamu |
+|---|---|
+| **Osoby** | osoby seznamu v pořadí seznamu; první sloupec **#** je pořadí, řazení „Řazení: # (pořadí seznamu)“ |
+| **Svazky** | svazky, kde je aspoň jeden partner v seznamu; partner mimo seznam je šedý |
+| **Události** | události, kterých se účastní aspoň jedna osoba seznamu |
+| **Prameny** | vždy celý strom: „Prameny nemají rozsah podle seznamu.“ |
+
+- Rozsah platí pro Osoby, Svazky a Události najednou. Počty v přepínači **Řádky** a nad tabulkou počítají jen
+  rozsah. Řazení podle jiného sloupce jde; po návratu na celý strom pořadí seznamu zmizí.
+- Rozsah není čip filtru: **Zrušit filtry** ho nezruší.
+- **Pracovní seznam** ([A11.8](A11-lists-of-people.md#A11.8)): za **#** je sloupec **Hotovo** (zaškrtávátko, klik nebo
+  mezerník) a mezi čipy **Zbývá** a **Hotovo** (vylučují se).
+- **Odebrat ze seznamu:** v rozsahu pevného seznamu je v nabídce řádku osoby (i pro výběr přes více řádků); osoba
+  z tabulky hned zmizí, oznámení má **Zpět**.
+- **Osoba mimo seznam:** skok na osobu odkazem ([A6.7.16](#A6.7.16)) na osobu, která v seznamu není, řekne
+  „Osoba není v seznamu: {jméno}.“ s **Zobrazit dočasně** · **Celý strom** · ×. Dočasně ukázaný nebo ukotvený řádek
+  ([A6.7.17](#A6.7.17)) mimo seznam je znevýrazněný, má **#** „–“ a štítek „mimo seznam“.
+- **Smazaný seznam:** tabulka se vrátí na celý strom a řekne „Seznam pohledu už není, ukazuje se celý strom.“
+- Rozsah se pamatuje s pohledem ([A6.7.7](#A6.7.7)), s rozpracovaným stavem tabulky a v novém okně (⧉, [A6.8](#A6.8)).
+- **Export CSV a XLSX** ([A6.7.9](#A6.7.9)) v rozsahu nese sloupce **#** a **Hotovo** první; **Všechny … bez filtru**
+  znamená všechny řádky rozsahu.
+- **Hranice:** strom bez seznamů má v **Rozsah** jen **Celý strom** a **Spravovat seznamy…**; ve stromu jen ke čtení
+  není ani **Spravovat seznamy…**, ani **Hotovo** a **Odebrat ze seznamu** jako úpravy.
+- **Ovládání:** **Rozsah ▾** v liště tabulky: **Celý strom**, **Seznamy osob** (ikona druhu, počet osob, ✓ u zvoleného),
+  **Spravovat seznamy…**. Na počítači zůstane první řádek lišty jeden: kde je místa málo, nápis **Rozsah** se
+  skryje a celý strom je jen značka. Na telefonu **⋯ → Rozsah ›**. Ze seznamu: **Otevřít v Tabulce**
+  ([A11.3](A11-lists-of-people.md#A11.3)).
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
+
+<a id="A6.7.20"></a>
+### A6.7.20 Seskupit podle
+
+Řádky tabulky jdou seskupit podle jedné hodnoty. Každá skupina má záhlaví s hodnotou a počtem řádků a jde sbalit.
+
+| Řádky | Seskupit podle |
+|---|---|
+| **Osoby** | **Linie výzkumu** (jen strom s liniemi), **Rod**, **Příjmení**, **Místo narození**, **Století narození**, **Desetiletí narození**, **Generace**, **Pohlaví**, **Povolání**, **Přidáno – den** / **měsíc** / **rok** ([A11.7](A11-lists-of-people.md#A11.7)), **Hotovo / zbývá** (jen v rozsahu pracovního seznamu) |
+| **Svazky** | **Desetiletí sňatku**, **Místo sňatku**, **Rod partnerů**, **Počet dětí** |
+| **Události** | **Druh události**, **Desetiletí**, **Místo** |
+| **Prameny** | neseskupují se |
+
+- Seskupuje se jen jednou úrovní. Skupiny jdou vzestupně podle hodnoty (čas, číslo, abeceda); řádky bez hodnoty
+  jsou poslední skupina „bez hodnoty“ (u Přidáno „dříve“). Uvnitř skupiny platí řazení tabulky. Prázdná skupina
+  se neukáže.
+- Řádek s více hodnotami (více linií, více povolání, svazek dvou rodů) je v každé své skupině. Stavový řádek pak
+  řekne „N různých osob · K skupin“.
+- Seskupení je vidět jako čip „Seskupeno: …“ s ×; filtr a hledání platí dál. Skok na řádek ve sbalené skupině ji
+  otevře.
+- Seskupení se pamatuje s pohledem ([A6.7.7](#A6.7.7)). Hodnota, kterou typ řádků nebo strom nenabízí, se nepoužije.
+- **Export CSV a XLSX** seskupené tabulky má první sloupec **Skupina**; řádek ve více skupinách je tam v každé.
+- **Ovládání:** **⋯** Tabulky → **Seskupit podle ›** (**Bez seskupení** zruší), **Sbalit všechny skupiny** /
+  **Rozbalit všechny skupiny**. Záhlaví skupiny: klik, Enter nebo mezerník sbalí a rozbalí, ← sbalí, → rozbalí.
+  Na telefonu **⋯ → Seskupit podle**; záhlaví skupiny zůstává nahoře při posunu.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-group.ts PERSON_KEYS, UNION_KEYS, EVENT_KEYS, offeredGroupKeys (lines jen s liniemi, done jen pracovní seznam), multiValued, groupRows (vzestupně, NO_VALUE_KEY poslední, řazení uvnitř, prázdné ne), noValueLabel (lists.earlier), groupKeysOfRow (skok otevře), groupedExportRows · table-export.ts:131 groupCol · table-views.ts:259, :273 view.group, groupingFits · table-ui.ts tableGroupOffer, tableExportGroups, setTableGroupBy, ⋯ Tabulky :3377, telefon :3423 · strings.ts table.groupBy, groupNone, grouped, groupsCollapse, groupsExpand, groupKey.*, groupNoValue, distinct, groupsN, groupCol · app:84331c31 · ZADANI_DEV §10, §11 · spec 084 K4.* -->
 
 <a id="A6.8"></a>
 ## A6.8 Pohled v samostatném okně

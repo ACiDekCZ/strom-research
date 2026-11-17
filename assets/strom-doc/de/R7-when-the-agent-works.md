@@ -316,8 +316,10 @@ nicht angemeldet – einmal … starten und anmelden**.
 
   Eine Antwort, aus der die Anmeldung nicht hervorgeht, entscheidet nichts. Terminal: `claude`, dann `/login`;
   `strom doctor`.
+- **Ab Forschung 1.35.0:** eine Anmeldeprüfung, die nicht innerhalb von 5 s antwortet, entscheidet nichts und beendet
+  alles, was sie gestartet hat, auch unter Windows, wo das Programm des Agenten früher weiterlaufen konnte.
 
-<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 -->
+<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 · 1.35.0: research:bb79ee54 src/core/claudedir.ts AUTH_STATUS_MS 5000, claudeLoggedIn přes src/core/runsync.ts runSync (win32 taskkill /T /F, jinde skupina procesů) · CHANGELOG.cs.md 1.35.0 „Windows: po kontrole přihlášení nic neběží dál“ -->
 
 <a id="R7.8"></a>
 ## R7.8 Strom-Archiv: eine Forschung, an der kein Agent arbeitet

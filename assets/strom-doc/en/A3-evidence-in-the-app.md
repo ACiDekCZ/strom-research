@@ -232,8 +232,12 @@ from an image attachment ([A3.3](#A3.3)).
 - **Controls:** editing a person, section **Attachments** → **Add attachment**; the section is shown with **Advanced
   fields** or when the person has attachments.
 - **Since:** app 1.4.0; TIFF, HEIC and large PDF for the research 3.9.0
+- **From app 3.30.0:** the whole photo the person's portrait is made from is an attachment tagged **Portrait**. It
+  is made by itself when a new photo is chosen for the portrait. Another image attachment offers **As portrait…**
+  (in the materials and the viewer **Use as portrait…**). Deleting the attachment tagged Portrait leaves the portrait
+  ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originals for the research

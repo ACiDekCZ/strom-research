@@ -47,7 +47,7 @@ import { expandHome, isolated, ownCommand } from "../core/paths.ts";
 import { pathOf, startAgain } from "../core/userpath.ts";
 import { offerAgent, offerAgentCli } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
-import { waitingCount, waitingForYou } from "./menu-waiting.ts";
+import { showBooks, waitingCount, waitingForYou } from "./menu-waiting.ts";
 import { waitingLine } from "../core/waiting.ts";
 import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { offerHistory, settingsMenu } from "./menu-settings.ts";
@@ -385,6 +385,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           act: async () => {
             if (waiting) return waitingForYou(ctx, run, lang, root!);
             out(t("ui.waiting.none"));
+            // nothing waits, yet some books are worth downloading by hand: shown (an overview, Enter after it)
+            if (await showBooks(ctx, lang, root!)) return;
             await pause(lang);
           },
         },

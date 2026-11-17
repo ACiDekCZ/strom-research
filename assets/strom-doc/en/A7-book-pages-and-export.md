@@ -65,6 +65,8 @@ is called **Privacy of living people**.
   book, the pages and the person page take sources away only from living people; a source cited only for living
   people drops out.
 - **Since:** app 1.2.0; sources of deceased people in the book and on the pages app 3.18.0
+- **From app 3.30.0:** a living person loses the original of the portrait along with the photo; a union with a living
+  partner loses the couple's photo ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **From app 3.26.0:** the GEDCOM export keeps the sources and citations of deceased people in every option; it leaves
   out only the citations of living people and says so (“For N living people, K citations are left out. The deceased
   keep their sources.”, option **Keep sources**). The App with data and JSON exports do not change. The GEDCOM export
@@ -108,9 +110,14 @@ In the export, next to privacy, the **Content** is chosen: what is saved into th
 - **Limits:** the structure of the tree and the names always stay. The research's workshop (queue, tasks, drafts of
   stories) never goes into an export. The privacy option can leave out sources and attachments even with Complete
   archive ([A7.2](#A7.2)).
+- **From app 3.30.0:** the choice **What to export** has besides **Whole tree** and **Current view only** also
+  **List of people**: the JSON backup and GEDCOM with only the people of the list ([A11.9](A11-lists-of-people.md#A11.9)).
+- **From app 3.30.0:** **Photos** also include the originals of portraits and the couples' photos. Without photos
+  these disappear too, also when attachments are exported; without attachments, portraits stay without the link to
+  the original ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Since:** app 2.4.0
 
-<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent -->
+<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent · 3.30.0: app:33fa6cd4 src/ui/import-export.ts scope 'list', strings.ts exportMenu.scopeLabel, scopeWhole, scopeView, scopeList -->
 
 <a id="A7.4"></a>
 ## A7.4 Family book
@@ -135,6 +142,9 @@ The family book is a book to read from the start: a family tree, families by gen
 - The options are remembered for each tree.
 - **Controls:** export **Family book**; the book window: printing on A4 and **Save as HTML**.
 - **Since:** app 3.19.0; the preset Custom app 3.21.0
+- **From app 3.30.0:** the part **Record clippings and photos** also puts the couple's photo into the family's chapter,
+  above the couple's events; a tree whose only pictures are couples' photos offers that part
+  ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 
 <!-- zdroj: app:src/book-options.ts (části, předvolby, výchozí :55) · strings.ts book.dlg.kind, book.dlg.parts, book.dlg.preset, book.dlg.lang, book.parts, book.unavailable · CHANGELOG.cs.md 3.19.0, 3.21.0 -->
 
@@ -182,6 +192,10 @@ the places of the life on a map, a life axis with history, clippings from regist
   in Migration over time ([A6.5.4](A6-views.md#A6.5.4)). A saved page does not have it. It stands in the section
   **Places of life**; a person with at most one place of their own who has ancestors on the map has it on its own row
   where the section would be.
+- **From app 3.30.0:** the gallery **Images and documents** starts with the photo of each of the person's unions
+  (“{A} and {B} · couple’s photo”). The enlarged portrait with an original has the switch **Portrait** | **Whole
+  photo**, a saved page the link **Whole photo** when the file carries that photo. ⋯ **More actions** offers **Edit
+  portrait crop** ([A12.3](A12-portrait-and-couple-photo.md#A12.3), [A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 - **Controls:** the menu of a person's card, **Person page**; also from the fan.
 - **Since:** app 3.18.0
 

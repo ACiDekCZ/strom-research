@@ -103,6 +103,8 @@ rozpoczęte idzie przed wszystkimi.
   jego księga, sygnatura, archiwum i miejsce, bez względu na znaki diakrytyczne), a szukany tekst nie jest nigdzie
   zapisywany, nawet w dzienniku mostu.
   W aplikacji: pole wyszukiwania w **Kolejce** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
+- **Od badania 1.35.0:** przy `queue.sameBook yes` między kluczami 7 i 8 idzie naprzód kolejne zadanie księgi,
+  w której pracowała ostatnia sesja ([R2.2.4](#R2.2.4)).
 
 <!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
@@ -154,6 +156,28 @@ Materiały (zadanie typu materiały) i zadanie rozpoczęte nie czekają nigdy.
 - **Obowiązuje od:** badanie 1.9.0 (poza drzewem); pozostałe powody według wersji w przywołanych zasadach.
 
 <!-- zdroj: research:src/core/queue.ts:205-210 waits · src/core/kin.ts:98 offTree · assets/method/core.md „The tree first, then above it“ -->
+
+<a id="R2.2.4"></a>
+### R2.2.4 Następne zadanie tej samej księgi: `queue.sameBook`
+
+Przy opcji `queue.sameBook yes` kolejka po sesji w księdze, która ma skany na dysku, bierze najpierw kolejne zadanie
+tej samej księgi. Skany są już pobrane, a agent czyta je z dysku.
+
+- **Pilnuje kod:**
+  - księga ostatniej sesji: księga jej zadania, która ma na dysku co najmniej jeden skan;
+  - najpierw idą zadania tej samej księgi, które można wykonać od razu (nie czekają na skany pobrane przez
+    człowieka). Zadania historii miejsc nie;
+  - najwyżej 5 sesji z rzędu w jednej księdze, potem znów własna kolejność kolejki;
+  - w kolejności [R2.2](#R2.2) to klucz między 7 i 8: zadanie rozpoczęte, ręczny wybór, praca poza liniami, krótka
+    praca i opowieść na kolei nadal mają pierwszeństwo. W strategii **priority** idzie dopiero po kolejności linii;
+  - `no` (domyślnie): kolejność się nie zmienia. Agent dostaje tylko zdanie, które kolejne zadania potrzebują księgi
+    ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Obsługa:** terminal: `strom config set queue.sameBook yes|no --for-tree`, menu **Ustawienia › Archiwa › Księgi
+  z największą liczbą zadań**; `strom task list` przy takim zadaniu podaje powód („the same book as the last session …”).
+  Aplikacja: **Badanie dla drzewa › Księgi › Pierwszeństwo pobranej księgi** ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/queue.ts SAME_BOOK_MAX 5, sameBookTurn (ended[0], kniha se snímky: setsWithImages count > 0; inRow < 5), rankTasks inBook (!blocked, !forHistory), cmp (za a.blocked a lineRank u priority, před score), why „the same book as the last session …“ · src/core/mediaindex.ts setsWithImages · src/core/config.ts queue.sameBook (no výchozí) · CHANGELOG.cs.md 1.35.0 -->
 
 <a id="R2.3"></a>
 ## R2.3 Praca poza liniami

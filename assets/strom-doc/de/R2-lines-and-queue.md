@@ -107,6 +107,8 @@ begonnene Aufgabe geht allen voran.
   Personen, Wörter der Aufgabe, ihr Buch, ihre Signatur, ihr Archiv und Ort, ohne Rücksicht auf diakritische Zeichen),
   und der gesuchte Text wird nirgends gespeichert, auch nicht im Protokoll der Brücke.
   In der App: das Suchfeld in der **Warteschlange** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
+- **Ab Forschung 1.35.0:** mit `queue.sameBook yes` geht zwischen den Schlüsseln 7 und 8 die nächste Aufgabe des
+  Buchs voran, in dem die letzte Sitzung gearbeitet hat ([R2.2.4](#R2.2.4)).
 
 <!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
@@ -163,6 +165,31 @@ Unterlagen (eine Aufgabe der Art Unterlagen) und eine begonnene Aufgabe warten n
   verwiesenen Regeln.
 
 <!-- zdroj: research:src/core/queue.ts:205-210 waits · src/core/kin.ts:98 offTree · assets/method/core.md „The tree first, then above it“ -->
+
+<a id="R2.2.4"></a>
+### R2.2.4 Die nächste Aufgabe desselben Buchs: `queue.sameBook`
+
+Mit der Wahl `queue.sameBook yes` nimmt die Warteschlange nach einer Sitzung in einem Buch, das Bilder auf der
+Festplatte hat, zuerst die nächste Aufgabe desselben Buchs. Die Bilder sind schon heruntergeladen, und der Agent liest
+sie von der Festplatte.
+
+- **Prüft der Code:**
+  - Buch der letzten Sitzung: das Buch ihrer Aufgabe, das mindestens ein Bild auf der Festplatte hat;
+  - voran gehen Aufgaben desselben Buchs, die sich sofort erledigen lassen (die nicht auf vom Menschen
+    heruntergeladene Bilder warten). Aufgaben der Ortsgeschichte nicht;
+  - höchstens 5 Sitzungen nacheinander in einem Buch, dann wieder die eigene Reihenfolge der Warteschlange;
+  - in der Reihenfolge von [R2.2](#R2.2) ist das ein Schlüssel zwischen 7 und 8: begonnene Aufgabe, Wahl von Hand,
+    Arbeit außerhalb der Linien, kurze Arbeit und Erzählung an der Reihe gehen weiterhin vor. In der Strategie
+    **priority** kommt es erst nach der Reihenfolge der Linien;
+  - `no` (Standard): die Reihenfolge ändert sich nicht. Der Agent bekommt nur einen Satz, welche weiteren Aufgaben das
+    Buch brauchen ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Bedienung:** Terminal: `strom config set queue.sameBook yes|no --for-tree`, Menü **Einstellungen › Archive ›
+  Bücher mit den meisten Aufgaben**; `strom task list` nennt bei einer solchen Aufgabe den Grund („the same book as
+  the last session …“). App: **Forschung für diesen Stammbaum › Bücher › Heruntergeladenes Buch zuerst**
+  ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/queue.ts SAME_BOOK_MAX 5, sameBookTurn (ended[0], kniha se snímky: setsWithImages count > 0; inRow < 5), rankTasks inBook (!blocked, !forHistory), cmp (za a.blocked a lineRank u priority, před score), why „the same book as the last session …“ · src/core/mediaindex.ts setsWithImages · src/core/config.ts queue.sameBook (no výchozí) · CHANGELOG.cs.md 1.35.0 -->
 
 <a id="R2.3"></a>
 ## R2.3 Arbeit außerhalb der Linien

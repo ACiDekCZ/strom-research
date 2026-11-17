@@ -419,6 +419,8 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
   tylko w terminalu. Na telefonie nie dodaje się skanów ani nie otwiera terminala.
 - **Obowiązuje od:** badanie 1.0.0 (folder w `inbox/`), budzenie po zapisaniu od 1.15.0. Przejęcie bez polecenia,
   części skanów, odpowiedź i skany z aplikacji oraz archiwum pod jedną nazwą od badania 1.27.0 i aplikacji 3.23.0.
+- **Od badania 1.35.0:** strom bierze także foldery ksiąg, których potrzebują zadania i na które nic nie czeka, tylko
+  według numeru w nazwie pliku ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
 
 <!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
 

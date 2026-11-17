@@ -708,6 +708,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
 
+<a id="couple-photo"></a>
+### Fotka svazku
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Fotka svazku | Jedna fotka páru (svatební nebo společná) uložená u svazku, ne u osoby. Ukazuje se ve vztazích, v Tabulce svazků, na stránkách osob a v knize rodu; dají se z ní vyříznout portréty obou partnerů. V GEDCOM je to obrázek rodiny (`OBJE` u `FAM`). |
+| en | Couple's photo | One photo of a couple (a wedding or joint photo) kept with the union, not with a person. It appears in the relationships, in the Unions table, on person pages and in the Family book; portraits of both partners can be cut from it. In GEDCOM it is a picture of the family (`OBJE` at `FAM`). |
+| de | Paarfoto | Ein Foto eines Paares (Hochzeitsfoto oder gemeinsames Foto), gespeichert bei der Partnerschaft, nicht bei einer Person. Es erscheint in den Beziehungen, in der Tabelle der Partnerschaften, auf Personenseiten und im Familienbuch; aus ihm lassen sich Porträts beider Partner ausschneiden. In GEDCOM ist es ein Bild der Familie (`OBJE` bei `FAM`). |
+| pl | Zdjęcie pary | Jedno zdjęcie pary (ślubne lub wspólne) zapisane przy związku, nie przy osobie. Widać je w relacjach, w tabeli związków, na stronach osób i w księdze rodu; można z niego wykadrować portrety obojga partnerów. W GEDCOM to obraz rodziny (`OBJE` przy `FAM`). |
+
+- **Čísla:** [A12.4](cs/A12-portrait-and-couple-photo.md#A12.4), A12.5, A12.6, A12.7
+
 <a id="main-citation"></a>
 ### Hlavní citace
 
@@ -1008,6 +1020,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S7.3](cs/S7-reliability-and-verification.md#S7.3), S7.4, S7.5, S7.6, S7.7
 
+<a id="portrait"></a>
+### Portrét · výřez portrétu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Portrét · Výřez portrétu | Fotka osoby na kartě a stránce osoby: čtverec 256 px vyříznutý v editoru z celé fotky. Celá fotka zůstane u osoby jako příloha se štítkem **Portrét**, takže výřez jde později změnit; portrét bez ní jde měnit jen uvnitř svého čtverce. |
+| en | Portrait · Portrait crop | A person's photo on the card and the person page: a 256 px square cut in the editor from the whole photo. The whole photo stays with the person as an attachment tagged **Portrait**, so the crop can be changed later; a portrait without it can only change within its square. |
+| de | Porträt · Porträtausschnitt | Das Foto einer Person auf der Karte und der Personenseite: ein Quadrat von 256 px, im Editor aus dem ganzen Foto ausgeschnitten. Das ganze Foto bleibt als Anhang mit der Markierung **Porträt** bei der Person, sodass sich der Ausschnitt später ändern lässt; ein Porträt ohne es lässt sich nur innerhalb seines Quadrats ändern. |
+| pl | Portret · Kadrowanie portretu | Zdjęcie osoby na karcie i stronie osoby: kwadrat 256 px wykadrowany w edytorze z całego zdjęcia. Całe zdjęcie zostaje przy osobie jako załącznik z etykietą **Portret**, więc kadr można później zmienić; portret bez niego można zmieniać tylko w obrębie jego kwadratu. |
+
+- **Čísla:** [A12](cs/A12-portrait-and-couple-photo.md), A12.1, A12.1.1, A12.2, A12.3, A12.8
+
 <a id="send-mode"></a>
 ### Posílat úpravy
 
@@ -1150,7 +1174,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Anhänge (app) | Eine Datei bei einer Person im Stammbaum (JPG, PNG verkleinert; PDF bis 2 MB). Für sich belegt sie nichts. Bei einem Stammbaum mit Forschung geht das Original in voller Qualität in die Forschung. |
 | pl | Załączniki (app) | Plik przy osobie w drzewie (JPG, PNG pomniejszone; PDF do 2 MB). Sam niczego nie dokumentuje. W drzewie z badaniem oryginał w pełnej jakości trafia do badania. |
 
-- **Čísla:** [A3.4](cs/A3-evidence-in-the-app.md#A3.4), A3.4.1
+- **Čísla:** [A3.4](cs/A3-evidence-in-the-app.md#A3.4), A3.4.1, A12.2
 
 <a id="linked-in-the-view-only"></a>
 ### Připojeno jen v zobrazení
@@ -1187,6 +1211,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Ród | Linia męska od najstarszego znanego nosiciela nazwiska, wyznaczona przez założyciela, nie przez nazwisko. Aplikacja liczy ją z danych drzewa. |
 
 - **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4
+
+<a id="list-of-people"></a>
+### Seznam osob
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Seznam osob · pevný · automatický · pracovní | Vybrané osoby stromu pod jedním jménem. Pevný drží své osoby a mění se ručně; automatický je uložené pravidlo (rod, předci, potomci, linie výzkumu, filtr Tabulky, přidáno za období), jeho osoby se počítají vždy znovu; pracovní je pevný s odškrtáváním hotových. Slouží jako rozsah Tabulky a v exportu. |
+| en | List of people · fixed · automatic · checklist | Chosen people of the tree under one name. A fixed list holds its people and changes by hand; an automatic list is a saved rule (family line, ancestors, descendants, research line, Table filter, added in a period) whose people are worked out again each time; a checklist is a fixed list with ticking off done. It serves as the Table's scope and in export. |
+| de | Personenliste · fest · automatisch · Arbeitsliste | Ausgewählte Personen des Stammbaums unter einem Namen. Eine feste Liste hält ihre Personen und ändert sich von Hand; eine automatische Liste ist eine gespeicherte Regel (Stamm, Vorfahren, Nachkommen, Forschungslinie, Tabellenfilter, im Zeitraum hinzugefügt), deren Personen jedes Mal neu berechnet werden; eine Arbeitsliste ist eine feste Liste mit Abhaken des Erledigten. Sie dient als Umfang der Tabelle und im Export. |
+| pl | Lista osób · stała · automatyczna · robocza | Wybrane osoby drzewa pod jedną nazwą. Lista stała trzyma swoje osoby i zmienia się ręcznie; automatyczna to zapisana reguła (ród, przodkowie, potomkowie, linia badania, filtr tabeli, dodane w okresie), której osoby są za każdym razem wyliczane na nowo; robocza to lista stała z odhaczaniem gotowych. Służy jako zakres tabeli i w eksporcie. |
+
+- **Čísla:** [A11](cs/A11-lists-of-people.md), A11.1, A11.2, A11.3, A11.4, A11.5, A11.6, A11.7, A11.8, A11.9, A11.10, A6.7.19
 
 <a id="make-copies-match"></a>
 ### Sjednotit kopie
@@ -1342,7 +1378,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Tabelle (Ansicht) · Personen · Verbindungen · Ereignisse · Quellen (Zeilen) | Die Ansicht der App auf den ganzen Stammbaum in Zeilen von Personen, Verbindungen, Ereignissen oder Quellen: Angaben, berechnete Werte, Vollständigkeit, Quellenangaben und Befunde der Prüfung in Spalten, mit Filter, Sortierung, gespeicherten Ansichten und CSV- und XLSX-Export. |
 | pl | Tabela (widok) · Osoby · Związki · Wydarzenia · Źródła (wiersze) | Widok aplikacji na całe drzewo w wierszach osób, związków, wydarzeń lub źródeł: dane, wartości obliczone, kompletność, cytowania i wyniki kontroli w kolumnach, z filtrem, sortowaniem, zapisanymi widokami i eksportem CSV i XLSX. |
 
-- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15, A6.7.16, A6.7.17, A6.7.18
+- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15, A6.7.16, A6.7.17, A6.7.18, A6.7.19, A6.7.20
 
 <a id="surname-spellings"></a>
 ### Tvary příjmení

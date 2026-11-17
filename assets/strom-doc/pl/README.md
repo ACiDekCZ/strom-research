@@ -38,6 +38,8 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [A8 Scalanie drzew](A8-merging-trees.md): scalanie pliku, drzewa lub widoku w nowe drzewo, parowanie osób
 - [A9 Obsługa aplikacji](A9-using-the-app.md): gdzie co jest, czytelne nazwy elementów, edycja podczas śledzenia badania, agent w aplikacji, dolny pasek na telefonie i tablecie
 - [A10 Jedno wydarzenie wielu osób](A10-shared-events.md): wspólne wydarzenie gospodarstwa (Razem z), Ujednolić, Połącz w jedno wydarzenie, chrzestni i świadkowie w życiu osoby, scalanie i starsze drzewa
+- [A11 Listy osób](A11-lists-of-people.md): lista stała, automatyczna i robocza, reguły, Zamroź, ręczna kolejność, Dodaj do listy, zapisanie jako listy, data dodania, odhaczanie gotowych, eksport listy
+- [A12 Portret i zdjęcie pary](A12-portrait-and-couple-photo.md): edytor kadrowania portretu, oryginał z etykietą Portret, Edytuj kadr, Jako portret…, zdjęcie pary i portrety z niego, gdzie je widać, eksport, GEDCOM i wersja danych 23
 
 ## S Aplikacja i badanie razem
 

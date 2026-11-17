@@ -17,6 +17,7 @@
 // too, as what the decision touches, yet each task one item at most.
 
 import { inboxState, type InboxState } from "./inboxwait.ts";
+import { bookOfTask } from "./books.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { CHECK_ANSWERS, type Conflict, type Family, type Hypothesis, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
@@ -436,6 +437,8 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     // its direction, else the one it helps (core/offline.ts)
     line ??= lineOf(tree, all);
     const research = line(t);
+    // its book (spec 105: the app's groups by book): the one it waits for, else the one its where names
+    const book = bookOfTask(tree, t);
     out.push({
       task: t,
       item: {
@@ -459,6 +462,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         actions: actionsOf(kind, phase, !!note, !!inbox),
         ...personOf(t),
         ...(research ? { research } : {}),
+        ...(book ? { book } : {}),
       },
     });
   }

@@ -87,8 +87,13 @@ offered for linking.
   - **Insert into tree** first saves a backup of the tree ([S6.5](S6-tree-from-another-program.md#S6.5)).
 - **From app 3.28.0:** the line “Shared events from {program}: n converted (m people)” when the file of another
   program had shared events (`_SHAR`, [A2.1](#A2.1)).
+- **From app 3.30.0:** the sentence about media files that the file only references splits them into people and
+  couples (“The file references 3 external media files: 2 on people, 1 on couples …”). A linked picture of a family
+  becomes the couple's photo ([A12.7](A12-portrait-and-couple-photo.md#A12.7)), only a picture and only for a union
+  that has no photo yet. The result of the linking counts it: “Attached 3 of 3 referenced files: 1 portrait,
+  1 attachment, 1 couple photo.”
 
-<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted -->
+<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted · 3.30.0: app:68c232ad ExternalMediaRef.partnershipId, src/ged-media-attach.ts attachGedcomMediaFile, strings.ts gedcom.externalMediaSplit, mediaAttachedParts -->
 
 <a id="A2.2"></a>
 ## A2.2 Encoding and GEDCOM version
@@ -124,8 +129,13 @@ UTF-8.
   ([S6.6](S6-tree-from-another-program.md#S6.6)). A media record the family refers to goes back as a photo written
   directly at the family. The import summary lists it in the row “Kept for the export “Back to {program}”…”, not in
   **Unsupported**. Not for a research file.
+- **From app 3.30.0:** the first picture of a family that is contained directly in the file is the **couple's photo**
+  in the tree ([A12.7](A12-portrait-and-couple-photo.md#A12.7)); a picture marked `_PRIM` comes first. The other
+  pictures of the family are kept for **Back to {program}** as in 3.27.0, and the picture that became the couple's
+  photo is not written there a second time. A family photo referenced by a path to a file is offered for linking
+  ([A2.1.1](#A2.1.1)).
 
-<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 -->
+<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 · 3.30.0: app:68c232ad src/ged-parser.ts první obrázek rodiny (_PRIM/_PRIMARY/_PERSONALPHOTO Y první) → Partnership.photo, ostatní v extras, vložený se nezapíše dvakrát -->
 
 <a id="A2.3"></a>
 ## A2.3 Given names and surnames

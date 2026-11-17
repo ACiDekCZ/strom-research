@@ -33,7 +33,7 @@ import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberFiles, numbersForTask, registeredImages, SETTLE_MS, singleBook, unsettled, type InboxWait } from "../core/inboxwait.ts";
+import { askedNow, bookFolders, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, singleBook, unsettled, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
@@ -201,13 +201,18 @@ export interface TakenFolder {
   settling?: number;
   /** An image with several copies now (one saved once more): which one is the image. */
   copies?: string[];
+  /** The folder of a book the tasks need, no task waiting on it (K1.4): its tasks read the images from disk now. */
+  book?: true;
+  /** Of a book's folder: files left lying, no image number in the name (taken once named by it). */
+  left?: number;
 }
 
 /**
  * What the person saved into the folders of tasks that wait (core/inboxwait.ts): each folder with files that settled
  * taken whole — registered as images of its book, numbered by their names or their order, the files moved into the store
- * — and the tasks it completes back in the queue. A folder that is not there yet is made (an older wait). Never a
- * folder of no waiting task, never the inbox as a whole. `folder`: that one alone.
+ * — and the tasks it completes back in the queue. A folder that is not there yet is made (an older wait). Then the
+ * folders of the books tasks still need that no task waits on (spec 105 K1.4, core/inboxwait.ts bookFolders): taken by
+ * the numbers in their names alone, never made. Never another folder, never the inbox as a whole. `folder`: that one alone.
  *
  * Under the tree's lock from the first look at the folders to the last file registered: another strom taking them at
  * the same moment (the bridge, the agent's own command) finds them taken — nothing to take, never a file gone under it.
@@ -258,6 +263,33 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       woken: r.woken,
       missing: (asked ?? []).filter((n) => !after.has(n) || ws.some((x) => pending.has(`${x.task}:${n}`))),
       ...(r.copies.length ? { copies: r.copies } : {}),
+    });
+  }
+  // the folders of the books the tasks need (K1.4): what the person saved there by hand, by the numbers in the names
+  for (const b of bookFolders(tree)) {
+    if (o.folder && b.folder.normalize("NFC") !== o.folder.normalize("NFC")) continue;
+    const files = folderFiles(path.join(shared, "inbox", b.folder));
+    if (!files.length) continue;
+    const base = { folder: b.folder, recordset: b.recordset, tasks: b.tasks, book: true as const };
+    const busy = unsettled(files, o.now);
+    if (busy.length) {
+      out.push({ ...base, added: [], woken: [], missing: [], settling: busy.length });
+      continue;
+    }
+    const numbered = numberBookFiles(files, b.recordset, b.times);
+    if ("problem" in numbered) {
+      out.push({ ...base, added: [], woken: [], missing: [], problem: numbered.problem });
+      continue;
+    }
+    // the files with a number taken; one without a number stays lying, never holding back the rest
+    const r = takeFiles(tree, shared, { task: "", recordset: b.recordset, folder: b.folder, by: "images" }, numbered.files, numbered.numbers);
+    out.push({
+      ...base,
+      added: r.added.map((m) => m.image).filter((n): n is number => n !== undefined),
+      woken: r.woken,
+      missing: [],
+      ...(r.copies.length ? { copies: r.copies } : {}),
+      ...(numbered.left ? { left: numbered.left } : {}),
     });
   }
   return out;
@@ -778,6 +810,8 @@ export function takenLines(taken: TakenFolder[]): string[] {
     return [[
       `${t.folder}/: ${t.added.length ? `images ${runs(t.added)} of ${t.recordset} registered${t.byOrder ? " (numbered by their order: the names gave none of the numbers asked for)" : ""}` : "nothing new (the same scans are registered)"}`,
       t.woken.length ? ` — back in the queue: ${t.woken.join(" ")}` : t.missing.length ? ` — ${who} still waits${t.missing.length ? ` for images ${runs(t.missing)}` : ""}` : "",
+      t.book && t.added.length ? ` — the book's own folder: its tasks read them from disk (${who})` : "",
+      t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg)` : "",
     ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`));
   });
 }
@@ -1370,7 +1404,7 @@ register(
       { name: "url", type: "string", value: "<url>", description: "where the images come from (portal, catalog entry)" },
       { name: "from", type: "string", value: "<text>", description: "who provided them or how they were obtained" },
       { name: "inbox", type: "boolean", description: "take the files the user put in the shared inbox (they are moved into the store); a folder there is named as the argument — one folder, one record set" },
-      { name: "waiting", type: "boolean", description: "with --inbox: take the folders of the tasks that wait for images (strom task wait --images, a site with one book) — each folder whose files settled, numbered by their names, else by their order when as many as missing; the tasks they complete come back (the bridge does it as they are saved, a session's start too)" },
+      { name: "waiting", type: "boolean", description: "with --inbox: take the folders of the tasks that wait for images (strom task wait --images, a site with one book) — each folder whose files settled, numbered by their names, else by their order when as many as missing; the tasks they complete come back (the bridge does it as they are saved, a session's start too); then the folders of the books tasks need that no task waits on, numbered by their names alone — the book's tasks read them from disk" },
       { name: "half", type: "string", value: "<side>", description: "the file is a half of image n: left, right, top or bottom (a half page saved on its own)" },
       { name: "crop", type: "string", value: "<x,y,w,h>", description: "the file is this part of image n: fractions of it, or pixels of the registered image (a detail saved from the viewer)" },
       { name: "from-input", type: "string", multiple: true, value: "<I…>", description: "inputs that are the scans of a book (a batch from the Strom app): their files registered as its images, numbered by their names" },

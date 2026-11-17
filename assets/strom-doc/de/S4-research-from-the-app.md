@@ -727,6 +727,9 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
 - **Ab App 3.28.0:** in der **Forschungsübersicht** hat der Abschnitt ab 10 Einträgen ein Suchfeld ([S4.4.2](#S4.4.2)).
 - **Ab App 3.30.0:** in der **Forschungsübersicht** lässt sich der Abschnitt von den neuesten oder den ältesten
   Einträgen an ordnen ([S4.4.3](#S4.4.3)).
+- **Ab App 3.30.0 mit Forschung 1.35.0:** die Einträge lassen sich nach Buch gruppieren, mit der Reihenfolge
+  **Meiste Aufgaben** und dem Unterabschnitt **Schneller durch Herunterladen** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5));
+  die Einstellungen der Bücher in **Forschung für diesen Stammbaum** ([S4.4.6](#S4.4.6)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -851,13 +854,128 @@ Eintrag wartet. Ein neu hinzugekommener Eintrag steht dann oben und geht zwische
   - die Reihenfolge gilt auch mit der Suche ([S4.4.2](#S4.4.2)) und den Chips der Arten. Kopf und Fußzeile der
     Auswahl der Hypothesen betreffen bei ausgeschalteten Gruppen die Hypothesen der ganzen Phase;
   - sie gilt in der Übersicht (als Seitenpanel und über dem Stammbaum), im Fenster der Übersicht und auf dem Telefon.
-    Das kleine Panel bleibt unverändert.
+    Das kleine Panel bleibt unverändert (außer bei einer Forschung mit Büchern, [S4.4.4](#S4.4.4)).
+- **Mit einer Forschung, die Bücher kennt** (Forschung 1.35.0): der Schalter **Gruppen** ist eine Wahl **Archiv** |
+  **Buch** | **Keine Gruppen**, und die Reihenfolge hat eine vierte Möglichkeit **Meiste Aufgaben** ([S4.4.4](#S4.4.4)).
 - **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, die Schaltfläche „⇅ Empfohlen ▾“ hinter den
   Chips der Arten (im Fenster der Übersicht im haftenden Kopf des Abschnitts) mit dem Menü **Empfohlen** · **Neueste
   zuerst** · **Älteste zuerst**, auf dem Telefon das Blatt **Reihenfolge**; Schalter **Gruppen**.
 - **Gilt seit:** App 3.30.0
 
 <!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+
+<a id="S4.4.4"></a>
+### S4.4.4 Wartet auf Bearbeitung nach Buch
+
+Mit einer Forschung, die Bücher kennt ([R6.8](R6-awaiting-action.md#R6.8)), lassen sich die Einträge von **Wartet auf
+Bearbeitung** nach dem Buch gruppieren, das sie brauchen. Beim Buch ist zu sehen, wie viele Aufgaben darauf warten,
+was sich daraus herunterladen lässt und wohin die Bilder zu speichern sind.
+
+- **Gruppen** (Wahl neben der Reihenfolge):
+  - **Archiv**: Gruppen wie bisher (Orte, Archive, **Sonstige**, [S4.4.3](#S4.4.3));
+  - **Buch**: in jeder Phase zuerst die Gruppen der Bücher, dann die übrigen Einträge in Gruppen der Archive unter der
+    Zwischenüberschrift **Ohne Buch** (nur wenn es irgendein Buch gibt). Das Buch eines Eintrags ist das Buch, auf das
+    der Eintrag wartet, sonst das einzige Buch, in dem die Aufgabe arbeitet;
+  - **Keine Gruppen**: eine Liste (nur bei einer Reihenfolge nach Zeit, wie ausgeschaltete **Gruppen**).
+
+  Bei der Reihenfolge **Empfohlen** ist die Wahl **Archiv** | **Buch**; die Gruppen der Bücher stehen nach ihrem
+  ersten Eintrag, bei einer Reihenfolge nach Zeit nach der Zeit ihres ersten Eintrags.
+- **Reihenfolge Meiste Aufgaben:** die Gruppen sind immer Bücher (die Wahl der Gruppen verschwindet). Die Bücher gehen
+  von dem, das die meisten Aufgaben brauchen, bei Gleichheit mehr wartende, dann die Nummer des Buchs. Innerhalb eines
+  Buchs stehen die Einträge in der Reihenfolge **Empfohlen**. Einträge ohne Buch stehen am Ende in Gruppen der
+  Archive.
+- **Überschrift des Buchs:**
+  - Titel des Buchs (mit den Jahren), das Etikett **Buch**, **neu: N** bei einem eingeklappten Buch und die Zahl der
+    Einträge. Beim Überfahren mit der Maus Titel, Archiv und wie viele Aufgaben das Buch brauchen (davon
+    zurückgestellt);
+  - zweite Zeile: Archiv · „3 warten“ · „+M in der Warteschlange“ (Aufgaben des Buchs, die nicht warten) · Bilder
+    („240 Bilder · lokal 12 · fehlen 228“) · „N Dateien werden übernommen“ (Dateien, die im Ordner des Buchs liegen
+    und noch nicht übernommen sind) · „Archiv-Website erfordert Anmeldung“. Bei der Reihenfolge **Meiste Aufgaben**
+    stehen die Zahlen vorn und fett;
+  - Aktionen: was sich nach den Bedingungen des Archivs herunterladen lässt
+    ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Ganzes Buch herunterladbar · N Bilder“, „Bilder 31–36
+    herunterladbar · 6 Bilder“ oder „Ausgewählte Bilder … herunterladbar“; **Archiv-Website ↗**; **Ordner öffnen**
+    (der Ordner des Buchs im gemeinsamen Ordner, die Forschung öffnet ihn ohne Terminal und legt ihn bei Bedarf an,
+    [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (nicht auf dem Telefon). Ein Klick auf eine Aktion klappt das
+    Buch nicht ein;
+  - ein Buch, das die Forschung in der Übersicht der Bücher nicht geschickt hat: nur Titel (oder Nummer des Buchs),
+    Etikett und Zahl.
+- **Suche** ([S4.4.2](#S4.4.2)) findet Einträge auch nach Titel und Archiv ihres Buchs.
+- **Kleines Panel:** Schaltfläche der Reihenfolge und „Gruppen: Buch ▾“ mit Menü; Überschrift des Buchs nur mit Titel
+  und „N warten“, Zwischenüberschrift **Ohne Buch**; die Aktionen der Bücher gibt es nur in der
+  **Forschungsübersicht**. Die Zahlen der Einträge sind dieselben wie bisher.
+- **Grenzen:**
+  - die Wahl **Buch** und die Reihenfolge **Meiste Aufgaben** gibt es nur mit einer Forschung, die Bücher schickt,
+    und nicht im Strom-Archiv oder in einer Forschung, die auf einen Agenten wartet. Sonst sieht alles aus wie vorher,
+    und eine gespeicherte Wahl **Buch** oder **Meiste Aufgaben** erscheint als **Archiv** und **Empfohlen**, ohne
+    überschrieben zu werden;
+  - die Wahl der Gruppen wird auf diesem Gerät mit der Reihenfolge gespeichert ([S4.4.3](#S4.4.3)).
+- **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, neben der Schaltfläche der Reihenfolge der
+  Schalter **Gruppen** (**Archiv** | **Buch** | **Keine Gruppen**); auf dem Telefon (auch quer) und im kleinen Panel
+  die Schaltfläche „Gruppen: Buch ▾“ mit Menü (auf dem Telefon ein Blatt). Reihenfolge „⇅ … ▾“ › **Meiste
+  Aufgaben**.
+- **Gilt seit:** Forschung 1.35.0, App 3.30.0
+
+<!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
+
+<a id="S4.4.5"></a>
+### S4.4.5 Schneller durch Herunterladen
+
+Bücher, die genug Aufgaben brauchen und auf die nichts wartet, bietet die App gesondert zum Herunterladen an. Bilder
+im Ordner des Buchs liest der Agent von der Festplatte, schneller und günstiger. Nichts wartet darauf, und deshalb
+zählen sie nicht zu den Einträgen.
+
+- **Was dort steht:** Bücher, die die Forschung anbietet ([R6.8](R6-awaiting-action.md#R6.8): mindestens
+  `books.minTasks` Aufgaben, etwas lässt sich herunterladen) und auf die keine Aufgabe wartet. Ein Buch, auf das
+  etwas wartet, steht in der Liste als Gruppe ([S4.4.4](#S4.4.4)). Reihenfolge wie **Meiste Aufgaben**.
+- **Der Unterabschnitt** **Schneller durch Herunterladen · N Bücher** steht unten unter **Wartet auf Antwort**, beim
+  ersten Mal eingeklappt:
+  - der Satz „Bilder im Ordner des Buchs liest der Agent von der Festplatte – schneller und günstiger. Nichts wartet
+    darauf.“ und der Link **Einstellungen…** (öffnet **Forschung für diesen Stammbaum** bei der Gruppe **Bücher**,
+    [S4.4.6](#S4.4.6));
+  - Zeile eines Buchs: Titel; Archiv · „N Aufgaben in der Warteschlange“ · Bilder · „N Dateien werden übernommen“ ·
+    Anmeldung; was sich herunterladen lässt · **Archiv-Website ↗** · **Ordner öffnen**. Ein Klick auf den Titel
+    klappt die Einzelheiten auf: **Aufgaben** (davon zurückgestellt), **Ordner**, **Zugang**;
+  - Bücher über die Liste hinaus nur als Zahl: „und N weitere Bücher sind in der Forschung“ (die ganze Liste im
+    Terminal, `strom task books`).
+- **Grenzen:**
+  - nur mit dem Chip der Art **Alle** und **Bilder**; mit einer Suche nur Bücher, deren Titel oder Archiv passt;
+  - ein leerer Unterabschnitt erscheint nicht. Er erscheint auch, wenn nichts wartet (unter dem leeren Abschnitt);
+  - er zählt nicht in die Zahl des Abschnitts, die Zusammenfassung, „Wartet N“ oder das kleine Panel.
+- **Kleines Panel:** unter der Liste die Zeile „Schneller durch Herunterladen · N Bücher ⤢“, die die
+  **Forschungsübersicht** mit aufgeklapptem Unterabschnitt öffnet.
+- **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung → Schneller durch Herunterladen**. Terminal:
+  `strom task books` ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Gilt seit:** Forschung 1.35.0, App 3.30.0
+
+<!-- zdroj: app:bc8fc5fd src/research-books.ts urgentBooks (offer && waiting === 0, sortBooksMost), urgentBooksShown (filtr all/images, hledání název a archiv) · src/ui/research-overview-ui.ts appendOverviewBooksOffer (sectionPartOpen urgent, výchozí zavřený; urgentText, Nastavení… → openBooksSettings; more), overviewUrgentBookRow (detail Úkoly, Složka, Přístup) · src/ui/research-ui.ts renderLivePanel panelUrgent (showOverviewBooksOffer) · strings.ts live.books.urgent* · research:b1749433 src/core/live.ts booksStatus (offer, more) · ZADANI_DEV_knihy-ukolu.md §3, §5 -->
+
+<a id="S4.4.6"></a>
+### S4.4.6 Forschung für diesen Stammbaum › Bücher
+
+Die Einstellungen der Bücher der Forschung ([R6.8.3](R6-awaiting-action.md#R6.8.3)) lassen sich auch in der App
+ändern. Geschrieben wird über die Brücke in die Forschung, sodass sie genauso gelten wie im Terminal.
+
+- **Gruppe Bücher** (nach **Dokumente lesen**, eingeklappt mit der Zusammenfassung „ab 5 Aufgaben · ohne Vorrang“):
+  - **Buch angeboten ab so vielen Aufgaben**: ganze Zahl von 1 bis 999. Gespeichert wird beim Verlassen des Felds
+    oder mit Enter. Ein anderer Wert zeigt „Ganze Zahl von 1 bis 999.“, und nichts wird gesendet; ein leeres Feld
+    bringt den gespeicherten Wert zurück. Der Standardwert hat „(Standard)“, der Link **Standard wiederherstellen
+    (5)** stellt ihn wieder her;
+  - **Heruntergeladenes Buch zuerst** (Schalter): nach einer Aufgabe eines Buchs, das auf der Festplatte ist, nimmt
+    die Warteschlange die nächste Aufgabe desselben Buchs, höchstens 5 Sitzungen nacheinander
+    ([R2.2.4](R2-lines-and-queue.md#R2.2.4)).
+- **Schreiben:** gleich nach der Änderung „Wird in der Forschung gespeichert…“, dann „Die Forschung hat bestätigt.
+  Gilt auch für Änderungen im Terminal.“ Eine beschäftigte Forschung: „Die Forschung ist gerade beschäftigt, nichts
+  wurde geändert.“ und **Erneut versuchen**. Ohne Brücke ist die Gruppe gedämpft. Eine Änderung aus dem Terminal
+  zeichnet den Dialog neu, aber nicht das Feld, in das gerade geschrieben wird.
+- **Grenzen:** nur mit einer Forschung, die Bücher schickt; nicht im Strom-Archiv oder in einer Forschung, die auf
+  einen Agenten wartet. Wird die Forschung inzwischen auf das Strom-Archiv umgestellt, verschwindet die Gruppe.
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Bücher**, oder
+  **Einstellungen…** in **Schneller durch Herunterladen** ([S4.4.5](#S4.4.5)). Terminal:
+  [R6.8.3](R6-awaiting-action.md#R6.8.3).
+- **Gilt seit:** Forschung 1.35.0, App 3.30.0
+
+<!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen

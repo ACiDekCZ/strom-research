@@ -38,6 +38,8 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [A8 Sloučení stromů](A8-merging-trees.md): sloučení souboru, stromu nebo pohledu do nového stromu, párování osob
 - [A9 Ovládání aplikace](A9-using-the-app.md): kde co je, čitelné názvy prvků, úpravy při sledování výzkumu, agent v aplikaci, dolní lišta na telefonu a tabletu
 - [A10 Jedna událost u více osob](A10-shared-events.md): společná událost domácnosti (Spolu s), Sjednotit, Spojit do jedné události, kmotři a svědci v životě osoby, sloučení a starší stromy
+- [A11 Seznamy osob](A11-lists-of-people.md): pevný, automatický a pracovní seznam, pravidla, Zmrazit, ruční řazení, Přidat do seznamu, Uložit jako seznam, údaj „přidáno“, odškrtávání hotových, export seznamu
+- [A12 Portrét a fotka svazku](A12-portrait-and-couple-photo.md): editor výřezu portrétu, originál se štítkem Portrét, Upravit výřez, Jako portrét…, fotka svazku a portréty z ní, kde se ukážou, export, GEDCOM a verze dat 23
 
 ## S Aplikace a výzkum spolu
 

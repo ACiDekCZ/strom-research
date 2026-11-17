@@ -27,6 +27,15 @@
 //                          the gate the agent works alone under as the settings name it (title and what it is given),
 //                          null with none set (the loop is not started then, n tasks are), and a session's minutes
 //                          (run.minutes). busy {sessions, runs} sees a run from its start, while it waits for its gate too.
+//                          books (feature books, no gate of the app's version; none in an archive or a research waiting
+//                          for its agent; part books): the books most tasks need, to download by hand (core/books.ts) —
+//                          {settings {minTasks, minTasksOwn, minTasksDefault, sameBook: yes|no, sameBookOwn,
+//                          sameBookDefault}, list [as strom task books --json, without ids and dir: id, title, folder,
+//                          tasks, waiting, offer, download (whole|selected|range|none), downloadTerms? {how, says, from,
+//                          host}, need?, images?, onDisk, missing?, url?, archive?, years?, pending? (files lying in its
+//                          folder, not taken yet)], more (beyond 100)}; only books something waits for or offered. A task
+//                          of the waiting list or the queue names its book (book: B…: the one it waits for, else the one
+//                          live book its record sets name); a queue item put first by queue.sameBook says sameBook: B….
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -425,6 +434,10 @@
 //   POST <token>/offline   {mode?: occasional|last|normal|never|default, suggest?: true|false}: strom config set
 //                          queue.offLine … / queue.suggestLines yes|no --for-tree (default: config unset) — {offLine
 //                          (without branches), head, parent}; 400 offline.body
+//   POST <token>/books     {minTasks?: 1…999|"default", sameBook?: yes|no|"default"} (at least one): strom config set
+//                          books.minTasks … / queue.sameBook … --for-tree ("default": config unset --for-tree) — {books
+//                          {settings} (as /status books.settings), head, parent (head when nothing changed)}; feature
+//                          books; 400 books.body, 409 directions.archive, 503 research.busy
 //   POST <token>/queue/<T…>  {do: next|last|default}: strom task order --next|--last|--default (any open task; next
 //                          once, the last chosen first) — {task (as queue[]), was ({} or {own: next|last, at}: its turn
 //                          before), head, parent}; {do: restore, was: {} | {own, at}}: the turn put back exactly as it
@@ -557,7 +570,8 @@ import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appSends
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { configFile, DEFAULT_RUN_MINUTES, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
+import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, configFile, DEFAULT_RUN_MINUTES, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
+import { folderFiles } from "./inboxwait.ts";
 import { gateLabel } from "./gate.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -571,6 +585,7 @@ import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, ty
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
 import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
+import { bookOfTask, bookRows, type BookRow } from "./books.ts";
 import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { agentsHere } from "./apps.ts";
@@ -1582,7 +1597,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books"] as const;
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -2141,6 +2156,10 @@ interface QueueItem {
   why?: Ranked["reason"];
   /** A story to write, or a task of the history of the places: none for the research's work. */
   kind?: "story" | "history";
+  /** Its book (spec 105): the one it waits for, else the one its where names (core/books.ts bookOfTask). */
+  book?: string;
+  /** queue.sameBook: it stands before the rest as a task of the book the last session read (its ID). */
+  sameBook?: string;
 }
 
 /**
@@ -2154,7 +2173,12 @@ function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: Offlin
 
 /** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
 function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}) };
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}), ...bookPart(tree, t), ...(r?.sameBook ? { sameBook: r.sameBook } : {}) };
+}
+
+function bookPart(tree: Tree, t: Task): { book?: string } {
+  const book = bookOfTask(tree, t);
+  return book ? { book } : {};
 }
 
 /** The tasks put aside (parked, not back by their date): after the queue, by their IDs — no place in it. */
@@ -2179,7 +2203,7 @@ function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[
       return "-";
     }
   };
-  const key = [h, now().slice(0, 10), settings.strategy(tree.config), settings.offLine(tree.config), mtime(path.join(tree.root, TREE_FILE)), mtime(configFile(tree.env)), mtime(path.join(tree.root, ...OFFLINE_FILE.split("/")))].join("|");
+  const key = [h, now().slice(0, 10), settings.strategy(tree.config), settings.offLine(tree.config), String(settings.sameBook(tree.config)), mtime(path.join(tree.root, TREE_FILE)), mtime(configFile(tree.env)), mtime(path.join(tree.root, ...OFFLINE_FILE.split("/")))].join("|");
   const had = rankedCache.get(tree.root);
   if (had && had.key === key && Date.now() - had.at < Number(tree.env.STROM_LIVE_QUEUE_MS ?? 10_000)) return had;
   // the order strom run takes them (core/queue.ts runOrder): a story at its turn, the tasks of history by their pace
@@ -2464,6 +2488,41 @@ function queueTask(tree: Tree, settings: Settings, id: string): QueueItem | unde
   return queueItem(tree, placer(tree, all), settings.offLine(tree.config), readOffline(tree), t.state === "parked" ? "parked" : "next", t, ranked[at], at < 0 ? undefined : at + 1);
 }
 
+/** At most this many books in /status books (the rest counted in `more`). */
+const BOOKS_LIST_MAX = 100;
+
+/**
+ * The tree's settings of the books (spec 105): books.minTasks and queue.sameBook as they hold, whether set for the tree
+ * (…Own; false: the default), and the defaults — what the app shows and POST /books changes.
+ */
+function booksSettings(tree: Tree, settings: Settings): { minTasks: number; minTasksOwn: boolean; minTasksDefault: number; sameBook: "yes" | "no"; sameBookOwn: boolean; sameBookDefault: "no" } {
+  return {
+    minTasks: settings.booksMinTasks(tree.config),
+    minTasksOwn: readStored(tree.config, "books.minTasks", "") !== undefined,
+    minTasksDefault: BOOKS_MIN_TASKS,
+    sameBook: settings.sameBook(tree.config) ? "yes" : "no",
+    sameBookOwn: readStored(tree.config, "queue.sameBook", "") !== undefined,
+    sameBookDefault: "no",
+  };
+}
+
+/**
+ * /status books (spec 105, feature books): the settings, and the books — each one something waits on (the app's groups
+ * by book), and those offered to download (offer) — the most tasks first, at most BOOKS_LIST_MAX (more: the rest). Each
+ * as strom task books --json says it, without the task IDs and the folder's path; pending: the files lying in its folder
+ * not taken yet (only when any).
+ */
+function booksStatus(tree: Tree, settings: Settings): Record<string, unknown> {
+  const shared = settings.shared()?.value;
+  const rows = bookRows(tree, settings.booksMinTasks(tree.config)).filter((r) => r.waiting > 0 || r.offer);
+  const shown = rows.slice(0, BOOKS_LIST_MAX).map((r: BookRow) => {
+    const { ids: _ids, ...row } = r;
+    const pending = shared ? folderFiles(path.join(shared, "inbox", r.folder)).length : 0;
+    return { ...row, ...(pending ? { pending } : {}) };
+  });
+  return { settings: booksSettings(tree, settings), list: shown, more: rows.length - shown.length };
+}
+
 /** The work off the lines without its branches (the answer to POST /offline): also for a research of one line, where nothing is off them. */
 function offLineSummary(tree: Tree, settings: Settings): Record<string, unknown> {
   const v = offLineView(tree, settings);
@@ -2668,6 +2727,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     queueCounts: queueCounts(ranked, order?.parked.length ?? 0, order?.rev),
     // the work off the lines of a research of several (spec 038 K7): the tree's choice, the branches, which grow
     ...(archive ? {} : offLineOf(tree, settings, all, ranked)),
+    // the books the tasks need (spec 105, feature books): those waited on, those offered to download — none in an
+    // archive or a research waiting for its agent
+    ...(archive ? {} : { books: booksStatus(tree, settings) }),
     ...(newer ? { update: { version: newer } } : {}),
     ...(archive ? {} : { spend: spendOf(root, tree) }),
     ...(intake ? { lastIntake: intake } : {}),
@@ -3479,6 +3541,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     // the bridge itself: how long it runs on with nobody asking (this computer's choice), or ended now from the app
     if (req.method === "POST" && t === token && what === "live" && !sub) {
       writeFor(req, res, origin, liveWrite());
+      return;
+    }
+    // the tree's settings of the books (spec 105)
+    if (req.method === "POST" && t === token && what === "books" && !sub) {
+      writeFor(req, res, origin, booksWrite());
       return;
     }
     // work off the lines: a branch's choice, the tree's, a task's own turn — each a strom command
@@ -5560,6 +5627,43 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
+   * The tree's settings of the books (POST /books {"minTasks"?: 1…999|"default", "sameBook"?: "yes"|"no"|"default"}, at
+   * least one; spec 105): strom config set books.minTasks n --for-tree, queue.sameBook yes|no --for-tree (default: config
+   * unset) — as the person's own command; as it is already: 200, head = parent. {books: {settings}, head, parent}. Not in
+   * an archive nor a research waiting for its agent (409 directions.archive).
+   */
+  const booksWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the settings of the books",
+      codes: { badBody: "books.body", busy: "research.busy", failed: "books.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { minTasks, sameBook } = body;
+        const okMin = minTasks === undefined || minTasks === "default" || (typeof minTasks === "number" && Number.isInteger(minTasks) && minTasks >= 1 && minTasks <= BOOKS_MIN_TASKS_MAX);
+        const okSame = sameBook === undefined || sameBook === "yes" || sameBook === "no" || sameBook === "default";
+        if (!Object.keys(body).length || Object.keys(body).some((k) => k !== "minTasks" && k !== "sameBook") || !okMin || !okSame)
+          return { code: 400, body: refusal(`the body: {"minTasks"?: 1…${BOOKS_MIN_TASKS_MAX} | "default", "sameBook"?: "yes" | "no" | "default"} (at least one)`, "books.body") };
+        if (actsAsArchive(tree)) return directionsArchive(tree);
+        before = head(root);
+        const cmds: string[][] = [];
+        const min = readStored(tree.config, "books.minTasks", "");
+        if (minTasks === "default" ? min !== undefined : minTasks !== undefined && Number(min) !== minTasks)
+          cmds.push(minTasks === "default" ? ["config", "unset", "books.minTasks", "--for-tree"] : ["config", "set", "books.minTasks", String(minTasks), "--for-tree"]);
+        const same = readStored(tree.config, "queue.sameBook", "");
+        if (sameBook === "default" ? same !== undefined : sameBook !== undefined && same !== sameBook)
+          cmds.push(sameBook === "default" ? ["config", "unset", "queue.sameBook", "--for-tree"] : ["config", "set", "queue.sameBook", sameBook as string, "--for-tree"]);
+        if (!cmds.length) return { code: 200, body: { books: { settings: booksSettings(tree, new Settings(env, {})) }, head: before, parent: before } };
+        return { args: cmds[0]!, ...(cmds[1] ? { then: () => cmds[1] } : {}) };
+      },
+      done(tree, _data, h) {
+        return { books: { settings: booksSettings(tree, new Settings(env, {})) }, head: h, parent: before };
+      },
+      refused: (_tree, code, why, data) => offlineRefused(code, why, data),
+    };
+  };
+
+  /**
    * The bridge itself (POST /live): {"idleMinutes": n} — strom config set live.idleMinutes n (this computer's, every
    * tree's bridge; nothing of the research committed; as it is already: 200, nothing written) — or {"do": "stop"}: ended
    * as strom live stop ends it (the end event says by: "app"), once what the app sent is written — but its address kept,
@@ -6831,6 +6935,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           });
           child.on("close", (code, signal) => {
             if (gone) return;
+            // what lies in the folders changed (taken, or left there: /status books pending): made again at the next ask
+            keeper.forget();
             // ended by a signal: said, and the inbox free to take them at its next look
             if (code === null) {
               noteLive(root, `images saved for waiting tasks not taken now: its strom ended (${signal ?? "a signal"})`);
@@ -6845,9 +6951,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
               return done(false);
             }
             try {
-              const data = JSON.parse(out) as { taken?: { folder: string; added: number[]; problem?: string }[]; woken?: string[] };
+              const data = JSON.parse(out) as { taken?: { folder: string; added: number[]; problem?: string; left?: number }[]; woken?: string[] };
               for (const t of data.taken ?? [])
-                if (t.added.length || t.problem) noteLive(root, `inbox ${t.folder}: ${t.problem ? `nothing taken — ${t.problem}` : `${counted(t.added.length, "image")} registered`}`);
+                if (t.added.length || t.problem)
+                  noteLive(root, `inbox ${t.folder}: ${t.problem ? `nothing taken — ${t.problem}` : `${counted(t.added.length, "image")} registered${t.left ? `, ${counted(t.left, "file")} without an image number left lying` : ""}`}`);
               if (data.woken?.length) noteLive(root, `back in the queue (images saved): ${data.woken.join(", ")}`);
             } catch {
               // said by the exit code

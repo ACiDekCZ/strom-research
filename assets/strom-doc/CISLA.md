@@ -34,6 +34,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R2.2.1 | R2-lines-and-queue.md | výzkum 1.0.0 | platí | Strategie fronty | The queue strategy | Strategie der Warteschlange | Strategia kolejki |
 | R2.2.2 | R2-lines-and-queue.md | výzkum 1.1.0 | platí | Vyprávění na řadě | A story is due | Erzählung an der Reihe | Opowieść na kolei |
 | R2.2.3 | R2-lines-and-queue.md | výzkum 1.9.0 | platí | Úkoly, které čekají mimo frontu | Tasks that wait outside the queue | Aufgaben, die außerhalb der Warteschlange warten | Zadania, które czekają poza kolejką |
+| R2.2.4 | R2-lines-and-queue.md | výzkum 1.35.0 | platí | Další úkol téže knihy: `queue.sameBook` | The next task of the same book: `queue.sameBook` | Die nächste Aufgabe desselben Buchs: `queue.sameBook` | Następne zadanie tej samej księgi: `queue.sameBook` |
 | R2.3 | R2-lines-and-queue.md | výzkum 1.25.0 | platí | Práce mimo linie | Work off the lines | Arbeit außerhalb der Linien | Praca poza liniami |
 | R2.3.1 | R2-lines-and-queue.md | výzkum 1.26.0 | platí | Volba pro jednu větev a jeden úkol | A choice for one branch and one task | Wahl für einen Zweig und eine Aufgabe | Wybór dla jednej gałęzi i jednego zadania |
 | R2.3.2 | R2-lines-and-queue.md | výzkum 1.26.0 | platí | Rostoucí větev dostane návrh linie | A growing branch gets a line proposed | Ein wachsender Zweig bekommt einen Vorschlag für eine Linie | Rosnąca gałąź dostaje propozycję linii |
@@ -100,6 +101,10 @@ nenapsáno) · `neplatí od <verze>`.
 | R6.7 | R6-awaiting-action.md | výzkum 1.14.0 | platí | Odesláno, odpověď a návrat do fronty | Sent, the answer and the return to the queue | Gesendet, Antwort und Rückkehr in die Warteschlange | Wysłano, odpowiedź i powrót do kolejki |
 | R6.7.1 | R6-awaiting-action.md | výzkum 1.3.0 | platí | Odpověď souborem nebo slovy | An answer as a file or in words | Antwort als Datei oder in Worten | Odpowiedź plikiem lub słowami |
 | R6.7.2 | R6-awaiting-action.md | výzkum 1.0.0 | platí | Kdy se úkol vrátí sám a odložení | When a task returns by itself, and parking | Wann eine Aufgabe von selbst zurückkehrt, und das Zurückstellen | Kiedy zadanie wraca samo i odłożenie |
+| R6.8 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Knihy s nejvíc úkoly | Books with the most tasks | Bücher mit den meisten Aufgaben | Księgi z największą liczbą zadań |
+| R6.8.1 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Co z knihy jde stáhnout: podmínky archivu | What can be downloaded from a book: the archive's terms | Was sich aus einem Buch herunterladen lässt: die Bedingungen des Archivs | Co można pobrać z księgi: warunki archiwum |
+| R6.8.2 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Snímky uložené do složky knihy | Images saved to the book's folder | Bilder im Ordner des Buchs | Skany zapisane w folderze księgi |
+| R6.8.3 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Nastavení knih | The books' settings | Einstellungen der Bücher | Ustawienia ksiąg |
 | R7 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Kdy a jak dlouho agent pracuje | When and how long the agent works | Wann und wie lange der Agent arbeitet | Kiedy i jak długo agent pracuje |
 | R7.1 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Samostatná práce běží po sezeních | Working alone runs in sessions | Die Arbeit allein läuft in Sitzungen | Samodzielna praca przebiega sesjami |
 | R7.1.1 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Proč běh skončí | Why a run ends | Warum ein Lauf endet | Dlaczego przebieg się kończy |
@@ -307,6 +312,8 @@ nenapsáno) · `neplatí od <verze>`.
 | A6.7.16 | A6-views.md | aplikace 3.30.0 | platí | Odkazy na osoby a skoky ‹ › | Links to people and jumps ‹ › | Links zu Personen und Sprünge ‹ › | Odnośniki do osób i skoki ‹ › |
 | A6.7.17 | A6-views.md | aplikace 3.30.0 | platí | Ukotvené řádky | Pinned rows | Angeheftete Zeilen | Przypięte wiersze |
 | A6.7.18 | A6-views.md | aplikace 3.30.0 | platí | Výzkum v Tabulce dalšího okna | The research in the Table of another window | Die Forschung in der Tabelle eines weiteren Fensters | Badanie w tabeli innego okna |
+| A6.7.19 | A6-views.md | aplikace 3.30.0 | platí | Rozsah: seznam osob | Scope: a list of people | Umfang: eine Personenliste | Zakres: lista osób |
+| A6.7.20 | A6-views.md | aplikace 3.30.0 | platí | Seskupit podle | Group by | Gruppieren nach | Grupuj według |
 | A6.8 | A6-views.md | aplikace 3.28.0 | platí | Pohled v samostatném okně | A view in a separate window | Ansicht in einem eigenen Fenster | Widok w osobnym oknie |
 | A6.8.1 | A6-views.md | aplikace 3.28.0 | platí | Sledovat výběr | Follow selection | Auswahl folgen | Śledź wybór |
 | A6.8.2 | A6-views.md | aplikace 3.28.0 | platí | Když hlavní okno chybí | When the main window is missing | Wenn das Hauptfenster fehlt | Gdy brakuje okna głównego |
@@ -345,6 +352,31 @@ nenapsáno) · `neplatí od <verze>`.
 | A10.5.2 | A10-shared-events.md | aplikace 3.28.0 | platí | Propojit kmotra a svědka zapsaného jménem | Linking a godparent or witness recorded by name | Namentlich eingetragene Paten und Zeugen verknüpfen | Połączenie chrzestnego i świadka zapisanego z nazwiska |
 | A10.6 | A10-shared-events.md | aplikace 3.28.0 | platí | Sloučení osob a stromů | Merging people and trees | Personen und Stammbäume zusammenführen | Scalanie osób i drzew |
 | A10.7 | A10-shared-events.md | aplikace 3.28.0 | platí | Stromy uložené dřív | Trees saved earlier | Früher gespeicherte Stammbäume | Drzewa zapisane wcześniej |
+| A11 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Seznamy osob | Lists of people | Personenlisten | Listy osób |
+| A11.1 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Pevný, automatický a pracovní seznam | Fixed list, automatic list and checklist | Feste Liste, automatische Liste und Arbeitsliste | Lista stała, automatyczna i robocza |
+| A11.2 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Pravidlo seznamu | The rule of a list | Die Regel einer Liste | Reguła listy |
+| A11.2.1 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Doplnit podle pravidla | Add from the rule | Nach Regel ergänzen | Uzupełnij według reguły |
+| A11.2.2 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Zmrazit automatický seznam | Freezing an automatic list | Eine automatische Liste einfrieren | Zamrażanie listy automatycznej |
+| A11.2.3 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Pravidlo, které už nic nenajde | A rule that finds nothing any more | Eine Regel, die nichts mehr findet | Reguła, która nic już nie znajduje |
+| A11.3 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Správa seznamů: Seznamy osob | Managing the lists: Lists of people | Listen verwalten: Personenlisten | Zarządzanie listami: Listy osób |
+| A11.3.1 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Souhrn seznamu | The summary of a list | Die Zusammenfassung einer Liste | Podsumowanie listy |
+| A11.4 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Řazení seznamu | The order of a list | Die Sortierung einer Liste | Sortowanie listy |
+| A11.5 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Přidat do seznamu a odebrat | Add to list and remove | Zur Personenliste hinzufügen und entfernen | Dodaj do listy i usuń |
+| A11.6 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Uložit pohled jako seznam | Saving a view as a list | Eine Ansicht als Liste speichern | Zapisanie widoku jako listy |
+| A11.7 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Kdy osoba přibyla: Přidáno za posledních 30 dní | When a person came: Added in the last 30 days | Wann eine Person hinzukam: In den letzten 30 Tagen hinzugefügt | Kiedy osoba doszła: Dodane w ostatnich 30 dniach |
+| A11.8 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Pracovní seznam: Odškrtávat hotové | A checklist: Tick off done | Arbeitsliste: Erledigtes abhaken | Lista robocza: Odhaczaj gotowe |
+| A11.9 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Export seznamu | Exporting a list | Export einer Liste | Eksport listy |
+| A11.10 | A11-lists-of-people.md | aplikace 3.30.0 | platí | Seznamy v datech stromu | Lists in the data of the tree | Listen in den Daten des Stammbaums | Listy w danych drzewa |
+| A12 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Portrét a fotka svazku | The portrait and the couple's photo | Porträt und Paarfoto | Portret i zdjęcie pary |
+| A12.1 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Editor výřezu portrétu | The portrait crop editor | Der Editor für den Porträtausschnitt | Edytor kadrowania portretu |
+| A12.1.1 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Klávesnice, myš a dotyk v editoru | Keyboard, mouse and touch in the editor | Tastatur, Maus und Touch im Editor | Klawiatura, mysz i dotyk w edytorze |
+| A12.2 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Originál a štítek Portrét | The original and the Portrait tag | Das Original und die Markierung Porträt | Oryginał i etykieta Portret |
+| A12.3 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Upravit výřez později | Editing the crop later | Den Ausschnitt später bearbeiten | Późniejsza edycja kadru |
+| A12.4 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Fotka svazku | The couple's photo | Das Paarfoto | Zdjęcie pary |
+| A12.5 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Portréty z fotky svazku | Portraits from the couple's photo | Porträts aus dem Paarfoto | Portrety ze zdjęcia pary |
+| A12.6 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Kde se portrét a fotka svazku ukážou | Where the portrait and the couple's photo appear | Wo Porträt und Paarfoto erscheinen | Gdzie widać portret i zdjęcie pary |
+| A12.7 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Export, ochrana žijících a GEDCOM | Export, privacy of living people and GEDCOM | Export, Schutz lebender Personen und GEDCOM | Eksport, ochrona osób żyjących i GEDCOM |
+| A12.8 | A12-portrait-and-couple-photo.md | aplikace 3.30.0 | platí | Fotky v datech stromu | Photos in the data of the tree | Fotos in den Daten des Stammbaums | Zdjęcia w danych drzewa |
 | S1 | S1-connecting-app-and-research.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Propojení aplikace a výzkumu | Connecting the app and the research | Verbindung von App und Forschung | Połączenie aplikacji i badania |
 | S1.1 | S1-connecting-app-and-research.md | výzkum 1.0.0 | platí | Most výzkumu běží jen na tomto počítači | The research's bridge runs only on this computer | Die Brücke der Forschung läuft nur auf diesem Computer | Most badania działa tylko na tym komputerze |
 | S1.2 | S1-connecting-app-and-research.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Výzkum se otevře v aplikaci odkazem z terminálu | The research opens in the app through a link from the terminal | Die Forschung öffnet sich in der App über einen Link aus dem Terminal | Badanie otwiera się w aplikacji linkiem z terminala |
@@ -365,6 +397,7 @@ nenapsáno) · `neplatí od <verze>`.
 | S2.2.3 | S2-edits-from-the-app.md | aplikace 3.29.0 | koncept | Který strom se pošle | Which tree is sent | Welcher Stammbaum gesendet wird | Które drzewo zostaje wysłane |
 | S2.3 | S2-edits-from-the-app.md | výzkum 1.5.0 | platí | Co výzkum s poslanými úpravami udělá | What the research does with sent edits | Was die Forschung mit gesendeten Änderungen tut | Co badanie zrobi z wysłanymi zmianami |
 | S2.3.1 | S2-edits-from-the-app.md | aplikace 3.29.0, výzkum 1.34.0 | koncept | Hlavní citace a odebraná citace z aplikace | The main citation and a removed citation from the app | Hauptzitat und entferntes Zitat aus der App | Cytat główny i usunięty cytat z aplikacji |
+| S2.3.2 | S2-edits-from-the-app.md | výzkum 1.35.0 | platí | Poznámka účastníka z aplikace | A participant's note from the app | Notiz eines Beteiligten aus der App | Notatka uczestnika z aplikacji |
 | S2.4 | S2-edits-from-the-app.md | výzkum 1.12.0 | platí | Archiv Stromu a výzkum bez agenta | A Strom archive and a research without an agent | Strom-Archiv und Forschung ohne Agent | Archiwum Strom i badanie bez agenta |
 | S2.5 | S2-edits-from-the-app.md | aplikace 3.11.0, výzkum 1.12.0 | platí | Co výzkum nepřijme | What the research does not accept | Was die Forschung nicht annimmt | Czego badanie nie przyjmie |
 | S2.5.1 | S2-edits-from-the-app.md | aplikace 3.29.0, výzkum 1.34.0 | koncept | Nepřevzaté změny jmenovitě | Changes not taken, by name | Nicht übernommene Änderungen einzeln | Nieprzyjęte zmiany z nazwy |
@@ -404,6 +437,9 @@ nenapsáno) · `neplatí od <verze>`.
 | S4.4.1 | S4-research-from-the-app.md | aplikace 3.27.0 | platí | Více značek na kartě osoby | Several marks on a person card | Mehrere Marken auf der Personenkarte | Kilka oznaczeń na karcie osoby |
 | S4.4.2 | S4-research-from-the-app.md | aplikace 3.28.0 | platí | Hledání v Čeká na vyřízení | Searching Awaiting action | Suche in Wartet auf Bearbeitung | Wyszukiwanie w Czeka na załatwienie |
 | S4.4.3 | S4-research-from-the-app.md | aplikace 3.30.0 | platí | Pořadí v Čeká na vyřízení | The order of Awaiting action | Reihenfolge in Wartet auf Bearbeitung | Kolejność w Czeka na załatwienie |
+| S4.4.4 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Čeká na vyřízení podle knihy | Awaiting action by book | Wartet auf Bearbeitung nach Buch | Czeka na załatwienie według księgi |
+| S4.4.5 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Urychlit stažením | Faster by downloading | Schneller durch Herunterladen | Szybciej dzięki pobraniu |
+| S4.4.6 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Výzkum u stromu › Knihy | Research for this tree › Books | Forschung für diesen Stammbaum › Bücher | Badanie dla drzewa › Księgi |
 | S4.5 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Akce, které otevřou výzkum | Actions that open the research | Aktionen, die die Forschung öffnen | Działania, które otwierają badanie |
 | S4.5.1 | S4-research-from-the-app.md | aplikace 3.21.0 | platí | Značky akcí | Action marks | Marken der Aktionen | Oznaczenia działań |
 | S4.5.2 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Kde akce jsou | Where the actions are | Wo die Aktionen sind | Gdzie są działania |

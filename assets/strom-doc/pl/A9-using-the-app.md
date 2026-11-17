@@ -23,6 +23,8 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 | edytować osobę | menu osoby → **Edytuj** | [S2](S2-edits-from-the-app.md), przy śledzeniu [A9.3](#A9.3) |
 | widok Mapa i inne widoki | przełącznik widoków na pasku narzędzi; na telefonie, tablecie i w oknie do 1024 px dolny pasek i **Więcej → Widok** | [A6](A6-views.md), [A9.5](#A9.5) |
 | całe drzewo w wierszach, eksport CSV i XLSX | **Tabela** w przełączniku widoków; na telefonie, tablecie i w oknie do 1024 px **Tabela** na dolnym pasku | [A6.7](A6-views.md#A6.7) |
+| listy osób (stałe, automatyczne, robocze) | **Akcje → Listy osób…**; na telefonie **Więcej → Listy osób** | [A11](A11-lists-of-people.md) |
+| kadrowanie portretu, zdjęcie pary | edycja osoby → **Wybierz zdjęcie**, **Edytuj kadr**; edycja osoby → **Zarządzaj relacjami** → wiersz **Zdjęcie** | [A12](A12-portrait-and-couple-photo.md) |
 | zwinąć minimapę lub legendę drzewa | uszko nad minimapą; **◯** w legendzie | [A9.6](#A9.6) |
 | pełny ekran (telefon i tablet) | **Więcej → Pełny ekran**; na iPhonie w Safari **Więcej → Pełny ekran…** | [A9.5](#A9.5) |
 | widok albo Przegląd badania w osobnym oknie (na komputerze) | ⧉ **Otwórz w nowym oknie** obok przełącznika widoków; Ctrl+klik (macOS ⌘+klik) na karcie widoku; ⧉ na pasku Tabeli i w nagłówku Przeglądu | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
@@ -41,7 +43,7 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 - **Obsługa:** jak w tabeli.
 - **Obowiązuje od:** aplikacja 3.25.0 (podsumowanie; każde miejsce obowiązuje od wersji w swojej zasadzie)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
 
 <a id="A9.2"></a>
 ## A9.2 Elementy mają czytelną nazwę
@@ -50,7 +52,8 @@ Każdy element sterujący ma nazwę, którą odczyta czytnik ekranu i narzędzie
 się przez to nie zmienia.
 
 - **Granice:**
-  - przyciski z samą ikoną mają nazwę: powiększenie, filtry, wstecz i dalej, obrót zdjęcia, podgląd, lista przy
+  - przyciski z samą ikoną mają nazwę: powiększenie, filtry, wstecz i dalej, obrót zdjęcia (od aplikacji 3.30.0
+    w edytorze kadrowania portretu, [A12.1](A12-portrait-and-couple-photo.md#A12.1)), podgląd, lista przy
     wyszukiwaniu osoby (**Pokaż listę**), powiązany plik, odnośnik do źródła miejsca (**Otwórz źródło**) i inne;
   - zamknięte okna dialogowe i menu nie są odczytywane: nie ma ich w drzewie dostępności ani w tym, co narzędzie
     przeglądarki znajdzie na stronie;

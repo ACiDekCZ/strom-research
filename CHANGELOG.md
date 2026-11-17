@@ -7,8 +7,25 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.35.0-beta.2. The section is complete with the release.*
 
+- **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
+  put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
+  the books with the most tasks) and with `strom task books`, each with its archive, its years, how many tasks wait,
+  its images on disk and missing, the images its tasks need and not on disk yet, and the folder for its images. Only
+  books that can be downloaded and are not whole on disk yet are offered: the whole book where the archive's terms
+  allow it (with the archive's own words), else the images the waiting tasks need. The download is optional: without
+  it the agent goes on reading the book online. The agent hears at the start of a task which other tasks need the same
+  book, to do them together, and `strom task list --book` lists them.
+- **The books in the Strom app, and their settings:** the bridge gives the Strom app the books with the most tasks and
+  what may be downloaded of each, and names each task's book in what waits and in the queue. From how many tasks a
+  book is offered (`books.minTasks`, 5 by default) and whether the next session goes on in the same book
+  (`queue.sameBook`, off by default: after a session in a book whose images are on disk, another task of that book
+  comes first, at most 5 sessions in a row) are each research's own — set in the Strom app, in strom's menu (Settings ›
+  Archives › Books with the most tasks) or with `strom config set … --for-tree`. A link from the app opens a book's folder, no terminal.
+- **Images saved into a book's folder:** images saved by hand into the folder of a book that no task waits on are
+  taken by strom (the bridge, or the next session) by the image number in their names, and every task of the book reads
+  them from disk; a portal's JPEG 2000 files whose names count the image × 10 (MZA Brno) are counted back.
 - **A participant's note from the Strom app:** a godparent's or a witness's note edited in the Strom app 3.29.0 or
   newer comes back into the research, from its file and from what it sends straight through the bridge alike. A note
   that is only the beginning of the research's own (as an older app kept it, or shortened in the app — a cut between a

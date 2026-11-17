@@ -1,5 +1,5 @@
 {
-  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use; quoteFrom reply: the quote is the archive's written reply to strom's author on the day replied — never public terms nor an address (terms, when given, is a public page of its own), and it never opens automated use. replied alone: the day of the archive's written reply the entry follows, its quote still its public terms at terms. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked (or an archive's reply, quoteFrom reply, word for word); a release adds an archive.",
+  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use; quoteFrom reply: the quote is the archive's written reply to strom's author on the day replied — never public terms nor an address (terms, when given, is a public page of its own), and it never opens automated use. replied alone: the day of the archive's written reply the entry follows, its quote still its public terms at terms. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked (or an archive's reply, quoteFrom reply, word for word); a release adds an archive. wholeBook {how, says, from}: what a person may download of a book by hand, for strom's offer to speed up the tasks of a book (spec 105) — offered (the archive offers the whole book: a ZIP, a button), allowed (its terms or reply let the whole book be downloaded), selected (only selected images, never a whole book nor a substantial part), never (nothing to offer); says quoted word for word from its terms (from terms), its terms page (termsPage) or its reply (reply, on the day replied); none: only the images the tasks need. imageFileTimes: the image number in the name of a file as the portal names it (.jp2) is the image × this — counted back when a folder of the inbox is taken.",
   "archives": [
     {
       "host": "mza.cz",
@@ -18,7 +18,8 @@
       "browserOnly": true,
       "pace": {
         "minIntervalMs": 4000
-      }
+      },
+      "imageFileTimes": 10
     },
     {
       "host": "ebadatelna.soapraha.cz",
@@ -36,7 +37,12 @@
         "/d/",
         "/a/"
       ],
-      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file (the archive's reply of 2026-11-12: no reason to restrict an AI agent's use of an image the person saved by hand; its technical measures are not final); the permanent link of an image is the address in the browser's address bar while it is shown — cite that"
+      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file (the archive's reply of 2026-11-12: no reason to restrict an AI agent's use of an image the person saved by hand; its technical measures are not final); the permanent link of an image is the address in the browser's address bar while it is shown — cite that",
+      "wholeBook": {
+        "how": "offered",
+        "says": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
+        "from": "termsPage"
+      }
     },
     {
       "host": "digi.ceskearchivy.cz",
@@ -54,7 +60,12 @@
       ],
       "scope": "a person's browser only: the server refuses strom's requests (403, even robots.txt and the catalogue; on purpose, the archive's reply of 2026-11-05); by hand only and selected images only, never a whole book or a substantial part of it; no download tools and not the agent's browser either; the permanent link of an image is its page's address …/<book>/<image> or \"Odkaz na snímek\" in the POPIS panel (the terms of /Uvod and the archive's reply, 2026-11-05)",
       "checked": "2026-11-05",
-      "browserOnly": true
+      "browserOnly": true,
+      "wholeBook": {
+        "how": "selected",
+        "says": "badatel smí uložit pouze vybrané snímky, t.j. nesmí takto exportovat celou knihu nebo její podstatnou část.",
+        "from": "reply"
+      }
     },
     {
       "host": "aron.vychodoceskearchivy.cz",
@@ -63,7 +74,12 @@
       "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
       "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
       "robots": "none (/robots.txt answers the application's page)",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
+        "from": "terms"
+      }
     },
     {
       "host": "imgx.vychodoceskearchivy.cz",
@@ -72,7 +88,12 @@
       "terms": "https://soahradec.gov.cz/napoveda-archivu-online/co-v-archivu-online-najdete/",
       "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
       "robots": "none (404)",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
+        "from": "terms"
+      }
     },
     {
       "host": "katalog.ahmp.cz",
@@ -500,7 +521,12 @@
       "quote": "You further agree that, unless you have received our prior written permission, you will not use any software, technology, or device to perform a bulk download, to scrape content, or to otherwise harvest any information or materials from this site.",
       "robots": "Disallow: /ark:/61903/1: · Disallow: /ark:/61903/2: · Disallow: /Search/ · Disallow: /tree/person …",
       "scope": "no automated request at all: links and a task for the person",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "wholeBook": {
+        "how": "never",
+        "says": "You further agree that, unless you have received our prior written permission, you will not use any software, technology, or device to perform a bulk download, to scrape content, or to otherwise harvest any information or materials from this site.",
+        "from": "terms"
+      }
     },
     {
       "host": "ags.cuzk.gov.cz",
@@ -673,7 +699,12 @@
       "replied": "2026-11-05",
       "robots": "User-agent: * · Disallow: /administrator/ · /images/ · /media/ … (Joomla default)",
       "scope": "the archive's information pages only; its scans are on digi.ceskearchivy.cz (a person's browser only, selected images by hand only); the research rules and price lists lie under /images/, which robots.txt keeps off (the terms quoted as read on 2026-11-05)",
-      "checked": "2026-11-05"
+      "checked": "2026-11-05",
+      "wholeBook": {
+        "how": "selected",
+        "says": "badatel smí uložit pouze vybrané snímky, t.j. nesmí takto exportovat celou knihu nebo její podstatnou část.",
+        "from": "reply"
+      }
     },
     {
       "host": "www.soalitomerice.cz",
@@ -694,7 +725,12 @@
       "quote": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
       "robots": "the site redirects (301) to soahradec.gov.cz",
       "scope": "the archive's old address, redirects to soahradec.gov.cz; its records and images are on aron. and imgx.vychodoceskearchivy.cz",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
+        "from": "terms"
+      }
     },
     {
       "host": "soahradec.gov.cz",
@@ -851,7 +887,12 @@
         "/en/browse/"
       ],
       "scope": "paid (a time pass) and behind the person's login: no automated request at all — the person downloads a page as PDF within their pass, the agent reads the saved file; links and a task for the person",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "never",
+        "says": "5.1 Der Nutzer verpflichtet sich, es zu unterlassen, a) Informationen aus der Plattform oder der Datenbank von Archion systematisch oder automatisiert auszulesen …",
+        "from": "terms"
+      }
     },
     {
       "host": "lagis.hessen.de",
@@ -1073,7 +1114,12 @@
       "license": "CC BY-SA 4.0",
       "robots": "none (404)",
       "scope": "the archive's METS files (/digitalisate/…/mets.xml) and their images (/data01/…jpg) in the resolution offered; cite the shelfmark",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "Digitalisate von Archivgut des Landesarchivs Nordrhein-Westfalen dürfen von der Webseite in der bereitgestellten Auflösung kostenlos heruntergeladen werden (andere Auflösungen siehe 4.). … Die Digitalisate von Archivgut unterliegen der Creative Commons Lizenz CC-BY-SA.",
+        "from": "terms"
+      }
     },
     {
       "host": "www.archive.nrw.de",
@@ -1118,7 +1164,12 @@
       "quote": "Doch APERTUS bietet Ihnen noch mehr als nur Einsichtnahme: Sie können digital vorliegendes Archivgut hier nicht nur recherchieren, sondern einfach und bequem kostenlos downloaden.",
       "robots": "none (404)",
       "scope": "the civil registers and name indexes put online (registers older than 130 years), one image after another; publishing pictures of sources younger than 150 years needs the archive's approval",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "Doch APERTUS bietet Ihnen noch mehr als nur Einsichtnahme: Sie können digital vorliegendes Archivgut hier nicht nur recherchieren, sondern einfach und bequem kostenlos downloaden.",
+        "from": "terms"
+      }
     },
     {
       "host": "lav.rlp.de",
@@ -1495,7 +1546,12 @@
       "checked": "2026-11-06",
       "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
       "quoteFrom": "reply",
-      "replied": "2026-11-06"
+      "replied": "2026-11-06",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+        "from": "reply"
+      }
     },
     {
       "host": "agadd.home.net.pl",
@@ -1506,7 +1562,12 @@
       "checked": "2026-11-06",
       "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
       "quoteFrom": "reply",
-      "replied": "2026-11-06"
+      "replied": "2026-11-06",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+        "from": "reply"
+      }
     },
     {
       "host": "agadd2.home.net.pl",
@@ -1516,7 +1577,12 @@
       "checked": "2026-11-06",
       "quote": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
       "quoteFrom": "reply",
-      "replied": "2026-11-06"
+      "replied": "2026-11-06",
+      "wholeBook": {
+        "how": "allowed",
+        "says": "z galerii skanów dostępnej na stronie internetowej Archiwum Głównego Akt Dawnych może Pan korzystać w sposób nieograniczony. Skany można pobierać i dowolnie wykorzystywać podając miejsce przechowywania oryginałów, tzn. Archiwum Główne Akt Dawnych, zespół, sygnatura, stron/karta.",
+        "from": "reply"
+      }
     },
     {
       "host": "archiwum.mkw.pl",

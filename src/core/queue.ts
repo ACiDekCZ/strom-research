@@ -56,6 +56,7 @@ import { Settings } from "./config.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
 import { readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
+import { booksOfTask } from "./books.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -67,6 +68,9 @@ const RECENT = 4;
 
 /** Sessions without a story after which a story waiting to be written comes first, once. */
 export const STORY_EVERY = 5;
+
+/** queue.sameBook: at most this many sessions in a row on one book, then the queue's own order again. */
+export const SAME_BOOK_MAX = 5;
 
 /** A generation for work about no ancestor (a sibling, a side line, a book): after the close ancestors. */
 const OFF_LINE_GENERATION = 4;
@@ -97,6 +101,8 @@ export interface Ranked {
   own?: "next" | "last";
   /** Off the lines, taken now and then: this one's turn has come (it stands before the lines' work). */
   turn?: true;
+  /** queue.sameBook: of the book the last session worked in (its ID), so before the rest. */
+  sameBook?: string;
 }
 
 /**
@@ -213,7 +219,7 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
  * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
  * name: strom task next --history) — never otherwise.
  */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine } = {}): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine; sameBook?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
@@ -331,6 +337,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return !!t && verifiesInTurn(t);
   });
   const sinceVerify = lastVerify === -1 ? ended.length : lastVerify;
+  const sameBook = sameBookTurn(tree, ended, tasksById, withImages, opts.sameBook ?? settings.sameBook(tree.config));
   const verifyAhead =
     sinceVerify >= VERIFY_EVERY
       ? open
@@ -356,6 +363,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           ? 0
           : 2 * t.priority + intake - (gen - 1) - 2 * recent - 1.5 * tried + lineBonus(lineAt);
     const blocked = lacksImages(tree, t, withImages);
+    // queue.sameBook: the next task of the book the last session worked in, its images on disk (one that can be done now)
+    const inBook = !!sameBook && !blocked && !forHistory(t) && booksOfTask(tree, t).some((b) => b.id === sameBook.book);
     const storyTurn = storyDue && forStory(t);
     // what the variants of hypotheses would connect: short work the Strom app waits for — before all else (core/hypolinks.ts)
     const first = linksFirst(t, tried);
@@ -406,6 +415,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       placesAsked ? "places the person asked to be identified: on top of the queue" : undefined,
       storyTurn ? STORY_WHY : undefined,
       blocked ? "needs images the user has to download" : undefined,
+      inBook ? `the same book as the last session (${sameBook!.book}, its images on disk: queue.sameBook; ${sameBook!.inRow} in a row so far, at most ${SAME_BOOK_MAX})` : undefined,
       `p${t.priority}`,
       t.level === "intake" ? "the user's material" : at ? `generation ${gen}` : "not about an ancestor",
       lineAt !== undefined && working.length > 1 ? `line ${lineAt + 1} of ${working.length}` : undefined,
@@ -432,8 +442,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(p.research ? { research: p.research } : {}),
       ...(mine ? { own: mine } : {}),
       ...(ahead || verifyNow ? { turn: true as const } : {}),
+      ...(inBook ? { sameBook: sameBook!.book } : {}),
     };
-    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
+    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
@@ -453,7 +464,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // work that can be done now comes before work that waits for the user's download
         a.blocked - b.blocked ||
         // priority: strictly the lines' order of work, the tasks of no line after them
-        (strategy === "priority" ? a.lineRank - b.lineRank || b.task.priority - a.task.priority || a.gen - b.gen : b.score - a.score) ||
+        (strategy === "priority" ? a.lineRank - b.lineRank : 0) ||
+        // queue.sameBook: the tasks of the book the last session read, its images on disk, before the rest (of its line)
+        a.inBook - b.inBook ||
+        (strategy === "priority" ? b.task.priority - a.task.priority || a.gen - b.gen : b.score - a.score) ||
         (LEVEL_ORDER[a.task.level] ?? 9) - (LEVEL_ORDER[b.task.level] ?? 9) ||
         a.task.created.localeCompare(b.task.created);
   rows.sort(cmp);
@@ -469,6 +483,23 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     rows.sort(cmp);
   }
   return rows.map(({ task, why, storyTurn, extra }) => ({ task, why: why.map((w) => (w === STORY_WHY ? (storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined) : w)).filter(Boolean).join(" · "), ...extra }));
+}
+
+/**
+ * queue.sameBook: the book the last session worked in (named by its task, its images on disk) and how many sessions in
+ * a row worked in it — undefined when off, when no such book, or after SAME_BOOK_MAX sessions in a row on it.
+ */
+function sameBookTurn(tree: Tree, ended: Session[], tasksById: Map<string, Task>, withImages: Set<string>, on: boolean): { book: string; inRow: number } | undefined {
+  if (!on || !ended.length) return undefined;
+  const booksOf = (s: Session) => {
+    const t = tasksById.get(s.task!);
+    return t ? booksOfTask(tree, t).map((b) => b.id) : [];
+  };
+  const book = booksOf(ended[0]!).find((id) => withImages.has(id));
+  if (!book) return undefined;
+  let inRow = 0;
+  while (inRow < ended.length && booksOf(ended[inRow]!).includes(book)) inRow++;
+  return inRow < SAME_BOOK_MAX ? { book, inRow } : undefined;
 }
 
 /** The place of a story's turn among the reasons of a task (filled in once the one story of the turn is known). */

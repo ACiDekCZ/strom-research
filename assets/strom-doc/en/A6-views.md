@@ -6,7 +6,8 @@ How the Strom app chooses which people to show and how each view shows them. Des
 A view is a different reading of **the same choice of people**. The choice is set by the central person (the one
 clicked) and the depth **Ancestors** and **Descendants**. Family, Descendants, Timeline and Map show the same
 surroundings of the central person. The Fan counts ancestors and descendants on its own by the number of generations
-([A6.4](#A6.4)). The Table shows the whole tree ([A6.7](#A6.7)).
+([A6.4](#A6.4)). The Table shows the whole tree ([A6.7](#A6.7)), from app 3.30.0 also only one list of people
+([A6.7.19](#A6.7.19)).
 On a computer each view can also be opened in a separate window ([A6.8](#A6.8)).
 
 Views: **Family**, **Descendants**, **Timeline**, **Fan**, **Map**, **Table**.
@@ -540,6 +541,9 @@ the depth **Ancestors** and **Descendants**. The Table view is based on a table 
     in the Table: the table neither shows the central person nor changes it while working;
   - **from app 3.30.0** Alt+← / Alt+→ in the table go back and forward through the jumps over people's names
     ([A6.7.16](#A6.7.16)); even so they do not change the central person.
+- **From app 3.30.0:** **Scope ▾** narrows the table to a list of people ([A6.7.19](#A6.7.19)) and the Table's **⋯**
+  (at every width; on a computer hidden until the table has rows) offers **Group by ›** ([A6.7.20](#A6.7.20)) and
+  **Save as list of people…** ([A11.6](A11-lists-of-people.md#A11.6)).
 - **Controls:** **Table** in the view bar (after **Map**); on a phone, a tablet and in a window up to 1024 px **Table**
   on the bottom bar ([A9.5](A9-using-the-app.md#A9.5); up to app 3.27.0 **More → View → Table**).
   The view is remembered like the others ([A6.1.1](#A6.1.1)).
@@ -599,6 +603,13 @@ The columns are in groups. Which are visible and in what order is part of the vi
   ([S7](S7-reliability-and-verification.md)).
 - The columns **First name**, **Ref. number**, **Open question**, **⇄ In another tree** and **Person status** are hidden by
   default.
+- **From app 3.30.0:** for unions, the column **Photo** in the group **Children and sources** with a thumbnail of the
+  couple's photo, hidden by default; the filter **with photo** / **without photo**
+  ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
+- **From app 3.30.0:** for persons, the column **Added** in the group **Person**, hidden by default: the day the person
+  was added to the tree ([A11.7](A11-lists-of-people.md#A11.7)), in the app's language. A person without the date has
+  "earlier" in grey italics; the cell is empty, so it is at the end in both directions of sorting and **Only empty**
+  finds it. It sorts by the moment of adding (within a day by the time), the date filter by year.
 - **Limits:** a collapsed group is a narrow strip; it shows the highest level of a finding in its cells. On a phone
   the pinned name is narrower and the header can only be read, not changed.
 - **Controls:**
@@ -618,7 +629,7 @@ The columns are in groups. Which are visible and in what order is part of the vi
   moved, pinned columns moved only within their group, and a move that could not be made was greyed out.
 
 <!-- zdroj: app:4b1373a7 src/ui/table-view/table-state.ts normalizeColumns (zamčený sloupec ukotvený, kdekoli v ukotvené části), columnRun (ukotvená část: [0, pinned − 1]; mimo ni skupina), canMoveColumn, moveColumnBy · table-headmenu.ts headMenuItems (moveLeft/moveRight jen canMove; Skrýt ne u zamčeného; Uvolnit ne u zamčeného) · table-colpanel.ts (šipka jen pro možný posun) · commit 19dbb595 (dřív columnRun locked = 1, disabled/aria-disabled) · dirigent:spec/082-tester-3.28 K2.1 -->
-<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) -->
+<!-- zdroj: app:src/ui/table-view/table-columns.ts PERSON_GROUPS, UNION_GROUPS, katalog sloupců (surname marriedSurname || lastName, birthSurname lastName, researchId /^P\d{1,7}$/, eventValues nejnovější první, sortKey jména), pinnedWidth 156 na telefonu · table-state.ts MIN_COLUMN_WIDTH, BAND_WIDTH, lockedColumn · table-checks.ts bandSeverity · table-colpanel.ts panelGroups · table-headmenu.ts headMenuItems · strings.ts table.group.*, col.*, columns, columnsCount, searchColumn, all, pinnedLabel, resetColumns, done, coverageRow, sortAsc, sortDesc, sortAdd, sortAddHint, filterColumn, pin, unpin, moveLeft, moveRight, hide, collapseGroup, expandGroup, computedFrom · commity 89602f35, 49b96d92, e4a35406 · refn (skupina person, textCell p.refn; commit 7e648e24, T54 F3), question, crossTree (crossTreeCell), personStatus (personStatusCell, cardStatus, CARD_STATUS_CLASSES), strings.ts table.col.refn, question, crossTree, personStatus · „Celé jméno“ (id `name`) a sloupec firstName, záhlaví „Ref. číslo“ bez „(REFN)“: commity 79764eba, 8fdf52ca (T54 G10, G3) · 3.30.0: app:45f7ca2a table-columns.ts:732 uPhoto (group uextra, skrytý) · app:0971647c table-columns.ts addedCell (dateCell, sortKey + zlomek dne, bez údaje emptyCell s textem earlier), sloupec added (group person, nenabízí se ve výchozím stavu), strings.ts table.col.added, table.earlier · e2e/person-list-table.spec.ts, src/__tests__/table-view-added.test.ts -->
 
 <a id="A6.7.3"></a>
 ### A6.7.3 Computed and substitute values
@@ -777,7 +788,9 @@ saves a custom view.
 | **All sources** (default for sources) | sources | title, archive, book and reference, online, people, facts, read by the research, transcript; sorted by title |
 
 - **A view saves:** the row type, the columns (order, widths, pinning, collapsed groups), the coverage row, the
-  filter, the sort and the expanding of unions. It does not save the search, the selected row or the scroll.
+  filter, the sort and the expanding of unions; from app 3.30.0 also the scope ([A6.7.19](#A6.7.19)) and the grouping
+  of rows with the collapsed groups of rows ([A6.7.20](#A6.7.20)), not for sources. It does not save the search, the
+  selected row or the scroll.
 - A changed view has the label **changed** and the options **Save**, **Save as new**, **Discard changes**. A built-in
   view does not change and cannot be renamed or deleted; its changes can only go **Save as new**. A custom view:
   **Rename…**, **Delete** (with a confirmation). Custom views are sorted by name.
@@ -815,7 +828,10 @@ cancels it.
   matches the filter stays with the label “no longer matches” until the next change of the sort, filter or view.
   A change from the research is announced by “Research changed 3 facts: …”.
 - One fact can also be edited right in the cell ([A6.7.15](#A6.7.15)).
-- **Limits:** in a read-only tree there is no **Edit…**.
+- **From app 3.30.0:** the row menu (and the row's panel on a phone) has **Add to list ›** for the row's people, a
+  selection across several rows **Add N people to a list ›**; in the scope of a fixed list also **Remove from the
+  list** ([A11.5](A11-lists-of-people.md#A11.5), [A6.7.19](#A6.7.19)).
+- **Limits:** in a read-only tree there is no **Edit…** and no **Add to list ›**.
 - **Controls:** the buttons ⌖ ▤ ✎ at the row's end, over no cell's text: with a mouse they show once the pointer has
   been on the row away from them, on the selected row also with the pointer elsewhere; the row menu (right button;
   expanding unions too). A finger's tap on a row (a phone, a narrow window, a device worked mainly by touch) opens a
@@ -858,6 +874,8 @@ workbook).
   - Counts, ages in whole years and completeness are numbers (completeness and coverage as a percentage); the rest is
     text as the table writes it (also “≈ 67”, “28–29”, dates). Text never becomes a formula. A source's link is a
     link in the cell.
+- **From app 3.30.0:** in the scope of a list of people the first columns are **#** and, for a checklist, **Done**
+  (✓) ([A6.7.19](#A6.7.19)); a grouped table has the column **Group** before them ([A6.7.20](#A6.7.20)).
 - **File:** `{tree}_{view}_{YYYY-MM-DD}.csv` or `.xlsx`, without diacritics.
 - **Controls:** **Export ▾** in the table's bar (on a phone in **⋯**): **Format** “CSV · for Excel and Google Sheets”
   or “XLSX · groups, frozen panes, check colours”, **Rows**, **Download CSV** / **Download XLSX**; the notice
@@ -946,13 +964,19 @@ and tells how much the source documents in the tree.
 - Citations of placeholder persons and sources of a story are not counted.
 - **Chips:** **No person** (no person cites it), **Unread**, **With transcript**, **Online** (the same as the column
   **Online**, also with an address without `https://`).
-- **Controls:** the built-in view **All sources**. At a row **Open source** and **Edit…**: both open the source
-  manager at that source; **Show in tree** is not here.
-- **Limits:** in a locked tree the source is only shown, without edits.
+- **Controls:** the built-in view **All sources**. At a row **Open source** and **Edit…**; **Show in tree** is not
+  here.
+  - **Open source** opens the source viewer (clippings, citations; in it **Edit**, when the tree can be changed).
+  - **Edit…** (also a double click, on a phone **Edit…** in the row's panel) opens editing the source straight away,
+    the same as in the source manager.
+  - After closing, the table is as it was: the selection, the scroll and the active cell. The source manager
+    (**Actions → Sources**) still opens from the menu.
+  - Up to app 3.29.0 both **Open source** and **Edit…** opened the source manager at that source.
+- **Limits:** in a read-only tree (a locked one too) the source is only shown, without edits.
 - **Since:** app 3.27.0; **Call number**, **Folio/page**, **Image** and **Other location** (before, **Book, reference,
-  folio**) also 3.27.0
+  folio**) also 3.27.0; the source viewer and editing straight away 3.30.0
 
-<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
+<!-- zdroj: app:a97de984 table-columns.ts:898-901 srcSig/srcFolio/srcImageNo, :1026 DEFAULT_VIEWS.sources, přirozené řazení · 8dd21adf table-bar.ts nabídka rozdělení · app:src/ui/table-view/table-sources.ts sourceUsage (PERSON_CITATION_FIELDS, události, PARTNERSHIP_CITATION_FIELDS pro oba partnery, bez zástupných, ne příběh), buildSourceRows (katalog data.sources), sourceReaders (readBy user/research/both) · table-columns.ts SOURCE_COLUMNS, urlCell, shortUrl, readersCell, DEFAULT_VIEWS.sources · table-filter.ts SOURCE_CHIP_ORDER (srcNoPerson persons 0, srcUnread, srcTranscript, srcOnline safeHttpUrl) · table-grid.ts rowTail (source: open + edit) · table-ui.ts tableRowAction (source → openTableSource), openTableSourceId (zamčený strom → showSourceViewer readOnly; od 3.30.0 app:05e24806: bez edit → showSourceViewer, s edit → showEditSourceModal, jen ke čtení → prohlížeč, focusTableAfterSource) · strings.ts table.rows.sources, group.source, group.use, col.src*, chip.src*, readers, act.openSource, viewName.allSources, sources.readBy.* · commity 1a3a49f1, 3cf69ffa · spec 073 §14.2 · dirigent:prace/1110-app-tabulka-p2 · odkaz a čip Online: safeWebUrl (http/https, www. → https, rel noopener noreferrer), commit 7e648e24 (T54 F10, F11) -->
 
 <a id="A6.7.12"></a>
 ### A6.7.12 Citations and godparents in the People table
@@ -978,11 +1002,11 @@ godparent.
   of the tree is a link. A godparent who keeps turning up ([A5.5](A5-tree-check.md#A5.5)) has the mark **lead** in the
   cell.
 - **Controls:** the columns are switched on one by one in the panel **Columns** ([A6.7.2](#A6.7.2)). A click on “+N”
-  opens the bubble **Other citations** (on a phone a bottom panel); a click on a source opens it in the source
-  manager.
-- **Since:** app 3.27.0
+  opens the bubble **Other citations** (on a phone a bottom panel); a click on a source in it opens the source viewer
+  (in it **Edit**), up to app 3.29.0 the source manager. After closing, the table is as it was.
+- **Since:** app 3.27.0; the source viewer 3.30.0
 
-<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
+<!-- zdroj: app:src/ui/table-view/table-sources.ts factCitations (narození: birthSourceIds + birth/baptism; úmrtí: deathSourceIds + death/burial/cremation; sňatek: sourceIds svazku; neznámé id ven, každý jednou) · table-columns.ts citeCell (první pramen, moreSources), bArch…dUrl (group sources, unionScoped, deathOnly → naCell), godparentsCell (group birth), personGodparents · table-checks.ts personRecurring (sloupec godparents) · table-grid.ts moreCitesHtml · table-ui.ts showTableCites, openTableSourceId (od 3.30.0 prohlížeč pramene, app:05e24806) · strings.ts table.col.bArch…dUrl (bUrl „Narození: URL“, commit 7e648e24, T54 F10); 3.27.0: a97de984 bSig/bFolio/bImage/bRef…dRef, table-bubble.ts, table-events source text, godparents, moreCites, citesTitle · commity 208d8b92, 21a132c1 · spec 073 §14.3, §14.5 · dirigent:prace/1110-app-tabulka-p2 (citace: jen citace v datech, ne FactReliability.sourceIds) -->
 
 <a id="A6.7.13"></a>
 ### A6.7.13 Marks in the cells
@@ -1329,6 +1353,73 @@ another window follows the agent ([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
 - **Since:** app 3.30.0
 
 <!-- zdroj: app:34513c94 src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (zrcadlo stavu agenta, Tabulka čte vstup výzkumu z hlavního okna) · src/ui/table-view/table-filter.ts researchFilterIdle (čip výzkumu nebo sloupec fromResearch, bez ctx.research) · table-viewbar.ts .tv-view-note (role status) · index.html .tv-view-note na telefonu jen tečka · d24ff2ec src/ui/table-view/table-ui.ts tableAgentRow (jen windowAgentFollow, tj. další okno; attached posune, attached/paused poznámka, ukotvený ne), tableShowAgentRow, tableAgentFollowChanged · table-grid.ts revealKey(center, smooth, keepSelection), REVEAL_GLIDE_MS 300, prefers-reduced-motion · index.html .tv-row.is-agent (--follow-c1-soft, linka, font-weight 600, bez tv-agent-bar) · src/ui/live-follow-ui.ts (pauza Tabulky: kolečko, posuvník, stisk v řádcích, klávesy; lišta, hlava, stavový řádek ne) · table-bar.ts updateAgentNote (tv-status-agent, aria-live polite, showTemp) · 18dbb544 (poznámka: stav výzkumu a jen ke čtení ustoupí; do 400 px počet, Značky, ◎) · b8d21457 src/windows/window-table-research.ts (TABLE_BUBBLE_ACTION, bubbleRunsHere source / web, hlavní okno ověří nabídku, do popředí ne u terminálu, bez odpovědi čekající položky, při zavřeném hlavním okně vynechané) · strings.ts table.agentRowHidden, table.researchFilterOff, table.link.showTemp · CHANGELOG.cs.md 3.30.0 „Výzkum v Tabulce dalšího okna“, „Sledování agenta ve všech oknech“ · spec 097 K1.2, K3.1, K3.2, O4, dotaz 6 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §5; ZADANI_UIX dotazy 11, 14, 15 · prace/1116-app-097-sledovani-okna -->
+
+<a id="A6.7.19"></a>
+### A6.7.19 Scope: a list of people
+
+The table shows the whole tree or one list of people ([A11](A11-lists-of-people.md)). The scope narrows the rows to
+the people of the list; the filter, the search and the chips then apply within it.
+
+| Rows | In the scope of a list |
+|---|---|
+| **People** | the people of the list in the list's order; the first column **#** is the position, the sort “Sort: # (list order)” |
+| **Unions** | unions where at least one partner is in the list; a partner outside the list is grey |
+| **Events** | events in which at least one person of the list takes part |
+| **Sources** | always the whole tree: “Sources have no scope by list.” |
+
+- The scope applies to People, Unions and Events at once. The counts in the switch **Rows** and above the table count
+  only the scope. Sorting by another column is possible; back on the whole tree the list's order disappears.
+- The scope is not a filter chip: **Clear filters** does not cancel it.
+- **Checklist** ([A11.8](A11-lists-of-people.md#A11.8)): after **#** there is the column **Done** (a box, a click or
+  Space) and among the chips **Left** and **Done** (they exclude each other).
+- **Remove from the list:** in the scope of a fixed list it is in the row menu of a person (also for a selection
+  across several rows); the person disappears from the table at once, the notice has **Undo**.
+- **A person outside the list:** a jump through a link ([A6.7.16](#A6.7.16)) to a person who is not in the list says
+  “Not in the list: {name}.” with **Show for now** · **Whole tree** · ×. A row shown for now or a pinned row
+  ([A6.7.17](#A6.7.17)) outside the list is dimmed, has **#** “–” and the label “outside the list”.
+- **A deleted list:** the table returns to the whole tree and says “The view’s list is gone; the whole tree is shown.”
+- The scope is remembered with the view ([A6.7.7](#A6.7.7)), with the table's unfinished state and in a new window
+  (⧉, [A6.8](#A6.8)).
+- **CSV and XLSX export** ([A6.7.9](#A6.7.9)) in the scope has the columns **#** and **Done** first; **All … without
+  the filter** means all rows of the scope.
+- **Limits:** a tree without lists has in **Scope** only **Whole tree** and **Manage lists…**; a read-only tree has
+  neither **Manage lists…** nor **Done** and **Remove from the list** as edits.
+- **Controls:** **Scope ▾** in the table's bar: **Whole tree**, **Lists of people** (the icon of the kind, the number
+  of people, ✓ at the chosen one), **Manage lists…**. On a computer the first row of the bar stays one row: where
+  space is short, the word **Scope** is hidden and the whole tree is only a mark. On a phone **⋯ → Scope ›**. From a
+  list: **Open in Table** ([A11.3](A11-lists-of-people.md#A11.3)).
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
+
+<a id="A6.7.20"></a>
+### A6.7.20 Group by
+
+The table's rows can be grouped by one value. Each group has a header with the value and the number of rows and can
+be collapsed.
+
+| Rows | Group by |
+|---|---|
+| **People** | **Research line** (only a tree with lines), **Family line**, **Surname**, **Birthplace**, **Century of birth**, **Decade of birth**, **Generation**, **Sex**, **Occupation**, **Added – day** / **month** / **year** ([A11.7](A11-lists-of-people.md#A11.7)), **Done / left** (only in the scope of a checklist) |
+| **Unions** | **Decade of marriage**, **Place of marriage**, **Partners’ family lines**, **Number of children** |
+| **Events** | **Event type**, **Decade**, **Place** |
+| **Sources** | not grouped |
+
+- Grouping has one level only. Groups go up by value (time, number, alphabet); rows without a value are the last
+  group “no value” (for Added “earlier”). Within a group the table's sort applies. An empty group is not shown.
+- A row with several values (several lines, several occupations, a union of two family lines) is in each of its
+  groups. The status line then says “N different people · K groups”.
+- Grouping shows as the chip “Grouped: …” with ×; the filter and the search still apply. A jump to a row in a
+  collapsed group opens it.
+- Grouping is remembered with the view ([A6.7.7](#A6.7.7)). A value the row type or the tree does not offer is not
+  used.
+- **CSV and XLSX export** of a grouped table has the first column **Group**; a row in several groups is there in each.
+- **Controls:** the Table's **⋯** → **Group by ›** (**No grouping** cancels it), **Collapse all groups** / **Expand all
+  groups**. A group's header: a click, Enter or Space collapses and expands, ← collapses, → expands. On a phone
+  **⋯ → Group by**; the group's header stays on top while scrolling.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:src/ui/table-view/table-group.ts PERSON_KEYS, UNION_KEYS, EVENT_KEYS, offeredGroupKeys (lines jen s liniemi, done jen pracovní seznam), multiValued, groupRows (vzestupně, NO_VALUE_KEY poslední, řazení uvnitř, prázdné ne), noValueLabel (lists.earlier), groupKeysOfRow (skok otevře), groupedExportRows · table-export.ts:131 groupCol · table-views.ts:259, :273 view.group, groupingFits · table-ui.ts tableGroupOffer, tableExportGroups, setTableGroupBy, ⋯ Tabulky :3377, telefon :3423 · strings.ts table.groupBy, groupNone, grouped, groupsCollapse, groupsExpand, groupKey.*, groupNoValue, distinct, groupsN, groupCol · app:84331c31 · ZADANI_DEV §10, §11 · spec 084 K4.* -->
 
 <a id="A6.8"></a>
 ## A6.8 A view in a separate window

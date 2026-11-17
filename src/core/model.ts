@@ -1285,6 +1285,10 @@ export interface TreeConfig {
   /** The tasks and the people of a branch from which a line is proposed for it. */
   queueSuggestTasks?: number;
   queueSuggestPersons?: number;
+  /** The tasks a book needs to be offered to download by hand (books.minTasks; spec 105). */
+  booksMinTasks?: number;
+  /** After a session in a book on disk, the next task of that book first: no (default) or yes (queue.sameBook). */
+  queueSameBook?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
   /** The history of the regions of the tree's places for this tree alone, both ways ("on" | "off"; unset: the user's config). */

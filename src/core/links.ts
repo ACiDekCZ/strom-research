@@ -69,7 +69,7 @@ export const LINK_STORY_DOS = ["final", "keep"] as const;
 /** The research followed live: start: only its bridge started (at its last address), no window of the app opened. */
 export const LINK_LIVE_DOS = ["start"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work", "book"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -80,6 +80,11 @@ export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
  * request marked sent, a file that came for it (none: answer it).
  */
 export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "folder", "sent", "file"] as const;
+/**
+ * What a link does with a book the tasks need (spec 105): its folder of the shared inbox opened — made first when not
+ * there — no terminal, nothing written in the research.
+ */
+export const LINK_BOOK_DOS = ["folder"] as const;
 /** What a link does with a direction of the research (strom research pause|done|resume). */
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
@@ -146,6 +151,7 @@ const INPUT = /^I\d{1,9}$/;
 /** A tree the app sent, as the bridge marked it (core/sync.ts receiveTree). */
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
+const BOOK = /^B\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
 /** A change of the research's history by its commit hash (the app's /log head, or its first 8 as strom history shows it). */
 const CHANGE = /^[0-9a-f]{7,40}$/;
@@ -213,6 +219,7 @@ export type Link =
   | { action: "seal"; tree: string }
   | { action: "excerpt"; tree: string; source: string; clip: string }
   | { action: "media"; tree: string; sha: string }
+  | { action: "book"; tree: string; id: string; do: (typeof LINK_BOOK_DOS)[number] }
   | { action: "chat"; tree: string; person?: string; research?: string }
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
@@ -307,6 +314,10 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const sha = (q.get("sha") ?? "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(sha)) throw new LinkError("no file named");
       return { action, tree: id, sha };
+    }
+    case "book": {
+      // a book by its ID alone (B…), and what is done with it: one of fixed values
+      return { action, tree: id, id: idOf(q, "id", BOOK, true)!, do: oneOf(q, "do", LINK_BOOK_DOS, "folder") };
     }
     case "chat": {
       const research = idOf(q, "research", RESEARCH, false);

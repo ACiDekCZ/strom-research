@@ -63,6 +63,8 @@ Przed wynikiem z drzewa wybiera się, jak pokazać osoby żyjące. W eksporcie o
   cytaty i załączniki **u wszystkich osób, także zmarłych** (aplikacja pisze to przy opcji). Księga rodu, strony
   i strona osoby odbierają źródła tylko osobom żyjącym; źródło cytowane tylko u żyjących wypada.
 - **Obowiązuje od:** aplikacja 1.2.0; źródła zmarłych w księdze i na stronach aplikacja 3.18.0
+- **Od aplikacji 3.30.0:** osoba żyjąca traci wraz ze zdjęciem także oryginał portretu; związek z żyjącym partnerem
+  traci zdjęcie pary ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Od aplikacji 3.26.0:** eksport GEDCOM zachowuje źródła i cytaty zmarłych w każdej opcji; pomija tylko cytaty osób
   żyjących i mówi to („U N żyjących osób zostanie pominiętych K cytatów. Zmarłym źródła pozostaną.”, opcja **Zachowaj
   źródła**). Eksport Aplikacja z danymi i JSON się nie zmienia. Eksport GEDCOM najpierw pyta, **Do czego służy plik**:
@@ -106,9 +108,14 @@ Przy eksporcie obok ochrony wybiera się **Zawartość**: co zapisze się w plik
 - **Granice:** struktura drzewa i imiona z nazwiskami zostają zawsze. Warsztat pracy badania (kolejka, zadania,
   szkice opowieści) nie trafia do eksportu nigdy. Opcja ochrony może pominąć źródła i załączniki także przy Pełnym
   archiwum ([A7.2](#A7.2)).
+- **Od aplikacji 3.30.0:** wybór **Co eksportować** ma obok **Całe drzewo** i **Tylko bieżący widok** także
+  **Lista osób**: kopia zapasowa JSON i GEDCOM tylko z osobami listy ([A11.9](A11-lists-of-people.md#A11.9)).
+- **Od aplikacji 3.30.0:** **Zdjęcia** to także oryginały portretów i zdjęcia par. Bez zdjęć znikają również one,
+  także gdy eksportuje się załączniki; bez załączników portrety zostają bez powiązania z oryginałem
+  ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Obowiązuje od:** aplikacja 2.4.0
 
-<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent -->
+<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent · 3.30.0: app:33fa6cd4 src/ui/import-export.ts scope 'list', strings.ts exportMenu.scopeLabel, scopeWhole, scopeView, scopeList -->
 
 <a id="A7.4"></a>
 ## A7.4 Księga rodu
@@ -132,6 +139,9 @@ Księga rodu to księga do czytania od początku: drzewo genealogiczne, rodziny 
 - Wybory zapamiętuje się dla każdego drzewa.
 - **Obsługa:** eksport **Księga rodu**; okno księgi: druk na A4 i **Zapisz jako HTML**.
 - **Obowiązuje od:** aplikacja 3.19.0; ustawienie wstępne Własne aplikacja 3.21.0
+- **Od aplikacji 3.30.0:** część **Wycinki zapisów i zdjęcia** umieszcza w rozdziale rodziny także zdjęcie pary, nad
+  wydarzeniami pary; drzewo, którego jedynymi obrazami są zdjęcia par, tę część proponuje
+  ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 
 <!-- zdroj: app:src/book-options.ts (části, předvolby, výchozí :55) · strings.ts book.dlg.kind, book.dlg.parts, book.dlg.preset, book.dlg.lang, book.parts, book.unavailable · CHANGELOG.cs.md 3.19.0, 3.21.0 -->
 
@@ -178,6 +188,10 @@ miejsca życia na mapie, oś życia z historią, wycinki z ksiąg metrykalnych i
   w Migracji w czasie ([A6.5.4](A6-views.md#A6.5.4)). Zapisana strona tego odnośnika nie ma. Stoi w sekcji
   **Miejsca życia**; osoba z najwyżej jednym własnym miejscem, która ma przodków na mapie, ma go we własnym wierszu
   tam, gdzie byłaby sekcja.
+- **Od aplikacji 3.30.0:** galeria **Obrazy i dokumenty** zaczyna się od zdjęcia każdego związku osoby („{A} i {B} ·
+  zdjęcie pary”). Powiększenie portretu z oryginałem ma przełącznik **Portret** | **Całe zdjęcie**, zapisana strona
+  odnośnik **Całe zdjęcie**, gdy plik to zdjęcie zawiera. ⋯ **Więcej działań** oferuje **Edytuj kadr portretu**
+  ([A12.3](A12-portrait-and-couple-photo.md#A12.3), [A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 - **Obsługa:** menu karty osoby, **Strona osoby**; także z wachlarza.
 - **Obowiązuje od:** aplikacja 3.18.0
 

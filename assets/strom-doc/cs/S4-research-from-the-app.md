@@ -614,6 +614,9 @@ a co jen ve výzkumu, říká [R6.5](R6-awaiting-action.md#R6.5).
 - **Od aplikace 3.28.0:** v **Přehledu výzkumu** má oddíl od 10 položek pole hledání ([S4.4.2](#S4.4.2)).
 - **Od aplikace 3.30.0:** v **Přehledu výzkumu** jde oddíl seřadit od nejnovějších nebo nejstarších položek
   ([S4.4.3](#S4.4.3)).
+- **Od aplikace 3.30.0 s výzkumem 1.35.0:** položky jdou seskupit podle knihy, s pořadím **Nejvíc úkolů**
+  a pododdílem **Urychlit stažením** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5)); nastavení knih v **Výzkumu u stromu**
+  ([S4.4.6](#S4.4.6)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -718,13 +721,112 @@ je pak nahoře a neztratí se mezi místy a skupinami.
     **Skupiny** zapnuté); jiné okno téhož zařízení, i okno Přehledu ([S4.1.6](#S4.1.6)), se přizpůsobí;
   - pořadí platí i s hledáním ([S4.4.2](#S4.4.2)) a čipy druhu. Hlava a pata výběru hypotéz se při vypnutých
     skupinách týkají hypotéz celé fáze;
-  - platí v Přehledu (bočním i přes strom), v okně Přehledu a na telefonu. Malý panel je beze změny.
+  - platí v Přehledu (bočním i přes strom), v okně Přehledu a na telefonu. Malý panel je beze změny (kromě výzkumu
+    s knihami, [S4.4.4](#S4.4.4)).
+- **S výzkumem, který zná knihy** (výzkum 1.35.0): přepínač **Skupiny** je volba **Archiv** | **Kniha** |
+  **Bez skupin** a pořadí má čtvrtou možnost **Nejvíc úkolů** ([S4.4.4](#S4.4.4)).
 - **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, tlačítko „⇅ Doporučené ▾“ za čipy druhu
   (v okně Přehledu v lepkavé hlavě oddílu) s nabídkou **Doporučené** ·
   **Nejnovější nahoře** · **Nejstarší nahoře**, na telefonu list **Pořadí**; přepínač **Skupiny**.
 - **Platí od:** aplikace 3.30.0
 
 <!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+
+<a id="S4.4.4"></a>
+### S4.4.4 Čeká na vyřízení podle knihy
+
+S výzkumem, který zná knihy ([R6.8](R6-awaiting-action.md#R6.8)), jdou položky **Čeká na vyřízení** seskupit podle
+knihy, kterou potřebují. U knihy je vidět, kolik úkolů na ni čeká, co z ní jde stáhnout a kam snímky uložit.
+
+- **Skupiny** (volba vedle pořadí):
+  - **Archiv**: skupiny jako dosud (místa, archivy, **Ostatní**, [S4.4.3](#S4.4.3));
+  - **Kniha**: v každé fázi napřed skupiny knih, pak ostatní položky ve skupinách archivů pod mezititulkem
+    **Bez knihy** (jen když nějaká kniha je). Kniha položky je kniha, na kterou položka čeká, jinak jediná kniha,
+    ve které úkol pracuje;
+  - **Bez skupin**: jeden seznam (jen u časového pořadí, jako vypnuté **Skupiny**).
+
+  V **Doporučeném** pořadí je volba **Archiv** | **Kniha**; skupiny knih stojí podle své první položky, v časovém
+  pořadí podle času první položky.
+- **Pořadí Nejvíc úkolů:** skupiny jsou vždy knihy (volba skupin zmizí). Knihy jdou od té, kterou potřebuje nejvíc
+  úkolů, při shodě víc čekajících, pak číslo knihy. Uvnitř knihy jsou položky v **Doporučeném** pořadí. Položky bez
+  knihy jsou na konci ve skupinách archivů.
+- **Záhlaví knihy:**
+  - název knihy (s roky), štítek **Kniha**, **nové: N** u sbalené knihy a počet položek. Při najetí název, archiv
+    a kolik úkolů knihu potřebuje (z toho odloženo);
+  - druhý řádek: archiv · „3 čekají“ · „+M ve frontě“ (úkoly knihy, které nečekají) · snímky („240 snímků · na disku
+    12 · chybí 228“) · „převezme se N souborů“ (soubory, které leží ve složce knihy a ještě se nepřevzaly) · „web
+    archivu vyžaduje přihlášení“. V pořadí **Nejvíc úkolů** jsou počty první a tučně;
+  - akce: co jde stáhnout podle podmínek archivu ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Ke stažení celá kniha
+    · N snímků“, „Ke stažení snímky 31–36 · 6 snímků“ nebo „Ke stažení vybrané snímky …“; **Web archivu ↗**;
+    **Otevřít složku** (složka knihy ve sdílené schránce, výzkum ji otevře bez terminálu a případně vytvoří,
+    [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (ne na telefonu). Klik na akci knihu nesbalí;
+  - kniha, kterou výzkum v přehledu knih neposlal: jen název (nebo číslo knihy), štítek a počet.
+- **Hledání** ([S4.4.2](#S4.4.2)) najde položky i podle názvu a archivu jejich knihy.
+- **Malý panel:** tlačítko pořadí a „Skupiny: Kniha ▾“ s nabídkou; záhlaví knihy jen s názvem a „N čeká“,
+  mezititulek **Bez knihy**; akce knih jsou jen v **Přehledu výzkumu**. Počty položek jsou stejné jako dosud.
+- **Hranice:**
+  - volba **Kniha** a pořadí **Nejvíc úkolů** jsou jen s výzkumem, který knihy posílá, a ne u Archivu Stromu ani
+    u výzkumu, který čeká na agenta. Jinak vše vypadá jako dřív a uložená volba **Kniha** nebo **Nejvíc úkolů** se
+    ukáže jako **Archiv** a **Doporučené**, aniž by se přepsala;
+  - volba skupin se pamatuje na tomto zařízení s pořadím ([S4.4.3](#S4.4.3)).
+- **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, vedle tlačítka pořadí přepínač **Skupiny**
+  (**Archiv** | **Kniha** | **Bez skupin**); na telefonu (i na šířku) a v malém panelu tlačítko „Skupiny: Kniha ▾“
+  s nabídkou (na telefonu list). Pořadí „⇅ … ▾“ › **Nejvíc úkolů**.
+- **Platí od:** výzkum 1.35.0, aplikace 3.30.0
+
+<!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
+
+<a id="S4.4.5"></a>
+### S4.4.5 Urychlit stažením
+
+Knihy, které potřebuje dost úkolů a na které nic nečeká, aplikace nabídne ke stažení zvlášť. Snímky uložené do
+složky knihy čte agent z disku, rychleji a levněji. Nic na ně nečeká, a proto se nepočítají mezi položky.
+
+- **Co tam je:** knihy, které výzkum nabízí ([R6.8](R6-awaiting-action.md#R6.8): aspoň `books.minTasks` úkolů,
+  něco jde stáhnout) a na které nečeká žádný úkol. Kniha, na kterou něco čeká, je v seznamu jako skupina
+  ([S4.4.4](#S4.4.4)). Pořadí jako **Nejvíc úkolů**.
+- **Pododdíl** **Urychlit stažením · N knih** stojí dole pod **Čeká na odpověď**, poprvé sbalený:
+  - věta „Snímky uložené do složky knihy čte agent z disku – rychleji a levněji. Nic na ně nečeká.“ a odkaz
+    **Nastavení…** (otevře **Výzkum u stromu** na skupině **Knihy**, [S4.4.6](#S4.4.6));
+  - řádek knihy: název; archiv · „N úkolů ve frontě“ · snímky · „převezme se N souborů“ · přihlášení; co jde
+    stáhnout · **Web archivu ↗** · **Otevřít složku**. Klik na název rozbalí podrobnosti: **Úkoly** (z toho
+    odloženo), **Složka**, **Přístup**;
+  - knihy nad rámec seznamu jen počtem: „a dalších N knih je ve výzkumu“ (celý seznam v terminálu,
+    `strom task books`).
+- **Hranice:**
+  - jen s čipem druhu **Vše** a **Snímky**; s hledáním jen knihy, jejichž název nebo archiv odpovídá;
+  - prázdný pododdíl se neukáže. Ukáže se i tehdy, když nic nečeká (pod prázdným oddílem);
+  - nepočítá se do počtu oddílu, souhrnu, „Čeká N“ ani malého panelu.
+- **Malý panel:** pod seznamem řádek „Urychlit stažením · N knih ⤢“, který otevře **Přehled výzkumu** s rozbaleným
+  pododdílem.
+- **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení → Urychlit stažením**. Terminál:
+  `strom task books` ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Platí od:** výzkum 1.35.0, aplikace 3.30.0
+
+<!-- zdroj: app:bc8fc5fd src/research-books.ts urgentBooks (offer && waiting === 0, sortBooksMost), urgentBooksShown (filtr all/images, hledání název a archiv) · src/ui/research-overview-ui.ts appendOverviewBooksOffer (sectionPartOpen urgent, výchozí zavřený; urgentText, Nastavení… → openBooksSettings; more), overviewUrgentBookRow (detail Úkoly, Složka, Přístup) · src/ui/research-ui.ts renderLivePanel panelUrgent (showOverviewBooksOffer) · strings.ts live.books.urgent* · research:b1749433 src/core/live.ts booksStatus (offer, more) · ZADANI_DEV_knihy-ukolu.md §3, §5 -->
+
+<a id="S4.4.6"></a>
+### S4.4.6 Výzkum u stromu › Knihy
+
+Nastavení knih výzkumu ([R6.8.3](R6-awaiting-action.md#R6.8.3)) jde změnit i v aplikaci. Zapisuje se přes most
+do výzkumu, takže platí stejně jako v terminálu.
+
+- **Skupina Knihy** (za **Čtením dokumentů**, ve sbaleném stavu souhrn „od 5 úkolů · bez přednosti“):
+  - **Od kolika úkolů nabízet knihu**: celé číslo od 1 do 999. Ukládá se po opuštění pole nebo Enteru. Jiná hodnota
+    ukáže „Celé číslo od 1 do 999.“ a nic se neodešle; prázdné pole vrátí uloženou hodnotu. Výchozí hodnota má
+    „(výchozí)“, odkaz **Vrátit výchozí (5)** ji vrátí;
+  - **Přednost stažené knize** (přepínač): po úkolu knihy, která je na disku, vezme fronta další úkol téže knihy,
+    nejvýš 5 sezení po sobě ([R2.2.4](R2-lines-and-queue.md#R2.2.4)).
+- **Zápis:** hned po změně „Ukládá se do výzkumu…“, pak „Výzkum potvrdil. Platí i pro změny v terminálu.“
+  Zaneprázdněný výzkum: „Výzkum je teď zaneprázdněný, nic se nezměnilo.“ a **Zkusit znovu**. Bez mostu je skupina
+  ztlumená. Změna z terminálu dialog překreslí, ale ne pole, do kterého se právě píše.
+- **Hranice:** jen s výzkumem, který knihy posílá; ne u Archivu Stromu ani u výzkumu, který čeká na agenta. Když se
+  výzkum mezitím přepne na Archiv Stromu, skupina zmizí.
+- **Ovládání:** aplikace: **Výzkum → Další → Výzkum u tohoto stromu… → Knihy**, nebo **Nastavení…**
+  v **Urychlit stažením** ([S4.4.5](#S4.4.5)). Terminál: [R6.8.3](R6-awaiting-action.md#R6.8.3).
+- **Platí od:** výzkum 1.35.0, aplikace 3.30.0
+
+<!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum

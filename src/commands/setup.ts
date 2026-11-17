@@ -1178,6 +1178,8 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "queue.offLineShare": (s, tree) => String(s.offLineShare(tree)),
   "queue.suggestLines": (s, tree) => (s.suggestLines(tree).on ? "yes" : "no"),
   "queue.suggestTasks": (s, tree) => String(s.suggestLines(tree).tasks),
+  "queue.sameBook": (s, tree) => (s.sameBook(tree) ? "yes" : "no"),
+  "books.minTasks": (s, tree) => String(s.booksMinTasks(tree)),
   "queue.suggestPersons": (s, tree) => String(s.suggestLines(tree).persons),
   "gedcom.for": () => "both",
   stories: () => "yes",

@@ -191,6 +191,9 @@ Nachricht erledigen lassen.
   **Bilder**, **Archive und Ämter**, **Familie**, **Web**, **Sonstiges**) · Terminal: in **Was wartet** der
   Buchstabe des Abschnitts, `?` schaltet auf **Wartet auf Antwort** um.
 - **Gilt seit:** Forschung 1.14.0
+- **Ab Forschung 1.35.0:** die Forschung sendet beim Eintrag auch sein Buch. Die App 3.30.0 kann die Einträge nach
+  Buch gruppieren ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); in **Was wartet** gibt es eine Übersicht der Bücher
+  mit den meisten Aufgaben ([R6.8](#R6.8)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
 
@@ -242,8 +245,11 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
   Quelle weiter geschieht (`strom source reading`, [R8.8.3](R8-reading-scans.md#R8.8.3)), und über einen
   vorgeschlagenen Wortlaut einer Abschrift, die er geschrieben oder bestätigt hat (`strom source proposal`, auch die
   Rücknahme, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
+- **Ab Forschung 1.35.0:** nur der Mensch entscheidet auch, ob eine kürzere Notiz eines Beteiligten aus der App
+  übernommen wird (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); der Agent führt nur die Antwort
+  des Menschen auf diese Aufgabe aus.
 
-<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) -->
+<!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
 <a id="R6.7"></a>
 ## R6.7 Gesendet, Antwort und Rückkehr in die Warteschlange
@@ -298,3 +304,132 @@ Eine Antwort bringt die Aufgabe in die Warteschlange zurück, und der Agent vera
     nicht. Solange sie nicht gelaufen ist, weist `strom check` auf solche Aufgaben hin.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.8"></a>
+## R6.8 Bücher mit den meisten Aufgaben
+
+Die Forschung zählt, welche Bücher die meisten ihrer Aufgaben brauchen. Ein Herunterladen des Buchs von Hand dient
+dann allen seinen Aufgaben auf einmal. Es ist ein Angebot, kein Eintrag, der wartet: in die Zahl **Wartet: N** zählt
+es nicht, und ohne Herunterladen liest der Agent das Buch weiter online.
+
+- **Prüft der Code:**
+  - gezählt werden offene (auch begonnene), zurückgestellte und wartende Aufgaben. Das Buch einer Aufgabe ist ein
+    Buch (B…), das die Aufgabe darin nennt, wo sie arbeitet, und ein Buch, auf dessen Bilder sie wartet. Eine
+    Aufgabe, die kein Buch nennt, zählt nicht, und es wird ihr kein Buch zugedacht: die Zahlen sind eine Untergrenze,
+    keine Schätzung;
+  - ein in ein anderes zusammengeführtes Buch zählt als das andere, ein zurückgezogenes Buch als keines;
+  - Reihenfolge: die meisten Aufgaben, bei Gleichheit die meisten wartenden, dann die Nummer des Buchs;
+  - beim Buch: Archiv, Jahre, Zugang, wie viele Aufgaben es brauchen (davon warten und zurückgestellt), Bilder
+    insgesamt, auf der Festplatte und fehlend (insgesamt und fehlend nur, wo der Katalog die Zahl der Bilder kennt),
+    benötigte Bilder, die noch nicht auf der Festplatte sind (die Nummern, auf die seine wartenden Aufgaben warten),
+    der Ordner im gemeinsamen Ordner und die Adresse des Buchs;
+  - ein Buch wird zum Herunterladen **angeboten**, wenn es mindestens `books.minTasks` Aufgaben brauchen (Standard 5,
+    [R6.8.3](#R6.8.3)), der Zugang frei oder mit Anmeldung ist (`online-free`, `online-login`), es nicht ganz auf
+    der Festplatte ist und es etwas anzubieten gibt: das ganze Buch, wo die Bedingungen des Archivs es erlauben,
+    sonst benötigte Bilder, die noch nicht auf der Festplatte sind ([R6.8.1](#R6.8.1)). Ein Buch, aus dem die
+    Bedingungen nichts herunterzuladen erlauben, wird nie angeboten;
+  - das Strom-Archiv bietet keine Bücher an ([R7.8](R7-when-the-agent-works.md#R7.8)).
+- **Der Agent bei einer Aufgabe:** zu Beginn einer Aufgabe erfährt der Agent, welche weiteren Aufgaben dasselbe Buch
+  brauchen, damit er sie zusammen erledigt: im Briefing beim Buch und in `strom task show` die Zeile „the same book is
+  needed by N more tasks: …“. Zuerst offene, dann wartende und zurückgestellte, höchstens 10 Nummern von Aufgaben,
+  der Rest als Zahl.
+- **Bedienung:** Terminal:
+  - `strom task books`: angebotene Bücher; `--min <n>` eine andere Grenze nur für diese Ausgabe (1–999), `--all`
+    jedes Buch, das irgendeine Aufgabe braucht, `--json`;
+  - `strom task list --book B…`: Aufgaben eines Buchs, offene zuerst, dann zurückgestellte und wartende; mit
+    `--state` nur Aufgaben dieses Zustands;
+  - Menü **Was wartet**: Taste **k** „Bücher mit den meisten Aufgaben N“; wenn nichts wartet, erscheinen die Bücher
+    unter **Nichts wartet.** Der Bildschirm zeigt höchstens 9 Bücher, die übrigen `strom task books`.
+
+  App: Wartet auf Bearbeitung, Gruppen nach Buch und **Schneller durch Herunterladen**
+  ([S4.4.4](S4-research-from-the-app.md#S4.4.4), [S4.4.5](S4-research-from-the-app.md#S4.4.5)).
+- **Warum:** Bilder gehören zum Buch, nicht zur Aufgabe: ein Ordner und ein Herunterladen dienen allen Aufgaben des
+  Buchs.
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:c533bc0e, 198eed31, b1749433 src/core/books.ts needsBooks (open, doing, parked, waiting; ne proposal ani shorterNote), liveBook (mergedInto, retracted), booksOfTask (where B…, awaits.recordset), bookRows (registered, missing jen s images, need = awaits.images bez registrovaných, řazení tasks ↓, waiting ↓, id), offerable (minTasks, DOWNLOADABLE online-free/online-login, missing !== 0, whole nebo range/selected s needCount), tasksOfBook (open, parked, waiting), sameBookLine (SAME_BOOK_IDS_MAX 10) · src/brief/brief.ts sameBookLine u knihy (ne u odhadnutého místa) · src/commands/tasks.ts task books (--min 1–999, --all, --json), task list --book (task.book), taskDetail řádek book · src/cli/menu-waiting.ts booksHere (actsAsArchive → žádné), showBooks (BOOKS_SHOWN 9), ui.wait.c.books · src/cli/menu.ts (Nic nečeká → showBooks) · assets/lang/cs.json ui.wait.c.books, ui.books.* · CHANGELOG.cs.md 1.35.0 „Knihy s nejvíc úkoly“ · dirigent:spec/105-co-nejvic-pomuze K1.1–K1.3 -->
+
+<a id="R6.8.1"></a>
+### R6.8.1 Was sich aus einem Buch herunterladen lässt: die Bedingungen des Archivs
+
+Was die Forschung aus einem Buch anbietet, bestimmen die Bedingungen des Archivs. Die Liste der Archive, die der
+Stammbaum bei sich hat, gibt beim Archiv an, was der Mensch aus einem Buch von Hand herunterladen darf, mit einem
+wörtlichen Zitat der Bedingungen, ihrer Seite oder einer schriftlichen Antwort des Archivs.
+
+- **Prüft der Code:**
+
+  | Bedingungen des Archivs | Was angeboten wird |
+  |---|---|
+  | das Archiv bietet das ganze Buch an (Schaltfläche, ZIP), oder die Bedingungen erlauben, es herunterzuladen | das ganze Buch |
+  | nur ausgewählte Bilder, nie das ganze Buch oder ein wesentlicher Teil davon | nur benötigte Bilder, die nicht auf der Festplatte sind |
+  | nichts | nichts, das Buch wird nicht angeboten |
+  | die Liste kennt das Archiv nicht | benötigte Bilder, die nicht auf der Festplatte sind |
+
+  - es entscheidet die Adresse des Buchs, sonst die Adresse seines Archivs;
+  - die benötigten Bilder kennen nur Aufgaben, die auf Bilder warten. Ein Buch ohne wartende Aufgabe wird daher außer
+    bei Archiven, die das ganze Buch erlauben, nicht angeboten.
+- **Beispiele aus der Liste:** das ganze Buch: eBadatelna SOA Praha (herunterladen dürfen Registrierte) und
+  weitere Archive, deren Bedingungen es erlauben; nur ausgewählte Bilder: DigiArchiv SOA Třeboň (schriftliche
+  Antwort des Archivs); nichts: FamilySearch, Archion. Moravský zemský
+  archiv hat in der Liste keine Angabe (das wörtliche Zitat fehlt): angeboten werden die benötigten Bilder
+  ([R9.10.1](R9-archives.md#R9.10.1)).
+- **Grenzen:** die Bedingungen des Archivs gehen dem Angebot vor. Das ganze Buch bieten App und Terminal nur an, wenn
+  die Bedingungen es sagen.
+- **Bedienung:** Terminal: `strom task books --json` (das Feld `download`: `whole`, `range`, `selected`, `none`, und
+  das Zitat `downloadTerms`). App: „Ganzes Buch herunterladbar“, „Bilder … herunterladbar“, „Ausgewählte Bilder …
+  herunterladbar“ ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:b1749433 assets/archives.json wholeBook {how offered|allowed|selected|never, says, from terms|termsPage|reply} (ebadatelna.soapraha.cz offered termsPage; digi.ceskearchivy.cz, www.ceskearchivy.cz selected reply; aron./imgx.vychodoceskearchivy.cz, vychodoceskearchivy.cz, www.landesarchiv-nrw.de, apertus.rlp.de allowed terms; agad.gov.pl, agadd*.home.net.pl allowed reply; familysearch.org, www.archion.de never; mza.cz bez wholeBook) · src/core/terms.ts wholeBookFor · src/core/books.ts downloadOf (b.url, jinak repo.url; bez údaje range), offerable · karta prace/1116-vyzkum-105-knihy-a (V4: čísla snímků znají jen čekající úkoly), -b (MZA bez citace, range) · spec 105 rozhodnutí U1 -->
+
+<a id="R6.8.2"></a>
+### R6.8.2 Bilder im Ordner des Buchs
+
+Bilder, die der Mensch in den Ordner eines Buchs im gemeinsamen Ordner speichert, übernimmt strom von selbst, auch
+wenn keine Aufgabe auf das Buch wartet. Sie gehören zum Buch, und alle seine Aufgaben lesen sie dann von der
+Festplatte.
+
+- **Prüft der Code:**
+  - der Ordner ist derselbe wie beim Warten auf Bilder, `inbox/<B… Buchtitel>` ([R9.6](R9-archives.md#R9.6)). Ihn
+    legt der Link **Ordner öffnen** aus der App an, ohne Terminal; die Brücke beobachtet nur Ordner, die es schon gibt;
+  - Übernahme: sofort, wenn die Brücke zur Strom-App läuft (eine Datei erst nach 3 s ohne Änderung); sonst beim Start
+    der nächsten Sitzung; oder mit dem Befehl `strom media add --inbox --waiting`. Zuerst die Ordner wartender
+    Aufgaben, dann die Ordner der Bücher;
+  - die Nummer des Bildes kommt **nur aus dem Dateinamen** (`40.jpg`), nie aus der Reihenfolge. Eine Datei ohne
+    Nummer bleibt im Ordner liegen, und die Ausgabe sagt, wie viele liegen geblieben sind; die übrigen werden
+    übernommen. Hat keine Datei eine Nummer, wird nichts übernommen, und die Forschung sagt, wie die Dateien zu
+    benennen sind;
+  - Dateien JPEG 2000 (`.jp2`) aus dem Portal des Moravský zemský archiv haben im Namen das Bild × 10: strom rechnet
+    sie zurück. Eine Zahl, die kein Vielfaches von 10 ist, ist keine Bildnummer, und die Datei bleibt liegen;
+  - ein Buch, das ganz auf der Festplatte ist, verschwindet aus dem Angebot. Dateien, die im Ordner liegen und noch
+    nicht übernommen sind, zeigt die App als „N Dateien werden übernommen“.
+- **Grenzen:** die Ordner wartender Aufgaben folgen [R9.6](R9-archives.md#R9.6) (dort werden anders benannte Dateien
+  auch nach der Reihenfolge nummeriert).
+- **Bedienung:** Terminal: `strom media add --inbox --waiting`, der Ordner in `strom task books`. App: **Ordner
+  öffnen** beim Buch ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/inboxwait.ts bookFolders (knihy, které úkoly potřebují, bez čekající složky; nic se nevytváří), imageFileTimesOf (assets/archives.json mza.cz imageFileTimes 10) · edfd2b88 numberBookFiles (jen čísla ze jmen, .jp2 ÷ times, nenásobek → bez čísla, left; žádné číslo → inbox.unnamed), src/commands/media.ts (po čekajících složky knih, book: true, „N file(s) left lying“), src/core/live.ts (live.log) · src/core/inboxwatch.ts (most hlídá i složky knih) · src/commands/links.ts book?tree=&id=&do=folder (mkdir, openForUser, bez terminálu) · src/core/live.ts booksStatus pending · CHANGELOG.cs.md 1.35.0 „Snímky uložené do složky knihy“ · karta prace/1116-vyzkum-105-knihy-c -->
+
+<a id="R6.8.3"></a>
+### R6.8.3 Einstellungen der Bücher
+
+Ab wie vielen Aufgaben ein Buch angeboten wird und ob die Warteschlange im selben Buch weitermacht, hat jede
+Forschung für sich.
+
+- **Prüft der Code:**
+  - `books.minTasks`: ab wie vielen Aufgaben ein Buch angeboten wird ([R6.8](#R6.8)). Ganze Zahl von 1 bis 999,
+    Standard 5;
+  - `queue.sameBook`: `no` (Standard: der Agent bekommt nur einen Satz über die weiteren Aufgaben des Buchs) oder
+    `yes` (die Warteschlange nimmt nach einer Sitzung in einem Buch mit Bildern auf der Festplatte zuerst die nächste
+    Aufgabe desselben Buchs, [R2.2.4](R2-lines-and-queue.md#R2.2.4));
+  - eine Änderung im Terminal zeigt sich in der App und umgekehrt (die App schreibt über die Brücke mit denselben
+    Befehlen).
+- **Bedienung:** Terminal: `strom config set books.minTasks <1–999> --for-tree`,
+  `strom config set queue.sameBook yes|no --for-tree`, der Standardwert `strom config unset … --for-tree`; Menü
+  **Einstellungen › Archive › Bücher mit den meisten Aufgaben** (**Ein Buch zum Herunterladen von Hand angeboten ab
+  N Aufgaben**, **Die nächste Sitzung im selben Buch**). App: **Forschung für diesen Stammbaum › Bücher**
+  ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/config.ts BOOKS_MIN_TASKS 5, BOOKS_MIN_TASKS_MAX 999, SETTINGS books.minTasks, queue.sameBook (tree, no|yes), validace „whole number from 1 to 999“ · src/cli/menu-settings.ts booksSettings (1 ui.books.min, 2 ui.books.same), položka Archivy ui.archives.books (poslední) · src/core/live.ts POST /books (config set/unset --for-tree), booksSettings · assets/lang/cs.json ui.books.settings.title, ui.books.min, ui.books.same · CHANGELOG.cs.md 1.35.0 „Knihy v aplikaci Strom a jejich nastavení“ -->

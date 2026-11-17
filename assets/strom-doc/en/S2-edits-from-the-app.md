@@ -169,10 +169,19 @@ rules are in [R5.2](R5-conflicts.md#R5.2); transcriptions of sources from the ap
     another; of two alike events of one person (the same type, day and source) that nothing of this tells apart,
     neither note is taken. An unedited tree from the app changes no note.
   - **A participant's note:** research 1.34.0 does not take the note of a participant of an event (a godparent, a
-    witness…) from the app, not even from app 3.29.0: a tree the app saved in an older version may hold a longer
-    participant's note cut short, and the research would cut it short too.
+    witness…) from the app; from research 1.35.0 it takes it as [S2.3.2](#S2.3.2) says.
+  - **Notes written to an alike event:** `strom sync` of a research older than 1.34.0 could write to an event the note
+    of another event of the same person or family with the same type, day, place and value, and to a participant
+    their note cut short by app 3.28.0. Research 1.34.0 sets this right by itself and once, at the first start of the
+    new version or at a bridge's start, while nobody is at work on the tree; when there is something to set right, the
+    research is backed up first. It puts back the note as it was before the send, and the one written stays in the
+    note's history. An event's note changed since that send it leaves as it is.
+    - **From research 1.35.0:** each such note left as it is has a task waiting for the person, in **What waits** and
+      in the app ([R6.2](R6-awaiting-action.md#R6.2), [S4.4](S4-research-from-the-app.md#S4.4)): "Check the note of
+      {event} ({person}): a send of the Strom app wrote there the note of a fact alike". The task gives the note before
+      the send, what the send wrote and the note now. Before, only a line in the history said so.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) -->
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) · poznámky k podobné události: research:7a556be2 src/core/notefix.ts settleNotes, noteFixes (alike: druh, datum, místo, hodnota; wrongPartNote cut: aplikace před 3.29.0, poznámka > 200 B), applyNoteFixes (noteEdits, marker twin-notes-1), backupBeforeNotes; src/cli/main.ts (první spuštění verze), src/core/live.ts (start mostu) · 1.35.0: research:bb79ee54 askLeftNotes (origin sync:notes-left, waiting, kind other), assets/lang/cs.json notes.left.* · CHANGELOG.cs.md 1.35.0 „Poznámka změněná po odeslání z aplikace“ · dirigent:prace/1116-vyzkum-po-134 bod 2 -->
 
 <a id="S2.3.1"></a>
 ### S2.3.1 The main citation and a removed citation from the app
@@ -213,6 +222,44 @@ research's history says who and when.
 - **Since:** app 3.29.0 with research 1.34.0
 
 <!-- zdroj: research:355df0a5 src/core/sync.ts fact.main (op event.main, _STROM_HEAD: zrušení), fact.uncite (jen s HEAD, APP_SENDS_UNCITE, BIRT/DEAT/LifeEvent/MARR/události páru/DIV; cite.notCarried, cite.sourceRemoved, cite.olderApp, fact.noMatch, main.notCarried), :5268 · src/core/stromapp.ts:806-820 APP_READS_MAIN_CITATION, APP_SENDS_UNCITE, APP_DATA_MAIN_CITATION 21 · src/core/live.ts features citations.order, citations.main, citations.remove, sync.notWritten.codes · 4cd81f14 (vrácení) · app:src/citation-gates.ts · ZADANI_VYZKUM_hlavni-citace.md 3.2, 4.1, Upřesnění 3 a 5, V6, V7 · spec 095 K2, K3 -->
+
+<a id="S2.3.2"></a>
+### S2.3.2 A participant's note from the app
+
+The detail of a godparent, a witness or another participant of an event (the field **Detail (trade, "neighbour"…)**,
+[A10.5](A10-shared-events.md#A10.5)) edited in the app the research takes as the user's edit, as the note of an
+event ([S2.3](#S2.3)): a note the research does not have at the participant it fills in; a note the user changed
+since the last handover it corrects; a note changed since in the research too, or without a known handover, it
+leaves to a choice. The edit can be undone ([S2.7](#S2.7)).
+
+- **From where:** from the GEDCOM file of app 3.29.0 and newer and from the app's JSON file with data version 21 and
+  higher, from a file and from what the app sends straight over the bridge. From an older app, or from a file that
+  does not say its version, a participant's note is not taken.
+- **A shorter note:** a note that is only the beginning of the research's note is never taken by itself. A tree saved
+  in app 3.28 carries a longer participant's note cut short in a newer app too, and the research cannot tell whether
+  the app or the user cut it. A cut between a letter and its accent ("sedla" of "sedlák") and a broken character at
+  the end count as a beginning too.
+  - shorter than the research's note: `strom sync` says so in a line "not taken: shorter than the research's —
+    whether to take it waits under Waiting", and the write makes a task waiting for the person "The note of {who} at
+    {event} ({person}) from the Strom app is shorter than the research's: take it, or keep the research's?" with both
+    notes. The task is in **What waits** and in the app ([S4.4](S4-research-from-the-app.md#S4.4)). App 3.30.0 has
+    in **What was written** ([S2.5.1](#S2.5.1)) the line "shorter detail of a godparent or witness not taken: the
+    research asks in Awaiting action whether to take it";
+  - shorter only than what the app was given by the research (the research changed the note since): nothing is
+    written and nobody is asked.
+- **It asks once:** the same tree sent again makes no new task, not even after the decision. Undoing the send
+  ([S2.7](#S2.7)) drops the task that still waits.
+- **The person decides:** **Take the shorter note from the app** writes the shorter note at the participant, **Keep
+  the research's note** leaves the research's note; the task is done either way. The agent carries out the decision
+  only by the person's answer to the task ([R6.6](R6-awaiting-action.md#R6.6)). When the research's note changed
+  since the question, taking writes nothing and says so.
+- **Limits:** a note the file no longer has removes nothing. A note is taken only at a participant in the same role
+  and only at an event the research pairs surely ([S2.3](#S2.3), Which event).
+- **Controls:** terminal: **What waits** → the task → **Take the shorter note from the app** or **Keep the research's
+  note**; `strom sync note T… take|keep`.
+- **Since:** research 1.35.0 (app 3.29.0, data 21); the line in **What was written** since app 3.30.0
+
+<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes -->
 
 <a id="S2.4"></a>
 ## S2.4 A Strom archive and a research without an agent

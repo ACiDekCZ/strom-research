@@ -28,6 +28,7 @@ export const STATUS_PARTS = {
   queue: ["queue", "queueMore", "queueCounts"],
   offLine: ["offLine"],
   researches: ["researches"],
+  books: ["books"],
 } as const;
 export type StatusPart = keyof typeof STATUS_PARTS;
 

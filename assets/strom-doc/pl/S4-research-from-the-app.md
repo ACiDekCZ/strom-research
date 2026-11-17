@@ -660,6 +660,9 @@ w aplikacji, a co tylko w badaniu, mówi [R6.5](R6-awaiting-action.md#R6.5).
 - **Od aplikacji 3.28.0:** w **Przeglądzie badania** sekcja ma od 10 pozycji pole wyszukiwania ([S4.4.2](#S4.4.2)).
 - **Od aplikacji 3.30.0:** w **Przeglądzie badania** sekcję można posortować od najnowszych albo najstarszych pozycji
   ([S4.4.3](#S4.4.3)).
+- **Od aplikacji 3.30.0 z badaniem 1.35.0:** pozycje można pogrupować według księgi, z kolejnością **Najwięcej zadań**
+  i podsekcją **Szybciej dzięki pobraniu** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5)); ustawienia ksiąg w oknie **Badanie
+  dla drzewa** ([S4.4.6](#S4.4.6)).
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -777,13 +780,117 @@ Nowo dodana pozycja jest wtedy na górze i nie gubi się między miejscami i gru
   - kolejność obowiązuje także z wyszukiwaniem ([S4.4.2](#S4.4.2)) i chipami rodzaju. Głowa i stopka wyboru hipotez
     przy wyłączonych grupach dotyczą hipotez całej fazy;
   - obowiązuje w Przeglądzie (jako panel boczny i nad drzewem), w oknie Przeglądu i na telefonie. Mały panel jest bez
-    zmian.
+    zmian (poza badaniem z księgami, [S4.4.4](#S4.4.4)).
+- **Z badaniem, które zna księgi** (badanie 1.35.0): przełącznik **Grupy** jest wyborem **Archiwum** | **Księga** |
+  **Bez grup**, a kolejność ma czwartą możliwość **Najwięcej zadań** ([S4.4.4](#S4.4.4)).
 - **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, przycisk „⇅ Zalecana ▾” za chipami rodzaju
   (w oknie Przeglądu w przyklejonej głowie sekcji) z menu **Zalecana** · **Najnowsze na górze** · **Najstarsze na
   górze**, na telefonie panel wysuwany **Kolejność**; przełącznik **Grupy**.
 - **Obowiązuje od:** aplikacja 3.30.0
 
 <!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+
+<a id="S4.4.4"></a>
+### S4.4.4 Czeka na załatwienie według księgi
+
+Z badaniem, które zna księgi ([R6.8](R6-awaiting-action.md#R6.8)), pozycje **Czeka na załatwienie** można pogrupować
+według księgi, której potrzebują. Przy księdze widać, ile zadań na nią czeka, co z niej można pobrać i gdzie zapisać
+skany.
+
+- **Grupy** (wybór obok kolejności):
+  - **Archiwum**: grupy jak dotąd (miejsca, archiwa, **Pozostałe**, [S4.4.3](#S4.4.3));
+  - **Księga**: w każdej fazie najpierw grupy ksiąg, potem pozostałe pozycje w grupach archiwów pod śródtytułem
+    **Bez księgi** (tylko gdy jakaś księga jest). Księga pozycji to księga, na którą pozycja czeka, w przeciwnym razie
+    jedyna księga, w której zadanie pracuje;
+  - **Bez grup**: jedna lista (tylko przy kolejności według czasu, jak wyłączone **Grupy**).
+
+  W kolejności **Zalecana** jest wybór **Archiwum** | **Księga**; grupy ksiąg stoją według swojej pierwszej pozycji,
+  w kolejności według czasu według czasu pierwszej pozycji.
+- **Kolejność Najwięcej zadań:** grupy są zawsze księgami (wybór grup znika). Księgi idą od tej, której potrzebuje
+  najwięcej zadań, przy równości więcej czekających, potem numer księgi. Wewnątrz księgi pozycje są w kolejności
+  **Zalecana**. Pozycje bez księgi są na końcu w grupach archiwów.
+- **Nagłówek księgi:**
+  - tytuł księgi (z latami), etykieta **Księga**, **nowe: N** przy zwiniętej księdze i liczba pozycji. Po najechaniu
+    tytuł, archiwum i ile zadań potrzebuje księgi (w tym odłożone);
+  - drugi wiersz: archiwum · „3 czekają” · „+M w kolejce” (zadania księgi, które nie czekają) · skany („240 skanów
+    · na dysku 12 · brak 228”) · „N plików do przejęcia” (pliki, które leżą w folderze księgi i jeszcze nie zostały
+    przejęte) · „strona archiwum wymaga logowania”. W kolejności **Najwięcej zadań** liczby są pierwsze i pogrubione;
+  - działania: co można pobrać według warunków archiwum ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Do pobrania cała
+    księga · N skanów”, „Do pobrania skany 31–36 · 6 skanów” albo „Do pobrania wybrane skany …”;
+    **Strona archiwum ↗**; **Otwórz folder** (folder księgi w folderze współdzielonym, badanie otwiera go bez
+    terminala i w razie potrzeby tworzy, [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Czat** (nie na telefonie).
+    Kliknięcie w działanie nie zwija księgi;
+  - księga, której badanie nie wysłało w przeglądzie ksiąg: tylko tytuł (albo numer księgi), etykieta i liczba.
+- **Wyszukiwanie** ([S4.4.2](#S4.4.2)) znajduje pozycje także według tytułu i archiwum ich księgi.
+- **Mały panel:** przycisk kolejności i „Grupy: Księga ▾” z menu; nagłówek księgi tylko z tytułem i „N czeka”,
+  śródtytuł **Bez księgi**; działania ksiąg są tylko w **Przeglądzie badania**. Liczby pozycji są takie same jak
+  dotąd.
+- **Granice:**
+  - wybór **Księga** i kolejność **Najwięcej zadań** są tylko z badaniem, które wysyła księgi, i nie w Archiwum Strom
+    ani w badaniu, które czeka na agenta. W przeciwnym razie wszystko wygląda jak wcześniej, a zapisany wybór
+    **Księga** lub **Najwięcej zadań** pokazuje się jako **Archiwum** i **Zalecana**, bez nadpisania;
+  - wybór grup zapamiętuje się na tym urządzeniu razem z kolejnością ([S4.4.3](#S4.4.3)).
+- **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, obok przycisku kolejności przełącznik **Grupy**
+  (**Archiwum** | **Księga** | **Bez grup**); na telefonie (także w poziomie) i w małym panelu przycisk
+  „Grupy: Księga ▾” z menu (na telefonie panel wysuwany). Kolejność „⇅ … ▾” › **Najwięcej zadań**.
+- **Obowiązuje od:** badanie 1.35.0, aplikacja 3.30.0
+
+<!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
+
+<a id="S4.4.5"></a>
+### S4.4.5 Szybciej dzięki pobraniu
+
+Księgi, których potrzebuje dość zadań i na które nic nie czeka, aplikacja proponuje do pobrania osobno. Skany
+zapisane w folderze księgi agent czyta z dysku, szybciej i taniej. Nic na nie nie czeka, dlatego nie liczą się do
+pozycji.
+
+- **Co tam jest:** księgi, które badanie proponuje ([R6.8](R6-awaiting-action.md#R6.8): co najmniej `books.minTasks`
+  zadań, coś można pobrać) i na które nie czeka żadne zadanie. Księga, na którą coś czeka, jest na liście jako grupa
+  ([S4.4.4](#S4.4.4)). Kolejność jak **Najwięcej zadań**.
+- **Podsekcja** **Szybciej dzięki pobraniu · N ksiąg** stoi na dole pod **Czeka na odpowiedź**, za pierwszym razem
+  zwinięta:
+  - zdanie „Skany zapisane w folderze księgi agent czyta z dysku – szybciej i taniej. Nic na nie nie czeka.”
+    i odnośnik **Ustawienia…** (otwiera **Badanie dla drzewa** na grupie **Księgi**, [S4.4.6](#S4.4.6));
+  - wiersz księgi: tytuł; archiwum · „N zadań w kolejce” · skany · „N plików do przejęcia” · logowanie; co można
+    pobrać · **Strona archiwum ↗** · **Otwórz folder**. Kliknięcie w tytuł rozwija szczegóły: **Zadania** (w tym
+    odłożone), **Folder**, **Dostęp**;
+  - księgi ponad listę tylko liczbą: „i N kolejnych ksiąg jest w badaniu” (cała lista w terminalu,
+    `strom task books`).
+- **Granice:**
+  - tylko z chipem rodzaju **Wszystko** i **Obrazy**; z wyszukiwaniem tylko księgi, których tytuł lub archiwum się
+    zgadza;
+  - pusta podsekcja się nie pokazuje. Pokazuje się także wtedy, gdy nic nie czeka (pod pustą sekcją);
+  - nie liczy się do liczby sekcji, podsumowania, „Czeka N” ani małego panelu.
+- **Mały panel:** pod listą wiersz „Szybciej dzięki pobraniu · N ksiąg ⤢”, który otwiera **Przegląd badania**
+  z rozwiniętą podsekcją.
+- **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie → Szybciej dzięki pobraniu**. Terminal:
+  `strom task books` ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Obowiązuje od:** badanie 1.35.0, aplikacja 3.30.0
+
+<!-- zdroj: app:bc8fc5fd src/research-books.ts urgentBooks (offer && waiting === 0, sortBooksMost), urgentBooksShown (filtr all/images, hledání název a archiv) · src/ui/research-overview-ui.ts appendOverviewBooksOffer (sectionPartOpen urgent, výchozí zavřený; urgentText, Nastavení… → openBooksSettings; more), overviewUrgentBookRow (detail Úkoly, Složka, Přístup) · src/ui/research-ui.ts renderLivePanel panelUrgent (showOverviewBooksOffer) · strings.ts live.books.urgent* · research:b1749433 src/core/live.ts booksStatus (offer, more) · ZADANI_DEV_knihy-ukolu.md §3, §5 -->
+
+<a id="S4.4.6"></a>
+### S4.4.6 Badanie dla drzewa › Księgi
+
+Ustawienia ksiąg badania ([R6.8.3](R6-awaiting-action.md#R6.8.3)) można zmienić także w aplikacji. Zapisują się
+przez most do badania, więc obowiązują tak samo jak w terminalu.
+
+- **Grupa Księgi** (za **Czytaniem dokumentów**, w stanie zwiniętym podsumowanie „od 5 zadań · bez pierwszeństwa”):
+  - **Księga proponowana od tylu zadań**: liczba całkowita od 1 do 999. Zapisuje się po opuszczeniu pola albo
+    Enterze. Inna wartość pokazuje „Liczba całkowita od 1 do 999.” i nic się nie wysyła; puste pole przywraca
+    zapisaną wartość. Wartość domyślna ma „(domyślnie)”, odnośnik **Przywróć domyślne (5)** ją przywraca;
+  - **Pierwszeństwo pobranej księgi** (przełącznik): po zadaniu księgi, która jest na dysku, kolejka bierze następne
+    zadanie tej samej księgi, najwyżej 5 sesji z rzędu ([R2.2.4](R2-lines-and-queue.md#R2.2.4)).
+- **Zapis:** od razu po zmianie „Zapisywanie w badaniu…”, potem „Badanie potwierdziło. Dotyczy też zmian
+  w terminalu.” Zajęte badanie: „Badanie jest teraz zajęte, nic się nie zmieniło.” i **Spróbuj ponownie**. Bez mostu
+  grupa jest wyciszona. Zmiana z terminala przerysowuje okno, ale nie pole, w które właśnie się pisze.
+- **Granice:** tylko z badaniem, które wysyła księgi; nie w Archiwum Strom ani w badaniu, które czeka na agenta. Gdy
+  badanie w międzyczasie przełączy się na Archiwum Strom, grupa znika.
+- **Obsługa:** aplikacja: **Badanie → Więcej → Badanie dla tego drzewa… → Księgi**, albo **Ustawienia…**
+  w **Szybciej dzięki pobraniu** ([S4.4.5](#S4.4.5)). Terminal: [R6.8.3](R6-awaiting-action.md#R6.8.3).
+- **Obowiązuje od:** badanie 1.35.0, aplikacja 3.30.0
+
+<!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
 <a id="S4.5"></a>
 ## S4.5 Działania, które otwierają badanie

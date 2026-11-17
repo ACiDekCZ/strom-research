@@ -49,6 +49,7 @@ import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
 import { requestNote, requestPath } from "../core/waiting.ts";
 import { addressesPerson } from "../core/impersonal.ts";
+import { BOOKS_MIN_TASKS, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 
 
 function written(tree: Tree): string {
@@ -363,6 +364,8 @@ function taskDetail(tree: Tree, t: Task): string {
     // put aside by the archive: its own sentence in the research's language (back when research is switched on, no wake)
     t.state === "parked" ? (t.heldBy === "archive" && t.parkedReason ? t.parkedReason : `parked ${parkedWhy(tree, t) ?? "(no reason recorded)"} — strom task wake ${t.id} to go on`) : undefined,
     `where  ${where.join("\n       ")}`,
+    // the other tasks of its books: done in one session, their images downloaded once
+    ...(needsBooks(t) ? booksOfTask(tree, t).map((b, _, all) => sameBookLine(tree, t, b.id)?.replace(/^/u, all.length > 1 ? `book   ${b.id}: ` : "book   ")) : []),
     `why    ${t.why}`,
     `done   ${t.doneWhen}`,
     t.subject.length ? `about  ${t.subject.join(" ")}` : undefined,
@@ -754,8 +757,10 @@ register(
       { name: "level", type: "string", value: "<level>", description: "only this level" },
       { name: "about", type: "string", value: "<who>", description: "only tasks about this person/record (also X…, H…)" },
       { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
+      { name: "book", type: "string", value: "<B…>", description: "the tasks that need this book (open, at work, parked, waiting — open first; with --state only those): strom task books" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
+    examples: ["strom task list", "strom task list --state waiting", "strom task list --book B0001"],
     run(ctx, input) {
       const tree = ctx.tree();
       if (input.opts.all && input.opts.state !== undefined && input.opts.state !== "all")
@@ -767,7 +772,22 @@ register(
       const why = new Map<string, string>();
       const ranks = new Map<string, Ranked>();
       const off = offTree(tree);
-      if (opts["off-tree"]) all = tree.list<Task>("task").filter((t) => t.state === "open" && off(t) && (!opts.level || t.level === opts.level));
+      let book: RecordSet | undefined;
+      if (opts.book !== undefined) {
+        if (opts["off-tree"]) throw new UsageError("--book is the tasks of one book, --off-tree those out of the queue — not both", { hint: `strom task list --book ${String(opts.book)}` });
+        const ref = normId(String(opts.book), "recordset");
+        book = liveBook(tree, ref);
+        if (!book) {
+          const b = tree.get<RecordSet>(ref);
+          throw new UsageError(b?.type === "recordset" ? `${ref} was taken back: no task needs it` : `no record set ${ref}`, { hint: "strom task books --all", code: "task.book" });
+        }
+      }
+      if (book) {
+        all = tasksOfBook(tree, book.id).filter((t) => !opts.state || opts.state === "all" || t.state === opts.state || (opts.state === "open" && t.state === "doing"));
+        const scope = research ? scopes(tree).find((s) => s.research.id === research) : undefined;
+        if (scope) all = all.filter((t) => ofResearch(tree, t, scope));
+        if (opts.level) all = all.filter((t) => t.level === opts.level);
+      } else if (opts["off-tree"]) all = tree.list<Task>("task").filter((t) => t.state === "open" && off(t) && (!opts.level || t.level === opts.level));
       else if (!opts.state) {
         const ranked = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy: ctx.settings.strategy(tree.config) });
         for (const r of ranked) {
@@ -788,7 +808,19 @@ register(
       // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
       // the queue says what waits out of it for a link to the tree
-      const held = !opts.state && !opts["off-tree"] && !opts.about ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
+      const held = !opts.state && !opts["off-tree"] && !opts.about && !book ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
+      if (book)
+        return {
+          text: lines(
+            `${book.id} ${book.title}${book.url ? ` · ${book.url}` : ""}`,
+            all.length ? lines(table(page.items.map(taskLine)), moreLine(page, `strom task list --book ${book.id}`)) : "no task needs it now",
+          ),
+          data: {
+            book: book.id,
+            total: page.total,
+            tasks: page.items.map((t) => ({ ...(opts.full ? t : { id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(t.wait ? { wait: t.wait } : {}) }), ...waitState(tree, t) })),
+          },
+        };
       return {
         text: lines(
           all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
@@ -805,6 +837,66 @@ register(
             ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
           })),
+        },
+      };
+    },
+  },
+  {
+    path: ["task", "books"],
+    summary: "The books most tasks need: one download by hand serves them all",
+    description:
+      "The record sets the tasks name (where B…, the book a task waits for) — open, at work, parked and waiting tasks —\n" +
+      `the most tasks first (then the most waiting, then by ID). Only books worth downloading by hand: at least books.minTasks (default ${BOOKS_MIN_TASKS})\n` +
+      "tasks (--min), access online-free or online-login, not whole on disk, and something the archive's terms let be\n" +
+      "offered — the whole book, or the images its tasks need and are not on disk yet. Each with its archive, years, the\n" +
+      "tasks (how many wait), its images (on disk, missing when the catalog knows how many), the images needed and its\n" +
+      "folder of the shared inbox. A task naming no book is not counted: the numbers are a lower bound. Nothing is\n" +
+      "offered as a duty — the agent reads on online either way. What the archive's terms let be downloaded (download): whole,\n" +
+      "range (the images the tasks need), selected (only those), none — with the terms' words (downloadTerms).",
+    group: "tasks",
+    tree: true,
+    options: [
+      { name: "min", type: "string", value: "<n>", description: `at least this many tasks (default the research's books.minTasks, ${BOOKS_MIN_TASKS} unless set)` },
+      { name: "all", type: "boolean", description: "every book some task needs, whatever its access, tasks or images on disk" },
+    ],
+    examples: ["strom task books", "strom task books --min 3", "strom task books --all --json"],
+    run(ctx, input) {
+      const tree = ctx.tree();
+      let min = minTasksOf(tree);
+      if (input.opts.min !== undefined) {
+        const raw = String(input.opts.min).trim();
+        if (!/^\d{1,3}$/u.test(raw) || Number(raw) < 1) throw new UsageError(`--min ${raw}: a whole number from 1 to 999`, { hint: `strom task books --min ${BOOKS_MIN_TASKS}`, code: "task.books.min" });
+        min = Number(raw);
+      }
+      const rows = bookRows(tree, min);
+      const shown = input.opts.all ? rows : rows.filter((r) => r.offer);
+      const page = paginate(shown, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
+      const shared = ctx.settings.shared()?.value;
+      const dirOf = (r: BookRow) => (shared ? path.join(shared, "inbox", r.folder) : undefined);
+      const bookLines = (r: BookRow) => {
+        const states = [r.waiting ? `${r.waiting} waiting` : "", r.parked ? `${r.parked} parked` : ""].filter(Boolean);
+        const images = r.images !== undefined ? `images ${r.images}, on disk ${r.onDisk}, missing ${r.missing}` : `images on disk ${r.onDisk} (how many it has is not known)`;
+        const dir = dirOf(r);
+        return [
+          `${r.id} ${r.title}`,
+          `  ${[r.archive?.name, r.years, r.access].filter(Boolean).join(" · ")}`,
+          `  ${r.tasks} task${r.tasks > 1 ? "s" : ""}${states.length ? ` (${states.join(", ")})` : ""} · ${images}${r.need ? ` · needed, not on disk ${r.need}` : ""}`,
+          `  folder ${dir ? ctx.display(dir) : `inbox/${r.folder}`}`,
+          r.url ? `  ${r.url}` : undefined,
+          `  strom task list --book ${r.id}`,
+        ];
+      };
+      const none = input.opts.all
+        ? "no task names a book (where B…)"
+        : rows.length
+          ? `no book worth downloading by hand: at least ${min} tasks, online, not whole on disk, the whole book or the images its tasks need to offer (every book the tasks name: strom task books --all)`
+          : "no task names a book (where B…)";
+      return {
+        text: shown.length ? lines(...page.items.flatMap(bookLines), moreLine(page, `strom task books${input.opts.all ? " --all" : ""}`)) : none,
+        data: {
+          min,
+          total: page.total,
+          books: page.items.map((r) => ({ ...r, ...(dirOf(r) ? { dir: dirOf(r) } : {}) })),
         },
       };
     },

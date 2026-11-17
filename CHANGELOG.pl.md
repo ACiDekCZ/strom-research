@@ -7,8 +7,26 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.35.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
+- **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
+  otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
+  czeka › księgi z największą liczbą zadań) i poleceniem `strom task books`, przy każdej archiwum, lata, ile zadań
+  czeka, skany na dysku i brakujące, potrzebne skany, których jeszcze nie ma na dysku, oraz folder na jej skany.
+  Oferowane są tylko księgi, które da się pobrać i nie są jeszcze całe na dysku: cała księga tam, gdzie pozwalają na to
+  warunki archiwum (z własnymi słowami archiwum), w przeciwnym razie skany, na które czekają zadania. Pobranie jest
+  dobrowolne: bez niego agent czyta księgę dalej online. Agent na początku zadania dowiaduje się, które inne zadania
+  potrzebują tej samej księgi, aby zrobić je razem, a `strom task list --book` je wypisuje.
+- **Księgi w aplikacji Strom i ich ustawienia:** most daje aplikacji Strom księgi z największą liczbą zadań i przy
+  każdej to, co wolno z niej pobrać, a w tym, co czeka, i w kolejce podaje przy każdym zadaniu jego księgę. Od ilu
+  zadań księga jest proponowana (`books.minTasks`, domyślnie 5) i czy następna sesja ciągnie dalej tę samą księgę
+  (`queue.sameBook`, domyślnie wyłączone: po sesji nad księgą, której skany są na dysku, najpierw przychodzi kolejne
+  zadanie tej samej księgi, najwyżej 5 sesji po kolei) ma każde badanie własne – ustawia się w aplikacji Strom, w menu
+  stroma (Ustawienia › Archiwa › Księgi z największą liczbą zadań) albo poleceniem `strom config set … --for-tree`. Link z aplikacji otwiera
+  folder księgi, bez terminala.
+- **Skany zapisane do folderu księgi:** skany zapisane ręcznie do folderu księgi, na którą nie czeka żadne zadanie,
+  strom bierze (most albo następna sesja) według numeru skanu w nazwie, a wszystkie zadania tej księgi czytają je z
+  dysku; pliki JPEG 2000 portalu, którego nazwy liczą skan × 10 (MZA Brno), są przeliczane z powrotem.
 - **Notatka uczestnika z aplikacji Strom:** notatka chrzestnego lub świadka zmieniona w aplikacji Strom 3.29.0 lub
   nowszej wraca do badania, z pliku i z tego, co aplikacja wysyła wprost przez most. Notatka, która jest tylko
   początkiem notatki badania (jak trzymała ją starsza aplikacja albo skrócona w aplikacji – także cięciem między
