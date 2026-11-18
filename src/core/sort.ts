@@ -61,6 +61,8 @@ export interface SortProposal {
   date?: string;
   kind?: (typeof MATERIAL_KINDS)[number];
   links?: SortLink[];
+  /** The file is plainly not of the family at all (a screenshot, a receipt…): then no title, date, kind or link. */
+  unrelated?: true;
   why: string;
   sure: (typeof SORT_SURE)[number];
 }
@@ -461,6 +463,10 @@ WHAT TO PROPOSE, for each file
   above; one line each; never one marked DONE or taken off.
 - why: one or two sentences in ${o.langName}: what you saw on it, or in the person's words, that makes you say so.
 - sure: high (it says so itself: a name, a date written on it; or the person said so) | medium (it fits well) | low.
+- unrelated: yes — only when the file is plainly NOT about the family at all (a screenshot, a receipt, a ticket, a
+  stranger's holiday photo, a file sent by mistake). Then write only "unrelated: yes", "why" (what you saw) and
+  "sure" (how sure you are that it is not the family's); no title, date, kind or link. Never for a file you merely
+  cannot place.
 A file you cannot say anything of: leave it out.
 
 THE REPORT
@@ -479,6 +485,13 @@ link: event P0001 E0001
 why: …
 sure: medium
 
+and of a file plainly not about the family:
+
+## File I0002
+unrelated: yes
+why: …
+sure: high
+
 Leave out a line you have nothing for. When all files are done, finish with one line: "done: <n> files".`;
 }
 
@@ -490,6 +503,9 @@ export type RawProposal = Omit<SortProposal, "why" | "sure" | "kind"> & { why?: 
 const BLOCK = /^#{2,3}\s*(?:[Ff][Ii][Ll][Ee]\s+)?([Ii]\d{1,9})(?![\p{L}\p{M}\p{N}])/u;
 const KEY = /^\s*(?:[-*]\s+)?\**(\p{L}+)\**\s*:\**\s*(.*)$/u;
 const ID = /[PpFfSsEe]\d{1,9}(?![\p{L}\p{M}\p{N}])/gu;
+
+/** "unrelated: yes" as a reader may write it (the keys are English, a value now and then the research's language). */
+const YES = ["yes", "true", "y", "ano", "ja", "tak", "oui", "si", "da", "да", "так"];
 
 const pad = (id: string) => id[0]!.toUpperCase() + id.slice(1).padStart(4, "0");
 
@@ -535,6 +551,9 @@ export function parseSortReport(text: string): RawProposal[] {
     } else if (key === "link") {
       const l = parseLink(value);
       if (l) open.links = [...(open.links ?? []), l];
+      last = key;
+    } else if (key === "unrelated") {
+      if (YES.includes(foldText(value.replace(/[.!]+$/u, "").trim()))) open.unrelated = true;
       last = key;
     } else if (key === "why") {
       open.why = value;
@@ -585,6 +604,13 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
     }
     const sure = (SORT_SURE as readonly string[]).includes(foldText(r.sure ?? "")) ? (foldText(r.sure!) as SortProposal["sure"]) : "low";
     const p: SortProposal = { id: r.id, why: clean(r.why ?? "", 1000), sure };
+    // not the family's: only why and how sure — whatever else the reader wrote would contradict it
+    if (r.unrelated) {
+      for (const what of ["title", "date", "kind"] as const) if (r[what] !== undefined) drop(r.id, what, "unrelated");
+      for (const l of r.links ?? []) drop(r.id, `link ${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`, "unrelated");
+      proposals.push({ ...p, unrelated: true });
+      continue;
+    }
     if (r.title !== undefined) {
       let title: string | undefined;
       try {

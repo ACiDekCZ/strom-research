@@ -159,8 +159,9 @@
 //                          never started (failed, reason "unsigned"; not the app's: 404, not in /status).
 //                          GET <token>/material/sort/<id> {id, state: queued|working|done|failed|cancelled, files, at,
 //                          proposals?: [{id, title?, date?, kind?, links?: [{type: person|family|event|source, ref,
-//                          event?}], why, sure: high|medium|low}], reason?} — the proposals as the research is now: none
-//                          the person gave or took off, no ID it does not have. POST <token>/material/sort/<id>/cancel
+//                          event?}], unrelated?: true, why, sure: high|medium|low}], reason?} — the proposals as the
+//                          research is now: none the person gave or took off, no ID it does not have; unrelated: the
+//                          file plainly not of the family (only why and sure then; the person hides it, never strom). POST <token>/material/sort/<id>/cancel
 //                          {id, state, cancelled}. Refused 404 sort.none (no agent here {why}, an unknown sort), 503
 //                          sort.not-ready {why} (+ Retry-After), 429 sort.queue (one at work and 3 queued), 429 sort.limit
 //                          {per, most, cost} (read.app: a sort is one reading for each ten files it begins), 400

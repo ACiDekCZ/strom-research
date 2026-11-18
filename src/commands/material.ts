@@ -155,7 +155,7 @@ function said(tree: Tree, s: SortState): string {
   const head = `${now.id} · ${now.state} · ${counted(now.files.length, "file")}${now.reason ? ` · ${now.reason}` : ""}${now.error ? ` — ${now.error}` : ""}`;
   const out = [head];
   for (const p of proposals) {
-    out.push("", `${p.id} (${p.sure})${p.title ? ` · ${p.title}` : ""}${p.date ? ` · ${p.date}` : ""}${p.kind ? ` · ${p.kind}` : ""}`);
+    out.push("", `${p.id} (${p.sure})${p.title ? ` · ${p.title}` : ""}${p.date ? ` · ${p.date}` : ""}${p.kind ? ` · ${p.kind}` : ""}${p.unrelated ? " · unrelated (not of the family)" : ""}`);
     for (const l of p.links ?? []) out.push(`  link ${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`);
     if (p.why) out.push(`  why: ${p.why}`);
   }

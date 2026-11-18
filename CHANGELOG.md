@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.35.0-beta.5. The section is complete with the release.*
 
 - **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
   put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
@@ -95,6 +95,8 @@ The changes of each version in short. The full notes and the install lines are o
   from the app): it proposes a title, date, kind and places with its reason and how sure it is, writes nothing, never
   overrides what the person set, and counts as reading in the app's limits. The readings are paid: a sort starts only
   after the person's yes (in their terminal, a window of the system, or the app's dialog), never by itself or by an agent.
+  A file plainly not about the family (a screenshot, a receipt, a file sent by mistake) the reader says so of, with
+  its reason, so that it can be hidden in the Strom app; nothing is hidden or deleted by itself.
   A sort of the material starts without asking only when the Strom app's bridge took and signed it; a record written any
   other way (or queued by an older version) is not started and is asked for again in the app.
 

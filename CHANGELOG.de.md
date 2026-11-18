@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.35.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
   brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
@@ -110,6 +110,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Titel, Datum, Art und Stellen mit Grund und Sicherheit vor, schreibt nichts, überschreibt nie, was die Person
   festlegte, und zählt zu den Lesegrenzen der App. Die Lesungen sind bezahlt: Ein Sortieren beginnt erst nach dem Ja
   der Person (im Terminal, in einem Fenster des Systems oder im Dialog der App), nie von selbst oder durch einen Agenten.
+  Bei einer Datei, die offensichtlich nichts mit der Familie zu tun hat (ein Bildschirmfoto, ein Kassenbon, eine aus
+  Versehen hochgeladene Datei), sagt der Leser das mit seinem Grund, damit sie sich in der Strom-App ausblenden lässt;
+  von selbst wird nichts ausgeblendet oder gelöscht.
   Eine Sortierung des Materials startet ohne Rückfrage nur, wenn die Brücke der Strom-App sie angenommen und signiert
   hat; ein anders geschriebener (oder von einer älteren Version eingereihter) Eintrag startet nicht und wird in der App
   erneut angefordert.

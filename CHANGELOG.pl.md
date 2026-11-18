@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.35.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
   otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
@@ -100,6 +100,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   zapisuje, nigdy nie nadpisuje tego, co ustawiła osoba, i liczy się do limitów czytania z aplikacji. Odczyty są
   płatne: sortowanie zaczyna się dopiero po zgodzie osoby (w terminalu, w oknie systemu lub w oknie dialogowym
   aplikacji), nigdy samo ani na polecenie agenta.
+  Przy pliku, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wgrany przez pomyłkę), czytelnik mówi to
+  wraz z powodem, aby można go było ukryć w aplikacji Strom; samo nic się nie ukrywa ani nie usuwa.
   Sortowanie materiałów uruchamia się bez pytania tylko wtedy, gdy przyjął je i podpisał most aplikacji Strom; wpis
   zapisany inaczej (lub dodany do kolejki przez starszą wersję) się nie uruchomi i trzeba go zlecić ponownie w
   aplikacji.

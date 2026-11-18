@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
@@ -90,6 +90,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   titulek, datum, druh a místa s důvodem a jistotou, nic nezapíše, nikdy nepřepíše, co nastavil člověk, a počítá se do
   limitů čtení z aplikace. Čtení jsou placená: třídění začne až po souhlasu člověka (v terminálu, v okně systému nebo
   v dialogu aplikace), nikdy samo ani na pokyn agenta.
+  U souboru, který se rodiny zjevně netýká (snímek obrazovky, účtenka, omylem nahraný soubor), to čtenář řekne
+  i s důvodem, aby ho šlo v aplikaci Strom skrýt; samo se nic neskryje ani nesmaže.
   Třídění materiálu se bez dotazu spustí jen tehdy, když ho přijal a podepsal most aplikace Strom; záznam zapsaný jinak
   (nebo zařazený starší verzí) se nespustí a je potřeba ho zadat znovu v aplikaci.
 

@@ -146,6 +146,13 @@ kind: dokument
 why: Podle názvu dopis.
 sure: snad
 
+## File ${pdf}
+unrelated: Ano.
+title: Účtenka
+link: person P1
+why: Účtenka ze supermarketu, žádná osoba rodiny.
+sure: high
+
 ## File I0042
 title: Cizí
 
@@ -192,6 +199,8 @@ done: 4 files`,
       { id: parte, kind: "document", links: [{ type: "source", ref: "S0001" }], why: "Úmrtní oznámení Václava.", sure: "medium" },
       // a kind strom does not know left out, how sure unsaid: low
       { id: letter, title: "Dopis z Лготы", why: "Podle názvu dopis.", sure: "low" },
+      // plainly not the family's: why and how sure alone, nothing else of it offered
+      { id: pdf, unrelated: true, why: "Účtenka ze supermarketu, žádná osoba rodiny.", sure: "high" },
     ]);
     assert.deepEqual(marks(dir), ["start", "end"], "one reader for four files");
 
@@ -211,7 +220,7 @@ done: 4 files`,
     assert.equal(git(w, "rev-parse", "HEAD"), head);
     assert.equal(git(w, "status", "--porcelain"), "");
     const kept = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "sorts", `${id}.json`), "utf8"));
-    assert.deepEqual(kept.dropped.map((d: { id: string; what: string; why: string }) => `${d.id} ${d.what}: ${d.why}`).sort(), [`${photo} link person P0099: not in the research`, `${letter} kind: not a kind of the material`, `${parte} title: the person's`, "I0042 file: not one of the sort's files"].sort());
+    assert.deepEqual(kept.dropped.map((d: { id: string; what: string; why: string }) => `${d.id} ${d.what}: ${d.why}`).sort(), [`${photo} link person P0099: not in the research`, `${letter} kind: not a kind of the material`, `${parte} title: the person's`, `${pdf} title: unrelated`, `${pdf} link person P0001: unrelated`, "I0042 file: not one of the sort's files"].sort());
     assert.equal(Tree.open(w.cwd, w.env).get<Input>(parte)!.title, "Parte Václava");
     // the readers' cost in the month's spend of the app
     assert.deepEqual(json(await request("GET", `${url}/status`)).spend.sorts, { count: 1, amount: 0.25 });
@@ -224,7 +233,7 @@ done: 4 files`,
     // an agent sees it too
     const shown = (await w.ok(["material", "show", id, "--json"])).json;
     assert.equal(shown.state, "done");
-    assert.equal(shown.proposals.length, 3);
+    assert.equal(shown.proposals.length, 4);
     // nothing else of the app's: no sort, no cancel of one there is not
     assert.deepEqual([(await request("GET", `${url}/material/sort/sort-20260101120000-abcd`)).status, json(await post(`${url}/material/sort/sort-20260101120000-abcd/cancel`, {})).code], [404, "sort.none"]);
     // cancelled when done: done it stays
@@ -499,6 +508,20 @@ test("a reader's report as strom reads it: keys in English, IDs short or long, a
   const kept = keptProposals(tree, ["I0004"], raw);
   assert.deepEqual(kept.proposals, [{ id: "I0004", title: "Rodina Lhotákových", date: "ABT 1930", kind: "photo", links: [{ type: "person", ref: "P0005" }, { type: "event", ref: "F0001", event: "E0003" }], why: "Tři lidé před domem.", sure: "high" }]);
   assert.deepEqual(kept.dropped, [{ id: "I0004", what: "link person P0002", why: "taken off by the person" }]);
+});
+
+test("a file plainly not of the family: unrelated with why and how sure alone, never for one a reader says no to", () => {
+  const raw = parseSortReport(["## File I1", "unrelated: yes", "why: Snímek obrazovky.", "sure: medium", "", "## File I2", "**unrelated:** да", "sure: low", "", "## File I3", "unrelated: no", "title: Dopis", "kind: document", "why: Dopis.", "", "## File I4", "unrelated: nevím", "why: nic"].join("\n").normalize("NFD"));
+  assert.deepEqual(raw.map((p) => [p.id, p.unrelated ?? false]), [["I0001", true], ["I0002", true], ["I0003", false], ["I0004", false]]);
+  const records: Record<string, unknown> = Object.fromEntries(["I0001", "I0002", "I0003", "I0004"].map((id) => [id, { id, type: "input", name: `${id}.png`, links: [] }]));
+  const kept = keptProposals({ get: (id: string) => records[id] } as never, ["I0001", "I0002", "I0003", "I0004"], raw);
+  assert.deepEqual(kept.proposals, [
+    { id: "I0001", unrelated: true, why: "Snímek obrazovky.", sure: "medium" },
+    { id: "I0002", unrelated: true, why: "", sure: "low" },
+    // no unrelated: as before — a proposal of its values, and none where nothing is left
+    { id: "I0003", title: "Dopis", kind: "document", why: "Dopis.", sure: "low" },
+  ]);
+  assert.deepEqual(kept.dropped, []);
 });
 
 test("a real reader's report (test/fixtures/sort): four made-up files of a box, each with its title, date, kind and places in the tree", () => {
