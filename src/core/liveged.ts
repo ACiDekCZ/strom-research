@@ -27,6 +27,8 @@ import { readsAgain } from "./sourceread.ts";
 import type { WidgetTree } from "./widget.ts";
 import type { Input, Media, Source } from "./model.ts";
 import { putImage, sweepImages } from "./liveimages.ts";
+import { servedCopy, treeMedia } from "./treemedia.ts";
+import type { AppMediaFile } from "../gedcom/export.ts";
 
 /** How a file for the app carries its images: in it (data URLs, as always) or by reference (spec 071, ?images=ref). */
 export type GedImages = "data" | "ref";
@@ -59,6 +61,8 @@ export interface GedAsk {
   budgetMs: number;
   /** The images by reference (each kept by its hash) or in the file (none: in it). */
   images?: GedImages;
+  /** The files of the app's tree with it (?media=app, spec 108). */
+  media?: boolean;
 }
 
 /** One source's excerpts asked for (/excerpt/<S>[?clip=…&level=…]). */
@@ -141,7 +145,8 @@ export function buildGed(ask: GedAsk): GedMade {
     named.add(sha);
     return sha;
   } : undefined;
-  const text = exportGedcom(tree, { for: "strom", ...(imageRef ? { imageRef } : {}), ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(table ? { table } : {}), ...(sourceFields ? { sourceFields } : {}), ...(mainCitations ? { mainCitations } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(hypothesisPick ? { hypothesisPick } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
+  const appMedia = ask.media ? { places: treeMedia(tree.list<Input>("input"), (id) => tree.get(id)), fileOf: appMediaOf(root, shared, ask.images === "ref") } : undefined;
+  const text = exportGedcom(tree, { for: "strom", ...(imageRef ? { imageRef } : {}), ...(appMedia ? { appMedia } : {}), ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(table ? { table } : {}), ...(sourceFields ? { sourceFields } : {}), ...(mainCitations ? { mainCitations } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(hypothesisPick ? { hypothesisPick } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text;
   // its bytes in a buffer of their own: handed to the bridge's thread without a copy
   const bytes = Buffer.from(new ArrayBuffer(Buffer.byteLength(text)));
   bytes.write(text);
@@ -149,15 +154,32 @@ export function buildGed(ask: GedAsk): GedMade {
 }
 
 /**
+ * What the app is given of a record of its tree (spec 108): its working copy (or file) by its hash — the bridge gives
+ * the bytes (POST /images, GET /image/<sha>) — or in the file as a data URL; none: its name alone (originalOnly).
+ */
+export function appMediaOf(root: string, shared: string | undefined, byRef: boolean): (rec: Input) => AppMediaFile | undefined {
+  return (rec) => {
+    const copy = servedCopy(root, shared, rec);
+    if (!copy) return undefined;
+    if (byRef) return { ref: copy.sha, mime: copy.mime, bytes: copy.bytes, ...(copy.width ? { width: copy.width, height: copy.height! } : {}) };
+    try {
+      return { data: `data:${copy.mime};base64,${fs.readFileSync(copy.file).toString("base64")}`, mime: copy.mime };
+    } catch {
+      return undefined;
+    }
+  };
+}
+
+/**
  * What a tree's file for the app is made by beyond the research's head: the app's version, the links offered, this
  * strom, and what of this computer changes it (the images' settings and folder, the link scheme, the copy of the app,
  * a research acting as an archive). Two asks of one variant at one head get the same file.
  */
-export function gedVariant(root: string, env: Env, version: string | undefined, links: string, images: GedImages = "data"): string {
+export function gedVariant(root: string, env: Env, version: string | undefined, links: string, images: GedImages = "data", media = false): string {
   const tree = Tree.open(root, env);
   const settings = new Settings(env, {});
   // the images by reference: a variant of its own (its own ETag); the file with them in it as before (its ETag kept)
-  return JSON.stringify({ strom: VERSION, app: version ?? "", links, excerpts: settings.excerpts(tree.config), shared: settings.shared()?.value ?? "", scheme: linkScheme(env), copy: stromAppUrl(settings), archive: actsAsArchive(tree), ...(images === "ref" ? { images } : {}) });
+  return JSON.stringify({ strom: VERSION, app: version ?? "", links, excerpts: settings.excerpts(tree.config), shared: settings.shared()?.value ?? "", scheme: linkScheme(env), copy: stromAppUrl(settings), archive: actsAsArchive(tree), ...(images === "ref" ? { images } : {}), ...(media ? { media: "app" } : {}) });
 }
 
 /**

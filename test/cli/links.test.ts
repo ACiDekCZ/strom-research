@@ -10,7 +10,7 @@ import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { decodeImage, encodeImage, imageSize } from "../../src/image/index.ts";
 import { resize } from "../../src/image/image.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
-import { LinkError, linkActions, linkHandlerState, linkText, LINUX_ENTRY, linuxDesktopEntry, linkOwner, macApp, macScript, parseLink, refreshLinks, registerLinks, unregisterLinks, windowsCommand, type Sys } from "../../src/core/links.ts";
+import { LinkError, linkActions, linkHandlerState, linkText, LINUX_ENTRY, linuxDesktopEntry, linkOwner, macApp, macScript, parseLink, refreshLinks, registerLinks, unregisterLinks, windowsCommand, type Sys, titleLinkWindow } from "../../src/core/links.ts";
 import { Settings } from "../../src/core/config.ts";
 import { offerLinks } from "../../src/cli/wizard.ts";
 import { uninstallPlan } from "../../src/core/uninstall.ts";
@@ -259,7 +259,10 @@ test("another installation's links stay its own: said in the question (no sugges
   const [node, cli] = [path.join(jinde, "node"), path.join(jinde, "cli.js")];
   fs.writeFileSync(node, "");
   fs.writeFileSync(cli, "");
-  for (const platform of ["win32", "darwin", "linux"] as const) {
+  // its files must be there by the simulated platform's paths: on Windows, a path of this computer is no absolute path
+  // of macOS or Linux, so those two are simulated elsewhere only
+  const platforms = process.platform === "win32" ? (["win32"] as const) : (["win32", "darwin", "linux"] as const);
+  for (const platform of platforms) {
     const reg = new Map<string, string>();
     const writes: string[] = [];
     const run: Sys = (cmd, args) => {
@@ -399,4 +402,15 @@ test("send: a research here opens in a terminal (none from a test: said how to d
   // the status: nowhere (a test never registers)
   assert.equal((await w.ok(["link", "status", "--json"])).json.state, "none");
   w.cleanup();
+});
+
+test("the window a link opened on Windows is titled with the handler's name, never node.exe's path; elsewhere untouched", () => {
+  const set: string[] = [];
+  assert.equal(titleLinkWindow({}, "win32", (t) => set.push(t)), "Strom Research");
+  assert.equal(titleLinkWindow({ STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta" }, "win32", (t) => set.push(t)), "Strom Research (beta)");
+  assert.deepEqual(set, ["Strom Research", "Strom Research (beta)"]);
+  for (const platform of ["darwin", "linux"] as const) assert.equal(titleLinkWindow({}, platform, (t) => set.push(t)), undefined);
+  assert.equal(set.length, 2);
+  // a console that refuses: the link goes on
+  assert.equal(titleLinkWindow({}, "win32", () => { throw new Error("no console"); }), "Strom Research");
 });

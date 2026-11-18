@@ -233,8 +233,12 @@ jest cytat źródła ([A3.2](#A3.2)). Z obrazowego załącznika można wyciąć 
   sam przy wyborze nowego zdjęcia portretu. Inny załącznik graficzny oferuje **Jako portret…** (w materiałach
   i podglądzie **Użyj jako portretu…**). Usunięcie załącznika z etykietą Portret zostawia portret
   ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
+- **Od aplikacji 3.30.0:** załącznik to materiał drzewa ([A3.5](#A3.5)). Ten sam plik przy kilku osobach to jeden
+  plik; dodany drugi raz oferuje **Połącz też tutaj** ([A3.5.4](#A3.5.4)). Kosz przy załączniku usuwa go tylko od tej
+  osoby, z **Cofnij**; ostatnie miejsce pyta jak **Usuń z drzewa…** ([A3.5.6](#A3.5.6)). Na szerszym ekranie akcje
+  załącznika są w menu ⋯.
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote · 3.30.0 příloha jako materiál: app:2b66d7cf (verze dat 24), a275d977 (Soubor už ve stromu je), 13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson, 30b0accd (akce v ⋯) -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Oryginały dla badania
@@ -265,25 +269,218 @@ ewentualnie przy źródle i miejscu wycinka.
 <a id="A3.5"></a>
 ## A3.5 Materiały
 
-Materiał to plik wysłany do badania przy osobie lub przy źródle: list, zdjęcie, kopia z archiwum. Do drzewa nic się
-nie dodaje. Badanie zapisuje pliki i tworzy z nich zadanie dla agenta.
+Materiał to każdy plik drzewa: skan, zdjęcie, list, akt. Ten sam plik jest w drzewie raz, nawet gdy jest przy kilku
+osobach, i niesie swoje miejsca: osoby, daną lub wydarzenie, związek, źródło. Okno **Materiały** ma każde drzewo.
+Przy drzewie z badaniem lub z Archiwum Strom pokazuje też pliki badania, których nigdzie w drzewie nie ma (**tylko
+w archiwum**).
 
-- **Wyślij materiał…** (przy osobie) i **Wyślij materiał do źródła…** (podgląd i edytor źródła): najwyżej 20 plików
-  naraz i **Notatka dla badania**. Cały folder wysyła **Dodaj materiały…** w menu badania
-  ([S4](S4-research-from-the-app.md)).
-- **Również jako załącznik w drzewie** (tylko przy osobie): w drzewie powstaje też podgląd jak przy załączniku.
-- Gdy badanie nie działa, pliki czekają w przeglądarce. Gdy badanie jeszcze nie zna osoby, zostaną wysłane po
+- Materiałem drzewa jest załącznik osoby ([A3.4](#A3.4)), całe zdjęcie portretu i zdjęcie pary
+  ([A12](A12-portrait-and-couple-photo.md)), plik przy wydarzeniu lub związku i dowód źródła ([A3.5.5](#A3.5.5)).
+  Gdzie plik jest zapisany, opisuje [S8](S8-where-the-data-are.md).
+- Pliki można wysłać do badania także bez dodania do drzewa: **Wyślij materiał…** przy osobie i **Wyślij materiał do
+  źródła…** (podgląd i edytor źródła), najwyżej 20 plików naraz, z **Notatka dla badania**. Badanie tworzy z nich
+  zadanie dla agenta ([R11.1](R11-material-from-the-user.md#R11.1)). **Również jako załącznik w drzewie** daje do
+  drzewa też podgląd. Cały folder wysyła **Dodaj materiały…** w menu badania
+  ([R11.4](R11-material-from-the-user.md#R11.4)). Przy Archiwum Strom to **Dodaj materiał…** i **Również w drzewie**
+  (obrazy i PDF do 2 MB).
+- Gdy badanie nie działa, wysłane pliki czekają w przeglądarce. Gdy badanie jeszcze nie zna osoby, zostaną wysłane po
   kolejnym wysłaniu drzewa.
-- Sekcja **Materiały** w edycji osoby, **Materiały** w menu osoby i okno **Wszystkie materiały ›** pokazują załączniki
-  drzewa i pliki badania razem. Ten sam plik pokazuje się raz.
-- **Granice:** tylko na komputerze, przy drzewie połączonym z badaniem, które przyjmuje oryginały. Badanie nigdy nie
-  przyjmie programów, kluczy, archiwów ani plików drzewa genealogicznego (GEDCOM). Przypisanie i ukrycie materiału
-  działa tylko z uruchomionym badaniem. Przy Archiwum Strom materiał zapisuje się w archiwum; **Również w drzewie**
-  dodaje obrazy i PDF do 2 MB także do drzewa.
-- **Obsługa:** zob. wyżej.
-- **Obowiązuje od:** aplikacja 3.9.0; sekcja i okno **Materiały** 3.16.0
+- **Granice:**
+  - materiał można wysłać tylko na komputerze, przy drzewie połączonym z badaniem, które przyjmuje oryginały. Badanie
+    nigdy nie przyjmie programów, kluczy, archiwów ani plików drzewa genealogicznego (GEDCOM);
+  - pliki badania spoza drzewa są widoczne tylko w aplikacji na komputerze („Materiały z badania są widoczne
+    w aplikacji na komputerze.”); na telefonie okno pokazuje pliki drzewa;
+  - przy drzewie tylko do odczytu pliki można oglądać i pobierać, nie zmieniać;
+  - badanie starsze niż 1.35.0 nie obsługuje tytułów, połączeń, użycia ani porządkowania plików spoza drzewa;
+    aplikacja mówi to przy akcji („… obsługuje nowsza wersja badania”).
+- **Obsługa:** drzewo bez badania: **Akcje › Materiały** (z liczbą plików); drzewo z badaniem: **Materiały** w menu
+  badania. Przy osobie: **Wszystkie materiały osoby (N) ›** pod załącznikami i **Materiały** w menu osoby (okno
+  z filtrem na osobę).
+- **Obowiązuje od:** aplikacja 3.9.0; sekcja i okno **Materiały** 3.16.0; 3.30.0: okno przy każdym drzewie, plik
+  drzewa jako jeden materiał z miejscami (wersja danych 24)
 
-<!-- zdroj: app:src/ui/material-ui.ts:30-33 MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, :38 materialAccepted, :51 alsoTreeEligible, :71 materialAvailable · src/materials.ts:477 personMaterials, :519-529 gates · src/ui/originals-ui.ts:269 · src/ui/research-actions-ui.ts:357 batch · strings.ts material.*, materials.*, batch.menu -->
+<!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
+
+<a id="A3.5.1"></a>
+### A3.5.1 Okno Materiały
+
+Okno pokazuje każdy plik raz: pliki drzewa ze wszystkimi osobami, przy których są, a obok archiwum także pliki
+badania.
+
+- **Grupuj:** **Według daty dodania** (z osobami, przy których plik dodano) albo **Według osoby**; plik tylko przy
+  źródle lub związku jest pod **Bez osoby**. Obok archiwum dodatkowo **Partie** i **Według daty otrzymania**.
+- **Widok** **Siatka** albo **Lista**. Lista ma kolumny **Tytuł**, **Rodzaj**, **Data**, **Osoby**, **Źródło**,
+  **W drzewie** i **Użyto**; sortuje się kliknięciem w nagłówek. Kafelek pokazuje, w ilu miejscach plik jest użyty.
+- **Szukaj w tytule, nazwie i notatce**; **Filtry** według osoby, rodzaju i partii. Ukryte pliki badania pokaże
+  **Pokaż ukryte**.
+- ⓘ przy tytule okna (**Gdzie są pliki**) mówi, gdzie są pliki: „Pliki są tylko w tej przeglądarce. Kopia: Eksportuj
+  wszystko.”, albo w badaniu lub w Archiwum Strom na tym komputerze z pomniejszonymi kopiami w aplikacji; przy
+  zaszyfrowanym drzewie także to, że badanie na dysku zaszyfrowane nie jest.
+- Osoba bez imienia lub zapisana jako „?” to **Nieznana osoba** (z latami, gdy je ma).
+- **Granice:** na telefonie okna nie ma w menu **Więcej**; otwiera się od osoby. Gdy badanie nie działa, okno pokazuje
+  stan z czasu, gdy działało, i mówi, co można zmieniać: tytuły i połączenia plików drzewa zapiszą się z drzewem,
+  materiał spoza drzewa dopiero z działającym badaniem.
+- **Obsługa:** zob. [A3.5](#A3.5); zaznaczanie plików: **Zaznacz**, Ctrl/Cmd+A zaznacza to, co pokazują filtry.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+
+<a id="A3.5.2"></a>
+### A3.5.2 Tytuł, rodzaj i data
+
+Plik może mieć **tytuł**, **rodzaj** (**Zdjęcie**, **Dokument**, **Akt**, **Inne**) i **datę**. Tytuł pokazuje się
+zamiast nazwy pliku; pusty tytuł oznacza nazwę pliku.
+
+- Data to rok, data lub przedział („ok. 1920”); tego, czego nie da się odczytać, aplikacja nie zapisze („Nie da się
+  odczytać daty.”).
+- Strona osoby, księga rodu i zapisana strona opisują plik całym tytułem, rodzajem i rokiem daty.
+- Edycja pliku drzewa to jeden krok **Cofnij**; plik spoza drzewa edytuje się w badaniu, z komunikatem i **Cofnij**.
+- GEDCOM niesie tytuł jako `TITL` (nazwę pliku jako `_STROM_NAME`) i rodzaj jako `TYPE` pod `FORM`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Granice:** plik spoza drzewa można edytować tylko z działającym badaniem 1.35.0 lub nowszym („Tytuł materiału
+  spoza drzewa obsługuje nowsza wersja badania.”).
+- **Obsługa:** podgląd pliku: ołówek, **Dodaj tytuł** lub F2 (Enter zapisuje, Esc anuluje); okno **Załącznik**
+  (**Tytuł i dane…**: tytuł, rodzaj, data, notatka).
+- **Obowiązuje od:** aplikacja 3.30.0; plik spoza drzewa z badaniem 1.35.0
+
+<!-- zdroj: app:30b0accd src/ui/material-viewer-ui.ts, src/ui/material-details-ui.ts (titulek, druh, datum, F2) · app:6d8fba0e DataManager (titulek vedle názvu) · app:dfb50772 src/ged-exporter.ts TITL, _STROM_NAME, TYPE pod FORM · strings.ts materials.kind, titleHint, datePh, dateInvalid, olderEdit, attachmentDialog, titleAndData, addTitle · research:a7df632d POST /material/edit -->
+
+<a id="A3.5.3"></a>
+### A3.5.3 Gdzie użyto
+
+Każdy plik pokazuje, gdzie jest użyty: osoby, portret, związek, wydarzenia, źródła i wycinki, w tej kolejności.
+Każdy wiersz to odnośnik do osoby lub źródła.
+
+- Dowód źródła mówi też, gdzie źródło jest cytowane („dowód · cytowane przy Urodzenie”).
+- Powyżej pięciu miejsc pokazują się cztery i „+ N więcej”.
+- × przy miejscu (**Odłącz:**) usuwa plik tylko z tego miejsca, z komunikatem i **Cofnij**. Ostatnie miejsce pliku,
+  którego nic innego nie trzyma, najpierw pyta ([A3.5.6](#A3.5.6)).
+- Obok archiwum są dwie części: **W drzewie** i **W archiwum**, z osobami przypisanymi w archiwum i z tym, do czego
+  badanie plik użyło (wycinki, źródła badania, otwarte zadania).
+- **Granice:** drzewo tylko do odczytu pokazuje miejsca bez ×. Użycie w archiwum pokaże tylko badanie 1.35.0
+  i nowsze; gdy badanie nie działa, jest według stanu, który aplikacja ostatnio znała.
+- **Obsługa:** podgląd pliku (panel, na telefonie wysunięty arkusz); okno **Załącznik**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+
+<a id="A3.5.4"></a>
+### A3.5.4 Połącz z…
+
+**Połącz z…** daje plik do osób, do wydarzenia, do związku lub do źródła, jednym krokiem **Cofnij**.
+
+- Przy źródle plik jest jego dowodem; przy związku załącznikiem związku. Zdjęcie pary zmienia się przy związku
+  ([A12.4](A12-portrait-and-couple-photo.md#A12.4)).
+- Materiał tylko w archiwum łączy się ze swoją pomniejszoną kopią z badania: wtedy jest też w drzewie, w eksporcie,
+  w księdze i na telefonie.
+- Ten sam plik dodany drugi raz: **Plik już jest w drzewie** oferuje **Połącz też tutaj**, **Dodaj jako nowy plik**
+  albo anulowanie. Obok archiwum łączy się bez pytania.
+- Usunięcie osoby lub źródła mówi, które pliki zostaną, a które znikną.
+- **Granice:** najwyżej 50 osób naraz. Materiał tylko w archiwum można połączyć tylko wtedy, gdy badanie działa.
+  Osobę, której badanie jeszcze nie zna, badanie dostanie z kolejnym zapisem drzewa.
+- **Obsługa:** podgląd pliku (**Połącz z…** lub P; strzałki zmieniają cel, Enter łączy); zaznaczenie w oknie
+  **Materiały**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+
+<a id="A3.5.5"></a>
+### A3.5.5 Źródło z pliku i dowód źródła
+
+Źródło może mieć **dowód**: plik, z którego pochodzi. Dowód to miejsce pliku przy źródle; pliku nie wstawia się
+ponownie.
+
+- **Utwórz źródło z tego pliku…** otwiera edytor źródła wypełniony z pliku: nazwa z tytułu, data zapisu z daty, plik
+  jako dowód i **Cytuj przy** z osobą, od której plik jest, i z wydarzeniem, którego rok pasuje. Zapis to jeden krok
+  **Cofnij**: źródło, dowód i cytowanie.
+- Nowe źródło przy osobie oferuje **Dowód z materiałów osoby**: pliki osoby **Bez źródła** i **Przy innym źródle**,
+  powyżej 12 plików z wyszukiwaniem (**Szukaj w tytule i nazwie**).
+- Podgląd źródła pokazuje **Pochodzi z**: dowody z × i **Połącz dowód…**. Wycinek odsyła do pliku, z którego go
+  wycięto („Wycinek z … ›”).
+- GEDCOM niesie dowód jako `OBJE` przy źródle; plik w kilku miejscach to jeden rekord `OBJE`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Granice:** materiał tylko w archiwum staje się dowodem ze swoją pomniejszoną kopią tylko wtedy, gdy badanie
+  działa. Aplikacja nigdy nie zapisze pliku dwa razy.
+- **Obsługa:** podgląd pliku, ⋯ przy załączniku, okno **Załącznik** i w **Połącz z…** przy źródle **Nowe źródło
+  z tego pliku…**; edytor źródła, pole **Dowód**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:0c532b5a src/ui/source-docs-ui.ts (hlavička §5–§7: Vytvořit pramen, Doklad z materiálů osoby, Z čeho je), OFFER_SEARCH_OVER=12 · app:55d66efd · strings.ts sources.docLabel, docHint, attachDoc, citeAtLabel, offerTitle, offerNoSource, offerOther, offerSearch, viewerFrom, excerptFrom · materials.makeSource, newSourceFromFile · app:dfb50772 src/ged-exporter.ts objeOf (OBJE u SOUR, _SOUR u osoby), recordOf (soubor na více místech = záznam OBJE @M…@) -->
+
+<a id="A3.5.6"></a>
+### A3.5.6 Usuń z drzewa i Przywróć
+
+**Usuń z drzewa…** usuwa plik ze wszystkich miejsc w drzewie. Co stanie się z plikiem, zależy od tego, czy trzyma go
+archiwum.
+
+- Okno najpierw mówi, co odsyła do pliku: dowód źródła („Źródło zostanie bez dowodu.”), wycinek („Wycinek
+  pozostanie.”), portret („Portret pozostanie, kadru nie będzie można zmienić.”).
+- **Bez archiwum:** **Usunąć plik z drzewa?** plik usuwa. „Plik nie jest zapisany nigdzie indziej. Przywróci go tylko
+  Cofnij lub kopia (Eksportuj wszystko).”
+- **Z archiwum** (plik jest w badaniu lub w Archiwum Strom): plik zostaje w archiwum, ukryty z powodem **Usunięto
+  z drzewa**; nieobowiązkowy powód to **Nie dotyczy rodziny** lub **Duplikat**. W **Pokaż ukryte** przycisk
+  **Przywróć** przywraca go razem z połączeniami, do miejsc, które w drzewie nadal są.
+- Kilka plików z zaznaczenia to jeden krok **Cofnij**. **Usuń osobę…** usuwa wybraną osobę z zaznaczonych plików;
+  plik bez innego miejsca jest zapowiedziany z góry.
+- Kosz przy załączniku osoby usuwa plik tylko od tej osoby, z komunikatem i **Cofnij**; ostatnie miejsce pyta jak
+  **Usuń z drzewa…**.
+- **Granice:** plik zostaje w archiwum tylko wtedy, gdy archiwum go ma: od badania 1.35.0 każdy plik drzewa po
+  zapisie, przy starszym badaniu tylko wysłany oryginał. Archiwum przejmuje usunięcie z zapisem drzewa
+  ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
+- **Obsługa:** podgląd pliku; zaznaczenie w oknie **Materiały** → ⋯.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a275d977, c2ae8441 src/ui/material-attach-ui.ts openRemoveFromTreeDialog (rmRefs, materialKeptByArchive = caps.list && item.file) · src/data.ts removeMedia (keep → removed + places), removeMediaMany, restoreMedia (jen místa, která ve stromu jsou) · app:13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson · strings.ts materials.removeFromTree, rmRefDoc, rmKeepDoc, rmKeepExcerpt, rmKeepPortrait, rmArchiveResearch, rmAppTitle, rmApp, reason, restore, selRemovePerson, selRemovePersonLast · research:91ab6230, a7df632d -->
+
+<a id="A3.5.7"></a>
+### A3.5.7 Przejrzyj i zmiany zbiorcze
+
+Okno **Materiały** przegląda wiele plików naraz: filtry pokazują, czego brakuje, a zaznaczenie zmienia wszystkie
+zaznaczone pliki jednocześnie.
+
+- Filtry z liczbami: **Bez tytułu**, **Bez źródła**, obok archiwum **W drzewie** i **Tylko w archiwum**.
+- **Przejrzyj (N)** otwiera podgląd z polami pierwszego pliku: Enter lub → zapisuje i przechodzi do następnego, ←
+  wstecz, **Pomiń**, Esc kończy; P łączy, S tworzy źródło. Na telefonie pliki przełącza się przesunięciem.
+- Zaznaczenie: **Przejrzyj**, **Połącz z…**, **Tytuł…**, **Rodzaj…**, **Data…**; pod ⋯ **Usuń z drzewa…**, **Usuń
+  osobę…** i obok archiwum **Przypisz do osoby…** i **Ukryj…**.
+- **Tytuł…** umie **Dodaj numer według kolejności w partii**, z podglądem. **Rodzaj…** i **Data…** pomijają pliki,
+  które wartość już mają, jeśli nie zaznaczy się zastąpienia.
+- **Granice:** pliki drzewa zmieniają się jednym krokiem **Cofnij**. Pliki badania partiami po 500, powyżej 500
+  z postępem i anulowaniem; odrzucone pliki komunikat wymienia.
+- **Obsługa:** okno **Materiały** → **Zaznacz** lub filtr.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a1127378 src/ui/materials-window.ts (filtry, výběr, Projít), src/ui/material-bulk-ui.ts BULK_CHUNK=500 · app:13e4a70c (tažení na telefonu) · strings.ts materials.fNoTitle, fNoSource, fInTree, fOnlyArchive, review, setTitle, setKind, setDate, titleNumber, titleOverwrite, bulkProgress, bulkRejected, reviewSwipe -->
+
+<a id="A3.5.8"></a>
+### A3.5.8 Uporządkuj agentem
+
+**Uporządkuj agentem…** wysyła pliki badania agentowi. Agent zaproponuje dla każdego tytuł, datę, rodzaj i połączenia
+(osoby, wydarzenie, źródło) z krótkim uzasadnieniem. Nic się nie zapisze, dopóki propozycja nie zostanie przyjęta.
+
+- Okno pokazuje pliki i pole **Co wiadomo o plikach** (nieobowiązkowe, własne słowa jako wskazówka). Mówi, że to, co
+  agent otworzy, trafia do dostawcy modelu, i że porządkowanie zużywa subskrypcję lub kredyt. Pliki wysyła tylko
+  przycisk **Uporządkuj agentem** w oknie, raz.
+- Okno można zamknąć; postęp i gotowa propozycja są w pasku okna **Materiały**.
+- **Propozycja agenta** ma **Propozycje**, **Nieprzypisane** i **Załatwione**, a przy każdym pliku **Przyjmij**,
+  **Edytuj**, **Odrzuć**; dalej **Przyjmij wybrane** i **Przyjmij wszystkie**. Pewność propozycji: pewne,
+  prawdopodobne, niepewne.
+- Tytuł, data i rodzaj od człowieka zostają; propozycja agenta zostanie użyta tylko wtedy, gdy wybierze się **Użyj
+  propozycji**.
+- Przyjęte się zapisze: pliki drzewa jednym krokiem **Cofnij** razem z drzewem, materiał spoza drzewa do archiwum.
+  Źródło badania, którego drzewo jeszcze nie ma, przyjdzie do drzewa z numerem badania, a zapis go nie podwoi.
+  Przyjętą propozycję można w jej wierszu cofnąć przez **Cofnij**.
+- **Granice:**
+  - tylko przy badaniu 1.35.0 i nowszym, które ma agenta, i tylko wtedy, gdy badanie działa; przy Archiwum Strom
+    i przy badaniu, które czeka na agenta, oferty w ogóle nie ma;
+  - najwyżej 50 plików naraz (wysyła się pierwsze 50) i 2000 znaków tekstu;
+  - badanie może porządkowanie odrzucić: wyczerpany limit czytania, zbyt wiele czekających porządkowań, agent teraz
+    nie może pracować. Jak porządkuje badanie, opisuje [R11.5.3](R11-material-from-the-user.md#R11.5.3);
+  - tylko w aplikacji na komputerze.
+- **Obsługa:** okno **Materiały**: zaznaczenie, pasek nad partią lub nad filtrem; koniec partii z aplikacji.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
 
 <a id="A3.6"></a>
 ## A3.6 Źródła osoby

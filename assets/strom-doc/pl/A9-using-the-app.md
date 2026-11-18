@@ -35,6 +35,7 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 | śledzenie badania | **Śledź na żywo**; koniec **Zakończ śledzenie** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
 | wysyłanie zmian do badania | **Badanie → Więcej → Badanie dla tego drzewa… → Wysyłanie zmian** | [S2.2](S2-edits-from-the-app.md#S2.2) |
 | zasady i pojęcia | **Akcje → Jak działa Strom** | [A1.7](A1-the-app-in-brief.md#A1.7) |
+| działanie, które chwilę trwa | stan na przycisku (kółko i to, co się dzieje); długie działanie w powiadomieniu z postępem | [A9.7](#A9.7) |
 
 - **Granice:**
   - pozycje badania są tylko przy drzewie z badania; przyciski, które otwierają badanie, tylko na komputerze, na
@@ -43,7 +44,7 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 - **Obsługa:** jak w tabeli.
 - **Obowiązuje od:** aplikacja 3.25.0 (podsumowanie; każde miejsce obowiązuje od wersji w swojej zasadzie)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) · akce, která trvá: A9.7 (app:2d01dffd src/ui/busy.ts) -->
 
 <a id="A9.2"></a>
 ## A9.2 Elementy mają czytelną nazwę
@@ -161,3 +162,56 @@ drzewa**.
 - **Obowiązuje od:** aplikacja 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+
+<a id="A9.7"></a>
+## A9.7 Działanie, które chwilę trwa
+
+Przycisk lub link, którego działanie chwilę trwa, pokazuje, że pracuje, i kończy się jedną wiadomością: udało się
+albo dlaczego nie. Drugie kliknięcie w tym czasie niczego ponownie nie uruchamia.
+
+- **Granice:**
+  - element blokuje się zaraz po kliknięciu. Drugie kliknięcie, Enter ani spacja niczego ponownie nie uruchamiają.
+    Element nie szarzeje, zachowuje kolor i fokus klawiatury i nie zmienia szerokości;
+  - stan pokazuje się dopiero po 120 ms, żeby krótkie działania nie migały, i zostaje widoczny co najmniej 300 ms:
+    kółko i słowa, co się dzieje. Czasownik zmienia się w rzeczownik odczasownikowy (**Wyślij** → **Wysyłanie…**),
+    w przeciwnym razie stoi **Wczytywanie…**; link do terminala mówi **Otwieranie badania…**
+    ([S4.5](S4-research-from-the-app.md#S4.5)). Przy ograniczonym ruchu (ustawienie systemu) zamiast kółka stoją trzy
+    kropki;
+  - powodzenie tam, gdzie wynik nie jest inaczej widoczny, pokazuje na elemencie przez 2 s znak ✓ ze słowem
+    (**Zapisano w badaniu**, **Zapisano**);
+  - niepowodzenie to zdanie tuż pod elementem ze **Spróbować ponownie**. Gdy element w międzyczasie zniknął
+    (zamknięte menu lub okno), to samo mówi powiadomienie; powiadomienie o błędzie samo się nie zamyka i ma ✕. Okno
+    przeglądarki z komunikatem nie jest używane;
+  - każde działanie ma limit czasu według tego, na co czeka: zapytanie do badania 15 s, zapis do badania 30 s,
+    wczytanie lub wysłanie drzewa 120 s, otwarcie terminala 10 s, praca nad kolejką 30 s, okno główne 10 s, usługa
+    w internecie 10 s. Obliczenie w przeglądarce nie ma limitu.
+- **Obsługa:** nic: obowiązuje samo.
+- **Obowiązuje od:** aplikacja 3.30.0. Tak na razie: linki do terminala, **Wyślij**, przekazanie drzewa badaniu,
+  wczytanie wersji z badania, przełączenie drzewa, **Praca nad kolejką…**, **Treść wszystkich zapytań** i przyciski
+  w powiadomieniach; kolejne miejsca aplikacji przybywają.
+
+<!-- zdroj: app:2d01dffd, 7b69dba9, 574e7ef9, 6ee5a7f7, f63cc742, 3f841191, 1473151c, d2bdabac, c02df469, 6093a386, 58539c82 src/ui/busy.ts (runBusy: zámek 0 ms aria-disabled, BUSY_SHOW_MS 120, BUSY_MIN_MS 300, BUSY_DONE_MS 2000, šířka v jedné buňce .bl, bez ztlumení, konec věta .busy-msg + retry, prvek pryč → toast, BUSY_TIMEOUTS bridge 15 s, write 30 s, tree 120 s, terminal 10 s, queueWork 30 s, satellite 10 s, network 10 s, local bez limitu; reducedMotion tři tečky) · strings.ts busy.generic, sending, openingResearch, done.written, done.saved, retry · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · app:docs/ZADANI_DEV_tlacitka-cekani.md §1, §10, §13.1 (fáze 0–1) · dirigent:prace/1118-app-tlacitka-a -->
+
+<a id="A9.7.1"></a>
+### A9.7.1 Długie działanie: postęp w powiadomieniu
+
+Działanie, które trwa dłużej, pokazuje swój postęp w powiadomieniu: co się właśnie dzieje i jak długo to trwa.
+
+- **Granice:**
+  - powiadomienie z postępem pokazuje się, gdy działanie trwa dłużej niż 3 s albo gdy element, który je uruchomił,
+    zniknął. Ma nazwę, krok („2 z 5”), od 10 s czas („· 12 s”), a po dwukrotności zwykłego czasu, najwcześniej po
+    20 s, **Trwa dłużej niż zwykle.** Powodzenie pokazuje przez 4 s podsumowanie ze znakiem ✓;
+  - **Anuluj** ma tylko działanie, które naprawdę można anulować. Zapisu do badania anulować nie można. Zamknięcie
+    okna nie anuluje działania;
+  - przekazanie drzewa badaniu pokazuje kroki (**Zapisywanie kopii zapasowej**, **Tworzenie GEDCOM**, **Badanie
+    przejmuje drzewo**, wczytywanie), a okno można zostawić w działaniu przez **Kontynuować w tle**;
+  - podczas wczytywania wersji z badania, przekazania i przełączania drzewa zmiany w drzewie czekają: próba zmiany
+    niczego nie zmienia, a powiadomienie mówi dlaczego (**Drzewo wczytuje się teraz z badania – zmiany będą możliwe
+    po wczytaniu.**). Przeglądanie i wyszukiwanie działają dalej;
+  - opuszczenie strony, gdy trwa wysyłanie do badania lub wczytywanie drzewa, przeglądarka najpierw potwierdza. Gdy
+    strona zamknęła się w trakcie zapisu, przy następnym otwarciu mówi **Przed zamknięciem trwało wysyłanie do
+    badania – wynik nie jest znany.** ze **Sprawdzić**.
+- **Obsługa:** aplikacja: **Anuluj**, **Kontynuować w tle**, **Sprawdzić** w powiadomieniu.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:2d01dffd, 3f841191, 1473151c, d2bdabac src/ui/toast.ts showProgressToast (ELAPSED_FROM_MS 10 s, TAKING_LONG_MIN_MS 20 s a 2× usualMs, SUMMARY_MS 4000, cancel jen kde jde) · src/ui/busy.ts BUSY_LONG_TOAST_MS 3000 · src/ui/adopt-progress.ts, research-adopt-ui.ts (kroky adoptBackup, adoptGedcom, adoptTaking, loadingTree; adoptBackground) · src/ui/tree-edit-lock.ts (load, adopt, switch; editsWaitLoad, editsWaitAdopt, editsWaitSwitch) · src/ui/busy-leave.ts (beforeunload při send, adopt, load; strom.busy.pending → unknownAfterLeave + findOut) · strings.ts busy.* · app:docs/ZADANI_DEV_tlacitka-cekani.md §2 -->

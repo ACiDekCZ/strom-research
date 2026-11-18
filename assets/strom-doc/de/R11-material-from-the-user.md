@@ -3,7 +3,8 @@
 
 Was die Forschung mit den Dateien, Texten und Stammbäumen tut, die ihr der Benutzer gibt: im Terminal oder aus der
 Strom-App. Wie Material aus der App gesendet wird, beschreibt [A3.5](A3-evidence-in-the-app.md#A3.5); die Antwort
-mit einer Datei auf eine wartende Aufgabe [R6.7.1](R6-awaiting-action.md#R6.7.1). Beschreibt die Forschung 1.27.0.
+mit einer Datei auf eine wartende Aufgabe [R6.7.1](R6-awaiting-action.md#R6.7.1). Beschreibt die Forschung 1.27.0;
+Änderungen aus einer neueren Version tragen deren Nummer.
 Bei den Regeln wird unterschieden, was **der Code prüft** und was nur eine **Regel der Methodik** ist.
 
 <a id="R11.1"></a>
@@ -154,3 +155,142 @@ Stapel an. Der Agent sortiert ihn dann nach Aufgaben.
 - **Gilt seit:** Forschung 1.12.0; Stapel vom Telefon 1.18.0
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+
+<a id="R11.5"></a>
+## R11.5 Material der Forschung und Dateien des Stammbaums aus der App
+
+Jede Datei, die die Forschung hält, ist ein Materialeintrag (`I…`): eine zu einer Person gesendete Datei, eine Datei
+eines Stapels, eine Datei aus dem Terminal und eine Datei des Stammbaums aus der Strom-App. Der Eintrag hat Titel,
+Art und Datum, die Personen, zu denen er gehört, und bei einer Datei des Stammbaums auch ihre Stellen im Stammbaum
+der App.
+
+- Die Art ist `photo`, `document`, `record` oder `other` (in der App **Foto**, **Dokument**, **Urkunde**,
+  **Sonstiges**). Die Forschung merkt sich, wer den Titel gab: ein Mensch (App, Terminal) oder die Forschung.
+- Eine ausgeblendete Datei (`unrelated`, `duplicate`, ohne Grund) bleibt mit ihrem Original in der Forschung und
+  lässt sich wieder zeigen.
+- **Prüft der Code:**
+  - Ausblenden, Entfernen aus dem Stammbaum oder Zurücknehmen eines Schreibens löscht keine Datei: Original und
+    Eintrag bleiben;
+  - eine Änderung von Titel, Art und Datum einer Datei außerhalb des Stammbaums schreibt die Forschung sofort. Bei
+    einer Datei des Stammbaums erscheint die Änderung in der App mit dem nächsten Laden des Stammbaums;
+  - die Forschung lehnt die ganze Änderung ab, wenn sie eine der Dateien nicht kennt oder einen Wert nicht lesen kann
+    ([R11.5.2](#R11.5.2)).
+- **Grenzen:** Einträge mit Stellen im Stammbaum sind im Stammbaumschema 3 (ab der Forschung 1.35.0). Der Übergang
+  überschreibt nichts; ein älteres `strom` öffnet einen Stammbaum im Schema 3 nicht. Material in der App beschreibt
+  [A3.5](A3-evidence-in-the-app.md#A3.5).
+- **Bedienung:** Terminal: `strom input list`, `strom input show I…` (wo die Datei ist und was aus ihr entstand),
+  `strom input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. App: das
+  Fenster **Materialien**.
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+
+<a id="R11.5.1"></a>
+### R11.5.1 Dateien des Stammbaums aus der App
+
+Die Forschung 1.35.0 hält auch die Porträts, Paarfotos und Anhänge des Stammbaums aus der Strom-App. Sie speichert
+jede Datei einmal, nach ihrem Inhalt, und merkt sich ihre Stellen im Stammbaum: Anhang oder Porträt einer Person,
+Anhang oder Foto eines Paares, Datei eines Ereignisses, Beleg einer Quelle.
+
+- Eine Datei, deren Original früher kam (`PUT /media`), erkennt die Forschung am Fingerabdruck des Originals; sonst
+  am Fingerabdruck der gesendeten Bytes. Die verkleinerte Kopie, die die App zeigt, speichert sie unverändert neben
+  dem Original.
+- Ein neues Porträt ersetzt das alte: das alte bleibt als ältere Version (die Stelle mit dem Grund `replaced`
+  zurückgezogen).
+- Ein Eintrag ist **im Stammbaum**, solange er mindestens eine Stelle hat, die nicht zurückgezogen ist.
+- **Prüft der Code:**
+  - ein Entfernen in der App schreibt die Forschung nur, wenn das Schreiben alle Dateien des Stammbaums trägt
+    (`media=app`), und nur gegen das, was die App mit ihren Dateien bekommen hat. Was ein anderes Fenster hinzufügte,
+    entfernt sie nicht;
+  - eine entfernte Datei bleibt im Material, ausgeblendet mit dem Grund **Aus dem Stammbaum entfernt**. Wieder
+    gezeigt, bekommt sie die Stellen zurück, die ihr das letzte Schreiben nahm;
+  - `strom sync undo I…` stellt auch die Stellen wieder her, die das Schreiben entfernte;
+  - an die App geht eine Datei nach ihrem Fingerabdruck zurück (`GET /tree.ged?images=ref&media=app`), nur Dateien
+    mit einer Stelle im Stammbaum. Der Ausschnitt eines Porträts im ursprünglichen Foto geht nicht zurück, das
+    Porträt schon ([S8.3](S8-where-the-data-are.md#S8.3)).
+- **Grenzen:** eine Forschung, die die Dateien des Stammbaums nicht hält (bis 1.34), tut nichts davon; die App zählt
+  Fotos und Anhänge dann als nur im Browser ([S8.4](S8-where-the-data-are.md#S8.4)).
+- **Bedienung:** App: Schreiben des Stammbaums ([S2](S2-edits-from-the-app.md)), **Aus dem Stammbaum entfernen…** und
+  **Wiederherstellen** im Fenster **Materialien**; Terminal: `strom sync undo I…`, `strom input unskip I…`.
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:2aeeb228 · src/core/appmedia.ts (hlavička: soubor jednou podle otisku, keepBytes, MediaReader) · src/core/treemedia.ts (návrat GET /tree.ged?images=ref&media=app, POST /images, GET /image/<sha>) · research:91ab6230 (odebrání jen se všemi soubory, proti základu media=app, sync undo, restoreTakenOff) · research:d5e99375, 815bc90d, 7d7628eb · src/core/material.ts unhideMaterial (spec 102 M3) · dirigent:spec/108-kde-se-co-uklada K2.3 (photoSource se nevrací) -->
+
+<a id="R11.5.2"></a>
+### R11.5.2 Titel, Art, Datum und Personen aus dem Terminal
+
+Titel, Art und Datum einer Datei setzt `strom input edit`, die Personen `strom input assign`. Beides gilt für Material
+der Forschung und für Dateien des Stammbaums aus der App; die App bekommt sie mit der nächsten Stammbaumdatei.
+
+- `strom input edit I… --title … --kind photo|document|record|other --date …`: höchstens 500 Dateien, ein Titel
+  höchstens 200 Zeichen, ein Datum wie in GEDCOM (`1932`, `ABT 1930`, `12 MAY 1932`); `""` entfernt den Wert. Die
+  Antwort nennt, was jede Datei vorher hatte (`was`): dieselbe Änderung mit diesen Werten nimmt sie zurück. Mehr
+  Dateien mit `--files-from`.
+- `strom input assign` fügt Personen von Dateien oder ganzen Stapeln (`--batch`) hinzu (`--add P…`) oder entfernt
+  sie (`--remove P…`). Bei einer Datei des Stammbaums ist eine hinzugefügte Person eine neue Stelle: in der App ein
+  Anhang der Person.
+- `strom input hide I… --why unrelated|duplicate` blendet eine Datei aus; `strom input unskip I…` zeigt sie wieder.
+- **Prüft der Code:** alles oder nichts: eine unbekannte Datei, ein zu langer Titel, eine unlesbare Art oder ein
+  unlesbares Datum, und nichts wird geschrieben. `--dry-run` zeigt nur, was sich ändern würde.
+- **Bedienung:** Terminal, siehe oben. Dasselbe tut das Fenster **Materialien** in der App über die Brücke.
+- **Gilt seit:** Forschung 1.20.0 (`strom input assign`, `hide`, `unskip`); 1.35.0: `strom input edit`, Stellen der
+  Dateien des Stammbaums
+
+<!-- zdroj: research:a7df632d src/commands/intake.ts input edit, assign, hide, unskip · src/core/material.ts checkEdit, editMaterial, MATERIAL_MOST_EDIT=500, MATERIAL_TITLE_MAX=200, assignMaterial (místo u souboru stromu, spec 102 M4) · research:cc709045 příklady v helpu · help input edit, input assign, input hide -->
+
+<a id="R11.5.3"></a>
+### R11.5.3 Material sortieren: `strom material sort`
+
+`strom material sort` lässt die Leser der Forschung die Dateien des Materials lesen. Zu jeder Datei schlagen sie
+Titel, Datum, Art und Verknüpfungen zu Personen, Paaren, deren Ereignissen und Quellen des Stammbaums vor, mit
+Begründung und Sicherheit. In die Forschung wird nichts geschrieben.
+
+- Der Vorschlag ist neben der Forschung gespeichert (`strom material show <id>`). Was ein Mensch davon annimmt, wird
+  als seines geschrieben: in der App oder mit `strom input edit`.
+- `--text` ist, was ein Mensch über die Dateien weiß; die Leser richten sich danach, wo die Dateien nichts anderes
+  sagen.
+- `--queue` stellt das Sortieren nur in die Warteschlange; `strom material cancel <id>` hält es an.
+- **Prüft der Code:**
+  - höchstens 50 Dateien und 2000 Zeichen Text; aus einem PDF die ersten 10 Seiten. Eine Datei, die kein Leser
+    öffnet, beurteilt er nach Name, Pfad und Notizen;
+  - er schlägt nie einen Titel, eine Art oder ein Datum vor, die ein Mensch gab, eine Verknüpfung, die ein Mensch gab
+    oder entfernte, noch eine ID, die die Forschung nicht hat. Weder ein Porträt noch ein Paarfoto schlägt er vor;
+  - bezahlte Lesungen beginnen erst nach der Zustimmung eines Menschen: im eigenen Terminal (Enter ist nein) oder in
+    einem Systemfenster. Ist niemand zu fragen, endet der Befehl mit Code 4. Der Agent antwortet nie für den Menschen;
+  - ein Sortieren aus der App startet die Brücke nur mit ihrer eigenen Signatur, und die gilt einmal. Ein Eintrag,
+    der sich nur als Sortieren aus der App ausgibt, startet nie;
+  - in der Warteschlange warten höchstens 3 Sortierungen.
+- **Grenzen:** nur eine Forschung mit Agent: das Strom-Archiv und eine Forschung, die auf einen Agenten wartet,
+  sortieren kein Material.
+- **Bedienung:** Terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
+  cancel`; App: **Mit dem Agenten sortieren…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+
+<a id="R11.5.4"></a>
+### R11.5.4 Material über die Brücke
+
+Das Fenster **Materialien** in der App liest und ändert Material über die Brücke der Forschung. Jede Änderung ist
+derselbe Befehl wie im Terminal, mit denselben Grenzen.
+
+| Brücke | Was sie tut | Befehl |
+|---|---|---|
+| `GET /material` | Dateien mit Titel, Art, Datum, Personen, bei Dateien des Stammbaums Stellen und bei jeder die Verwendung | |
+| `GET /material/<I…>/uses` | Ausschnitte, Quellen und Aufgaben, die die Datei verwenden | |
+| `POST /material/assign` | Personen von Dateien | `strom input assign` |
+| `POST /material/hide` | ausblenden und wieder zeigen (bei einer entfernten Datei des Stammbaums mit Stellen) | `strom input hide`, `unskip` |
+| `POST /material/edit` | Titel, Art und Datum, 1–500 Dateien | `strom input edit` |
+| `POST /material/sort` | Sortieren von 1–50 Dateien; Fortschritt `GET /material/sort/<id>`, Abbrechen `…/cancel` | `strom material sort` |
+
+- Die Forschung meldet, was sie kann, in `/status.features`: `media.app`, `material.links`, `material.edit`,
+  `material.uses` und `material.sort` (nur wo ein Agent ist). Ohne sie verhält sich die App wie mit einer älteren
+  Forschung.
+- **Prüft der Code:** eine Änderung ist ganz oder gar nicht; eine beschäftigte Forschung antwortet, dass sie nichts
+  geändert hat. Sortieren lehnt sie ab ohne Agent, mit aufgebrauchtem Leselimit, mit voller Warteschlange und wenn
+  der Agent gerade nicht arbeiten kann.
+- **Bedienung:** App: das Fenster **Materialien**, bei laufender Brücke
+  ([S1.1](S1-connecting-app-and-research.md#S1.1)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->

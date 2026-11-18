@@ -230,9 +230,11 @@ dysku. Między nimi drzewo przechodzi tylko przez most na tym komputerze ([S1.1]
   - Każda przeglądarka ma własną pamięć. Drzewa otwartego w Chrome nie ma w Edge.
   - Drzewo w aplikacji i drzewo w badaniu to dwie kopie. Główne jest drzewo w aplikacji, badanie ma własną kopię,
     a to, czego badanie nie zapisze, jest w aplikacji zawsze widoczne ([S2](S2-edits-from-the-app.md)).
+  - Od badania 1.35.0 badanie ma też portrety, zdjęcia par i załączniki drzewa. Co jest gdzie zapisane i co jest
+    tylko w przeglądarce, opisuje [S8](S8-where-the-data-are.md).
 - **Obowiązuje od:** aplikacja 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Badanie włączone: przełącznik mostu przy drzewie

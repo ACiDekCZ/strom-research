@@ -13,7 +13,7 @@ import { lines, truncate } from "../cli/format.ts";
 import { decodingSaid, UI, ui, type UIKey } from "../cli/ui.ts";
 import { eventName, humanDate, humanDay, humanPlace } from "../cli/human.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
-import type { Family, Person, Source, Task } from "../core/model.ts";
+import type { Family, Input, Person, Source, Task } from "../core/model.ts";
 import { decideShorterNote } from "../core/shorternote.ts";
 import { fileSha256, MAX_IN_TREE, mimeOf } from "../core/media.ts";
 import { create, update } from "../core/records.ts";
@@ -21,7 +21,7 @@ import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, asksPerson, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
+import { applySync, asksPerson, mediaWritten, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -114,6 +114,20 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
   // a partner in their age: the given name
   const short = (key: string) => (key.startsWith("x:") ? name(key) : (tree.get<Person>(key)?.names[0]?.given ?? key));
   const kind = (f: SFact | undefined) => (f ? eventName(f.kind, lang, f.label) : "");
+  // a file of the app's tree (spec 108): its place, and that it is kept as a record of the material
+  if (c.media || c.code === "media.unreadable") {
+    const f = c.media ? incoming.media?.get(c.media.file) : undefined;
+    // a place taken off: the file of the research's record (the send no longer has it)
+    const rec = c.media?.retract && c.media.record ? tree.get<Input>(c.media.record) : undefined;
+    const file = truncate(f?.title ?? f?.name ?? rec?.title ?? rec?.name ?? c.text ?? c.media?.file.slice(0, 12) ?? "?", 80);
+    const src = c.source ?? c.media?.link?.source;
+    const at = c.person || c.partners ? who : src ? `„${truncate(incoming.sources?.get(src)?.title || tree.get<Source>(c.sourceId ?? src)?.title || src, 60)}“` : "?";
+    const code = c.code === "media.eventMissing" ? "eventMissing" : c.code === "media.unreadable" ? "unreadable" : undefined;
+    const key = code ? `ui.sync.media.${code}` : (c.kind === "media.link" || c.kind === "media.unlink") && c.media?.link?.type === "event" ? `ui.sync.${c.kind}.event` : `ui.sync.${c.kind}`;
+    const fields = (c.media?.fields ?? []).map((x) => ui(lang, `ui.sync.media.field.${x}` as UIKey)).join(", ");
+    const does = code === "unreadable" && c.media ? "ui.sync.do.media.garbled" : code ? `ui.sync.do.media.${code}` : c.media?.retract ? "ui.sync.do.media.removed" : c.kind === "media.edit" ? "ui.sync.do.media.edit" : c.media?.replaces ? "ui.sync.do.media.version" : "ui.sync.do.media";
+    return `${ui(lang, key as UIKey, { n: c.n, who: at, file, kind: kind(c.fact), fields })} → ${ui(lang, does as UIKey)}`;
+  }
   const role = (r: string) => labels(lang)(r as LabelKey);
   const partWho = (p: SPart | undefined) => (!p ? "" : p.person && (p.person.startsWith("x:") || !p.name) ? name(p.person) : (p.name ?? name(p.person)));
   const v = {
@@ -350,7 +364,14 @@ register(
       "--app: the Strom app sends the tree itself — strom opens it (the bridge), the user picks the tree and confirms\n" +
       "there, strom waits for it and shows what it brings; then strom sync <the file it names> --apply.\n" +
       "The app may also send on its own (its bridge's address kept): such a tree waits in the inbox — --inbox lists\n" +
-      "them, strom sync <the file> --apply writes one, strom sync discard throws it away.",
+      "them, strom sync <the file> --apply writes one, strom sync discard throws it away.\n" +
+      "The Strom app's files in the tree it sends (a portrait, a couple's photo, attachments of a person, a couple, an\n" +
+      "event or a source) are each one record of the material (strom input), its bytes kept by their hash in the shared\n" +
+      "store as they came: what the research lacks is added (the record, its places, a portrait's new version, a title,\n" +
+      "kind, date or note) — never a conflict, never a task; an event the research does not have: the file at its person.\n" +
+      "A send that says it carries every file of its tree (the bridge's POST /sync?media=app) takes off, against the tree\n" +
+      "the bridge gave that copy with its files, a place of a file it no longer has (and a title, kind, date or note\n" +
+      "removed); a record with no place left is out of the tree, its file kept. Without that word files only add.",
     args: [{ name: "file", description: "the tree: GEDCOM (.ged) or the Strom app's JSON (none with --app or --inbox)" }],
     options: [
       { name: "app", type: "boolean", description: "straight from the Strom app: it opens, the user sends the tree from it, strom waits for it" },
@@ -413,7 +434,9 @@ register(
       const decoding = incoming.decoding ?? {};
       // a send of the Strom app (through the bridge): nobody picks from it
       const sent = !!receivedOf(tree.root, file);
-      const plan = planSync(tree, incoming, edits, { force: !!opts.force, sent });
+      // the app said it sends every file of its tree (POST /sync?media=app): a place of one it was given and no longer has goes
+      const mediaApp = !!receivedOf(tree.root, file)?.mediaApp;
+      const plan = planSync(tree, incoming, edits, { force: !!opts.force, sent, mediaApp });
       // a send of the app that brings nothing the research has not: nothing waits of it any more
       if (opts.apply && !plan.changes.length && !tree.dryRun) settleReceived(tree.root, file, { state: "nothing" });
       if (!opts.apply || !plan.changes.length || tree.dryRun) {
@@ -432,8 +455,9 @@ register(
       tree.withTreeLock(() => {
         // what another process wrote meanwhile counts: the changes again, now that the tree is ours — the ones picked by
         // number must be the ones shown; all of them are what the file brings now
-        const now1 = readTreeFile(file, tree.config.lang);
-        const fresh = planSync(tree, now1, edits as "conflict" | "user", { force: !!opts.force, sent });
+        // the files of the app's tree it carries: their bytes kept in the shared store as they are read (spec 108 P8)
+        const now1 = readTreeFile(file, tree.config.lang, { media: { store: ctx.settings.shared()?.value } });
+        const fresh = planSync(tree, now1, edits as "conflict" | "user", { force: !!opts.force, sent, mediaApp });
         if (only && (fresh.changes.length !== plan.changes.length || fresh.changes.some((c, i) => c.kind !== plan.changes[i]!.kind || c.person !== plan.changes[i]!.person)))
           throw new UsageError("the research changed while this was shown — look again", { hint: `strom sync ${args[0] ?? file}` });
         written = fresh;
@@ -445,14 +469,16 @@ register(
         // what the app sent through the bridge is not kept as a file: the app sends the whole tree, maybe every few
         // minutes — a copy each time would swell the history; the commit says what it changed
         const fromApp = !!receivedOf(tree.root, file);
-        const stored = !fromApp && size <= MAX_IN_TREE ? `inputs/${id}-${safeFolderName(path.basename(file))}` : undefined;
+        // kept as the document the source cites — without the images in it (the research's own excerpts, back from
+        // the app, the files of its tree kept in the shared store: megabytes in the history for nothing), so only as
+        // large as it is without them; in UTF-8, as strom keeps every text: its header says so (a Windows program's
+        // CHAR ANSI would be wrong now)
+        const keptText = !fromApp ? withoutImages(treeFileKept(file)) : undefined;
+        const stored = keptText !== undefined && Buffer.byteLength(keptText) <= MAX_IN_TREE ? `inputs/${id}-${safeFolderName(path.basename(file))}` : undefined;
         if (stored) {
           tree.remember(path.join(tree.root, stored));
           fs.mkdirSync(path.join(tree.root, "inputs"), { recursive: true });
-          // kept as the document the source cites — without the images in it (the research's own excerpts, back from
-          // the app: megabytes in the history for nothing)
-          // in UTF-8, as strom keeps every text: its header says so (a Windows program's CHAR ANSI would be wrong now)
-          fs.writeFileSync(path.join(tree.root, stored), withoutImages(treeFileKept(file)));
+          fs.writeFileSync(path.join(tree.root, stored), keptText!);
         }
         const made = create<SyncInput>(
           tree,
@@ -501,7 +527,9 @@ register(
         return { text: lines(...said, planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, ...decoding, applied: [], changes: written.changes } };
       }
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
-      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped }, input.sync?.applied ?? []);
+      // the app's files it wrote, with the records they are (the bridge's answer: `media`)
+      const media = mediaWritten(written.changes, skipped);
+      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media }, input.sync?.applied ?? []);
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
       return {
@@ -515,7 +543,7 @@ register(
             ? [`${proposed.length} change(s) of the user's or an imported family tree's values proposed, not written — the user decides (strom conflict list):`, ...proposed.map((x) => `  change ${x.n}: ${x.line}`)]
             : []),
         ),
-        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}) },
+        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}), ...(media.length ? { media } : {}) },
       };
     },
   },

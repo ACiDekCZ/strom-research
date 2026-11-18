@@ -43,6 +43,7 @@ import { proposalJson } from "./proposal.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 import { UsageError } from "./errors.ts";
+import { auditOf, audited, bookIndex, type BookIndex } from "./taskaudit.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
 export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
@@ -213,6 +214,11 @@ export interface WaitingOptions {
   hypothesesApp?: { open: boolean };
   /** The research's directions, when the caller has them. */
   scopes?: Scope[];
+  /**
+   * How each task's wait is written, checked (the bridge, feature tasks.audit; core/taskaudit.ts): an item whose wait
+   * strom finds not as it needs it, and the person did not keep as it is, carries `audit` {kinds, fix, stamp}.
+   */
+  audit?: boolean;
 }
 
 /** An address a person may open: http(s) only. */
@@ -339,15 +345,16 @@ export function inboxOf(tree: Tree, shared: string | undefined, t: Task): InboxS
 /**
  * A task's inbox as the app reads it: of the images asked for how many are there (have) of how many (want — none when
  * which ones is not known), those missing (at most 50, in order), the book (its title, for the eye) and the images asked
- * for as said (57–58); the folder (dir) and what lies there for the terminal's menu.
+ * for as said (57–58); the folder (dir) and what lies there for the terminal's menu. Which ones not known: the book's
+ * next free number (next) — what a file with no number in its name is given, the app's number offered (K044).
  */
 function inboxJson(tree: Tree, t: Task, st: InboxState): Record<string, unknown> {
-  const { want, missing, ...rest } = st;
+  const { want, missing, next, ...rest } = st;
   const book = tree.get<RecordSet>(st.recordset);
   const title = book?.title ? [...book.title] : [];
   return {
     ...rest,
-    ...(want ? { want } : {}),
+    ...(want ? { want } : { next }),
     missing: missing.slice(0, 50),
     ...(title.length ? { book: title.length > 120 ? `${title.slice(0, 119).join("")}…` : title.join("") } : {}),
     ...(t.awaits?.images ? { images: t.awaits.images } : {}),
@@ -402,6 +409,8 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)));
   let all = o.scopes;
   let line: ((t: Task) => string | undefined) | undefined;
+  // the books of the research, read once for every wait checked
+  let books: BookIndex | undefined;
   for (const t of tasks) {
     // a new wording proposed for a transcript the person read: the proposal and the transcript now, taken or kept in
     // the app (POST <token>/sources/proposal) or at the terminal its link opens
@@ -439,6 +448,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     const research = line(t);
     // its book (spec 105: the app's groups by book): the one it waits for, else the one its where names
     const book = bookOfTask(tree, t);
+    const audit = o.audit && audited(t) ? auditOf(tree, t, { shared: o.shared, index: (books ??= bookIndex(tree)) }) : undefined;
     out.push({
       task: t,
       item: {
@@ -463,6 +473,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         ...personOf(t),
         ...(research ? { research } : {}),
         ...(book ? { book } : {}),
+        // its wait not as strom needs it (and not kept as it is by the person): the codes, the fix strom can make
+        // (whole, part, none — GET /waiting/<T…>/fix says it) and what it takes the task to be (POST "expect")
+        ...(audit?.findings.length && !audit.kept ? { audit: { kinds: audit.findings.map((f) => f.kind), fix: audit.fix.can, stamp: audit.fix.stamp } } : {}),
       },
     });
   }

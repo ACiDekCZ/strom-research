@@ -236,8 +236,12 @@ from an image attachment ([A3.3](#A3.3)).
   is made by itself when a new photo is chosen for the portrait. Another image attachment offers **As portrait…**
   (in the materials and the viewer **Use as portrait…**). Deleting the attachment tagged Portrait leaves the portrait
   ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
+- **From app 3.30.0:** an attachment is a material of the tree ([A3.5](#A3.5)). The same file at several people is one
+  file; added a second time it offers **Link here too** ([A3.5.4](#A3.5.4)). The bin at an attachment removes it only
+  from this person, with **Undo**; the last place asks like **Remove from the tree…** ([A3.5.6](#A3.5.6)). On a wider
+  screen the actions of an attachment are in the menu ⋯.
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote · 3.30.0 příloha jako materiál: app:2b66d7cf (verze dat 24), a275d977 (Soubor už ve stromu je), 13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson, 30b0accd (akce v ⋯) -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originals for the research
@@ -268,25 +272,220 @@ at the person, and where it applies at the source and the place of the excerpt.
 <a id="A3.5"></a>
 ## A3.5 Materials
 
-A material is a file sent to the research for a person or a source: a letter, a photo, a copy from an archive. Nothing
-is added to the tree. The research stores the files and makes a task for the agent from them.
+A material is any file of the tree: a scan, a photo, a letter, a record. The same file is in the tree once, even
+when it is at several people, and it carries its places: people, a fact or event, a union, a source. Every tree has
+the window **Materials**. In a tree with a research or the Strom archive it also shows the research's files that are
+nowhere in the tree (**only in the archive**).
 
-- **Send material…** (at a person) and **Send material for this source…** (source viewer and editor): at most 20 files
-  at once and **Note for the research**. A whole folder is sent by **Add materials…** in the research menu
-  ([S4](S4-research-from-the-app.md)).
-- **Also add as an attachment in the tree** (only at a person): the tree also gets a preview, as with an attachment.
-- When the research is not running, the files wait in the browser. When the research does not know the person yet,
-  they are sent after the next sending of the tree.
-- The section **Materials** when editing a person, **Materials** in the person menu and the window **All materials ›**
-  show the tree's attachments and the research's files together. The same file is shown once.
-- **Limits:** only on a computer, in a tree connected to a research that accepts originals. The research never accepts
-  programs, keys, archives or family tree files (GEDCOM). Assigning and hiding a material works only with the research
-  running. With a Strom archive the material is stored in the archive; **Also save to the tree** adds images and PDFs
-  up to 2 MB to the tree too.
-- **Controls:** see above.
-- **Since:** app 3.9.0; the section and window **Materials** 3.16.0
+- A material of the tree is an attachment of a person ([A3.4](#A3.4)), the whole photo of a portrait and a couple's
+  photo ([A12](A12-portrait-and-couple-photo.md)), a file at an event or a union, and the evidence of a source
+  ([A3.5.5](#A3.5.5)). Where a file is stored is described in [S8](S8-where-the-data-are.md).
+- Files can also be sent to the research without adding them to the tree: **Send material…** at a person and **Send
+  material for this source…** (source viewer and editor), at most 20 files at once, with **Note for the research**.
+  The research makes a task for the agent from them ([R11.1](R11-material-from-the-user.md#R11.1)). **Also add as an
+  attachment in the tree** puts a preview into the tree too. A whole folder is sent by **Add materials…** in the
+  research menu ([R11.4](R11-material-from-the-user.md#R11.4)). With the Strom archive it is **Add material…** and
+  **Also save to the tree** (images and PDF up to 2 MB).
+- When the research is not running, the sent files wait in the browser. When the research does not know the person
+  yet, they are sent after the next sending of the tree.
+- **Limits:**
+  - material can be sent only on a computer, in a tree connected to a research that accepts originals. The research
+    never accepts programs, keys, archives or family tree files (GEDCOM);
+  - the research's files outside the tree are shown only in the app on a computer ("Materials from the research are
+    shown in the app on the computer."); on a phone the window shows the tree's files;
+  - in a read-only tree the files can be viewed and downloaded, not changed;
+  - a research older than 1.35.0 cannot give titles, links, uses or sorting to files outside the tree; the app says so
+    at the action ("A newer version of the research can …").
+- **Controls:** a tree without a research: **Actions › Materials** (with the number of files); a tree with a
+  research: **Materials** in the research menu. At a person: **All materials of this person (N) ›** under the
+  attachments and **Materials** in the person menu (the window filtered to the person).
+- **Since:** app 3.9.0; the section and window **Materials** 3.16.0; 3.30.0: the window in every tree, a file of the
+  tree as one material with its places (data version 24)
 
-<!-- zdroj: app:src/ui/material-ui.ts:30-33 MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, :38 materialAccepted, :51 alsoTreeEligible, :71 materialAvailable · src/materials.ts:477 personMaterials, :519-529 gates · src/ui/originals-ui.ts:269 · src/ui/research-actions-ui.ts:357 batch · strings.ts material.*, materials.*, batch.menu -->
+<!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
+
+<a id="A3.5.1"></a>
+### A3.5.1 The window Materials
+
+The window shows every file once: the tree's files with all the people they are at and, beside an archive, the
+research's files too.
+
+- **Group:** **By date added** (with the people the file was added at) or **By person**; a file only at a source or
+  a union is under **No person**. Beside an archive also **Batches** and **By date received**.
+- **View** **Grid** or **List**. The list has the columns **Title**, **Type**, **Date**, **People**, **Source**, **In
+  the tree** and **Used**; it is sorted by a click on the header. A tile shows in how many places the file is used.
+- **Search title, name and note**; **Filters** by person, kind and batch. The research's hidden files are shown by
+  **Show hidden**.
+- ⓘ at the window's title (**Where the files are**) says where the files are: "The files are only in this browser.
+  Backup: Export all.", or in the research or the Strom archive on this computer with reduced copies in the app; for
+  an encrypted tree also that the research on disk is not encrypted.
+- A person without a name or recorded as "?" is **Unknown person** (with the years, when there are any).
+- **Limits:** on a phone the window is not in the menu **More**; it opens from a person. When the research is not
+  running, the window shows the state from when it ran and says what can be edited: titles and links of the tree's
+  files are written with the tree, material outside the tree only with the research running.
+- **Controls:** see [A3.5](#A3.5); selecting files: **Select**, Ctrl/Cmd+A selects what the filters show.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+
+<a id="A3.5.2"></a>
+### A3.5.2 Title, kind and date
+
+A file can have a **title**, a **kind** (**Photo**, **Document**, **Record**, **Other**) and a **date**. The title is
+shown instead of the file name; an empty title means the file name.
+
+- The date is a year, a date or a range ("about 1920"); what cannot be read the app does not save ("The date cannot
+  be read.").
+- The person page, the family book and the saved page describe a file by its whole title, its kind and the year of
+  its date.
+- Editing a file of the tree is one step of **Undo**; a file outside the tree is edited in the research, with a notice
+  and **Undo**.
+- GEDCOM carries the title as `TITL` (the file name as `_STROM_NAME`) and the kind as `TYPE` under `FORM`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Limits:** a file outside the tree can be edited only with a running research 1.35.0 or newer ("A newer version of
+  the research can title material that is not in the tree.").
+- **Controls:** the file viewer: the pencil, **Add a title** or F2 (Enter saves, Esc cancels); the dialog
+  **Attachment** (**Title and details…**: title, kind, date, note).
+- **Since:** app 3.30.0; a file outside the tree with the research 1.35.0
+
+<!-- zdroj: app:30b0accd src/ui/material-viewer-ui.ts, src/ui/material-details-ui.ts (titulek, druh, datum, F2) · app:6d8fba0e DataManager (titulek vedle názvu) · app:dfb50772 src/ged-exporter.ts TITL, _STROM_NAME, TYPE pod FORM · strings.ts materials.kind, titleHint, datePh, dateInvalid, olderEdit, attachmentDialog, titleAndData, addTitle · research:a7df632d POST /material/edit -->
+
+<a id="A3.5.3"></a>
+### A3.5.3 Where used
+
+Every file shows where it is used: people, portrait, union, events, sources and excerpts, in this order. Each row is
+a link to the person or the source.
+
+- The evidence of a source also says where the source is cited ("evidence · cited at Birth").
+- Over five places, four are shown and "+ N more".
+- × at a place (**Unlink:**) removes the file only from this place, with a notice and **Undo**. The last place of a
+  file nothing else holds asks first ([A3.5.6](#A3.5.6)).
+- Beside an archive there are two parts: **In the tree** and **In the archive**, with the people assigned in the
+  archive and with what the research used the file for (excerpts, the research's sources, open tasks).
+- **Limits:** a read-only tree shows the places without ×. The uses in the archive are shown only by the research
+  1.35.0 and newer; when the research is not running, they follow the state the app last knew.
+- **Controls:** the file viewer (a panel, on a phone a pulled-up sheet); the dialog **Attachment**.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+
+<a id="A3.5.4"></a>
+### A3.5.4 Link to…
+
+**Link to…** puts a file at people, at an event, at a union or at a source, in one step of **Undo**.
+
+- At a source the file is its evidence; at a union an attachment of the union. The couple's photo is changed at the
+  union ([A12.4](A12-portrait-and-couple-photo.md#A12.4)).
+- A material only in the archive is linked with its reduced copy from the research: then it is in the tree, in the
+  export, in the book and on the phone too.
+- The same file added a second time: **The file is already in the tree** offers **Link here too**, **Add as a new
+  file** or cancel. Beside an archive it is linked without asking.
+- Deleting a person or a source says which files stay and which disappear.
+- **Limits:** at most 50 people at once. A material only in the archive can be linked only while the research runs. A
+  person the research does not know yet reaches the research with the next writing of the tree.
+- **Controls:** the file viewer (**Link to…** or P; the arrows change the target, Enter links); a selection in the
+  window **Materials**.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+
+<a id="A3.5.5"></a>
+### A3.5.5 A source from a file and the evidence of a source
+
+A source can have **evidence**: the file it is taken from. The evidence is a place of the file at the source; the file
+is not added again.
+
+- **Create a source from this file…** opens the source editor filled in from the file: the name from the title, the
+  date of the record from the date, the file as evidence and **Cite at** with the person the file is from and with
+  the event whose year fits. Saving is one step of **Undo**: the source, the evidence and the citation.
+- A new source at a person offers **Evidence from the person's materials**: the person's files **Without source** and
+  **With another source**, over 12 files with a search (**Search title and name**).
+- The source viewer shows **Taken from**: the evidence with × and **Link evidence…**. An excerpt points to the file it
+  was cut from ("Excerpt cut from … ›").
+- GEDCOM carries the evidence as `OBJE` at the source; a file in several places is one `OBJE` record
+  ([A2](A2-loading-a-family-tree.md)).
+- **Limits:** a material only in the archive becomes evidence with its reduced copy only while the research runs. The
+  app never stores a file twice.
+- **Controls:** the file viewer, ⋯ at an attachment, the dialog **Attachment** and in **Link to…** at a source **New
+  source from this file…**; the source editor, the field **Evidence**.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:0c532b5a src/ui/source-docs-ui.ts (hlavička §5–§7: Vytvořit pramen, Doklad z materiálů osoby, Z čeho je), OFFER_SEARCH_OVER=12 · app:55d66efd · strings.ts sources.docLabel, docHint, attachDoc, citeAtLabel, offerTitle, offerNoSource, offerOther, offerSearch, viewerFrom, excerptFrom · materials.makeSource, newSourceFromFile · app:dfb50772 src/ged-exporter.ts objeOf (OBJE u SOUR, _SOUR u osoby), recordOf (soubor na více místech = záznam OBJE @M…@) -->
+
+<a id="A3.5.6"></a>
+### A3.5.6 Remove from the tree and Restore
+
+**Remove from the tree…** removes a file from all its places in the tree. What happens to the file depends on whether
+an archive holds it.
+
+- The dialog first says what points to the file: the evidence of a source ("The source stays without evidence."), an
+  excerpt ("The excerpt stays."), a portrait ("The portrait stays; its crop can no longer be changed.").
+- **Without an archive:** **Delete the file from the tree?** deletes the file. "The file is not stored anywhere else.
+  Only Undo or a backup (Export all) brings it back."
+- **With an archive** (the file is in the research or in the Strom archive): the file stays in the archive, hidden
+  with the reason **Removed from the tree**; an optional reason is **Not about the family** or **Duplicate**. In
+  **Show hidden**, **Restore** brings it back with its links, to the places that are still in the tree.
+- Several files from a selection are one step of **Undo**. **Remove a person…** removes the chosen person from the
+  selected files; a file with no other place is announced beforehand.
+- The bin at a person's attachment removes the file only from this person, with a notice and **Undo**; the last place
+  asks like **Remove from the tree…**.
+- **Limits:** the file stays in the archive only when the archive has it: from the research 1.35.0 every file of the
+  tree after a writing, with an older research only a sent original. The archive takes over the removal with the
+  writing of the tree ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
+- **Controls:** the file viewer; a selection in the window **Materials** → ⋯.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:a275d977, c2ae8441 src/ui/material-attach-ui.ts openRemoveFromTreeDialog (rmRefs, materialKeptByArchive = caps.list && item.file) · src/data.ts removeMedia (keep → removed + places), removeMediaMany, restoreMedia (jen místa, která ve stromu jsou) · app:13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson · strings.ts materials.removeFromTree, rmRefDoc, rmKeepDoc, rmKeepExcerpt, rmKeepPortrait, rmArchiveResearch, rmAppTitle, rmApp, reason, restore, selRemovePerson, selRemovePersonLast · research:91ab6230, a7df632d -->
+
+<a id="A3.5.7"></a>
+### A3.5.7 Go through and bulk edits
+
+The window **Materials** goes through many files at once: the filters show what is missing, and a selection edits all
+selected files together.
+
+- Filters with counts: **Without title**, **Without source**, beside an archive **In the tree** and **Only in the
+  archive**.
+- **Go through (N)** opens the viewer with the fields of the first file: Enter or → saves and goes to the next, ←
+  back, **Skip**, Esc ends; P links, S creates a source. On a phone the files are switched by swiping.
+- A selection: **Go through**, **Link to…**, **Title…**, **Kind…**, **Date…**; under ⋯ **Remove from the tree…**,
+  **Remove a person…** and beside an archive **Assign to a person…** and **Hide…**.
+- **Title…** can **Add a number in the batch's order**, with a preview. **Kind…** and **Date…** skip files that
+  already have a value unless overwriting is ticked.
+- **Limits:** the tree's files change in one step of **Undo**. The research's files in batches of 500, over 500 with
+  progress and cancelling; the notice names the refused files.
+- **Controls:** the window **Materials** → **Select** or a filter.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:a1127378 src/ui/materials-window.ts (filtry, výběr, Projít), src/ui/material-bulk-ui.ts BULK_CHUNK=500 · app:13e4a70c (tažení na telefonu) · strings.ts materials.fNoTitle, fNoSource, fInTree, fOnlyArchive, review, setTitle, setKind, setDate, titleNumber, titleOverwrite, bulkProgress, bulkRejected, reviewSwipe -->
+
+<a id="A3.5.8"></a>
+### A3.5.8 Sort with the agent
+
+**Sort with the agent…** sends the research's files to the agent. For each one the agent proposes a title, date,
+kind and links (people, event, source) with a short reason. Nothing is written until the proposal is accepted.
+
+- The dialog shows the files and the field **What is known about the files** (optional, own words as a guide). It
+  says that what the agent opens goes to the model provider and that sorting uses the subscription or credit. Only
+  the button **Sort with the agent** in the dialog sends the files, once.
+- The window can be closed; the progress and the finished proposal are in the band of the window **Materials**.
+- **The agent's proposal** has **Proposals**, **Unassigned** and **Done**, and at each file **Accept**, **Edit**,
+  **Reject**; further **Accept selected** and **Accept all**. The certainty of a proposal: sure, likely, uncertain.
+- A title, date and kind set by a person stay; the agent's proposal is used only when **Use the proposal** is chosen.
+- What is accepted is written: the tree's files in one step of **Undo** with the tree, material outside the tree to
+  the archive. A source of the research the tree does not have yet comes into the tree with the research's number,
+  and writing does not duplicate it. An accepted proposal can be undone at its row with **Undo**.
+- **Limits:**
+  - only with the research 1.35.0 and newer that has an agent, and only while the research runs; with the Strom
+    archive and with a research waiting for an agent the offer is not there at all;
+  - at most 50 files at once (the first 50 are sent) and 2000 characters of text;
+  - the research can refuse the sorting: the reading limit used up, too many sortings waiting, the agent cannot work
+    now. How the research sorts is described in [R11.5.3](R11-material-from-the-user.md#R11.5.3);
+  - only in the app on a computer.
+- **Controls:** the window **Materials**: a selection, the band above a batch or above a filter; the end of a batch
+  from the app.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
 
 <a id="A3.6"></a>
 ## A3.6 Sources of a person

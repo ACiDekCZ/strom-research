@@ -217,8 +217,12 @@ citace pramene ([A3.2](#A3.2)). Z obrázkové přílohy jde vyříznout výřez 
 - **Od aplikace 3.30.0:** celá fotka, ze které je portrét osoby, je příloha se štítkem **Portrét**. Vznikne sama při
   výběru nové fotky portrétu. Jiná obrázková příloha nabízí **Jako portrét…** (v materiálech a prohlížeči **Použít
   jako portrét…**). Smazání přílohy se štítkem portrét nechá ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
+- **Od aplikace 3.30.0:** příloha je materiál stromu ([A3.5](#A3.5)). Stejný soubor u více osob je jeden soubor;
+  přidaný podruhé nabídne **Připojit i sem** ([A3.5.4](#A3.5.4)). Koš u přílohy ho odebere jen od této osoby,
+  s **Zpět**; poslední místo se ptá jako **Odstranit ze stromu…** ([A3.5.6](#A3.5.6)). Na širší obrazovce jsou akce
+  přílohy v menu ⋯.
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote · 3.30.0 příloha jako materiál: app:2b66d7cf (verze dat 24), a275d977 (Soubor už ve stromu je), 13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson, 30b0accd (akce v ⋯) -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originály pro výzkum
@@ -247,23 +251,212 @@ k prameni a k místu výřezu.
 <a id="A3.5"></a>
 ## A3.5 Materiály
 
-Materiál je soubor poslaný výzkumu k osobě nebo k prameni: dopis, fotografie, kopie z archivu. Do stromu se nic
-nepřidá. Výzkum soubory uloží a udělá z nich úkol pro agenta.
+Materiál je každý soubor stromu: sken, fotka, dopis, listina. Stejný soubor je ve stromu jednou, i když je u více
+osob, a nese svá místa: osoby, údaj nebo událost, svazek, pramen. Okno **Materiály** má každý strom. U stromu
+s výzkumem nebo Archivem Stromu ukazuje i soubory výzkumu, které ve stromu nikde nejsou (**jen v archivu**).
 
-- **Poslat materiál…** (u osoby) a **Poslat materiál k prameni…** (prohlížeč a editor pramene): nejvýš 20 souborů
-  najednou a **Poznámka pro výzkum**. Celou složku pošle **Přidat materiály…** v menu výzkumu
-  ([S4](S4-research-from-the-app.md)).
-- **Přidat i jako přílohu do stromu** (jen u osoby): ve stromu vznikne i náhled jako u přílohy.
-- Když výzkum neběží, soubory čekají v prohlížeči. Když výzkum osobu ještě nezná, pošlou se po dalším poslání stromu.
-- Sekce **Materiály** v úpravě osoby, **Materiály** v menu osoby a okno **Všechny materiály ›** ukazují přílohy
-  stromu i soubory výzkumu dohromady. Stejný soubor se ukáže jednou.
-- **Hranice:** jen na počítači, u stromu propojeného s výzkumem, který přijímá originály. Výzkum nikdy nepřijme
-  programy, klíče, archivy ani soubory rodokmenu (GEDCOM). Přiřazení a skrytí materiálu jde jen se spuštěným výzkumem.
-  U Archivu Stromu se materiál uloží do archivu; **Uložit i do stromu** přidá obrázky a PDF do 2 MB i do stromu.
-- **Ovládání:** viz výše.
-- **Platí od:** aplikace 3.9.0; sekce a okno **Materiály** 3.16.0
+- Materiál stromu je příloha osoby ([A3.4](#A3.4)), celá fotka portrétu a fotka svazku
+  ([A12](A12-portrait-and-couple-photo.md)), soubor u události nebo svazku i doklad pramene ([A3.5.5](#A3.5.5)).
+  Kde je soubor uložený, popisuje [S8](S8-where-the-data-are.md).
+- Soubory jde výzkumu poslat i bez přidání do stromu: **Poslat materiál…** u osoby a **Poslat materiál k
+  prameni…** (prohlížeč a editor pramene), nejvýš 20 souborů najednou, s **Poznámka pro výzkum**. Výzkum z nich
+  udělá úkol pro agenta ([R11.1](R11-material-from-the-user.md#R11.1)). **Přidat i jako přílohu do stromu** dá do
+  stromu i náhled. Celou složku pošle **Přidat materiály…** v menu výzkumu ([R11.4](R11-material-from-the-user.md#R11.4)).
+  U Archivu Stromu je to **Přidat materiál…** a **Uložit i do stromu** (obrázky a PDF do 2 MB).
+- Když výzkum neběží, poslané soubory čekají v prohlížeči. Když výzkum osobu ještě nezná, pošlou se po dalším
+  poslání stromu.
+- **Hranice:**
+  - posílat materiál jde jen na počítači, u stromu propojeného s výzkumem, který přijímá originály. Výzkum nikdy
+    nepřijme programy, klíče, archivy ani soubory rodokmenu (GEDCOM);
+  - soubory výzkumu mimo strom jsou vidět jen v aplikaci na počítači („Materiály z výzkumu jsou vidět v aplikaci na
+    počítači.“); na telefonu okno ukazuje soubory stromu;
+  - u stromu jen ke čtení jde soubory prohlížet a stáhnout, ne měnit;
+  - výzkum starší než 1.35.0 neumí titulky, vazby, použití ani třídění souborů mimo strom; aplikace to u akce řekne
+    („… umí novější verze výzkumu“).
+- **Ovládání:** strom bez výzkumu: **Akce › Materiály** (s počtem souborů); strom s výzkumem: **Materiály** v menu
+  výzkumu. U osoby: **Všechny materiály osoby (N) ›** pod přílohami a **Materiály** v menu osoby (okno s filtrem
+  na osobu).
+- **Platí od:** aplikace 3.9.0; sekce a okno **Materiály** 3.16.0; 3.30.0: okno u každého stromu, soubor stromu
+  jako jeden materiál s místy (verze dat 24)
 
-<!-- zdroj: app:src/ui/material-ui.ts:30-33 MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, :38 materialAccepted, :51 alsoTreeEligible, :71 materialAvailable · src/materials.ts:477 personMaterials, :519-529 gates · src/ui/originals-ui.ts:269 · src/ui/research-actions-ui.ts:357 batch · strings.ts material.*, materials.*, batch.menu -->
+<!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
+
+<a id="A3.5.1"></a>
+### A3.5.1 Okno Materiály
+
+Okno ukazuje každý soubor jednou: soubory stromu se všemi osobami, u kterých jsou, a vedle archivu i soubory
+výzkumu.
+
+- **Seskupit:** **Podle data přidání** (s osobami, u kterých se soubor přidal) nebo **Podle osoby**; soubor jen
+  u pramene nebo svazku je pod **Bez osoby**. Vedle archivu navíc **Dávky** a **Podle data přijetí**.
+- **Pohled** **Mřížka** nebo **Seznam**. Seznam má sloupce **Titulek**, **Druh**, **Datum**, **Osoby**, **Pramen**,
+  **Ve stromu** a **Použito**; řadí se klikem na záhlaví. Dlaždice ukazuje, na kolika místech je soubor použitý.
+- **Hledat v titulku, názvu a poznámce**; **Filtry** podle osoby, druhu a dávky. Skryté soubory výzkumu ukáže
+  **Zobrazit skryté**.
+- ⓘ u názvu okna (**Kde soubory jsou**) řekne, kde soubory jsou: „Soubory jsou jen v tomto prohlížeči. Záloha:
+  Exportovat vše.“, nebo ve výzkumu či Archivu Stromu na tomto počítači se zmenšenými kopiemi v aplikaci; u
+  šifrovaného stromu i to, že výzkum na disku šifrovaný není.
+- Osoba bez jména nebo zapsaná jako „?“ je **Neznámá osoba** (s roky, když je má).
+- **Hranice:** na telefonu není okno v nabídce **Více**; otevře se od osoby. Když výzkum neběží, okno ukazuje stav
+  z doby, kdy běžel, a řekne, co jde upravit: titulky a vazby souborů stromu se zapíšou se stromem, materiál mimo
+  strom až s běžícím výzkumem.
+- **Ovládání:** viz [A3.5](#A3.5); výběr souborů: **Vybrat**, Ctrl/Cmd+A vybere, co filtry ukazují.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+
+<a id="A3.5.2"></a>
+### A3.5.2 Titulek, druh a datum
+
+Soubor může mít **titulek**, **druh** (**Fotka**, **Dokument**, **Listina**, **Jiné**) a **datum**. Titulek se
+ukáže místo názvu souboru; prázdný titulek znamená název souboru.
+
+- Datum je rok, datum nebo rozmezí („asi 1920“); co nejde přečíst, aplikace neuloží („Datum nejde přečíst.“).
+- Stránka osoby, kniha rodu a uložená stránka popisují soubor celým titulkem, druhem a rokem data.
+- Úprava souboru stromu je jeden krok **Zpět**; soubor mimo strom se upraví ve výzkumu, s oznámením a **Zpět**.
+- GEDCOM nese titulek jako `TITL` (název souboru jako `_STROM_NAME`) a druh jako `TYPE` pod `FORM`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Hranice:** soubor mimo strom jde upravit jen s běžícím výzkumem 1.35.0 a novějším („Titulek materiálu, který není
+  ve stromu, umí novější verze výzkumu.“).
+- **Ovládání:** prohlížeč souboru: tužka, **Přidat titulek** nebo F2 (Enter uloží, Esc zruší); dialog **Příloha**
+  (**Titulek a údaje…**: titulek, druh, datum, poznámka).
+- **Platí od:** aplikace 3.30.0; soubor mimo strom s výzkumem 1.35.0
+
+<!-- zdroj: app:30b0accd src/ui/material-viewer-ui.ts, src/ui/material-details-ui.ts (titulek, druh, datum, F2) · app:6d8fba0e DataManager (titulek vedle názvu) · app:dfb50772 src/ged-exporter.ts TITL, _STROM_NAME, TYPE pod FORM · strings.ts materials.kind, titleHint, datePh, dateInvalid, olderEdit, attachmentDialog, titleAndData, addTitle · research:a7df632d POST /material/edit -->
+
+<a id="A3.5.3"></a>
+### A3.5.3 Kde je použit
+
+Každý soubor ukazuje, kde je použit: osoby, portrét, svazek, události, prameny a výňatky, v tomto pořadí. Každý
+řádek je odkaz na osobu nebo pramen.
+
+- Doklad pramene řekne i to, kde je pramen citovaný („doklad · citace u Narození“).
+- Nad pět míst se ukážou čtyři a „+ N další“.
+- × u místa (**Odpojit:**) odebere soubor jen z tohoto místa, s oznámením a **Zpět**. Poslední místo souboru, který
+  jinak nic nedrží, se nejdřív zeptá ([A3.5.6](#A3.5.6)).
+- Vedle archivu jsou dvě části: **Ve stromu** a **V archivu**, s osobami přiřazenými v archivu a s tím, k čemu
+  soubor výzkum použil (výňatky, prameny výzkumu, otevřené úkoly).
+- **Hranice:** strom jen ke čtení ukáže místa bez ×. Použití v archivu ukáže jen výzkum 1.35.0 a novější; když
+  výzkum neběží, jsou podle stavu, který aplikace naposledy znala.
+- **Ovládání:** prohlížeč souboru (panel, na telefonu vytažený list); dialog **Příloha**.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+
+<a id="A3.5.4"></a>
+### A3.5.4 Připojit k…
+
+**Připojit k…** dá soubor k osobám, k události, ke svazku nebo k prameni, jedním krokem **Zpět**.
+
+- U prameni je soubor jeho doklad; u svazku příloha svazku. Fotka svazku se mění u svazku
+  ([A12.4](A12-portrait-and-couple-photo.md#A12.4)).
+- Materiál jen v archivu se připojí se svou zmenšenou kopií z výzkumu: pak je i ve stromu, v exportu, v knize a na
+  telefonu.
+- Stejný soubor přidaný podruhé: **Soubor už ve stromu je** nabídne **Připojit i sem**, **Vložit jako nový soubor**
+  nebo zrušit. Vedle archivu se připojí bez ptaní.
+- Smazání osoby nebo pramene řekne, které soubory zůstanou a které zmizí.
+- **Hranice:** nejvýš 50 osob najednou. Materiál jen v archivu jde připojit, jen když výzkum běží. Osobu, kterou
+  výzkum ještě nezná, výzkum dostane s dalším zápisem stromu.
+- **Ovládání:** prohlížeč souboru (**Připojit k…** nebo P; šipky mění cíl, Enter připojí); výběr v okně
+  **Materiály**.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+
+<a id="A3.5.5"></a>
+### A3.5.5 Pramen ze souboru a doklad pramene
+
+Pramen může mít **doklad**: soubor, ze kterého je. Doklad je místo souboru u pramene; soubor se znovu nevkládá.
+
+- **Vytvořit pramen z tohoto souboru…** otevře editor pramene vyplněný ze souboru: název z titulku, datum zápisu
+  z data, soubor jako doklad a **Citovat u** s osobou, od které soubor je, a s událostí, jejíž rok sedí. Uložení
+  je jeden krok **Zpět**: pramen, doklad i citace.
+- Nový pramen u osoby nabídne **Doklad z materiálů osoby**: soubory osoby **Bez pramene** a **U jiného pramene**,
+  nad 12 souborů s hledáním (**Hledat v titulku a názvu**).
+- Prohlížeč pramene ukáže **Z čeho je**: doklady s × a **Připojit doklad…**. Výňatek odkazuje na soubor, ze kterého
+  byl vyříznutý („Výňatek vyříznutý z … ›“).
+- GEDCOM nese doklad jako `OBJE` u pramene; soubor na více místech je jeden záznam `OBJE`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Hranice:** materiál jen v archivu se stane dokladem se svou zmenšenou kopií, jen když výzkum běží. Aplikace
+  soubor nikdy neuloží dvakrát.
+- **Ovládání:** prohlížeč souboru, ⋯ u přílohy, dialog **Příloha** a v **Připojit k…** u pramene **Nový pramen
+  z tohoto souboru…**; editor pramene, pole **Doklad**.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:0c532b5a src/ui/source-docs-ui.ts (hlavička §5–§7: Vytvořit pramen, Doklad z materiálů osoby, Z čeho je), OFFER_SEARCH_OVER=12 · app:55d66efd · strings.ts sources.docLabel, docHint, attachDoc, citeAtLabel, offerTitle, offerNoSource, offerOther, offerSearch, viewerFrom, excerptFrom · materials.makeSource, newSourceFromFile · app:dfb50772 src/ged-exporter.ts objeOf (OBJE u SOUR, _SOUR u osoby), recordOf (soubor na více místech = záznam OBJE @M…@) -->
+
+<a id="A3.5.6"></a>
+### A3.5.6 Odstranit ze stromu a Vrátit
+
+**Odstranit ze stromu…** odebere soubor ze všech míst ve stromu. Co se se souborem stane, záleží na tom, jestli
+ho drží archiv.
+
+- Dialog nejdřív řekne, co na soubor odkazuje: doklad pramene („Pramen zůstane bez dokladu.“), výňatek („Výňatek
+  zůstane.“), portrét („Portrét zůstane, výřez už nepůjde upravit.“).
+- **Bez archivu:** **Smazat soubor ze stromu?** soubor smaže. „Soubor jinde uložený není. Vrátí ho jen Zpět nebo
+  záloha (Exportovat vše).“
+- **S archivem** (soubor je ve výzkumu nebo v Archivu Stromu): soubor zůstane v archivu, skrytý s důvodem
+  **Odstraněno ze stromu**; nepovinný důvod je **Netýká se rodiny** nebo **Duplikát**. Ve **Zobrazit skryté** ho
+  **Vrátit** vrátí i s vazbami, na místa, která ve stromu pořád jsou.
+- Víc souborů z výběru je jeden krok **Zpět**. **Odebrat osobu…** odebere zvolenou osobu od vybraných souborů;
+  soubor bez jiného místa se předem ohlásí.
+- Koš u přílohy osoby odebere soubor jen od této osoby, s oznámením a **Zpět**; poslední místo se ptá jako
+  **Odstranit ze stromu…**.
+- **Hranice:** soubor zůstane v archivu, jen když ho archiv má: od výzkumu 1.35.0 každý soubor stromu po zápisu,
+  u staršího výzkumu jen poslaný originál. Archiv odebrání převezme se zápisem stromu
+  ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
+- **Ovládání:** prohlížeč souboru; výběr v okně **Materiály** → ⋯.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:a275d977, c2ae8441 src/ui/material-attach-ui.ts openRemoveFromTreeDialog (rmRefs, materialKeptByArchive = caps.list && item.file) · src/data.ts removeMedia (keep → removed + places), removeMediaMany, restoreMedia (jen místa, která ve stromu jsou) · app:13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson · strings.ts materials.removeFromTree, rmRefDoc, rmKeepDoc, rmKeepExcerpt, rmKeepPortrait, rmArchiveResearch, rmAppTitle, rmApp, reason, restore, selRemovePerson, selRemovePersonLast · research:91ab6230, a7df632d -->
+
+<a id="A3.5.7"></a>
+### A3.5.7 Projít a hromadné úpravy
+
+Okno **Materiály** projde mnoho souborů naráz: filtry ukážou, co chybí, a výběr upraví všechny vybrané soubory
+najednou.
+
+- Filtry s počty: **Bez titulku**, **Bez pramene**, vedle archivu **Ve stromu** a **Jen v archivu**.
+- **Projít (N)** otevře prohlížeč s poli prvního souboru: Enter nebo → uloží a jde na další, ← zpět, **Přeskočit**,
+  Esc skončí; P připojí, S vytvoří pramen. Na telefonu se soubory přepínají tažením.
+- Výběr: **Projít**, **Připojit k…**, **Titulek…**, **Druh…**, **Datum…**; pod ⋯ **Odstranit ze stromu…**,
+  **Odebrat osobu…** a vedle archivu **Přiřadit k osobě…** a **Skrýt…**.
+- **Titulek…** umí **Přidat číslo podle pořadí v dávce**, s náhledem. **Druh…** a **Datum…** soubory, které hodnotu
+  už mají, vynechají, pokud se nezaškrtne přepsání.
+- **Hranice:** soubory stromu se změní jedním krokem **Zpět**. Soubory výzkumu po dávkách po 500, nad 500 s průběhem
+  a zrušením; odmítnuté soubory oznámení vyjmenuje.
+- **Ovládání:** okno **Materiály** → **Vybrat** nebo filtr.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:a1127378 src/ui/materials-window.ts (filtry, výběr, Projít), src/ui/material-bulk-ui.ts BULK_CHUNK=500 · app:13e4a70c (tažení na telefonu) · strings.ts materials.fNoTitle, fNoSource, fInTree, fOnlyArchive, review, setTitle, setKind, setDate, titleNumber, titleOverwrite, bulkProgress, bulkRejected, reviewSwipe -->
+
+<a id="A3.5.8"></a>
+### A3.5.8 Roztřídit agentem
+
+**Roztřídit agentem…** pošle soubory výzkumu agentovi. Agent ke každému navrhne titulek, datum, druh a vazby
+(osoby, událost, pramen) s krátkým důvodem. Nic se nezapíše, dokud se návrh nepřijme.
+
+- Dialog ukáže soubory a pole **Co o souborech víme** (nepovinné, vlastní slova jako vodítko). Řekne, že co agent
+  otevře, odchází k poskytovateli modelu a že třídění čerpá předplatné nebo kredit. Soubory pošle jen tlačítko
+  **Roztřídit agentem** v dialogu, jednou.
+- Okno jde zavřít; průběh a hotový návrh jsou v pruhu okna **Materiály**.
+- **Návrh agenta** má **Návrhy**, **Nepřiřazeno** a **Vyřízeno** a u každého souboru **Přijmout**, **Upravit**,
+  **Odmítnout**; dál **Přijmout vybrané** a **Přijmout vše**. Jistota návrhu: jistě, asi, nejisté.
+- Titulek, datum a druh od člověka zůstanou; návrh agenta se použije, jen když se zvolí **Použít návrh**.
+- Přijaté se zapíše: soubory stromu jedním krokem **Zpět** se stromem, materiál mimo strom do archivu. Pramen
+  výzkumu, který strom ještě nemá, přijde do stromu s číslem výzkumu a zápis ho nezdvojí. Přijatý návrh jde u
+  řádku **Vrátit**.
+- **Hranice:**
+  - jen u výzkumu 1.35.0 a novějšího, který má agenta, a jen když výzkum běží; u Archivu Stromu a u výzkumu, který
+    čeká na agenta, není nabídka vůbec;
+  - nejvýš 50 souborů naráz (pošle se prvních 50) a 2000 znaků textu;
+  - výzkum může třídění odmítnout: vyčerpaný limit čtení, příliš mnoho čekajících třídění, agent teď pracovat
+    nemůže. Jak třídí výzkum, popisuje [R11.5.3](R11-material-from-the-user.md#R11.5.3);
+  - jen v aplikaci na počítači.
+- **Ovládání:** okno **Materiály**: výběr, pruh nad dávkou nebo nad filtrem; konec dávky z aplikace.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
 
 <a id="A3.6"></a>
 ## A3.6 Prameny osoby

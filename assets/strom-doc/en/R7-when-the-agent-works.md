@@ -340,16 +340,19 @@ A research whose agent is not on this computer (not installed, or the research w
 for it. Until then it behaves as a Strom archive.
 
 - **Enforced by the code:**
-  - what the app sends is entered as in an archive; nothing is made for the agent, and the agent's work is refused
+  - what the app sends is entered as in an archive; the agent gets nothing, and the agent's work is refused
     with a sentence saying that the research waits for an agent and where to install it or choose another;
-  - the saved mode does not change and the tasks are not parked. Once the agent is installed, the research goes on by
+  - the saved mode does not change and the tasks the research had are not parked. Once the agent is installed, the research goes on by
     itself with the tasks it had;
   - an agent that is working in the research right now (even one other than the one set) makes it a research.
 - **Why:** an archive is the person's choice and strom does not record it for them. A research without an agent only
-  behaves as an archive, so once the agent is installed it goes on by itself with the tasks it had; none is parked.
+  behaves as an archive, so once the agent is installed it goes on by itself with the tasks it had.
 - **Controls:** terminal: the menu, the first item (**Keep it only as a Strom archive: keeping the data from the Strom
   app**, or installing the agent); `strom mode` shows the state. The app shows such a research as **Archive**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).
-- **Since:** research 1.15.0
+- **Since:** research 1.15.0; 1.35.0: new tasks put aside
+- **From research 1.35.0:** a task that comes meanwhile (for material sent, a scan to read) is made put aside, as in
+  an archive. It comes back to the queue as soon as an agent starts working on the research (session start,
+  `strom run`, chat; even another than the one set), or when the agent set is on the computer again.
 
-<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 -->
+<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->

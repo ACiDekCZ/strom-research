@@ -5,7 +5,7 @@ import { UsageError } from "./errors.ts";
 import { RECORD_TYPES, type AnyRecord, type Conflict, type Hypothesis, type RecordType } from "./model.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
-import { heldInArchive } from "./mode.ts";
+import { heldWhereNobody } from "./state.ts";
 import { settleProposals } from "./proposalsettle.ts";
 
 type Fields<T> = Omit<T, "id" | "type" | "created" | "updated" | "notes"> & { note?: string | undefined };
@@ -15,8 +15,8 @@ export function create<T extends AnyRecord>(tree: Tree, type: RecordType, fields
   return tree.withTreeLock(() => {
     const t = now();
     const { note, ...rest } = fields as Record<string, unknown> & { note?: string };
-    // a task coming into an archive waits put aside: no agent takes it
-    const fieldsNow = type === "task" ? heldInArchive(tree, rest) : rest;
+    // a task coming in where nobody researches (an archive, a research waiting for its agent) waits put aside
+    const fieldsNow = type === "task" ? heldWhereNobody(tree, rest) : rest;
     const rec = {
       id: tree.allocate(RECORD_TYPES[type].prefix),
       type,

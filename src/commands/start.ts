@@ -9,7 +9,8 @@ import { prependPath, spawnAgent } from "../runners/runner.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, numberIn, truncate } from "../cli/format.ts";
-import { ui } from "../cli/ui.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
+import { auditOf, audited, type AuditKind } from "../core/taskaudit.ts";
 import { diskFull, EXIT, StromError, UsageError } from "../core/errors.ts";
 import { resolvePerson } from "../core/people.ts";
 import { personUrl, treeUrl, withTree } from "../core/widget.ts";
@@ -51,7 +52,7 @@ import { phrase } from "../core/phrases.ts";
 
 import { imageSettings, qualityIn, writeGedcoms, writeTreeGed } from "./output.ts";
 import { shortcutName } from "../cli/wizard.ts";
-import { refuseInArchive } from "../core/state.ts";
+import { refuseInArchive, settleWaiting } from "../core/state.ts";
 import { claudeStateFile, saysDefaultClaudeDir } from "../core/claudedir.ts";
 
 /** Has the user trusted this folder in Claude Code already? (Its own record, read only.) */
@@ -125,6 +126,14 @@ function liveAppData(ctx: Context, bridge: string): { app?: string } {
  * Chat): the task, what it waits for and where, and the other tasks waiting at the same place — in the research
  * language, the person's own words to the agent. A task that waits for nothing is refused.
  */
+/** A finding of the audit of a wait, said in a few words in the research language (strom chat --task). */
+const AUDIT_SAY: Record<AuditKind, UIKey> = {
+  "images-as-text": "ui.chat.task.audit.images.say",
+  "several-books": "ui.chat.task.audit.books.say",
+  "book-unknown": "ui.chat.task.audit.unknown.say",
+  "folder-missing": "ui.chat.task.audit.folder.say",
+};
+
 function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id: string; say: string } {
   const t = requireRecord<Task>(tree, ref, "task");
   if (t.type !== "task" || t.retracted) throw new UsageError(`no task ${t.id}`, { hint: "strom task list --state waiting" });
@@ -143,7 +152,10 @@ function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id
   });
   const others = sameGroup(tree, t, shared);
   const more = others.length ? ui(lang, "ui.chat.task.more.say", { tasks: others.map((x) => `${x.id} (${truncate(x.what, 60)})`).join(", ") }) : undefined;
-  return { id: t.id, say: more ? `${first} ${more}` : first };
+  // its wait not written as strom needs it (and not kept so by the person): the agent checks it, the fix after a yes (V11)
+  const a = audited(t) ? auditOf(tree, t, { shared }) : undefined;
+  const check = a?.findings.length && !a.kept ? ui(lang, "ui.chat.task.audit.say", { task: t.id, how: a.findings.map((f) => ui(lang, AUDIT_SAY[f.kind])).join(", ") }) : undefined;
+  return { id: t.id, say: [first, check, more].filter(Boolean).join(" ") };
 }
 
 /**
@@ -187,6 +199,8 @@ register({
     const tree = ctx.tree();
     assertIntact(tree);
     refuseInArchive(tree, "strom chat", ctx.settings.agent(tree.config).value);
+    // the agent starts: what was put aside while the research waited for it back in the queue
+    if (!opts.print) settleWaiting(tree, true);
     const lang = tree.lang;
     const agent = ctx.settings.agent(tree.config).value;
     const profile = PROFILES[agent];

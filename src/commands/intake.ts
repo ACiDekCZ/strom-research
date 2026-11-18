@@ -26,8 +26,8 @@ import { decodeGedcom, decodingNote, type DecodingNote } from "../gedcom/encodin
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
-import { HIDE_REASONS, SORT_KINDS, type Source } from "../core/model.ts";
-import { assignMaterial, hideMaterial, unhideMaterial } from "../core/material.ts";
+import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
+import { assignMaterial, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
 import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { appHasTree } from "../core/live.ts";
@@ -98,7 +98,7 @@ function materialLines(tree: Tree, before: Map<string, string[]>, batch?: string
     const [id, ...rest] = o.targets;
     if (o.op === "input.assign" && id) {
       const i = tree.get<Input>(id);
-      const now = new Set([...(i?.persons ?? []), ...(i?.sorted?.persons ?? [])]);
+      const now = new Set(i ? materialPersons(tree, i) : []);
       const add = rest.filter((p) => now.has(p));
       const remove = rest.filter((p) => !now.has(p));
       if (add.length) out.push(ui(lang, "ui.input.assign.add", { id, who: whoOf(tree, add) }));
@@ -121,6 +121,17 @@ function materialLines(tree: Tree, before: Map<string, string[]>, batch?: string
       const why = tree.get<Input>(id)?.hidden?.reason;
       out.push(`${ui(lang, "ui.input.hidden", { id })}${why ? ` (${ui(lang, `ui.input.why.${why}`)})` : ""}`);
     } else if (o.op === "input.unskip" && id) out.push(ui(lang, tree.get<Input>(id)?.state === "processed" ? "ui.input.shown.processed" : "ui.input.shown.new", { id }));
+    else if (o.op === "input.media" && id) out.push(ui(lang, "ui.input.restored", { id }));
+    else if (o.op === "input.edit" && id) {
+      const i = tree.get<Input>(id);
+      const was = before.get(`edit:${id}`) ?? [];
+      const parts = [
+        !was.includes("title") ? "" : i?.title ? ui(lang, "ui.input.edit.title", { value: i.title }) : ui(lang, "ui.input.edit.untitled"),
+        !was.includes("kind") ? "" : i?.materialKind ? ui(lang, "ui.input.edit.kind", { value: ui(lang, `ui.input.kind.${i.materialKind}`) }) : ui(lang, "ui.input.edit.nokind"),
+        !was.includes("date") ? "" : i?.date ? ui(lang, "ui.input.edit.date", { value: i.date }) : ui(lang, "ui.input.edit.nodate"),
+      ].filter(Boolean);
+      out.push(ui(lang, "ui.input.edit.line", { id, changes: parts.join(", ") }));
+    }
   }
   return out;
 }
@@ -545,17 +556,47 @@ register(
     },
   },
   {
+    path: ["input", "edit"],
+    summary: "Give files of the material a title, a kind, a date — or take them off (the bridge runs it for the Strom app's revision of the material)",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      `Of each file given (at most ${MATERIAL_MOST_EDIT}), the research's material and the files of the Strom app's tree alike (the\n` +
+      "app's next file of the tree has them). All or nothing: a file the research does not have, a title longer than\n" +
+      `${MATERIAL_TITLE_MAX} characters, a kind or a date it cannot read, and nothing is written. "" takes a value off. Answered\n` +
+      "with what each file had before (`was`): the same edit with those values takes it back. Many files: --files-from\n" +
+      "<file> (one ID a line; - = stdin).",
+    args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
+    options: [
+      { name: "title", type: "string", value: "<text>", max: MATERIAL_TITLE_MAX, description: "what to call it (\"\" takes it off)" },
+      { name: "kind", type: "string", value: "<kind>", description: `${MATERIAL_KINDS.join(", ")} (\"\" takes it off)` },
+      { name: "date", type: "string", value: "<date>", description: "when it was written or taken (GEDCOM: 1932, ABT 1930, 12 MAY 1932; \"\" takes it off)" },
+      { name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" },
+    ],
+    examples: ['strom input edit I0003 --title "<what the photo shows>" --kind photo --date "ABT 1930"', 'strom input edit I0003 I0005 --date ""'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const value = (v: unknown) => (typeof v === "string" ? v : undefined);
+      const ids = idsGiven(ctx, args, opts);
+      const got = tree.withTreeLock(() => editMaterial(tree, ids, { title: value(opts.title), kind: value(opts.kind), date: value(opts.date) }, fileBy(tree, ctx.env)));
+      const before = new Map(Object.entries(got.was).map(([id, w]) => [`edit:${id}`, Object.keys(w)]));
+      return { text: got.changed.length ? lines(...materialLines(tree, before)) : ui(tree.lang, "ui.input.assign.none"), data: got };
+    },
+  },
+  {
     path: ["input", "amend"],
     summary: "Add to an input what is said of it again: the people it is of, the user's note (the bridge runs it when the Strom app sends a file the research has)",
     group: "inputs",
     tree: true,
     writes: true,
     description:
-      "Only what the input lacks is added: the people not named yet, a note not given yet. When something came and no task\n" +
+      "Only what the input lacks is added: the people not named yet (a couple's partners too), the couples, a note not given yet. When something came and no task\n" +
       "at hand holds the input, an intake task looks at it again (in an archive put aside). Nothing new: nothing written.",
     args: [{ name: "input", description: "input ID", required: true }],
     options: [
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
+      { name: "family", type: "string", multiple: true, value: "<F…>", description: "a couple it is of (repeatable): material of both partners" },
       { name: "note", type: "string", value: "<text>", description: "what the user said of it" },
     ],
     examples: ["strom input amend I0002 --person P0001 --note \"<what the user said of it>\""],
@@ -563,7 +604,8 @@ register(
       const tree = ctx.tree();
       const id = normId(args[0]!, "input");
       const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
-      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined }));
+      const families = (Array.isArray(opts.family) ? opts.family : opts.family ? [opts.family] : []).flatMap((f) => String(f).split(",")).map((f) => f.trim().toUpperCase()).filter(Boolean);
+      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}) }));
       return { text: tree.written.length ? lines(...tree.written.map((o) => o.summary)) : `${id}: nothing new`, data: got };
     },
   },

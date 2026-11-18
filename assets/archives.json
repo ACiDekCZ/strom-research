@@ -1207,15 +1207,31 @@
       "host": "blha-recherche.brandenburg.de",
       "name": "Brandenburgisches Landeshauptarchiv (Online-Zugang)",
       "level": "restricted",
-      "quoteFrom": "robots",
       "browserOnly": true,
       "terms": "https://blha-recherche.brandenburg.de/robots.txt",
+      "quote": "Ja, eine Person darf im eigenen Browser einzelne Bilder in menschlichem Tempo speichern und auch vom KI-Assistenten auf ihrem Computer lesen lassen, da wir alle Erschließungsinformationen und Digitalisate mit CC-0 lizensieren. … Disallow: / wird für diesen Anwendungsfall aufgehoben. Für den Download von Digitalisaten sind höchstens zwei gleichzeitige Anfragen zulässig. Das gilt auch für automatisierte Abrufe über Werkzeuge. Bitte warten Sie, bis mindestens eine der laufenden Anfragen abgeschlossen ist, bevor Sie weitere stellen.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-18",
       "termsPage": "https://blha.brandenburg.de/blha/de/rechercheratgeber/familienforschung/",
       "termsPageSays": "Sie befinden sich im Bestand Rep. 5KB Kirchenbuchduplikate und stehen in unserer Datenbank sowie auf den Internetseiten von Ancestry und Familysearch als Digitalisate zur Verfügung.",
-      "quote": "User-agent: * / Disallow: /",
-      "robots": "User-agent: * · Disallow: /",
-      "scope": "a person's browser only: its robots.txt keeps every robot off the whole database (its church-book duplicates, Rep. 5KB); the person opens and saves an image, the agent reads the saved file",
-      "checked": "2026-11-04"
+      "robots": "User-agent: * · Disallow: / (the archive's reply of 2026-11-18 lifts it for single images on a person's word, at most two requests at once)",
+      "imagesFrom": [
+        "blha-digi.brandenburg.de"
+      ],
+      "scope": "single images of its church-book duplicates (Rep. 5KB), CC-0, through a person's browser with the person's permission \"through the browser\" (its robots.txt keeps strom's own requests off the whole site; the archive's reply of 2026-11-18 lets single images be saved at a human pace and read by the AI assistant, at most two requests at once — never a search through its database, never a whole book); its viewer's address names no image (open the book's viewer, go to the image, save the one shown); cite \"BLHA, Rep. 5KB Nr. <n>\" (n the book's number in the signature \"5KB <n>\") with the image's number in the book",
+      "checked": "2026-11-18"
+    },
+    {
+      "host": "blha-digi.brandenburg.de",
+      "name": "Brandenburgisches Landeshauptarchiv (image server)",
+      "level": "restricted",
+      "terms": "https://blha.brandenburg.de/blha/de/rechercheratgeber/familienforschung/",
+      "quote": "Ja, eine Person darf im eigenen Browser einzelne Bilder in menschlichem Tempo speichern und auch vom KI-Assistenten auf ihrem Computer lesen lassen, da wir alle Erschließungsinformationen und Digitalisate mit CC-0 lizensieren. … Disallow: / wird für diesen Anwendungsfall aufgehoben. Für den Download von Digitalisaten sind höchstens zwei gleichzeitige Anfragen zulässig. Das gilt auch für automatisierte Abrufe über Werkzeuge. Bitte warten Sie, bis mindestens eine der laufenden Anfragen abgeschlossen ist, bevor Sie weitere stellen.",
+      "quoteFrom": "reply",
+      "replied": "2026-11-18",
+      "robots": "none (/robots.txt answers its web app's page)",
+      "scope": "the image server of blha-recherche.brandenburg.de (IIIF Image API 2 under /rest/public/image-server/<token>, the full image as …/full/<width>,/0/default.jpg); single images only, one request at a time, never a whole book (the archive's reply of 2026-11-18: at most two at once); cite \"BLHA, Rep. 5KB Nr. <n>\" with the image's number",
+      "checked": "2026-11-18"
     },
     {
       "host": "archiv.sachsen.de",
@@ -1466,7 +1482,7 @@
       "pace": {
         "minIntervalMs": 10000
       },
-      "scope": "the archive's website and guides for family history, at a pace of 10 s; its church-book duplicates (Rep. 5KB) are on blha-recherche.brandenburg.de (a person's browser only); no terms of use found",
+      "scope": "the archive's website and guides for family history, at a pace of 10 s; its church-book duplicates (Rep. 5KB) are on blha-recherche.brandenburg.de (single images through a person's browser, the archive's reply of 2026-11-18); no terms of use found",
       "checked": "2026-11-04"
     },
     {

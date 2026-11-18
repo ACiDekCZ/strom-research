@@ -3,8 +3,8 @@
 
 Co výzkum udělá se soubory, texty a rodokmeny, které mu dá uživatel: v terminálu, nebo z aplikace Strom. Jak se
 materiál posílá z aplikace, popisuje [A3.5](A3-evidence-in-the-app.md#A3.5); odpověď souborem na úkol, který čeká,
-[R6.7.1](R6-awaiting-action.md#R6.7.1). Popisuje výzkum 1.27.0. U pravidel je rozlišeno, co **hlídá kód** a co je
-jen **pravidlo metodiky**.
+[R6.7.1](R6-awaiting-action.md#R6.7.1). Popisuje výzkum 1.27.0; změny z novější verze mají u sebe její číslo.
+U pravidel je rozlišeno, co **hlídá kód** a co je jen **pravidlo metodiky**.
 
 <a id="R11.1"></a>
 ## R11.1 Každý soubor je podklad s úkolem
@@ -134,3 +134,124 @@ Složku, ZIP nebo krabici dokumentů poslanou z aplikace výzkum přijme jako je
 - **Platí od:** výzkum 1.12.0; dávka z telefonu 1.18.0
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+
+<a id="R11.5"></a>
+## R11.5 Materiál výzkumu a soubory stromu z aplikace
+
+Každý soubor, který výzkum drží, je záznam materiálu (`I…`): soubor poslaný k osobě, soubor dávky, soubor
+z terminálu i soubor stromu z aplikace Strom. Záznam má titulek, druh a datum, osoby, ke kterým patří, a u souboru
+stromu i svá místa ve stromu aplikace.
+
+- Druh je `photo`, `document`, `record` nebo `other` (v aplikaci **Fotka**, **Dokument**, **Listina**, **Jiné**).
+  Výzkum si pamatuje, kdo titulek dal: člověk (aplikace, terminál), nebo výzkum.
+- Skrytý soubor (`unrelated`, `duplicate`, bez důvodu) zůstane ve výzkumu i s originálem a jde ukázat znovu.
+- **Hlídá kód:**
+  - skrytí, odebrání ze stromu ani vrácení zápisu soubor nesmaže: originál i záznam zůstanou;
+  - úpravu titulku, druhu a data pro soubor mimo strom zapíše výzkum hned. U souboru stromu se změna objeví
+    v aplikaci s dalším načtením stromu;
+  - výzkum odmítne celou úpravu, když jeden soubor nezná nebo když nejde přečíst hodnota ([R11.5.2](#R11.5.2)).
+- **Hranice:** záznamy s místy stromu jsou ve schématu stromu 3 (od výzkumu 1.35.0). Přechod nic nepřepíše; starší
+  `strom` strom ve schématu 3 neotevře. Materiál v aplikaci popisuje [A3.5](A3-evidence-in-the-app.md#A3.5).
+- **Ovládání:** terminál: `strom input list`, `strom input show I…` (kde soubor je a co z něj vzniklo), `strom input
+  edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. Aplikace: okno **Materiály**.
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+
+<a id="R11.5.1"></a>
+### R11.5.1 Soubory stromu z aplikace
+
+Výzkum 1.35.0 drží i portréty, fotky svazků a přílohy stromu z aplikace Strom. Každý soubor uloží jednou, podle
+obsahu, a zapamatuje si jeho místa ve stromu: příloha nebo portrét osoby, příloha nebo fotka svazku, soubor
+události, doklad pramene.
+
+- Soubor, jehož originál přišel dřív (`PUT /media`), výzkum pozná podle otisku originálu; jinak podle otisku
+  poslaných bajtů. Zmenšenou kopii, kterou aplikace ukazuje, uloží beze změny vedle originálu.
+- Nový portrét nahradí starý: starý zůstane jako starší verze (místo odvolané s důvodem `replaced`).
+- Záznam je **ve stromu**, dokud má aspoň jedno místo, které není odvolané.
+- **Hlídá kód:**
+  - odebrání v aplikaci výzkum zapíše, jen když zápis nese všechny soubory stromu (`media=app`), a jen proti tomu,
+    co aplikace s jejími soubory dostala. Co přidalo jiné okno, neodebere;
+  - odebraný soubor zůstane v materiálu, skrytý s důvodem **Odstraněno ze stromu**. Ukázaný znovu dostane zpět
+    místa, která mu vzal poslední zápis;
+  - `strom sync undo I…` vrátí i místa, která zápis odebral;
+  - aplikaci se vrací soubor podle otisku (`GET /tree.ged?images=ref&media=app`), jen soubory s místem ve stromu.
+    Výřez portrétu v původní fotce se nevrací, portrét ano ([S8.3](S8-where-the-data-are.md#S8.3)).
+- **Hranice:** výzkum, který soubory stromu nedrží (do 1.34), nic z toho nedělá; aplikace pak počítá fotky
+  a přílohy jako jen v prohlížeči ([S8.4](S8-where-the-data-are.md#S8.4)).
+- **Ovládání:** aplikace: zápis stromu ([S2](S2-edits-from-the-app.md)), **Odstranit ze stromu…** a **Vrátit**
+  v okně **Materiály**; terminál: `strom sync undo I…`, `strom input unskip I…`.
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:2aeeb228 · src/core/appmedia.ts (hlavička: soubor jednou podle otisku, keepBytes, MediaReader) · src/core/treemedia.ts (návrat GET /tree.ged?images=ref&media=app, POST /images, GET /image/<sha>) · research:91ab6230 (odebrání jen se všemi soubory, proti základu media=app, sync undo, restoreTakenOff) · research:d5e99375, 815bc90d, 7d7628eb · src/core/material.ts unhideMaterial (spec 102 M3) · dirigent:spec/108-kde-se-co-uklada K2.3 (photoSource se nevrací) -->
+
+<a id="R11.5.2"></a>
+### R11.5.2 Titulek, druh, datum a osoby z terminálu
+
+Titulek, druh a datum souboru nastaví `strom input edit`, osoby `strom input assign`. Obojí platí pro materiál
+výzkumu i pro soubory stromu z aplikace; aplikace je dostane s dalším souborem stromu.
+
+- `strom input edit I… --title … --kind photo|document|record|other --date …`: nejvýš 500 souborů, titulek nejvýš
+  200 znaků, datum jako v GEDCOM (`1932`, `ABT 1930`, `12 MAY 1932`); `""` hodnotu odebere. Odpověď uvede, co měl
+  každý soubor předtím (`was`): stejná úprava s těmito hodnotami ji vrátí. Víc souborů `--files-from`.
+- `strom input assign` přidá (`--add P…`) nebo odebere (`--remove P…`) osoby souborů nebo celé dávky (`--batch`).
+  U souboru stromu je přidaná osoba nové místo: v aplikaci příloha osoby.
+- `strom input hide I… --why unrelated|duplicate` soubor skryje; `strom input unskip I…` ho ukáže znovu.
+- **Hlídá kód:** všechno, nebo nic: neznámý soubor, příliš dlouhý titulek, nečitelný druh nebo datum a nezapíše se
+  nic. `--dry-run` jen ukáže, co by se změnilo.
+- **Ovládání:** terminál, viz výše. Totéž dělá okno **Materiály** v aplikaci přes most.
+- **Platí od:** výzkum 1.20.0 (`strom input assign`, `hide`, `unskip`); 1.35.0: `strom input edit`, místa souborů
+  stromu
+
+<!-- zdroj: research:a7df632d src/commands/intake.ts input edit, assign, hide, unskip · src/core/material.ts checkEdit, editMaterial, MATERIAL_MOST_EDIT=500, MATERIAL_TITLE_MAX=200, assignMaterial (místo u souboru stromu, spec 102 M4) · research:cc709045 příklady v helpu · help input edit, input assign, input hide -->
+
+<a id="R11.5.3"></a>
+### R11.5.3 Třídění materiálu: `strom material sort`
+
+`strom material sort` dá soubory materiálu přečíst čtenářům výzkumu. Ke každému souboru navrhnou titulek, datum,
+druh a vazby na osoby, svazky, jejich události a prameny stromu, s důvodem a jistotou. Do výzkumu se nic nezapíše.
+
+- Návrh je uložený vedle výzkumu (`strom material show <id>`). Co z něj člověk přijme, se zapíše jako jeho: v
+  aplikaci, nebo `strom input edit`.
+- `--text` je to, co člověk o souborech ví; čtenáři se jím řídí, kde soubory neříkají jinak.
+- `--queue` třídění jen uloží do fronty; `strom material cancel <id>` ho zastaví.
+- **Hlídá kód:**
+  - nejvýš 50 souborů a 2000 znaků textu; z PDF prvních 10 stran. Soubor, který žádný čtenář neotevře, posoudí
+    podle názvu, cesty a poznámek;
+  - nikdy nenavrhne titulek, druh ani datum, které dal člověk, vazbu, kterou dal nebo odebral, ani ID, které výzkum
+    nemá. Portrét ani fotku svazku nenavrhuje;
+  - placená čtení začnou jen po souhlasu člověka: ve vlastním terminálu (Enter je ne) nebo v okně systému. Když
+    se nemá koho zeptat, příkaz skončí s kódem 4. Agent za člověka nikdy neodpoví;
+  - třídění z aplikace spustí most jen s vlastním podpisem, a ten platí jednou. Záznam, který se za třídění
+    z aplikace jen vydává, se nikdy nespustí;
+  - ve frontě čekají nejvýš 3 třídění.
+- **Hranice:** jen výzkum s agentem: Archiv Stromu a výzkum, který čeká na agenta, materiál netřídí.
+- **Ovládání:** terminál: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
+  cancel`; aplikace: **Roztřídit agentem…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+
+<a id="R11.5.4"></a>
+### R11.5.4 Materiál přes most
+
+Okno **Materiály** v aplikaci čte a mění materiál přes most výzkumu. Každá změna je stejný příkaz jako
+v terminálu, se stejnými mezemi.
+
+| Most | Co dělá | Příkaz |
+|---|---|---|
+| `GET /material` | soubory s titulkem, druhem, datem, osobami, u souborů stromu místa a u každého použití | |
+| `GET /material/<I…>/uses` | výňatky, prameny a úkoly, které soubor používají | |
+| `POST /material/assign` | osoby souborů | `strom input assign` |
+| `POST /material/hide` | skrýt a ukázat znovu (u odebraného souboru stromu s místy) | `strom input hide`, `unskip` |
+| `POST /material/edit` | titulek, druh a datum, 1–500 souborů | `strom input edit` |
+| `POST /material/sort` | třídění 1–50 souborů; průběh `GET /material/sort/<id>`, zrušení `…/cancel` | `strom material sort` |
+
+- Výzkum ohlásí, co umí, v `/status.features`: `media.app`, `material.links`, `material.edit`, `material.uses`
+  a `material.sort` (jen kde je agent). Bez nich se aplikace chová jako se starším výzkumem.
+- **Hlídá kód:** úprava je celá, nebo žádná; zaneprázdněný výzkum odpoví, že nic nezměnil. Třídění odmítne bez
+  agenta, s vyčerpaným limitem čtení, s plnou frontou a když agent teď pracovat nemůže.
+- **Ovládání:** aplikace: okno **Materiály**, s běžícím mostem ([S1.1](S1-connecting-app-and-research.md#S1.1)).
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->

@@ -394,7 +394,8 @@ research.
     that it came from the app. A task that meanwhile waits for something else stays unchanged.
 - **Limits (when images return a task):**
   - a task waiting for images is returned only by its book, and only once all images are there;
-  - a task waiting for a site (`--kind web`) is returned by the book it names, or by the only book it works in;
+  - a task waiting for a site (`--kind web`) is returned by the book it names, or by the only book it works in; from
+    research 1.35.0 instead of it by the book it waits under ([R6.8.4](R6-awaiting-action.md#R6.8.4));
   - a letter and a request to the family are returned only by the book they name;
   - a task waiting for a person to check a site is never returned (only a person answers).
 - **Method only (the method, `strom guide` and the agent's brief alike):** for images by hand, the agent names the
@@ -407,8 +408,9 @@ research.
 - **Controls:** terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, in What waits
   **Open the folder (M/N saved)**. App: Awaiting action, at the item in this order **Add images**, **Open
   website ↗**, **Answer**, **Discuss with the agent**, **Open folder** (the last two open the research in the
-  terminal). The state of the images shows "1 of 2 images" and, at the book, the chips **saved** / **missing**. The
-  sites of one archive wait in one group **Archive** under the archive's name, with the link **Archive website ↗**
+  terminal); from app 3.30.0 the block **Deliver** with steps and the link **Images can’t be obtained…**
+  ([S4.4.7](S4-research-from-the-app.md#S4.4.7)). The state of the images shows "1 of 2 images" and, at the book,
+  the chips **saved** / **missing**. The sites of one archive wait in one group **Archive** under the archive's name, with the link **Archive website ↗**
   and the number of images missing.
 - **Limits (the archive's group):** the group is the research's archive the task belongs to: by the task's book, the
   archive's address, the address of its book, another site of the same archive by the list of archives, or the
@@ -421,6 +423,8 @@ research.
   3.23.0.
 - **From research 1.35.0:** strom also takes in the folders of books that tasks need and that nothing waits for, only
   by the number in the file name ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
+- **From research 1.35.0:** a task comes back by itself only when its wait is written by image numbers or a book of the
+  research; a wait written otherwise is found by `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
 
 <!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
 

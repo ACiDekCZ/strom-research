@@ -70,8 +70,10 @@ Drzewo może samo przechodzić do osoby, nad którą agent właśnie pracuje (pi
 - **Od aplikacji 3.24.0:** śledzić można także w wachlarzu i na mapie ([S4.1.3](#S4.1.3)); przesunięcie mapy wstrzymuje je tak samo.
 - **Od aplikacji 3.30.0:** ◎ **Przestań śledzić** zatrzymuje przeskoki tylko w oknie, w którym zostanie kliknięte;
   inne okna śledzą dalej, każde we własnym widoku ([S4.1.7](#S4.1.7)).
+- **Od aplikacji 3.30.0:** łuk wokół portretu osoby, nad którą pracuje agent, jest widoczny także obok oznaczeń
+  badania na karcie ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) -->
+<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) · oblouk vedle značek: app:16cba085 src/card-signals.ts showAgent -->
 
 <a id="S4.1.2"></a>
 ### S4.1.2 Dostosowanie panelu
@@ -527,8 +529,14 @@ Praca agenta zużywa subskrypcję AI.
   badania**; menu **Badanie → Praca nad kolejką…** ([S4.5.2](#S4.5.2)). Terminal: `strom run --tasks N`,
   `strom run --loop` ([R7.1](R7-when-the-agent-works.md#R7.1)).
 - **Obowiązuje od:** aplikacja 3.28.0 (badanie 1.32.0); w sekcji **Teraz** i **Kolejne (n)** od aplikacji 3.29.0
+- **Od aplikacji 3.30.0:** po **Otwórz terminal** w **Teraz** stoi **Uruchamianie pracy nad kolejką…** z „Agent
+  uruchomi się w terminalu badania.”, a oba przyciski **Praca nad kolejką…** mówią, że praca się uruchamia, i niczego
+  nie otwierają ponownie. Wiersz znika, gdy tylko badanie potwierdzi link ([S4.5.4](#S4.5.4)) albo zacznie się sesja
+  lub przebieg; wtedy zastępuje go wiersz sesji. Bez potwierdzenia w ciągu 30 s **Teraz** pyta **Praca nad kolejką
+  się nie rozpoczęła?** („Terminal nie odezwał się w ciągu 30 s.”) ze **Spróbować ponownie** i radą, a przyciski są
+  znów wolne.
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie w aplikacji
@@ -663,6 +671,26 @@ w aplikacji, a co tylko w badaniu, mówi [R6.5](R6-awaiting-action.md#R6.5).
 - **Od aplikacji 3.30.0 z badaniem 1.35.0:** pozycje można pogrupować według księgi, z kolejnością **Najwięcej zadań**
   i podsekcją **Szybciej dzięki pobraniu** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5)); ustawienia ksiąg w oknie **Badanie
   dla drzewa** ([S4.4.6](#S4.4.6)).
+- **Od aplikacji 3.30.0:** grupy i otwarta pozycja (także przy badaniu bez ksiąg):
+  - każda grupa (miejsce, archiwum, urząd, księga) stoi we własnym pasku z pełną nazwą, pod nim dane i działania
+    grupy (przy archiwum te z **Strona archiwum ↗**, **Czat**, **Wysłano** i **Treść wszystkich zapytań**, które
+    badanie oferuje). Nazwa zawija się najwyżej na 3 wiersze (na telefonie, w małym panelu i w wąskiej kolumnie okna
+    Przeglądu na 4); dłuższa kończy się „…” i odnośnikiem **więcej**, który rozwija nazwę i nie zwija grupy
+    (**mniej** znów ją skraca). Pozycje grupy wiszą pod paskiem na pionowej linii. Lista bez grup i śródtytuł **Bez
+    księgi** linii nie mają;
+  - otwarta pozycja pokazuje swój tekst cały i tylko raz, w swoim wierszu. Treść zaczyna się blokiem **Czeka na**
+    z pełnym zleceniem ręcznego kroku, tak jak napisało je badanie (adresy w tekście są odnośnikami). Tekst dłuższy
+    niż 10 wierszy (na telefonie w poziomie 3) kończy się „…” i **więcej** / **mniej**. Drugi wiersz bloku,
+    **Adresat**, mówi, do kogo idzie prośba. Pozycja, która czeka tylko na człowieka, bloku nie ma. Pod blokiem stan
+    skanów, osoba · kierunek i działania;
+  - tekst „czeka na” ma do 1500 znaków (wcześniej aplikacja przycinała go do 120). Mały panel pokazuje go w wierszu
+    na 2 wiersze, cały po najechaniu;
+  - pozycja rodzaju **Internet** ma w otwartej treści **Otwórz stronę ↗** i obok adres strony (nie na telefonie);
+  - pozycja czekająca na skany zaczyna się blokiem **Dostarczyć** z krokami ([S4.4.7](#S4.4.7)).
+- **Od aplikacji 3.30.0 z badaniem 1.35.0:** zadanie, którego czekanie na skany nie jest zapisane tak, jak potrzebuje
+  tego strom, ma oznaczenie, a w otwartej pozycji poprawkę w jednym kroku ([S4.4.8](#S4.4.8), [S4.4.9](#S4.4.9)).
+
+<!-- zdroj: app:7d7c0783 src/ui/research-overview-ui.ts overviewWaitingGroupHead, overviewWaitingBookHead (pás .research-overview__waiting-grouphead, akce skupiny v pásu, ul.is-grouped; bez skupin a Bez knihy bez linky), src/ui/waiting-order-ui.ts groupTitleMoreEl (strop GROUP_TITLE_LINES 3, telefon, panel a úzký sloupec 4; víc/méně stav title:<skupina>, stopPropagation), src/ui/research-ui.ts (panel: pás, víc, is-grouped), appendWaitingWebHost, strings.ts live.titleMore, titleLess, waitingWebHostAria · app:1176f465 overviewWaitingRow (text celý v řádku, detail ho neopakuje), overviewWaitingOnBox (waitsOnUser → bez bloku; appendLinkedText; waitingOnMoreEl 10 / na šířku 3 řádky; waitingToLabel Adresát), strings.ts live.waitingOnLabel, waitingToLabel · app:96b35bbd src/research-link.ts sanitizeWaiting MAX_WAITING_ON 1500, panel .live-waiting-on 2 řádky + title · CHANGELOG.cs.md 3.30.0 · dirigent:prace/1117-app-knihy-zahlavi, 1117-app-cekana-cely-text · app:docs/ZADANI_DEV_knihy-zahlavi.md §1–§3 -->
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -699,8 +727,15 @@ oznaczeniem karta zachowuje się jak wcześniej. Dwa lub trzy oznaczenia stoją 
     oznaczeń.
 - **Obsługa:** aplikacja: kliknięcie w oznaczenia w rogu portretu; **Ustawienia → Karta osoby → Na karcie pokazuj**.
 - **Obowiązuje od:** aplikacja 3.27.0
+- **Od aplikacji 3.30.0:** agent przy osobie i oznaczenia są widoczne razem:
+  - obracający się łuk wokół portretu osoby, nad którą pracuje agent, jest widoczny także obok jednego lub kilku
+    oznaczeń; oznaczenia zostają w rogu. Karta bez portretu ma zamiast łuku pierścień wokół kropki oznaczenia;
+  - czytnik ekranu słyszy jedno i drugie, co czeka, i „badanie tej osoby w toku”;
+  - menu osoby z oznaczeniem oferuje także **Śledź badanie ›**;
+  - znak ✓ po zakończonej pracy agenta pokazuje się tylko na karcie bez oznaczenia;
+  - podgląd karty w **Ustawienia → Karta osoby** pokazuje łuk i oznaczenie razem.
 
-<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek · 3.30.0: app:16cba085 src/card-signals.ts showAgent i se značkou, doneSince jen bez značky · src/renderer.ts (oblouk vedle značky, kompaktní kroužek kolem tečky, aria-label obojí) · src/ui/card-fields-ui.ts náhled · src/ui/card-signals-ui.ts signal-agent (card.menuAgent) · strings.ts card.ariaAgent, card.menuAgent · CHANGELOG.cs.md 3.30.0 „Agent při práci i vedle odznaku“ · spec 109 -->
 
 <a id="S4.4.2"></a>
 ### S4.4.2 Wyszukiwanie w Czeka na załatwienie
@@ -806,25 +841,36 @@ skany.
 
   W kolejności **Zalecana** jest wybór **Archiwum** | **Księga**; grupy ksiąg stoją według swojej pierwszej pozycji,
   w kolejności według czasu według czasu pierwszej pozycji.
-- **Kolejność Najwięcej zadań:** grupy są zawsze księgami (wybór grup znika). Księgi idą od tej, której potrzebuje
-  najwięcej zadań, przy równości więcej czekających, potem numer księgi. Wewnątrz księgi pozycje są w kolejności
-  **Zalecana**. Pozycje bez księgi są na końcu w grupach archiwów.
-- **Nagłówek księgi:**
-  - tytuł księgi (z latami), etykieta **Księga**, **nowe: N** przy zwiniętej księdze i liczba pozycji. Po najechaniu
-    tytuł, archiwum i ile zadań potrzebuje księgi (w tym odłożone);
-  - drugi wiersz: archiwum · „3 czekają” · „+M w kolejce” (zadania księgi, które nie czekają) · skany („240 skanów
-    · na dysku 12 · brak 228”) · „N plików do przejęcia” (pliki, które leżą w folderze księgi i jeszcze nie zostały
-    przejęte) · „strona archiwum wymaga logowania”. W kolejności **Najwięcej zadań** liczby są pierwsze i pogrubione;
-  - działania: co można pobrać według warunków archiwum ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Do pobrania cała
-    księga · N skanów”, „Do pobrania skany 31–36 · 6 skanów” albo „Do pobrania wybrane skany …”;
-    **Strona archiwum ↗**; **Otwórz folder** (folder księgi w folderze współdzielonym, badanie otwiera go bez
+- **Kolejność Najwięcej zadań:** grupy są zawsze księgami (wybór grup znika).
+  - na górze księgi do pobrania (brakuje im skanów albo liczba skanów nie jest znana), pod nimi księgi całe na
+    dysku. W każdej części księgi idą od tej, której potrzebuje najwięcej zadań, przy równości więcej czekających,
+    potem numer księgi. Tak samo jest posortowane **Szybciej dzięki pobraniu** ([S4.4.5](#S4.4.5));
+  - gdy faza ma obie części, nad nimi stoją śródtytuły „Do pobrania · 2 księgi” i „Całe na dysku · 1 księga” (liczby
+    w fazie). Przy jednej części śródtytułu nie ma;
+  - pod kolejnością stoi zdanie „Na górze księgi, którym brakuje skanów: ich pobranie załatwia najwięcej zadań naraz.
+    Księgi całe na dysku są niżej.” W menu kolejności **Najwięcej zadań** ma drugi wiersz „księgi do pobrania na
+    górze”;
+  - wewnątrz księgi pozycje są w kolejności **Zalecana**. Pozycje bez księgi są na końcu w grupach archiwów.
+- **Pasek księgi** (jak pasek każdej grupy, [S4.4](#S4.4)):
+  - tytuł księgi (z latami) cały, zawinięty, najwyżej na 3 wiersze (4 na telefonie) i **więcej**. Po prawej
+    etykieta **Księga**, **nowe: N** przy zwiniętej księdze i liczba pozycji. Po najechaniu tytuł, archiwum i ile
+    zadań potrzebuje księgi (w tym odłożone);
+  - drugi wiersz: archiwum, całe;
+  - trzeci wiersz: „12 zadań” (ile zadań potrzebuje księgi) · „3 czekają” · „+M w kolejce” (zadania księgi, które
+    nie czekają) · „2 odłożone” · skany („240 skanów · na dysku 12 · brak 228”, księga cała na dysku „240 skanów ·
+    cała na dysku”) · „N plików do przejęcia” (pliki, które leżą w folderze księgi i jeszcze nie zostały przejęte)
+    · „strona archiwum wymaga logowania”. „W kolejce” i „odłożone” tylko powyżej zera. W kolejności **Najwięcej
+    zadań** pogrubione są liczba zadań i „brak N”;
+  - działania pod danymi: co można pobrać według warunków archiwum ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Do
+    pobrania cała księga · N skanów”, „Do pobrania skany 31–36 · 6 skanów” albo „Do pobrania wybrane skany …”;
+    **Strona archiwum ↗**; **Otwórz folder księgi** (folder księgi w folderze współdzielonym, badanie otwiera go bez
     terminala i w razie potrzeby tworzy, [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Czat** (nie na telefonie).
     Kliknięcie w działanie nie zwija księgi;
   - księga, której badanie nie wysłało w przeglądzie ksiąg: tylko tytuł (albo numer księgi), etykieta i liczba.
 - **Wyszukiwanie** ([S4.4.2](#S4.4.2)) znajduje pozycje także według tytułu i archiwum ich księgi.
-- **Mały panel:** przycisk kolejności i „Grupy: Księga ▾” z menu; nagłówek księgi tylko z tytułem i „N czeka”,
-  śródtytuł **Bez księgi**; działania ksiąg są tylko w **Przeglądzie badania**. Liczby pozycji są takie same jak
-  dotąd.
+- **Mały panel:** przycisk kolejności i „Grupy: Księga ▾” z menu; pasek księgi tylko z tytułem (najwyżej 4 wiersze
+  i **więcej**) i „N czeka”, pozycje na linii, śródtytuł **Bez księgi**; działania ksiąg są tylko w **Przeglądzie
+  badania**. Liczby pozycji są takie same jak dotąd.
 - **Granice:**
   - wybór **Księga** i kolejność **Najwięcej zadań** są tylko z badaniem, które wysyła księgi, i nie w Archiwum Strom
     ani w badaniu, które czeka na agenta. W przeciwnym razie wszystko wygląda jak wcześniej, a zapisany wybór
@@ -833,8 +879,11 @@ skany.
 - **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, obok przycisku kolejności przełącznik **Grupy**
   (**Archiwum** | **Księga** | **Bez grup**); na telefonie (także w poziomie) i w małym panelu przycisk
   „Grupy: Księga ▾” z menu (na telefonie panel wysuwany). Kolejność „⇅ … ▾” › **Najwięcej zadań**.
+- **Księgę pozycji** określa badanie: czekające zadanie należy do księgi, którą trzeba przeszukać
+  ([R6.8.4](R6-awaiting-action.md#R6.8.4)).
 - **Obowiązuje od:** badanie 1.35.0, aplikacja 3.30.0
 
+<!-- zdroj: app:7d7c0783 src/research-books.ts bookMetaParts (tasks · waiting · inQueue >0 · parked >0 · obrázky · pending · login), bookHeadImagesPieces (missing 0 → wholeOnDisk), research-overview-ui.ts overviewWaitingBookHead (archiv na vlastním řádku, akce v pásu, books.folderBook), research-ui.ts appendPanelWaitingBooks (název 4 řádky + víc, is-grouped) · app:1176f465 src/research-books.ts sortBooksMost (bookWholeOnDisk napřed false, pak tasks ↓, waiting ↓, číslo), research-waiting.ts phaseRows (part download / disk jen při obou částech, počty ve fázi), research-overview-ui.ts :1200 order-note books.mostNote, :1236 books.toDownload / onDiskAll, is-key (tasks, missing), table-headmenu.ts sub books.orderMostSub · strings.ts live.books.tasks, parked, wholeOnDisk, folderBook, toDownload, onDiskAll, mostNote, orderMostSub · research:8d19d4f6 src/core/books.ts bookOfTask (waitTarget) · ZADANI_DEV_knihy-zahlavi.md §1, §2, §4 -->
 <!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
 
 <a id="S4.4.5"></a>
@@ -892,6 +941,127 @@ przez most do badania, więc obowiązują tak samo jak w terminalu.
 
 <!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
+<a id="S4.4.7"></a>
+### S4.4.7 Pozycja czekająca na skany
+
+Otwarta pozycja, która czeka na skany, najpierw mówi, co dostarczyć i dokąd, a potem pokazuje kroki w kolejności,
+w jakiej się je wykonuje. Wynikiem są pliki w folderze, a nie odpowiedź.
+
+- **Których pozycji dotyczy:** zadanie czekające na skany (rodzaj **Obrazy**) i zadanie czekające na internet,
+  któremu badanie dało folder księgi ([R6.8.4](R6-awaiting-action.md#R6.8.4)); tylko gdy skany można dodać przez
+  most. Pozostałe pozycje są bez zmian.
+- **Blok Dostarczyć** (na początku treści, przed **Czeka na**, [S4.4](#S4.4)): zdanie, które skany jako pliki i do
+  którego folderu, na przykład „Skany 112–113 jako pliki (JPG lub PNG) do folderu księgi …” z tytułem księgi:
+  - numery są te, których jeszcze brakuje; bez znanych numerów zdanie numerów nie ma („Skany jako pliki (JPG lub
+    PNG) do folderu księgi …”);
+  - folder księgi, gdy badanie ma go na liście ksiąg z folderem, a odnośnik do badania umie go otworzyć;
+    w przeciwnym razie „… do folderu zadania”. Zdanie wymienia zawsze ten folder, który otwiera krok ②.
+- **Kroki** (komputer i tablet), między nimi strzałki:
+  1. **Strona archiwum ↗**: strona pozycji, w przeciwnym razie strona księgi albo jej archiwum;
+  2. **Otwórz folder księgi** (badanie otwiera go bez terminala, [R6.8.2](R6-awaiting-action.md#R6.8.2)),
+     w przeciwnym razie **Otwórz folder** zadania (otwiera badanie w terminalu, z oznaczeniem terminala);
+  3. **Dodaj skany**: jedyne główne działanie, otwiera miejsce do przesłania skanów.
+
+  Kroku, którego stąd nie da się wykonać, nie ma, a następny bierze jego numer. Strzałka nigdy nie przechodzi do
+  innego wiersza niż krok, do którego prowadzi. Poniżej 380 px szerokości kroki są jeden pod drugim, bez strzałek.
+  Przy dodawaniu skanów i pisaniu odpowiedzi kroki się chowają.
+- **Pod blokiem:** stan skanów, miejsce do przeciągnięcia, osoba · kierunek i odnośnik **Skanów nie da się
+  uzyskać…**. Otwiera on pole **Dlaczego skanów nie da się uzyskać** z podpowiedzią „Tu należy wpisać, dlaczego
+  skanów nie da się dostarczyć lub czego brakuje w archiwum. Odczyt wpisu tu nie należy: badanie samo odczyta
+  skany.” Wysłanie przywraca zadanie do kolejki jak każda odpowiedź ([R6.7](R6-awaiting-action.md#R6.7)). Pozostałe
+  działania (**Omów z agentem** i inne, które badanie oferuje) są pod **⋯**.
+- **Telefon:** tylko blok **Dostarczyć** ze zdaniem i „Skany zapisuje się na komputerze.”, bez kroków. **Skanów nie
+  da się uzyskać…** otwiera panel wysuwany odpowiedzi z tym samym nagłówkiem i podpowiedzią.
+- **Mały panel:** okno **Dodaj skany** zaczyna się tym samym blokiem z krokami jeden pod drugim; miejsce do
+  przesłania pod nim jest ostatnim krokiem.
+- **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, kliknięcie w pozycję ze skanami; w małym
+  panelu **Dodaj skany**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:449e6962, 429839f0 src/ui/waiting-task-ui.ts waitingTakesImages (waitingActions images přes most), waitingAnswerTexts (answerImagesLabel, answerImagesHint), waitingDeliverEl (věta deliverSentence, phone → deliverPhone bez kroků, kroky deliverSteps web → folder → images, krok ② books.folderBook přes odkaz book jen s book.folder, jinak openFolder task?do=folder se značkou, ③ haveImages waiting-action--primary → openWaitingImages, deliver-pair šipka s krokem, is-column), panel dialog (column, upload: true, title haveImages) · src/research-waiting.ts waitingForImages (images, web s inbox), waitingDeliver (chybějící čísla jen u detail full; kniha jen ze seznamu se složkou), deliverSentence, deliverWebUrl (w.url, jinak bookWebUrl), deliverSteps · src/ui/research-overview-ui.ts appendWaitingTaskActions deliver (answer → link-button cannotGet, ostatní pod ⋯, na telefonu nic pod ⋯) · strings.ts live.waitingTask.deliverLabel, deliverBook, deliverTask, deliverBookAny, deliverTaskAny, deliverPhone, stepAria, cannotGet, answerImagesLabel, answerImagesHint · e2e/waiting-images.spec.ts, overview-waiting-books.spec.ts · ZADANI_DEV_knihy-zahlavi.md §5 · dirigent:prace/1117-app-knihy-zahlavi (D12, D13) -->
+
+<a id="S4.4.8"></a>
+### S4.4.8 Zadanie, które nie jest zapisane tak, jak trzeba
+
+Badanie sprawdza przy czekających zadaniach, czy czekanie na skany jest zapisane tak, jak potrzebuje tego strom:
+skany jednej księgi badania, jedna księga na zadanie ([R6.9](R6-awaiting-action.md#R6.9)). Gdy nie jest, zapisane
+skany nie przywrócą zadania do kolejki. Aplikacja przy takiej pozycji pokazuje ustalenie i proponuje poprawkę
+w jednym kroku. Pozycja czeka dalej, liczby się nie zmieniają.
+
+- **Oznaczenie:** wiersz pozycji ma przed nazwą trójkąt ostrzegawczy z wykrzyknikiem (dymek i czytnik ekranu
+  **Zadanie nie jest zapisane tak, jak trzeba**). W małym panelu jest tylko oznaczenie (**Zadanie nie jest zapisane
+  tak, jak trzeba – otwiera się w przeglądzie**).
+- **Blok w otwartej pozycji** (**Przegląd badania**, także w jego osobnym oknie): pod tekstem czekania i stanem
+  skanów, nad działaniami pozycji, nagłówek **Zadanie nie jest zapisane tak, jak trzeba** i zdanie, co jest źle:
+
+  | Ustalenie badania | Zdanie |
+  |---|---|
+  | skany tylko w tekście | **Skany zapisane tylko tekstem, bez księgi – zapisane skany nie wznowią zadania.** |
+  | kilka ksiąg w jednym czekaniu | **Czeka na skany z dwóch ksiąg**, z nieznaną księgą **; jednej z nich badanie nie zna.** |
+  | księga, której badanie nie zna | **Badanie nie zna księgi – zadanie nie ma folderu na skany.** |
+  | brakuje folderu | **Brakuje folderu na skany – poprawka go utworzy.** |
+
+  Gdy badanie nie proponuje poprawki, a ma agenta, zdanie kończy się **Agent dodaje księgę do badania.** Ustalenie,
+  którego aplikacja nie zna, ma tylko nagłówek.
+- **Działania bloku:**
+  - **Poprawić**, tylko gdy badanie proponuje poprawkę całą lub częściową: pokazuje podgląd poprawki
+    ([S4.4.9](#S4.4.9));
+  - **Omów z agentem** (oznaczenie AI i terminal, [S4.5.1](#S4.5.1)) otwiera rozmowę o zadaniu: agent dostaje
+    ustalenie i proponuje poprawkę. Tylko przy badaniu z agentem, nie na telefonie. Przy pozycji z ustaleniem tego
+    działania nie ma pod **⋯**;
+  - **Pozostawić bez zmian** zapisuje od razu, bez podglądu, że czekanie jest właściwe tak, jak jest. Ustalenie znika,
+    a powiadomienie **Ustalenie nie jest już proponowane** ma przez 8 s **Cofnij**. Badanie zaproponuje ustalenie
+    ponownie, gdy czekanie zadania się zmieni.
+- **Granice:**
+  - badanie niedostępne (śledzenie się skończyło lub most nie odpowiada): **Poprawić** i **Pozostawić bez zmian** nie
+    działają, a pod nimi stoi **Badanie jest niedostępne – poprawki nie można teraz zapisać.**;
+  - ustalenie, które w międzyczasie zniknęło: powiadomienie **Ustalenie jest już nieaktualne – zadanie jest zapisane
+    poprawnie.**;
+  - kliknięcie tuż po przesunięciu wierszy (inne ustalenie zostało poprawione lub zniknęło) nic nie robi, żeby nie
+    trafić w inną pozycję;
+  - badanie bez tej kontroli: pozycje są jak dotąd, bez oznaczenia i bloku.
+- **Obsługa:** aplikacja: **Przegląd badania → Czeka na załatwienie**, kliknięcie w pozycję z oznaczeniem. Terminal:
+  `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+
+<a id="S4.4.9"></a>
+### S4.4.9 Podgląd poprawki i Cofnij
+
+**Poprawić** niczego od razu nie zapisuje. Najpierw pokazuje, co poprawka zmieni, a zapisuje dopiero drugim
+**Poprawić** pod podglądem.
+
+- **Podgląd** (w miejscu działań bloku; **Wczytywanie podglądu…**, dopóki badanie go nie przyśle):
+  - **Co się zmieni**: **To zadanie** „będzie czekać na skany 112–113 z księgi …”, „będzie czekać na skany z księgi …;
+    numery skanów nie są znane” lub „zostanie utworzony folder …”; **Nowe zadanie** dla każdej kolejnej księgi („dla
+    skanów … z księgi …”, „dla księgi …”; przy księdze, której nie ma w badaniu, „księgi nie ma w badaniu, nowe
+    zadanie dalej czeka jako tekst”);
+  - **Co zostaje**: czego poprawka nie zrobi, na przykład „Księgi … brakuje w badaniu – agent ją uzupełni.” Przy
+    pierwszej takiej księdze jest **Omów z agentem**;
+  - pod podglądem „Poprawka zmienia tylko to, na co czeka zadanie, i można ją cofnąć.” i **Anuluj** · **Poprawić**.
+    **Anuluj** lub Esc zamyka podgląd i zwraca fokus na **Poprawić** w bloku. Otwarty jest zawsze tylko jeden
+    podgląd.
+- **Po zapisaniu** (**Poprawianie…**): powiadomienie **Poprawiono** z **Cofnij** na 8 s. Gdy skany już leżą
+  w folderze i zadanie ma je wszystkie, **Poprawiono – skany są już zapisane, zadanie jest kontynuowane.** **Cofnij**
+  wycofuje poprawkę bez podglądu (**Cofnięto – zadanie czeka jak wcześniej.**). Gdy zadanie w międzyczasie się
+  zmieniło, **Cofnięcie nie jest już możliwe – zadanie w międzyczasie się zmieniło.** Po zniknięciu powiadomienia
+  poprawkę można cofnąć tylko w terminalu (`strom task audit T… --unfix`, [R6.9.1](R6-awaiting-action.md#R6.9.1)).
+- **Granice:**
+  - podgląd dotyczy zadania takiego, jakie było, gdy się pokazał. Gdy zadanie w międzyczasie się zmieniło:
+    **Zadanie w międzyczasie się zmieniło.** **Podgląd nie odpowiada aktualnemu stanowi.** z **Wczytać ponownie**.
+    Inne odmowy stoją pod podglądem: **Badanie właśnie zapisuje – ponowna próba będzie możliwa za chwilę.**,
+    **Badanie jest zablokowane – poprawki nie można teraz zapisać.**, **Brak miejsca na dysku badania – poprawka nie
+    została zapisana.**;
+  - na telefonie (do 640 px) podgląd jest panelem wysuwanym od dołu z **Anuluj** · **Poprawić** na dole, bez **Omów
+    z agentem**;
+  - w osobnym oknie **Przeglądu badania** powiadomienie pokazuje okno główne.
+- **Obsługa:** aplikacja: **Poprawić** w bloku **Zadanie nie jest zapisane tak, jak trzeba**; **Cofnij**
+  w powiadomieniu.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
+
 <a id="S4.5"></a>
 ## S4.5 Działania, które otwierają badanie
 
@@ -910,13 +1080,20 @@ zapłaci.
     miejsca, dzieje).
   - Gdy taka sama aktywna linia już jest, **Szukaj przodków** tylko mówi **Taka linia badania już jest: „…” –
     agent ją kontynuuje.**
-  - Aplikacja nie wie, czy terminal się otworzył. Pokazuje **Otwieranie badania…** i radę **Jeśli nic się nie
-    otworzy, trzeba uruchomić Strom Research i spróbować ponownie.**
+  - Element, którym otwarto link, mówi **Otwieranie badania…** (przy pracy agenta **Otwieranie agenta…**, przy linku
+    bez terminala **Wczytywanie…**), dopóki badanie nie potwierdzi, że link przejęło ([S4.5.4](#S4.5.4)), najwyżej
+    10 s (praca nad kolejką 30 s, [S4.2.3](#S4.2.3)). Drugie kliknięcie w tym czasie niczego ponownie nie otwiera.
+    Bez potwierdzenia element się zwalnia, a pod nim stoi **Terminal się nie otworzył?** ze **Spróbować ponownie**
+    i radą **Jeśli nic się nie otworzyło, trzeba uruchomić Strom Research.** Przy linku bez terminala stoi **Jeśli
+    nic się nie stanie, Strom Research jeszcze nie działa.**
+  - Systemowego okna przeglądarki, które pyta przed otwarciem linku, aplikacja nie widzi. Potwierdzone późno samo
+    usuwa zdanie po limicie ([S4.5.4](#S4.5.4)).
 - **Obsługa:** aplikacja: **Ustawienia → Dane i prywatność → Strom Research na tym komputerze**.
 - **Obowiązuje od:** aplikacja 3.4.0 (badanie 1.6.0). Odrzucenie w Archiwum Strom od badania 1.14.0, przy czekaniu
-  na agenta od 1.15.0.
+  na agenta od 1.15.0. Czekanie na otwarcie od aplikacji 3.30.0; do 3.29.0 aplikacja nie wiedziała, czy terminal się
+  otworzył, i pokazywała tylko powiadomienie **Otwieranie badania…** z radą.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Oznaczenia działań
@@ -929,15 +1106,15 @@ Każde działanie badania ma jedno z trzech oznaczeń według tego, co otwiera.
 | terminal | terminal pokazuje lub pyta; kliknięciem nic się nie płaci | **Otwórz badanie**, wysłanie zmian, **Sprawdź ponownie…**, **Szukaj przodków**, **Odłóż**, **Porzuć**, akcje linii, **Dokończ i zakończ**, **Cofnij ostatnie wysłanie**, ustawienia, **Kontrola badania** |
 | AI i terminal | praca agenta, płaci za nią subskrypcja AI | **Kontynuuj z agentem**, **Zapytaj agenta**, **Pracuj nad tą linią**, rozmowa o zadaniu lub sprzeczności, badanie miejsc, dzieje miejsca |
 
-- **Granice:** przy pracy agenta aplikacja przy otwieraniu pokazuje **Otwieranie agenta…** i **Pytania zadaje się
-  agentowi. Praca agenta zużywa subskrypcję AI.** Rozmowa może zamiast terminala otworzyć aplikację agenta, gdy
-  badanie jest tak ustawione.
-- **Obowiązuje od:** aplikacja 3.21.0
+- **Granice:** przy pracy agenta element przy otwieraniu mówi **Otwieranie agenta…** ([S4.5](#S4.5)). Rozmowa może
+  zamiast terminala otworzyć aplikację agenta, gdy badanie jest tak ustawione.
+- **Obowiązuje od:** aplikacja 3.21.0. Do 3.29.0 aplikacja przy otwieraniu pracy agenta pokazywała powiadomienie
+  **Otwieranie agenta…** z **Pytania zadaje się agentowi. Praca agenta zużywa subskrypcję AI.**
 - **Od aplikacji 3.28.0:** **Praca nad kolejką…** i w jej oknie **Otwórz terminal** mają oznaczenie AI i terminal
   ([S4.2.3](#S4.2.3)). Wyszukiwanie w kolejce, **Zrób jako następne** i **Cofnij** są bez oznaczenia: idą przez most
   i nic nie otwierają ([S4.2.1](#S4.2.1), [S4.2.2](#S4.2.2)).
 
-<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ -->
+<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ · 3.30.0: app:574e7ef9 research-open-busy.ts busy.openingAgent na prvku; research.openingAgentHint se už nepoužívá -->
 
 <a id="S4.5.2"></a>
 ### S4.5.2 Gdzie są działania
@@ -987,6 +1164,43 @@ Każde działanie badania ma jedno z trzech oznaczeń według tego, co otwiera.
 - **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
+<a id="S4.5.4"></a>
+### S4.5.4 Badanie potwierdza przejęty link
+
+Badanie mówi aplikacji, że przejęło link: terminal się uruchomił albo działanie, które terminala nie potrzebuje, jest
+wykonane. Aplikacja przestaje więc od razu czekać i odzywa się tylko wtedy, gdy nic się nie otworzyło
+([S4.5](#S4.5)).
+
+- **Pilnuje kod:**
+  - aplikacja daje każdemu linkowi badania nowy numer przekazania (`&handoff=<uuid>`). Badanie przyjmuje tylko numer
+    w postaci UUID; inną wartość po cichu pomija i wykonuje link jak bez niej. Z numeru nigdy niczego się nie
+    uruchamia;
+  - `strom link open` zapisuje numer do `.strom/handoffs/` w każdej kopii badania tego drzewa na komputerze. Przy
+    linku, który otwiera terminal, od razu, gdy terminal się uruchomi, przed pierwszym pytaniem. Przy linku bez
+    terminala (wycinek, skany, księga, śledzenie i inne) dopiero po wykonanym działaniu;
+  - numer nie zostaje zapisany, gdy terminala nie udało się otworzyć, przy odrzuconym linku (nieznane badanie,
+    archiwum, okno z komunikatem) ani przy linku do nowego badania z drzewa aplikacji (`new?app=…`): ten nie ma
+    jeszcze badania ani mostu. Systemowe okno przeglądarki zamknięte bez otwarcia w ogóle nie uruchamia strom;
+  - most badania podaje w `GET /status` (`handoffs`, także z `parts=1`) numery linków przejętych w ostatniej minucie,
+    najnowsze pierwsze, najwyżej 64; starsze numery i ich pliki znikają. Czyta je przy każdym zapytaniu, nie dopiero
+    gdy zmieni się stan badania. Dotyczy to także Archiwum Strom i badania, które czeka na agenta;
+  - aplikacja po przekazaniu linku pyta most co sekundę aż do limitu. Potwierdzenie, które przyjdzie w ciągu minuty
+    po limicie (okno przeglądarki potwierdzone późno), usuwa zdanie **Terminal się nie otworzył?**;
+  - most, który na zapytanie sprzed niecałych 30 s nie odpowiedział, uchodzi za niedostępny: zdanie pokazuje się od
+    razu, bez czekania;
+  - ten sam link otwarty ponownie w ciągu 400 ms nic nie robi.
+- **Granice:**
+  - badanie bez potwierdzenia: za potwierdzenie uchodzi nowa sesja agenta, w przeciwnym razie aplikacja czeka tylko
+    do limitu;
+  - link do nowego badania (`new?app=…`) kończy się po limicie po cichu; dalej aplikacja czeka, aż badanie przejmie
+    drzewo;
+  - bez działającego mostu nic się nie zgłasza, a zapisany plik sam wygasa.
+- **Obsługa:** aplikacja: każde działanie z oznaczeniem terminal lub AI i terminal ([S4.5.1](#S4.5.1)). Terminal:
+  `strom link open '<link>'`.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
 
 <a id="S4.6"></a>
 ## S4.6 Co jest tylko w terminalu

@@ -319,15 +319,18 @@ Výzkum, jehož agent na tomto počítači není (nenainstalovaný, nebo výzkum
 Do té doby se chová jako Archiv Stromu.
 
 - **Hlídá kód:**
-  - co pošle aplikace, se zapíše jako v archivu; pro agenta nic nevzniká a práce agenta je odmítnutá s větou, že
+  - co pošle aplikace, se zapíše jako v archivu; agent nic nedostane a práce agenta je odmítnutá s větou, že
     výzkum čeká na agenta, a kde ho nainstalovat nebo vybrat jiného;
-  - uložený režim se nemění a úkoly se neodkládají. Po instalaci agenta výzkum pokračuje sám s úkoly, které měl;
+  - uložený režim se nemění a úkoly, které výzkum měl, se neodkládají. Po instalaci agenta výzkum pokračuje sám s úkoly, které měl;
   - agent, který ve výzkumu právě pracuje (i jiný než nastavený), ho dělá výzkumem.
 - **Proč:** archiv je volba člověka a strom ji za něj nezapíše. Výzkum bez agenta se jen chová jako archiv, takže po
-  instalaci agenta sám pokračuje s úkoly, které měl; žádný není odložený.
+  instalaci agenta sám pokračuje s úkoly, které měl.
 - **Ovládání:** terminál: menu, první položka (**Nechat jen jako Archiv Stromu: ukládat data z aplikace Strom**,
   nebo instalace agenta); `strom mode` ukáže stav. Aplikace ukazuje takový výzkum jako **Archiv**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).
-- **Platí od:** výzkum 1.15.0
+- **Platí od:** výzkum 1.15.0; 1.35.0: nové úkoly odložené
+- **Od výzkumu 1.35.0:** úkol, který mezitím přijde (k poslanému materiálu, sken ke čtení), vznikne odložený jako
+  v archivu. Do fronty se vrátí, jakmile na výzkumu začne pracovat agent (začátek sezení, `strom run`, chat; i jiný
+  než nastavený), nebo když je nastavený agent zase na počítači.
 
-<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 -->
+<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->

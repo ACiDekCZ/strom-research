@@ -11,6 +11,9 @@ const LOCAL = 0x04034b50;
 const CENTRAL = 0x02014b50;
 const END = 0x06054b50;
 const MAX = 0xffffffff;
+/** The most a ZIP without ZIP64 holds: its bytes and its files. */
+export const ZIP_MAX_BYTES = MAX;
+export const ZIP_MAX_FILES = 0xffff;
 /** Already compressed: deflating them again only costs time. */
 const PACKED = /\.(jpe?g|png|gif|webp|tiff?|jp2|zip|gz|pdf|mp4|mov|mp3|heic)$/i;
 

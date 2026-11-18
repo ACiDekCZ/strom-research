@@ -115,6 +115,7 @@ export const PHRASES = {
   "read.source.unsure.again": "Read again ({now}; read by {who}), places not sure to look at on the scan, by the person's word — the transcript: {before}; the new reading: {after}.{same} Where the scan shows it surely, the transcript corrected with the reason; elsewhere a note at the source, the transcript as it was.",
   "read.source.unsure.review": "{source} was read again from its original ({now}; read by {who}) and its readers are not sure of some places — they disagree there or could not read them; looking at them was asked. The transcript: {before}; the new reading: {after}.{same} The wording holds the places the new reading read; each is only a lead, to be held against the scan before it is taken.",
   "archive.held": "kept for later: the research is a Strom archive (the data come from the Strom app); back in the queue when work with an agent is switched on",
+  "waiting.held": "kept for later: the research waits for its agent, which is not on this computer; back in the queue when the agent is here",
   "archive.removed": "removed in the Strom app",
   "archive.wait": "Decision on downloading from the archive {title}",
   "history.why.archive": "Nothing is looked for while the research is kept as an archive.",

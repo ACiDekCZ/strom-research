@@ -145,6 +145,42 @@ export function restoredTurn(own: unknown, at: unknown, nowMs = Date.now()): { d
 }
 
 /**
+ * Whether a task the person's own images woke (saved into its folder of the shared inbox, sent for it from the Strom
+ * app, strom media add --inbox; never a connector's or the agent's own download) goes ahead in the queue — written as
+ * strom task order next is (Task.queueAt, the same time for all woken at once: among them the queue's own order), so it
+ * holds once, until a session on it ends (core/session.ts onceDone): one that goes wrong sinks as any other. The
+ * person's own order wins: not one with a turn of its own (next, last), one off the lines whose branch or tree the
+ * person set to last or never, or one of a line paused or ended. Lazy: nothing is read until a task is asked about.
+ */
+export function goesAhead(tree: Tree): (t: Task) => boolean {
+  let ready: { ended: Session[]; stopped: Set<string>; all: ReturnType<typeof scopes>; placeOf: (t: Task) => Placed; choices: ReturnType<typeof readOffline>; offLine: OffLine } | undefined;
+  const get = () => {
+    if (ready) return ready;
+    const all = scopes(tree);
+    ready = {
+      ended: tree.list<Session>("session").filter((s) => s.state !== "open" && s.task),
+      stopped: new Set(tree.list<Research>("research").filter((r) => r.state !== "active").map((r) => r.id)),
+      all,
+      placeOf: placer(tree, all),
+      choices: readOffline(tree),
+      offLine: new Settings(tree.env, {}).offLine(tree.config),
+    };
+    return ready;
+  };
+  return (t) => {
+    const r = get();
+    if (ownTurn(t, r.ended)) return false;
+    const p = r.placeOf(t);
+    if (r.stopped.has(directionOf(tree, t, r.all) ?? p.research ?? "")) return false;
+    if (p.off) {
+      const mode = branchModeOf(r.choices, r.offLine, p.branch).mode;
+      if (mode === "last" || mode === "never") return false;
+    }
+    return true;
+  };
+}
+
+/**
  * An open task whose images wait for the person's decision about an archive: it needs images none of its record sets
  * has, and every record set of it with an address lies on a host with a question that waits (core/archivewait.ts) —
  * the question, else undefined. Out of the queue until the person decides.

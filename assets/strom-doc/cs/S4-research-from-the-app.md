@@ -66,8 +66,10 @@ Strom může sám přecházet na osobu, na které agent právě pracuje (první 
 - **Od aplikace 3.24.0:** sledovat jde i ve vějíři a na mapě ([S4.1.3](#S4.1.3)); posun mapy ji pozastaví stejně.
 - **Od aplikace 3.30.0:** ◎ **Přestat sledovat** zastaví skoky jen v okně, kde se klikne; další okna sledují dál,
   každé ve svém pohledu ([S4.1.7](#S4.1.7)).
+- **Od aplikace 3.30.0:** oblouk kolem portrétu osoby, na které agent pracuje, je vidět i vedle značek výzkumu na
+  kartičce ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) -->
+<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) · oblouk vedle značek: app:16cba085 src/card-signals.ts showAgent -->
 
 <a id="S4.1.2"></a>
 ### S4.1.2 Přizpůsobení panelu
@@ -494,8 +496,13 @@ předplatné AI.
   nabídka **Výzkum → Pracovat na frontě…** ([S4.5.2](#S4.5.2)). Terminál: `strom run --tasks N`, `strom run --loop`
   ([R7.1](R7-when-the-agent-works.md#R7.1)).
 - **Platí od:** aplikace 3.28.0 (výzkum 1.32.0); v oddílu **Teď** a **Další (n)** od aplikace 3.29.0
+- **Od aplikace 3.30.0:** po **Otevřít terminál** stojí v **Teď** **Spouští se práce na frontě…** s „Agent naběhne
+  v terminálu výzkumu.“ a obě tlačítka **Pracovat na frontě…** říkají, že se spouští, a nic znovu neotevřou. Řádek
+  zmizí, jakmile výzkum potvrdí odkaz ([S4.5.4](#S4.5.4)) nebo začne sezení či běh; pak ho nahradí řádek sezení.
+  Bez potvrzení do 30 s se **Teď** zeptá **Práce na frontě se nespustila?** („Terminál se do 30 s neozval.“) se
+  **Zkusit znovu** a radou a tlačítka jsou zase volná.
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie v aplikaci
@@ -617,6 +624,24 @@ a co jen ve výzkumu, říká [R6.5](R6-awaiting-action.md#R6.5).
 - **Od aplikace 3.30.0 s výzkumem 1.35.0:** položky jdou seskupit podle knihy, s pořadím **Nejvíc úkolů**
   a pododdílem **Urychlit stažením** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5)); nastavení knih v **Výzkumu u stromu**
   ([S4.4.6](#S4.4.6)).
+- **Od aplikace 3.30.0:** skupiny a otevřená položka (i u výzkumu bez knih):
+  - každá skupina (místo, archiv, úřad, kniha) stojí ve vlastním pásu s celým názvem, pod ním údaje a akce skupiny
+    (u archivu ty z **Web archivu ↗**, **Chat**, **Odesláno** a **Text všech dotazů**, které výzkum nabízí). Název
+    se zalomí nejvýš na 3 řádky (na telefonu, v malém panelu a v úzkém sloupci okna Přehledu na 4); delší končí „…“
+    a odkazem **víc**, který název rozvine a skupinu nesbalí (**méně** ho zase zkrátí). Položky skupiny visí pod
+    pásem na svislé lince. Seznam bez skupin a mezititulek **Bez knihy** linku nemají;
+  - otevřená položka ukáže svůj text celý a jen jednou, ve svém řádku. Tělo začíná blokem **Čeká na** s celým
+    zadáním ručního kroku, jak ho napsal výzkum (adresy v textu jsou odkazy). Text delší než 10 řádků (na telefonu
+    na šířku 3) končí „…“ a **víc** / **méně**. Druhý řádek bloku **Adresát** říká, komu žádost jde. Položka, která
+    čeká jen na člověka, blok nemá. Pod blokem stav snímků, osoba · směr a akce;
+  - text „čeká na“ má až 1500 znaků (dřív ho aplikace ořízla na 120). Malý panel ho v řádku ukáže na 2 řádky, celý
+    při najetí;
+  - položka webu má v otevřeném těle **Otevřít web ↗** a vedle adresu webu (ne na telefonu);
+  - položka čekající na snímky začíná blokem **Dodat** s kroky ([S4.4.7](#S4.4.7)).
+- **Od aplikace 3.30.0 s výzkumem 1.35.0:** úkol, jehož čekání na snímky není zapsané, jak ho strom potřebuje, má
+  značku a v otevřené položce opravu v jednom kroku ([S4.4.8](#S4.4.8), [S4.4.9](#S4.4.9)).
+
+<!-- zdroj: app:7d7c0783 src/ui/research-overview-ui.ts overviewWaitingGroupHead, overviewWaitingBookHead (pás .research-overview__waiting-grouphead, akce skupiny v pásu, ul.is-grouped; bez skupin a Bez knihy bez linky), src/ui/waiting-order-ui.ts groupTitleMoreEl (strop GROUP_TITLE_LINES 3, telefon, panel a úzký sloupec 4; víc/méně stav title:<skupina>, stopPropagation), src/ui/research-ui.ts (panel: pás, víc, is-grouped), appendWaitingWebHost, strings.ts live.titleMore, titleLess, waitingWebHostAria · app:1176f465 overviewWaitingRow (text celý v řádku, detail ho neopakuje), overviewWaitingOnBox (waitsOnUser → bez bloku; appendLinkedText; waitingOnMoreEl 10 / na šířku 3 řádky; waitingToLabel Adresát), strings.ts live.waitingOnLabel, waitingToLabel · app:96b35bbd src/research-link.ts sanitizeWaiting MAX_WAITING_ON 1500, panel .live-waiting-on 2 řádky + title · CHANGELOG.cs.md 3.30.0 · dirigent:prace/1117-app-knihy-zahlavi, 1117-app-cekana-cely-text · app:docs/ZADANI_DEV_knihy-zahlavi.md §1–§3 -->
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -648,8 +673,15 @@ značky stojí v zákrytu jako jedno tlačítko.
     každá kartička, v každém **Detailu karet**, místo značek jednu tečku. Tisk stromu značky nemá.
 - **Ovládání:** aplikace: klik na značky v rohu portrétu; **Nastavení → Karta osoby → Na kartě ukázat**.
 - **Platí od:** aplikace 3.27.0
+- **Od aplikace 3.30.0:** agent u osoby a značky jsou vidět spolu:
+  - otáčející se oblouk kolem portrétu osoby, na které agent pracuje, je vidět i vedle jedné nebo více značek;
+    značky zůstávají v rohu. Kartička bez portrétu má místo oblouku kroužek kolem tečky značky;
+  - čtečka obrazovky slyší obojí, co čeká, i „výzkum na osobě pracuje“;
+  - nabídka osoby se značkou nabízí i **Sledovat výzkum ›**;
+  - fajfka po skončené práci agenta se ukáže jen na kartičce bez značky;
+  - náhled kartičky v **Nastavení → Karta osoby** ukazuje oblouk a značku spolu.
 
-<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek · 3.30.0: app:16cba085 src/card-signals.ts showAgent i se značkou, doneSince jen bez značky · src/renderer.ts (oblouk vedle značky, kompaktní kroužek kolem tečky, aria-label obojí) · src/ui/card-fields-ui.ts náhled · src/ui/card-signals-ui.ts signal-agent (card.menuAgent) · strings.ts card.ariaAgent, card.menuAgent · CHANGELOG.cs.md 3.30.0 „Agent při práci i vedle odznaku“ · spec 109 -->
 
 <a id="S4.4.2"></a>
 ### S4.4.2 Hledání v Čeká na vyřízení
@@ -747,23 +779,33 @@ knihy, kterou potřebují. U knihy je vidět, kolik úkolů na ni čeká, co z n
 
   V **Doporučeném** pořadí je volba **Archiv** | **Kniha**; skupiny knih stojí podle své první položky, v časovém
   pořadí podle času první položky.
-- **Pořadí Nejvíc úkolů:** skupiny jsou vždy knihy (volba skupin zmizí). Knihy jdou od té, kterou potřebuje nejvíc
-  úkolů, při shodě víc čekajících, pak číslo knihy. Uvnitř knihy jsou položky v **Doporučeném** pořadí. Položky bez
-  knihy jsou na konci ve skupinách archivů.
-- **Záhlaví knihy:**
-  - název knihy (s roky), štítek **Kniha**, **nové: N** u sbalené knihy a počet položek. Při najetí název, archiv
-    a kolik úkolů knihu potřebuje (z toho odloženo);
-  - druhý řádek: archiv · „3 čekají“ · „+M ve frontě“ (úkoly knihy, které nečekají) · snímky („240 snímků · na disku
-    12 · chybí 228“) · „převezme se N souborů“ (soubory, které leží ve složce knihy a ještě se nepřevzaly) · „web
-    archivu vyžaduje přihlášení“. V pořadí **Nejvíc úkolů** jsou počty první a tučně;
-  - akce: co jde stáhnout podle podmínek archivu ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Ke stažení celá kniha
-    · N snímků“, „Ke stažení snímky 31–36 · 6 snímků“ nebo „Ke stažení vybrané snímky …“; **Web archivu ↗**;
-    **Otevřít složku** (složka knihy ve sdílené schránce, výzkum ji otevře bez terminálu a případně vytvoří,
-    [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (ne na telefonu). Klik na akci knihu nesbalí;
+- **Pořadí Nejvíc úkolů:** skupiny jsou vždy knihy (volba skupin zmizí).
+  - nahoře knihy ke stažení (chybí jim snímky, nebo počet snímků není známý), pod nimi knihy celé na disku. V každé
+    části jdou knihy od té, kterou potřebuje nejvíc úkolů, při shodě víc čekajících, pak číslo knihy. Stejně je
+    seřazené **Urychlit stažením** ([S4.4.5](#S4.4.5));
+  - má-li fáze obě části, stojí nad nimi mezititulky „Ke stažení · 2 knihy“ a „Celé na disku · 1 kniha“ (počty ve
+    fázi). S jedinou částí mezititulek není;
+  - pod řazením stojí věta „Nahoře knihy, kterým chybí snímky: jejich stažením se vyřeší nejvíc úkolů najednou.
+    Knihy celé na disku jsou pod nimi.“ V nabídce řazení má **Nejvíc úkolů** druhý řádek „knihy ke stažení nahoře“;
+  - uvnitř knihy jsou položky v **Doporučeném** pořadí. Položky bez knihy jsou na konci ve skupinách archivů.
+- **Pás knihy** (jako pás každé skupiny, [S4.4](#S4.4)):
+  - název knihy (s roky) celý, zalomený, nejvýš na 3 řádky (4 na telefonu) a **víc**. Vpravo štítek **Kniha**,
+    **nové: N** u sbalené knihy a počet položek. Při najetí název, archiv a kolik úkolů knihu potřebuje (z toho
+    odloženo);
+  - druhý řádek: archiv, celý;
+  - třetí řádek: „12 úkolů“ (kolik úkolů knihu potřebuje) · „3 čekají“ · „+M ve frontě“ (úkoly knihy, které
+    nečekají) · „2 odložené“ · snímky („240 snímků · na disku 12 · chybí 228“, kniha celá na disku „240 snímků · celá
+    na disku“) · „převezme se N souborů“ (soubory, které leží ve složce knihy a ještě se nepřevzaly) · „web archivu
+    vyžaduje přihlášení“. „Ve frontě“ a „odložené“ jen nad nulou. V pořadí **Nejvíc úkolů** je tučně počet úkolů
+    a „chybí N“;
+  - akce pod údaji: co jde stáhnout podle podmínek archivu ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Ke stažení
+    celá kniha · N snímků“, „Ke stažení snímky 31–36 · 6 snímků“ nebo „Ke stažení vybrané snímky …“; **Web archivu
+    ↗**; **Otevřít složku knihy** (složka knihy ve sdílené schránce, výzkum ji otevře bez terminálu a případně
+    vytvoří, [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (ne na telefonu). Klik na akci knihu nesbalí;
   - kniha, kterou výzkum v přehledu knih neposlal: jen název (nebo číslo knihy), štítek a počet.
 - **Hledání** ([S4.4.2](#S4.4.2)) najde položky i podle názvu a archivu jejich knihy.
-- **Malý panel:** tlačítko pořadí a „Skupiny: Kniha ▾“ s nabídkou; záhlaví knihy jen s názvem a „N čeká“,
-  mezititulek **Bez knihy**; akce knih jsou jen v **Přehledu výzkumu**. Počty položek jsou stejné jako dosud.
+- **Malý panel:** tlačítko pořadí a „Skupiny: Kniha ▾“ s nabídkou; pás knihy jen s názvem (nejvýš 4 řádky a **víc**)
+  a „N čeká“, položky na lince, mezititulek **Bez knihy**; akce knih jsou jen v **Přehledu výzkumu**. Počty položek jsou stejné jako dosud.
 - **Hranice:**
   - volba **Kniha** a pořadí **Nejvíc úkolů** jsou jen s výzkumem, který knihy posílá, a ne u Archivu Stromu ani
     u výzkumu, který čeká na agenta. Jinak vše vypadá jako dřív a uložená volba **Kniha** nebo **Nejvíc úkolů** se
@@ -772,8 +814,11 @@ knihy, kterou potřebují. U knihy je vidět, kolik úkolů na ni čeká, co z n
 - **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, vedle tlačítka pořadí přepínač **Skupiny**
   (**Archiv** | **Kniha** | **Bez skupin**); na telefonu (i na šířku) a v malém panelu tlačítko „Skupiny: Kniha ▾“
   s nabídkou (na telefonu list). Pořadí „⇅ … ▾“ › **Nejvíc úkolů**.
+- **Kniha položky** určuje výzkum: čekající úkol patří pod knihu, kterou je třeba prohledat
+  ([R6.8.4](R6-awaiting-action.md#R6.8.4)).
 - **Platí od:** výzkum 1.35.0, aplikace 3.30.0
 
+<!-- zdroj: app:7d7c0783 src/research-books.ts bookMetaParts (tasks · waiting · inQueue >0 · parked >0 · obrázky · pending · login), bookHeadImagesPieces (missing 0 → wholeOnDisk), research-overview-ui.ts overviewWaitingBookHead (archiv na vlastním řádku, akce v pásu, books.folderBook), research-ui.ts appendPanelWaitingBooks (název 4 řádky + víc, is-grouped) · app:1176f465 src/research-books.ts sortBooksMost (bookWholeOnDisk napřed false, pak tasks ↓, waiting ↓, číslo), research-waiting.ts phaseRows (part download / disk jen při obou částech, počty ve fázi), research-overview-ui.ts :1200 order-note books.mostNote, :1236 books.toDownload / onDiskAll, is-key (tasks, missing), table-headmenu.ts sub books.orderMostSub · strings.ts live.books.tasks, parked, wholeOnDisk, folderBook, toDownload, onDiskAll, mostNote, orderMostSub · research:8d19d4f6 src/core/books.ts bookOfTask (waitTarget) · ZADANI_DEV_knihy-zahlavi.md §1, §2, §4 -->
 <!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
 
 <a id="S4.4.5"></a>
@@ -828,6 +873,112 @@ do výzkumu, takže platí stejně jako v terminálu.
 
 <!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
+<a id="S4.4.7"></a>
+### S4.4.7 Položka čekající na snímky
+
+Otevřená položka, která čeká na snímky, napřed řekne, co dodat a kam, a pak ukáže kroky v pořadí, ve kterém se
+dělají. Výsledkem jsou soubory ve složce, ne odpověď.
+
+- **Kterých položek se týká:** úkol čekající na snímky (druh **Snímky**) a úkol čekající na web, kterému výzkum dal
+  složku knihy ([R6.8.4](R6-awaiting-action.md#R6.8.4)); jen když jde snímky přidat přes most. Ostatní položky jsou
+  beze změny.
+- **Blok Dodat** (na začátku těla, před **Čeká na**, [S4.4](#S4.4)): věta, které snímky jako soubory a do které
+  složky, například „Snímky 112–113 jako soubory (JPG nebo PNG) do složky knihy …“ s názvem knihy:
+  - čísla jsou ta, která ještě chybí; bez známých čísel věta čísla nemá („Snímky jako soubory (JPG nebo PNG) do
+    složky knihy …“);
+  - složka knihy, když ji výzkum má v seznamu knih se složkou a odkaz do výzkumu ji umí otevřít; jinak „… do složky
+    úkolu“. Věta jmenuje vždy tu složku, kterou otevře krok ②.
+- **Kroky** (počítač a tablet), mezi nimi šipky:
+  1. **Web archivu ↗**: web položky, jinak web knihy nebo jejího archivu;
+  2. **Otevřít složku knihy** (výzkum ji otevře bez terminálu, [R6.8.2](R6-awaiting-action.md#R6.8.2)), jinak
+     **Otevřít složku** úkolu (otevře výzkum v terminálu, se značkou terminálu);
+  3. **Mám snímky**: jediná hlavní akce, otevře místo pro nahrání snímků.
+
+  Krok, který odtud nejde, chybí a další vezme jeho číslo. Šipka se nikdy nezalomí od kroku, ke kterému vede. Pod
+  380 px šířky jsou kroky pod sebou bez šipek. Při přidávání snímků a psaní odpovědi se kroky schovají.
+- **Pod blokem:** stav snímků, místo pro přetažení, osoba · směr a odkaz **Snímky nejde získat…**. Ten otevře pole
+  **Proč snímky nejde získat** s nápovědou „Sem patří, proč snímky dodat nejde nebo co v archivu chybí. Čtení zápisu
+  sem nepatří: snímky přečte výzkum.“ Odeslání vrátí úkol do fronty jako každá odpověď
+  ([R6.7](R6-awaiting-action.md#R6.7)). Ostatní akce (**Probrat s agentem** a další, které výzkum nabízí) jsou pod **⋯**.
+- **Telefon:** jen blok **Dodat** s větou a „Snímky se ukládají na počítači.“, bez kroků. **Snímky nejde získat…**
+  otevře list odpovědi s týmž nadpisem a nápovědou.
+- **Malý panel:** okno **Mám snímky** začíná týmž blokem s kroky pod sebou; místo pro nahrání pod ním je poslední
+  krok.
+- **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, klik na položku se snímky; v malém panelu **Mám
+  snímky**.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:449e6962, 429839f0 src/ui/waiting-task-ui.ts waitingTakesImages (waitingActions images přes most), waitingAnswerTexts (answerImagesLabel, answerImagesHint), waitingDeliverEl (věta deliverSentence, phone → deliverPhone bez kroků, kroky deliverSteps web → folder → images, krok ② books.folderBook přes odkaz book jen s book.folder, jinak openFolder task?do=folder se značkou, ③ haveImages waiting-action--primary → openWaitingImages, deliver-pair šipka s krokem, is-column), panel dialog (column, upload: true, title haveImages) · src/research-waiting.ts waitingForImages (images, web s inbox), waitingDeliver (chybějící čísla jen u detail full; kniha jen ze seznamu se složkou), deliverSentence, deliverWebUrl (w.url, jinak bookWebUrl), deliverSteps · src/ui/research-overview-ui.ts appendWaitingTaskActions deliver (answer → link-button cannotGet, ostatní pod ⋯, na telefonu nic pod ⋯) · strings.ts live.waitingTask.deliverLabel, deliverBook, deliverTask, deliverBookAny, deliverTaskAny, deliverPhone, stepAria, cannotGet, answerImagesLabel, answerImagesHint · e2e/waiting-images.spec.ts, overview-waiting-books.spec.ts · ZADANI_DEV_knihy-zahlavi.md §5 · dirigent:prace/1117-app-knihy-zahlavi (D12, D13) -->
+
+<a id="S4.4.8"></a>
+### S4.4.8 Úkol, který není zapsaný, jak má
+
+Výzkum u čekajících úkolů kontroluje, jestli je čekání na snímky zapsané tak, jak ho strom potřebuje: snímky jedné
+knihy výzkumu, jedna kniha na úkol ([R6.9](R6-awaiting-action.md#R6.9)). Když není, uložené snímky úkol nevrátí do
+fronty. Aplikace u takové položky ukáže nález a nabídne opravu v jednom kroku. Položka čeká dál, počty se nemění.
+
+- **Značka:** řádek položky má před názvem výstražný trojúhelník s vykřičníkem (bublina a čtečka obrazovky **Úkol není
+  zapsaný, jak má**). V malém panelu je jen značka (**Úkol není zapsaný, jak má – otevře se v přehledu**).
+- **Blok v otevřené položce** (**Přehled výzkumu**, i v jeho samostatném okně): pod textem čekání a stavem snímků,
+  nad akcemi položky, nadpis **Úkol není zapsaný, jak má** a věta, co je špatně:
+
+  | Nález výzkumu | Věta |
+  |---|---|
+  | snímky jsou jen v textu | **Snímky jsou zapsané jen textem, bez knihy – uložené snímky úkol neprobudí.** |
+  | víc knih v jednom čekání | **Čeká na snímky dvou knih**, s neznámou knihou **; jednu z nich výzkum nezná.** |
+  | kniha, kterou výzkum nezná | **Knihu výzkum nezná – úkol nemá složku pro snímky.** |
+  | chybí složka | **Složka pro snímky chybí – oprava ji založí.** |
+
+  Když výzkum opravu nenabízí a výzkum má agenta, věta končí **Knihu do výzkumu přidá agent.** Nález, který
+  aplikace nezná, má jen nadpis.
+- **Akce bloku:**
+  - **Opravit**, jen když výzkum nabízí opravu celou nebo zčásti: ukáže náhled opravy ([S4.4.9](#S4.4.9));
+  - **Probrat s agentem** (značka AI a terminál, [S4.5.1](#S4.5.1)) otevře rozhovor k úkolu: agent dostane nález
+    a navrhne opravu. Jen u výzkumu s agentem, ne na telefonu. U položky s nálezem tahle akce není pod **⋯**;
+  - **Nechat, jak je** zapíše hned, bez náhledu, že čekání je tak správně. Nález zmizí a oznámení **Nález se už
+    nenabízí** má 8 s **Vrátit**. Výzkum nález znovu nabídne, až se čekání úkolu změní.
+- **Hranice:**
+  - výzkum nedostupný (sledování skončilo nebo most neodpovídá): **Opravit** a **Nechat, jak je** nejdou a pod nimi
+    stojí **Výzkum není dostupný – opravu teď nejde zapsat.**;
+  - nález, který mezitím zmizel: oznámení **Nález už neplatí – úkol je zapsaný správně.**;
+  - klik těsně po posunu řádků (jiný nález se opravil nebo zmizel) nic neudělá, aby se netrefila jiná položka;
+  - výzkum, který kontrolu nemá: položky jsou jako dřív, bez značky a bloku.
+- **Ovládání:** aplikace: **Přehled výzkumu → Čeká na vyřízení**, klik na položku se značkou. Terminál:
+  `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+
+<a id="S4.4.9"></a>
+### S4.4.9 Náhled opravy a Vrátit
+
+**Opravit** nic nezapíše hned. Napřed ukáže, co oprava změní, a zapíše až druhé **Opravit** pod náhledem.
+
+- **Náhled** (na místě akcí bloku; **Načítá se náhled…**, dokud ho výzkum nepošle):
+  - **Co se změní**: **Tento úkol** „bude čekat na snímky 112–113 knihy …“, „bude čekat na snímky knihy …, čísla
+    snímků nejsou známá“ nebo „založí se složka …“; **Nový úkol** pro každou další knihu („pro snímky … knihy …“,
+    „pro knihu …“; u knihy, která ve výzkumu není, „kniha ve výzkumu není, nový úkol čeká dál textem“);
+  - **Co zůstane**: co oprava neudělá, například „Kniha … ve výzkumu chybí – doplní ji agent.“ U první takové
+    knihy je **Probrat s agentem**;
+  - pod náhledem „Oprava mění jen to, na co úkol čeká, a jde vrátit.“ a **Zrušit** · **Opravit**. **Zrušit** nebo
+    Esc náhled zavře a fokus vrátí na **Opravit** v bloku. Otevřený je vždy jen jeden náhled.
+- **Po zápisu** (**Opravuje se…**): oznámení **Opraveno** s **Vrátit** na 8 s. Když už snímky ve složce leží a úkol
+  je má všechny, **Opraveno – snímky už jsou uložené, úkol pokračuje.** **Vrátit** vezme opravu zpět bez náhledu
+  (**Vráceno – úkol čeká jako dřív.**). Když se úkol mezitím změnil, **Vrátit už nejde – úkol se mezitím
+  změnil.** Po zmizení oznámení jde oprava vrátit jen v terminálu (`strom task audit T… --unfix`,
+  [R6.9.1](R6-awaiting-action.md#R6.9.1)).
+- **Hranice:**
+  - náhled platí pro úkol, jak byl, když se ukázal. Když se úkol mezitím změnil: **Úkol se mezitím změnil.**
+    **Náhled neodpovídá aktuálnímu stavu.** s **Načíst znovu**. Další odmítnutí stojí pod náhledem: **Výzkum
+    právě zapisuje – další pokus půjde za chvíli.**, **Výzkum je zamčený – oprava teď nejde zapsat.**, **Na disku
+    výzkumu není místo – oprava se nezapsala.**;
+  - na telefonu (do 640 px) je náhled list zespodu s **Zrušit** · **Opravit** dole, bez **Probrat s agentem**;
+  - v samostatném okně **Přehledu výzkumu** ukáže oznámení hlavní okno.
+- **Ovládání:** aplikace: **Opravit** v bloku **Úkol není zapsaný, jak má**; **Vrátit** v oznámení.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
+
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum
 
@@ -844,13 +995,19 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
   - Archiv Stromu a výzkum, který čeká na agenta, práci agenta odmítnou (rozhovor, prověření, hledání, místa, dějiny).
   - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „…“ – agent v ní
     pokračuje.**
-  - Aplikace nepozná, jestli se terminál otevřel. Ukáže **Otevírám výzkum…** a radu **Když se nic neotevře, je potřeba
-    spustit Strom Research a zkusit to znovu.**
+  - Prvek, kterým se odkaz otevřel, říká **Otevírá se výzkum…** (u práce agenta **Otevírá se agent…**, u odkazu bez
+    terminálu **Načítá se…**), dokud výzkum nepotvrdí, že odkaz převzal ([S4.5.4](#S4.5.4)), nejdéle 10 s (práce na
+    frontě 30 s, [S4.2.3](#S4.2.3)). Druhý klik mezitím nic znovu neotevře. Bez potvrzení se prvek uvolní a pod ním
+    stojí **Terminál se neotevřel?** se **Zkusit znovu** a radou **Když se nic neotevřelo, je potřeba spustit Strom
+    Research.** U odkazu bez terminálu stojí **Když se nic nestane, Strom Research ještě neběží.**
+  - Systémový dialog prohlížeče, který se před otevřením odkazu ptá, aplikace nevidí. Potvrzený pozdě větu po
+    limitu sám smaže ([S4.5.4](#S4.5.4)).
 - **Ovládání:** aplikace: **Nastavení → Data a soukromí → Strom Research na tomto počítači**.
 - **Platí od:** aplikace 3.4.0 (výzkum 1.6.0). Odmítnutí v Archivu Stromu od výzkumu 1.14.0, při čekání na agenta od
-  1.15.0.
+  1.15.0. Čekání na otevření od aplikace 3.30.0; do 3.29.0 aplikace nepoznala, jestli se terminál otevřel, a ukázala
+  jen oznámení **Otevírám výzkum…** s radou.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Značky akcí
@@ -863,15 +1020,15 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
 | terminál | terminál ukáže nebo se zeptá; kliknutím se nic neplatí | **Otevřít výzkum**, poslání úprav, **Prověřit znovu…**, **Hledat předky**, **Odložit**, **Vzdát**, akce linie, **Dokončit a skončit**, **Vrátit poslední poslání**, nastavení, **Kontrola výzkumu** |
 | AI a terminál | práce agenta, platí ji předplatné AI | **Pokračovat s agentem**, **Zeptat se agenta**, **Pracovat na této linii**, rozhovor k úkolu nebo rozporu, výzkum míst, dějiny místa |
 
-- **Hranice:** u práce agenta aplikace při otevírání ukáže **Otevírám agenta…** a **Dotazy se zadávají agentovi.
-  Práce agenta čerpá předplatné AI.** Rozhovor může místo terminálu otevřít aplikaci agenta, když je tak výzkum
-  nastavený.
-- **Platí od:** aplikace 3.21.0
+- **Hranice:** u práce agenta říká prvek při otevírání **Otevírá se agent…** ([S4.5](#S4.5)). Rozhovor může místo
+  terminálu otevřít aplikaci agenta, když je tak výzkum nastavený.
+- **Platí od:** aplikace 3.21.0. Do 3.29.0 aplikace při otevírání práce agenta ukázala oznámení **Otevírám agenta…**
+  s **Dotazy se zadávají agentovi. Práce agenta čerpá předplatné AI.**
 - **Od aplikace 3.28.0:** **Pracovat na frontě…** a v jeho dialogu **Otevřít terminál** mají značku AI a terminál
   ([S4.2.3](#S4.2.3)). Hledání ve frontě, **Udělat jako další** a **Vrátit** jsou bez značky: jdou přes most a nic
   neotevřou ([S4.2.1](#S4.2.1), [S4.2.2](#S4.2.2)).
 
-<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ -->
+<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ · 3.30.0: app:574e7ef9 research-open-busy.ts busy.openingAgent na prvku; research.openingAgentHint se už nepoužívá -->
 
 <a id="S4.5.2"></a>
 ### S4.5.2 Kde akce jsou
@@ -917,6 +1074,38 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
 - **Platí od:** výzkum 1.29.0, aplikace 3.25.0
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
+<a id="S4.5.4"></a>
+### S4.5.4 Výzkum potvrdí převzatý odkaz
+
+Výzkum aplikaci řekne, že odkaz převzal: terminál naběhl, nebo je hotová akce, která terminál nepotřebuje. Aplikace
+tak přestane čekat hned a ozve se, jen když se nic neotevřelo ([S4.5](#S4.5)).
+
+- **Hlídá kód:**
+  - aplikace dá každému odkazu výzkumu nové číslo předání (`&handoff=<uuid>`). Výzkum vezme jen číslo tvaru UUID;
+    jinou hodnotu tiše vynechá a odkaz provede jako bez ní. Z čísla se nikdy nic nespouští;
+  - `strom link open` číslo zapíše do `.strom/handoffs/` v každé kopii výzkumu toho stromu na počítači. U odkazu,
+    který otevírá terminál, hned, jak terminál naběhne, před první otázkou. U odkazu bez terminálu (výřez, snímky,
+    kniha, sledování a další) až po hotové akci;
+  - číslo se nezapíše, když se terminál otevřít nepodařilo, u odmítnutého odkazu (neznámý výzkum, archiv, okno
+    s hláškou) ani u odkazu na nový výzkum ze stromu aplikace (`new?app=…`): ten ještě nemá výzkum ani most.
+    Systémový dialog prohlížeče zavřený bez otevření strom vůbec nespustí;
+  - most výzkumu říká v `GET /status` (`handoffs`, i s `parts=1`) čísla odkazů převzatých za poslední minutu,
+    nejnovější první, nejvýš 64; starší čísla i jejich soubory zmizí. Čte je při každém dotazu, ne až se změní stav
+    výzkumu. Platí i v Archivu Stromu a ve výzkumu, který čeká na agenta;
+  - aplikace se po předání odkazu ptá mostu každou sekundu až do limitu. Potvrzení, které přijde do minuty po
+    limitu (dialog prohlížeče potvrzený pozdě), větu **Terminál se neotevřel?** smaže;
+  - most, který na dotaz před méně než 30 s neodpověděl, platí za nedostupný: věta se ukáže hned, bez čekání;
+  - tentýž odkaz otevřený znovu do 400 ms nic neudělá.
+- **Hranice:**
+  - výzkum, který potvrzení nemá: za potvrzení platí nové sezení agenta, jinak čeká aplikace jen do limitu;
+  - odkaz na nový výzkum (`new?app=…`) končí po limitu potichu; dál aplikace čeká, až si výzkum strom vezme;
+  - bez běžícího mostu se nic nehlásí a zapsaný soubor sám zanikne.
+- **Ovládání:** aplikace: každá akce se značkou terminál nebo AI a terminál ([S4.5.1](#S4.5.1)). Terminál:
+  `strom link open '<odkaz>'`.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
 
 <a id="S4.6"></a>
 ## S4.6 Co je jen v terminálu

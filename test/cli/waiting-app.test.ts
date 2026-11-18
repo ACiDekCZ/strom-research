@@ -13,7 +13,7 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { waitingFor } from "../../src/core/waiting.ts";
-import { numbersForTask } from "../../src/core/inboxwait.ts";
+import { nextImage, numbersForTask } from "../../src/core/inboxwait.ts";
 import { archiveOfSite } from "../../src/core/waitkind.ts";
 import { encodeImage } from "../../src/image/index.ts";
 import type { Media, Task } from "../../src/core/model.ts";
@@ -84,11 +84,26 @@ test("the numbers of what came for a task: X-Strom-Image, else the name, else th
   // a site with a book (which images not known): a number by the header or the name, any
   assert.deepEqual(numbersForTask(1, { name: "kniha-41.jpg", missing: [] }), { numbers: [41], by: "name" });
   assert.deepEqual(numbersForTask(1, { image: 300, missing: [] }), { numbers: [300], by: "image" });
-  assert.deepEqual(numbersForTask(1, { name: "obrázek.jpg", missing: [] }), { code: "waiting.image-unknown", missing: [] });
-  assert.deepEqual(numbersForTask(1, { name: "Snímek obrazovky 2026-11-04 v 10.15.jpg", missing: [] }), { code: "waiting.image-unknown", missing: [] });
   assert.deepEqual(numbersForTask(1, { name: "IMG_0057.JPG", missing: [] }), { numbers: [57], by: "name" });
+  // K044: which images not known, a name with no number or several — the book's next free number(s), never refused
+  for (const name of ["obrázek.jpg", "skan.jpg", "Akta 1831 102.jpg", "IMG_20241117_101500.jpg", "Snímek obrazovky 2026-11-04 v 10.15.jpg", "Скан 1831 102.jpg".normalize("NFD")])
+    assert.deepEqual(numbersForTask(1, { name, missing: [], next: 43 }), { numbers: [43], by: "order" }, name);
+  assert.deepEqual(numbersForTask(1, { name: "skan.jpg", missing: [] }), { numbers: [1], by: "order" }, "none taken yet: 1");
+  assert.deepEqual(numbersForTask(3, { name: "kniha.pdf", missing: [], next: 7 }), { numbers: [7, 8, 9], by: "order" }, "a PDF's pages one after another");
+  assert.deepEqual(numbersForTask(1, { name: "IMG_0057.JPG", missing: [], next: 43 }), { numbers: [57], by: "name" }, "one number in the name still counts");
+  assert.deepEqual(numbersForTask(1, { image: 12, name: "skan.jpg", missing: [], next: 43 }), { numbers: [12], by: "image" }, "the sender's number first");
+  // the images asked for known: unchanged; not known which — never an empty list (all asked for when none is missing)
+  assert.deepEqual(numbersForTask(1, { name: "skan.jpg", want: [9, 10], missing: [9, 10], next: 43 }), { code: "waiting.image-unknown", missing: [9, 10] });
+  assert.deepEqual(numbersForTask(1, { name: "skan.jpg", want: [9, 10], missing: [], next: 43 }), { code: "waiting.image-unknown", missing: [9, 10] });
   // a date in the name that happens to be a number asked for: not taken for it
   assert.deepEqual(numbersForTask(1, { name: "Snímek 2026-11-10.png", want: [9, 10], missing: [9, 10] }), { code: "waiting.image-unknown", missing: [9, 10] });
+});
+
+test("K044: the next free number of a book — the highest registered or lying in its folder (a name with one number) + 1", () => {
+  assert.equal(nextImage([], []), 1);
+  assert.equal(nextImage([3, 41, 7], []), 42);
+  assert.equal(nextImage([3], ["/x/B0001 Lhota/44.jpg", "/x/B0001 Lhota/IMG_20241117_101500.jpg", "/x/B0001 Lhota/skan.jpg"]), 45, "a camera's date and time names no image");
+  assert.equal(nextImage(new Set([2]), ["/x/snímek 9.jpg".normalize("NFD")]), 10);
 });
 
 test("V1: the person's answer from the app — the task back as by strom task wake --answer, given in the app; refused: changed since, a check, empty or too long, no task that waits, no app", bridged, async () => {
@@ -251,9 +266,10 @@ test("V2 + V3: a site with one book — its inbox and the action images; scans s
     assert.equal(before.inbox?.want, undefined, "which images: not known");
     assert.deepEqual(before.inbox?.missing, []);
     assert.equal(before.inbox?.have, 0);
+    assert.equal(before.inbox?.next, 1, "the next free number of a book with none yet");
     // images of a book asked by their numbers: the same actions, the want said
     const t1 = (await statusOf(info.url)).waiting.find((i) => i.id === "T0001")!;
-    assert.deepEqual([t1.actions, t1.inbox?.want, t1.inbox?.missing, t1.inbox?.have], [["answer", "images", "folder", "chat"], 2, [9, 10], 0]);
+    assert.deepEqual([t1.actions, t1.inbox?.want, t1.inbox?.missing, t1.inbox?.have, t1.inbox?.next], [["answer", "images", "folder", "chat"], 2, [9, 10], 0, undefined]);
     // a family's answer and a check: no images
     const t3 = (await statusOf(info.url)).waiting.find((i) => i.id === "T0003")!;
     assert.ok(!t3.actions?.includes("images"));
@@ -263,13 +279,24 @@ test("V2 + V3: a site with one book — its inbox and the action images; scans s
     assert.deepEqual([one.json.images, one.json.state, one.json.woken], [[41], "waiting", false]);
     const two = await send(fs.readFileSync(path.join(fixtures, "cmyk.jpg")), { "X-Strom-Image": "42" });
     assert.equal(two.status, 200, two.body);
-    const unnamed = await send(fs.readFileSync(path.join(fixtures, "png-rgb.png")), { "X-Strom-Name": "obrázek.png" });
-    assert.deepEqual([unnamed.status, unnamed.json.code], [409, "waiting.image-unknown"]);
+    assert.equal((await statusOf(info.url)).waiting.find((i) => i.id === "T0002")!.inbox?.next, 43, "the next free number: after 41 and 42");
+    // K044: a name with no number or several (a year and an act's number, a camera's date and time): the book's next
+    // free number, one after another in the order they came — never refused (smyšlené názvy)
+    const akta = scan(64, 48, 40).bytes;
+    const names = ["Akta 1831 102.jpg", "IMG_20241117_101500.jpg", "skan.jpg"];
+    const got = [];
+    for (const [i, name] of names.entries()) got.push(await send(i === 0 ? akta : scan(64, 48, 80 + i * 40).bytes, { "X-Strom-Name": name.normalize(i === 2 ? "NFD" : "NFC") }));
+    assert.deepEqual(got.map((g) => [g.status, g.json?.images, g.json?.by, g.json?.same]), [[200, [43], "order", false], [200, [44], "order", false], [200, [45], "order", false]], got.map((g) => g.body).join("\n"));
+    assert.equal(got[2]!.json.inbox.next, 46, "the next free number in the answer too");
+    // the same scan sent again keeps its number: only said, nothing taken
+    const again = await send(akta, { "X-Strom-Name": "Akta 1831 102.jpg" });
+    assert.deepEqual([again.status, again.json?.images, again.json?.same], [200, [43], true], again.body);
     const after = (await statusOf(info.url)).waiting.find((i) => i.id === "T0002")!;
-    assert.equal(after.inbox?.have, 2, "the scans handed to it count");
+    assert.equal(after.inbox?.have, 5, "the scans handed to it count");
+    assert.equal(after.inbox?.next, 46);
     const t2 = await task(w, "T2");
-    assert.equal(t2.state, "waiting");
-    assert.equal(t2.files?.length, 2);
+    assert.equal(t2.state, "waiting", "which images not known: the scans never bring it back");
+    assert.equal(t2.files?.length, 5);
     const answered = await post(`${info.url}/waiting/T0002`, JSON.stringify({ do: "answer", text: "Snímky 41 a 42 jsou uložené, zbytek knihy bez zápisu." }), app);
     assert.equal(answered.status, 200, answered.body);
     assert.equal((await task(w, "T2")).state, "open");

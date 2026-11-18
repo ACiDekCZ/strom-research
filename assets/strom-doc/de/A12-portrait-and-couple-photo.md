@@ -96,8 +96,7 @@ Markierung **Porträt** bei der Person, und der Ausschnitt lässt sich deshalb j
   Materialien der Person und im Panel des Betrachters (Hinweis „Aus diesem Foto stammt das Porträt der Person.“). In
   der Bearbeitung der Person wechselt die Markierung sofort mit dem Porträt, noch vor **Speichern**.
 - **Porträt aus einem Foto, das die Person schon hat:** **Als Porträt…** in der Zeile eines Bildanhangs (vor dem
-  Papierkorb), **Als Porträt verwenden…** im Menü ⋯ der Materialien der Person und im Panel des Betrachters (zwischen
-  **Herunterladen** und **Aus dem Stammbaum löschen**). Der Editor öffnet sich über diesem Anhang; ein neuer Anhang
+  Papierkorb), **Als Porträt verwenden…** im Menü ⋯ der Materialien der Person und im Panel des Betrachters (vor **Aus dem Stammbaum entfernen…**). Der Editor öffnet sich über diesem Anhang; ein neuer Anhang
   entsteht nicht. Aus der Bearbeitung der Person wird das Ergebnis mit **Speichern** gespeichert, von anderswo sofort:
   „Porträt von {Name} ersetzt.“ mit **Rückgängig**. Die Forschung muss dafür nicht laufen.
 - **Die Person hat schon ein Porträt:** der Editor zeigt „Die Person hat schon ein Porträt. Fertig ersetzt es, das
@@ -115,7 +114,7 @@ Markierung **Porträt** bei der Person, und der Ausschnitt lässt sich deshalb j
   Betrachter des Anhangs.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (mezi Stáhnout a Smazat ze stromu), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
 
 <a id="A12.3"></a>
 ## A12.3 Den Ausschnitt später bearbeiten
@@ -279,11 +278,13 @@ weg.
 <a id="A12.8"></a>
 ## A12.8 Fotos in den Daten des Stammbaums
 
-Das Original eines Porträts, der Ausschnitt und das Paarfoto sind Teil des Stammbaums (Datenversion 23). Sie gehen mit
-dem Stammbaum in die Datensicherung JSON und in die Datei **App mit den Daten**.
+Das Original eines Porträts, der Ausschnitt und das Paarfoto sind Teil des Stammbaums (Datenversion 24: jede Datei
+des Stammbaums ist ein Material mit seinen Stellen, [A3.5](A3-evidence-in-the-app.md#A3.5)). Sie gehen mit dem
+Stammbaum in die Datensicherung JSON und in die Datei **App mit den Daten**. Wo sie überall gespeichert sind,
+beschreibt [S8](S8-where-the-data-are.md).
 
-- **Eine ältere App** (ab 3.19.0) öffnet einen Stammbaum der Version 23 nur schreibgeschützt und speichert ihn nicht,
-  damit sie Porträts, Originale und Paarfotos nicht verwirft ([A6.7.7](A6-views.md#A6.7.7)).
+- **Eine ältere App** (ab 3.19.0) öffnet einen Stammbaum der Version 24 nur schreibgeschützt und speichert ihn nicht,
+  damit sie Porträts, Originale, Paarfotos und die Stellen der Dateien nicht verwirft ([A6.7.7](A6-views.md#A6.7.7)).
 - **Rückgängig:** jedes **Fertig** außerhalb der Bearbeitung der Person ist ein Schritt; in der Bearbeitung der
   Person wird alles mit deren **Speichern** gespeichert und zurückgenommen; zwei Porträts aus einem Paarfoto sind ein
   Schritt.
@@ -291,14 +292,17 @@ dem Stammbaum in die Datensicherung JSON und in die Datei **App mit den Daten**.
   Partnerschaften bleibt das Foto der behaltenen Partnerschaft, und hat sie keines, das Foto der anderen.
 - **Zusammenführen von Stammbäumen** ([A8](A8-merging-trees.md)): das Paarfoto aus der zusammengeführten Datei kommt
   hinzu, wo die Partnerschaft im Stammbaum keines hat; ein Porträt behält das Original des Porträts, das gewonnen hat.
-- **Stammbaum aus der Forschung oder einem Strom-Archiv:** weder die Forschung noch das Archiv halten Porträts,
-  Originale, Paarfotos und Verknüpfungen, und sie senden sie nicht. Das Laden einer neuen Version aus der Forschung
-  lässt sie im Stammbaum: hat die Forschung bei einer Person oder einem Paar ein eigenes Foto, gilt ihres; sonst
-  bleibt das Foto aus dem Stammbaum. Ein in der App entferntes Porträt, ein entfernter Anhang oder ein entferntes
-  Paarfoto kommt mit der nächsten Aktualisierung nicht zurück.
-- **Grenzen:** Porträts, Originale und Paarfotos sind nur im Stammbaum in der App und in seinen Sicherungen. Eine
-  Verknüpfung mit dem Original, die nicht passt (Original fehlt, Ausschnitt außerhalb des Fotos, Winkel über 45°),
-  wird beim Laden verworfen; das Porträt bleibt.
-- **Gilt seit:** App 3.30.0
+- **Stammbaum aus der Forschung oder dem Strom-Archiv:** ab 1.35.0 halten die Forschung und das Archiv Porträts,
+  Originale von Porträts, Paarfotos und Anhänge: das Schreiben des Stammbaums übergibt sie, und das Laden des
+  Stammbaums gibt sie nach ihrem Fingerabdruck zurück ([S8.3](S8-where-the-data-are.md#S8.3)). Die Forschung hält
+  nur den Ausschnitt nicht, also wo im ganzen Foto das Porträt liegt; der Stammbaum in der App behält ihn. Die
+  Forschung bis 1.34 hält nichts davon: das Laden einer neuen Version lässt sie im Stammbaum; hat die Forschung bei
+  einer Person oder einem Paar ein eigenes Foto, gilt ihres, sonst bleibt das Foto aus dem Stammbaum. Ein in der App
+  entferntes Porträt, ein entfernter Anhang oder ein entferntes Paarfoto kommt mit der nächsten Aktualisierung nicht
+  zurück.
+- **Grenzen:** ohne die Forschung 1.35.0 sind Porträts, Originale und Paarfotos nur im Stammbaum in der App und in
+  seinen Sicherungen. Eine Verknüpfung mit dem Original, die nicht passt (Original fehlt, Ausschnitt außerhalb des
+  Fotos, Winkel über 45°), wird beim Laden verworfen; das Porträt bleibt.
+- **Gilt seit:** App 3.30.0; Fotos in der Forschung mit der Forschung 1.35.0
 
-<!-- zdroj: app:src/types.ts:1814 STROM_DATA_VERSION 23 (app:59b9dde9) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7); obnova z výzkumu je spec 108, zatím nedokumentovat -->
+<!-- zdroj: app:src/types.ts:1862 STROM_DATA_VERSION 24 (app:2b66d7cf; verze 23 app:59b9dde9, obě v 3.30.0) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7), platí pro výzkum do 1.34 · spec 108: dirigent:spec/108-kde-se-co-uklada U8, K2.3 (výřez se nevrací) · app:3419afff, 7263f1f6, src/research-link.ts carryOverMedia base · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->

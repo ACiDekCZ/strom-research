@@ -83,7 +83,7 @@ Portrét si pamatuje, ze které fotky a jak byl vyříznutý. Celá fotka zůsta
 - **Štítek Portrét** je u přílohy, ze které je portrét, v úpravě osoby, v materiálech osoby a v panelu prohlížeče
   (popisek „Z této fotky je portrét osoby.“). V úpravě osoby se štítek mění hned s portrétem, ještě před **Uložit**.
 - **Portrét z fotky, která už u osoby je:** **Jako portrét…** v řádku obrázkové přílohy (před košem), **Použít jako
-  portrét…** v nabídce ⋯ materiálů osoby a v panelu prohlížeče (mezi **Stáhnout** a **Smazat ze stromu**). Editor se
+  portrét…** v nabídce ⋯ materiálů osoby a v panelu prohlížeče (před **Odstranit ze stromu…**). Editor se
   otevře nad tou přílohou; nová příloha nevznikne. Z úpravy osoby se výsledek uloží s **Uložit**, odjinud hned:
   „Portrét osoby {jméno} nahrazen.“ s **Vrátit**. Výzkum k tomu nemusí běžet.
 - **Osoba už portrét má:** editor ukáže „Osoba už portrét má. Hotovo ho nahradí, jde to vrátit.“ a náhledy **Dnešní**
@@ -97,7 +97,7 @@ Portrét si pamatuje, ze které fotky a jak byl vyříznutý. Celá fotka zůsta
 - **Ovládání:** úprava osoby, sekce fotky a **Přílohy**; stránka osoby, materiály a prohlížeč přílohy.
 - **Platí od:** aplikace 3.30.0
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (mezi Stáhnout a Smazat ze stromu), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
 
 <a id="A12.3"></a>
 ## A12.3 Upravit výřez později
@@ -239,24 +239,27 @@ Originál portrétu a fotka svazku jsou fotky: jdou do exportu s fotkami a vypad
 <a id="A12.8"></a>
 ## A12.8 Fotky v datech stromu
 
-Originál portrétu, výřez a fotka svazku jsou součástí stromu (verze dat 23). Jdou se stromem do zálohy JSON
-a do souboru **Aplikace i s daty**.
+Originál portrétu, výřez a fotka svazku jsou součástí stromu (verze dat 24: každý soubor stromu je jeden
+materiál s místy, [A3.5](A3-evidence-in-the-app.md#A3.5)). Jdou se stromem do zálohy JSON a do
+souboru **Aplikace i s daty**. Kde všude jsou uložené, popisuje [S8](S8-where-the-data-are.md).
 
-- **Starší aplikace** (od 3.19.0) otevře strom verze 23 jen ke čtení a neuloží ho, aby portréty, originály a fotky
-  svazků nezahodila ([A6.7.7](A6-views.md#A6.7.7)).
+- **Starší aplikace** (od 3.19.0) otevře strom verze 24 jen ke čtení a neuloží ho, aby portréty, originály, fotky
+  svazků a místa souborů nezahodila ([A6.7.7](A6-views.md#A6.7.7)).
 - **Vrátit:** každé **Hotovo** mimo úpravu osoby je jeden krok; v úpravě osoby se vše uloží a vrací s jejím
   **Uložit**; dva portréty z fotky svazku jsou jeden krok.
 - **Sloučení osob:** propojení s originálem jde s portrétem, který zůstane. U svazků zůstane fotka ponechaného
   svazku, a když ji nemá, fotka druhého.
 - **Sloučení stromů** ([A8](A8-merging-trees.md)): fotka svazku ze slučovaného souboru přibude, kde ji svazek ve
   stromu nemá; portrét si drží originál toho portrétu, který zvítězil.
-- **Strom z výzkumu nebo archivu Strom:** výzkum ani archiv portréty, originály, fotky svazků a propojení nedrží
-  a neposílá je. Načtení nové verze z výzkumu je ve stromu ponechá: když výzkum u osoby nebo páru vlastní fotku
-  má, platí jeho; jinak zůstane fotka ze stromu. Portrét, příloha nebo fotka svazku odebraná v aplikaci se
-  s další aktualizací nevrátí.
-- **Hranice:** portréty, originály a fotky svazků jsou jen ve stromu v aplikaci a v jeho zálohách. Propojení
-  s originálem, které nesedí (originál chybí, výřez mimo fotku, úhel nad 45°), se při načtení zahodí; portrét
-  zůstane.
-- **Platí od:** aplikace 3.30.0
+- **Strom z výzkumu nebo Archivu Stromu:** výzkum a archiv od 1.35.0 portréty, originály portrétů, fotky svazků
+  a přílohy drží: zápis stromu je předá a načtení stromu je vrátí podle otisku
+  ([S8.3](S8-where-the-data-are.md#S8.3)). Výzkum nedrží jen výřez, tedy kde v celé fotce portrét je; strom
+  v aplikaci si ho ponechá. Výzkum do 1.34 nic z toho nedrží: načtení nové verze je ve stromu ponechá; když
+  výzkum u osoby nebo páru vlastní fotku má, platí jeho, jinak zůstane fotka ze stromu. Portrét, příloha nebo
+  fotka svazku odebraná v aplikaci se s další aktualizací nevrátí.
+- **Hranice:** bez výzkumu 1.35.0 jsou portréty, originály a fotky svazků jen ve stromu v aplikaci a v jeho
+  zálohách. Propojení s originálem, které nesedí (originál chybí, výřez mimo fotku, úhel nad 45°), se při
+  načtení zahodí; portrét zůstane.
+- **Platí od:** aplikace 3.30.0; fotky ve výzkumu s výzkumem 1.35.0
 
-<!-- zdroj: app:src/types.ts:1814 STROM_DATA_VERSION 23 (app:59b9dde9) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7); obnova z výzkumu je spec 108, zatím nedokumentovat -->
+<!-- zdroj: app:src/types.ts:1862 STROM_DATA_VERSION 24 (app:2b66d7cf; verze 23 app:59b9dde9, obě v 3.30.0) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7), platí pro výzkum do 1.34 · spec 108: dirigent:spec/108-kde-se-co-uklada U8, K2.3 (výřez se nevrací) · app:3419afff, 7263f1f6, src/research-link.ts carryOverMedia base · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->

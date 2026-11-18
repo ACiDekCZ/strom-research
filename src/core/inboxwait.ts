@@ -211,6 +211,11 @@ export interface InboxState {
   missing: number[];
   /** Files lying in the folder, not taken yet. */
   lying: number;
+  /**
+   * The next free image number of the book (the highest registered or lying in the folder + 1): what a file with no
+   * number in its name is given for a task that does not know which images (K044) — the app offers it as said.
+   */
+  next: number;
   /** Why the files lying there cannot be taken (for the agent; the person's words from its code). */
   problem?: string;
   problemCode?: "inbox.unnamed" | "inbox.count";
@@ -229,7 +234,23 @@ export function inboxState(tree: Tree, shared: string | undefined, t: Task): Inb
   const missing = want.filter((n) => !reg.has(n) && !lyingNums.has(n));
   // which ones not known: the files lying there and the images the Strom app handed to it for this wait
   const have = want.length ? want.length - missing.length : files.length + handedImages(tree, t, w.recordset).length;
-  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code } : {}) };
+  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code } : {}) };
+}
+
+/**
+ * The next free image number of a book: the highest of its images registered and of the files lying in its folder
+ * (only a name with one number counts: a camera's date and time names no image) + 1; none yet: 1.
+ */
+export function nextImage(registered: Iterable<number>, lying: string[]): number {
+  let top = 0;
+  for (const n of registered) if (n > top) top = n;
+  for (const f of lying) {
+    const stem = path.basename(f).normalize("NFC").replace(/\.[^.]*$/u, "");
+    if ((stem.match(/\p{Nd}+/gu)?.length ?? 0) !== 1) continue;
+    const n = numberInName(stem);
+    if (n !== undefined && n > top) top = n;
+  }
+  return top + 1;
 }
 
 /** What the task asks now (its waitingOn, else what): the mark of a file handed to it for this wait (Task.files). */
@@ -256,9 +277,12 @@ export type ForTask = { numbers: number[]; by: "image" | "name" | "order" } | { 
 /**
  * The image numbers of `count` pictures sent for a task at once (one file, or the pages of a PDF): from `image` on when
  * the sender says it (each one asked for, else refused with what is asked); else the number in the file's name (one
- * picture, a number asked for or none asked); else onto the images still missing when there are as many; else not known.
+ * picture, a number asked for or none asked); else, for a task that does not know which images, the next free numbers
+ * of the book from `next` on (K044: a name with no number or several — a year and an act's number, a camera's date —
+ * is never refused); else onto the images still missing when there are as many; else not known, with the images
+ * missing to choose from (all asked for when none is missing: never an empty list).
  */
-export function numbersForTask(count: number, o: { image?: number | undefined; name?: string | undefined; want?: number[] | undefined; missing: number[] }): ForTask {
+export function numbersForTask(count: number, o: { image?: number | undefined; name?: string | undefined; want?: number[] | undefined; missing: number[]; next?: number | undefined }): ForTask {
   const want = o.want ?? [];
   if (o.image !== undefined) {
     const numbers = Array.from({ length: count }, (_, i) => o.image! + i);
@@ -272,6 +296,10 @@ export function numbersForTask(count: number, o: { image?: number | undefined; n
     const n = runs === 1 ? numberInName(stem) : undefined;
     if (n !== undefined && n > 0 && (!want.length || want.includes(n))) return { numbers: [n], by: "name" };
   }
-  if (want.length && o.missing.length === count) return { numbers: [...o.missing], by: "order" };
-  return { code: "waiting.image-unknown", missing: [...o.missing] };
+  if (!want.length) {
+    const from = o.next !== undefined && o.next > 0 ? o.next : 1;
+    return { numbers: Array.from({ length: count }, (_, i) => from + i), by: "order" };
+  }
+  if (o.missing.length === count) return { numbers: [...o.missing], by: "order" };
+  return { code: "waiting.image-unknown", missing: o.missing.length ? [...o.missing] : [...want] };
 }

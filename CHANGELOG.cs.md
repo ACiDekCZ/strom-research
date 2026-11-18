@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
@@ -23,22 +23,75 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   každý výzkum svoje – nastaví se v aplikaci Strom, v nabídce stromu (Nastavení › Archivy › Knihy s nejvíc úkoly) nebo příkazem
   `strom config set … --for-tree`. Odkaz z aplikace otevře složku knihy, bez terminálu.
 - **Čekající úkol pod knihou, kterou je třeba prohledat:** úkol, který čeká na prohledání knihy na webu archivu, je
-  v Co čeká a v aplikaci Strom zařazený pod tou knihou, ne pod knihou, kde se našla stopa: pod knihou, kterou mu dal
-  agent (`strom task wait|edit --book`), jinak pod jedinou knihou, kterou jmenuje jeho text. Dokud se kniha teprve
-  hledá, čeká úkol bez knihy a pro jeho snímky se nenabízí složka jiné knihy.
-- **Snímky uložené do složky knihy:** snímky uložené ručně do složky knihy, na kterou nečeká žádný úkol, si strom vezme
-  (most nebo příští sezení) podle čísla snímku v názvu a všechny úkoly té knihy je čtou z disku; soubory JPEG 2000
-  portálu, jehož názvy počítají snímek × 10 (MZA Brno), se přepočtou zpět.
-- **Poznámka účastníka z aplikace Strom:** poznámka kmotra nebo svědka upravená v aplikaci Strom 3.29.0 a novější se
-  vrací do výzkumu, ze souboru i z toho, co aplikace posílá rovnou přes most. Poznámka, která je jen začátkem poznámky
-  výzkumu (jak ji držela starší aplikace, nebo zkrácená v aplikaci – i řezem mezi písmenem a jeho čárkou), se sama
-  nikdy nepřevezme: strom sync to řekne jedním řádkem a na člověka čeká otázka (v tom, co čeká, i v aplikaci Strom),
-  zda kratší poznámku převzít, nebo ponechat poznámku výzkumu. Ptá se jednou: stejný strom poslaný znovu už se neptá.
-- **Poznámka změněná po odeslání z aplikace:** když strom vrací poznámky, které odeslání z aplikace Strom zapsalo
-  k podobnému údaji, poznámku změněnou od té doby nechá být a na člověka čeká úkol ji zkontrolovat (v tom, co čeká,
-  i v aplikaci Strom), nikdy jen řádek v historii.
-- **Windows: po kontrole přihlášení nic neběží dál:** kontrola, zda je agent v terminálu přihlášený, ukončí vše, co
+  v aplikaci Strom zařazený pod tou knihou, ne pod knihou, kde se našla stopa: pod knihou, kterou mu dal agent
+  (`strom task wait|edit --book`), jinak pod jedinou knihou, kterou jmenuje jeho text. Dokud se kniha teprve hledá,
+  čeká úkol bez knihy a pro jeho snímky se nenabízí složka jiné knihy. Co čeká v nabídce stromu řadí úkoly dál podle
+  toho, na koho čekají (archiv, úřad, rodina).
+  Úkol, který čeká na snímky ukládané ručně, se vrátí sám jen tehdy, když jeho čekání jmenuje knihu výzkumu a čísla
+  snímků (`strom task wait T… --images B…:57-58`), jedna kniha na úkol. strom teď odmítne čekání, které snímky jmenuje
+  jen slovy, chce snímky několika knih najednou nebo knihu, kterou výzkum ještě nemá, a místo toho řekne přesné příkazy.
+  `strom task audit` najde čekání takto zapsaná dřív (starší verzí) a každé opraví jedním krokem – úkol čeká na snímky
+  své knihy, každá další kniha dostane vlastní úkol a už uložené snímky se rovnou převezmou – s cestou zpět, dokud se
+  mezitím nic nezměnilo; čekání jde také nechat, jak je. Rozhovor o takovém úkolu (`strom chat --task`) tím začne a
+  agent opravu zapíše až po souhlasu člověka.
+  Aplikace Strom dostane u každého čekajícího úkolu tytéž nálezy a čekání v ní jde opravit, opravu vrátit nebo čekání nechat, jak je.
+- **Snímky knihy od člověka:** snímky uložené ručně do složky knihy, na kterou nečeká žádný úkol, si strom vezme (most
+  nebo příští sezení) podle čísla snímku v názvu a všechny úkoly té knihy je čtou z disku; soubory JPEG 2000 portálu,
+  jehož názvy počítají snímek × 10 (MZA Brno), se přepočtou zpět. U úkolu, který neví, které snímky knihy potřebuje,
+  se sken poslaný z aplikace Strom už neodmítne, když jeho název nedává číslo snímku nebo jich dává víc (rok a číslo
+  aktu, datum a čas z fotoaparátu): dostane další volné číslo knihy (za nejvyšším, které tam je), víc najednou po
+  sobě; číslo zadané v aplikaci nebo jediné číslo v názvu má dál přednost. Most aplikaci Strom řekne další volné
+  číslo, aby ho mohla nabídnout. Úkol probuzený dodanými snímky přijde na řadu hned: úkol, který čekal na snímky
+  knihy, se vrátí do fronty jako další na řadě, jako by byl ručně posunut dopředu (po rozdělané práci), když snímky
+  dodá člověk – poslané k němu z aplikace Strom, uložené do jeho složky sdílené schránky nebo převzaté přes `strom
+  media add --inbox`. Víc úkolů probuzených najednou jde dopředu všechny, mezi sebou v obvyklém pořadí. Platí to
+  jednou: po sezení na úkolu zase obvyklé pořadí. Úkol probuzený jinak (odpověď archivu, rozhodnutí, dopis, snímky
+  stažené agentem nebo stahovačem) zůstane na svém místě a ručně nastavené pořadí (na konec, větev, která se nezkoumá)
+  platí dál.
+  Braniborský archiv (BLHA) podle své odpovědi z 18. listopadu 2026: jednotlivé snímky jeho duplikátů matrik (Rep. 5KB,
+  CC-0) jde ukládat prohlížečem člověka v lidském tempu a nechat je číst agenta – nikdy prohledávání jeho databáze ani
+  celá kniha; cituje se „BLHA, Rep. 5KB Nr. <n>“ s číslem snímku.
+- **Poznámky z aplikace Strom:** poznámka kmotra nebo svědka upravená v aplikaci Strom 3.29.0 a novější se vrací do
+  výzkumu, ze souboru i z toho, co aplikace posílá rovnou přes most. Poznámka, která je jen začátkem poznámky výzkumu
+  (jak ji držela starší aplikace, nebo zkrácená v aplikaci – i řezem mezi písmenem a jeho čárkou), se sama nikdy
+  nepřevezme: strom sync to řekne jedním řádkem a na člověka čeká otázka (v tom, co čeká, i v aplikaci Strom), zda
+  kratší poznámku převzít, nebo ponechat poznámku výzkumu. Ptá se jednou: stejný strom poslaný znovu už se neptá. Když
+  strom vrací poznámky, které odeslání z aplikace Strom zapsalo k podobnému údaji, poznámku změněnou od té doby nechá
+  být a na člověka čeká úkol ji zkontrolovat (v tom, co čeká, i v aplikaci Strom), nikdy jen řádek v historii.
+- **Windows: po kontrole přihlášení nic neběží dál, okno odkazu s titulkem:** kontrola, zda je agent v terminálu přihlášený, ukončí vše, co
   spustila, když trvá příliš dlouho, a čtečky už nevypisují varování Node DEP0190.
+  Terminál, který na Windows otevře odkaz aplikace Strom, má titulek Strom Research (druhá instalace se svým jménem),
+  ne cestu k node.exe.
+- **Žádné změny, které v aplikaci Strom nevznikly:** po zápisu z aplikace Strom už „nezapsáno“ neuvádí citaci rodiny
+  s jedním rodičem (starší aplikace Strom ji posílá s prázdným sňatkem) ani pramen úprav v aplikaci Strom (ty
+  aplikace nikdy nedostává) jako odebrané.
+  Odkaz aplikace Strom, který otevírá terminál nebo něco dělá v počítači, výzkum aplikaci potvrdí, jakmile terminál
+  naskočí nebo je hotovo, takže aplikace přestane čekat hned a ozve se, jen když se nic neotevřelo.
+- **Rodinný materiál: v balíku zvlášť, s dávkami, odložený, dokud tu agent není, fotky a soubory aplikace Strom uložené s místy ve stromu:** `strom pack` a odebrání rodokmenu z
+  tohoto počítače rozlišují skeny z archivů od rodinných fotek a originálů: balík říká, kolik čeho nese, a odebrání se
+  na rodinné fotky a originály ptá zvlášť (bez výslovného ano zůstanou) – znovu je nikdo nestáhne. Balík nese i dávky,
+  ve kterých aplikace Strom poslala rodinný materiál (název, lidé, poznámka), a rozbalení je vrátí. Balík, který by měl
+  přes 4 GB, se odmítne dřív, než se cokoli zapíše, jednou větou: takový výzkum přenese zkopírovaná celá složka. Výzkum,
+  který čeká na svého agenta, odloží úkoly k materiálu, který mezitím přijde, jako archiv; do fronty se vrátí, jakmile
+  na něm agent zase pracuje.
+  Portréty, fotky páru a soubory připojené v aplikaci Strom
+  k osobě, páru, události nebo prameni se při odeslání stromu z aplikace uloží do výzkumu: každý soubor jednou (podle
+  obsahu), jako záznam rodinného materiálu s titulkem, druhem, datem, poznámkou a svými místy ve stromu. Nový portrét
+  si ponechá předchozí jako starší verzi. Soubor odebraný z místa v aplikaci se odebere jen tehdy, když aplikace pošle
+  všechny své soubory, a jen to, co aplikace už dostala (nikdy soubor přidaný v jiném okně ani to, co přidal výzkum);
+  `strom sync undo` ho vrátí a soubor sám se nikdy nemaže. Výzkum dává soubory aplikaci Strom zpět se stromem, balíček
+  (`strom pack`) je přenese, originál páru poslaný z aplikace je materiálem obou partnerů a strom převzatý z aplikace
+  přinese své soubory s sebou. Starší data výzkumu nepotřebují nic: schéma přejde na 3 samo, nic se nepřepisuje.
+  Co aplikace Strom ukazuje z materiálu, říká, kde je který soubor použit
+  (osoby, páry, události, prameny), kde z něj vznikly výňatky nebo citace a které úkoly ho potřebují; soubor odebraný ze
+  všech míst ve stromu se ukáže jako odebraný a jde vrátit. Titulek, druh a datum se upravují u jednoho i mnoha souborů
+  najednou (`strom input edit`, i z aplikace, s cestou zpět) a osoba přidaná k souboru stromu se stane jeho místem.
+  Ve výzkumu s agentem jde vybrané soubory nechat roztřídit čtenářem (`strom material sort` nebo z aplikace): navrhne
+  titulek, datum, druh a místa s důvodem a jistotou, nic nezapíše, nikdy nepřepíše, co nastavil člověk, a počítá se do
+  limitů čtení z aplikace. Čtení jsou placená: třídění začne až po souhlasu člověka (v terminálu, v okně systému nebo
+  v dialogu aplikace), nikdy samo ani na pokyn agenta.
+  Třídění materiálu se bez dotazu spustí jen tehdy, když ho přijal a podepsal most aplikace Strom; záznam zapsaný jinak
+  (nebo zařazený starší verzí) se nespustí a je potřeba ho zadat znovu v aplikaci.
 
 ## 1.34.0
 

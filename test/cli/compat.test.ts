@@ -40,9 +40,15 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
     // research's language.
     const first = await w.ok(["check"]);
     assert.match(first.out, /^ok — data souhlasí|(^|\n)0 chyb,/, first.out);
-    const brought = /^Data rodokmenu jsou převedená pro tuto verzi stromu \(operace každého uložení ve vlastním malém souboru; ve výzkumu se nic nezměnilo\)\.$/m;
-    if (schema < SCHEMA_VERSION) assert.match(first.err, brought, first.err);
-    else assert.doesNotMatch(first.err, brought, "the schema of today: nothing to bring forward");
+    // each step by its own sentence: the ones of the schemas after the tree's, none of those it had
+    const steps: Record<number, RegExp> = {
+      2: /^Data rodokmenu jsou převedená pro tuto verzi stromu \(operace každého uložení ve vlastním malém souboru; ve výzkumu se nic nezměnilo\)\.$/m,
+      3: /^Data rodokmenu jsou převedená pro tuto verzi stromu \(soubory stromu aplikace Strom lze uchovat u materiálu; ve výzkumu se nic nezměnilo\)\.$/m,
+    };
+    assert.equal(Object.keys(steps).length, SCHEMA_VERSION - 1, "a sentence for each step");
+    for (const [to, brought] of Object.entries(steps))
+      if (schema < Number(to)) assert.match(first.err, brought, first.err);
+      else assert.doesNotMatch(first.err, brought, `schema ${to} the tree had: nothing to bring forward`);
     assert.doesNotMatch(first.err, /schema \d/);
     // its history says it so too (found on Mac: "schema 2: the operations…" in a Czech history)
     const said = (await w.ok(["status"])).out;

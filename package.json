@@ -1,7 +1,7 @@
 {
   "name": "strom-research",
   "version": "1.34.0",
-  "stromDoc": "96365f0915d6704ac23a6cc8cc15ff76b4ce3b0f",
+  "stromDoc": "780b9f8dc63690cd91819c7eaf314253f728223d",
   "description": "Genealogical research toolkit for AI coding agents",
   "type": "module",
   "stromLayout": 2,

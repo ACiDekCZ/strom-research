@@ -45,6 +45,14 @@ export function switchMode(tree: Tree, to: Mode): { tasks: string[] } {
     { op: "config.set", summary: to === "archive" ? "the research is an archive" : "the research works with an agent again" },
   );
   if (to === "archive") return { tasks: holdForArchive(tree) };
+  return { tasks: wakeHeld(tree, "work with an agent again", "research switched on") };
+}
+
+/**
+ * The tasks put aside where nobody researched (an archive, a research waiting for its agent) back to what they were:
+ * in the queue, or waiting for the user. Each logged with the reason; the caller holds the lock and commits.
+ */
+export function wakeHeld(tree: Tree, why: string, reason: string): string[] {
   const touched: string[] = [];
   for (const t of tree.list<Task>("task")) {
     if (t.state === "parked" && t.heldBy === "archive") {
@@ -53,13 +61,13 @@ export function switchMode(tree: Tree, to: Mode): { tasks: string[] } {
       tree.put({ ...rest, state: back, updated: new Date().toISOString() } as Task, {
         op: "task.wake",
         targets: [t.id],
-        summary: back === "waiting" ? `${t.id} waits for the user again: work with an agent again` : `${t.id} back in the queue: work with an agent again`,
-        reason: "research switched on",
+        summary: back === "waiting" ? `${t.id} waits for the user again: ${why}` : `${t.id} back in the queue: ${why}`,
+        reason,
       });
       touched.push(t.id);
     }
   }
-  return { tasks: touched };
+  return touched;
 }
 
 /**

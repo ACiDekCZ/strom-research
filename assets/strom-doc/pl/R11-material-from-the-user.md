@@ -3,7 +3,8 @@
 
 Co badanie robi z plikami, tekstami i drzewami genealogicznymi, które daje mu użytkownik: w terminalu albo z aplikacji
 Strom. Jak materiał wysyła się z aplikacji, opisuje [A3.5](A3-evidence-in-the-app.md#A3.5); odpowiedź plikiem na
-czekające zadanie [R6.7.1](R6-awaiting-action.md#R6.7.1). Opisuje badanie 1.27.0. Przy zasadach rozróżnia się, czego
+czekające zadanie [R6.7.1](R6-awaiting-action.md#R6.7.1). Opisuje badanie 1.27.0; zmiany z nowszej wersji mają
+przy sobie jej numer. Przy zasadach rozróżnia się, czego
 **pilnuje kod**, a co jest tylko **zasadą metodyki**.
 
 <a id="R11.1"></a>
@@ -139,3 +140,127 @@ na zadania.
 - **Obowiązuje od:** badanie 1.12.0; partia z telefonu 1.18.0
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+
+<a id="R11.5"></a>
+## R11.5 Materiał badania i pliki drzewa z aplikacji
+
+Każdy plik, który badanie trzyma, to rekord materiału (`I…`): plik wysłany przy osobie, plik partii, plik
+z terminala i plik drzewa z aplikacji Strom. Rekord ma tytuł, rodzaj i datę, osoby, do których należy, a przy pliku
+drzewa także swoje miejsca w drzewie aplikacji.
+
+- Rodzaj to `photo`, `document`, `record` lub `other` (w aplikacji **Zdjęcie**, **Dokument**, **Akt**, **Inne**).
+  Badanie pamięta, kto nadał tytuł: człowiek (aplikacja, terminal) czy badanie.
+- Ukryty plik (`unrelated`, `duplicate`, bez powodu) zostaje w badaniu razem z oryginałem i można go znowu pokazać.
+- **Pilnuje kod:**
+  - ukrycie, usunięcie z drzewa ani cofnięcie zapisu nie kasuje pliku: oryginał i rekord zostają;
+  - zmianę tytułu, rodzaju i daty pliku spoza drzewa badanie zapisuje od razu. Przy pliku drzewa zmiana pojawi się
+    w aplikacji z kolejnym wczytaniem drzewa;
+  - badanie odrzuca całą zmianę, gdy nie zna jednego z plików lub nie może odczytać wartości ([R11.5.2](#R11.5.2)).
+- **Granice:** rekordy z miejscami w drzewie są w schemacie drzewa 3 (od badania 1.35.0). Przejście nic nie
+  nadpisuje; starszy `strom` drzewa w schemacie 3 nie otworzy. Materiał w aplikacji opisuje
+  [A3.5](A3-evidence-in-the-app.md#A3.5).
+- **Obsługa:** terminal: `strom input list`, `strom input show I…` (gdzie plik jest i co z niego powstało), `strom
+  input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. Aplikacja: okno
+  **Materiały**.
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+
+<a id="R11.5.1"></a>
+### R11.5.1 Pliki drzewa z aplikacji
+
+Badanie 1.35.0 trzyma też portrety, zdjęcia par i załączniki drzewa z aplikacji Strom. Każdy plik zapisuje raz,
+według zawartości, i zapamiętuje jego miejsca w drzewie: załącznik lub portret osoby, załącznik lub zdjęcie pary,
+plik wydarzenia, dowód źródła.
+
+- Plik, którego oryginał przyszedł wcześniej (`PUT /media`), badanie rozpoznaje po odcisku oryginału; w przeciwnym
+  razie po odcisku wysłanych bajtów. Pomniejszoną kopię, którą pokazuje aplikacja, zapisuje bez zmian obok oryginału.
+- Nowy portret zastępuje stary: stary zostaje jako starsza wersja (miejsce wycofane z powodem `replaced`).
+- Rekord jest **w drzewie**, dopóki ma co najmniej jedno miejsce, które nie jest wycofane.
+- **Pilnuje kod:**
+  - usunięcie w aplikacji badanie zapisuje tylko wtedy, gdy zapis niesie wszystkie pliki drzewa (`media=app`),
+    i tylko wobec tego, co aplikacja dostała z jej plikami. Tego, co dodało inne okno, nie usuwa;
+  - usunięty plik zostaje w materiale, ukryty z powodem **Usunięto z drzewa**. Pokazany znowu dostaje z powrotem
+    miejsca, które zabrał mu ostatni zapis;
+  - `strom sync undo I…` przywraca też miejsca, które zapis usunął;
+  - do aplikacji plik wraca według odcisku (`GET /tree.ged?images=ref&media=app`), tylko pliki z miejscem w drzewie.
+    Kadr portretu w pierwotnym zdjęciu nie wraca, portret tak ([S8.3](S8-where-the-data-are.md#S8.3)).
+- **Granice:** badanie, które plików drzewa nie trzyma (do 1.34), nic z tego nie robi; aplikacja liczy wtedy zdjęcia
+  i załączniki jako tylko w przeglądarce ([S8.4](S8-where-the-data-are.md#S8.4)).
+- **Obsługa:** aplikacja: zapis drzewa ([S2](S2-edits-from-the-app.md)), **Usuń z drzewa…** i **Przywróć** w oknie
+  **Materiały**; terminal: `strom sync undo I…`, `strom input unskip I…`.
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:2aeeb228 · src/core/appmedia.ts (hlavička: soubor jednou podle otisku, keepBytes, MediaReader) · src/core/treemedia.ts (návrat GET /tree.ged?images=ref&media=app, POST /images, GET /image/<sha>) · research:91ab6230 (odebrání jen se všemi soubory, proti základu media=app, sync undo, restoreTakenOff) · research:d5e99375, 815bc90d, 7d7628eb · src/core/material.ts unhideMaterial (spec 102 M3) · dirigent:spec/108-kde-se-co-uklada K2.3 (photoSource se nevrací) -->
+
+<a id="R11.5.2"></a>
+### R11.5.2 Tytuł, rodzaj, data i osoby z terminala
+
+Tytuł, rodzaj i datę pliku ustawia `strom input edit`, osoby `strom input assign`. Oba dotyczą materiału badania
+i plików drzewa z aplikacji; aplikacja dostanie je z kolejnym plikiem drzewa.
+
+- `strom input edit I… --title … --kind photo|document|record|other --date …`: najwyżej 500 plików, tytuł najwyżej
+  200 znaków, data jak w GEDCOM (`1932`, `ABT 1930`, `12 MAY 1932`); `""` usuwa wartość. Odpowiedź podaje, co każdy
+  plik miał wcześniej (`was`): ta sama zmiana z tymi wartościami ją cofa. Więcej plików przez `--files-from`.
+- `strom input assign` dodaje (`--add P…`) lub usuwa (`--remove P…`) osoby plików lub całych partii (`--batch`).
+  Przy pliku drzewa dodana osoba to nowe miejsce: w aplikacji załącznik osoby.
+- `strom input hide I… --why unrelated|duplicate` ukrywa plik; `strom input unskip I…` pokazuje go znowu.
+- **Pilnuje kod:** wszystko albo nic: nieznany plik, za długi tytuł, nieczytelny rodzaj lub data i nic się nie
+  zapisze. `--dry-run` tylko pokazuje, co by się zmieniło.
+- **Obsługa:** terminal, zob. wyżej. To samo robi okno **Materiały** w aplikacji przez most.
+- **Obowiązuje od:** badanie 1.20.0 (`strom input assign`, `hide`, `unskip`); 1.35.0: `strom input edit`, miejsca
+  plików drzewa
+
+<!-- zdroj: research:a7df632d src/commands/intake.ts input edit, assign, hide, unskip · src/core/material.ts checkEdit, editMaterial, MATERIAL_MOST_EDIT=500, MATERIAL_TITLE_MAX=200, assignMaterial (místo u souboru stromu, spec 102 M4) · research:cc709045 příklady v helpu · help input edit, input assign, input hide -->
+
+<a id="R11.5.3"></a>
+### R11.5.3 Porządkowanie materiału: `strom material sort`
+
+`strom material sort` daje pliki materiału do przeczytania czytelnikom badania. Dla każdego pliku proponują tytuł,
+datę, rodzaj i połączenia z osobami, parami, ich wydarzeniami i źródłami drzewa, z uzasadnieniem i pewnością. Do
+badania nic się nie zapisuje.
+
+- Propozycja jest zapisana obok badania (`strom material show <id>`). To, co człowiek z niej przyjmie, zapisuje się
+  jako jego: w aplikacji albo przez `strom input edit`.
+- `--text` to to, co człowiek wie o plikach; czytelnicy kierują się nim tam, gdzie pliki nie mówią inaczej.
+- `--queue` tylko zapisuje porządkowanie do kolejki; `strom material cancel <id>` je zatrzymuje.
+- **Pilnuje kod:**
+  - najwyżej 50 plików i 2000 znaków tekstu; z PDF pierwsze 10 stron. Plik, którego żaden czytelnik nie otworzy,
+    ocenia według nazwy, ścieżki i notatek;
+  - nigdy nie proponuje tytułu, rodzaju ani daty nadanych przez człowieka, połączenia, które człowiek nadał lub
+    usunął, ani ID, którego badanie nie ma. Nie proponuje portretu ani zdjęcia pary;
+  - płatne czytania zaczną się dopiero po zgodzie człowieka: we własnym terminalu (Enter to nie) lub w oknie
+    systemu. Gdy nie ma kogo zapytać, polecenie kończy się kodem 4. Agent nigdy nie odpowiada za człowieka;
+  - porządkowanie z aplikacji most uruchomi tylko z własnym podpisem, a ten jest ważny raz. Rekord, który tylko
+    podaje się za porządkowanie z aplikacji, nigdy się nie uruchomi;
+  - w kolejce czekają najwyżej 3 porządkowania.
+- **Granice:** tylko badanie z agentem: Archiwum Strom i badanie, które czeka na agenta, materiału nie porządkują.
+- **Obsługa:** terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
+  cancel`; aplikacja: **Uporządkuj agentem…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+
+<a id="R11.5.4"></a>
+### R11.5.4 Materiał przez most
+
+Okno **Materiały** w aplikacji czyta i zmienia materiał przez most badania. Każda zmiana to to samo polecenie co
+w terminalu, z tymi samymi granicami.
+
+| Most | Co robi | Polecenie |
+|---|---|---|
+| `GET /material` | pliki z tytułem, rodzajem, datą, osobami, przy plikach drzewa miejsca, a przy każdym użycie | |
+| `GET /material/<I…>/uses` | wycinki, źródła i zadania, które używają pliku | |
+| `POST /material/assign` | osoby plików | `strom input assign` |
+| `POST /material/hide` | ukryć i pokazać znowu (przy usuniętym pliku drzewa z miejscami) | `strom input hide`, `unskip` |
+| `POST /material/edit` | tytuł, rodzaj i data, 1–500 plików | `strom input edit` |
+| `POST /material/sort` | porządkowanie 1–50 plików; postęp `GET /material/sort/<id>`, anulowanie `…/cancel` | `strom material sort` |
+
+- Badanie ogłasza, co umie, w `/status.features`: `media.app`, `material.links`, `material.edit`, `material.uses`
+  i `material.sort` (tylko tam, gdzie jest agent). Bez nich aplikacja zachowuje się jak ze starszym badaniem.
+- **Pilnuje kod:** zmiana jest cała albo żadna; zajęte badanie odpowie, że nic nie zmieniło. Porządkowanie odrzuci
+  bez agenta, z wyczerpanym limitem czytania, z pełną kolejką i gdy agent teraz nie może pracować.
+- **Obsługa:** aplikacja: okno **Materiały**, z działającym mostem ([S1.1](S1-connecting-app-and-research.md#S1.1)).
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->

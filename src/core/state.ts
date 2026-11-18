@@ -1,15 +1,20 @@
 // The state of a research: research (an agent at work on it), waiting (its agent not on this computer) or an archive.
 // A research waiting for its agent acts as an archive (Milan's decision, 2026-10-15): what the app sends is written as
-// it is, no task is made for the agent, nothing of an agent, a queue or a cost is said. Its stored mode never changes
-// for it — the agent installed, the research goes on by itself with the tasks it had (none put aside). Apart from
-// core/mode.ts, which the settings' own modules read (no cycle).
+// it is, nothing of an agent, a queue or a cost is said. A task that comes meanwhile (the material sent, a scan to read)
+// is put aside as in an archive (spec 108 K1b.5); the tasks it had stay as they were. Its stored mode never changes for
+// it — the agent installed, the research goes on by itself: what was put aside comes back the moment the agent works
+// (settleWaiting). Apart from core/mode.ts, which the settings' own modules read (no cycle).
 
 import type { TreeConfig } from "./model.ts";
 import type { Env } from "./paths.ts";
 import { agentsHere } from "./apps.ts";
 import { Settings } from "./config.ts";
 import { AGENTS, detectAgent } from "./which.ts";
-import { isArchive } from "./mode.ts";
+import { heldInArchive, isArchive, wakeHeld } from "./mode.ts";
+import { phrase } from "./phrases.ts";
+import { writableUnasked } from "./integrity.ts";
+import type { Task } from "./model.ts";
+import type { Tree } from "./tree.ts";
 import { anyoneAtWork } from "./workers.ts";
 import { UsageError } from "./errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -43,6 +48,38 @@ export function stateOf(tree: { config: TreeConfig; env: Env; root?: string }): 
 /** Acts as an archive: an archive, or a research waiting for its agent — what comes is kept, nothing made for an agent. */
 export function actsAsArchive(tree: { config: TreeConfig; env: Env; root?: string }): boolean {
   return stateOf(tree) !== "research";
+}
+
+/**
+ * A task coming in where nobody researches waits put aside (records.create): an archive's (core/mode.ts), and one of a
+ * research waiting for its agent — the same mark (heldBy "archive", no new value), its own reason; back when the agent
+ * is here (settleWaiting).
+ */
+export function heldWhereNobody(tree: Tree, task: Record<string, unknown>): Record<string, unknown> {
+  if (task.state !== "open") return task;
+  if (isArchive(tree)) return heldInArchive(tree, task);
+  if (stateOf(tree) !== "waiting") return task;
+  return { ...task, state: "parked", heldBy: "archive", parkedReason: phrase(tree.lang, "waiting.held") };
+}
+
+/**
+ * A research no longer waiting for its agent: the tasks put aside meanwhile back where they were, committed. `atWork`:
+ * an agent starts on it now (strom run, chat, session start — the one asked for is here, even another than the
+ * research's own); else only when its own agent is here. Never in an archive (strom mode research brings its tasks
+ * back), nor while strom may not write it unasked: next time.
+ */
+export function settleWaiting(tree: Tree, atWork = false): string[] {
+  if (isArchive(tree) || tree.dryRun || !tree.key) return [];
+  const held = (t: Task) => t.state === "parked" && t.heldBy === "archive";
+  if (!tree.list<Task>("task").some(held)) return [];
+  if (!atWork && stateOf(tree) !== "research") return [];
+  let back: string[] = [];
+  tree.atomically(() => {
+    if (!writableUnasked(tree)) return;
+    back = wakeHeld(tree, "the research's agent is here", "the agent is here");
+    if (back.length) tree.commit(`Tasks back: the research's agent is here (${back.join(", ")})`);
+  });
+  return back;
 }
 
 /** The two kinds the Strom app shows: a research, or an archive (Milan's decision, 2026-10-23). */

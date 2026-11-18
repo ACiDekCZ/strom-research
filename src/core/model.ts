@@ -765,6 +765,16 @@ export const WAIT_KINDS = ["letter", "family", "web", "other"] as const;
 export const TASK_LEVELS = ["intake", "locate", "link", "verify", "enrich", "request", "narrate"] as const;
 export const TASK_STATES = ["open", "doing", "done", "parked", "waiting", "dropped"] as const;
 
+/** What strom task audit --fix changed on a task (Task.auditFix). */
+export interface TaskAuditFix {
+  at: string;
+  by: string;
+  givenIn?: "app";
+  before: { waitingOn?: string; wait?: Task["wait"]; awaits?: Task["awaits"]; where: string[] };
+  made: string[];
+  after: Record<string, string>;
+}
+
 /** A unit of research work. Contract: what, where, why, done-when. */
 export interface Task extends BaseRecord {
   type: "task";
@@ -822,6 +832,21 @@ export interface Task extends BaseRecord {
    * consent, not a wake: the task still waits. Gone when it waits no more, or is set waiting again.
    */
   sent?: { at: string; by: string };
+  /**
+   * The task it was split off by strom task audit --fix (one book per task: the wait of the other named several).
+   * Optional: an older strom keeps it and ignores it.
+   */
+  splitFrom?: string;
+  /**
+   * What strom task audit --fix changed on it, for undoing it (--unfix): the wait before, the tasks it made, each
+   * task's `updated` right after — undone only while none has changed since. Optional: an older strom keeps it.
+   */
+  auditFix?: TaskAuditFix;
+  /**
+   * The person kept its wait as it is (strom task audit --keep): the kinds of findings then and a hash of the wait —
+   * it holds while the wait is the same and finds nothing more. Optional: an older strom keeps it.
+   */
+  auditKept?: { at: string; by: string; givenIn?: "app"; kinds: string[]; wait: string };
   /**
    * What the person answered for it (strom task wake --answer/--check, only by the person: their terminal, a window of
    * the system, strom's menu) — kept apart from the notes, which an agent writes too.
@@ -1136,7 +1161,51 @@ export interface Input extends BaseRecord {
    * the reason's code, and the state it had, which strom input unskip gives it back. Gone when shown again.
    */
   hidden?: { at: string; by: string; reason?: (typeof HIDE_REASONS)[number]; was: "new" | "processed" };
+  /**
+   * A file of the Strom app's tree (a portrait, a couple's photo, an attachment of a person, a couple, an event or a
+   * source), kept when a send brought it: the place it first came for. None: material of the research.
+   */
+  origin?: (typeof MEDIA_ORIGINS)[number];
+  /** The working copy the app shows when it is not the file itself (the original came by PUT /media): kept as it came. */
+  working?: { sha: string; mime: string; bytes: number; width?: number; height?: number };
+  /** The original's EXIF orientation, as the app sent it (_STROM_ORIENT). */
+  orient?: number;
+  /** Who gave the title: the user (the app, strom input title) or the research (an agent sorting); when. */
+  titled?: { by: "user" | "research"; at: string };
+  /** What it is, as the user said in the app (3 TYPE under FORM). */
+  materialKind?: (typeof MATERIAL_KINDS)[number];
+  /** The couples (F…) it is of, as the app said with an original (X-Strom-Family). */
+  families?: string[];
+  /** Its places in the tree of the Strom app: a record is in the tree while one of them is not retracted. */
+  links?: MediaLink[];
   notes: Note[];
+}
+
+/** Which place of the app's tree a file of it first came for. */
+export const MEDIA_ORIGINS = ["portrait", "couple", "attachment"] as const;
+
+/** The places a file has in the app's tree: a person's attachment or portrait, a couple's or its photo, an event's, a source's. */
+export const LINK_TYPES = ["person", "personPortrait", "family", "familyPhoto", "event", "source"] as const;
+
+/** What a file of the material is, as the app and the material's list name it. */
+export const MATERIAL_KINDS = ["photo", "document", "record", "other"] as const;
+
+/** Why a place of a file stopped being one: the app left it out, a new version took the place, the user removed it. */
+export const LINK_RETRACTIONS = ["app", "replaced", "removed"] as const;
+
+/** A place of a file in the app's tree. */
+export interface MediaLink {
+  type: (typeof LINK_TYPES)[number];
+  /** The person, family or source; of an event, its owner (P… or F…). */
+  ref: string;
+  /** The event (E…), for type event. */
+  event?: string;
+  /** Its order among the files of the place. */
+  order: number;
+  at: string;
+  /** The send (I…) that gave it. */
+  input?: string;
+  retracted?: { at: string; reason: (typeof LINK_RETRACTIONS)[number]; input?: string };
 }
 
 /** Why a file of the material is hidden: nothing of the family, the same as another. */
@@ -1322,7 +1391,7 @@ export type ExcerptScope = (typeof EXCERPT_SCOPES)[number];
 /** Default limit of all of them in one file, MB. */
 export const EXCERPTS_MAX_MB = 200;
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const NOTE_MAX = 500;
 

@@ -90,8 +90,7 @@ tagged **Portrait**, and so the crop can be changed at any time without losing s
   materials and in the viewer's panel (the tooltip “The person’s portrait is cut from this photo.”). In editing the
   person the tag changes right away with the portrait, even before **Save**.
 - **A portrait from a photo the person already has:** **As portrait…** in the row of an image attachment (before the
-  bin), **Use as portrait…** in the ⋯ menu of the person's materials and in the viewer's panel (between **Download**
-  and **Delete from the tree**). The editor opens over that attachment; no new attachment is made. From editing the
+  bin), **Use as portrait…** in the ⋯ menu of the person's materials and in the viewer's panel (before **Remove from the tree…**). The editor opens over that attachment; no new attachment is made. From editing the
   person the result is saved with **Save**, from elsewhere right away: “Portrait of {name} replaced.” with **Undo**.
   The research does not need to be running for it.
 - **The person already has a portrait:** the editor shows “This person already has a portrait. Done replaces it; this
@@ -108,7 +107,7 @@ tagged **Portrait**, and so the crop can be changed at any time without losing s
   attachment's viewer.
 - **Since:** app 3.30.0
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (mezi Stáhnout a Smazat ze stromu), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
 
 <a id="A12.3"></a>
 ## A12.3 Editing the crop later
@@ -262,25 +261,28 @@ them.
 <a id="A12.8"></a>
 ## A12.8 Photos in the data of the tree
 
-The original of a portrait, the crop and the couple's photo are part of the tree (data version 23). They go with the
-tree into the JSON backup and into the file **App with data**.
+The original of a portrait, the crop and the couple's photo are part of the tree (data version 24: each file of the
+tree is one material with its places, [A3.5](A3-evidence-in-the-app.md#A3.5)). They go with the tree into the JSON
+backup and into the file **App with data**. Where all they are stored is described in [S8](S8-where-the-data-are.md).
 
-- **An older app** (from 3.19.0) opens a tree of version 23 read-only and does not save it, so that it does not throw
-  away portraits, originals and couples' photos ([A6.7.7](A6-views.md#A6.7.7)).
+- **An older app** (from 3.19.0) opens a tree of version 24 read-only and does not save it, so that it does not throw
+  away portraits, originals, couples' photos and the places of files ([A6.7.7](A6-views.md#A6.7.7)).
 - **Undo:** each **Done** outside editing a person is one step; in editing a person everything is saved and undone
   with its **Save**; two portraits from a couple's photo are one step.
 - **Merging people:** the link to the original goes with the portrait that stays. For unions the photo of the kept
   union stays, and when it has none, the photo of the other one.
 - **Merging trees** ([A8](A8-merging-trees.md)): the couple's photo from the merged file is added where the union in
   the tree has none; a portrait keeps the original of the portrait that won.
-- **A tree from the research or a Strom archive:** neither the research nor the archive holds portraits, originals,
-  couples' photos and links, and they do not send them. Loading a new version from the research keeps them in the
-  tree: when the research has a photo of its own for a person or a couple, its photo applies; otherwise the photo
-  from the tree stays. A portrait, attachment or couple's photo removed in the app does not come back with the next
-  update.
-- **Limits:** portraits, originals and couples' photos are only in the tree in the app and in its backups. A link to
-  an original that does not fit (the original missing, the crop outside the photo, an angle over 45°) is dropped on
-  loading; the portrait stays.
-- **Since:** app 3.30.0
+- **A tree from the research or the Strom archive:** from 1.35.0 the research and the archive hold portraits, the
+  originals of portraits, couples' photos and attachments: writing the tree hands them over and loading the tree
+  returns them by their fingerprint ([S8.3](S8-where-the-data-are.md#S8.3)). The research does not hold only the
+  crop, that is where in the whole photo the portrait is; the tree in the app keeps it. The research up to 1.34 holds
+  none of this: loading a new version keeps them in the tree; when the research has a photo of its own for a person
+  or a couple, its photo applies, otherwise the photo from the tree stays. A portrait, attachment or couple's photo
+  removed in the app does not come back with the next update.
+- **Limits:** without the research 1.35.0, portraits, originals and couples' photos are only in the tree in the app
+  and in its backups. A link to an original that does not fit (the original missing, the crop outside the photo, an
+  angle over 45°) is dropped on loading; the portrait stays.
+- **Since:** app 3.30.0; photos in the research with the research 1.35.0
 
-<!-- zdroj: app:src/types.ts:1814 STROM_DATA_VERSION 23 (app:59b9dde9) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7); obnova z výzkumu je spec 108, zatím nedokumentovat -->
+<!-- zdroj: app:src/types.ts:1862 STROM_DATA_VERSION 24 (app:2b66d7cf; verze 23 app:59b9dde9, obě v 3.30.0) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7), platí pro výzkum do 1.34 · spec 108: dirigent:spec/108-kde-se-co-uklada U8, K2.3 (výřez se nevrací) · app:3419afff, 7263f1f6, src/research-link.ts carryOverMedia base · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->

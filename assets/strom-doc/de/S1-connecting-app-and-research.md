@@ -239,9 +239,11 @@ auf dem Datenträger. Zwischen beiden geht der Stammbaum nur über die Brücke a
   - Der Stammbaum in der App und der Stammbaum in der Forschung sind zwei Kopien. Maßgeblich ist der Stammbaum in der
     App, die Forschung hat eine eigene Kopie, und was die Forschung nicht schreibt, ist in der App immer zu sehen
     ([S2](S2-edits-from-the-app.md)).
+  - Ab der Forschung 1.35.0 hat die Forschung auch die Porträts, Paarfotos und Anhänge des Stammbaums. Was wo
+    gespeichert ist und was nur im Browser liegt, beschreibt [S8](S8-where-the-data-are.md).
 - **Gilt seit:** App 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Forschung an: der Schalter der Brücke am Stammbaum

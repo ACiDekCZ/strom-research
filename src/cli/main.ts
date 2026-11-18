@@ -21,6 +21,7 @@ import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
+import { settleWaiting } from "../core/state.ts";
 import { startTiming, stepEnd, stepStart, stopTiming, timed, timingOn } from "../core/timing.ts";
 import { timingSaid } from "./timing.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
@@ -109,7 +110,7 @@ function systemError(e: HeldError, agent: Env | false): StromError | undefined {
  * code (--json).
  */
 function inLanguage(e: StromError, lang: string | undefined): { message: string; hint?: string; prefix?: string } {
-  const key = `ui.error.${e.code}`;
+  const key = `ui.error.${e.textCode ?? e.code}`;
   // a person in English (a research in English, or in a language strom has no catalog of) reads the person's English
   // text built in, as a person in Czech reads the Czech one — never the agent's message (found 2026-10-23: a seal
   // taken elsewhere said "consent required" and "ask the user" to a person in English)
@@ -118,7 +119,7 @@ function inLanguage(e: StromError, lang: string | undefined): { message: string;
   const fits = (text: string) => placeholdersOf(text).every((name) => e.params?.[name] !== undefined);
   const message = own(key);
   if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
-  const hintKey = `ui.error.${e.hintCode ?? e.code}.hint`;
+  const hintKey = `ui.error.${e.hintCode ?? e.textCode ?? e.code}.hint`;
   const hint = e.hint && own(hintKey);
   // the word before it too, where the message is the person's language (never "chyba:" before English words), and
   // the placeholders of the commands it names (<input> → <podklad>)
@@ -433,6 +434,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         if (otherVersionsAtWork(k.root, VERSION).length > 0) continue;
         try {
           settleArchive(Tree.open(k.root, env));
+          settleWaiting(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its next bridge or switch settles it
         }

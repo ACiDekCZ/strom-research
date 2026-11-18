@@ -217,9 +217,11 @@ nimi jde strom jen přes most na tomto počítači ([S1.1](#S1.1)).
   - Každý prohlížeč má vlastní úložiště. Strom otevřený v Chrome v Edge není.
   - Strom v aplikaci a strom ve výzkumu jsou dvě kopie. Hlavní je strom v aplikaci, výzkum má vlastní kopii, a co
     výzkum nezapíše, je v aplikaci vždy vidět ([S2](S2-edits-from-the-app.md)).
+  - Od výzkumu 1.35.0 má výzkum i portréty, fotky svazků a přílohy stromu. Co je kde uložené a co je jen
+    v prohlížeči, popisuje [S8](S8-where-the-data-are.md).
 - **Platí od:** aplikace 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Výzkum zapnutý: přepínač mostu u stromu

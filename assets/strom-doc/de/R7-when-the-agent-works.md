@@ -360,18 +360,22 @@ Eine Forschung, deren Agent auf diesem Computer nicht ist (nicht installiert, od
 anderen Computer übertragen), wartet auf ihn. Bis dahin verhält sie sich wie ein Strom-Archiv.
 
 - **Prüft der Code:**
-  - was die App sendet, wird wie im Archiv erfasst; für den Agenten entsteht nichts, und die Arbeit des Agenten wird
+  - was die App sendet, wird wie im Archiv erfasst; der Agent bekommt nichts, und die Arbeit des Agenten wird
     mit einem Satz abgelehnt, dass die Forschung auf einen Agenten wartet und wo er installiert oder ein anderer
     gewählt wird;
-  - der gespeicherte Modus ändert sich nicht, und die Aufgaben werden nicht zurückgestellt. Nach der Installation des
+  - der gespeicherte Modus ändert sich nicht, und die Aufgaben, die die Forschung hatte, werden nicht zurückgestellt. Nach der Installation des
     Agenten macht die Forschung von selbst mit den Aufgaben weiter, die sie hatte;
   - ein Agent, der gerade in der Forschung arbeitet (auch ein anderer als der eingestellte), macht sie zur Forschung.
 - **Warum:** ein Archiv ist die Wahl des Menschen, und strom erfasst sie nicht für ihn. Eine Forschung ohne Agenten
   verhält sich nur wie ein Archiv, deshalb macht sie nach der Installation des Agenten von selbst mit den Aufgaben
-  weiter, die sie hatte; keine ist zurückgestellt.
+  weiter, die sie hatte.
 - **Bedienung:** Terminal: Menü, erster Punkt (**Nur als Strom-Archiv behalten: die Daten aus der Strom-App
   speichern** oder die Installation des Agenten); `strom mode` zeigt den Zustand. Die App zeigt eine solche Forschung
   als **Archiv** ([S1.3](S1-connecting-app-and-research.md#S1.3)).
-- **Gilt seit:** Forschung 1.15.0
+- **Gilt seit:** Forschung 1.15.0; 1.35.0: neue Aufgaben zurückgestellt
+- **Ab Forschung 1.35.0:** eine Aufgabe, die inzwischen kommt (zu gesendetem Material, ein Scan zum Lesen), entsteht
+  zurückgestellt wie im Archiv. In die Warteschlange kehrt sie zurück, sobald ein Agent an der Forschung zu arbeiten
+  beginnt (Beginn einer Sitzung, `strom run`, Chat; auch ein anderer als der eingestellte), oder wenn der eingestellte
+  Agent wieder auf dem Computer ist.
 
-<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 -->
+<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->

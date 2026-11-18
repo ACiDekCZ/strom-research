@@ -228,9 +228,11 @@ Between them the tree travels only through the bridge on this computer ([S1.1](#
   - The tree in the app and the tree in the research are two copies. The main one is the tree in the app, the research
     has its own copy, and what the research does not write is always visible in the app
     ([S2](S2-edits-from-the-app.md)).
+  - From the research 1.35.0 the research also has the portraits, couples' photos and attachments of the tree. What
+    is stored where and what is only in the browser is described in [S8](S8-where-the-data-are.md).
 - **Since:** app 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Research on: the bridge's switch at a tree

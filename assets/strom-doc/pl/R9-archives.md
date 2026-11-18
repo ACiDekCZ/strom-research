@@ -396,7 +396,7 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
 - **Granice (kiedy skany przywracają zadanie):**
   - zadanie czekające na skany przywraca tylko jego księga, i to dopiero gdy są wszystkie;
   - zadanie czekające na witrynę (`--kind web`) przywraca księga, którą wymienia, albo jedyna księga, w której
-    pracuje;
+    pracuje; od badania 1.35.0 zamiast niej księga, pod którą czeka ([R6.8.4](R6-awaiting-action.md#R6.8.4));
   - list i zapytanie do rodziny przywraca tylko księga, którą wymieniają;
   - zadania czekającego na sprawdzenie witryny przez człowieka skany nie przywracają nigdy (odpowiada tylko człowiek).
 - **Tylko metodyka (metodyka, `strom guide` i brief agenta jednakowo):** przy ręcznych skanach agent podaje księgę,
@@ -409,7 +409,8 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
 - **Obsługa:** terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, w Co czeka
   **Otwórz folder (zapisano M/N)**. Aplikacja: Czeka na załatwienie, przy pozycji w tej kolejności **Dodaj
   skany**, **Otwórz stronę ↗**, **Odpowiedz**, **Omów z agentem**, **Otwórz folder** (dwa ostatnie otwierają badanie
-  w terminalu). Stan skanów pokazuje „1 z 2 skanów”, a przy księdze chipy **zapisany** / **brak**. Witryny jednego
+  w terminalu); od aplikacji 3.30.0 blok **Dostarczyć** z krokami i odnośnik **Skanów nie da się uzyskać…**
+  ([S4.4.7](S4-research-from-the-app.md#S4.4.7)). Stan skanów pokazuje „1 z 2 skanów”, a przy księdze chipy **zapisany** / **brak**. Witryny jednego
   archiwum czekają w jednej grupie **Archiwum** pod nazwą archiwum, z odnośnikiem **Strona archiwum ↗** i liczbą
   brakujących skanów.
 - **Granice (grupa archiwum):** grupą jest archiwum badania, do którego należy zadanie: według księgi zadania, adresu
@@ -421,6 +422,8 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
   części skanów, odpowiedź i skany z aplikacji oraz archiwum pod jedną nazwą od badania 1.27.0 i aplikacji 3.23.0.
 - **Od badania 1.35.0:** strom bierze także foldery ksiąg, których potrzebują zadania i na które nic nie czeka, tylko
   według numeru w nazwie pliku ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
+- **Od badania 1.35.0:** samo zadanie wraca tylko wtedy, gdy jego czekanie jest zapisane według numerów skanów lub
+  księgi badania; czekanie zapisane inaczej znajduje `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
 
 <!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
 

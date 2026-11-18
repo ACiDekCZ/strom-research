@@ -1,9 +1,10 @@
 // The Strom app's pictures of a person and of a couple (spec 107): the portrait (1 OBJE under INDI, 2 _STROM_KIND
 // photo), the attachment it is cut from (another OBJE, its original's 2 _STROM_SHA), the couple's photo (1 OBJE under
 // FAM, no _STROM_KIND) — and in its JSON (data version 23) Person.photo, attachments, photoSource, Partnership.photo.
-// The research keeps none of them: a send that carries them writes only the user's edit beside them, leaves nothing
-// unwritten, makes no task, in a research and in an archive; the file the app gets back carries none of them, so a picture taken off in
-// the app never comes back from the research (the app carries its own over itself).
+// Since spec 108 the research keeps them as records of the material (test/cli/sync-media.test.ts): a send that carries
+// them writes the user's edit beside them and the pictures, leaves nothing unwritten, makes no task, in a research and in
+// an archive; the file the app gets back without asking for them (media=app) carries none of them, so a picture taken
+// off in the app never comes back from the research (the app carries its own over itself). Its JSON's pictures: none read.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -95,7 +96,7 @@ async function back(w: World): Promise<string> {
 }
 
 for (const mode of ["research", "archive"] as const)
-  test(`spec 107 (${mode}): the portrait, its original and the couple's photo in the app's GEDCOM — only the edit beside them written, nothing unwritten, no task; none goes back, none comes back once taken off`, opts, async () => {
+  test(`spec 107/108 (${mode}): the portrait, its original and the couple's photo in the app's GEDCOM — the edit beside them and the pictures written, nothing unwritten, no task; the file for the app carries them (spec 108), a send of an older app without them takes none away`, opts, async () => {
     const { w, given } = await world();
     if (mode === "archive") await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
     const before = await tasks(w);
@@ -103,18 +104,20 @@ for (const mode of ["research", "archive"] as const)
     fs.writeFileSync(file, withPictures(fs.readFileSync(given, "utf8")));
     const said = await w.run(["sync", file]);
     assert.equal(said.code, 0, said.out + said.err);
-    assert.doesNotMatch(said.out + said.err, /OBJE|_STROM_KIND|_DATE|FILE|unsupported|nepodporov|obráz|fotk/i, "no word of the pictures");
+    assert.doesNotMatch(said.out + said.err, /OBJE|_STROM_KIND|_DATE|FILE|unsupported|nepodporov/i, "no word of the GEDCOM's tags");
+    assert.match(said.out, /portrét — Václav – portrét → uloží se do materiálu výzkumu/, said.out);
     const r = await sent(w, file);
-    assert.deepEqual(r.plan.map((c) => (c as { kind: string }).kind), ["fact.new"], JSON.stringify(r.plan));
-    assert.deepEqual(r.applied.map((a) => (a as { do: string }).do), ["event.add"], JSON.stringify(r.applied));
+    assert.deepEqual(r.plan.map((c) => (c as { kind: string }).kind), ["fact.new", "media.photo", "media.attachment"], JSON.stringify(r.plan));
+    assert.deepEqual(r.applied.map((a) => (a as { do: string }).do), ["event.add", "input.media", "input.media"], JSON.stringify(r.applied));
     assert.deepEqual([r.skipped, r.notWritten], [[], []]);
     assert.deepEqual(await tasks(w), before, "no task of a picture");
-    assert.doesNotMatch(await back(w), /\n1 OBJE\n/, "no picture of a person or a couple goes back");
-    // the portrait and the couple's photo taken off in the app: nothing to take away, nothing that brings them back
+    // spec 108: output/tree-strom.ged carries the files of the app's tree (the bridge's file only with media=app)
+    assert.match(await back(w), /\n1 OBJE\n/, "the pictures in the file for the app");
+    // the portrait and the couple's photo not in a send of an older app (no media=app): nothing taken away, nothing new
     const off = path.join(w.dir, "off.ged");
     fs.writeFileSync(off, under(fs.readFileSync(given, "utf8").replace(/^1 SOUR STROM_RESEARCH$/m, "1 SOUR STROM\n2 VERS 3.30.0"), "P0001", ["1 DEAT", "2 DATE 1960", "2 PLAC Lhota"]));
     assert.deepEqual(await sent(w, off), { plan: [], applied: [], skipped: [], notWritten: [] });
-    assert.doesNotMatch(await back(w), /\n1 OBJE\n/);
+    assert.match(await back(w), /\n1 OBJE\n/);
     w.cleanup();
   });
 

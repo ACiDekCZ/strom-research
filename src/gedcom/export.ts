@@ -41,6 +41,7 @@ import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/exce
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
 import { composedPage, sourceCallNumber, sourceImage } from "../core/sourcefields.ts";
 import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
+import type { TreeMediaItem, TreeMediaPlaces } from "../core/treemedia.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
 import { proposalKind } from "../core/proposals.ts";
@@ -83,6 +84,17 @@ export function stromReadsTags(version: string | undefined, from: string | undef
   const [a, b] = [n(version), n(from)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
+}
+
+/** What the app is given of a record of the material: its bytes by reference (their hash) or in the file (a data URL). */
+export type AppMediaFile = { ref: string; mime: string; bytes: number; width?: number; height?: number } | { data: string; mime: string };
+
+/** FORM of a file the app sends: its type's second part (jpeg, png, pdf …), else its name's extension. */
+function formOfFile(mime: string | undefined, name: string): string | undefined {
+  const sub = mime?.split("/")[1]?.toLowerCase();
+  if (sub && mime !== "application/octet-stream") return sub === "svg+xml" ? "svg" : sub;
+  const ext = /\.([\p{L}\p{N}]{1,8})$/u.exec(name)?.[1]?.toLowerCase();
+  return ext === "jpg" ? "jpeg" : ext;
 }
 
 export interface ExportOptions {
@@ -155,6 +167,13 @@ export interface ExportOptions {
    * computer never has it.
    */
   imageRef?: (jpeg: Uint8Array) => string;
+  /**
+   * The Strom profile, for an app that asks for the files of its tree (GET /tree.ged?media=app, spec 108): each record
+   * of the material in the tree an OBJE at each of its places, as the app sent it — its working copy by reference
+   * (2 FILE strom-image:<sha256> with 3 _MIME, _WIDTH, _HEIGHT, _BYTES) or in the file (a data URL), else its name alone
+   * (originalOnly); _STROM_SHA, _STROM_ORIENT, TITL/_STROM_NAME, 3 TYPE, _DATE, NOTE, _STROM_KIND photo of a portrait.
+   */
+  appMedia?: { places: TreeMediaPlaces; fileOf: (rec: Input) => AppMediaFile | undefined };
   /**
    * The Strom profile, for an app that shows what a hypothesis would connect (APP_SHOWS_HYPOTHESIS_LINKS): under each
    * open hypothesis (_STROM_HYPO) its variants (2 _VAR) with their claim, links and sources, and where the tree ends
@@ -378,6 +397,49 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 
   // xrefs: our IDs are already unique and stable — use them directly.
   const x = (id: string) => `@${id}@`;
+  // the files of the app's tree (spec 108): only to an app that asks for them
+  const media = opts.for === "strom" ? opts.appMedia?.places : undefined;
+  const sourceIds = new Set(sources.map((s) => s.id));
+  /** One file of the app's tree at one of its places, as the app sent it (spec 108 §2/§3). */
+  const appObje = (level: number, item: TreeMediaItem, at: "person" | "family" | "event" | "source") => {
+    const rec = item.rec;
+    const l = level + 1;
+    const got = opts.appMedia!.fileOf(rec);
+    w.line(level, "OBJE");
+    const form = formOfFile(got?.mime ?? rec.working?.mime ?? rec.mime, rec.name);
+    if (form) {
+      w.line(l, "FORM", form);
+      if (rec.materialKind) w.line(l + 1, "TYPE", rec.materialKind);
+    }
+    // the title the user or the research gave beside the file's name; none: the name alone (as the app sends it)
+    if (rec.title) {
+      w.line(l, "TITL", rec.title);
+      w.line(l, "_STROM_NAME", rec.name);
+    } else w.line(l, "TITL", rec.name);
+    if (item.first && at === "person") w.line(l, "_STROM_KIND", "photo");
+    // a couple's photo Y, its attachments N: a couple with attachments alone is read back with no photo (spec 108)
+    if (at === "family") w.line(l, "_PRIM", item.first ? "Y" : "N");
+    const note = [...rec.notes].reverse().find((n) => n.by === "user")?.text;
+    if (note) w.text(l, "NOTE", note);
+    for (const sid of item.sources)
+      if (sourceIds.has(sid)) {
+        citedSources.add(sid);
+        w.line(l, "_SOUR", x(sid));
+      }
+    if (rec.sha) w.line(l, "_STROM_SHA", rec.sha);
+    if (rec.orient) w.line(l, "_STROM_ORIENT", String(rec.orient));
+    if (got && "ref" in got) {
+      w.line(l, "FILE", `${IMAGE_REF}${got.ref}`);
+      w.line(l + 1, "_MIME", got.mime);
+      if (got.width && got.height) {
+        w.line(l + 1, "_WIDTH", String(got.width));
+        w.line(l + 1, "_HEIGHT", String(got.height));
+      }
+      w.line(l + 1, "_BYTES", String(got.bytes));
+    } else if (got) w.wrapped(l, "FILE", got.data);
+    else w.line(l, "FILE", rec.name);
+    if (rec.date) w.line(l, "_DATE", rec.date);
+  };
   const citedSources = new Set<string>();
   // Strom profile: one PAGE per source (Strom keeps the first) — the source's place in the book, else the first cited;
   // an imported family tree none of its own (a person's line in it is no reference of the whole tree: each citation
@@ -614,6 +676,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const n of p.notes) w.text(1, "NOTE", noteWhole(n));
     for (const d of [...nameQuotes, ...deferred]) w.text(1, "NOTE", d);
     story(p.story);
+    for (const m of media?.persons.get(p.id) ?? []) appObje(1, m, "person");
     if (opts.research && opts.for === "strom") known(p);
     if (ends) {
       const e = ends.edges.get(p.id);
@@ -701,6 +764,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const n of f.notes) w.text(1, "NOTE", noteWhole(n));
     for (const d of deferred) w.text(1, "NOTE", d);
     story(f.story);
+    for (const m of media?.families.get(f.id) ?? []) appObje(1, m, "family");
     // No REFN on FAM: the Strom importer reads REFN on individuals only.
   }
 
@@ -821,6 +885,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // cut as the picture lies in its file: how the app turns it for showing (a phone's photo, EXIF 2–8)
       if (e.orient) w.line(2, "_STROM_ORIENT", String(e.orient));
     }
+    for (const m of media?.sources.get(s.id) ?? []) appObje(1, m, "source");
     // the excerpts the research has that this file leaves out, and why: the app says so and asks for them (/excerpt/<S>)
     const left = opts.omitted?.(s);
     if (left) {
@@ -1047,6 +1112,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
     if (!strict) for (const c of cites) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
     if (e.note) noteParts.push(e.note);
+    for (const m of media?.events.get(e.id) ?? []) appObje(2, m, "event");
     if (noteParts.length) {
       // Under a value tag a NOTE would be glued onto the fact; it goes to the person instead.
       if (VALUE_TAGS.has(tag)) up.push(`${L(tag as LabelKey)} — ${e.value}${e.date ? ` (${e.date})` : ""}: ${noteParts.join(" ")}`);

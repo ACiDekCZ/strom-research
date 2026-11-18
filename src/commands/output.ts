@@ -4,14 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { counted, lines, numberIn, table } from "../cli/format.ts";
-import { exportGedcom, GED_PROFILES, type GedProfile } from "../gedcom/export.ts";
+import { exportGedcom, GED_PROFILES, type AppMediaFile, type GedProfile } from "../gedcom/export.ts";
+import { servedCopy, treeMedia } from "../core/treemedia.ts";
 import type { Context } from "../cli/context.ts";
 import { hasGedErrors, validateGedcom, type GedFinding } from "../gedcom/validate.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { ancestorGenerations, familiesAsChild, familiesAsPartner } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
-import type { Research, Source } from "../core/model.ts";
+import type { Input, Research, Source } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
@@ -142,14 +143,42 @@ export function writeTreeGed(
   // …and which sources can be read again from their original here, for an app that offers it (never in an archive)
   const shared = new Settings(tree.env, {}).shared()?.value;
   const original = opts.for === "strom" && appReadsSourcesAgain(new Settings(tree.env, {}), opts.stromVersion) && !actsAsArchive(tree) ? (s: Source) => readsAgain(tree, shared, s) : undefined;
-  const result = exportGedcom(tree, { for: opts.for, ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(table ? { table } : {}), ...(sourceFields ? { sourceFields } : {}), ...(mainCitations ? { mainCitations } : {}), stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(hypothesisPick ? { hypothesisPick } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
+  // the files of the app's tree (spec 108): in the file (their working copy as a data URL) within the limit of the
+  // images (excerpts.mb, counted on their own); beyond it by their name and hash alone, said — the file for any program none
+  const mediaMb = set?.mb ?? new Settings(tree.env, {}).excerpts(tree.config).mb;
+  const media = opts.for === "strom" && opts.images !== false ? inlineMedia(tree, shared, mediaMb * 1024 * 1024) : undefined;
+  const result = exportGedcom(tree, { for: opts.for, ...(media ? { appMedia: media.appMedia } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(placeRecords ? { placeRecords } : {}), ...(origins ? { origins } : {}), ...(verify ? { verify } : {}), ...(table ? { table } : {}), ...(sourceFields ? { sourceFields } : {}), ...(mainCitations ? { mainCitations } : {}), stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(confirms ? { confirms } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(hypothesisDecider ? { hypothesisDecider } : {}), ...(hypothesisPick ? { hypothesisPick } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(original ? { original } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {
     if (opts.for === "strom" && file.startsWith(path.join(tree.root, "output") + path.sep)) ignoreStromGed(tree, file);
     writeFileAtomic(file, result.text);
   }
-  return { ...result, findings, file, for: opts.for, ...(images && set ? { images: images.report, imageSettings: set } : {}) };
+  return { ...result, findings, file, for: opts.for, ...(images && set ? { images: images.report, imageSettings: set } : {}), ...(media && (media.said.files || media.said.left) ? { media: { ...media.said, mb: mediaMb } } : {}) };
+}
+
+/** The files of the app's tree in a file that leaves the computer: each record's working copy once, within `max` bytes. */
+function inlineMedia(tree: Tree, shared: string | undefined, max: number) {
+  const said = { files: 0, left: 0 };
+  const given = new Map<string, AppMediaFile | undefined>();
+  let held = 0;
+  const fileOf = (rec: Input): AppMediaFile | undefined => {
+    if (given.has(rec.id)) return given.get(rec.id);
+    const copy = servedCopy(tree.root, shared, rec);
+    let got: AppMediaFile | undefined;
+    if (copy && held + copy.bytes <= max) {
+      try {
+        got = { data: `data:${copy.mime};base64,${fs.readFileSync(copy.file).toString("base64")}`, mime: copy.mime };
+        held += copy.bytes;
+        said.files++;
+      } catch {
+        got = undefined;
+      }
+    } else if (copy) said.left++;
+    given.set(rec.id, got);
+    return got;
+  };
+  return { appMedia: { places: treeMedia(tree.list<Input>("input"), (id) => tree.get(id)), fileOf }, said };
 }
 
 /** A size of images as the language writes it (0,4 MB in Czech, 0.4 MB in English). */
@@ -275,6 +304,7 @@ register(
             ui(lang, "ui.export.file", { file: ctx.display(r.file), for: forWhom, persons: s.persons, families: s.families, facts: s.events, sources: s.sources, skipped }),
             r.findings.length ? ui(lang, "ui.export.valid.warnings", { n: r.findings.length }) : ui(lang, "ui.export.valid"),
             r.images && r.imageSettings ? imagesLines(r.images, r.imageSettings, lang) : undefined,
+            "media" in r && r.media?.left ? ui(lang, "ui.export.media.left", { n: r.media.left, mb: numberIn(lang, r.media.mb, { maximumFractionDigits: 3, useGrouping: false }) }) : undefined,
             r.findings.length ? findingRows(r.findings) : undefined,
           );
         }),

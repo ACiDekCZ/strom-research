@@ -3,8 +3,8 @@
 
 What the research does with the files, texts and family trees the user gives it: in the terminal, or from the Strom
 app. How material is sent from the app is described in [A3.5](A3-evidence-in-the-app.md#A3.5); answering a waiting
-task with a file in [R6.7.1](R6-awaiting-action.md#R6.7.1). Describes the research 1.27.0. Each rule says what is
-**enforced by the code** and what is only a **rule of the method**.
+task with a file in [R6.7.1](R6-awaiting-action.md#R6.7.1). Describes the research 1.27.0; changes from a newer version
+carry its number. Each rule says what is **enforced by the code** and what is only a **rule of the method**.
 
 <a id="R11.1"></a>
 ## R11.1 Every file is material with a task
@@ -141,3 +141,133 @@ sorts it by tasks.
 - **Since:** research 1.12.0; a batch from a phone 1.18.0
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
+
+<a id="R11.5"></a>
+## R11.5 The research's material and the tree's files from the app
+
+Every file the research holds is a material record (`I…`): a file sent at a person, a file of a batch, a file from
+the terminal and a file of the tree from the Strom app. The record has a title, kind and date, the people it belongs
+to, and for a file of the tree also its places in the app's tree.
+
+- The kind is `photo`, `document`, `record` or `other` (in the app **Photo**, **Document**, **Record**, **Other**).
+  The research remembers who gave the title: a person (the app, the terminal), or the research.
+- A hidden file (`unrelated`, `duplicate`, without a reason) stays in the research with its original and can be shown
+  again.
+- **Enforced by the code:**
+  - hiding, removing from the tree or undoing a writing does not delete a file: the original and the record stay;
+  - an edit of the title, kind and date of a file outside the tree is written by the research at once. For a file of
+    the tree the change shows in the app with the next loading of the tree;
+  - the research refuses the whole edit when it does not know one of the files or cannot read a value
+    ([R11.5.2](#R11.5.2)).
+- **Limits:** records with places in the tree are in tree schema 3 (from the research 1.35.0). The move rewrites
+  nothing; an older `strom` does not open a tree in schema 3. Material in the app is described in
+  [A3.5](A3-evidence-in-the-app.md#A3.5).
+- **Controls:** terminal: `strom input list`, `strom input show I…` (where the file is and what came from it), `strom
+  input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. App: the window
+  **Materials**.
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+
+<a id="R11.5.1"></a>
+### R11.5.1 The tree's files from the app
+
+The research 1.35.0 also holds the portraits, couples' photos and attachments of the tree from the Strom app. It
+stores each file once, by its content, and remembers its places in the tree: an attachment or portrait of a person,
+an attachment or photo of a couple, a file of an event, the evidence of a source.
+
+- A file whose original came earlier (`PUT /media`) the research recognises by the original's fingerprint; otherwise
+  by the fingerprint of the bytes sent. The reduced copy the app shows it stores unchanged beside the original.
+- A new portrait replaces the old one: the old one stays as an older version (the place withdrawn with the reason
+  `replaced`).
+- A record is **in the tree** as long as it has at least one place that is not withdrawn.
+- **Enforced by the code:**
+  - the research writes a removal in the app only when the writing carries all the tree's files (`media=app`), and
+    only against what the app received with its files. What another window added it does not remove;
+  - a removed file stays in the material, hidden with the reason **Removed from the tree**. Shown again, it gets back
+    the places the last writing took from it;
+  - `strom sync undo I…` also restores the places the writing removed;
+  - to the app a file is returned by its fingerprint (`GET /tree.ged?images=ref&media=app`), only files with a place
+    in the tree. The crop of a portrait in the original photo is not returned, the portrait is
+    ([S8.3](S8-where-the-data-are.md#S8.3)).
+- **Limits:** a research that does not hold the tree's files (up to 1.34) does none of this; the app then counts the
+  photos and attachments as only in the browser ([S8.4](S8-where-the-data-are.md#S8.4)).
+- **Controls:** app: writing the tree ([S2](S2-edits-from-the-app.md)), **Remove from the tree…** and **Restore** in
+  the window **Materials**; terminal: `strom sync undo I…`, `strom input unskip I…`.
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:2aeeb228 · src/core/appmedia.ts (hlavička: soubor jednou podle otisku, keepBytes, MediaReader) · src/core/treemedia.ts (návrat GET /tree.ged?images=ref&media=app, POST /images, GET /image/<sha>) · research:91ab6230 (odebrání jen se všemi soubory, proti základu media=app, sync undo, restoreTakenOff) · research:d5e99375, 815bc90d, 7d7628eb · src/core/material.ts unhideMaterial (spec 102 M3) · dirigent:spec/108-kde-se-co-uklada K2.3 (photoSource se nevrací) -->
+
+<a id="R11.5.2"></a>
+### R11.5.2 Title, kind, date and people from the terminal
+
+The title, kind and date of a file are set by `strom input edit`, the people by `strom input assign`. Both apply to
+the research's material and to the tree's files from the app; the app gets them with the next tree file.
+
+- `strom input edit I… --title … --kind photo|document|record|other --date …`: at most 500 files, a title at most 200
+  characters, a date as in GEDCOM (`1932`, `ABT 1930`, `12 MAY 1932`); `""` removes the value. The answer gives what
+  each file had before (`was`): the same edit with these values reverts it. More files with `--files-from`.
+- `strom input assign` adds (`--add P…`) or removes (`--remove P…`) people of files or of whole batches (`--batch`).
+  For a file of the tree an added person is a new place: in the app an attachment of the person.
+- `strom input hide I… --why unrelated|duplicate` hides a file; `strom input unskip I…` shows it again.
+- **Enforced by the code:** all or nothing: an unknown file, a title too long, an unreadable kind or date and nothing
+  is written. `--dry-run` only shows what would change.
+- **Controls:** terminal, see above. The window **Materials** in the app does the same through the bridge.
+- **Since:** research 1.20.0 (`strom input assign`, `hide`, `unskip`); 1.35.0: `strom input edit`, places of the
+  tree's files
+
+<!-- zdroj: research:a7df632d src/commands/intake.ts input edit, assign, hide, unskip · src/core/material.ts checkEdit, editMaterial, MATERIAL_MOST_EDIT=500, MATERIAL_TITLE_MAX=200, assignMaterial (místo u souboru stromu, spec 102 M4) · research:cc709045 příklady v helpu · help input edit, input assign, input hide -->
+
+<a id="R11.5.3"></a>
+### R11.5.3 Sorting material: `strom material sort`
+
+`strom material sort` has the research's readers read the material's files. For each file they propose a title, date,
+kind and links to people, couples, their events and the tree's sources, with a reason and a certainty. Nothing is
+written to the research.
+
+- The proposal is stored beside the research (`strom material show <id>`). What a person accepts from it is written
+  as theirs: in the app, or with `strom input edit`.
+- `--text` is what a person knows about the files; the readers follow it where the files do not say otherwise.
+- `--queue` only puts the sorting into the queue; `strom material cancel <id>` stops it.
+- **Enforced by the code:**
+  - at most 50 files and 2000 characters of text; from a PDF the first 10 pages. A file no reader opens is judged by
+    its name, path and notes;
+  - it never proposes a title, kind or date a person gave, a link a person gave or removed, or an ID the research
+    does not have. It proposes neither a portrait nor a couple's photo;
+  - paid readings start only after a person's consent: in their own terminal (Enter is no) or in a system window.
+    When there is no one to ask, the command ends with code 4. The agent never answers for the person;
+  - the bridge starts a sorting from the app only with its own signature, and it is good once. A record that only
+    pretends to be a sorting from the app never starts;
+  - at most 3 sortings wait in the queue.
+- **Limits:** only a research with an agent: the Strom archive and a research waiting for an agent do not sort
+  material.
+- **Controls:** terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
+  cancel`; app: **Sort with the agent…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+
+<a id="R11.5.4"></a>
+### R11.5.4 Material through the bridge
+
+The window **Materials** in the app reads and changes material through the research's bridge. Each change is the same
+command as in the terminal, with the same limits.
+
+| Bridge | What it does | Command |
+|---|---|---|
+| `GET /material` | files with title, kind, date, people, for the tree's files their places and for each its uses | |
+| `GET /material/<I…>/uses` | excerpts, sources and tasks that use the file | |
+| `POST /material/assign` | people of files | `strom input assign` |
+| `POST /material/hide` | hide and show again (for a removed file of the tree with its places) | `strom input hide`, `unskip` |
+| `POST /material/edit` | title, kind and date, 1–500 files | `strom input edit` |
+| `POST /material/sort` | sorting 1–50 files; progress `GET /material/sort/<id>`, cancelling `…/cancel` | `strom material sort` |
+
+- The research announces what it can in `/status.features`: `media.app`, `material.links`, `material.edit`,
+  `material.uses` and `material.sort` (only where there is an agent). Without them the app behaves as with an older
+  research.
+- **Enforced by the code:** an edit is whole or none; a busy research answers that it changed nothing. Sorting is
+  refused without an agent, with the reading limit used up, with a full queue and when the agent cannot work now.
+- **Controls:** app: the window **Materials**, with the bridge running ([S1.1](S1-connecting-app-and-research.md#S1.1)).
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->

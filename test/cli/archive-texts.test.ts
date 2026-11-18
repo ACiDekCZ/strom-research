@@ -145,14 +145,15 @@ test("K4.3 material in an archive: kept, said so — no conversation offered, no
   const again = await archive.ok(["intake", letter]);
   assert.match(again.out, /^Tyhle podklady už ve výzkumu jsou – nic nepřibylo\.$/m, again.out);
   assert.doesNotMatch(again.out, /task next|intake task/, again.out);
-  // waiting for its agent: kept for the agent, its task open
+  // waiting for its agent: kept for the agent, its task put aside until the agent is here (spec 108 K1b.5)
   const wm = await waiting.ok([], { tty: true, answers: ["4", "1", "2", "Děda Josef byl mlynář", "", "0"] });
   assert.match(wm.out, /✓ Uloženo do výzkumu: 1\. Agent to projde, až bude na počítači\./, wm.out);
   assert.doesNotMatch(wm.out, /Pustit se do toho s agentem/, wm.out);
   const wc = await waiting.ok(["intake", "--text", "Teta Marie"]);
   assert.match(wc.out, /Uloženo do výzkumu: 1/, wc.out);
   assert.doesNotMatch(wc.out, /task next/, wc.out);
-  assert.ok(Tree.open(waiting.cwd, waiting.env).list<Task>("task").some((x) => x.level === "intake" && x.state === "open" && !x.heldBy));
+  const wt = Tree.open(waiting.cwd, waiting.env).list<Task>("task").filter((x) => x.level === "intake");
+  assert.ok(wt.length && wt.every((x) => x.state === "parked" && x.heldBy === "archive"), JSON.stringify(wt));
   archive.cleanup();
   waiting.cleanup();
 });

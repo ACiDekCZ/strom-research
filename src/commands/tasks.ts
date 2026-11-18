@@ -27,7 +27,7 @@ import { resolveResearch } from "./research.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { readJsonLines } from "../core/json.ts";
-import { lacksImages, rankTasks, waitsForArchive, waitsForDecision, type Ranked } from "../core/queue.ts";
+import { goesAhead, lacksImages, rankTasks, waitsForArchive, waitsForDecision, type Ranked } from "../core/queue.ts";
 import { clockUp } from "../core/net.ts";
 import type { Asleep } from "../core/leftalone.ts";
 import { joiningHypotheses, offTree } from "../core/kin.ts";
@@ -36,7 +36,7 @@ import { storiesToApprove } from "../core/stories.ts";
 import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
-import { inboxState, inboxWaitOf } from "../core/inboxwait.ts";
+import { handedImages, inboxState, inboxWaitOf } from "../core/inboxwait.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { conflictsToDecide } from "../core/conflicts.ts";
 import { othersAtWork } from "../core/session.ts";
@@ -49,6 +49,9 @@ import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
 import { requestNote, requestPath } from "../core/waiting.ts";
 import { addressesPerson } from "../core/impersonal.ts";
+import { applyAuditFix, auditOf, auditTasks, audited, bookIndex, changesSaid, findingsOf, keepAudit, readWait, refuseWait, sealAuditFix, undoAuditFix, waitCommands, WAIT_CHECKLIST, auditLine, type TaskAudit } from "../core/taskaudit.ts";
+import { head } from "../core/git.ts";
+import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 
 
@@ -591,6 +594,43 @@ function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has:
   return Object.keys(wait).length ? wait : undefined;
 }
 
+/** A task's audit as the app and the agent read it (strom task audit --json, task show --json). */
+function auditData(a: TaskAudit): Record<string, unknown> {
+  return { task: a.task, at: a.at, findings: a.findings, fix: a.fix, kept: a.kept, fixed: a.fixed };
+}
+
+/** strom task show: how its wait is written, when strom finds it is not as it needs it — or the audit's fix of it. */
+function auditShown(tree: Tree, t: Task, a: TaskAudit): string | undefined {
+  const fixed = a.fixed ? `fixed by the audit ${a.fixed.at.slice(0, 16).replace("T", " ")}${a.fixed.made.length ? ` (${a.fixed.made.join(", ")} split off)` : ""} — undone by strom task audit ${t.id} --unfix` : undefined;
+  if (!a.findings.length) return fixed;
+  if (a.kept) return lines(`audit  kept as it is (${a.kept.kinds.join(", ")}) by ${a.kept.by} ${a.kept.at.slice(0, 10)}`, fixed);
+  return lines(`audit  ${auditLine(tree, a, t)}`, fixed);
+}
+
+/**
+ * strom task park whose reason names images of a book of the research: images saved by hand are a wait, not a park —
+ * said to the agent with the exact command (K1.2). Nothing else: nothing said.
+ */
+function parkedForImages(tree: Tree, t: Task, reason: string): string | undefined {
+  const as: Task = { ...t, state: "waiting", waitingOn: reason };
+  delete as.awaits;
+  delete as.awaitsCheck;
+  delete as.awaitsPermission;
+  delete as.wait;
+  const index = bookIndex(tree);
+  const parts = readWait(tree, as, index);
+  if (!findingsOf(tree, as, { index, parts }).some((f) => f.kind === "images-as-text")) return undefined;
+  return `check the task's wait: images of a book the user saves by hand are a wait, not a park — ${waitCommands(tree, as, parts)[0]} (${WAIT_CHECKLIST})`;
+}
+
+/** After strom task wait: what is still not as strom needs it, with the checklist and the command (K1.2). */
+function checkWaitLine(tree: Tree, t: Task, shared: string | undefined): string | undefined {
+  if (!audited(t)) return undefined;
+  const a = auditOf(tree, t, { shared });
+  if (!a.findings.length || a.kept) return undefined;
+  return `check the task's wait: ${auditLine(tree, a, t)} — ${WAIT_CHECKLIST}`;
+}
+
 /** What a waiting task says of its wait, in a line: its kind, where it is dealt with, sent or not. */
 function waitSaid(tree: Tree, t: Task): string | undefined {
   const w = waitState(tree, t);
@@ -921,7 +961,11 @@ register(
       const tree = ctx.tree();
       const t = requireRecord<Task>(tree, args[0]!, "task");
       const note = t.state === "waiting" ? requestNote(tree, t) : undefined;
-      return { text: taskDetail(tree, t), data: { task: t, ...waitState(tree, t), ...(t.state === "waiting" && t.wait ? { wait: t.wait } : {}), ...(note ? { note } : {}) } };
+      const audit = auditOf(tree, t, { shared: ctx.settings.shared()?.value });
+      return {
+        text: lines(taskDetail(tree, t), auditShown(tree, t, audit)),
+        data: { task: t, ...waitState(tree, t), ...(t.state === "waiting" && t.wait ? { wait: t.wait } : {}), ...(note ? { note } : {}), ...(audit.findings.length || audit.fixed ? { audit: auditData(audit) } : {}) },
+      };
     },
   },
   {
@@ -985,6 +1029,8 @@ register(
         }
         const w = waitOptions(tree, id, opts, { images: before.awaits ? (liveBook(tree, before.awaits.recordset)?.id ?? before.awaits.recordset) : false, check: !!before.awaitsCheck });
         if (w) change.wait = { ...before.wait, ...w };
+        // what it waits for read again (its words, kind, site, book): images of a book in words alone are refused (K1.1)
+        if (["on", "kind", "url", "book"].some((k) => opts[k] !== undefined)) refuseWait(tree, { ...before, ...change });
       }
       const note = typeof opts.note === "string" ? makeNotes(tree, opts.note) : undefined;
       const fields = [...Object.keys(change), ...(note ? ["note"] : [])];
@@ -1050,7 +1096,7 @@ register(
       const until = opts.until ? String(opts.until) : undefined;
       if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new UsageError("--until must be YYYY-MM-DD");
       const t = stateChange(tree, args[0]!, "parked", { ...(until ? { parkedUntil: until } : {}), ...decisionAwaited(ctx, tree, args[0]!) }, String(opts.reason), "park");
-      return { text: written(tree), data: { task: t } };
+      return { text: lines(written(tree), parkedForImages(tree, t, String(opts.reason))), data: { task: t } };
     },
   },
   {
@@ -1146,7 +1192,11 @@ register(
             : undefined;
         // why it comes back (--reason, or --note as agents type it): kept with the change in the history
         const why = [opts.reason, opts.note].find((v): v is string => typeof v === "string" && !!v.trim());
-        return stateChange(tree, id, "open", said ? { answers: [...(before.answers ?? []), said] } : {}, why?.trim(), "wake");
+        // the person woke a task that waited for images of a book after sending them for it (the Strom app's "Have the
+        // images" for a task that does not know which): ahead in the queue as their images bring one, once
+        const w = before.state === "waiting" && (fromApp || !isAgent(ctx.env)) ? inboxWaitOf(tree, before) : undefined;
+        const ahead = !!w && handedImages(tree, before, w.recordset).length > 0 && goesAhead(tree)(before);
+        return stateChange(tree, id, "open", { ...(said ? { answers: [...(before.answers ?? []), said] } : {}), ...(ahead ? { queueAt: { do: "next" as const, at: now() } } : {}) }, why?.trim(), "wake");
       });
       return { text: written(tree), data: { task: t } };
     },
@@ -1220,7 +1270,18 @@ register(
       const id = normId(args[0]!, "task");
       const task = tree.get<Task>(id);
       const where = b && task && !task.where.includes(b.id) ? { where: [...task.where, b.id] } : {};
-      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: on, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...(awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!)), ...where }, undefined, "wait");
+      const decision = awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!);
+      // images of a book named in words alone, several books, a book the research does not have: refused, nothing
+      // written — images saved by hand would not bring it back (K1.1)
+      if (task && task.state !== "done") {
+        const would: Task = { ...task, state: "waiting", waitingOn: on, ...where };
+        delete would.awaits;
+        delete would.awaitsCheck;
+        delete would.awaitsPermission;
+        delete would.wait;
+        refuseWait(tree, { ...would, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...decision });
+      }
+      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: on, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...decision, ...where }, undefined, "wait");
       if (awaitsCheck) return { text: lines(written(tree), `the user checks ${awaitsCheck.url} (strom's menu, What waits; the Strom app): the task comes back with their answer — meanwhile other work`), data: { task: t } };
       const s = ctx.settings.shared()?.value;
       // a site the person looks at for the one book the task works in: images of it saved into its folder bring it back
@@ -1235,6 +1296,7 @@ register(
             sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : `comes back with the user's answer (strom's menu, What waits; the Strom app)`,
             // a site the person looks at or checks, its book not known: the book to be searched, once there is one
             (kind === "web" || kind === "check") && !bookOfTask(tree, t) ? `the book the user is to search, once it is a record set (strom recordset add): strom task edit ${t.id} --book B… — the task then waits under it` : undefined,
+            checkWaitLine(tree, t, s),
           ),
           data: { task: t, ...waitState(tree, t) },
         };
@@ -1251,6 +1313,7 @@ register(
             `waits  ${waitSaid(tree, t)}`,
             `images of ${byBook!.recordset} the user saves into ${shown} (each named by its number as the viewer counts it, 40.jpg) bring it back by themselves — as they are saved while the bridge runs, else at the next session's start; so does the user's answer`,
             `the numbers known: strom task wait ${t.id} --images ${byBook!.recordset}:<numbers> --on "…" — the user sees which images and what is missing`,
+            checkWaitLine(tree, t, s),
           ),
           data: { task: t, folder: dir, ...waitState(tree, t) },
         };
@@ -1261,8 +1324,106 @@ register(
           "once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing; the user sees it in strom's menu (What waits) and the Strom app",
           // an archive only a person's browser goes to: what the agent's own browser would do there (spec 048 K5.2)
           ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false, tree.root)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),
+          checkWaitLine(tree, t, s),
         ),
         data: { task: t, folder: dir },
+      };
+    },
+  },
+  {
+    path: ["task", "audit"],
+    summary: "Check how waiting tasks' waits are written: images of a book strom brings back, one book per task — and the fix",
+    group: "tasks",
+    tree: true,
+    writes: true,
+    writesWith: ({ opts }) => !!(opts.fix || opts.unfix || opts.keep || opts.unkeep),
+    description:
+      "A wait for images the user saves by hand brings the task back only when written as strom needs it: the images of\n" +
+      "one book of the research by their numbers (strom task wait T… --images B…:<numbers> --on \"…\"), or by the book\n" +
+      "(--kind web --book B…), one book per task, the book a record set of the research, its folder of the shared inbox\n" +
+      "there. Without a task: the waiting tasks strom finds otherwise — findings images-as-text (images of a book in words\n" +
+      "alone), several-books, book-unknown (a book the research has no record set of), folder-missing — each with the\n" +
+      "fix strom proposes (can: whole, part, none) and the exact commands. Reads only, free, no network.\n" +
+      "--fix writes the fix (one operation, one commit): the task waits for one book's images, each other book a task of\n" +
+      "its own (the same what, why and done-when; split off from it), the folders made and what already lies in them\n" +
+      "taken (a task with all its images comes back). A book the research does not have stays a wait in words in a task of\n" +
+      "its own: a record set of it first (strom recordset add), then --images. --unfix undoes it while none of its tasks\n" +
+      "changed (the tasks it made taken back; the images registered stay). --keep: the user keeps the wait as it is (the\n" +
+      "user's alone, never an agent's) — not listed again while the wait is the same; --unkeep takes that back.\n" +
+      "--expect <stamp>: only if the task is as it was when the fix was proposed (fix.stamp), else refused (audit.changed).",
+    args: [{ name: "task", description: "task ID (default: every waiting task with a finding)" }],
+    options: [
+      { name: "all", type: "boolean", description: "also the tasks the user kept as they are" },
+      { name: "fix", type: "boolean", description: "write the fix strom proposes for the task" },
+      { name: "unfix", type: "boolean", description: "undo the audit's fix of the task (while none of its tasks changed)" },
+      { name: "keep", type: "boolean", description: "the user keeps the wait as it is (the user's alone)" },
+      { name: "unkeep", type: "boolean", description: "take back --keep" },
+      { name: "expect", type: "string", value: "<stamp>", description: "with --fix or --keep: only if the task is as it was then (fix.stamp, T…@<updated>)" },
+    ],
+    examples: ["strom task audit", "strom task audit T0009", "strom task audit T0009 --fix", "strom task audit T0010 --unfix"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const shared = ctx.settings.shared()?.value;
+      const doing = (["fix", "unfix", "keep", "unkeep"] as const).filter((k) => opts[k]);
+      if (doing.length > 1) throw new UsageError(`--${doing.join(" or --")}: one at a time`);
+      const act = doing[0];
+      if (act && !args[0]) throw new UsageError(`--${act} is for one task`, { hint: `strom task audit T… --${act}` });
+      if (opts.expect !== undefined && act !== "fix" && act !== "keep") throw new UsageError("--expect goes with --fix or --keep");
+      const fromApp = ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env);
+      const by = fromApp ? "app" : tree.actor;
+      const givenIn = fromApp ? ("app" as const) : undefined;
+      const expect = typeof opts.expect === "string" ? opts.expect.trim() : undefined;
+      if (act) {
+        const id = normId(args[0]!, "task");
+        if ((act === "keep" || act === "unkeep") && isAgent(ctx.env))
+          throw new UsageError(`keeping a wait as it is is the user's decision alone (strom's menu, the Strom app, their own terminal)`, {
+            hint: `the fix instead: strom task audit ${id} --fix — or the wait written again: strom task audit ${id}`,
+            code: "audit.person-only",
+            params: { task: id },
+          });
+        if (act === "keep" || act === "unkeep") {
+          const k = keepAudit(tree, id, { by, givenIn, expect, off: act === "unkeep", shared });
+          return { text: k.summary, data: { task: id, kept: k.task.auditKept ?? null } };
+        }
+        if (act === "unfix") {
+          const u = undoAuditFix(tree, id);
+          return { text: u.summary, data: { task: id, tasks: [id, ...u.retracted] } };
+        }
+        const f = applyAuditFix(tree, id, { by, givenIn, expect, shared });
+        // the folders there before the user looks for them, and what already lies in them taken now (V12)
+        const woke: string[] = [];
+        if (shared && !tree.dryRun) {
+          for (const folder of f.folders) fs.mkdirSync(path.join(shared, "inbox", folder), { recursive: true });
+          for (const folder of f.folders) for (const r of takeWaiting(tree, shared, { folder })) woke.push(...r.woken);
+          sealAuditFix(tree, id, f.summary);
+        }
+        const tasks = [id, ...f.made];
+        return {
+          text: lines(
+            f.summary,
+            woke.length ? `back in the queue (their images were saved already): ${[...new Set(woke)].join(", ")}` : undefined,
+            ...f.made.map((m) => ((x) => (x && audited(x) && auditOf(tree, x, { shared }).findings.length ? `check: ${auditLine(tree, auditOf(tree, x, { shared }), x)}` : undefined))(tree.get<Task>(m))),
+            `undo: strom task audit ${id} --unfix`,
+          ),
+          data: { task: id, tasks, made: f.made, woke: [...new Set(woke)] },
+        };
+      }
+      const one = args[0] ? requireRecord<Task>(tree, args[0], "task") : undefined;
+      const found = one ? { tasks: [auditOf(tree, one, { shared })], kept: auditOf(tree, one, { shared }).kept ? 1 : 0 } : auditTasks(tree, { shared, all: !!opts.all });
+      const said = (a: TaskAudit): string[] => {
+        const t = tree.get<Task>(a.task)!;
+        if (!a.findings.length) return [`${a.task} ${t.state === "waiting" ? "its wait is as strom needs it" : `does not wait (${t.state})`}${a.fixed ? ` — fixed by the audit (strom task audit ${a.task} --unfix undoes it)` : ""}`];
+        return [
+          `${a.task}${a.kept ? ` kept as it is by ${a.kept.by}` : ""} — ${a.findings.map((f) => f.kind + (f.books?.length ? ` ${f.books.join(", ")}` : "") + (f.unknown?.length ? ` "${f.unknown.map((u) => truncate(u, 50)).join('", "')}"` : "")).join("; ")}`,
+          a.fix.changes.length ? `  fix (${a.fix.can}${a.fix.left.length ? `, leaves ${a.fix.left.join(", ")}` : ""}): ${changesSaid(a.fix).join("; ")} — strom task audit ${a.task} --fix` : `  no fix by strom: the agent writes it`,
+          ...waitCommands(tree, t, a.parts).map((c) => `  by hand: ${c}`),
+        ];
+      };
+      return {
+        text: found.tasks.length
+          ? lines(...found.tasks.flatMap(said), `each wait: ${WAIT_CHECKLIST}`, found.kept && !one && !opts.all ? `${found.kept} kept as they are by the user: strom task audit --all` : undefined)
+          : `every waiting task's wait is as strom needs it${found.kept ? ` (${found.kept} kept as they are: strom task audit --all)` : ""}`,
+        data: { head: head(tree.root) ?? null, tasks: found.tasks.map(auditData), kept: found.kept },
       };
     },
   },

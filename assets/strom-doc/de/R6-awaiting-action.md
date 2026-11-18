@@ -66,6 +66,12 @@ gebraucht wird. Die Art des Wartens bestimmt den Abschnitt, die Gruppe und die m
 - **Bedienung:** Terminal: `strom task wait T… --images B…:<von>-<bis>`, danach `strom media add --inbox`; in **Was
   wartet** **Den Ordner öffnen (M/N gespeichert)**. App: **Ordner öffnen** (seit App 3.23.0; vorher **Ordner**).
 - Archive nur über den Browser, Bilder aus der App und was der Mensch tut: [R9.6](R9-archives.md#R9.6), [R9.9](R9-archives.md#R9.9).
+- **Ab App 3.30.0:** der geöffnete Eintrag in der App beginnt mit dem Block **Liefern** (welche Bilder und in welchen
+  Ordner) mit den Schritten **Archiv-Website ↗** → **Ordner des Buchs öffnen** oder **Ordner öffnen** → **Bilder
+  hinzufügen** ([S4.4.7](S4-research-from-the-app.md#S4.4.7)).
+- **Ab Forschung 1.35.0:** ein anders erfasstes Warten auf Bilder (Bilder nur in Worten, mehrere Bücher, ein Buch, das
+  die Forschung nicht hat) schreibt `strom task wait` nicht, und `strom task audit` findet solche Aufgaben und
+  korrigiert sie ([R6.9](#R6.9)).
 - **Gilt seit:** Forschung 1.0.0. Wecken nach dem Speichern seit 1.15.0.
 
 <!-- zdroj: research:src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
@@ -298,6 +304,9 @@ Eine Antwort bringt die Aufgabe in die Warteschlange zurück, und der Agent vera
   - seit Forschung 1.27.0 bringt eine Aufgabe, die auf eine Seite wartet (`--kind web`), auch das einzige Buch
     zurück, in dem sie arbeitet: die dort gespeicherten Bilder sind das, worauf sie gewartet hat. Einen Brief und eine
     Anfrage an die Familie weiter nur das Buch, auf das sie warten;
+  - seit Forschung 1.35.0 bringt eine Aufgabe, die auf eine Seite wartet, statt des einzigen Buchs, in dem sie
+    arbeitet, das Buch zurück, unter dem sie wartet ([R6.8.4](#R6.8.4)). Eine Aufgabe, die ohne Buch wartet, bringt
+    nur das Buch zurück, das sie nennt;
   - Aufgaben, die Bilder früher zu Unrecht zurückgebracht haben, setzt die Korrektur `strom fixes show|run|undo
     woken-waits` wieder ins Warten: die Aufgabe wartet wie vorher, samt dem Senden. Eine Aufgabe, an der
     inzwischen gearbeitet wurde, bleibt. Die Korrektur startet nur der Mensch im Terminal, im Strom-Archiv gibt es sie
@@ -314,9 +323,9 @@ es nicht, und ohne Herunterladen liest der Agent das Buch weiter online.
 
 - **Prüft der Code:**
   - gezählt werden offene (auch begonnene), zurückgestellte und wartende Aufgaben. Das Buch einer Aufgabe ist ein
-    Buch (B…), das die Aufgabe darin nennt, wo sie arbeitet, und ein Buch, auf dessen Bilder sie wartet. Eine
-    Aufgabe, die kein Buch nennt, zählt nicht, und es wird ihr kein Buch zugedacht: die Zahlen sind eine Untergrenze,
-    keine Schätzung;
+    Buch (B…), das die Aufgabe darin nennt, wo sie arbeitet, ein Buch, auf dessen Bilder sie wartet, und bei einer
+    wartenden Aufgabe das Buch, das ihr der Agent gegeben hat (`--book`, [R6.8.4](#R6.8.4)). Eine Aufgabe, die kein
+    Buch nennt, zählt nicht, und es wird ihr kein Buch zugedacht: die Zahlen sind eine Untergrenze, keine Schätzung;
   - ein in ein anderes zusammengeführtes Buch zählt als das andere, ein zurückgezogenes Buch als keines;
   - Reihenfolge: die meisten Aufgaben, bei Gleichheit die meisten wartenden, dann die Nummer des Buchs;
   - beim Buch: Archiv, Jahre, Zugang, wie viele Aufgaben es brauchen (davon warten und zurückgestellt), Bilder
@@ -433,3 +442,153 @@ Forschung für sich.
 - **Gilt seit:** Forschung 1.35.0
 
 <!-- zdroj: research:b1749433 src/core/config.ts BOOKS_MIN_TASKS 5, BOOKS_MIN_TASKS_MAX 999, SETTINGS books.minTasks, queue.sameBook (tree, no|yes), validace „whole number from 1 to 999“ · src/cli/menu-settings.ts booksSettings (1 ui.books.min, 2 ui.books.same), položka Archivy ui.archives.books (poslední) · src/core/live.ts POST /books (config set/unset --for-tree), booksSettings · assets/lang/cs.json ui.books.settings.title, ui.books.min, ui.books.same · CHANGELOG.cs.md 1.35.0 „Knihy v aplikaci Strom a jejich nastavení“ -->
+
+<a id="R6.8.4"></a>
+### R6.8.4 Unter welchem Buch eine Aufgabe wartet
+
+Eine wartende Aufgabe gehört unter das Buch, das durchsucht werden muss, nicht unter das Buch, in dem der Agent die
+Spur gefunden hat (eine Notiz in einer Geburtsmatrik, die zu den Trauungen einer anderen Pfarrei führt). Unter diesem
+Buch zeigt sie die Strom-App in den Gruppen nach Buch ([S4.4.4](S4-research-from-the-app.md#S4.4.4)), und in seinen
+Ordner werden die Bilder für eine Aufgabe gespeichert, die auf eine Website wartet.
+
+- **Prüft der Code:** das Buch einer wartenden Aufgabe, in dieser Reihenfolge:
+  1. die Aufgabe wartet auf Bilder mit Nummern (`--images`): das Buch dieser Bilder;
+  2. das Buch, das der Agent der Aufgabe gegeben hat (`strom task wait|edit --book B…`);
+  3. das einzige Buch, dessen Nummer (B…) im Text dessen steht, worauf die Aufgabe wartet, und das nicht unter den
+     Büchern ist, in denen die Aufgabe arbeitet. Bei mehreren Nummern gelten die nächsten Punkte;
+  4. die Aufgabe wartet auf eine Website oder auf das Prüfen einer Website (`--kind web`, `--check`), arbeitet in
+     einem Buch und nennt daneben in freiem Text einen Ort oder ein Buch, das erst gesucht wird: **ohne Buch** (in der
+     App unter **Ohne Buch**). Nummern von Datensätzen (B…, R…) zählen nicht als freier Text;
+  5. sonst das einzige Buch, in dem die Aufgabe arbeitet; keines oder mehrere: ohne Buch.
+- **Was sich danach richtet:**
+  - das Buch des Eintrags in der Strom-App und die Zahlen der Bücher ([R6.8](#R6.8); das Buch aus `--book` zählt
+    neben dem Buch, in dem die Aufgabe arbeitet);
+  - eine Aufgabe, die auf eine Website wartet: ihr Ordner im gemeinsamen Ordner (in **Was wartet** **Den Ordner
+    öffnen**, in der App der Block **Liefern**, [S4.4.7](S4-research-from-the-app.md#S4.4.7)) und die Rückkehr der
+    Aufgabe nach dem Speichern von Bildern hinein ([R6.7.2](#R6.7.2)). Eine Aufgabe ohne Buch hat keinen Ordner, und
+    der Ordner des Buchs, in dem die Spur gefunden wurde, wird ihr nicht angeboten.
+- **Grenzen:**
+  - nur für wartende Aufgaben. Warteschlange, offene und zurückgestellte Aufgaben bleiben beim Buch, in dem die
+    Aufgabe arbeitet;
+  - nichts wird überschrieben: die Punkte 3–5 werden beim Lesen ermittelt, der Text des Wartens und die Antworten der
+    Menschen ändern sich nicht;
+  - `--book` nur bei einer wartenden Aufgabe und nur mit einem lebenden Buch (ein unbekanntes oder zurückgezogenes ist
+    ein Fehler). Mit `--images` nur dasselbe Buch wie bei den Bildern, ein anderes ist ein Fehler. Eine neue
+    Einstellung des Wartens löscht `--book` ([R6.2](#R6.2)). Ein älteres strom lässt das Feld, wie es ist.
+- **Der Agent bei einer Aufgabe:** `strom task show` zeigt die Zeile `book B… — the book to be searched`. Hat eine
+  Aufgabe, die auf eine Website oder auf das Prüfen einer Website wartet, kein Buch, sagt die Ausgabe von
+  `strom task wait` dem Agenten, wie er es ihr gibt, sobald es angelegt ist (`strom recordset add`, dann
+  `strom task edit T… --book B…`).
+- **Nur Methodik:** Leitfaden des Agenten: das Buch zum Durchsuchen, nicht das, in dem die Spur gefunden wurde:
+  `--book B…`.
+- **Warum:** lieber kein Buch als ein fremdes.
+- **Bedienung:** Terminal: `strom task wait T… --kind web --book B… --on "<was>"`, `strom task edit T… --book B…`,
+  `strom task show T…`. App: **Wartet auf Bearbeitung**, Gruppen nach Buch
+  ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:8d19d4f6 src/core/books.ts waitTarget (jen waiting bez awaits: wait.book → jediné živé B… ve waitingOn mimo where (BOOK_ID_IN) → null pro web/check s jednou knihou ve where a volným textem (RECORD_ID) → undefined), bookOfTask (awaits → waitTarget → jediná kniha where), booksOfTask (+ wait.book u waiting) · src/core/inboxwait.ts webWaitBook, inboxWaitOf (web) · src/commands/media.ts wakeWaiting (web: named || webWaitBook) · src/core/waiting.ts:441 book · src/core/live.ts:2180 · src/commands/tasks.ts waitOptions --book (requireRecord recordset, liveBook → chyba vzatá zpět, s --images jen táž kniha), task edit (jen waiting, task.not-waiting), taskDetail řádek book, task wait řádek pro web/check bez knihy · src/core/model.ts wait.book · assets/method/core.md (locate, request) „The book to search, not the one the trail was found in: `--book B…`.“ · CHANGELOG.cs.md 1.35.0 „Čekající úkol pod knihou, kterou je třeba prohledat“ · dirigent:prace/1117-vyzkum-kniha-cile (Návrh A–F, „lepší žádná kniha než cizí“), 1117-research-kniha-cile -->
+
+<a id="R6.9"></a>
+## R6.9 Prüfung, wie das Warten erfasst ist: `strom task audit`
+
+Eine Aufgabe, die auf Bilder wartet, die der Mensch von Hand speichert, kehrt nur dann von selbst in die
+Warteschlange zurück, wenn ihr Warten so erfasst ist, wie strom es braucht: Bilder eines Buchs der Forschung nach
+Nummern (`--images B…:<Nummern>`) oder nach Buch (`--kind web --book B…`). Ein Buch pro Aufgabe; das Buch ist in der
+Forschung erfasst (B…) und hat einen Ordner im gemeinsamen Ordner. `strom task audit` findet wartende
+Aufgaben, die anders erfasst sind, und nennt zu jeder eine Korrektur.
+
+- **Prüft der Code:**
+  - geprüft werden wartende Aufgaben, die nicht zurückgezogen sind, nicht auf eine Prüfung oder eine Erlaubnis warten
+    und nicht auf einen Brief, die Familie oder anderes warten;
+  - Befunde:
+
+    | Code | Was falsch ist |
+    |---|---|
+    | `images-as-text` | die Bilder eines Buchs stehen nur in Worten, ohne Buch und Nummern; auch ein Warten nach Buch, dessen Text genaue Bildnummern dieses Buchs nennt |
+    | `several-books` | ein Warten will Bilder aus zwei oder mehr Büchern |
+    | `book-unknown` | ein Buch, das die Forschung nicht hat (B…) |
+    | `folder-missing` | der Aufgabe fehlt ihr Ordner im gemeinsamen Ordner; nur wenn sich das Warten sonst nicht ändert |
+
+  - eine Schätzung („≈ Bild 160“, „etwa“, „ca.“) ist keine Bildnummer. Wörter für Bilder werden auf Tschechisch,
+    Deutsch, Englisch und Polnisch erkannt;
+  - zu jedem Befund gibt es die Korrektur, die strom vorschlägt: ganz (`whole`), teilweise (`part`) oder keine
+    (`none`, die Korrektur schreibt der Agent), und die genauen Befehle ([R6.9.1](#R6.9.1));
+  - liest nur, kostenlos, ohne Netz. Eine Aufgabe, deren Warten der Mensch so gelassen hat, wird nicht aufgeführt
+    ([R6.9.1](#R6.9.1)).
+- **Der Agent bei einer Aufgabe:** dem Agenten wird der Befund gesagt, wenn er das Warten schreibt, und strom
+  schreibt ein solches Warten nicht ([R6.9.2](#R6.9.2)).
+- **Bedienung:** Terminal:
+  - `strom task audit`: alle wartenden Aufgaben mit Befund; am Ende eine Checkliste für das Warten (`each wait: …`).
+    Ohne Befund „every waiting task's wait is as strom needs it“;
+  - `strom task audit T…`: eine Aufgabe; `--all` auch die Aufgaben, die der Mensch so gelassen hat; `--json`.
+
+  App: Marke und Korrektur in **Wartet auf Bearbeitung** ([S4.4.8](S4-research-from-the-app.md#S4.4.8)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:61c95c53, 1fe47bf3, 15312d00, 6775c199 src/core/taskaudit.ts audited (waiting, ne retracted, awaitsCheck, awaitsPermission, ne letter/family/other), findingsOf (images-as-text, several-books, book-unknown, folder-missing jen se sdílenou schránkou a bez jiného přepisu), fixOf (can whole/part/none), odhad ≈/asi/cca není číslo, slova snímků cs/de/en/pl, WAIT_CHECKLIST · src/commands/tasks.ts task audit (--all, --json, „every waiting task's wait is as strom needs it“, each wait: checklist) · strom help task audit („Reads only, free, no network.“) · CHANGELOG.cs.md 1.35.0 · app:docs/ZADANI_VYZKUM_kontrola-ukolu.md „Odpověď výzkumu (U2)“ · dirigent:spec/109 K1.3 -->
+
+<a id="R6.9.1"></a>
+### R6.9.1 Korrektur in einem Schritt und der Weg zurück
+
+Die Korrektur wird in einem Vorgang geschrieben und lässt sich zurücknehmen, solange sich nichts von ihr geändert
+hat. Was der Mensch so lassen will, wie es ist, kann er so lassen.
+
+- **Prüft der Code:**
+  - `--fix` (Vorgang `task.audit-fix`, ein Commit): die Aufgabe wartet auf Bilder eines Buchs, nach Nummern, sonst
+    nach Buch. Jedes weitere Buch bekommt eine eigene Aufgabe mit demselben Was, Warum und Erledigt, wenn, von der
+    ursprünglichen abgetrennt. Der Text des Wartens wird so geteilt, dass kein Wort verloren geht: die Überschrift
+    einer Liste geht mit jeder Aufgabe, der Schluss und die Teile ohne Buch bleiben bei der ursprünglichen, der
+    Eintrag eines Buchs bleibt ganz;
+  - ein Buch, das die Forschung nicht hat, bleibt ein Warten in Worten in einer eigenen Aufgabe: zuerst das
+    Buch (`strom recordset add`), dann `--images`. Sind alle Bücher unbekannt, ändert strom nichts, und
+    die Korrektur schreibt der Agent;
+  - die Korrektur legt die Ordner an und übernimmt die Bilder, die schon darin liegen: eine Aufgabe, die alle Bilder
+    hat, kehrt in die Warteschlange zurück;
+  - `--expect <stamp>`: schreibt nur eine Aufgabe, die so ist wie beim Vorschlag der Korrektur, sonst lehnt es ab
+    (`audit.changed`). Eine Aufgabe, die nicht mehr wartet, oder eine Korrektur ohne Änderung wird abgelehnt
+    (`audit.none`);
+  - `--unfix` (Vorgang `task.audit-unfix`) nimmt die Korrektur zurück, solange sich keine ihrer Aufgaben geändert hat,
+    sonst `audit.changed`. Die abgetrennten Aufgaben werden zurückgezogen (nie gelöscht), die ursprüngliche Aufgabe
+    wartet genau wie zuvor. Gespeicherte Bilder bleiben registriert;
+  - `--keep` (Vorgang `task.audit-keep`): der Mensch lässt das Warten, wie es ist. Nur der Mensch; dem Agenten lehnt
+    strom `--keep` und `--unkeep` ab (`audit.person-only`). Es gilt, solange sich das Warten nicht ändert und neue
+    Befunde unter denen sind, die der Mensch gelassen hat. Geschrieben wird, wer es gegeben hat und wo (Terminal oder
+    App). `--unkeep` (Vorgang `task.audit-unkeep`) nimmt es zurück.
+- **Verlauf der Aufgabe:** `strom task show T…` zeigt die Zeile „audit  kept as it is …“ oder „fixed by the audit …
+  (T… split off) — undone by strom task audit T… --unfix“.
+- **App:** die Brücke gibt bei einem wartenden Eintrag den Befund (`audit`: Arten, Korrektur, Stempel), die Vorschau
+  der Korrektur (`GET <token>/waiting/<T…>/fix`) und das Schreiben (`POST <token>/waiting/<T…>` mit
+  `do: fix|unfix|keep|unkeep` und `expect`), Funktion `tasks.audit`. Das gilt auch im Strom-Archiv
+  ([S4.4.8](S4-research-from-the-app.md#S4.4.8), [S4.4.9](S4-research-from-the-app.md#S4.4.9)).
+- **Bedienung:** Terminal: `strom task audit T… --fix`, `--unfix`, `--keep`, `--unkeep`, `--expect <stamp>`,
+  `--dry-run`. App: **Korrigieren**, **Rückgängig** in der Meldung, **So lassen**.
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:61c95c53, 15312d00, 6775c199 src/core/taskaudit.ts fixOf (wait-images / wait-book, split, left book-unknown, jen neznámé → nic), applyAuditFix (atomicky, expect → audit.changed, bez změn audit.none, before, rozdělení textu, splitFrom, op task.audit-fix), takeWaiting, sealAuditFix, undoAuditFix (audit.changed, dropped + retracted, original přesně, snímky zůstanou, op task.audit-unfix), keepAudit (auditKept at, by, givenIn, kinds, wait; podmnožina druhů; op task.audit-keep / task.audit-unkeep) · src/commands/tasks.ts task audit (--fix, --unfix, --keep, --unkeep, --expect jen s fix/keep, audit.person-only, STROM_FOR_APP → by app), task show řádky audit · strom help task audit · app:docs/ZADANI_VYZKUM_kontrola-ukolu.md „Odpověď výzkumu (U2)“ (most, kódy 409/404/503/423/507, i v archivu) · dirigent:spec/109 K1.5 -->
+
+<a id="R6.9.2"></a>
+### R6.9.2 Das Warten wird nicht falsch geschrieben, und der Agent erfährt es
+
+Strom schreibt kein Warten mit Befund und sagt dem Agenten, was an der Aufgabe noch nicht so ist, wie es sein soll.
+
+- **Prüft der Code:**
+  - `strom task wait` und `strom task edit` mit `--on`, `--kind`, `--url` oder `--book` lehnen ein Warten mit Befund
+    ab (`task.wait-images`) und geben die genauen Befehle. Ein fehlender Ordner wird nicht abgelehnt;
+  - nach `strom task wait` bekommt der Agent die Zeile „check the task's wait: …“ mit einer Checkliste, wenn das
+    Warten noch nicht so ist, wie es sein soll. `strom task park`, dessen Grund Bilder eines Buchs der Forschung
+    nennt, sagt dem Agenten, dass von Hand gespeicherte Bilder ein Warten sind, kein Zurückstellen, mit dem genauen
+    Befehl;
+  - `strom session close` sagt dasselbe für die Aufgaben der Sitzung (`--json`: `audit`); `strom session finish`
+    nicht;
+  - `strom chat --task T…` beginnt bei einer Aufgabe mit Befund für den Agenten mit dem Satz „Ihr Warten ist nicht
+    so geschrieben, wie strom es braucht (…). Führe `strom task audit T…` aus, schlage mir die Korrektur vor und
+    schreibe sie erst, wenn ich hier zugestimmt habe.“
+- **Grenzen:** der Agent schreibt die Korrektur erst nach der Zustimmung des Menschen im Gespräch. Das Warten so
+  lassen, wie es ist, darf nur der Mensch ([R6.9.1](#R6.9.1)).
+- **Bedienung:** Terminal: `strom task wait`, `strom task edit`, `strom task park`, `strom session close`,
+  `strom chat --task T…`. App: **Mit Agent besprechen** bei einem Befund
+  ([S4.4.8](S4-research-from-the-app.md#S4.4.8)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:61c95c53, 15312d00 src/core/taskaudit.ts refuseWait (task.wait-images, kromě folder-missing, waitCommands), WAIT_CHECKLIST · src/commands/tasks.ts checkWaitLine, parkedForImages · src/commands/session.ts:373 session close (check of each wait, --json audit) · assets/lang/cs.json ui.chat.task.audit.say, ui.chat.task.audit.images/books/unknown/folder.say · CHANGELOG.cs.md 1.35.0 · app:docs/ZADANI_VYZKUM_kontrola-ukolu.md „Odpověď výzkumu (U2)“ K1.1, K1.2, V11 · dirigent:spec/109 K1.1, K1.2 -->

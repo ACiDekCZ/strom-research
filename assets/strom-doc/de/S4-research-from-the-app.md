@@ -79,8 +79,10 @@ Arbeit im Abschnitt **Jetzt**).
 - **Ab App 3.24.0:** Folgen geht auch im Fächer und auf der Karte ([S4.1.3](#S4.1.3)); das Verschieben der Karte pausiert es ebenso.
 - **Ab App 3.30.0:** ◎ **Hier nicht mehr folgen** stoppt die Sprünge nur in dem Fenster, in dem es geklickt wird; die
   weiteren Fenster folgen weiter, jedes in seiner eigenen Ansicht ([S4.1.7](#S4.1.7)).
+- **Ab App 3.30.0:** der Bogen um das Porträt der Person, an der der Agent arbeitet, ist auch neben den Marken der
+  Forschung auf der Karte zu sehen ([S4.4.1](#S4.4.1)).
 
-<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) -->
+<!-- zdroj: app:src/ui/live-follow-ui.ts:7, :26 ZOOM_FAR, :27 ZOOM_READABLE, :32 gap 8000 / idle 20_000 · strings.ts live.followOn, live.followOff · 3.30.0: spec 097 O1, O3, ZADANI_DEV §6 (◎ v hlavním okně další okna nevypne) · oblouk vedle značek: app:16cba085 src/card-signals.ts showAgent -->
 
 <a id="S4.1.2"></a>
 ### S4.1.2 Panel anpassen
@@ -585,8 +587,14 @@ Aus der App lässt sich um selbstständige Arbeit des Agenten an der Warteschlan
   **Forschungsübersicht**; Menü **Forschung → An der Warteschlange arbeiten…** ([S4.5.2](#S4.5.2)). Terminal:
   `strom run --tasks N`, `strom run --loop` ([R7.1](R7-when-the-agent-works.md#R7.1)).
 - **Gilt seit:** App 3.28.0 (Forschung 1.32.0); im Bereich **Jetzt** und **Weitere (n)** seit App 3.29.0
+- **Ab App 3.30.0:** nach **Terminal öffnen** steht in **Jetzt** **Arbeit an der Warteschlange wird gestartet…** mit
+  „Der Agent startet im Terminal der Forschung.“, und beide Schaltflächen **An der Warteschlange arbeiten…** sagen,
+  dass gestartet wird, und öffnen nichts erneut. Die Zeile verschwindet, sobald die Forschung den Link bestätigt
+  ([S4.5.4](#S4.5.4)) oder eine Sitzung oder ein Lauf beginnt; dann tritt die Zeile der Sitzung an ihre Stelle. Ohne
+  Bestätigung innerhalb von 30 s fragt **Jetzt** **Arbeit an der Warteschlange nicht gestartet?** („Das Terminal hat
+  sich in 30 s nicht gemeldet.“) mit **Erneut versuchen** und dem Rat, und die Schaltflächen sind wieder frei.
 
-<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext -->
+<!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
 
 <a id="S4.3"></a>
 ## S4.3 Linien in der App
@@ -730,6 +738,29 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
 - **Ab App 3.30.0 mit Forschung 1.35.0:** die Einträge lassen sich nach Buch gruppieren, mit der Reihenfolge
   **Meiste Aufgaben** und dem Unterabschnitt **Schneller durch Herunterladen** ([S4.4.4](#S4.4.4), [S4.4.5](#S4.4.5));
   die Einstellungen der Bücher in **Forschung für diesen Stammbaum** ([S4.4.6](#S4.4.6)).
+- **Ab App 3.30.0:** Gruppen und der geöffnete Eintrag (auch bei einer Forschung ohne Bücher):
+  - jede Gruppe (Ort, Archiv, Amt, Buch) steht in einer eigenen Leiste mit dem ganzen Namen, darunter Angaben und
+    Aktionen der Gruppe (beim Archiv die von **Archiv-Website ↗**, **Chat**, **Gesendet** und **Text aller
+    Anfragen**, die die Forschung anbietet). Der Name bricht auf höchstens 3 Zeilen um (auf dem Telefon, im kleinen
+    Panel und in einer schmalen Spalte des Fensters der Übersicht auf 4); ein längerer endet mit „…“ und dem Link
+    **mehr**, der den Namen aufklappt und die Gruppe nicht einklappt (**weniger** kürzt ihn wieder). Die Einträge der
+    Gruppe hängen unter der Leiste an einer senkrechten Linie. Eine Liste ohne Gruppen und die Zwischenüberschrift
+    **Ohne Buch** haben keine Linie;
+  - der geöffnete Eintrag zeigt seinen Text ganz und nur einmal, in seiner Zeile. Der Inhalt beginnt mit dem Block
+    **Wartet auf** mit der ganzen Beschreibung des Schritts von Hand, wie die Forschung sie geschrieben hat (Adressen
+    im Text sind Links). Ein Text länger als 10 Zeilen (auf dem Telefon quer 3) endet mit „…“ und **mehr** /
+    **weniger**. Die zweite Zeile des Blocks, **An**, sagt, an wen die Anfrage geht. Ein Eintrag, der nur auf den
+    Menschen wartet, hat keinen Block. Unter dem Block der Zustand der Bilder, Person · Richtung und die Aktionen;
+  - der Text „wartet auf“ hat bis zu 1500 Zeichen (vorher schnitt ihn die App auf 120 ab). Das kleine Panel zeigt ihn
+    in der Zeile auf 2 Zeilen, ganz beim Überfahren mit der Maus;
+  - ein Eintrag einer Website hat im geöffneten Inhalt **Website öffnen ↗** und daneben die Adresse der Website (nicht
+    auf dem Telefon);
+  - ein Eintrag, der auf Bilder wartet, beginnt mit dem Block **Liefern** mit Schritten ([S4.4.7](#S4.4.7)).
+- **Ab App 3.30.0 mit Forschung 1.35.0:** eine Aufgabe, deren Warten auf Bilder nicht so erfasst ist, wie strom es
+  braucht, hat eine Marke und im geöffneten Eintrag eine Korrektur in einem Schritt ([S4.4.8](#S4.4.8),
+  [S4.4.9](#S4.4.9)).
+
+<!-- zdroj: app:7d7c0783 src/ui/research-overview-ui.ts overviewWaitingGroupHead, overviewWaitingBookHead (pás .research-overview__waiting-grouphead, akce skupiny v pásu, ul.is-grouped; bez skupin a Bez knihy bez linky), src/ui/waiting-order-ui.ts groupTitleMoreEl (strop GROUP_TITLE_LINES 3, telefon, panel a úzký sloupec 4; víc/méně stav title:<skupina>, stopPropagation), src/ui/research-ui.ts (panel: pás, víc, is-grouped), appendWaitingWebHost, strings.ts live.titleMore, titleLess, waitingWebHostAria · app:1176f465 overviewWaitingRow (text celý v řádku, detail ho neopakuje), overviewWaitingOnBox (waitsOnUser → bez bloku; appendLinkedText; waitingOnMoreEl 10 / na šířku 3 řádky; waitingToLabel Adresát), strings.ts live.waitingOnLabel, waitingToLabel · app:96b35bbd src/research-link.ts sanitizeWaiting MAX_WAITING_ON 1500, panel .live-waiting-on 2 řádky + title · CHANGELOG.cs.md 3.30.0 · dirigent:prace/1117-app-knihy-zahlavi, 1117-app-cekana-cely-text · app:docs/ZADANI_DEV_knihy-zahlavi.md §1–§3 -->
 
 <!-- zdroj: app:v3.21.2 src/ui/research-ui.ts renderLivePanel (waiting) · strings.ts research.answerWhere, research.answerHere, research.answerMixed · app:7cf409bd src/ui/card-signals-ui.ts answerPersonWaiting (vyprávění → porovnání; 1 položka → waitingAnswerAction; jinak showPersonWaiting, why jen když žádná nejde), personSignalsMenuHtml (dotyk: menuWaiting → signal-waiting-list) · src/ui/research-ui.ts showPersonWaiting (telefon, sbalený/skrytý oddíl, otevřený přehled → přehled), waitingWhyEl · src/research-waiting.ts personWaiting, panelWaiting (focus první) · src/ui/waiting-task-ui.ts waitingAnswerAction · src/card-signals.ts ACTION_GLYPH waiting '!' · strings.ts card.menuAnswer, card.menuWaiting, card.tipClickAnswer, live.waitingNoAnswerHere · e2e/card-waiting-answer.spec.ts · hypotézy: app:src/ui/hypothesis-waiting-ui.ts (commit 8d7f1597), research:src/core/waiting.ts hypothesesApp -->
 
@@ -768,8 +799,16 @@ Schaltfläche.
 - **Bedienung:** App: Klick auf die Marken in der Ecke des Porträts; **Einstellungen → Personenkarte → Auf der Karte
   zeigen**.
 - **Gilt seit:** App 3.27.0
+- **Ab App 3.30.0:** der Agent bei einer Person und die Marken sind zusammen zu sehen:
+  - der sich drehende Bogen um das Porträt der Person, an der der Agent arbeitet, ist auch neben einer oder mehreren
+    Marken zu sehen; die Marken bleiben in der Ecke. Eine Karte ohne Porträt hat statt des Bogens einen Ring um den
+    Punkt der Marke;
+  - ein Bildschirmleser hört beides, was wartet, und „Forschung arbeitet an dieser Person“;
+  - das Menü einer Person mit Marke bietet auch **Forschung verfolgen ›** an;
+  - das Häkchen nach beendeter Arbeit des Agenten erscheint nur auf einer Karte ohne Marke;
+  - die Vorschau der Karte in **Einstellungen → Personenkarte** zeigt Bogen und Marke zusammen.
 
-<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek -->
+<!-- zdroj: app:16461aca, 85c1f704, abf7620f src/card-signals.ts ACTION_ORDER (waiting, conflict, question), presentActions (zapnuté v Na kartě ukázat), stackChoices (waiting, story, knows, agent), ACTION_GLYPH · src/card-signal-marks.ts cardActionMarksHtml (stoh n2/n3, tečky), stackAriaLabel, stackTipHtml (tipClickChoose / tipClickKnows), stackMenuItemsHtml (menuAnswer / dotyk menuWaiting, story.compare, menuKnows, menuAgent; bez značky výzkumu), placeStackMenu · index.html .card-signal-stack, #tree-canvas.zoom-far (src/zoom.ts ZOOM_FAR = 0.55; index.html:13732-13741 jedna tečka u všech Detailů karet, e2e/card-signals.spec.ts:353), body.view-mode-print bez značek, compact dvě tečky · strings.ts card.stackLabel, stackWaiting, stackMenuLabel, tipClickChoose, cardDensity.cardWaiting, cardConflict, cardQuestion, compact · CHANGELOG.cs.md 3.27.0 „Více značek na kartě“ · dirigent:prace/1111-app-karta-vice-znacek · 3.30.0: app:16cba085 src/card-signals.ts showAgent i se značkou, doneSince jen bez značky · src/renderer.ts (oblouk vedle značky, kompaktní kroužek kolem tečky, aria-label obojí) · src/ui/card-fields-ui.ts náhled · src/ui/card-signals-ui.ts signal-agent (card.menuAgent) · strings.ts card.ariaAgent, card.menuAgent · CHANGELOG.cs.md 3.30.0 „Agent při práci i vedle odznaku“ · spec 109 -->
 
 <a id="S4.4.2"></a>
 ### S4.4.2 Suche in Wartet auf Bearbeitung
@@ -880,30 +919,41 @@ was sich daraus herunterladen lässt und wohin die Bilder zu speichern sind.
 
   Bei der Reihenfolge **Empfohlen** ist die Wahl **Archiv** | **Buch**; die Gruppen der Bücher stehen nach ihrem
   ersten Eintrag, bei einer Reihenfolge nach Zeit nach der Zeit ihres ersten Eintrags.
-- **Reihenfolge Meiste Aufgaben:** die Gruppen sind immer Bücher (die Wahl der Gruppen verschwindet). Die Bücher gehen
-  von dem, das die meisten Aufgaben brauchen, bei Gleichheit mehr wartende, dann die Nummer des Buchs. Innerhalb eines
-  Buchs stehen die Einträge in der Reihenfolge **Empfohlen**. Einträge ohne Buch stehen am Ende in Gruppen der
-  Archive.
-- **Überschrift des Buchs:**
-  - Titel des Buchs (mit den Jahren), das Etikett **Buch**, **neu: N** bei einem eingeklappten Buch und die Zahl der
-    Einträge. Beim Überfahren mit der Maus Titel, Archiv und wie viele Aufgaben das Buch brauchen (davon
-    zurückgestellt);
-  - zweite Zeile: Archiv · „3 warten“ · „+M in der Warteschlange“ (Aufgaben des Buchs, die nicht warten) · Bilder
-    („240 Bilder · lokal 12 · fehlen 228“) · „N Dateien werden übernommen“ (Dateien, die im Ordner des Buchs liegen
-    und noch nicht übernommen sind) · „Archiv-Website erfordert Anmeldung“. Bei der Reihenfolge **Meiste Aufgaben**
-    stehen die Zahlen vorn und fett;
-  - Aktionen: was sich nach den Bedingungen des Archivs herunterladen lässt
+- **Reihenfolge Meiste Aufgaben:** die Gruppen sind immer Bücher (die Wahl der Gruppen verschwindet).
+  - oben die Bücher zum Herunterladen (ihnen fehlen Bilder, oder die Zahl der Bilder ist nicht bekannt), darunter die
+    vollständig lokalen Bücher. In jedem Teil gehen die Bücher von dem, das die meisten Aufgaben brauchen, bei
+    Gleichheit mehr wartende, dann die Nummer des Buchs. Genauso ist **Schneller durch Herunterladen** geordnet
+    ([S4.4.5](#S4.4.5));
+  - hat eine Phase beide Teile, stehen über ihnen die Zwischenüberschriften „Zum Herunterladen · 2 Bücher“ und
+    „Vollständig lokal · 1 Buch“ (Zahlen in der Phase). Mit nur einem Teil gibt es keine Zwischenüberschrift;
+  - unter der Reihenfolge steht der Satz „Oben Bücher, denen Bilder fehlen: Deren Herunterladen erledigt die meisten
+    Aufgaben auf einmal. Vollständig lokale Bücher stehen darunter.“ Im Menü der Reihenfolge hat **Meiste Aufgaben**
+    die zweite Zeile „Bücher zum Herunterladen oben“;
+  - innerhalb eines Buchs stehen die Einträge in der Reihenfolge **Empfohlen**. Einträge ohne Buch stehen am Ende in
+    Gruppen der Archive.
+- **Leiste des Buchs** (wie die Leiste jeder Gruppe, [S4.4](#S4.4)):
+  - Titel des Buchs (mit den Jahren) ganz, umbrochen, auf höchstens 3 Zeilen (4 auf dem Telefon) und **mehr**. Rechts
+    das Etikett **Buch**, **neu: N** bei einem eingeklappten Buch und die Zahl der Einträge. Beim Überfahren mit der
+    Maus Titel, Archiv und wie viele Aufgaben das Buch brauchen (davon zurückgestellt);
+  - zweite Zeile: Archiv, ganz;
+  - dritte Zeile: „12 Aufgaben“ (wie viele Aufgaben das Buch brauchen) · „3 warten“ · „+M in der Warteschlange“
+    (Aufgaben des Buchs, die nicht warten) · „2 zurückgestellt“ · Bilder („240 Bilder · lokal 12 · fehlen 228“, ein
+    vollständig lokales Buch „240 Bilder · vollständig lokal“) · „N Dateien werden übernommen“ (Dateien, die im
+    Ordner des Buchs liegen und noch nicht übernommen sind) · „Archiv-Website erfordert Anmeldung“. „In der
+    Warteschlange“ und „zurückgestellt“ nur über null. Bei der Reihenfolge **Meiste Aufgaben** sind die Zahl der
+    Aufgaben und „fehlen N“ fett;
+  - Aktionen unter den Angaben: was sich nach den Bedingungen des Archivs herunterladen lässt
     ([R6.8.1](R6-awaiting-action.md#R6.8.1)) – „Ganzes Buch herunterladbar · N Bilder“, „Bilder 31–36
-    herunterladbar · 6 Bilder“ oder „Ausgewählte Bilder … herunterladbar“; **Archiv-Website ↗**; **Ordner öffnen**
-    (der Ordner des Buchs im gemeinsamen Ordner, die Forschung öffnet ihn ohne Terminal und legt ihn bei Bedarf an,
-    [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (nicht auf dem Telefon). Ein Klick auf eine Aktion klappt das
-    Buch nicht ein;
+    herunterladbar · 6 Bilder“ oder „Ausgewählte Bilder … herunterladbar“; **Archiv-Website ↗**; **Ordner des Buchs
+    öffnen** (der Ordner des Buchs im gemeinsamen Ordner, die Forschung öffnet ihn ohne Terminal und legt ihn bei
+    Bedarf an, [R6.8.2](R6-awaiting-action.md#R6.8.2)); **Chat** (nicht auf dem Telefon). Ein Klick auf eine Aktion
+    klappt das Buch nicht ein;
   - ein Buch, das die Forschung in der Übersicht der Bücher nicht geschickt hat: nur Titel (oder Nummer des Buchs),
     Etikett und Zahl.
 - **Suche** ([S4.4.2](#S4.4.2)) findet Einträge auch nach Titel und Archiv ihres Buchs.
-- **Kleines Panel:** Schaltfläche der Reihenfolge und „Gruppen: Buch ▾“ mit Menü; Überschrift des Buchs nur mit Titel
-  und „N warten“, Zwischenüberschrift **Ohne Buch**; die Aktionen der Bücher gibt es nur in der
-  **Forschungsübersicht**. Die Zahlen der Einträge sind dieselben wie bisher.
+- **Kleines Panel:** Schaltfläche der Reihenfolge und „Gruppen: Buch ▾“ mit Menü; Leiste des Buchs nur mit Titel
+  (höchstens 4 Zeilen und **mehr**) und „N warten“, die Einträge an der Linie, Zwischenüberschrift **Ohne Buch**; die
+  Aktionen der Bücher gibt es nur in der **Forschungsübersicht**. Die Zahlen der Einträge sind dieselben wie bisher.
 - **Grenzen:**
   - die Wahl **Buch** und die Reihenfolge **Meiste Aufgaben** gibt es nur mit einer Forschung, die Bücher schickt,
     und nicht im Strom-Archiv oder in einer Forschung, die auf einen Agenten wartet. Sonst sieht alles aus wie vorher,
@@ -914,8 +964,11 @@ was sich daraus herunterladen lässt und wohin die Bilder zu speichern sind.
   Schalter **Gruppen** (**Archiv** | **Buch** | **Keine Gruppen**); auf dem Telefon (auch quer) und im kleinen Panel
   die Schaltfläche „Gruppen: Buch ▾“ mit Menü (auf dem Telefon ein Blatt). Reihenfolge „⇅ … ▾“ › **Meiste
   Aufgaben**.
+- **Das Buch des Eintrags** bestimmt die Forschung: eine wartende Aufgabe gehört unter das Buch, das durchsucht werden
+  muss ([R6.8.4](R6-awaiting-action.md#R6.8.4)).
 - **Gilt seit:** Forschung 1.35.0, App 3.30.0
 
+<!-- zdroj: app:7d7c0783 src/research-books.ts bookMetaParts (tasks · waiting · inQueue >0 · parked >0 · obrázky · pending · login), bookHeadImagesPieces (missing 0 → wholeOnDisk), research-overview-ui.ts overviewWaitingBookHead (archiv na vlastním řádku, akce v pásu, books.folderBook), research-ui.ts appendPanelWaitingBooks (název 4 řádky + víc, is-grouped) · app:1176f465 src/research-books.ts sortBooksMost (bookWholeOnDisk napřed false, pak tasks ↓, waiting ↓, číslo), research-waiting.ts phaseRows (part download / disk jen při obou částech, počty ve fázi), research-overview-ui.ts :1200 order-note books.mostNote, :1236 books.toDownload / onDiskAll, is-key (tasks, missing), table-headmenu.ts sub books.orderMostSub · strings.ts live.books.tasks, parked, wholeOnDisk, folderBook, toDownload, onDiskAll, mostNote, orderMostSub · research:8d19d4f6 src/core/books.ts bookOfTask (waitTarget) · ZADANI_DEV_knihy-zahlavi.md §1, §2, §4 -->
 <!-- zdroj: app:224a1358, 7c39e663 src/ui/waiting-order-ui.ts shownWaitingGroups (most → book; book bez knih → archive; none v doporučeném → archive), waitingGroupModesFor, storedWaitingGroupMode (klíč přepínače Skupiny) · src/research-waiting.ts phaseRows (by book, afterBooks, most: sortBooksMost, uvnitř doporučené) · src/research-books.ts booksOn, bookOfItem, bookMetaParts, bookImagesText, bookOfferText (whole/range/selected), bookHeadTitle, bookWebUrl, sortBooksMost · src/ui/research-overview-ui.ts overviewWaitingBookHead (štítek Kniha, nové, počet, meta, is-key u most), overviewWaitingBookActions (nabídka, Web archivu, Otevřít složku book?do=folder, Chat), waitingGroupsChoiceEl (segment, compact/sheet) · src/ui/research-ui.ts appendPanelWaitingBooks (malý panel: název, N čeká, Bez knihy, akce jen v přehledu) · research:b1749433 src/core/live.ts /status books (feature books; ne archiv ani čekání na agenta), bookOfTask · strings.ts live.books · dirigent:spec/105-co-nejvic-pomuze U5, K5.1 · app:docs/ZADANI_DEV_knihy-ukolu.md §1–§2 -->
 
 <a id="S4.4.5"></a>
@@ -977,6 +1030,132 @@ Die Einstellungen der Bücher der Forschung ([R6.8.3](R6-awaiting-action.md#R6.8
 
 <!-- zdroj: app:224a1358 src/ui/books-setting-view.ts (pole, (výchozí), Vrátit výchozí, přepínač) · src/ui/research-tree-settings-ui.ts showResearchTreeSettings group books, booksBody, překreslení mimo fokus · src/research-link.ts booksSettings, POST books (400 books.body, 409 directions.archive → skupina zmizí, 503 research.busy) · strings.ts researchTree.booksGroup, booksSum, minTasks*, sameBook*, resetDefault, booksOk, booksBusyErr, booksRetry · research:b1749433 src/core/live.ts POST /books · ZADANI_DEV_knihy-ukolu.md §4 -->
 
+<a id="S4.4.7"></a>
+### S4.4.7 Ein Eintrag, der auf Bilder wartet
+
+Ein geöffneter Eintrag, der auf Bilder wartet, sagt zuerst, was zu liefern ist und wohin, und zeigt dann die Schritte
+in der Reihenfolge, in der sie gemacht werden. Das Ergebnis sind Dateien in einem Ordner, keine Antwort.
+
+- **Welche Einträge es betrifft:** eine Aufgabe, die auf Bilder wartet (Art **Bilder**), und eine Aufgabe, die auf
+  eine Website wartet und der die Forschung den Ordner eines Buchs gegeben hat
+  ([R6.8.4](R6-awaiting-action.md#R6.8.4)); nur wenn sich Bilder über die Brücke hinzufügen lassen. Die übrigen
+  Einträge sind unverändert.
+- **Block Liefern** (am Anfang des Inhalts, vor **Wartet auf**, [S4.4](#S4.4)): ein Satz, welche Bilder als Dateien
+  und in welchen Ordner, zum Beispiel „Bilder 112–113 als Dateien (JPG oder PNG) im Ordner des Buchs …“ mit dem Titel
+  des Buchs:
+  - die Nummern sind die, die noch fehlen; ohne bekannte Nummern hat der Satz keine Nummern („Bilder als Dateien (JPG
+    oder PNG) im Ordner des Buchs …“);
+  - der Ordner des Buchs, wenn die Forschung ihn in der Liste der Bücher mit Ordner hat und der Link in die Forschung
+    ihn öffnen kann; sonst „… im Ordner der Aufgabe“. Der Satz nennt immer den Ordner, den Schritt ② öffnet.
+- **Schritte** (Computer und Tablet), dazwischen Pfeile:
+  1. **Archiv-Website ↗**: die Website des Eintrags, sonst die Website des Buchs oder seines Archivs;
+  2. **Ordner des Buchs öffnen** (die Forschung öffnet ihn ohne Terminal, [R6.8.2](R6-awaiting-action.md#R6.8.2)),
+     sonst **Ordner öffnen** der Aufgabe (öffnet die Forschung im Terminal, mit der Marke Terminal);
+  3. **Bilder hinzufügen**: die einzige Hauptaktion, öffnet die Stelle zum Hochladen der Bilder.
+
+  Ein Schritt, der von hier aus nicht geht, fehlt, und der nächste übernimmt seine Nummer. Ein Pfeil bricht nie von
+  dem Schritt um, zu dem er führt. Unter 380 px Breite stehen die Schritte untereinander ohne Pfeile. Beim Hinzufügen
+  von Bildern und beim Schreiben einer Antwort werden die Schritte ausgeblendet.
+- **Unter dem Block:** der Zustand der Bilder, die Stelle zum Ablegen von Dateien, Person · Richtung und der Link
+  **Bilder nicht erhältlich…**. Er öffnet das Feld **Warum die Bilder nicht erhältlich sind** mit dem Hinweis
+  „Hierher gehört, warum die Bilder nicht geliefert werden können oder was im Archiv fehlt. Eine Lesung des Eintrags
+  gehört nicht hierher: Die Forschung liest die Bilder.“ Das Senden bringt die Aufgabe in die Warteschlange zurück wie
+  jede Antwort ([R6.7](R6-awaiting-action.md#R6.7)). Die übrigen Aktionen (**Mit Agent besprechen** und weitere, die
+  die Forschung anbietet) sind unter **⋯**.
+- **Telefon:** nur der Block **Liefern** mit dem Satz und „Bilder werden am Computer gespeichert.“, ohne Schritte.
+  **Bilder nicht erhältlich…** öffnet das Blatt der Antwort mit derselben Überschrift und demselben Hinweis.
+- **Kleines Panel:** das Fenster **Bilder hinzufügen** beginnt mit demselben Block mit den Schritten untereinander;
+  die Stelle zum Hochladen darunter ist der letzte Schritt.
+- **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, Klick auf einen Eintrag mit Bildern; im
+  kleinen Panel **Bilder hinzufügen**.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:449e6962, 429839f0 src/ui/waiting-task-ui.ts waitingTakesImages (waitingActions images přes most), waitingAnswerTexts (answerImagesLabel, answerImagesHint), waitingDeliverEl (věta deliverSentence, phone → deliverPhone bez kroků, kroky deliverSteps web → folder → images, krok ② books.folderBook přes odkaz book jen s book.folder, jinak openFolder task?do=folder se značkou, ③ haveImages waiting-action--primary → openWaitingImages, deliver-pair šipka s krokem, is-column), panel dialog (column, upload: true, title haveImages) · src/research-waiting.ts waitingForImages (images, web s inbox), waitingDeliver (chybějící čísla jen u detail full; kniha jen ze seznamu se složkou), deliverSentence, deliverWebUrl (w.url, jinak bookWebUrl), deliverSteps · src/ui/research-overview-ui.ts appendWaitingTaskActions deliver (answer → link-button cannotGet, ostatní pod ⋯, na telefonu nic pod ⋯) · strings.ts live.waitingTask.deliverLabel, deliverBook, deliverTask, deliverBookAny, deliverTaskAny, deliverPhone, stepAria, cannotGet, answerImagesLabel, answerImagesHint · e2e/waiting-images.spec.ts, overview-waiting-books.spec.ts · ZADANI_DEV_knihy-zahlavi.md §5 · dirigent:prace/1117-app-knihy-zahlavi (D12, D13) -->
+
+<a id="S4.4.8"></a>
+### S4.4.8 Eine Aufgabe, die nicht wie nötig erfasst ist
+
+Die Forschung prüft bei wartenden Aufgaben, ob das Warten auf Bilder so erfasst ist, wie strom es braucht: Bilder
+eines Buchs der Forschung, ein Buch pro Aufgabe ([R6.9](R6-awaiting-action.md#R6.9)). Ist es das nicht, bringen
+gespeicherte Bilder die Aufgabe nicht in die Warteschlange zurück. Die App zeigt bei einem solchen Eintrag den Befund
+und bietet eine Korrektur in einem Schritt an. Der Eintrag wartet weiter, die Zahlen ändern sich nicht.
+
+- **Marke:** die Zeile des Eintrags hat vor dem Titel ein Warndreieck mit Ausrufezeichen (Sprechblase und
+  Bildschirmleser **Aufgabe nicht wie nötig erfasst**). Im kleinen Panel gibt es nur die Marke (**Aufgabe nicht wie
+  nötig erfasst – öffnet sich in der Übersicht**).
+- **Block im geöffneten Eintrag** (**Forschungsübersicht**, auch in ihrem eigenen Fenster): unter dem Text des
+  Wartens und dem Zustand der Bilder, über den Aktionen des Eintrags, die Überschrift **Aufgabe nicht wie nötig
+  erfasst** und ein Satz, was falsch ist:
+
+  | Befund der Forschung | Satz |
+  |---|---|
+  | Bilder nur im Text | **Scans nur als Text erfasst, ohne Buch – gespeicherte Scans wecken die Aufgabe nicht.** |
+  | mehrere Bücher in einem Warten | **Wartet auf Scans aus zwei Büchern**, mit einem unbekannten Buch **; eines davon ist der Forschung nicht bekannt.** |
+  | ein Buch, das die Forschung nicht kennt | **Das Buch ist der Forschung nicht bekannt – die Aufgabe hat keinen Ordner für Scans.** |
+  | der Ordner fehlt | **Der Ordner für Scans fehlt – die Korrektur legt ihn an.** |
+
+  Bietet die Forschung keine Korrektur an und hat sie einen Agenten, endet der Satz mit **Der Agent nimmt das Buch in
+  die Forschung auf.** Ein Befund, den die App nicht kennt, hat nur die Überschrift.
+- **Aktionen des Blocks:**
+  - **Korrigieren**, nur wenn die Forschung eine ganze oder teilweise Korrektur anbietet: zeigt die Vorschau der
+    Korrektur ([S4.4.9](#S4.4.9));
+  - **Mit Agent besprechen** (Marke KI und Terminal, [S4.5.1](#S4.5.1)) öffnet ein Gespräch zur Aufgabe: der Agent
+    erhält den Befund und schlägt eine Korrektur vor. Nur bei einer Forschung mit Agent, nicht auf dem Telefon. Bei
+    einem Eintrag mit Befund steht diese Aktion nicht unter **⋯**;
+  - **So lassen** schreibt sofort, ohne Vorschau, dass das Warten so richtig ist. Der Befund verschwindet, und die
+    Meldung **Der Befund wird nicht mehr angeboten** hat 8 s lang **Rückgängig**. Die Forschung bietet den Befund
+    wieder an, wenn sich das Warten der Aufgabe ändert.
+- **Grenzen:**
+  - Forschung nicht erreichbar (das Verfolgen ist beendet oder die Brücke antwortet nicht): **Korrigieren** und **So
+    lassen** gehen nicht, und darunter steht **Die Forschung ist nicht erreichbar – die Korrektur lässt sich jetzt
+    nicht schreiben.**;
+  - ein Befund, der inzwischen verschwunden ist: die Meldung **Der Befund gilt nicht mehr – die Aufgabe ist richtig
+    erfasst.**;
+  - ein Klick direkt nach dem Verschieben der Zeilen (ein anderer Befund wurde korrigiert oder ist verschwunden)
+    bewirkt nichts, damit kein anderer Eintrag getroffen wird;
+  - eine Forschung ohne die Prüfung: die Einträge sind wie bisher, ohne Marke und Block.
+- **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, Klick auf einen Eintrag mit der Marke.
+  Terminal: `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+
+<a id="S4.4.9"></a>
+### S4.4.9 Vorschau der Korrektur und Rückgängig
+
+**Korrigieren** schreibt nicht sofort. Es zeigt zuerst, was die Korrektur ändert, und schreibt erst mit dem zweiten
+**Korrigieren** unter der Vorschau.
+
+- **Vorschau** (an der Stelle der Aktionen des Blocks; **Vorschau wird geladen…**, bis die Forschung sie schickt):
+  - **Was sich ändert**: **Diese Aufgabe** „wartet dann auf die Scans 112–113 aus dem Buch …“, „wartet dann auf Scans
+    aus dem Buch …; die Scan-Nummern sind nicht bekannt“ oder „der Ordner … wird angelegt“; **Neue Aufgabe** für jedes
+    weitere Buch („für die Scans … aus dem Buch …“, „für das Buch …“; bei einem Buch, das nicht in der Forschung ist,
+    „das Buch fehlt in der Forschung, die neue Aufgabe wartet weiter als Text“);
+  - **Was bleibt**: was die Korrektur nicht tut, zum Beispiel „Das Buch … fehlt in der Forschung – der Agent ergänzt
+    es.“ Beim ersten solchen Buch steht **Mit Agent besprechen**;
+  - unter der Vorschau „Die Korrektur ändert nur, worauf die Aufgabe wartet, und lässt sich rückgängig machen.“ und
+    **Abbrechen** · **Korrigieren**. **Abbrechen** oder Esc schließt die Vorschau und gibt den Fokus an
+    **Korrigieren** im Block zurück. Geöffnet ist immer nur eine Vorschau.
+- **Nach dem Schreiben** (**Wird korrigiert…**): die Meldung **Korrigiert** mit **Rückgängig** für 8 s. Liegen die
+  Bilder schon im Ordner und hat die Aufgabe alle, **Korrigiert – die Scans sind schon gespeichert, die Aufgabe läuft
+  weiter.** **Rückgängig** nimmt die Korrektur ohne Vorschau zurück (**Rückgängig gemacht – die Aufgabe wartet wie
+  zuvor.**). Hat sich die Aufgabe inzwischen geändert, **Rückgängig nicht mehr möglich – die Aufgabe hat sich
+  inzwischen geändert.** Ist die Meldung verschwunden, lässt sich die Korrektur nur im Terminal zurücknehmen
+  (`strom task audit T… --unfix`, [R6.9.1](R6-awaiting-action.md#R6.9.1)).
+- **Grenzen:**
+  - die Vorschau gilt für die Aufgabe, wie sie beim Anzeigen war. Hat sich die Aufgabe inzwischen geändert: **Die
+    Aufgabe hat sich inzwischen geändert.** **Die Vorschau entspricht nicht dem aktuellen Stand.** mit **Neu laden**.
+    Weitere Ablehnungen stehen unter der Vorschau: **Die Forschung schreibt gerade – ein neuer Versuch ist gleich
+    möglich.**, **Die Forschung ist gesperrt – die Korrektur lässt sich jetzt nicht schreiben.**, **Kein Platz auf
+    dem Datenträger der Forschung – die Korrektur wurde nicht geschrieben.**;
+  - auf dem Telefon (bis 640 px) ist die Vorschau ein Blatt von unten mit **Abbrechen** · **Korrigieren** unten, ohne
+    **Mit Agent besprechen**;
+  - im eigenen Fenster der **Forschungsübersicht** zeigt das Hauptfenster die Meldung.
+- **Bedienung:** App: **Korrigieren** im Block **Aufgabe nicht wie nötig erfasst**; **Rückgängig** in der Meldung.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
+
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen
 
@@ -996,13 +1175,21 @@ Terminal wird nichts geschrieben und nichts bezahlt.
     Prüfung, Suche, Orte, Geschichte).
   - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „…“ –
     der Agent arbeitet daran weiter.**
-  - Die App erkennt nicht, ob sich das Terminal geöffnet hat. Sie zeigt **Forschung wird geöffnet…** und den Rat
-    **Wenn sich nichts öffnet, Strom Research starten und erneut versuchen.**
+  - Das Element, mit dem der Link geöffnet wurde, sagt **Forschung wird geöffnet…** (bei Arbeit des Agenten **Agent
+    wird geöffnet…**, bei einem Link ohne Terminal **Wird geladen…**), bis die Forschung bestätigt, dass sie den Link
+    übernommen hat ([S4.5.4](#S4.5.4)), höchstens 10 s (Arbeit an der Warteschlange 30 s, [S4.2.3](#S4.2.3)). Ein
+    zweiter Klick öffnet inzwischen nichts erneut. Ohne Bestätigung wird das Element frei, und darunter steht
+    **Terminal nicht geöffnet?** mit **Erneut versuchen** und dem Rat **Wenn sich nichts geöffnet hat, muss Strom
+    Research gestartet werden.** Bei einem Link ohne Terminal steht **Wenn nichts geschieht, läuft Strom Research
+    noch nicht.**
+  - Den Systemdialog des Browsers, der vor dem Öffnen des Links fragt, sieht die App nicht. Spät bestätigt, löscht er
+    den Satz nach dem Limit von selbst ([S4.5.4](#S4.5.4)).
 - **Bedienung:** App: **Einstellungen → Daten und Datenschutz → Strom Research auf diesem Computer**.
 - **Gilt seit:** App 3.4.0 (Forschung 1.6.0). Ablehnung im Strom-Archiv seit Forschung 1.14.0, beim Warten auf einen
-  Agenten seit 1.15.0.
+  Agenten seit 1.15.0. Warten auf das Öffnen seit App 3.30.0; bis 3.29.0 erkannte die App nicht, ob sich das
+  Terminal geöffnet hat, und zeigte nur die Meldung **Forschung wird geöffnet…** mit einem Rat.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Marken der Aktionen
@@ -1015,15 +1202,15 @@ Jede Aktion der Forschung hat eine von drei Marken, je nachdem, was sie öffnet.
 | Terminal | das Terminal zeigt etwas oder fragt; durch den Klick wird nichts bezahlt | **Forschung öffnen**, Senden von Änderungen, **Erneut prüfen…**, **Vorfahren suchen**, **Zurückstellen**, **Aufgeben**, Aktionen der Linie, **Abschließen und beenden**, **Letztes Senden zurücknehmen**, Einstellungen, **Forschung prüfen** |
 | KI und Terminal | Arbeit des Agenten, bezahlt vom KI-Abonnement | **Mit dem Agenten weitermachen**, **Den Agenten fragen**, **An dieser Richtung arbeiten**, Gespräch zu einer Aufgabe oder einem Widerspruch, Forschung zu Orten, Geschichte eines Ortes |
 
-- **Grenzen:** bei Arbeit des Agenten zeigt die App beim Öffnen **Agent wird geöffnet…** und **Dem Agenten
-  schreiben, was herausgefunden werden soll. Seine Arbeit nutzt das eigene KI-Abo.** Ein Gespräch kann statt des
-  Terminals die App des Agenten öffnen, wenn die Forschung so eingestellt ist.
-- **Gilt seit:** App 3.21.0
+- **Grenzen:** bei Arbeit des Agenten sagt das Element beim Öffnen **Agent wird geöffnet…** ([S4.5](#S4.5)). Ein
+  Gespräch kann statt des Terminals die App des Agenten öffnen, wenn die Forschung so eingestellt ist.
+- **Gilt seit:** App 3.21.0. Bis 3.29.0 zeigte die App beim Öffnen der Arbeit des Agenten die Meldung **Agent wird
+  geöffnet…** mit **Dem Agenten schreiben, was herausgefunden werden soll. Seine Arbeit nutzt das eigene KI-Abo.**
 - **Ab App 3.28.0:** **An der Warteschlange arbeiten…** und in seinem Dialog **Terminal öffnen** haben die Marke KI
   und Terminal ([S4.2.3](#S4.2.3)). Die Suche in der Warteschlange, **Als Nächstes erledigen** und **Rückgängig** sind
   ohne Marke: sie gehen über die Brücke und öffnen nichts ([S4.2.1](#S4.2.1), [S4.2.2](#S4.2.2)).
 
-<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ -->
+<!-- zdroj: app:v3.21.2 src/research-link.ts:66 RESEARCH_LINK_MARKS, researchLinkMark (task do=chat, conflict do=agent, experiment do=off, fixes paid) · strings.ts research.openingAgent, research.openingAgentHint · research:v1.25.2 src/commands/links.ts:373 whereToTalk · 3.28.0: app 9cf43b22 researchLinkMark('work') u queue-work-btn, research-item-queue-work, Otevřít terminál; ZADANI_DEV_fronta-hledani „Značení akcí“ · 3.30.0: app:574e7ef9 research-open-busy.ts busy.openingAgent na prvku; research.openingAgentHint se už nepoužívá -->
 
 <a id="S4.5.2"></a>
 ### S4.5.2 Wo die Aktionen sind
@@ -1074,6 +1261,46 @@ Aufgabe und fragt, was jetzt mit ihr geschehen soll.
 - **Gilt seit:** Forschung 1.29.0, App 3.25.0
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
+
+<a id="S4.5.4"></a>
+### S4.5.4 Die Forschung bestätigt einen übernommenen Link
+
+Die Forschung sagt der App, dass sie einen Link übernommen hat: das Terminal ist hochgefahren, oder eine Aktion, die
+kein Terminal braucht, ist erledigt. Die App hört so sofort auf zu warten und meldet sich nur, wenn sich nichts
+geöffnet hat ([S4.5](#S4.5)).
+
+- **Prüft der Code:**
+  - die App gibt jedem Link der Forschung eine neue Übergabenummer (`&handoff=<uuid>`). Die Forschung nimmt nur eine
+    Nummer in der Form einer UUID; einen anderen Wert lässt sie still weg und führt den Link wie ohne ihn aus. Aus
+    der Nummer wird nie etwas gestartet;
+  - `strom link open` schreibt die Nummer nach `.strom/handoffs/` in jeder Kopie der Forschung dieses Stammbaums auf
+    dem Computer. Bei einem Link, der ein Terminal öffnet, sobald das Terminal hochgefahren ist, vor der ersten Frage.
+    Bei einem Link ohne Terminal (Ausschnitt, Bilder, Buch, Verfolgen und weitere) erst nach der erledigten Aktion;
+  - die Nummer wird nicht geschrieben, wenn sich das Terminal nicht öffnen ließ, bei einem abgelehnten Link
+    (unbekannte Forschung, Archiv, Fenster mit Meldung) und bei einem Link auf eine neue Forschung aus dem Stammbaum
+    der App (`new?app=…`): dieser hat noch keine Forschung und keine Brücke. Ein Systemdialog des Browsers, der ohne
+    Öffnen geschlossen wird, startet strom gar nicht;
+  - die Brücke der Forschung nennt in `GET /status` (`handoffs`, auch mit `parts=1`) die Nummern der in der letzten
+    Minute übernommenen Links, die neueste zuerst, höchstens 64; ältere Nummern und ihre Dateien verschwinden. Sie
+    liest sie bei jeder Anfrage, nicht erst, wenn sich der Zustand der Forschung ändert. Das gilt auch im
+    Strom-Archiv und in einer Forschung, die auf einen Agenten wartet;
+  - die App fragt nach der Übergabe des Links jede Sekunde bei der Brücke nach, bis zum Limit. Eine Bestätigung, die
+    innerhalb einer Minute nach dem Limit kommt (der Dialog des Browsers spät bestätigt), löscht den Satz **Terminal
+    nicht geöffnet?**;
+  - eine Brücke, die eine Anfrage vor weniger als 30 s nicht beantwortet hat, gilt als nicht erreichbar: der Satz
+    erscheint sofort, ohne Warten;
+  - derselbe Link, innerhalb von 400 ms erneut geöffnet, bewirkt nichts.
+- **Grenzen:**
+  - eine Forschung ohne die Bestätigung: als Bestätigung gilt eine neue Sitzung des Agenten, sonst wartet die App
+    nur bis zum Limit;
+  - ein Link auf eine neue Forschung (`new?app=…`) endet nach dem Limit still; danach wartet die App, bis die
+    Forschung den Stammbaum übernimmt;
+  - ohne laufende Brücke wird nichts gemeldet, und die geschriebene Datei verfällt von selbst.
+- **Bedienung:** App: jede Aktion mit der Marke Terminal oder KI und Terminal ([S4.5.1](#S4.5.1)). Terminal:
+  `strom link open '<Link>'`.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
 
 <a id="S4.6"></a>
 ## S4.6 Was nur im Terminal geht

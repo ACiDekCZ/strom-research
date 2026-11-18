@@ -87,7 +87,7 @@ z etykietą **Portret**, dlatego kadr można w dowolnej chwili zmienić bez utra
   podglądu (podpowiedź „Z tego zdjęcia pochodzi portret osoby.”). W edycji osoby etykieta zmienia się od razu
   z portretem, jeszcze przed **Zapisz**.
 - **Portret ze zdjęcia, które osoba już ma:** **Jako portret…** w wierszu załącznika graficznego (przed koszem),
-  **Użyj jako portretu…** w menu ⋯ materiałów osoby i w panelu podglądu (między **Pobierz** a **Usuń z drzewa**).
+  **Użyj jako portretu…** w menu ⋯ materiałów osoby i w panelu podglądu (przed **Usuń z drzewa…**).
   Edytor otwiera się nad tym załącznikiem; nowy załącznik nie powstaje. Z edycji osoby wynik zapisuje się z
   **Zapisz**, z innych miejsc od razu: „Portret osoby {imię} zastąpiony.” z **Cofnij**. Badanie nie musi przy tym
   działać.
@@ -103,7 +103,7 @@ z etykietą **Portret**, dlatego kadr można w dowolnej chwili zmienić bez utra
 - **Obsługa:** edycja osoby, sekcja zdjęcia i **Załączniki**; strona osoby, materiały i podgląd załącznika.
 - **Obowiązuje od:** aplikacja 3.30.0
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (mezi Stáhnout a Smazat ze stromu), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
 
 <a id="A12.3"></a>
 ## A12.3 Późniejsza edycja kadru
@@ -249,24 +249,27 @@ Oryginał portretu i zdjęcie pary to zdjęcia: idą do eksportu ze zdjęciami i
 <a id="A12.8"></a>
 ## A12.8 Zdjęcia w danych drzewa
 
-Oryginał portretu, kadr i zdjęcie pary są częścią drzewa (wersja danych 23). Idą z drzewem do kopii zapasowej JSON
-i do pliku **Aplikacja z danymi**.
+Oryginał portretu, kadr i zdjęcie pary są częścią drzewa (wersja danych 24: każdy plik drzewa to jeden materiał
+z jego miejscami, [A3.5](A3-evidence-in-the-app.md#A3.5)). Idą z drzewem do kopii zapasowej JSON i do pliku
+**Aplikacja z danymi**. Gdzie wszędzie są zapisane, opisuje [S8](S8-where-the-data-are.md).
 
-- **Starsza aplikacja** (od 3.19.0) otworzy drzewo w wersji 23 tylko do odczytu i go nie zapisze, aby nie odrzuciła
-  portretów, oryginałów i zdjęć par ([A6.7.7](A6-views.md#A6.7.7)).
+- **Starsza aplikacja** (od 3.19.0) otworzy drzewo w wersji 24 tylko do odczytu i go nie zapisze, aby nie odrzuciła
+  portretów, oryginałów, zdjęć par i miejsc plików ([A6.7.7](A6-views.md#A6.7.7)).
 - **Cofnij:** każde **Gotowe** poza edycją osoby to jeden krok; w edycji osoby wszystko zapisuje się i cofa z jej
   **Zapisz**; dwa portrety ze zdjęcia pary to jeden krok.
 - **Scalanie osób:** powiązanie z oryginałem idzie z portretem, który zostaje. Przy związkach zostaje zdjęcie
   zachowanego związku, a gdy go nie ma, zdjęcie drugiego.
 - **Scalanie drzew** ([A8](A8-merging-trees.md)): zdjęcie pary ze scalanego pliku przybywa tam, gdzie związek
   w drzewie go nie ma; portret zachowuje oryginał tego portretu, który wygrał.
-- **Drzewo z badania lub z Archiwum Strom:** ani badanie, ani archiwum nie trzymają portretów, oryginałów, zdjęć par
-  i powiązań i ich nie wysyłają. Wczytanie nowej wersji z badania zostawia je w drzewie: gdy badanie ma przy osobie
-  lub parze własne zdjęcie, obowiązuje jego; w przeciwnym razie zostaje zdjęcie z drzewa. Portret, załącznik lub
-  zdjęcie pary usunięte w aplikacji z kolejną aktualizacją nie wrócą.
-- **Granice:** portrety, oryginały i zdjęcia par są tylko w drzewie w aplikacji i w jego kopiach zapasowych.
-  Powiązanie z oryginałem, które się nie zgadza (brak oryginału, kadr poza zdjęciem, kąt powyżej 45°), zostaje przy
-  wczytaniu odrzucone; portret zostaje.
-- **Obowiązuje od:** aplikacja 3.30.0
+- **Drzewo z badania lub z Archiwum Strom:** od 1.35.0 badanie i archiwum trzymają portrety, oryginały portretów,
+  zdjęcia par i załączniki: zapis drzewa je przekazuje, a wczytanie drzewa je zwraca według odcisku
+  ([S8.3](S8-where-the-data-are.md#S8.3)). Badanie nie trzyma tylko kadru, czyli tego, gdzie w całym zdjęciu jest
+  portret; drzewo w aplikacji go zachowuje. Badanie do 1.34 nie trzyma nic z tego: wczytanie nowej wersji zostawia je
+  w drzewie; gdy badanie ma przy osobie lub parze własne zdjęcie, obowiązuje jego, w przeciwnym razie zostaje
+  zdjęcie z drzewa. Portret, załącznik lub zdjęcie pary usunięte w aplikacji z kolejną aktualizacją nie wrócą.
+- **Granice:** bez badania 1.35.0 portrety, oryginały i zdjęcia par są tylko w drzewie w aplikacji i w jego kopiach
+  zapasowych. Powiązanie z oryginałem, które się nie zgadza (brak oryginału, kadr poza zdjęciem, kąt powyżej 45°),
+  zostaje przy wczytaniu odrzucone; portret zostaje.
+- **Obowiązuje od:** aplikacja 3.30.0; zdjęcia w badaniu z badaniem 1.35.0
 
-<!-- zdroj: app:src/types.ts:1814 STROM_DATA_VERSION 23 (app:59b9dde9) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7); obnova z výzkumu je spec 108, zatím nedokumentovat -->
+<!-- zdroj: app:src/types.ts:1862 STROM_DATA_VERSION 24 (app:2b66d7cf; verze 23 app:59b9dde9, obě v 3.30.0) · src/photo.ts dropDanglingPortraitSources, sanitize při načtení · src/tree-manager.ts:659 isTreeNewer (jen ke čtení), strings.ts newerDataTitle · src/merge/executor.ts photoSource s vítězným portrétem, fotka svazku vítězného jinak druhého (app:59b9dde9, 50e49518) · app:50e49518 sloučení souboru: fotka svazku tam, kde chybí, originál podle bajtů · app:3f0312fb, 50e49518 src/research-link.ts carryOverMedia (fotka svazku a photoSource přenesené, vlastní fotka výzkumu vyhrává, odebrané se nevrací) · dirigent:spec/107 rozhodnutí: výzkum a archiv fotky nedrží (ZADANI_VYZKUM V2, V6, V7), platí pro výzkum do 1.34 · spec 108: dirigent:spec/108-kde-se-co-uklada U8, K2.3 (výřez se nevrací) · app:3419afff, 7263f1f6, src/research-link.ts carryOverMedia base · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->

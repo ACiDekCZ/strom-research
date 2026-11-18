@@ -105,6 +105,10 @@ nenapsáno) · `neplatí od <verze>`.
 | R6.8.1 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Co z knihy jde stáhnout: podmínky archivu | What can be downloaded from a book: the archive's terms | Was sich aus einem Buch herunterladen lässt: die Bedingungen des Archivs | Co można pobrać z księgi: warunki archiwum |
 | R6.8.2 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Snímky uložené do složky knihy | Images saved to the book's folder | Bilder im Ordner des Buchs | Skany zapisane w folderze księgi |
 | R6.8.3 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Nastavení knih | The books' settings | Einstellungen der Bücher | Ustawienia ksiąg |
+| R6.8.4 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Pod kterou knihou úkol čeká | Which book a task waits under | Unter welchem Buch eine Aufgabe wartet | Pod którą księgą czeka zadanie |
+| R6.9 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Kontrola zápisu čekání: `strom task audit` | Checking how waits are written: `strom task audit` | Prüfung, wie das Warten erfasst ist: `strom task audit` | Kontrola zapisu czekania: `strom task audit` |
+| R6.9.1 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Oprava v jednom kroku a cesta zpět | The fix in one step and the way back | Korrektur in einem Schritt und der Weg zurück | Poprawka w jednym kroku i droga z powrotem |
+| R6.9.2 | R6-awaiting-action.md | výzkum 1.35.0 | platí | Čekání se nezapíše špatně a agent se to dozví | A wait is not written wrongly, and the agent learns of it | Das Warten wird nicht falsch geschrieben, und der Agent erfährt es | Czekanie nie zapisze się źle, a agent się o tym dowie |
 | R7 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Kdy a jak dlouho agent pracuje | When and how long the agent works | Wann und wie lange der Agent arbeitet | Kiedy i jak długo agent pracuje |
 | R7.1 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Samostatná práce běží po sezeních | Working alone runs in sessions | Die Arbeit allein läuft in Sitzungen | Samodzielna praca przebiega sesjami |
 | R7.1.1 | R7-when-the-agent-works.md | výzkum 1.0.0 | platí | Proč běh skončí | Why a run ends | Warum ein Lauf endet | Dlaczego przebieg się kończy |
@@ -188,6 +192,11 @@ nenapsáno) · `neplatí od <verze>`.
 | R11.2 | R11-material-from-the-user.md | výzkum 1.0.0 | platí | Doklad je pramen, ostatní je vodítko | A document is a source, the rest is a lead | Eine Urkunde ist eine Quelle, der Rest ist ein Hinweis | Dokument jest źródłem, reszta jest wskazówką |
 | R11.3 | R11-material-from-the-user.md | výzkum 1.0.0 | platí | Převzatý rodokmen | An imported family tree | Ein übernommener Stammbaum | Przejęte drzewo genealogiczne |
 | R11.4 | R11-material-from-the-user.md | výzkum 1.12.0 | platí | Dávka z aplikace | A batch from the app | Ein Stapel aus der App | Partia z aplikacji |
+| R11.5 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Materiál výzkumu a soubory stromu z aplikace | The research's material and the tree's files from the app | Material der Forschung und Dateien des Stammbaums aus der App | Materiał badania i pliki drzewa z aplikacji |
+| R11.5.1 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Soubory stromu z aplikace | The tree's files from the app | Dateien des Stammbaums aus der App | Pliki drzewa z aplikacji |
+| R11.5.2 | R11-material-from-the-user.md | výzkum 1.20.0 | platí | Titulek, druh, datum a osoby z terminálu | Title, kind, date and people from the terminal | Titel, Art, Datum und Personen aus dem Terminal | Tytuł, rodzaj, data i osoby z terminala |
+| R11.5.3 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Třídění materiálu: `strom material sort` | Sorting material: `strom material sort` | Material sortieren: `strom material sort` | Porządkowanie materiału: `strom material sort` |
+| R11.5.4 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Materiál přes most | Material through the bridge | Material über die Brücke | Materiał przez most |
 | R12 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Kde agent pracuje a co strom hlídá | Where the agent works and what strom watches | Wo der Agent arbeitet und was strom überwacht | Gdzie agent pracuje i czego strom pilnuje |
 | R12.1 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Způsoby práce: tabulka | Ways of working: a table | Arten zu arbeiten: eine Tabelle | Sposoby pracy: tabela |
 | R12.2 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Prohlížeč v aplikaci Claude | The browser in the Claude app | Der Browser in der App Claude | Przeglądarka w aplikacji Claude |
@@ -247,6 +256,14 @@ nenapsáno) · `neplatí od <verze>`.
 | A3.4 | A3-evidence-in-the-app.md | aplikace 1.4.0 | platí | Přílohy | Attachments | Anhänge | Załączniki |
 | A3.4.1 | A3-evidence-in-the-app.md | aplikace 3.9.0 | platí | Originály pro výzkum | Originals for the research | Originale für die Forschung | Oryginały dla badania |
 | A3.5 | A3-evidence-in-the-app.md | aplikace 3.9.0 | platí | Materiály | Materials | Materialien | Materiały |
+| A3.5.1 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Okno Materiály | The window Materials | Das Fenster Materialien | Okno Materiały |
+| A3.5.2 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Titulek, druh a datum | Title, kind and date | Titel, Art und Datum | Tytuł, rodzaj i data |
+| A3.5.3 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Kde je použit | Where used | Wo verwendet | Gdzie użyto |
+| A3.5.4 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Připojit k… | Link to… | Verknüpfen mit… | Połącz z… |
+| A3.5.5 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Pramen ze souboru a doklad pramene | A source from a file and the evidence of a source | Quelle aus einer Datei und Beleg einer Quelle | Źródło z pliku i dowód źródła |
+| A3.5.6 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Odstranit ze stromu a Vrátit | Remove from the tree and Restore | Aus dem Stammbaum entfernen und Wiederherstellen | Usuń z drzewa i Przywróć |
+| A3.5.7 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Projít a hromadné úpravy | Go through and bulk edits | Durchgehen und Sammeländerungen | Przejrzyj i zmiany zbiorcze |
+| A3.5.8 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Roztřídit agentem | Sort with the agent | Mit dem Agenten sortieren | Uporządkuj agentem |
 | A3.6 | A3-evidence-in-the-app.md | aplikace 3.3.0 | platí | Prameny osoby | Sources of a person | Quellen einer Person | Źródła osoby |
 | A3.7 | A3-evidence-in-the-app.md | aplikace 3.4.0 | platí | Kde chybí doklady | Where evidence is missing | Wo Belege fehlen | Gdzie brakuje dowodów |
 | A3.8 | A3-evidence-in-the-app.md | aplikace 3.14.0 | platí | Obraz jen ve výzkumu | Image only in the research | Bild nur in der Forschung | Obraz tylko w badaniu |
@@ -341,6 +358,8 @@ nenapsáno) · `neplatí od <verze>`.
 | A9.4 | A9-using-the-app.md | výzkum 1.29.0, aplikace 3.25.0 | koncept | Agent v aplikaci | The agent in the app | Der Agent in der App | Agent w aplikacji |
 | A9.5 | A9-using-the-app.md | aplikace 3.28.0 | platí | Dolní lišta na telefonu a tabletu | The bottom bar on a phone and a tablet | Die untere Leiste auf Telefon und Tablet | Dolny pasek na telefonie i tablecie |
 | A9.6 | A9-using-the-app.md | aplikace 3.28.0 | platí | Minimapa a legenda stromu jdou sbalit | The minimap and the tree legend fold away | Minikarte und Stammbaum-Legende lassen sich einklappen | Minimapę i legendę drzewa można zwinąć |
+| A9.7 | A9-using-the-app.md | aplikace 3.30.0 | platí | Akce, která chvíli trvá | An action that takes a while | Eine Aktion, die eine Weile dauert | Działanie, które chwilę trwa |
+| A9.7.1 | A9-using-the-app.md | aplikace 3.30.0 | platí | Dlouhá akce: průběh v oznámení | A long action: progress in a notice | Eine lange Aktion: Fortschritt in einer Meldung | Długie działanie: postęp w powiadomieniu |
 | A10 | A10-shared-events.md | aplikace 3.28.0 | platí | Jedna událost u více osob | One event of several people | Ein Ereignis mehrerer Personen | Jedno wydarzenie wielu osób |
 | A10.1 | A10-shared-events.md | aplikace 3.28.0 | platí | Společná událost: Spolu s | A shared event: Shared with | Ein gemeinsames Ereignis: Gemeinsam mit | Wspólne wydarzenie: Razem z |
 | A10.1.1 | A10-shared-events.md | aplikace 3.28.0 | platí | Přidat osobu | Add a person | Person hinzufügen | Dodaj osobę |
@@ -440,10 +459,14 @@ nenapsáno) · `neplatí od <verze>`.
 | S4.4.4 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Čeká na vyřízení podle knihy | Awaiting action by book | Wartet auf Bearbeitung nach Buch | Czeka na załatwienie według księgi |
 | S4.4.5 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Urychlit stažením | Faster by downloading | Schneller durch Herunterladen | Szybciej dzięki pobraniu |
 | S4.4.6 | S4-research-from-the-app.md | výzkum 1.35.0, aplikace 3.30.0 | platí | Výzkum u stromu › Knihy | Research for this tree › Books | Forschung für diesen Stammbaum › Bücher | Badanie dla drzewa › Księgi |
+| S4.4.7 | S4-research-from-the-app.md | aplikace 3.30.0 | platí | Položka čekající na snímky | An item waiting for images | Ein Eintrag, der auf Bilder wartet | Pozycja czekająca na skany |
+| S4.4.8 | S4-research-from-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Úkol, který není zapsaný, jak má | A task not recorded as needed | Eine Aufgabe, die nicht wie nötig erfasst ist | Zadanie, które nie jest zapisane tak, jak trzeba |
+| S4.4.9 | S4-research-from-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Náhled opravy a Vrátit | Preview of the fix and Undo | Vorschau der Korrektur und Rückgängig | Podgląd poprawki i Cofnij |
 | S4.5 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Akce, které otevřou výzkum | Actions that open the research | Aktionen, die die Forschung öffnen | Działania, które otwierają badanie |
 | S4.5.1 | S4-research-from-the-app.md | aplikace 3.21.0 | platí | Značky akcí | Action marks | Marken der Aktionen | Oznaczenia działań |
 | S4.5.2 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Kde akce jsou | Where the actions are | Wo die Aktionen sind | Gdzie są działania |
 | S4.5.3 | S4-research-from-the-app.md | výzkum 1.29.0, aplikace 3.25.0 | platí | Otevřít úkol ve frontě | Opening a task in the queue | Eine Aufgabe in der Warteschlange öffnen | Otwarcie zadania w kolejce |
+| S4.5.4 | S4-research-from-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Výzkum potvrdí převzatý odkaz | The research confirms a link it has taken | Die Forschung bestätigt einen übernommenen Link | Badanie potwierdza przejęty link |
 | S4.6 | S4-research-from-the-app.md | aplikace 3.4.0 | platí | Co je jen v terminálu | What is only in the terminal | Was nur im Terminal geht | Co jest tylko w terminalu |
 | S5 | S5-phone.md | výzkum 1.18.0, aplikace 3.14.0 | platí | Telefon | Phone | Telefon | Telefon |
 | S5.1 | S5-phone.md | výzkum 1.18.0, aplikace 3.14.0 | platí | Propojení s telefonem patří počítači a zapíná ho jen člověk | The phone connection belongs to the computer and only a person turns it on | Die Verbindung mit dem Telefon gehört dem Computer und nur ein Mensch schaltet sie ein | Połączenie z telefonem należy do komputera i włącza je tylko człowiek |
@@ -475,3 +498,10 @@ nenapsáno) · `neplatí od <verze>`.
 | S7.7 | S7-reliability-and-verification.md | výzkum 1.30.0, aplikace 3.26.0 | koncept | Výsledek ověření | The result of verifying | Das Ergebnis der Prüfung | Wynik weryfikacji |
 | S7.8 | S7-reliability-and-verification.md | výzkum 1.30.0, aplikace 3.26.0 | koncept | Potvrdit podle skenu: potvrzení člověkem | Confirm against the scan: confirmation by a person | Anhand des Scans bestätigen: Bestätigung durch einen Menschen | Potwierdź według skanu: potwierdzenie przez człowieka |
 | S7.9 | S7-reliability-and-verification.md | výzkum 1.30.0, aplikace 3.26.0 | koncept | Co jde s mostem a co bez něj | What works with the bridge and what without it | Was mit der Brücke geht und was ohne sie | Co działa z mostem, a co bez niego |
+| S8 | S8-where-the-data-are.md | aplikace 3.0.0, výzkum 1.0.0 | platí | Kde jsou data | Where the data are | Wo die Daten liegen | Gdzie są dane |
+| S8.1 | S8-where-the-data-are.md | aplikace 3.0.0 | platí | Co je jen v prohlížeči | What is only in the browser | Was nur im Browser liegt | Co jest tylko w przeglądarce |
+| S8.2 | S8-where-the-data-are.md | výzkum 1.0.0 | platí | Co je ve výzkumu a v Archivu Stromu | What is in the research and in the Strom archive | Was in der Forschung und im Strom-Archiv liegt | Co jest w badaniu i w Archiwum Strom |
+| S8.3 | S8-where-the-data-are.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Fotky a přílohy stromu ve výzkumu | The tree's photos and attachments in the research | Fotos und Anhänge des Stammbaums in der Forschung | Zdjęcia i załączniki drzewa w badaniu |
+| S8.4 | S8-where-the-data-are.md | aplikace 3.0.0 | platí | Ukazatel Jen v prohlížeči | The indicator Only in browser | Die Anzeige Nur im Browser | Wskaźnik Tylko w przeglądarce |
+| S8.5 | S8-where-the-data-are.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Fotky z výzkumu se nepodařilo načíst | The photos from the research could not be loaded | Die Fotos aus der Forschung konnten nicht geladen werden | Nie udało się wczytać zdjęć z badania |
+| S8.6 | S8-where-the-data-are.md | výzkum 1.35.0 | platí | Balík a odebrání stromu: skeny a rodinné fotky | The pack and removing a tree: scans and family photos | Paket und Entfernen eines Stammbaums: Scans und Familienfotos | Paczka i usunięcie drzewa: skany i rodzinne zdjęcia |

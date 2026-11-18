@@ -14,7 +14,9 @@ import { diskVersion } from "../../src/core/self.ts";
 
 const opts = { skip: !hasGit };
 
-const until = async (what: string, ok: () => boolean, ms = 20_000) => {
+// what the bridge itself gives a hand-over (its probe of the newer strom, the new bridge's /status made first up to
+// 10 s, STROM_LIVE_RENEW_WAIT_MS 30 s) — never less: a computer under load (the whole suite at once) takes that long
+const until = async (what: string, ok: () => boolean, ms = 60_000) => {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) if (ok()) return;
   assert.fail(`waited in vain: ${what}`);
 };

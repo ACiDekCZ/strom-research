@@ -102,6 +102,8 @@ export interface Incoming {
   name: string;
   note?: string | undefined;
   persons: string[];
+  /** The couples it is of (X-Strom-Family, spec 108 V9). */
+  families?: string[] | undefined;
   source?: string | undefined;
   region?: string | undefined;
   batch?: string | undefined;
@@ -139,7 +141,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
   const { sha, name, note, region, batch, where } = f;
   const zip = !!f.zip;
   // a NUL never reaches a program's argument (the file would wait in .incoming for nothing): refused before it is read
-  if ([name, note, region, batch, where, f.source, f.task, ...f.persons].some((v) => typeof v === "string" && v.includes("\0")))
+  if ([name, note, region, batch, where, f.source, f.task, ...f.persons, ...(f.families ?? [])].some((v) => typeof v === "string" && v.includes("\0")))
     return refuse(400, refusal("a NUL in a header", "media.bad-header", { header: "X-Strom-Name" }));
   const tree = Tree.open(r.root, r.env);
   const settings = new Settings(r.env, {});
@@ -167,7 +169,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     // an input of the people, said of again — people it lacks, a note it has not got: added by a strom of its own
     // (found live: the app said "Sent" while the research took nothing)
     const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
-    const more = had && (f.persons.some((p) => !(had.persons ?? []).includes(p)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
+    const more = had && (f.persons.some((p) => !(had.persons ?? []).includes(p)) || (f.families ?? []).some((x) => !(had.families ?? []).includes(x)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
     // (a file to read: what it is of goes with its reading, never into an intake task)
     // nothing written (or what came again not added): the head as it is, which is its parent too (the bridge's answers)
     const unchanged = (): Record<string, unknown> => {
@@ -177,7 +179,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}), ...unchanged() });
     req.resume();
     const { command, args } = stromLauncher();
-    const child = spawn(command, [...args, "input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(note ? [`--note=${note}`] : []), "--json"], {
+    const child = spawn(command, [...args, "input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(f.families ?? []).flatMap((x) => ["--family", x]), ...(note ? [`--note=${note}`] : []), "--json"], {
       cwd: r.root,
       env: forApp(r.env, r.root),
       stdio: ["ignore", "pipe", "pipe"],
@@ -262,6 +264,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
       const argv = [
         ...args, "media", "original", part, "--sha", sha, `--name=${name}`,
         ...f.persons.flatMap((p) => ["--person", p]),
+        ...(f.families ?? []).flatMap((x) => ["--family", x]),
         ...(f.source ? ["--source", f.source] : []),
         ...(region ? ["--region", region] : []),
         ...(note ? [`--note=${note}`] : []),

@@ -255,8 +255,13 @@ Ausschnitt des Eintrags ausschneiden ([A3.3](#A3.3)).
   **Porträt**. Er entsteht von selbst, wenn ein neues Foto für das Porträt gewählt wird. Ein anderer Bildanhang bietet
   **Als Porträt…** (in den Materialien und im Betrachter **Als Porträt verwenden…**). Das Löschen des Anhangs mit der
   Markierung Porträt lässt das Porträt bestehen ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
+- **Ab App 3.30.0:** ein Anhang ist ein Material des Stammbaums ([A3.5](#A3.5)). Dieselbe Datei bei mehreren
+  Personen ist eine Datei; ein zweites Mal hinzugefügt bietet sie **Auch hier verknüpfen** ([A3.5.4](#A3.5.4)). Der
+  Papierkorb bei einem Anhang entfernt ihn nur von dieser Person, mit **Rückgängig**; die letzte Stelle fragt wie
+  **Aus dem Stammbaum entfernen…** ([A3.5.6](#A3.5.6)). Auf einem breiteren Bildschirm sind die Aktionen eines
+  Anhangs im Menü ⋯.
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote · 3.30.0 příloha jako materiál: app:2b66d7cf (verze dat 24), a275d977 (Soubor už ve stromu je), 13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson, 30b0accd (akce v ⋯) -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Originale für die Forschung
@@ -288,28 +293,236 @@ Stelle des Ausschnitts.
 <a id="A3.5"></a>
 ## A3.5 Materialien
 
-Material ist eine Datei, die an die Forschung zu einer Person oder zu einer Quelle gesendet wird: ein Brief, ein
-Foto, eine Kopie aus dem Archiv. Dem Stammbaum wird nichts hinzugefügt. Die Forschung speichert die Dateien und
-macht aus ihnen eine Aufgabe für den Agenten.
+Material ist jede Datei des Stammbaums: ein Scan, ein Foto, ein Brief, eine Urkunde. Dieselbe Datei ist im Stammbaum
+einmal, auch wenn sie bei mehreren Personen ist, und trägt ihre Stellen: Personen, eine Angabe oder ein Ereignis,
+eine Partnerschaft, eine Quelle. Das Fenster **Materialien** hat jeder Stammbaum. Bei einem Stammbaum mit Forschung
+oder Strom-Archiv zeigt es auch Dateien der Forschung, die im Stammbaum nirgends sind (**nur im Archiv**).
 
-- **Material senden…** (bei einer Person) und **Material zur Quelle senden…** (Betrachter und Editor der Quelle):
-  höchstens 20 Dateien auf einmal und **Notiz für die Forschung**. Einen ganzen Ordner sendet **Materialien
-  hinzufügen…** im Menü der Forschung ([S4](S4-research-from-the-app.md)).
-- **Auch als Anhang im Stammbaum hinzufügen** (nur bei einer Person): im Stammbaum entsteht auch eine Vorschau wie
-  bei einem Anhang.
-- Läuft die Forschung nicht, warten die Dateien im Browser. Kennt die Forschung die Person noch nicht, werden sie
-  nach dem nächsten Senden des Stammbaums gesendet.
-- Der Abschnitt **Materialien** beim Bearbeiten der Person, **Materialien** im Menü der Person und das Fenster
-  **Alle Materialien ›** zeigen Anhänge des Stammbaums und Dateien der Forschung zusammen. Dieselbe Datei erscheint
-  einmal.
-- **Grenzen:** nur auf dem Computer, bei einem mit der Forschung verbundenen Stammbaum, dessen Forschung Originale
-  annimmt. Die Forschung nimmt nie Programme, Schlüssel, Archive oder Stammbaumdateien (GEDCOM) an. Zuordnen und
-  Ausblenden von Material geht nur bei laufender Forschung. Bei einem Strom-Archiv wird das Material im Archiv
-  gespeichert; **Auch im Stammbaum speichern** fügt Bilder und PDF bis 2 MB auch dem Stammbaum hinzu.
-- **Bedienung:** siehe oben.
-- **Gilt seit:** App 3.9.0; Abschnitt und Fenster **Materialien** 3.16.0
+- Material des Stammbaums ist ein Anhang einer Person ([A3.4](#A3.4)), das ganze Foto eines Porträts und das Paarfoto
+  ([A12](A12-portrait-and-couple-photo.md)), eine Datei bei einem Ereignis oder einer Partnerschaft und der Beleg
+  einer Quelle ([A3.5.5](#A3.5.5)). Wo eine Datei gespeichert ist, beschreibt [S8](S8-where-the-data-are.md).
+- Dateien lassen sich der Forschung auch senden, ohne sie dem Stammbaum hinzuzufügen: **Material senden…** bei einer
+  Person und **Material zur Quelle senden…** (Betrachter und Editor der Quelle), höchstens 20 Dateien auf einmal, mit
+  **Notiz für die Forschung**. Die Forschung macht aus ihnen eine Aufgabe für den Agenten
+  ([R11.1](R11-material-from-the-user.md#R11.1)). **Auch als Anhang im Stammbaum hinzufügen** legt auch eine Vorschau
+  in den Stammbaum. Einen ganzen Ordner sendet **Materialien hinzufügen…** im Menü der Forschung
+  ([R11.4](R11-material-from-the-user.md#R11.4)). Beim Strom-Archiv sind es **Material hinzufügen…** und **Auch im
+  Stammbaum speichern** (Bilder und PDF bis 2 MB).
+- Läuft die Forschung nicht, warten die gesendeten Dateien im Browser. Kennt die Forschung die Person noch nicht,
+  werden sie nach dem nächsten Senden des Stammbaums gesendet.
+- **Grenzen:**
+  - Material lässt sich nur am Computer senden, bei einem mit der Forschung verbundenen Stammbaum, dessen Forschung
+    Originale annimmt. Die Forschung nimmt nie Programme, Schlüssel, Archive oder Stammbaumdateien (GEDCOM) an;
+  - Dateien der Forschung außerhalb des Stammbaums sind nur in der App am Computer zu sehen („Materialien aus der
+    Forschung sind in der App am Computer zu sehen.“); auf dem Telefon zeigt das Fenster die Dateien des Stammbaums;
+  - bei einem schreibgeschützten Stammbaum lassen sich die Dateien ansehen und herunterladen, nicht ändern;
+  - eine Forschung älter als 1.35.0 kann Titel, Verknüpfungen, Verwendungen und Sortieren für Dateien außerhalb des
+    Stammbaums nicht; die App sagt es bei der Aktion („… kann eine neuere Version der Forschung“).
+- **Bedienung:** Stammbaum ohne Forschung: **Aktionen › Materialien** (mit der Zahl der Dateien); Stammbaum mit
+  Forschung: **Materialien** im Menü der Forschung. Bei einer Person: **Alle Materialien der Person (N) ›** unter den
+  Anhängen und **Materialien** im Menü der Person (das Fenster mit Filter auf die Person).
+- **Gilt seit:** App 3.9.0; Abschnitt und Fenster **Materialien** 3.16.0; 3.30.0: das Fenster bei jedem Stammbaum,
+  eine Datei des Stammbaums als ein Material mit seinen Stellen (Datenversion 24)
 
-<!-- zdroj: app:src/ui/material-ui.ts:30-33 MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, :38 materialAccepted, :51 alsoTreeEligible, :71 materialAvailable · src/materials.ts:477 personMaterials, :519-529 gates · src/ui/originals-ui.ts:269 · src/ui/research-actions-ui.ts:357 batch · strings.ts material.*, materials.*, batch.menu -->
+<!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
+
+<a id="A3.5.1"></a>
+### A3.5.1 Das Fenster Materialien
+
+Das Fenster zeigt jede Datei einmal: die Dateien des Stammbaums mit allen Personen, bei denen sie sind, und neben
+einem Archiv auch die Dateien der Forschung.
+
+- **Gruppieren:** **Nach Datum des Hinzufügens** (mit den Personen, bei denen die Datei hinzukam) oder **Nach
+  Person**; eine Datei nur bei einer Quelle oder Partnerschaft steht unter **Ohne Person**. Neben einem Archiv
+  zusätzlich **Stapel** und **Nach Eingangsdatum**.
+- **Ansicht** **Raster** oder **Liste**. Die Liste hat die Spalten **Titel**, **Art**, **Datum**, **Personen**,
+  **Quelle**, **Im Stammbaum** und **Verwendet**; sortiert wird mit einem Klick auf die Kopfzeile. Eine Kachel zeigt,
+  an wie vielen Stellen die Datei verwendet ist.
+- **In Titel, Name und Notiz suchen**; **Filter** nach Person, Art und Stapel. Ausgeblendete Dateien der Forschung
+  zeigt **Ausgeblendete zeigen**.
+- ⓘ am Fenstertitel (**Wo die Dateien liegen**) sagt, wo die Dateien sind: „Die Dateien liegen nur in diesem
+  Browser. Sicherung: Alles exportieren.“, oder in der Forschung bzw. im Strom-Archiv auf diesem Computer mit
+  verkleinerten Kopien in der App; bei einem verschlüsselten Stammbaum auch, dass die Forschung auf der Festplatte
+  nicht verschlüsselt ist.
+- Eine Person ohne Namen oder als „?“ erfasst ist **Unbekannte Person** (mit den Jahren, wenn sie welche hat).
+- **Grenzen:** auf dem Telefon ist das Fenster nicht im Menü **Mehr**; es öffnet sich von einer Person aus. Läuft die
+  Forschung nicht, zeigt das Fenster den Stand aus der Zeit, als sie lief, und sagt, was sich bearbeiten lässt: Titel
+  und Verknüpfungen der Dateien des Stammbaums werden mit dem Stammbaum geschrieben, Material außerhalb des
+  Stammbaums erst bei laufender Forschung.
+- **Bedienung:** siehe [A3.5](#A3.5); Dateien auswählen: **Auswählen**, Strg/Cmd+A wählt aus, was die Filter zeigen.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+
+<a id="A3.5.2"></a>
+### A3.5.2 Titel, Art und Datum
+
+Eine Datei kann einen **Titel**, eine **Art** (**Foto**, **Dokument**, **Urkunde**, **Sonstiges**) und ein **Datum**
+haben. Der Titel erscheint statt des Dateinamens; ein leerer Titel bedeutet den Dateinamen.
+
+- Das Datum ist ein Jahr, ein Datum oder ein Zeitraum („etwa 1920“); was sich nicht lesen lässt, speichert die App
+  nicht („Das Datum lässt sich nicht lesen.“).
+- Die Seite der Person, das Familienbuch und die gespeicherte Seite beschreiben eine Datei mit dem ganzen Titel, der
+  Art und dem Jahr des Datums.
+- Das Bearbeiten einer Datei des Stammbaums ist ein Schritt **Rückgängig**; eine Datei außerhalb des Stammbaums wird
+  in der Forschung bearbeitet, mit Meldung und **Rückgängig**.
+- GEDCOM trägt den Titel als `TITL` (den Dateinamen als `_STROM_NAME`) und die Art als `TYPE` unter `FORM`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Grenzen:** eine Datei außerhalb des Stammbaums lässt sich nur mit laufender Forschung 1.35.0 oder neuer
+  bearbeiten („Den Titel von Material, das nicht im Stammbaum ist, kann eine neuere Version der Forschung.“).
+- **Bedienung:** Dateibetrachter: der Stift, **Titel hinzufügen** oder F2 (Enter speichert, Esc bricht ab); der
+  Dialog **Anhang** (**Titel und Angaben…**: Titel, Art, Datum, Notiz).
+- **Gilt seit:** App 3.30.0; eine Datei außerhalb des Stammbaums mit der Forschung 1.35.0
+
+<!-- zdroj: app:30b0accd src/ui/material-viewer-ui.ts, src/ui/material-details-ui.ts (titulek, druh, datum, F2) · app:6d8fba0e DataManager (titulek vedle názvu) · app:dfb50772 src/ged-exporter.ts TITL, _STROM_NAME, TYPE pod FORM · strings.ts materials.kind, titleHint, datePh, dateInvalid, olderEdit, attachmentDialog, titleAndData, addTitle · research:a7df632d POST /material/edit -->
+
+<a id="A3.5.3"></a>
+### A3.5.3 Wo verwendet
+
+Jede Datei zeigt, wo sie verwendet ist: Personen, Porträt, Partnerschaft, Ereignisse, Quellen und Ausschnitte, in
+dieser Reihenfolge. Jede Zeile ist ein Link auf die Person oder die Quelle.
+
+- Der Beleg einer Quelle sagt auch, wo die Quelle zitiert ist („Beleg · zitiert bei Geburt“).
+- Über fünf Stellen erscheinen vier und „+ N weitere“.
+- × an einer Stelle (**Verknüpfung lösen:**) entfernt die Datei nur von dieser Stelle, mit Meldung und
+  **Rückgängig**. Die letzte Stelle einer Datei, die sonst nichts hält, fragt zuerst ([A3.5.6](#A3.5.6)).
+- Neben einem Archiv gibt es zwei Teile: **Im Stammbaum** und **Im Archiv**, mit den im Archiv zugeordneten Personen
+  und damit, wofür die Forschung die Datei verwendet hat (Ausschnitte, Quellen der Forschung, offene Aufgaben).
+- **Grenzen:** ein schreibgeschützter Stammbaum zeigt die Stellen ohne ×. Die Verwendung im Archiv zeigt nur die
+  Forschung 1.35.0 und neuer; läuft die Forschung nicht, gilt der Stand, den die App zuletzt kannte.
+- **Bedienung:** Dateibetrachter (Seitenleiste, auf dem Telefon ein hochgezogenes Blatt); der Dialog **Anhang**.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+
+<a id="A3.5.4"></a>
+### A3.5.4 Verknüpfen mit…
+
+**Verknüpfen mit…** legt eine Datei zu Personen, zu einem Ereignis, zu einer Partnerschaft oder zu einer Quelle, in
+einem Schritt **Rückgängig**.
+
+- Bei einer Quelle ist die Datei ihr Beleg; bei einer Partnerschaft ein Anhang der Partnerschaft. Das Paarfoto wird
+  bei der Partnerschaft geändert ([A12.4](A12-portrait-and-couple-photo.md#A12.4)).
+- Ein Material nur im Archiv wird mit seiner verkleinerten Kopie aus der Forschung verknüpft: dann ist es auch im
+  Stammbaum, im Export, im Buch und auf dem Telefon.
+- Dieselbe Datei ein zweites Mal hinzugefügt: **Die Datei ist schon im Stammbaum** bietet **Auch hier verknüpfen**,
+  **Als neue Datei hinzufügen** oder Abbrechen. Neben einem Archiv wird ohne Nachfrage verknüpft.
+- Das Löschen einer Person oder einer Quelle sagt, welche Dateien bleiben und welche verschwinden.
+- **Grenzen:** höchstens 50 Personen auf einmal. Ein Material nur im Archiv lässt sich nur bei laufender Forschung
+  verknüpfen. Eine Person, die die Forschung noch nicht kennt, bekommt die Forschung mit dem nächsten Schreiben des
+  Stammbaums.
+- **Bedienung:** Dateibetrachter (**Verknüpfen mit…** oder P; die Pfeile wechseln das Ziel, Enter verknüpft); eine
+  Auswahl im Fenster **Materialien**.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+
+<a id="A3.5.5"></a>
+### A3.5.5 Quelle aus einer Datei und Beleg einer Quelle
+
+Eine Quelle kann einen **Beleg** haben: die Datei, aus der sie stammt. Der Beleg ist eine Stelle der Datei bei der
+Quelle; die Datei wird nicht noch einmal eingefügt.
+
+- **Quelle aus dieser Datei anlegen…** öffnet den Editor der Quelle, ausgefüllt aus der Datei: der Name aus dem
+  Titel, das Datum des Eintrags aus dem Datum, die Datei als Beleg und **Zitieren bei** mit der Person, von der die
+  Datei ist, und mit dem Ereignis, dessen Jahr passt. Das Speichern ist ein Schritt **Rückgängig**: Quelle, Beleg und
+  Zitat.
+- Eine neue Quelle bei einer Person bietet **Beleg aus den Materialien der Person**: die Dateien der Person **Ohne
+  Quelle** und **Bei einer anderen Quelle**, über 12 Dateien mit Suche (**In Titel und Name suchen**).
+- Der Quellenbetrachter zeigt **Stammt aus**: die Belege mit × und **Beleg verknüpfen…**. Ein Ausschnitt verweist auf
+  die Datei, aus der er geschnitten wurde („Ausschnitt aus … ›“).
+- GEDCOM trägt den Beleg als `OBJE` bei der Quelle; eine Datei an mehreren Stellen ist ein Eintrag `OBJE`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Grenzen:** ein Material nur im Archiv wird mit seiner verkleinerten Kopie nur bei laufender Forschung zum Beleg.
+  Die App speichert eine Datei nie zweimal.
+- **Bedienung:** Dateibetrachter, ⋯ bei einem Anhang, der Dialog **Anhang** und in **Verknüpfen mit…** bei einer
+  Quelle **Neue Quelle aus dieser Datei…**; der Editor der Quelle, Feld **Beleg**.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:0c532b5a src/ui/source-docs-ui.ts (hlavička §5–§7: Vytvořit pramen, Doklad z materiálů osoby, Z čeho je), OFFER_SEARCH_OVER=12 · app:55d66efd · strings.ts sources.docLabel, docHint, attachDoc, citeAtLabel, offerTitle, offerNoSource, offerOther, offerSearch, viewerFrom, excerptFrom · materials.makeSource, newSourceFromFile · app:dfb50772 src/ged-exporter.ts objeOf (OBJE u SOUR, _SOUR u osoby), recordOf (soubor na více místech = záznam OBJE @M…@) -->
+
+<a id="A3.5.6"></a>
+### A3.5.6 Aus dem Stammbaum entfernen und Wiederherstellen
+
+**Aus dem Stammbaum entfernen…** entfernt eine Datei von allen Stellen im Stammbaum. Was mit der Datei geschieht,
+hängt davon ab, ob ein Archiv sie hält.
+
+- Der Dialog sagt zuerst, was auf die Datei verweist: der Beleg einer Quelle („Die Quelle bleibt ohne Beleg.“), ein
+  Ausschnitt („Der Ausschnitt bleibt.“), ein Porträt („Das Porträt bleibt, der Ausschnitt lässt sich nicht mehr
+  ändern.“).
+- **Ohne Archiv:** **Datei aus dem Stammbaum löschen?** löscht die Datei. „Die Datei ist nirgends sonst gespeichert.
+  Nur Rückgängig oder eine Sicherung (Alles exportieren) holt sie zurück.“
+- **Mit Archiv** (die Datei ist in der Forschung oder im Strom-Archiv): die Datei bleibt im Archiv, ausgeblendet mit
+  dem Grund **Aus dem Stammbaum entfernt**; ein freiwilliger Grund ist **Betrifft nicht die Familie** oder
+  **Duplikat**. In **Ausgeblendete zeigen** holt **Wiederherstellen** sie mitsamt Verknüpfungen zurück, an die
+  Stellen, die im Stammbaum noch da sind.
+- Mehrere Dateien aus einer Auswahl sind ein Schritt **Rückgängig**. **Person entfernen…** entfernt die gewählte
+  Person von den ausgewählten Dateien; eine Datei ohne andere Stelle wird vorher angekündigt.
+- Der Papierkorb bei einem Anhang einer Person entfernt die Datei nur von dieser Person, mit Meldung und
+  **Rückgängig**; die letzte Stelle fragt wie **Aus dem Stammbaum entfernen…**.
+- **Grenzen:** die Datei bleibt nur im Archiv, wenn das Archiv sie hat: ab der Forschung 1.35.0 jede Datei des
+  Stammbaums nach einem Schreiben, bei älterer Forschung nur ein gesendetes Original. Das Archiv übernimmt das
+  Entfernen mit dem Schreiben des Stammbaums ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
+- **Bedienung:** Dateibetrachter; eine Auswahl im Fenster **Materialien** → ⋯.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:a275d977, c2ae8441 src/ui/material-attach-ui.ts openRemoveFromTreeDialog (rmRefs, materialKeptByArchive = caps.list && item.file) · src/data.ts removeMedia (keep → removed + places), removeMediaMany, restoreMedia (jen místa, která ve stromu jsou) · app:13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson · strings.ts materials.removeFromTree, rmRefDoc, rmKeepDoc, rmKeepExcerpt, rmKeepPortrait, rmArchiveResearch, rmAppTitle, rmApp, reason, restore, selRemovePerson, selRemovePersonLast · research:91ab6230, a7df632d -->
+
+<a id="A3.5.7"></a>
+### A3.5.7 Durchgehen und Sammeländerungen
+
+Das Fenster **Materialien** geht viele Dateien auf einmal durch: die Filter zeigen, was fehlt, und eine Auswahl
+ändert alle ausgewählten Dateien zusammen.
+
+- Filter mit Zahlen: **Ohne Titel**, **Ohne Quelle**, neben einem Archiv **Im Stammbaum** und **Nur im Archiv**.
+- **Durchgehen (N)** öffnet den Betrachter mit den Feldern der ersten Datei: Enter oder → speichert und geht zur
+  nächsten, ← zurück, **Überspringen**, Esc beendet; P verknüpft, S legt eine Quelle an. Auf dem Telefon werden die
+  Dateien durch Wischen gewechselt.
+- Eine Auswahl: **Durchgehen**, **Verknüpfen mit…**, **Titel…**, **Art…**, **Datum…**; unter ⋯ **Aus dem Stammbaum
+  entfernen…**, **Person entfernen…** und neben einem Archiv **Einer Person zuordnen…** und **Ausblenden…**.
+- **Titel…** kann **Nummer nach Reihenfolge im Stapel anhängen**, mit Vorschau. **Art…** und **Datum…** lassen
+  Dateien, die schon einen Wert haben, aus, wenn das Ersetzen nicht angehakt ist.
+- **Grenzen:** die Dateien des Stammbaums ändern sich in einem Schritt **Rückgängig**. Dateien der Forschung in
+  Stapeln zu 500, über 500 mit Fortschritt und Abbrechen; abgelehnte Dateien nennt die Meldung.
+- **Bedienung:** Fenster **Materialien** → **Auswählen** oder ein Filter.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:a1127378 src/ui/materials-window.ts (filtry, výběr, Projít), src/ui/material-bulk-ui.ts BULK_CHUNK=500 · app:13e4a70c (tažení na telefonu) · strings.ts materials.fNoTitle, fNoSource, fInTree, fOnlyArchive, review, setTitle, setKind, setDate, titleNumber, titleOverwrite, bulkProgress, bulkRejected, reviewSwipe -->
+
+<a id="A3.5.8"></a>
+### A3.5.8 Mit dem Agenten sortieren
+
+**Mit dem Agenten sortieren…** sendet Dateien der Forschung an den Agenten. Der Agent schlägt zu jeder Titel, Datum,
+Art und Verknüpfungen (Personen, Ereignis, Quelle) mit kurzer Begründung vor. Nichts wird geschrieben, bevor der
+Vorschlag angenommen ist.
+
+- Der Dialog zeigt die Dateien und das Feld **Was über die Dateien bekannt ist** (freiwillig, eigene Worte als
+  Anhaltspunkt). Er sagt, dass das, was der Agent öffnet, an den Modellanbieter geht und dass das Sortieren das Abo
+  oder Guthaben nutzt. Die Dateien sendet nur die Schaltfläche **Mit dem Agenten sortieren** im Dialog, einmal.
+- Das Fenster lässt sich schließen; der Fortschritt und der fertige Vorschlag sind im Band des Fensters
+  **Materialien**.
+- **Vorschlag des Agenten** hat **Vorschläge**, **Nicht zugeordnet** und **Erledigt** und bei jeder Datei
+  **Annehmen**, **Bearbeiten**, **Ablehnen**; außerdem **Ausgewählte annehmen** und **Alle annehmen**. Die Sicherheit
+  eines Vorschlags: sicher, wahrscheinlich, unsicher.
+- Titel, Datum und Art von einem Menschen bleiben; der Vorschlag des Agenten wird nur verwendet, wenn **Vorschlag
+  übernehmen** gewählt wird.
+- Angenommenes wird geschrieben: die Dateien des Stammbaums in einem Schritt **Rückgängig** mit dem Stammbaum,
+  Material außerhalb des Stammbaums ins Archiv. Eine Quelle der Forschung, die der Stammbaum noch nicht hat, kommt mit
+  der Nummer der Forschung in den Stammbaum, und das Schreiben verdoppelt sie nicht. Ein angenommener Vorschlag lässt
+  sich in seiner Zeile mit **Rückgängig** zurücknehmen.
+- **Grenzen:**
+  - nur bei der Forschung 1.35.0 und neuer, die einen Agenten hat, und nur bei laufender Forschung; beim
+    Strom-Archiv und bei einer Forschung, die auf einen Agenten wartet, gibt es das Angebot gar nicht;
+  - höchstens 50 Dateien auf einmal (gesendet werden die ersten 50) und 2000 Zeichen Text;
+  - die Forschung kann das Sortieren ablehnen: das Leselimit ist aufgebraucht, zu viele Sortierungen warten, der
+    Agent kann gerade nicht arbeiten. Wie die Forschung sortiert, beschreibt
+    [R11.5.3](R11-material-from-the-user.md#R11.5.3);
+  - nur in der App am Computer.
+- **Bedienung:** Fenster **Materialien**: eine Auswahl, das Band über einem Stapel oder über einem Filter; das Ende
+  eines Stapels aus der App.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
 
 <a id="A3.6"></a>
 ## A3.6 Quellen einer Person

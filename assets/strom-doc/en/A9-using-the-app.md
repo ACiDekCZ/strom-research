@@ -35,6 +35,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 | following the research | **Follow live**; the end **End following** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
 | sending edits to the research | **Research → Other actions → Research for this tree… → Sending changes** | [S2.2](S2-edits-from-the-app.md#S2.2) |
 | rules and terms | **Actions → How Strom works** | [A1.7](A1-the-app-in-brief.md#A1.7) |
+| an action that takes a while | the state on the button (a wheel and what is happening); a long action in a notice with progress | [A9.7](#A9.7) |
 
 - **Limits:**
   - the research's items are only at a tree from the research; the buttons that open the research only on the
@@ -43,7 +44,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 - **Controls:** as in the table.
 - **Since:** app 3.25.0 (summary; each place applies since the version in its rule)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) · akce, která trvá: A9.7 (app:2d01dffd src/ui/busy.ts) -->
 
 <a id="A9.2"></a>
 ## A9.2 Controls have a readable name
@@ -162,3 +163,56 @@ all trees. Folding is not switching off: whether the element shows at all is sti
 - **Since:** app 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+
+<a id="A9.7"></a>
+## A9.7 An action that takes a while
+
+A button or link whose action takes a while shows that it is working and ends with one message: it worked, or why
+not. A second click meanwhile starts nothing again.
+
+- **Limits:**
+  - the element locks right after the click. A second click, Enter or space starts nothing again. The element does
+    not grey out, keeps its colour and the keyboard focus and does not change its width;
+  - the state shows only after 120 ms, so that short actions do not flicker, and stays visible at least 300 ms: a
+    wheel and words saying what is happening. The verb changes to its “…ing” form (**Send** → **Sending…**),
+    otherwise it says **Loading…**; a link to the terminal says **Opening the research…**
+    ([S4.5](S4-research-from-the-app.md#S4.5)). With reduced motion (system setting) three dots stand instead of
+    the wheel;
+  - success, where the result is not visible otherwise, shows on the element for 2 s a tick with a word
+    (**Written**, **Saved**);
+  - failure is a sentence right under the element with **Try again**. When the element has gone meanwhile (a closed
+    menu or dialog), a notice says the same; a notice about an error does not close by itself and has ✕. A browser
+    window with a message is not used;
+  - each action has a time limit according to what it waits for: a request to the research 15 s, a write to the
+    research 30 s, loading or sending the tree 120 s, opening the terminal 10 s, work on the queue 30 s, the main
+    window 10 s, a service on the internet 10 s. A calculation in the browser has no limit.
+- **Controls:** none: it applies by itself.
+- **Since:** app 3.30.0. So far this way: links to the terminal, **Send**, handing the tree to the research, loading
+  a version from the research, switching the tree, **Work on the queue…**, **All queries' text** and the buttons in
+  notices; further places of the app are being added.
+
+<!-- zdroj: app:2d01dffd, 7b69dba9, 574e7ef9, 6ee5a7f7, f63cc742, 3f841191, 1473151c, d2bdabac, c02df469, 6093a386, 58539c82 src/ui/busy.ts (runBusy: zámek 0 ms aria-disabled, BUSY_SHOW_MS 120, BUSY_MIN_MS 300, BUSY_DONE_MS 2000, šířka v jedné buňce .bl, bez ztlumení, konec věta .busy-msg + retry, prvek pryč → toast, BUSY_TIMEOUTS bridge 15 s, write 30 s, tree 120 s, terminal 10 s, queueWork 30 s, satellite 10 s, network 10 s, local bez limitu; reducedMotion tři tečky) · strings.ts busy.generic, sending, openingResearch, done.written, done.saved, retry · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · app:docs/ZADANI_DEV_tlacitka-cekani.md §1, §10, §13.1 (fáze 0–1) · dirigent:prace/1118-app-tlacitka-a -->
+
+<a id="A9.7.1"></a>
+### A9.7.1 A long action: progress in a notice
+
+An action that takes longer shows its progress in a notice: what is happening right now and how long it has taken.
+
+- **Limits:**
+  - the notice with progress shows when the action runs longer than 3 s, or when the element that started it has
+    gone. It has a title, a step (“2 of 5”), from 10 s the time (“· 12 s”) and after twice the usual time, at the
+    earliest after 20 s, **Taking longer than usual.** Success shows a summary with a tick for 4 s;
+  - only an action that can really be cancelled has **Cancel**. A write to the research cannot be cancelled. Closing
+    a dialog does not cancel the action;
+  - handing the tree to the research shows the steps (**Saving a backup**, **Creating GEDCOM**, **The research takes
+    over the tree**, loading), and the dialog can be left running with **Continue in the background**;
+  - while a version loads from the research, while the tree is handed over and while the tree is switched, edits to
+    the tree wait: an attempt to edit changes nothing and a notice says why (**The tree is loading from the research
+    – edits are possible after loading.**). Viewing and searching go on;
+  - leaving the page while something is being sent to the research or the tree is loading is first confirmed by the
+    browser. When the page was closed during a write, the next opening says **Something was being sent to the
+    research before closing – the result is not known.** with **Find out**.
+- **Controls:** app: **Cancel**, **Continue in the background**, **Find out** in the notice.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:2d01dffd, 3f841191, 1473151c, d2bdabac src/ui/toast.ts showProgressToast (ELAPSED_FROM_MS 10 s, TAKING_LONG_MIN_MS 20 s a 2× usualMs, SUMMARY_MS 4000, cancel jen kde jde) · src/ui/busy.ts BUSY_LONG_TOAST_MS 3000 · src/ui/adopt-progress.ts, research-adopt-ui.ts (kroky adoptBackup, adoptGedcom, adoptTaking, loadingTree; adoptBackground) · src/ui/tree-edit-lock.ts (load, adopt, switch; editsWaitLoad, editsWaitAdopt, editsWaitSwitch) · src/ui/busy-leave.ts (beforeunload při send, adopt, load; strom.busy.pending → unknownAfterLeave + findOut) · strings.ts busy.* · app:docs/ZADANI_DEV_tlacitka-cekani.md §2 -->

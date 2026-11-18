@@ -35,6 +35,7 @@ der Person; was den ganzen Stammbaum betrifft, steht in der Leiste und im Menü 
 | Verfolgen der Forschung | **Live verfolgen**; Ende **Verfolgung beenden** | [S1.4](S1-connecting-app-and-research.md#S1.4), [A9.3](#A9.3) |
 | Senden der Änderungen an die Forschung | **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Änderungen senden** | [S2.2](S2-edits-from-the-app.md#S2.2) |
 | Regeln und Begriffe | **Aktionen → So funktioniert Strom** | [A1.7](A1-the-app-in-brief.md#A1.7) |
+| eine Aktion, die eine Weile dauert | der Zustand auf der Schaltfläche (ein Rad und was gerade geschieht); eine lange Aktion in einer Meldung mit Fortschritt | [A9.7](#A9.7) |
 
 - **Grenzen:**
   - die Einträge der Forschung gibt es nur bei einem Stammbaum aus der Forschung; Schaltflächen, die die Forschung
@@ -44,7 +45,7 @@ der Person; was den ganzen Stammbaum betrifft, steht in der Leiste und im Menü 
 - **Bedienung:** wie in der Tabelle.
 - **Gilt seit:** App 3.25.0 (Übersicht; jeder Ort gilt seit der Version in seiner Regel)
 
-<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) -->
+<!-- zdroj: app:index.html search input (search.placeholder) · src/renderer.ts card.onclick → UI.showContextMenu, klávesy Enter/Space · src/ui/bottom-sheet.ts (dlouhý stisk, menu.sectionView) · SPEC.md Long-press → bottom sheet · strings.ts search.placeholder, mobileMenu.more, menu.sectionView, map.tilesNotice, map.tilesNoticeOk, research.stop · cesty z pravidel A3.1, A3.6, A6, A6.5.2, A11 (od 3.30.0, index.html #actions-lists-row, bottom-sheet.ts sheet-lists), A12 (od 3.30.0, app:88859da2 person-modal.ts, 9a47896e relationships-panel.ts; tlačítka otočení fotky přesunuta do editoru), S1.4, S2.2, S3.2, S4.1, S4.4, A1.7 · okna: A6.8, S4.1.6 (app:4b1373a7 src/windows/window-controls.ts) · dolní lišta a Celá obrazovka: A9.5 (app:4b1373a7, commit bb5e4d12) · akce, která trvá: A9.7 (app:2d01dffd src/ui/busy.ts) -->
 
 <a id="A9.2"></a>
 ## A9.2 Bedienelemente haben einen lesbaren Namen
@@ -172,3 +173,60 @@ die Einstellungen **Minikarte** und **Stammbaum-Legende**.
 - **Gilt seit:** App 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+
+<a id="A9.7"></a>
+## A9.7 Eine Aktion, die eine Weile dauert
+
+Eine Schaltfläche oder ein Link, deren Aktion eine Weile dauert, zeigt, dass sie arbeitet, und endet mit einer
+einzigen Nachricht: es hat geklappt, oder warum nicht. Ein zweiter Klick startet inzwischen nichts erneut.
+
+- **Grenzen:**
+  - das Element sperrt sich gleich nach dem Klick. Ein zweiter Klick, Enter oder Leertaste startet nichts erneut. Das
+    Element wird nicht grau, behält seine Farbe und den Tastaturfokus und ändert seine Breite nicht;
+  - der Zustand erscheint erst nach 120 ms, damit kurze Aktionen nicht flackern, und bleibt mindestens 300 ms zu
+    sehen: ein Rad und Worte, was gerade geschieht. Das Verb wechselt in die Form „Wird …“ (**Senden** → **Wird
+    gesendet…**), sonst steht **Wird geladen…**; ein Link ins Terminal sagt **Forschung wird geöffnet…**
+    ([S4.5](S4-research-from-the-app.md#S4.5)). Bei reduzierter Bewegung (Systemeinstellung) stehen statt des Rads
+    drei Punkte;
+  - ein Erfolg, wo das Ergebnis sonst nicht zu sehen ist, zeigt auf dem Element 2 s lang ein Häkchen mit einem Wort
+    (**Geschrieben**, **Gespeichert**);
+  - ein Misserfolg ist ein Satz direkt unter dem Element mit **Erneut versuchen**. Ist das Element inzwischen
+    verschwunden (ein geschlossenes Menü oder ein geschlossener Dialog), sagt dasselbe eine Meldung; eine Meldung über
+    einen Fehler schließt sich nicht von selbst und hat ✕. Ein Browserfenster mit Hinweis wird nicht verwendet;
+  - jede Aktion hat ein Zeitlimit nach dem, worauf sie wartet: eine Anfrage an die Forschung 15 s, ein Schreiben in
+    die Forschung 30 s, Laden oder Senden des Stammbaums 120 s, Öffnen des Terminals 10 s, Arbeit an der
+    Warteschlange 30 s, das Hauptfenster 10 s, ein Dienst im Internet 10 s. Eine Berechnung im Browser hat kein
+    Limit.
+- **Bedienung:** nichts: gilt von selbst.
+- **Gilt seit:** App 3.30.0. So bisher: Links ins Terminal, **Senden**, die Übergabe des Stammbaums an die Forschung,
+  das Laden einer Version aus der Forschung, das Wechseln des Stammbaums, **An der Warteschlange arbeiten…**, **Text
+  aller Anfragen** und die Schaltflächen in Meldungen; weitere Stellen der App kommen hinzu.
+
+<!-- zdroj: app:2d01dffd, 7b69dba9, 574e7ef9, 6ee5a7f7, f63cc742, 3f841191, 1473151c, d2bdabac, c02df469, 6093a386, 58539c82 src/ui/busy.ts (runBusy: zámek 0 ms aria-disabled, BUSY_SHOW_MS 120, BUSY_MIN_MS 300, BUSY_DONE_MS 2000, šířka v jedné buňce .bl, bez ztlumení, konec věta .busy-msg + retry, prvek pryč → toast, BUSY_TIMEOUTS bridge 15 s, write 30 s, tree 120 s, terminal 10 s, queueWork 30 s, satellite 10 s, network 10 s, local bez limitu; reducedMotion tři tečky) · strings.ts busy.generic, sending, openingResearch, done.written, done.saved, retry · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · app:docs/ZADANI_DEV_tlacitka-cekani.md §1, §10, §13.1 (fáze 0–1) · dirigent:prace/1118-app-tlacitka-a -->
+
+<a id="A9.7.1"></a>
+### A9.7.1 Eine lange Aktion: Fortschritt in einer Meldung
+
+Eine Aktion, die länger dauert, zeigt ihren Fortschritt in einer Meldung: was gerade geschieht und wie lange es
+dauert.
+
+- **Grenzen:**
+  - die Meldung mit Fortschritt erscheint, wenn die Aktion länger als 3 s läuft oder wenn das Element, das sie
+    gestartet hat, verschwunden ist. Sie hat einen Titel, einen Schritt („2 von 5“), ab 10 s die Zeit („· 12 s“) und
+    nach der doppelten üblichen Dauer, frühestens nach 20 s, **Dauert länger als üblich.** Ein Erfolg zeigt 4 s lang
+    eine Zusammenfassung mit Häkchen;
+  - **Abbrechen** hat nur eine Aktion, die sich wirklich abbrechen lässt. Ein Schreiben in die Forschung lässt sich
+    nicht abbrechen. Das Schließen eines Dialogs bricht die Aktion nicht ab;
+  - die Übergabe des Stammbaums an die Forschung zeigt die Schritte (**Sicherung wird gespeichert**, **GEDCOM wird
+    erstellt**, **Die Forschung übernimmt den Stammbaum**, Laden), und der Dialog lässt sich mit **Im Hintergrund
+    fortsetzen** weiterlaufen lassen;
+  - während eine Version aus der Forschung geladen, der Stammbaum übergeben oder gewechselt wird, warten Änderungen
+    am Stammbaum: ein Änderungsversuch ändert nichts, und eine Meldung sagt warum (**Der Stammbaum wird gerade aus
+    der Forschung geladen – Änderungen sind danach möglich.**). Ansehen und Suchen gehen weiter;
+  - das Verlassen der Seite, während an die Forschung gesendet oder der Stammbaum geladen wird, bestätigt zuerst der
+    Browser. Wurde die Seite während eines Schreibens geschlossen, sagt sie beim nächsten Öffnen **Vor dem Schließen
+    wurde an die Forschung gesendet – das Ergebnis ist nicht bekannt.** mit **Ermitteln**.
+- **Bedienung:** App: **Abbrechen**, **Im Hintergrund fortsetzen**, **Ermitteln** in der Meldung.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:2d01dffd, 3f841191, 1473151c, d2bdabac src/ui/toast.ts showProgressToast (ELAPSED_FROM_MS 10 s, TAKING_LONG_MIN_MS 20 s a 2× usualMs, SUMMARY_MS 4000, cancel jen kde jde) · src/ui/busy.ts BUSY_LONG_TOAST_MS 3000 · src/ui/adopt-progress.ts, research-adopt-ui.ts (kroky adoptBackup, adoptGedcom, adoptTaking, loadingTree; adoptBackground) · src/ui/tree-edit-lock.ts (load, adopt, switch; editsWaitLoad, editsWaitAdopt, editsWaitSwitch) · src/ui/busy-leave.ts (beforeunload při send, adopt, load; strom.busy.pending → unknownAfterLeave + findOut) · strings.ts busy.* · app:docs/ZADANI_DEV_tlacitka-cekani.md §2 -->

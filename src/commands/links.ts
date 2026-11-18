@@ -5,14 +5,15 @@
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { register } from "../cli/registry.ts";
+import { register, type Result } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
-import { LinkError, linkHandlerState, linkScheme, linkStateText, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
+import { LinkError, linkHandlerState, linkScheme, linkStateText, linkText, parseLink, registerLinks, titleLinkWindow, unregisterLinks, type Link, type TakenLink } from "../core/links.ts";
+import { noteHandoff } from "../core/handoffs.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { whereToTalk } from "../core/apps.ts";
@@ -452,6 +453,114 @@ function excerptOf(ctx: Context, link: Extract<Link, { action: "excerpt" }>) {
   return found;
 }
 
+
+/** The app's id of a link taken, written in each copy of the research here (core/handoffs.ts): the bridge says it. */
+function noteTaken(ctx: Context, handoff: { id: string; tree: string }): void {
+  for (const c of researchesWithId(ctx, handoff.tree)) noteHandoff(c.root, handoff.id);
+}
+
+/** What a link asks, done: here in the terminal, without one, or in a new terminal opened for it (handed.on). */
+async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }): Promise<Result> {
+  if (link.action === "menu") {
+    const where = ctx.settings.home()?.value ?? configDir(ctx.env);
+    fs.mkdirSync(where, { recursive: true });
+    const opened = openInNewTerminal([], where, ctx.env, process.platform, windowOf(ctx));
+    return { text: "", data: { done: true, action: "menu", ...fellBack(opened) } };
+  }
+  // a tree of the app becomes a research: always in a terminal (it asks the name, waits for the app)
+  if (link.action === "new") {
+    if (ctx.io.tty) {
+      const { newFromApp } = await import("../cli/menu-links.ts");
+      const { openAppAt } = await import("./sync.ts");
+      const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
+      if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
+      return { text: "", data: { done, action: "new" } };
+    }
+    // nobody to ask here: the terminal opened asks — which family trees it will offer to open instead, said (b-D4)
+    const { treesToOpen } = await import("../cli/menu-links.ts");
+    const trees = treesToOpen(ctx);
+    const where = ctx.settings.home()?.value ?? configDir(ctx.env);
+    fs.mkdirSync(where, { recursive: true });
+    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env, process.platform, windowOf(ctx));
+    handed.on = opened !== false;
+    if (opened === false) return say(ctx, "ui.link.noterminal.new", {}, { action: "new", trees });
+    return { text: "", data: { done: true, action: "new", trees, ...fellBack(opened) } };
+  }
+  if (link.action === "book") {
+    // a book's folder of the shared inbox (spec 105): opened, made first when not there — no terminal, nothing
+    // written in the research; the images saved there are taken by the bridge or the next session (K1.4)
+    const shared = ctx.settings.shared()?.value;
+    const copies = researchesWithId(ctx, link.tree);
+    if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+    const b = liveBook(Tree.open(copies[0]!.root, ctx.env), link.id);
+    if (!b || !shared) return say(ctx, "ui.link.book.none", { book: link.id }, { tree: link.tree, book: link.id });
+    const dir = path.join(shared, "inbox", inboxFolderFor(b));
+    fs.mkdirSync(dir, { recursive: true });
+    openForUser(dir, ctx.env);
+    return { text: ctx.display(dir), data: { done: true, action: "book", do: link.do, book: b.id, dir, tree: copies[0]!.root } };
+  }
+  if (link.action === "media") {
+    // an original the app sent: the file itself, in the viewer of the system; nothing written
+    const shared = ctx.settings.shared()?.value;
+    const copies = researchesWithId(ctx, link.tree);
+    if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+    for (const c of copies) {
+      const known = knownOriginal(Tree.open(c.root, ctx.env), shared, link.sha);
+      if (known?.file && fs.existsSync(known.file)) {
+        openForUser(known.file, ctx.env);
+        return { text: ctx.display(known.file), data: { done: true, action: "media", file: known.file, known: known.id } };
+      }
+    }
+    return say(ctx, "ui.link.nomedia", {}, { tree: link.tree, sha: link.sha });
+  }
+  // an experiment turned off needs nobody's answer: done in each copy of the research here, without a terminal
+  if (link.action === "experiment" && link.do === "off" && !ctx.io.tty) {
+    const copies = researchesWithId(ctx, link.tree);
+    if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+    const { experimentDo } = await import("../cli/menu-links.ts");
+    let done = true;
+    for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off", link.name)) && done;
+    return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
+  }
+  // the hypotheses decided by the person again needs nobody's answer: done in each copy of the research, no terminal
+  if (link.action === "hypotheses" && "decide" in link && link.decide === "person" && !ctx.io.tty) {
+    const copies = researchesWithId(ctx, link.tree);
+    if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+    const { hypothesesDo } = await import("../cli/menu-links.ts");
+    let done = true;
+    for (const c of copies) done = (await hypothesesDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "person")) && done;
+    return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
+  }
+  if (link.action !== "excerpt") {
+    // a terminal to show it in: this one, or a new window (the system started strom with none)
+    if (ctx.io.tty) return inTerminal(ctx, link);
+    const copies = researchesWithId(ctx, link.tree);
+    if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+    // asked of an agent where nobody researches: said in a window, no terminal opened
+    const refused = refusedHere(ctx, copies[0]!.root, link);
+    if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
+    const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
+    if (quiet) return quiet;
+    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, windowOf(ctx));
+    handed.on = opened !== false;
+    if (opened === false)
+      return link.action === "send"
+        ? say(ctx, "ui.link.noterminal", { item: `${ui(ctx.uiLang(), "ui.more.title")} → ${ui(ctx.uiLang(), "ui.more.sync")}` })
+        : say(ctx, "ui.link.noterminal.any", { name: copies[0]!.name });
+    return { text: "", data: { done: true, action: link.action, tree: copies[0]!.root, ...fellBack(opened) } };
+  }
+  const got = excerptOf(ctx, link);
+  if ("file" in got) {
+    openForUser(got.file, ctx.env);
+    return { text: ctx.display(got.file), data: { done: true, action: "excerpt", file: got.file } };
+  }
+  if ("url" in got) {
+    openForUser(got.url, ctx.env);
+    return { text: got.url, data: { done: true, action: "excerpt", url: got.url } };
+  }
+  return say(ctx, got.missing === "tree" ? "ui.link.notree" : got.missing === "scan" ? "ui.link.noscan" : "ui.link.noclip", { source: link.source }, { tree: link.tree, source: link.source, clip: link.clip });
+}
+
 register(
   {
     path: ["link", "open"],
@@ -517,113 +626,29 @@ register(
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
-      "only said. No link: the menu.",
+      "only said. No link: the menu.\n" +
+      "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +
+      "opens came up, or what needs none was done) and said by the research's bridge in GET /status (handoffs) for a\n" +
+      "minute, for the app to know the terminal opened. Any other value is left out; nothing is done by it.",
     args: [{ name: "link", description: "the strom-research:// link" }],
     examples: ["strom link open 'strom-research://send?tree=0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f'"],
     async run(ctx, { args }) {
-      let link: Link;
+      let link: TakenLink;
       try {
         link = parseLink(args[0], linkScheme(ctx.env));
       } catch (e) {
         if (!(e instanceof LinkError)) throw e;
         return say(ctx, "ui.link.bad", {}, { why: e.message });
       }
-      if (link.action === "menu") {
-        const where = ctx.settings.home()?.value ?? configDir(ctx.env);
-        fs.mkdirSync(where, { recursive: true });
-        const opened = openInNewTerminal([], where, ctx.env, process.platform, windowOf(ctx));
-        return { text: "", data: { done: true, action: "menu", ...fellBack(opened) } };
-      }
-      // a tree of the app becomes a research: always in a terminal (it asks the name, waits for the app)
-      if (link.action === "new") {
-        if (ctx.io.tty) {
-          const { newFromApp } = await import("../cli/menu-links.ts");
-          const { openAppAt } = await import("./sync.ts");
-          const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
-          if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
-          return { text: "", data: { done, action: "new" } };
-        }
-        // nobody to ask here: the terminal opened asks — which family trees it will offer to open instead, said (b-D4)
-        const { treesToOpen } = await import("../cli/menu-links.ts");
-        const trees = treesToOpen(ctx);
-        const where = ctx.settings.home()?.value ?? configDir(ctx.env);
-        fs.mkdirSync(where, { recursive: true });
-        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env, process.platform, windowOf(ctx));
-        if (opened === false) return say(ctx, "ui.link.noterminal.new", {}, { action: "new", trees });
-        return { text: "", data: { done: true, action: "new", trees, ...fellBack(opened) } };
-      }
-      if (link.action === "book") {
-        // a book's folder of the shared inbox (spec 105): opened, made first when not there — no terminal, nothing
-        // written in the research; the images saved there are taken by the bridge or the next session (K1.4)
-        const shared = ctx.settings.shared()?.value;
-        const copies = researchesWithId(ctx, link.tree);
-        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
-        const b = liveBook(Tree.open(copies[0]!.root, ctx.env), link.id);
-        if (!b || !shared) return say(ctx, "ui.link.book.none", { book: link.id }, { tree: link.tree, book: link.id });
-        const dir = path.join(shared, "inbox", inboxFolderFor(b));
-        fs.mkdirSync(dir, { recursive: true });
-        openForUser(dir, ctx.env);
-        return { text: ctx.display(dir), data: { done: true, action: "book", do: link.do, book: b.id, dir, tree: copies[0]!.root } };
-      }
-      if (link.action === "media") {
-        // an original the app sent: the file itself, in the viewer of the system; nothing written
-        const shared = ctx.settings.shared()?.value;
-        const copies = researchesWithId(ctx, link.tree);
-        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
-        for (const c of copies) {
-          const known = knownOriginal(Tree.open(c.root, ctx.env), shared, link.sha);
-          if (known?.file && fs.existsSync(known.file)) {
-            openForUser(known.file, ctx.env);
-            return { text: ctx.display(known.file), data: { done: true, action: "media", file: known.file, known: known.id } };
-          }
-        }
-        return say(ctx, "ui.link.nomedia", {}, { tree: link.tree, sha: link.sha });
-      }
-      // an experiment turned off needs nobody's answer: done in each copy of the research here, without a terminal
-      if (link.action === "experiment" && link.do === "off" && !ctx.io.tty) {
-        const copies = researchesWithId(ctx, link.tree);
-        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
-        const { experimentDo } = await import("../cli/menu-links.ts");
-        let done = true;
-        for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off", link.name)) && done;
-        return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
-      }
-      // the hypotheses decided by the person again needs nobody's answer: done in each copy of the research, no terminal
-      if (link.action === "hypotheses" && "decide" in link && link.decide === "person" && !ctx.io.tty) {
-        const copies = researchesWithId(ctx, link.tree);
-        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
-        const { hypothesesDo } = await import("../cli/menu-links.ts");
-        let done = true;
-        for (const c of copies) done = (await hypothesesDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "person")) && done;
-        return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
-      }
-      if (link.action !== "excerpt") {
-        // a terminal to show it in: this one, or a new window (the system started strom with none)
-        if (ctx.io.tty) return inTerminal(ctx, link);
-        const copies = researchesWithId(ctx, link.tree);
-        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
-        // asked of an agent where nobody researches: said in a window, no terminal opened
-        const refused = refusedHere(ctx, copies[0]!.root, link);
-        if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
-        const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
-        if (quiet) return quiet;
-        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, windowOf(ctx));
-        if (opened === false)
-          return link.action === "send"
-            ? say(ctx, "ui.link.noterminal", { item: `${ui(ctx.uiLang(), "ui.more.title")} → ${ui(ctx.uiLang(), "ui.more.sync")}` })
-            : say(ctx, "ui.link.noterminal.any", { name: copies[0]!.name });
-        return { text: "", data: { done: true, action: link.action, tree: copies[0]!.root, ...fellBack(opened) } };
-      }
-      const got = excerptOf(ctx, link);
-      if ("file" in got) {
-        openForUser(got.file, ctx.env);
-        return { text: ctx.display(got.file), data: { done: true, action: "excerpt", file: got.file } };
-      }
-      if ("url" in got) {
-        openForUser(got.url, ctx.env);
-        return { text: got.url, data: { done: true, action: "excerpt", url: got.url } };
-      }
-      return say(ctx, got.missing === "tree" ? "ui.link.notree" : got.missing === "scan" ? "ui.link.noscan" : "ui.link.noclip", { source: link.source }, { tree: link.tree, source: link.source, clip: link.clip });
+      // the app's id of the link (feature handoffs): in a terminal, it came up — said at once, before anything is asked;
+      // with none, once what needs no terminal is done — a terminal opened for it says it itself
+      if (ctx.io.tty) titleLinkWindow(ctx.env);
+      const handoff = link.handoff && "tree" in link ? { id: link.handoff, tree: link.tree } : undefined;
+      if (handoff && ctx.io.tty) noteTaken(ctx, handoff);
+      const handed = { on: false };
+      const result = await openLink(ctx, link, handed);
+      if (handoff && !ctx.io.tty && !handed.on && (result.data as { done?: unknown } | undefined)?.done === true) noteTaken(ctx, handoff);
+      return result;
     },
   },
   {
