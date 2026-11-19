@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.35.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
   brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
@@ -75,7 +75,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   beendet alles, was sie gestartet hat, wenn sie zu lange dauert, und die Leser geben die Node-Warnung DEP0190 nicht
   mehr aus.
   Das Terminal, das ein Link der Strom-App unter Windows öffnet, trägt den Titel Strom Research (eine zweite
-  Installation mit ihrem Namen), nicht den Pfad von node.exe.
+  Installation mit ihrem Namen), nicht den Pfad von node.exe. `strom doctor` und der Bericht von `strom error`
+  nennen, wie viele Brücken zur Strom-App auf dem Computer laufen, zu welcher Forschung jede gehört, ihren Speicher
+  und die Summe, und kennzeichnen eine, deren Forschung es nicht mehr gibt; nichts wird beendet.
 - **Keine Änderungen, die in der Strom-App nicht gemacht wurden:** Nach dem Schreiben aus der Strom-App nennt „nicht
   geschrieben“ weder ein Zitat einer Familie mit einem Elternteil (eine ältere Strom-App sendet es mit einer leeren
   Heirat) noch eine Quelle der Änderungen in der Strom-App (diese Quellen bekommt die App nie) als entfernt.
@@ -113,10 +115,20 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bei einer Datei, die offensichtlich nichts mit der Familie zu tun hat (ein Bildschirmfoto, ein Kassenbon, eine aus
   Versehen hochgeladene Datei), sagt der Leser das mit seinem Grund, damit sie sich in der Strom-App ausblenden lässt;
   von selbst wird nichts ausgeblendet oder gelöscht.
-  Eine Sortierung liest eine Textdatei (.txt, .md) als Text und beurteilt sie nach dem, was darin steht, sagt während der Arbeit, mit wie vielen Dateien sie fertig ist (die Strom-App zeigt es), und sagt bei jeder Datei ohne Vorschlag, warum (nichts gesagt, nichts Neues, ausgelassen, das Lesen schlug fehl).
+  Eine Sortierung liest eine Textdatei (.txt, .md) als Text und beurteilt sie nach dem, was darin steht, sagt während der Arbeit, mit wie vielen Dateien sie fertig ist (die Strom-App zeigt es), und sagt bei jeder Datei ohne Vorschlag, warum (nichts gesagt, nichts Neues, ausgelassen, das Lesen schlug fehl). Ein Leser kann auch sagen, welche Datei die Rückseite eines anderen ihm gegebenen Fotos oder einer Seite ist und welches Bild das Porträt einer Person ist, damit die Strom-App es anbietet.
   Eine Sortierung des Materials startet ohne Rückfrage nur, wenn die Brücke der Strom-App sie angenommen und signiert
   hat; ein anders geschriebener (oder von einer älteren Version eingereihter) Eintrag startet nicht und wird in der App
   erneut angefordert.
+  Was die Strom-App zu jeder Datei zeigt, nennt die Quellen, die aus ihr angelegt, aus ihr ausgeschnitten oder mit einem
+  Bild desselben Inhalts versehen wurden, mit den Personen, die sie zitieren, und ob ihr Stammbaum sie hat; eine Datei,
+  zu der eine Sortierung nichts vorschlug, und eine Datei mit demselben Inhalt wie eine andere werden genannt, damit sie
+  nicht erneut gesendet werden, und in einer Forschung mit vielen Bildern kommt die Liste um ein Mehrfaches schneller.
+  Bis zu 1.500 Dateien lassen sich aus der App auf einmal sortieren: in Stapeln zu 50, einer nach dem anderen, solange
+  die Brücke läuft, jeder innerhalb der Lesegrenzen der App und gezeigt, sobald er fertig ist; der ganze Lauf lässt sich
+  auf einmal anhalten. Eine Datei des Familienmaterials lässt sich endgültig löschen – nur durch die Person
+  (`strom input delete` oder in der Strom-App nach einer Liste von allem, was sie betrifft), nie durch einen Agenten:
+  Ihre Quellen behalten Text und Zitate, ihre Bilder und Ausschnitte verschwinden nur, wenn keine andere Datei und
+  keine andere Forschung denselben Inhalt hält, und sie bleibt nur in früheren Sicherungen der Forschung.
 
 ## 1.34.0
 

@@ -34,7 +34,7 @@ const FAR = img("s0003.jpg");
 const FAR_WORKING = img("restart.jpg");
 
 type Link = { type: string; ref: string; event?: string; retracted?: { reason: string } };
-type File = { id: string; sha: string; name: string; title?: string; kind?: string; date?: string; origin?: string; links?: Link[]; persons: string[]; batch?: string; hidden?: { reason?: string; by: string; at: string }; uses: { excerpts: number; sources: string[]; tasks: number }; here: boolean };
+type File = { id: string; sha: string; name: string; title?: string; kind?: string; date?: string; origin?: string; links?: Link[]; persons: string[]; batch?: string; hidden?: { reason?: string; by: string; at: string }; uses: { excerpts: number; sources: string[]; tasks: number; of: unknown[] }; here: boolean };
 
 function noAgent(w: World): void {
   w.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
@@ -189,7 +189,7 @@ test("spec 102 M1, M2, V10: the app's files in the material with their origin, p
     assert.ok(!files.some((f) => f.sha === sha(PORTRAIT)), "a person's portrait alone is not material");
     const shared = fileOf(files, SHARED);
     assert.deepEqual([shared.origin, shared.name, shared.title, places(shared), shared.persons, shared.here, shared.hidden], ["app", "rodina.jpg", "Rodina", ["person:P0001", "person:P0002"], ["P0001", "P0002"], true, undefined]);
-    assert.deepEqual(shared.uses, { excerpts: 0, sources: [], tasks: 0 });
+    assert.deepEqual(shared.uses, { excerpts: 0, sources: [], tasks: 0, of: [] });
     const death = fileOf(files, DEATH);
     assert.equal(places(death).length, 1);
     assert.match(places(death)[0]!, /^event:P0001:E\d{4}$/u);
@@ -211,7 +211,7 @@ test("spec 102 M1, M2, V10: the app's files in the material with their origin, p
     const entry = (await w.ok(["source", "add", "Pohřeb Václava Lhotáka", "--kind", "burial", "--folio", "fol. 12", "--clip", "B1:1@0.1,0.1,0.5,0.2", "--json"])).json.source.id as string;
     await w.ok(["task", "add", "Přečíst stranu", "--level", "verify", "--where", page.id, "--why", "úmrtí", "--done-when", "přečteno"]);
     const used = fileOf(await list(url), PAGE);
-    assert.deepEqual(used.uses, { excerpts: 1, sources: [entry], tasks: 1 });
+    assert.deepEqual(used.uses, { excerpts: 1, sources: [entry], tasks: 1, of: [{ source: entry, via: "excerpt", title: "Pohřeb Václava Lhotáka", cited: [], citedCount: 0, inTree: true }] });
     const detail = await ask(`${url}/material/${page.id}/uses`);
     assert.equal(detail.status, 200, detail.text);
     const d = json(detail);
@@ -219,7 +219,8 @@ test("spec 102 M1, M2, V10: the app's files in the material with their origin, p
     assert.deepEqual(d.sources, [{ id: entry, title: "Pohřeb Václava Lhotáka" }]);
     assert.equal(d.tasks.length, 1);
     assert.deepEqual([d.tasks[0].title, d.tasks[0].state], ["Přečíst stranu", "open"]);
-    assert.deepEqual(json(await ask(`${url}/material/${shared.id}/uses`)), { excerpts: [], sources: [], tasks: [] });
+    assert.deepEqual(d.of, used.uses.of, "the same sources it is the source of");
+    assert.deepEqual(json(await ask(`${url}/material/${shared.id}/uses`)), { excerpts: [], sources: [], tasks: [], of: [] });
     const none = await ask(`${url}/material/I0999/uses`);
     assert.deepEqual([none.status, json(none).code], [404, "material.file"]);
   } finally {

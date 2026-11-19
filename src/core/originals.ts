@@ -120,7 +120,8 @@ export function originalProblem(file: string, mime: string): { text: string; cod
 export function knownOriginal(tree: Tree, shared: string | undefined, sha: string): { id: string; kind: "input" | "media"; mime: string; bytes: number; name?: string; file?: string } | undefined {
   const m = tree.list<Media>("media").find((x) => !x.retracted && x.sha === sha);
   if (m) return { id: m.id, kind: "media", mime: m.mime, bytes: m.size, ...(m.from ? { name: m.from } : {}), ...(shared ? { file: path.join(shared, m.file) } : {}) };
-  const i = tree.list<Input>("input").find((x) => x.sha === sha && x.file);
+  // a file deleted for good (core/materialdelete.ts) is none: the same content sent again is new
+  const i = tree.list<Input>("input").find((x) => x.sha === sha && x.file && x.retracted?.reason !== "deleted");
   if (!i) return undefined;
   const file = i.file!.startsWith("inputs/") ? path.join(tree.root, i.file!) : shared && i.file!.startsWith("media:") ? path.join(shared, i.file!.slice(6)) : undefined;
   return { id: i.id, kind: "input", mime: i.mime ?? mimeOf(i.name), bytes: i.size ?? 0, name: i.name, ...(file ? { file } : {}) };
@@ -463,7 +464,8 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
 
 /** The originals from the app (or a phone) nobody has worked through yet: what waits in the research (the bridge's inbox.material). */
 export function materialWaiting(tree: Tree): number {
-  return tree.list<Input>("input").filter((i) => i.state === "new" && (i.from === APP_FROM || i.from === PHONE_FROM)).length;
+  // a file taken back or deleted for good waits for nobody
+  return tree.list<Input>("input").filter((i) => !i.retracted && i.state === "new" && (i.from === APP_FROM || i.from === PHONE_FROM)).length;
 }
 
 /** A file of an upload cut short is left in media/.incoming only when its strom ended under it: gone after so long. */

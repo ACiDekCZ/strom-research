@@ -244,6 +244,9 @@ export class Masker {
       const end = /[.:)\]]+$/.exec(m)?.[0] ?? "";
       return protect(this.path(m.slice(0, m.length - end.length))) + end;
     });
+    // a code this masking made already (a research named by its code before it was said): kept as it is — only
+    // after the paths, whose own parts are masked the same with a code among them (a code in a quote: quoted())
+    s = s.replace(MASK_CODE, (m) => protect(m));
     // words
     s = s.replace(/[\p{L}\p{M}\p{N}]+(?:[._'’:-][\p{L}\p{M}\p{N}]+)*/gu, (w) => this.word(w));
     return s.replace(new RegExp(`${PROTECT}(\\d+)${PROTECT}`, "g"), (_m, i: string) => kept[Number(i)] ?? "");
@@ -274,6 +277,8 @@ export class Masker {
 
   private quoted(inner: string): string {
     const t = inner.trim();
+    // a code this masking made already: kept as such
+    if (/^‹[0-9a-f]{5}›$/.test(t)) return inner;
     // strom's own command or ID quoted: kept as such
     if (ID.test(t) || (NUMBER.test(t) && !DATE.test(t))) return inner;
     if (/^strom(?:\s+[a-z-]+)+$/.test(t) && t.split(/\s+/).every((w) => this.vocabulary.has(w) || w === "strom")) return inner;
@@ -290,6 +295,8 @@ export class Masker {
     return parts
       .map((part, i) => {
         if (part === "/" || part === "\\" || part === "") return part;
+        // a code this masking made already: kept as such
+        if (/^‹[0-9a-f]{5}›$/.test(part)) return part;
         if (named(i)) return this.code(part);
         if (FOLDERS.has(part.toLowerCase()) || /^[A-Za-z]:$/.test(part)) return part;
         if (ID.test(part) || (NUMBER.test(part) && !DATE.test(part))) return part;

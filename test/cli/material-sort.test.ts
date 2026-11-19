@@ -5,7 +5,7 @@
 // files begun); cancelled at once or stopped at work; never in an archive nor where the research waits for its agent;
 // a PDF's first ten pages opened, a HEIC converted (macOS), a file no reader opens judged by its name.
 
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -20,6 +20,13 @@ import { Tree } from "../../src/core/tree.ts";
 import type { Family, Input } from "../../src/core/model.ts";
 import { limitReached, noteAsked } from "../../src/core/live-read.ts";
 import { appSort, keptProposals, loadSort, parseSortReport, saveSort, signSort, signStart, sortCost, startable, unsignedAppSort, unstartableAppSort, type SortState } from "../../src/core/sort.ts";
+
+// Every world of a test cleaned up when it ends — its bridge ended, also when the test failed before its live stop
+// (found 2026-11-19: three bridges of these tests running on in the temp folder after the run).
+const made: World[] = [];
+afterEach(() => {
+  for (const w of made.splice(0)) w.cleanup();
+});
 
 const opts = { skip: !hasGit || process.platform === "win32" };
 const app = { Origin: "https://beta.stromapp.info" };
@@ -59,6 +66,7 @@ const scan = (w: number, h: number, grey: number) => ({ bytes: encodeImage({ wid
 /** Václav Lhoták (P1, died 1960 citing S1), Eva Lhotáková (P2), married in Lhota (F1), their daughter Anna (P3). */
 async function setUp(o: { state?: "research" | "archive" | "waiting"; env?: Record<string, string> } = {}) {
   const w = new World();
+  made.push(w);
   await w.withTree("Lhotákovi");
   await w.ok(["lang", "cs"]);
   await w.ok(["person", "add", "Václav /Lhoták/", "--sex", "M", "--born", "1890"]);
@@ -128,6 +136,8 @@ kind: photo
 link: family F1
 link: event F1 ${marr}
 link: person P99
+link: portrait P2
+link: back ${parte}
 why: Nevěsta v závoji;
   podle textu svatba Lhotákových.
 sure: high
@@ -143,6 +153,7 @@ sure: medium
 ## File ${letter}
 title: Dopis z Лготы
 kind: dokument
+link: back ${photo}
 why: Podle názvu dopis.
 sure: snad
 
@@ -169,7 +180,8 @@ done: 4 files`,
 
     // refused before anything: no Origin, too many files, too long a text, half a character, a file not there
     assert.equal((await request("POST", `${url}/material/sort`, JSON.stringify({ ids: [photo] }))).status, 403);
-    const many = Array.from({ length: 51 }, (_, k) => `I${String(k + 1).padStart(4, "0")}`);
+    // more than 50: a run of the app's (material-sort-run.test.ts) — more than 1500 refused
+    const many = Array.from({ length: 1501 }, (_, k) => `I${String(k + 1).padStart(4, "0")}`);
     for (const [body, code, status] of [
       [{ ids: many, text: "" }, "material.body", 400],
       [{ ids: [photo], text: "ž".repeat(2001) }, "material.body", 400],
@@ -194,8 +206,8 @@ done: 4 files`,
     assert.deepEqual(got.files, [photo, parte, letter, pdf]);
     assert.ok(got.at && !got.reason);
     assert.deepEqual(got.proposals, [
-      { id: photo, title: "Svatba Václava a Evy, 1915", date: "1915", kind: "photo", links: [{ type: "family", ref: "F0001" }, { type: "event", ref: "F0001", event: marr }], why: "Nevěsta v závoji; podle textu svatba Lhotákových.", sure: "high" },
-      // the person's title kept, Václav there already: the kind and the source alone
+      { id: photo, title: "Svatba Václava a Evy, 1915", date: "1915", kind: "photo", links: [{ type: "family", ref: "F0001" }, { type: "event", ref: "F0001", event: marr }, { type: "portrait", ref: "P0002" }, { type: "back", ref: parte }], why: "Nevěsta v závoji; podle textu svatba Lhotákových.", sure: "high" },
+      // the person's title kept, Václav there already: the kind and the source (V6: the back on its front's proposal above)
       { id: parte, kind: "document", links: [{ type: "source", ref: "S0001" }], why: "Úmrtní oznámení Václava.", sure: "medium" },
       // a kind strom does not know left out, how sure unsaid: low
       { id: letter, title: "Dopis z Лготы", why: "Podle názvu dopis.", sure: "low" },
@@ -215,12 +227,16 @@ done: 4 files`,
     assert.ok(told.includes("Václav Lhoták (1890–1960)") || told.includes("Václav Lhoták"), "the tree's people");
     assert.ok(told.includes(`F0001 · Václav Lhoták [P0001] & Eva Lhotáková [P0002]`), "its couples");
     assert.ok(told.includes("S0001 · Matrika zemřelých Lhota (burial)"), "its sources");
+    assert.ok(told.includes('"back I…"') && told.includes('"portrait P…"'), "a back and a portrait may be proposed (V6)");
+    // the direction the Strom app reads: the back named in the block of its front, never the other way round
+    assert.ok(told.includes("in the block of the FRONT"), "a back is said on its front");
+    assert.match(told, /## File I0001\n(?:(?!## )[^\n]*\n)*link: back I0003\n/u, "the example: I0003 the back of I0001, said on I0001");
 
     // kept beside the research, nothing of it written: the history and the data as they were
     assert.equal(git(w, "rev-parse", "HEAD"), head);
     assert.equal(git(w, "status", "--porcelain"), "");
     const kept = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "sorts", `${id}.json`), "utf8"));
-    assert.deepEqual(kept.dropped.map((d: { id: string; what: string; why: string }) => `${d.id} ${d.what}: ${d.why}`).sort(), [`${photo} link person P0099: not in the research`, `${letter} kind: not a kind of the material`, `${parte} title: the person's`, `${pdf} title: unrelated`, `${pdf} link person P0001: unrelated`, "I0042 file: not one of the sort's files"].sort());
+    assert.deepEqual(kept.dropped.map((d: { id: string; what: string; why: string }) => `${d.id} ${d.what}: ${d.why}`).sort(), [`${photo} link person P0099: not in the research`, `${letter} link back ${photo}: a text file has no back`, `${letter} kind: not a kind of the material`, `${parte} title: the person's`, `${pdf} title: unrelated`, `${pdf} link person P0001: unrelated`, "I0042 file: not one of the sort's files"].sort());
     assert.equal(Tree.open(w.cwd, w.env).get<Input>(parte)!.title, "Parte Václava");
     // the readers' cost in the month's spend of the app
     assert.deepEqual(json(await request("GET", `${url}/status`)).spend.sorts, { count: 1, amount: 0.25 });
@@ -510,6 +526,63 @@ test("a reader's report as strom reads it: keys in English, IDs short or long, a
   assert.deepEqual(kept.dropped, [{ id: "I0004", what: "link person P0002", why: "taken off by the person" }]);
 });
 
+test("a back and a portrait (V6): a back on its front's proposal, ref the back — another picture its reader was given, one per front, one front per back, never a back of a back; a portrait only of a picture, one person", () => {
+  const raw = parseSortReport(
+    [
+      "## File I1", "title: Svatba", "link: back I2", "link: back I0003", "link: portrait P0001", "link: portrait P0001 P0002", "link: back", "why: Svatební fotka.", "sure: high",
+      "## File I2", "link: portrait p1", "link: portrait P2", "link: back I0007", "why: Rub, na něm psáno „Лгота 1932“.", "sure: high",
+      "## File I3", "link: back of i3", "link: portrait P99", "why: x", "sure: low",
+      "## File I4", "link: back I0099", "why: x", "sure: low",
+      "## File I5", "link: back I0006", "why: x", "sure: low",
+      "## File I7", "link: back I0001", "why: líc jako rub", "sure: low",
+      "## File I8", "link: back I0001", "link: portrait P0002", "why: dopis", "sure: low",
+      "## File I9", "link: portrait P0002", "link: back I0002", "why: druhá fotka téhož rubu", "sure: medium",
+    ].join("\n").normalize("NFD"),
+  );
+  assert.deepEqual(raw.find((p) => p.id === "I0001")!.links, [{ type: "back", ref: "I0002" }, { type: "back", ref: "I0003" }, { type: "portrait", ref: "P0001" }]);
+  // "portrait P1 P2" is no one person, "back" no file: never read as a person or a link
+  assert.deepEqual(raw.find((p) => p.id === "I0002")!.links, [{ type: "portrait", ref: "P0001" }, { type: "portrait", ref: "P0002" }, { type: "back", ref: "I0007" }]);
+  const pic = (id: string, extra: object = {}) => [id, { id, type: "input", name: `${id}.jpg`, mime: "image/jpeg", links: [], ...extra }];
+  const records: Record<string, unknown> = {
+    ...Object.fromEntries([pic("I0001"), pic("I0002"), pic("I0003"), pic("I0004"), pic("I0005"), pic("I0006"), pic("I0007"), pic("I0009")]),
+    // the person took P2's portrait off this one before
+    I0002: { id: "I0002", type: "input", name: "rub.jpg", mime: "image/jpeg", links: [{ type: "personPortrait", ref: "P0002", order: 0, at: "x", retracted: { at: "x", reason: "removed" } }] },
+    I0008: { id: "I0008", type: "input", name: "dopis.txt", mime: "text/plain", links: [] },
+    P0001: { id: "P0001", type: "person", mergedInto: "P0005", events: [] },
+    P0002: { id: "P0002", type: "person", events: [] },
+    P0005: { id: "P0005", type: "person", events: [] },
+  };
+  const tree = { get: (id: string) => records[id] } as never;
+  const files = ["I0001", "I0002", "I0003", "I0004", "I0005", "I0006", "I0007", "I0008", "I0009"];
+  // two readers: I0006 given to the second one
+  const readers = [{ n: 1, files: ["I0001", "I0002", "I0003", "I0004", "I0005", "I0007", "I0008", "I0009"], began: "x" }, { n: 2, files: ["I0006"], began: "x" }];
+  const kept = keptProposals(tree, files, raw, readers);
+  assert.deepEqual(kept.proposals.map((p) => [p.id, p.links]), [
+    // the front: its back I0002 on its own proposal, as the Strom app reads it (a chip of the back beside the front)
+    ["I0001", [{ type: "back", ref: "I0002" }, { type: "portrait", ref: "P0005" }]],
+    // the back says more of its own: its own proposal, never a back of its own
+    ["I0002", [{ type: "portrait", ref: "P0005" }]],
+    ["I0009", [{ type: "portrait", ref: "P0002" }]],
+  ]);
+  assert.deepEqual(kept.dropped.map((d) => `${d.id} ${d.what}: ${d.why}`), [
+    "I0001 link back I0003: one back per file",
+    "I0002 link portrait P0002: taken off by the person",
+    "I0002 link back I0007: a back of a back",
+    "I0003 link back I0003: the file itself",
+    "I0003 link portrait P0099: not in the research",
+    "I0004 link back I0099: not one of the sort's files",
+    "I0005 link back I0006: not given to the same reader",
+    "I0007 link back I0001: a back of a back",
+    "I0008 link back I0001: a text file has no back",
+    "I0008 link portrait P0002: not a picture",
+    "I0009 link back I0002: the back of another file",
+  ]);
+  // checked again later (the readers not known then): what was kept stays kept; a back deleted since goes
+  assert.deepEqual(keptProposals(tree, files, kept.proposals).proposals, kept.proposals);
+  records.I0002 = { ...(records.I0002 as object), retracted: { at: "x" } };
+  assert.deepEqual(keptProposals(tree, files, kept.proposals).dropped.filter((d) => d.what.startsWith("link back")).map((d) => `${d.id} ${d.what}: ${d.why}`), ["I0001 link back I0002: not in the research"]);
+});
+
 test("a file plainly not of the family: unrelated with why and how sure alone, never for one a reader says no to", () => {
   const raw = parseSortReport(["## File I1", "unrelated: yes", "why: Snímek obrazovky.", "sure: medium", "", "## File I2", "**unrelated:** да", "sure: low", "", "## File I3", "unrelated: no", "title: Dopis", "kind: document", "why: Dopis.", "", "## File I4", "unrelated: nevím", "why: nic"].join("\n").normalize("NFD"));
   assert.deepEqual(raw.map((p) => [p.id, p.unrelated ?? false]), [["I0001", true], ["I0002", true], ["I0003", false], ["I0004", false]]);
@@ -557,4 +630,37 @@ test("a real reader's report (test/fixtures/sort): four made-up files of a box, 
     ],
   );
   assert.deepEqual(kept.dropped, [{ id: "I0002", what: "link family F0002", why: "taken off by the person" }]);
+});
+
+test("a real reader's report with a back and a portrait (test/fixtures/sort, V6): the back said on its front, as the Strom app reads it; the back without a proposal of its own; the grandfather's portrait", () => {
+  const report = fs.readFileSync(path.join(import.meta.dirname, "..", "fixtures", "sort", "lhotakovi-back-portrait.md"), "utf8");
+  const raw = parseSortReport(report);
+  assert.deepEqual(raw.map((p) => p.id), ["I0001", "I0002", "I0003", "I0004", "I0005"]);
+  // the same tree as above (nothing taken off by the person this time); the files pictures, the letter a PDF of scans
+  const records: Record<string, unknown> = {
+    ...Object.fromEntries(["I0001", "I0002", "I0003", "I0005"].map((id) => [id, { id, type: "input", name: `${id}.png`, mime: "image/png", links: [] }])),
+    I0004: { id: "I0004", type: "input", name: "dopis-Eva-1946.pdf", mime: "application/pdf", links: [] },
+    P0001: { id: "P0001", type: "person", events: [{ id: "E0001", kind: "BIRT" }, { id: "E0005", kind: "DEAT" }] },
+    P0002: { id: "P0002", type: "person", events: [{ id: "E0002", kind: "BIRT" }] },
+    P0003: { id: "P0003", type: "person", events: [{ id: "E0004", kind: "BIRT" }] },
+    P0004: { id: "P0004", type: "person", events: [{ id: "E0006", kind: "BIRT" }] },
+    F0001: { id: "F0001", type: "family", partners: ["P0001", "P0002"], children: ["P0003"], events: [{ id: "E0003", kind: "MARR" }] },
+    F0002: { id: "F0002", type: "family", partners: ["P0004", "P0003"], children: [], events: [] },
+  };
+  const files = ["I0001", "I0002", "I0003", "I0004", "I0005"];
+  const kept = keptProposals({ get: (id: string) => records[id] } as never, files, raw, [{ n: 1, files, began: "x" }]);
+  assert.deepEqual(
+    kept.proposals.map((p) => [p.id, (p.links ?? []).map((l) => [l.type, l.ref, ...(l.event ? [l.event] : [])].join(" "))]),
+    [
+      ["I0001", ["person P0001", "event P0001 E0005"]],
+      // the wedding photo, the front: its back I0003 on its own proposal ({id: I0002, links: [{type: back, ref: I0003}]})
+      ["I0002", ["family F0002", "back I0003"]],
+      ["I0004", ["person P0002", "family F0002"]],
+      ["I0005", ["person P0001", "portrait P0001"]],
+    ],
+  );
+  // the back said only why: no proposal of its own, so the Strom app shows it as a chip beside its front
+  assert.ok(!kept.proposals.some((p) => p.id === "I0003"));
+  assert.match(raw.find((p) => p.id === "I0003")!.why ?? "", /I0002/u);
+  assert.deepEqual(kept.dropped, []);
 });

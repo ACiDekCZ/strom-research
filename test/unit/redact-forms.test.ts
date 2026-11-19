@@ -30,3 +30,20 @@ test("a note: a word that only begins as a known one stays readable — a short 
   // nothing else of the note changed
   assert.match(m.note(note.normalize("NFD")), /^pravda je, že stahování brněnský problém nevyřešilo, leden Janovice письмо Ярослав$/u);
 });
+
+test("a code the masking made, kept as it is, never stops a path's parts from being masked", () => {
+  const m = masker();
+  // a user's folder, a folder named by a word of strom's: masked as with no code among them
+  const user = m.text("/Users/update/‹abcde›");
+  assert.match(user, /^\/Users\/‹[0-9a-f]{5}›\/‹abcde›$/u, user);
+  assert.ok(!user.includes("update"), user);
+  const vol = m.text("open /Volumes/Data/Beta/x‹abcde› failed");
+  assert.ok(!vol.includes("Beta"), vol);
+  assert.ok(!vol.includes("‹‹"), vol);
+  // never doubled: alone, in a quote, among words, a path's own part
+  assert.equal(m.text("‹abcde›, ‹12345›"), "‹abcde›, ‹12345›");
+  assert.equal(m.text('research "‹abcde›" not found'), 'research "‹abcde›" not found');
+  assert.equal(m.text("~/Documents/Strom/‹abcde›"), "~/Documents/Strom/‹abcde›");
+  const glued = m.text("Lhota‹abcde›Lhoták");
+  assert.ok(glued.includes("‹abcde›") && !/Lhot/u.test(glued), glued);
+});

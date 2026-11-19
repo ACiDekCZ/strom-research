@@ -28,12 +28,14 @@ import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
 import { assignMaterial, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
+import { checkDeleteConfirm, DELETE_MOST_FILES, deleteImpacts, deleteMaterial, type DeleteImpact } from "../core/materialdelete.ts";
 import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { appHasTree } from "../core/live.ts";
 import { isArchive } from "../core/mode.ts";
 import { decodingSaid, ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
+import { isAgent } from "../core/which.ts";
 
 /** A family tree file as text: a GEDCOM by its own encoding rule (CHAR, a Windows code page), anything else as saved. */
 function treeText(file: string): string {
@@ -134,6 +136,12 @@ function materialLines(tree: Tree, before: Map<string, string[]>, batch?: string
     }
   }
   return out;
+}
+
+/** What deleting a file would take, in the research language (strom input delete --dry-run). */
+function deleteWould(lang: string, i: DeleteImpact): string {
+  const bytes = i.keptWhy === "sameAs" ? ui(lang, "ui.input.delete.bytes.sameAs", { same: (i.sameAs ?? []).join(", ") }) : i.keptWhy === "otherResearch" ? ui(lang, "ui.input.delete.bytes.otherResearch") : ui(lang, "ui.input.delete.bytes.deleted");
+  return ui(lang, "ui.input.delete.would", { id: i.id, name: i.name, sources: String(i.sources.length), excerpts: String(i.excerpts), tasks: String(i.tasks.length), links: String(i.links), bytes });
 }
 
 function researchFor(tree: Tree, named: unknown): string | undefined {
@@ -241,7 +249,8 @@ register(
           });
         return { folder: folder ? path.basename(p) : undefined, files };
       });
-      const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
+      // a file deleted for good (core/materialdelete.ts) is none: the same content brought again is new material
+      const known = new Map(tree.list<Input>("input").filter((i) => i.sha && i.retracted?.reason !== "deleted").map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
       /** How each GEDCOM was read, where there is something to say (--json: on its input). */
@@ -389,7 +398,8 @@ register(
     tree: true,
     options: [{ name: "state", type: "string", value: "<state>", description: "new, processed or skipped" }, { name: "full", type: "boolean", description: "--json: whole records instead of one row each" }],
     run(ctx, { opts }) {
-      const all = ctx.tree().list<Input>("input").filter((i) => !opts.state || i.state === opts.state);
+      // a file deleted for good is none (as in the Strom app, GET /material): strom input show <ID> still says when
+      const all = ctx.tree().list<Input>("input").filter((i) => i.retracted?.reason !== "deleted" && (!opts.state || i.state === opts.state));
       const page = paginate(all, ctx.limit, ctx.page);
       return {
         // a file read already (strom document read) says so: its reading, not read again
@@ -407,12 +417,15 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const i = requireRecord<Input>(tree, args[0]!, "input");
-      const abs = inputPath(tree, i);
+      // deleted for good (strom input delete, the Strom app): said so, never a file to look for or bring back
+      const deleted = i.retracted?.reason === "deleted" ? i.retracted.at : undefined;
+      const abs = deleted ? undefined : inputPath(tree, i);
       // the file gone (the shared folder not brought along, deleted by hand): said, never shown as if it were there
       const missing = !!abs && !fs.existsSync(abs);
       const tasks = tree.list<Task>("task").filter((t) => t.where.includes(i.id));
       const text = lines(
-        `${i.id} ${i.name}  [${i.kind} · ${i.state}]`,
+        `${i.id} ${i.name}  [${i.kind} · ${deleted ? `deleted for good ${deleted.slice(0, 10)}` : i.state}]`,
+        deleted ? "file   none: deleted for good by the person (the same content brought again is new material)" : undefined,
         abs ? `file   ${abs}${missing ? ` — missing on this computer: bring back the ${i.file?.startsWith("media:") ? "shared folder from a backup of the whole Strom folder (its subfolder shared)" : "research's folder from a backup"}` : ""}` : undefined,
         i.from ? `from   ${i.from}` : undefined,
         i.batch ? `batch  ${i.batch}${i.path ? ` · ${i.path}` : ""}` : undefined,
@@ -429,7 +442,7 @@ register(
           ? `\nread the file (a big image: strom media view ${i.id} --grid, then --crop), then record what it says: strom source add … --input ${i.id}`
           : undefined,
       );
-      return { text, data: { input: i, path: abs, ...(missing ? { missing: true } : {}), tasks: tasks.map((t) => t.id), ...(i.read?.length ? { readings: readingsOf(tree, i) } : {}) } };
+      return { text, data: { input: i, path: abs, ...(deleted ? { deleted } : {}), ...(missing ? { missing: true } : {}), tasks: tasks.map((t) => t.id), ...(i.read?.length ? { readings: readingsOf(tree, i) } : {}) } };
     },
   },
   {
@@ -582,6 +595,71 @@ register(
       const got = tree.withTreeLock(() => editMaterial(tree, ids, { title: value(opts.title), kind: value(opts.kind), date: value(opts.date) }, fileBy(tree, ctx.env)));
       const before = new Map(Object.entries(got.was).map(([id, w]) => [`edit:${id}`, Object.keys(w)]));
       return { text: got.changed.length ? lines(...materialLines(tree, before)) : ui(tree.lang, "ui.input.assign.none"), data: got };
+    },
+  },
+  {
+    path: ["input", "delete"],
+    summary: "Delete files of the material for good — the person's alone, never an agent's (the bridge runs it for the Strom app's Delete); --dry-run says what it takes",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      `Of each file given (at most ${DELETE_MOST_FILES}): its record is taken back, its places in the Strom app's tree with it; a\n` +
+      "source made of it keeps its text and citations, only its link to the file goes; a task holding it lets it go (given\n" +
+      "up when none of its files is left). Its bytes (the original, its working copy, its previews) go only when no other\n" +
+      "file of the research and no other research on this computer has the same content — then the images of sources of\n" +
+      "that content and their excerpts go too (a source loses the image, never its text). All or nothing: a file the\n" +
+      "research does not have, and nothing is written. --dry-run says all of it, file by file (--json: impacts). Without\n" +
+      "it the person says yes in their own terminal (Enter says no), else in a window of the system; nobody to ask: exit\n" +
+      "4. An agent never runs it, nor offers to run it for the person. It cannot be undone in the Strom app: a file stays\n" +
+      "only in a backup (strom backup) or a pack made before. Many files: --files-from <file> (one ID a line; - = stdin).",
+    args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
+    options: [
+      { name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" },
+      // the Strom app's yes: what its bridge signed of the list the person saw there (POST /material/delete)
+      { name: "confirm", type: "string", value: "<token>", hidden: true, description: "the Strom app's confirmation, signed by its bridge" },
+    ],
+    examples: ["strom input delete I0003 --dry-run", "strom input delete I0003 I0005"],
+    async run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const shared = ctx.settings.shared()?.value;
+      const impacts = deleteImpacts(tree, shared, idsGiven(ctx, args, opts));
+      const files = impacts.map((i) => i.id);
+      const lang = tree.lang;
+      if (ctx.dryRun) return { text: lines(...impacts.map((i) => deleteWould(lang, i))), data: { files, impacts } };
+      if (typeof opts.confirm === "string") {
+        // the Strom app's: its bridge signed the list the person saw and said yes to there — only that list, only a while.
+        // An agent's marks outweigh STROM_FOR_APP (the bridge runs this without them): an agent never deletes, not even
+        // with a confirmation it got hold of
+        if (isAgent(ctx.env))
+          throw new UsageError("an agent never deletes files of the material for good, not even with the Strom app's confirmation: nothing deleted", { code: "material.agent", hint: "the person deletes them in the Strom app, or says yes to strom input delete in their own terminal" });
+        const said = ctx.env.STROM_FOR_APP === "1" ? checkDeleteConfirm(tree.key, files, impacts, opts.confirm) : "invalid";
+        if (said === "changed")
+          throw new UsageError("the files would take other things with them than the person saw: nothing deleted", { code: "material.delete-changed", params: { files: files.join(",").slice(0, 200) }, hint: "the person looks at the list again in the Strom app" });
+        if (said !== "ok") throw new UsageError("no confirmation of the Strom app that holds (signed by its bridge, at most 15 minutes old): nothing deleted", { code: "material.body", hint: "strom help input delete" });
+      } else {
+        const set = `strom input delete ${files.length > 10 ? `${files.slice(0, 10).join(" ")} …` : files.join(" ")}`;
+        const says = ui(ctx.uiLang(), "ui.consent.delete", { n: String(files.length) });
+        const how = await ctx.requireHumanYes(`Delete ${files.length} file(s) of the material for good (${files.slice(0, 10).join(", ")}${files.length > 10 ? " …" : ""})? Only the user decides this; an agent never deletes nor offers to.`, set, "material.delete", says);
+        if (!how) return { text: ui(ctx.uiLang(), "ui.consent.delete.no"), data: { files, deleted: [], impacts } };
+      }
+      const before = filesOfTasks(tree);
+      const got = deleteMaterial(tree, shared, files, fileBy(tree, ctx.env));
+      const out: string[] = [];
+      for (const i of got.impacts) {
+        out.push(ui(lang, "ui.input.deleted", { id: i.id, name: i.name }));
+        if (i.keptWhy === "sameAs") out.push(ui(lang, "ui.input.delete.kept.sameAs", { id: i.id, same: (i.sameAs ?? []).join(", ") }));
+        else if (i.keptWhy === "otherResearch") out.push(ui(lang, "ui.input.delete.kept.otherResearch", { id: i.id }));
+      }
+      for (const u of got.unlinked) out.push(ui(lang, "ui.input.delete.source", { source: u.source, id: u.file }));
+      for (const m of got.images) out.push(ui(lang, "ui.input.delete.images", { source: m.source, n: String(m.images.length) }));
+      for (const id of got.tasks) {
+        const t = tree.get<Task>(id);
+        const had = before.get(id) ?? [];
+        if (t?.state === "dropped") out.push(ui(lang, "ui.input.delete.task.dropped", { task: id, files: had.join(", ") }));
+        else out.push(ui(lang, "ui.input.delete.task.without", { task: id, files: had.filter((f) => !t?.where.includes(f)).join(", ") }));
+      }
+      return { text: lines(...out), data: got };
     },
   },
   {

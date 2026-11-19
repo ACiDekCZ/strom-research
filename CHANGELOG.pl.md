@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.35.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
   otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
@@ -67,7 +67,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Windows: po sprawdzeniu logowania nic nie działa dalej, okno linku z tytułem:** sprawdzenie, czy agent w terminalu jest zalogowany,
   kończy wszystko, co uruchomiło, gdy trwa za długo, a czytniki nie wypisują już ostrzeżenia Node DEP0190.
   Terminal, który w Windows otwiera link aplikacji Strom, ma tytuł Strom Research (druga instalacja ze swoją nazwą),
-  a nie ścieżkę do node.exe.
+  a nie ścieżkę do node.exe. `strom doctor` i raport `strom error` podają, ile mostów do aplikacji Strom działa na
+  komputerze, do którego badania należy każdy, jego pamięć i sumę, oraz oznaczają most, którego badania już nie ma;
+  nic nie jest kończone.
 - **Żadnych zmian, których nie było w aplikacji Strom:** po zapisie z aplikacji Strom „niezapisane” nie podaje już jako
   usuniętych cytowania rodziny z jednym rodzicem (starsza aplikacja Strom wysyła je z pustym małżeństwem) ani
   źródła zmian w aplikacji Strom (tych źródeł aplikacja nigdy nie dostaje).
@@ -102,10 +104,19 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   aplikacji), nigdy samo ani na polecenie agenta.
   Przy pliku, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wgrany przez pomyłkę), czytelnik mówi to
   wraz z powodem, aby można go było ukryć w aplikacji Strom; samo nic się nie ukrywa ani nie usuwa.
-  Sortowanie czyta plik tekstowy (.txt, .md) jako tekst i ocenia go po tym, co w nim stoi, w trakcie pracy mówi, z iloma plikami już skończyło (aplikacja Strom to pokazuje), a przy każdym pliku bez propozycji mówi dlaczego (nic nie powiedziano, nic nowego, pominięty, odczyt się nie powiódł).
+  Sortowanie czyta plik tekstowy (.txt, .md) jako tekst i ocenia go po tym, co w nim stoi, w trakcie pracy mówi, z iloma plikami już skończyło (aplikacja Strom to pokazuje), a przy każdym pliku bez propozycji mówi dlaczego (nic nie powiedziano, nic nowego, pominięty, odczyt się nie powiódł). Czytający może też powiedzieć, który plik jest odwrotem innego otrzymanego zdjęcia lub strony, a który obraz jest portretem osoby, aby aplikacja Strom to zaproponowała.
   Sortowanie materiałów uruchamia się bez pytania tylko wtedy, gdy przyjął je i podpisał most aplikacji Strom; wpis
   zapisany inaczej (lub dodany do kolejki przez starszą wersję) się nie uruchomi i trzeba go zlecić ponownie w
   aplikacji.
+  To, co aplikacja Strom pokazuje przy każdym pliku, wymienia źródła z niego utworzone, z niego wycięte lub z obrazem
+  tej samej treści, wraz z osobami, które je cytują, i informacją, czy ma je jej drzewo; plik, dla którego sortowanie
+  niczego nie zaproponowało, oraz plik o tej samej treści co inny są oznaczone, aby nie wysyłać ich ponownie, a w
+  badaniu z wieloma obrazami lista przychodzi kilkakrotnie szybciej. Z aplikacji można naraz sortować do 1500 plików:
+  w partiach po 50, jedna po drugiej, dopóki działa most, każda w limitach czytania aplikacji i pokazana, gdy tylko
+  jest gotowa; cały przebieg można zatrzymać naraz. Plik materiałów rodzinnych można usunąć na stałe – tylko przez
+  osobę (`strom input delete` lub w aplikacji Strom po wykazie wszystkiego, czego dotyczy), nigdy przez agenta: jego
+  źródła zachowują tekst i cytaty, jego obrazy i wycinki znikają tylko wtedy, gdy tej samej treści nie trzyma inny plik
+  ani inne badanie, a pozostaje on tylko we wcześniejszych kopiach zapasowych badania.
 
 ## 1.34.0
 

@@ -136,9 +136,16 @@
 //                          `people`: the names of the people it names. The files of the app's tree too (spec 102 M1):
 //                          origin "app", links (their places not taken off: {type, ref, event?}), kind as the user said
 //                          it; a person's portrait alone is none; one with no place left is hidden, reason "removed"
-//                          (M3). Each file's `uses` (M2, feature material.uses): {excerpts: n, sources: [S…], tasks: n}
+//                          (M3). Each file's `uses` (M2, feature material.uses): {excerpts: n, sources: [S…], tasks: n,
+//                          of: [{source, via: input|excerpt|media, title, cited: [P…] (≤ 5), citedCount, inTree}]} —
+//                          `of` (spec 102 K1.14, feature material.sourceOf): the sources the file is the source of
+//                          (made or sorted from it, cut out of or with an image of the same content), the people
+//                          citing them named in `people` too. `left` (feature material.left): {at, sort, why:
+//                          nothing-said|nothing-new|dropped, said?} — the last sort done that took it proposed nothing
+//                          of it (from the sorts kept here; a later proposal takes it off). `sameAs` (feature
+//                          material.sameAs): the oldest other file of the same content (SHA-256)
 //   GET <token>/material/<I…>/uses   where the research uses a file (V10): {excerpts: [{source, recordset?, page?,
-//                          sha}], sources: [{id, title}], tasks: [{id, title, state}]}; 404 material.file
+//                          sha}], sources: [{id, title}], tasks: [{id, title, state}], of (as above)}; 404 material.file
 //   POST <token>/material/assign   the people files are of ({files: [I…] | batch, add: [P…], remove: [P…]}): strom
 //                          input assign, all or nothing; {files, people, kept, head}. A file in the app's tree: a person
 //                          added is a place at them (its next file of the tree has it as their attachment), taken off
@@ -151,6 +158,14 @@
 //                          {I…: {title?, kind?, date?}} (the same edit with them takes it back), people, head, warnings?}.
 //                          All refused 400 material.body | material.date, 404 material.file|person|batch, 403
 //                          material.readonly, 409 material.busy (+ Retry-After).
+//   POST <token>/material/delete   files of the material deleted for good (spec 102 K1.17, V3, feature
+//                          material.delete), the person's in the app's dialog, in two steps: {files: [I…] (1–500), dryRun: true} → {files, dryRun: true, impacts:
+//                          [{id, name, sha, sources: [{id, title, via: input|excerpt|media, citedCount}], excerpts, people,
+//                          links, tasks, bytes: deleted|kept, keptWhy?: sameAs|otherResearch, sameAs?}], confirm} (nothing
+//                          written; confirm: signed by the bridge with the seal key over the files and the impacts, 15
+//                          minutes); {files, confirm} → strom input delete: {files, deleted, impacts, head}. Impacts
+//                          changed since: 409 material.delete-changed {impacts}; no confirm that holds: 400 material.body;
+//                          404 material.file, 403 material.readonly, 409 material.busy (+ Retry-After), 403 app.only.
 //   POST <token>/material/sort     files sorted by readers of the research (V13, feature material.sort — only where
 //                          accepts.read is: never an archive nor a research waiting for its agent; live-sort.ts):
 //                          {ids: [I…] (1–50), text (≤ 2000 characters)} → 202 {id, state: "queued"}; sorted one at a time
@@ -158,15 +173,27 @@
 //                          bridge signs each with the tree's seal key: a record said to be the app's without it is
 //                          never started (failed, reason "unsigned"; not the app's: 404, not in /status).
 //                          GET <token>/material/sort/<id> {id, state: queued|working|done|failed|cancelled, files, at,
-//                          proposals?: [{id, title?, date?, kind?, links?: [{type: person|family|event|source, ref,
-//                          event?}], unrelated?: true, why, sure: high|medium|low}], reason?} — the proposals as the
-//                          research is now: none the person gave or took off, no ID it does not have; unrelated: the
+//                          proposals?: [{id, title?, date?, kind?, links?: [{type: person|family|event|source|back|
+//                          portrait, ref, event?}], unrelated?: true, why, sure: high|medium|low}], reason?} — the
+//                          proposals as the research is now: none the person gave or took off, no ID it does not have;
+//                          back: on the proposal of the FRONT, ref its back (I…, another file of the sort its reader
+//                          was given; one back per front, one front per back, never a back of a back — e.g. {id: I0001,
+//                          links: [{type: back, ref: I0003}]}: I0003 the back of I0001); portrait: a picture of ref's
+//                          face (P…, one at most); unrelated: the
 //                          file plainly not of the family (only why and sure then; the person hides it, never strom). POST <token>/material/sort/<id>/cancel
 //                          {id, state, cancelled}. Refused 404 sort.none (no agent here {why}, an unknown sort), 503
 //                          sort.not-ready {why} (+ Retry-After), 429 sort.queue (one at work and 3 queued), 429 sort.limit
 //                          {per, most, cost} (read.app: a sort is one reading for each ten files it begins), 400
 //                          material.body, 404 material.file, 423 locked, 403 app.only. /status sorts: the app's sorts
-//                          queued or at work [{id, state, files, at, since}] (none in an archive)
+//                          queued or at work [{id, state, files, at, since, run?, part?, parts?}] (none in an archive)
+//                          A run (51–1500 ids, V2a, feature material.sortRun): parts of 50 in the order of ids, each a sort of its own signed with
+//                          its run, part (1…n) and parts (n) → 202 {id: <its first part>, state: "queued", run: "run-…",
+//                          parts: [sort-…]}; one item of the queue; its first part counted against read.app as taken,
+//                          each other one as it starts, only when read.app and its readers allow (else the run waits).
+//                          GET <token>/material/sort/<run-…> {id, run: true, state: queued|working|done|cancelled|failed,
+//                          files, filesDone, parts: [{id, part, state, files, filesDone?}], waiting?: {why: read.app |
+//                          limit | …, retry?}} (ended: cancelled when a part was cancelled, else done when a part is done, else failed);
+//                          POST …/<run-…>/cancel: its parts not done stopped, {id, state, cancelled}
 //                          Every write of the app's (these, PUT /media, /batch/<id>/done, /waiting, /group) answers
 //                          `head` after it and `parent`, the head just before it (nothing written: parent = head) —
 //                          the app takes head as its version only when parent is the head it knew
@@ -600,6 +627,7 @@ import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { acquireLock, liveHolder } from "./lock.ts";
 import { checkAsked, checkEdit, material, MATERIAL_MOST_EDIT, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, materialUses, peopleOf, workingCopyOf } from "./material.ts";
+import { checkDeleteConfirm, deleteConfirm, DELETE_MOST_FILES, deleteImpacts } from "./materialdelete.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
 import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
@@ -1691,7 +1719,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
@@ -3718,6 +3746,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       writeFor(req, res, origin, materialWrite(sub));
       return;
     }
+    if (req.method === "POST" && t === token && what === "material" && sub === "delete" && !act) {
+      writeFor(req, res, origin, materialDelete());
+      return;
+    }
     if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
       writeFor(req, res, origin, historyHide());
       return;
@@ -4804,6 +4836,69 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       refused(_tree, code, why) {
         if (code === "material.body" || code === "material.date") return { code: 400, body: refusal(why, code) };
         if (code === "material.file" || code === "material.person" || code === "material.batch") return { code: 404, body: refusal(why, code) };
+        if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent") return { code: 403, body: { ...refusal(why, "material.readonly"), reasonCode: code } };
+        return undefined;
+      },
+    };
+  };
+  /**
+   * Files of the family's material deleted for good (POST /material/delete, spec 102 K1.17, V3) — the person's, asked in
+   * the app's dialog, never a queue an agent could write to: first {files, dryRun: true}, answered here without a write
+   * with what it takes (impacts) and the bridge's confirmation of that list (signed with the seal key, 15 minutes); then
+   * {files, confirm}: the impacts again, the same as signed, written by strom input delete --confirm (which checks it once
+   * more under the tree's lock). Refused: 400 material.body (no confirm that holds, a body it cannot read), 404
+   * material.file, 409 material.delete-changed {impacts} (the research changed since the person saw the list), 403
+   * material.readonly, 409 material.busy (+ Retry-After).
+   */
+  const materialDelete = (): AppWrite => {
+    let ids: string[] = [];
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "material.body") });
+    const changed = (impacts: unknown) => ({ code: 409, body: { ...refusal("the files would take other things with them than the list said: look at it again", "material.delete-changed"), impacts } });
+    return {
+      what: "the material: delete",
+      codes: MATERIAL_CODES,
+      max: 64 * 1024,
+      ask(tree, body) {
+        const list = body.files;
+        const files = Array.isArray(list) && list.length && list.length <= DELETE_MOST_FILES && list.every((x) => typeof x === "string" && x.length <= 40) ? (list as string[]) : undefined;
+        if (!files) return bad(`files: 1 to ${DELETE_MOST_FILES} IDs of the material (I…)`);
+        const dry = body.dryRun === true;
+        if (!dry && body.dryRun !== undefined && body.dryRun !== false) return bad("dryRun: true, or a confirm");
+        if (!dry && typeof body.confirm !== "string") return bad("confirm: what the dry run answered (dryRun: true first)");
+        const shared = new Settings(env, {}).shared()?.value;
+        let impacts;
+        try {
+          impacts = deleteImpacts(tree, shared, files);
+        } catch (e) {
+          return refusedAsked(e);
+        }
+        if (!writableHere()) return { code: 403, body: refusal("nothing can be written into the research on this computer", "material.readonly") };
+        const key = tree.key;
+        if (!key) return { code: 403, body: refusal("the research is not sealed on this computer", "material.readonly") };
+        const asked = impacts.map((i) => i.id);
+        if (dry) return { code: 200, body: { files: asked, dryRun: true, impacts, confirm: deleteConfirm(key, asked, impacts) } };
+        const said = checkDeleteConfirm(key, asked, impacts, body.confirm);
+        if (said === "changed") return changed(impacts);
+        if (said !== "ok") return bad("confirm: none that holds (signed by this bridge, at most 15 minutes old) — dryRun: true again");
+        ids = asked;
+        this.stdin = ids.join("\n");
+        return { args: ["input", "delete", "--files-from", "-", `--confirm=${String(body.confirm)}`] };
+      },
+      done(_tree, data, head) {
+        return { files: Array.isArray(data.files) ? data.files : ids, deleted: Array.isArray(data.deleted) ? data.deleted : [], impacts: data.impacts ?? [], head };
+      },
+      refused(tree, code, why) {
+        if (code === "material.delete-changed") {
+          let impacts: unknown = [];
+          try {
+            impacts = deleteImpacts(tree, new Settings(env, {}).shared()?.value, ids);
+          } catch {
+            // the files are gone meanwhile: the list is empty
+          }
+          return changed(impacts);
+        }
+        if (code === "material.body") return { code: 400, body: refusal(why, code) };
+        if (code === "material.file") return { code: 404, body: refusal(why, code) };
         if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent") return { code: 403, body: { ...refusal(why, "material.readonly"), reasonCode: code } };
         return undefined;
       },

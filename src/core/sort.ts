@@ -23,6 +23,13 @@ import type { Tree } from "./tree.ts";
 export const SORT_ID = /^sort-\d{14}-[0-9a-f]{4}$/u;
 /** The most files one sort takes, the longest text of the person's (V13). */
 export const SORT_MOST_FILES = 50;
+/**
+ * A run of the Strom app (spec 102 K1.11/K1.16, the research's answer V2a): more than SORT_MOST_FILES files asked at once
+ * through the bridge, at most these — sorted as parts of SORT_MOST_FILES files each, in the order asked, each part a sort
+ * of its own (`run`, `part`, `parts`). An agent never asks for one (strom material sort: SORT_MOST_FILES at most).
+ */
+export const SORT_RUN_MOST_FILES = 1500;
+export const RUN_ID = /^run-\d{14}-[0-9a-f]{4}$/u;
 export const SORT_TEXT_MAX = 2000;
 /** Sorts of the app waiting beside the one at work. */
 export const SORT_QUEUE_MAX = 3;
@@ -42,8 +49,14 @@ export const SORT_STATES = ["queued", "working", "done", "failed", "cancelled"] 
 export type SortStateName = (typeof SORT_STATES)[number];
 export const SORT_FINAL: readonly SortStateName[] = ["done", "failed", "cancelled"];
 export const SORT_SURE = ["high", "medium", "low"] as const;
-/** What a sort may link a file to (never a portrait or a couple's photo: those the person chooses in the app). */
-export const SORT_LINK_TYPES = ["person", "family", "event", "source"] as const;
+/**
+ * What a sort may link a file to: a person, a couple, an event, a source of the tree; the back of the photo or page
+ * (`back`, on the proposal of its FRONT, ref the back's I… — another of the files its reader was given, never itself: the
+ * Strom app shows it as a chip beside the front) and the person a picture is a portrait of (`portrait`, a P…: the app
+ * offers it where the person has no portrait yet) — spec 102 K1.16, the research's answer V6. Never a couple's photo:
+ * that one the person chooses in the app.
+ */
+export const SORT_LINK_TYPES = ["person", "family", "event", "source", "back", "portrait"] as const;
 /**
  * A sort the Strom app asked (its bridge queues it and starts it). Only the bridge gives it, signed (`sign`): a sort that
  * says it is the app's without the bridge's signature is never sorted (appSort).
@@ -63,7 +76,7 @@ export const SORT_UNPROPOSED = ["nothing-said", "nothing-new", "dropped", "left-
 
 export interface SortLink {
   type: (typeof SORT_LINK_TYPES)[number];
-  /** The person, couple or source; of an event, its owner (P… or F…). */
+  /** The person, couple or source; of an event, its owner (P… or F…); of a back, the back's file (I…, the proposal being its front); of a portrait, its person. */
   ref: string;
   event?: string;
 }
@@ -112,6 +125,18 @@ export interface SortState {
    * queue (saveSort) — a sort that began is never started again, even put back into the queue by hand.
    */
   start?: string;
+  /**
+   * A part of a run of the app (RUN_ID): the run, this part's number (1…parts) and how many parts the run has — signed with
+   * the rest of what was asked (signSort). None: a sort of its own.
+   */
+  run?: string;
+  part?: number;
+  parts?: number;
+  /**
+   * A part of a run: the bridge's word that it was counted against the app's readings (read.app, signCounted) — the first
+   * part as the run was taken, each other one as the bridge starts it. A part without it is never started by hand.
+   */
+  counted?: string;
   /** The strom process that sorts it. */
   pid?: number;
   agent?: string;
@@ -139,6 +164,10 @@ export interface SortState {
 
 export function newSortId(now = new Date()): string {
   return `sort-${now.toISOString().replace(/[-:T]/gu, "").slice(0, 14)}-${crypto.randomBytes(2).toString("hex")}`;
+}
+
+export function newRunId(now = new Date()): string {
+  return `run-${now.toISOString().replace(/[-:T]/gu, "").slice(0, 14)}-${crypto.randomBytes(2).toString("hex")}`;
 }
 
 export function sortsDir(root: string): string {
@@ -191,18 +220,33 @@ export function listSorts(root: string): SortState[] {
     .filter((n) => n.endsWith(".json"))
     .map((n) => loadSort(root, n.slice(0, -5)))
     .filter((s): s is SortState => !!s)
-    .sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+    .sort(sortOrder);
 }
+
+/** The order sorts are kept and started in: as asked, the parts of a run (asked at once) by their numbers. */
+export const sortOrder = (a: SortState, b: SortState): number => a.at.localeCompare(b.at) || (a.run ?? "").localeCompare(b.run ?? "") || (a.part ?? 0) - (b.part ?? 0) || a.id.localeCompare(b.id);
 
 /**
  * What the bridge signs of a sort of the app: all the person asked for and agreed to in the app — its files (what is
  * read and paid for), their words (what the readers are told), the language of its titles — who asked and when (`at`,
- * the month its cost counts in), and its id (its file's name: a signature never moves to another sort). Never how it
- * goes (state, since, pid, readers, proposals): those change as it is sorted.
+ * the month its cost counts in), and its id (its file's name: a signature never moves to another sort); a part of a run,
+ * its run, number and the run's parts too — only where it has them, so a sort signed before runs is told the same. Never
+ * how it goes (state, since, pid, readers, proposals): those change as it is sorted.
  */
-const signedOf = (s: SortState) => ({ id: s.id, files: s.files, text: s.text, lang: s.lang, from: s.from ?? "", at: s.at });
+const signedOf = (s: SortState) => ({
+  id: s.id,
+  files: s.files,
+  text: s.text,
+  lang: s.lang,
+  from: s.from ?? "",
+  at: s.at,
+  ...(s.run !== undefined ? { run: s.run } : {}),
+  ...(s.part !== undefined ? { part: s.part } : {}),
+  ...(s.parts !== undefined ? { parts: s.parts } : {}),
+});
 const SORT_SIGN_KIND = "strom material sort";
 const SORT_START_KIND = "strom material sort start";
+const SORT_COUNTED_KIND = "strom material sort counted";
 
 /** The bridge's signature of a sort it queued (the tree's seal key: never written into the tree, no agent has it). */
 export function signSort(key: Buffer, s: SortState): string {
@@ -212,6 +256,16 @@ export function signSort(key: Buffer, s: SortState): string {
 /** The bridge's leave to start a sort it queued, once (`start`: spent when the sort leaves the queue, saveSort). */
 export function signStart(key: Buffer, s: SortState): string {
   return signRecord(key, SORT_START_KIND, signedOf(s));
+}
+
+/** The bridge's word that a part of a run was counted against the app's readings (read.app) as it starts. */
+export function signCounted(key: Buffer, s: SortState): string {
+  return signRecord(key, SORT_COUNTED_KIND, signedOf(s));
+}
+
+/** Counted against the app's readings: a sort of its own (counted as it was taken), a part of a run the bridge counted. */
+export function counted(key: Buffer | undefined, s: SortState): boolean {
+  return s.run === undefined || (!!key && verifyRecord(key, SORT_COUNTED_KIND, signedOf(s), s.counted));
 }
 
 /** A sort of the app: said to be the app's and signed by the bridge with this tree's key (none here: none is). */
@@ -260,13 +314,65 @@ export function shownSort(s: SortState): SortState {
 }
 
 /** The app's sorts queued or at work, as /status says them (the proposals of one done: GET /material/sort/<id>). */
-export function statusSorts(root: string, key: Buffer | undefined): { id: string; state: SortStateName; files: string[]; at: string; since: string; filesDone?: number }[] {
+export function statusSorts(root: string, key: Buffer | undefined): { id: string; state: SortStateName; files: string[]; at: string; since: string; filesDone?: number; run?: string; part?: number; parts?: number }[] {
   return listSorts(root)
     .filter((s) => appSort(key, s))
     .map(shownSort)
     .filter((s) => !SORT_FINAL.includes(s.state))
-    // at work: the files whose readers ended (the app shows "k of n" by it)
-    .map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, since: s.since, ...(s.state === "working" ? { filesDone: s.filesDone ?? 0 } : {}) }));
+    // at work: the files whose readers ended (the app shows "k of n" by it); a part of a run: its run, number and parts
+    .map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, since: s.since, ...(s.state === "working" ? { filesDone: s.filesDone ?? 0 } : {}), ...runOf(s) }));
+}
+
+/** A part of a run's run, number and the run's parts (none of a sort of its own). */
+const runOf = (s: SortState) => (s.run !== undefined ? { run: s.run, part: s.part ?? 0, parts: s.parts ?? 0 } : {});
+
+/** The parts of a run of the app kept here (those its bridge signed), by their numbers. */
+export function runParts(root: string, key: Buffer | undefined, run: string): SortState[] {
+  if (!RUN_ID.test(run)) return [];
+  return listSorts(root)
+    .filter((s) => s.run === run && appSort(key, s))
+    .sort((a, b) => (a.part ?? 0) - (b.part ?? 0));
+}
+
+export interface RunForApp {
+  id: string;
+  run: true;
+  state: SortStateName;
+  files: number;
+  filesDone: number;
+  parts: { id: string; part: number; state: SortStateName; files: number; filesDone?: number }[];
+  waiting?: { why: string; retry?: number };
+}
+
+/**
+ * A run as the Strom app is given it (GET /material/sort/<run-…>), from its parts as they are: working while a part is
+ * at work, or some part ran (done, failed) and some still wait — the run is under way between its parts; queued while
+ * none ran yet; ended (each part ended): cancelled when a part was cancelled (the person stopped it; the parts done keep
+ * their proposals, GET /material/sort/<sort-…>), else done when a part is done, else failed (every part failed).
+ * `files`: all the run's files, `filesDone`: those of its parts done.
+ */
+export function runForApp(run: string, parts: readonly SortState[], waiting?: RunForApp["waiting"]): RunForApp {
+  const shown = parts.map(shownSort);
+  const states = shown.map((s) => s.state);
+  const ended = states.every((s) => SORT_FINAL.includes(s));
+  const state: SortStateName = ended
+    ? states.includes("cancelled")
+      ? "cancelled"
+      : states.includes("done")
+        ? "done"
+        : "failed"
+    : states.some((s) => s === "working" || s === "done" || s === "failed")
+      ? "working"
+      : "queued";
+  return {
+    id: run,
+    run: true,
+    state,
+    files: shown.reduce((n, s) => n + s.files.length, 0),
+    filesDone: shown.reduce((n, s) => n + (s.state === "done" ? s.files.length : 0), 0),
+    parts: shown.map((s) => ({ id: s.id, part: s.part ?? 0, state: s.state, files: s.files.length, ...(s.state === "working" ? { filesDone: s.filesDone ?? 0 } : {}) })),
+    ...(waiting && !ended ? { waiting } : {}),
+  };
 }
 
 /** A sort cancelled: queued, at once; at work, its strom told by its cancel file (it stops its readers, ends cancelled). */
@@ -310,10 +416,10 @@ function bad(message: string, params: Record<string, string> = {}): UsageError {
  * material, a text of at most SORT_TEXT_MAX characters — kept in NFC, its lines kept. Refused material.body (the ask),
  * material.file (a file the research does not have).
  */
-export function checkSortAsk(tree: Tree, ask: { ids: unknown; text: unknown }): { files: string[]; text: string } {
+export function checkSortAsk(tree: Tree, ask: { ids: unknown; text: unknown }, most: number = SORT_MOST_FILES): { files: string[]; text: string } {
   const ids = ask.ids;
-  if (!Array.isArray(ids) || !ids.length || !ids.every((x) => typeof x === "string")) throw bad(`ids: 1 to ${SORT_MOST_FILES} files of the material (I…)`);
-  if (new Set(ids.map((x: string) => x.trim().toUpperCase())).size > SORT_MOST_FILES) throw bad(`at most ${SORT_MOST_FILES} files are sorted at once`, { most: String(SORT_MOST_FILES) });
+  if (!Array.isArray(ids) || !ids.length || !ids.every((x) => typeof x === "string")) throw bad(`ids: 1 to ${most} files of the material (I…)`);
+  if (ids.length > most && new Set(ids.map((x: string) => x.trim().toUpperCase())).size > most) throw bad(`at most ${most} files are sorted at once`, { most: String(most) });
   if (ask.text !== undefined && ask.text !== null && typeof ask.text !== "string") throw bad("text: what the person knows of the files");
   const raw = typeof ask.text === "string" ? ask.text : "";
   if (LONE_SURROGATE.test(raw)) throw bad("the text has half of a character (a lone surrogate): send it whole", { field: "text" });
@@ -339,6 +445,32 @@ export function queueSort(tree: Tree, ask: { files: string[]; text: string }, o:
   }
   saveSort(tree.root, s);
   return s;
+}
+
+/**
+ * A run of the app queued (its bridge alone, with its key): the files in parts of SORT_MOST_FILES in the order asked,
+ * each part a sort of its own asked at the same moment (`run`, `part`, `parts`), each signed with its leave to start it
+ * (signSort, signStart). The first part is counted against the app's readings as the run is taken (signCounted), each
+ * other one as its bridge starts it.
+ */
+export function queueRun(tree: Tree, ask: { files: string[]; text: string }, o: { lang: string; key: Buffer; run?: string | undefined }): SortState[] {
+  const at = new Date().toISOString();
+  const run = o.run ?? newRunId();
+  const chunks: string[][] = [];
+  for (let k = 0; k < ask.files.length; k += SORT_MOST_FILES) chunks.push(ask.files.slice(k, k + SORT_MOST_FILES));
+  const ids = new Set<string>();
+  const out = chunks.map((files, k) => {
+    let id = newSortId();
+    while (ids.has(id)) id = newSortId();
+    ids.add(id);
+    const s: SortState = { id, state: "queued", files, text: ask.text, lang: o.lang, at, since: at, from: APP_SORT_FROM, run, part: k + 1, parts: chunks.length };
+    s.sign = signSort(o.key, s);
+    s.start = signStart(o.key, s);
+    if (k === 0) s.counted = signCounted(o.key, s);
+    return s;
+  });
+  for (const s of out) saveSort(tree.root, s);
+  return out;
 }
 
 // ── what its readers are told ───────────────────────────────────────────────────────────────────────────────────
@@ -531,6 +663,13 @@ WHAT TO PROPOSE, for each file
 - link: who and what the file is of — "person P…", "family F…" (a couple), "event P… E…" or "event F… E…" (one of
   their events: a wedding photo, a death notice), "source S…" (a source it is the record of). Only IDs of the lists
   above; one line each; never one marked DONE or taken off.
+  Two more, only where you saw it yourself:
+  "back I…" — that file is the back (reverse side) of this same photo or page. Write it in the block of the FRONT
+  (the side with the picture or the page's main text), naming the file of the back: only a file of THE FILES above
+  that you opened too, never this file itself, one back at most. The back's own block then says only "why" (whose
+  back it is) — its own title, date and kind only where its own text says more than the front; never a "back" line.
+  "portrait P…" — this picture is a portrait of that one person (a face or a person alone, not a group): only a
+  picture, at most one, a person of the list above whose face you can tell from it or the person's words.
 - why: one or two sentences in ${o.langName}: what you saw on it, or in the person's words, that makes you say so.
 - sure: high (it says so itself: a name, a date written on it; or the person said so) | medium (it fits well) | low.
 - unrelated: yes — only when the file is plainly NOT about the family at all (a screenshot, a receipt, a ticket, a
@@ -553,8 +692,13 @@ date: …
 kind: photo
 link: person P0001
 link: event P0001 E0001
+link: back I0003
 why: …
 sure: medium
+
+## File I0003
+why: the back of I0001: …
+sure: high
 
 and of a file plainly not about the family:
 
@@ -575,6 +719,7 @@ export type RawProposal = Omit<SortProposal, "why" | "sure" | "kind"> & { why?: 
 const BLOCK = /^#{2,3}\s*\**\s*(?:\p{L}+\s*:?\s*)?([Ii]\d{1,9})(?![\p{L}\p{M}\p{N}])/u;
 const KEY = /^\s*(?:[-*]\s+)?\**(\p{L}+)\**\s*:\**\s*(.*)$/u;
 const ID = /[PpFfSsEe]\d{1,9}(?![\p{L}\p{M}\p{N}])/gu;
+const FILE = /(?<![\p{L}\p{M}\p{N}])[Ii]\d{1,9}(?![\p{L}\p{M}\p{N}])/u;
 
 /** "unrelated: yes" as a reader may write it (the keys are English, a value now and then the research's language). */
 const YES = ["yes", "true", "y", "ano", "ja", "tak", "oui", "si", "da", "да", "так"];
@@ -585,12 +730,21 @@ const pad = (id: string) => id[0]!.toUpperCase() + id.slice(1).padStart(4, "0");
 export function parseLink(v: string): SortLink | undefined {
   const ids = [...v.matchAll(ID)].map((m) => pad(m[0]));
   const said = foldText(v.trim().split(/[\s:]+/u)[0] ?? "");
+  // "back I3" (the back of this file, its front), "portrait P1" (the person a picture is a portrait of)
+  if (said === "back") {
+    const file = FILE.exec(v)?.[0];
+    return file ? { type: "back", ref: pad(file) } : undefined;
+  }
+  if (said === "portrait") {
+    const person = ids.find((x) => x.startsWith("P"));
+    return person && ids.length === 1 ? { type: "portrait", ref: person } : undefined;
+  }
   const event = ids.find((x) => x.startsWith("E"));
   const owner = ids.find((x) => x.startsWith("P") || x.startsWith("F"));
   if (event) return owner ? { type: "event", ref: owner, event } : undefined;
   const ref = ids[0];
   if (!ref) return undefined;
-  const type = ref.startsWith("P") ? "person" : ref.startsWith("F") ? "family" : "source";
+  const type: SortLink["type"] = ref.startsWith("P") ? "person" : ref.startsWith("F") ? "family" : "source";
   if ((SORT_LINK_TYPES as readonly string[]).includes(said) && said !== type) return undefined;
   return { type, ref };
 }
@@ -654,13 +808,40 @@ function linkKnown(tree: Pick<Tree, "get">, l: SortLink): SortLink | undefined {
   return { ...l, ref };
 }
 
+/** Whether a file of the material is a picture (its type, else its working copy's): what may be a portrait. */
+function isPicture(i: Input): boolean {
+  return (i.mime ?? i.working?.mime ?? "").toLowerCase().startsWith("image/");
+}
+
+/**
+ * A back a reader proposed (V6), on the proposal of the front `file`: the back `ref` one of the sort's files the same
+ * reader was given (`readers`; when not known — proposals checked again later — one of the sort's files), never the
+ * file itself, in the research, neither of them read as text; the reason it is left out, else undefined.
+ */
+function backRefused(tree: Pick<Tree, "get">, files: readonly string[], file: Input, ref: string, readers?: readonly SortReader[]): string | undefined {
+  if (ref === file.id) return "the file itself";
+  if (!files.includes(ref)) return "not one of the sort's files";
+  const reader = readers?.find((x) => x.files.includes(file.id));
+  if (reader && !reader.files.includes(ref)) return "not given to the same reader";
+  const back = tree.get<Input>(ref);
+  if (!back || back.type !== "input" || back.retracted) return "not in the research";
+  if (isTextFile(file.name, file.mime) || isTextFile(back.name, back.mime)) return "a text file has no back";
+  return undefined;
+}
+
 /**
  * The proposals as the person is shown them: of the sort's own files alone, each value one the research can keep
  * (checked as POST /material/edit checks it), none the person gave already — a title of theirs, a kind, a date, a link
- * they gave or took off — and no link to a record the research does not have. Nothing left of a file: no proposal.
+ * they gave or took off — and no link to a record the research does not have. A back on its front's proposal, the back
+ * another file of the sort its reader was given (`readers`, as it ran): one back per front, one front per back, never
+ * a back of a back (a front that is a back itself, a back that is a front itself); a portrait only of a picture, one
+ * person at most. Nothing left of a file: no proposal.
  */
-export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[], raw: readonly RawProposal[]): { proposals: SortProposal[]; dropped: NonNullable<SortState["dropped"]> } {
+export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[], raw: readonly RawProposal[], readers?: readonly SortReader[]): { proposals: SortProposal[]; dropped: NonNullable<SortState["dropped"]> } {
   const proposals: SortProposal[] = [];
+  // the files kept as the back of a front, and the fronts: a back of a back, a back of two fronts never kept
+  const backs = new Set<string>();
+  const fronts = new Set<string>();
   const dropped: NonNullable<SortState["dropped"]> = [];
   const drop = (id: string, what: string, why: string) => dropped.push({ id, what, why });
   for (const r of raw) {
@@ -712,8 +893,31 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
     const persons = materialPersons(tree as Tree, i);
     const links: SortLink[] = [];
     for (const asked of r.links ?? []) {
-      const l = (SORT_LINK_TYPES as readonly string[]).includes(asked.type) ? linkKnown(tree, asked) : undefined;
       const said = `${asked.type} ${asked.ref}${asked.event ? ` ${asked.event}` : ""}`;
+      if (asked.type === "back") {
+        // i the front, asked.ref its back
+        const why = backRefused(tree, files, i, asked.ref, readers)
+          ?? (links.some((x) => x.type === "back") ? "one back per file"
+            : backs.has(i.id) || fronts.has(asked.ref) ? "a back of a back"
+            : backs.has(asked.ref) ? "the back of another file" : undefined);
+        if (why) drop(r.id, `link ${said}`, why);
+        else links.push({ type: "back", ref: asked.ref });
+        continue;
+      }
+      if (asked.type === "portrait") {
+        const person = asked.ref.startsWith("P") ? live(tree, asked.ref) : undefined;
+        const p0 = person ? tree.get<Person>(person) : undefined;
+        const theirs = (i.links ?? []) as MediaLink[];
+        const why = !p0 || p0.type !== "person" || p0.retracted ? "not in the research"
+          : !isPicture(i) ? "not a picture"
+          : theirs.some((x) => x.type === "personPortrait" && x.ref === person && x.retracted && x.retracted.reason !== "replaced") ? "taken off by the person"
+          : links.some((x) => x.type === "portrait" && x.ref !== person) ? "one portrait per file" : undefined;
+        if (why) drop(r.id, `link ${said}`, why);
+        // there already (the person's portrait is this file), or said twice: nothing to propose
+        else if (!theirs.some((x) => x.type === "personPortrait" && x.ref === person && !x.retracted) && !links.some((x) => x.type === "portrait")) links.push({ type: "portrait", ref: person! });
+        continue;
+      }
+      const l = (SORT_LINK_TYPES as readonly string[]).includes(asked.type) ? linkKnown(tree, asked) : undefined;
       if (!l) {
         drop(r.id, `link ${said}`, "not in the research");
         continue;
@@ -729,6 +933,11 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
     }
     if (links.length) p.links = links;
     if (p.title === undefined && p.kind === undefined && p.date === undefined && !p.links) continue;
+    const back = links.find((x) => x.type === "back");
+    if (back) {
+      fronts.add(i.id);
+      backs.add(back.ref);
+    }
     proposals.push(p);
   }
   return { proposals, dropped };
@@ -759,13 +968,14 @@ export function unproposedOf(files: readonly string[], raw: readonly RawProposal
 }
 
 /** A sort as the Strom app is given it (GET /material/sort/<id>): its proposals checked again against the research now. */
-export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; unproposed?: SortState["unproposed"]; filesDone?: number; reason?: string } {
+export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; unproposed?: SortState["unproposed"]; filesDone?: number; reason?: string; run?: string; part?: number; parts?: number } {
   const now = shownSort(s);
   return {
     id: now.id,
     state: now.state,
     files: now.files,
     at: now.at,
+    ...runOf(now),
     ...(now.state === "done" ? { proposals: keptProposals(tree, now.files, now.proposals ?? []).proposals, ...(now.unproposed?.length ? { unproposed: now.unproposed } : {}) } : {}),
     ...(now.state === "working" ? { filesDone: now.filesDone ?? 0 } : {}),
     ...(now.reason ? { reason: now.reason } : {}),

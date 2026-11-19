@@ -3,7 +3,7 @@
 // sort is while at work (filesDone: the files whose readers ended); every file with no proposal says why (unproposed);
 // the readers' own folders in the shared cache cleared as they end, those left behind long ago swept.
 
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -13,6 +13,13 @@ import { encodeImage } from "../../src/image/index.ts";
 import { isTextFile, keptProposals, loadSort, parseSortReport, sortForApp, textOfFile, unproposedOf, SORT_TEXT_FILE_MAX } from "../../src/core/sort.ts";
 import { READER_ROOM_KEEP_MS, sweepReaderRooms } from "../../src/commands/readers.ts";
 import { Tree } from "../../src/core/tree.ts";
+
+// Every world of a test cleaned up when it ends — its bridge ended, also when the test failed before its live stop
+// (found 2026-11-19: three bridges of these tests running on in the temp folder after the run).
+const made: World[] = [];
+afterEach(() => {
+  for (const w of made.splice(0)) w.cleanup();
+});
 
 const opts = { skip: !hasGit || process.platform === "win32" };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "strom-sort-text-"));
@@ -113,6 +120,7 @@ console.log("cost: 0.1");
 
 test("a sort of eleven files: the texts read as text, filesDone while at work, a file with no proposal says why, the readers' folders cleared", opts, async () => {
   const w = new World();
+  made.push(w);
   await w.withTree("Lhotákovi");
   await w.ok(["person", "add", "Václav /Lhoták/", "--sex", "M", "--born", "1890"]);
   const dir = path.join(w.dir, "třídění");

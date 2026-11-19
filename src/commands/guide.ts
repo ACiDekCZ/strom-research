@@ -63,6 +63,8 @@ HARD RULES
    record proves it.
 3. Nothing is deleted. Wrong facts are retracted with --reason, so is a wrong
    name or note (strom name retract, strom note retract|edit) — yours to do.
+   Deleting a file of the family's material for good (strom input delete) is
+   the user's alone: never run it, nor offer to run it for them.
 4. A namesake is not your person: check year, place, house and parents —
    different parents mean two people, not a clerk's error.
 5. Negative results are results: record every search, also when nothing

@@ -16,6 +16,7 @@ import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
 import type { Task } from "../../src/core/model.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
+import { queueRun } from "../../src/core/sort.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
 import { makePdf } from "../image-samples.ts";
@@ -164,6 +165,9 @@ async function seeded(): Promise<World> {
   // a sort of the material kept to be sorted (strom material show, cancel): its state as strom material sort --queue leaves it
   fs.mkdirSync(path.join(w.cwd, ".strom", "sorts"), { recursive: true });
   fs.writeFileSync(path.join(w.cwd, ".strom", "sorts", "sort-20260101120000-ab12.json"), JSON.stringify({ id: "sort-20260101120000-ab12", state: "queued", files: ["I0003"], text: "", lang: "cs", at, since: at }));
+  // a run of the Strom app (strom material show, cancel): as its bridge queues one, signed with the tree's key
+  const runTree = Tree.open(w.cwd, w.env);
+  queueRun(runTree, { files: ["I0003"], text: "" }, { lang: "cs", key: runTree.key!, run: "run-20260101120000-cd34" });
   // a second record of Horní Lhota close by (place merge)
   const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
   assert.equal(dup, "L0003", "the place merge example's ID");

@@ -1,6 +1,8 @@
 // strom material sort|show|cancel: files of the family's material sorted by readers of the research (core/sort.ts) —
 // for each file a title, a date, a kind and links to the tree proposed, nothing written. The Strom app asks it through
 // its bridge (POST /material/sort), which queues it and starts it; the person takes of the proposal what they agree with.
+// More files than one sort takes the app asks as a run (run-…): parts of a sort each, its bridge alone queues and starts
+// them; strom material show|cancel <run-…> says it and stops it.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -23,12 +25,16 @@ import {
   appSort,
   cancelSort,
   checkSortAsk,
+  counted as countedRead,
   isTextFile,
   keptProposals,
   loadSort,
   parseSortReport,
   queueSort,
   refuseUnsigned,
+  RUN_ID,
+  runForApp,
+  runParts,
   saveSort,
   shownSort,
   SORT_FINAL,
@@ -159,7 +165,7 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
   const cancelled = stop.signal.aborted || fs.existsSync(sortCancelPath(tree.root, s.id));
   fs.rmSync(sortCancelPath(tree.root, s.id), { force: true });
   const ran = s.readers ?? [];
-  const kept = keptProposals(tree, s.files, [...raw, ...stray]);
+  const kept = keptProposals(tree, s.files, [...raw, ...stray], ran);
   const failedWhy = ran.find((r) => r.outcome && r.outcome !== "ok")?.outcome;
   if (cancelled) s = { ...s, state: "cancelled", since: now() };
   else if (ran.some((r) => r.outcome === "ok") || (ran.length > 0 && kept.proposals.length > 0)) {
@@ -173,11 +179,14 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
   return s;
 }
 
+/** A part of a run said: "part 2 of 3 of run-…" (nothing of a sort of its own). */
+const partSaid = (s: SortState) => (s.run !== undefined ? ` · part ${s.part} of ${s.parts} of ${s.run}` : "");
+
 /** A sort said for an agent: its state, and each proposal on a few lines. */
 function said(tree: Tree, s: SortState): string {
   const now = shownSort(s);
   const proposals = now.state === "done" ? keptProposals(tree, now.files, now.proposals ?? []).proposals : [];
-  const head = `${now.id} · ${now.state} · ${counted(now.files.length, "file")}${now.reason ? ` · ${now.reason}` : ""}${now.error ? ` — ${now.error}` : ""}`;
+  const head = `${now.id} · ${now.state} · ${counted(now.files.length, "file")}${partSaid(now)}${now.reason ? ` · ${now.reason}` : ""}${now.error ? ` — ${now.error}` : ""}`;
   const out = [head];
   for (const p of proposals) {
     out.push("", `${p.id} (${p.sure})${p.title ? ` · ${p.title}` : ""}${p.date ? ` · ${p.date}` : ""}${p.kind ? ` · ${p.kind}` : ""}${p.unrelated ? " · unrelated (not of the family)" : ""}`);
@@ -187,8 +196,26 @@ function said(tree: Tree, s: SortState): string {
   if (now.state === "done") for (const u of now.unproposed ?? []) if (!proposals.some((p) => p.id === u.id)) out.push("", `${u.id} · no proposal: ${u.why}${u.outcome ? ` (${u.outcome})` : ""}${u.said ? ` — ${u.said}` : ""}`);
   if (now.state === "done" && !proposals.length) out.push("", "nothing proposed");
   if (now.state === "working") out.push("", `${now.filesDone ?? 0} of ${now.files.length} files done`);
-  if (now.state === "queued") out.push("", `next: strom material sort ${now.id} sorts it (the bridge of the Strom app starts its queue by itself) — strom material cancel ${now.id}`);
+  if (now.state === "queued" && now.run !== undefined) out.push("", `the bridge of the Strom app starts it when its turn comes and the app's readings allow (read.app) — strom material cancel ${now.run} stops the whole run`);
+  else if (now.state === "queued") out.push("", `next: strom material sort ${now.id} sorts it (the bridge of the Strom app starts its queue by itself) — strom material cancel ${now.id}`);
   return lines(...out);
+}
+
+/** A run of the app said for an agent: its state, its files done, each part on a line (its proposals: strom material show <sort-…>). */
+function runSaid(run: ReturnType<typeof runForApp>): string {
+  return lines(
+    `${run.id} · ${run.state} · ${run.filesDone} of ${counted(run.files, "file")} done · ${counted(run.parts.length, "part")}`,
+    ...run.parts.map((p) => `  ${p.part}. ${p.id} · ${p.state} · ${counted(p.files, "file")}${p.filesDone !== undefined ? ` (${p.filesDone} done)` : ""}`),
+    "",
+    run.state === "queued" || run.state === "working" ? `each part's proposals: strom material show <sort-…> — strom material cancel ${run.id} stops the run` : "each part's proposals: strom material show <sort-…>",
+  );
+}
+
+/** The parts of a run of the app kept here (those its bridge signed), else refused. */
+function runOf(tree: Tree, id: string): SortState[] {
+  const parts = runParts(tree.root, tree.key, id);
+  if (!parts.length) throw new UsageError(`no run ${id.slice(0, 40)} of the Strom app here`, { code: "material.sort", hint: "strom material show (the sorts kept here)" });
+  return parts;
 }
 
 const shownData = (tree: Tree, s: SortState) => {
@@ -235,6 +262,8 @@ async function sortQueued(ctx: Context, tree: Tree, id: string, opts: Record<str
     );
     throw new UsageError(`${id} was ${said}`, { code: "material.sort-unsigned", params: { id }, hint: "the person asks for the sort again in the Strom app" });
   }
+  // a part of a run of the app not counted against its readings yet: its bridge alone starts it, when read.app allows
+  if (s.run !== undefined && !countedRead(key, s)) throw new UsageError(`${id} is part ${s.part} of ${s.parts} of the Strom app's run ${s.run}: its bridge starts it when the app's readings allow (read.app)`, { code: "material.sort-waiting", params: { id, run: s.run }, hint: `strom material show ${s.run}` });
   if (s.pid && s.pid !== process.pid && alive(s.pid)) throw new UsageError(`${id} is being sorted now`, { hint: `strom material show ${id}` });
   if (!fs.existsSync(sortCancelPath(tree.root, id)) && !(await personSays(ctx, tree, s, `strom material sort ${id}`))) return notSorted(ctx, s.files);
   if (fs.existsSync(sortCancelPath(tree.root, id))) {
@@ -299,20 +328,27 @@ register({
   summary: "What a sort of the material proposed (or the sorts kept here)",
   group: "inputs",
   tree: true,
-  description: "A sort's state (queued, working, done, failed, cancelled) and, when done, its proposals as the research is now:\none the person has since given or taken off is left out. Without an ID: the sorts kept here.",
-  args: [{ name: "id", description: "the sort: sort-…" }],
+  description:
+    "A sort's state (queued, working, done, failed, cancelled) and, when done, its proposals as the research is now:\none the person has since given or taken off is left out. Without an ID: the sorts kept here.\n" +
+    `A run of the Strom app (run-…: more than ${SORT_MOST_FILES} files asked at once, sorted in parts of ${SORT_MOST_FILES}): its state, its files\n` +
+    "done and its parts (sort-…), each part's proposals shown by its own ID.",
+  args: [{ name: "id", description: "the sort: sort-…; or a run of the Strom app: run-…" }],
   options: [],
-  examples: ["strom material show", "strom material show sort-20260101120000-ab12"],
+  examples: ["strom material show", "strom material show sort-20260101120000-ab12", "strom material show run-20260101120000-cd34"],
   run: async (ctx: Context, { args }) => {
     const tree = ctx.tree();
+    if (args[0] && RUN_ID.test(args[0].trim())) {
+      const run = runForApp(args[0].trim(), runOf(tree, args[0].trim()));
+      return { text: runSaid(run), data: run };
+    }
     if (args[0]) {
       const s = sortOf(tree, args[0].trim());
       return { text: said(tree, s), data: shownData(tree, s) };
     }
     const all = listSorts(tree.root).map(shownSort);
     return {
-      text: all.length ? lines(...all.map((s) => `${s.id} · ${s.state} · ${counted(s.files.length, "file")}${s.proposals ? ` · ${counted(s.proposals.length, "proposal")}` : ""}`)) : "no sorts here",
-      data: { sorts: all.map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, ...(s.reason ? { reason: s.reason } : {}) })) },
+      text: all.length ? lines(...all.map((s) => `${s.id} · ${s.state} · ${counted(s.files.length, "file")}${partSaid(s)}${s.proposals ? ` · ${counted(s.proposals.length, "proposal")}` : ""}`)) : "no sorts here",
+      data: { sorts: all.map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, ...(s.reason ? { reason: s.reason } : {}), ...(s.run !== undefined ? { run: s.run, part: s.part, parts: s.parts } : {}) })) },
     };
   },
 });
@@ -322,12 +358,20 @@ register({
   summary: "Stop a sort of the material: its readers stopped, nothing proposed",
   group: "inputs",
   tree: true,
-  description: "A sort queued is cancelled at once; one at work: its readers are stopped (within a second or two) and it ends cancelled.",
-  args: [{ name: "id", description: "the sort: sort-…", required: true }],
+  description:
+    "A sort queued is cancelled at once; one at work: its readers are stopped (within a second or two) and it ends cancelled.\n" +
+    "A run of the Strom app (run-…): its part at work stopped, its parts queued cancelled, those done kept with their\nproposals; one part alone: its own ID (sort-…).",
+  args: [{ name: "id", description: "the sort: sort-…; or a run of the Strom app: run-…", required: true }],
   options: [],
-  examples: ["strom material cancel sort-20260101120000-ab12"],
+  examples: ["strom material cancel sort-20260101120000-ab12", "strom material cancel run-20260101120000-cd34"],
   run: async (ctx: Context, { args }) => {
     const tree = ctx.tree();
+    if (RUN_ID.test(args[0]!.trim())) {
+      const id = args[0]!.trim();
+      for (const s of runOf(tree, id)) cancelSort(tree.root, s);
+      const run = runForApp(id, runOf(tree, id));
+      return { text: runSaid(run), data: run };
+    }
     const s = cancelSort(tree.root, sortOf(tree, args[0]!.trim()));
     return { text: `${s.id} · ${s.state}`, data: { id: s.id, state: s.state } };
   },

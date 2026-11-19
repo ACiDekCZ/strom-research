@@ -6,12 +6,13 @@
 //
 // What a person does with it in the app — the people a file is of added or taken off (POST <token>/material/assign,
 // strom input assign), a file hidden and shown again (POST <token>/material/hide, strom input hide|unskip) — is
-// written here, the same in an archive and a research: all of it or nothing, never a file deleted.
+// written here, the same in an archive and a research: all of it or nothing, never a file deleted (deleting one for good,
+// the person's alone: core/materialdelete.ts).
 
 import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
-import { HIDE_REASONS, MATERIAL_KINDS, type Input, type Media, type MediaLink, type Person, type Source, type Task } from "./model.ts";
+import { HIDE_REASONS, MATERIAL_KINDS, type Family, type Input, type Media, type MediaLink, type Person, type Source, type Task } from "./model.ts";
 import { listBatches, readBatch, writeBatch } from "./batches.ts";
 import { gatherTask, originOf } from "./originals.ts";
 import { displayName, lifespan } from "./people.ts";
@@ -19,6 +20,8 @@ import { normId, update } from "./records.ts";
 import { normalizeDate } from "./gdate.ts";
 import { restoreTakenOff } from "./sync.ts";
 import { inTree, workingRel } from "./treemedia.ts";
+import { mediaRecords } from "./mediaindex.ts";
+import { listSorts, type SortState } from "./sort.ts";
 import type { Tree } from "./tree.ts";
 
 export interface MaterialFile {
@@ -55,11 +58,44 @@ export interface MaterialFile {
   origin?: "app";
   /** Its places in the app's tree, those not taken off (spec 108): a person's, a couple's, an event's, a source's. */
   links?: { type: MediaLink["type"]; ref: string; event?: string }[];
-  /** Where the research uses it, which the app does not see (bridge feature material.uses; GET /material/<I…>/uses). */
-  uses: { excerpts: number; sources: string[]; tasks: number };
+  /**
+   * Where the research uses it, which the app does not see (bridge feature material.uses; GET /material/<I…>/uses) —
+   * and the sources it is the source of, each with how, its title, the people citing it and whether the app's tree has
+   * it (`of`, feature material.sourceOf).
+   */
+  uses: { excerpts: number; sources: string[]; tasks: number; of: SourceOf[] };
+  /**
+   * The last sort done that took it proposed nothing of it (its reader said nothing of it, or all it said is there or was
+   * left out): not sent to be sorted again unless the person chooses it (feature material.left). A later sort that
+   * proposed something of it takes it off. From the sorts kept here (.strom/sorts): nothing written to the research.
+   */
+  left?: { at: string; sort: string; why: (typeof LEFT_WHY)[number]; said?: string };
+  /** The oldest other file of the material with the same content (the same SHA-256): sorted once (feature material.sameAs). */
+  sameAs?: string;
   /** Whether the file is on this computer (a research unpacked without its images: not). */
   here: boolean;
 }
+
+/**
+ * A source a file of the material is the source of (spec 102 K1.14): made or sorted from it (`input`), cut out of an
+ * image with its content (`excerpt`), or with an image of its content (`media`) — the most direct way, once a source.
+ */
+export interface SourceOf {
+  source: string;
+  via: "input" | "excerpt" | "media";
+  title: string;
+  /** The people whose facts or names cite it (a duplicate merged away: the one it went into), at most CITED_SHOWN. */
+  cited: string[];
+  citedCount: number;
+  /** Whether the app's tree (/tree.ged) has it: every source that stands but those of a sync from the app. */
+  inTree: boolean;
+}
+
+/** How many of the people citing a source `of` names (all of them counted). */
+export const CITED_SHOWN = 5;
+
+/** Why a file the agent sorted is left (`left`): its reader said nothing of it, all it proposed is there or was left out. */
+export const LEFT_WHY = ["nothing-said", "nothing-new", "dropped"] as const;
 
 /** Where the research uses a file of the material (GET /material/<I…>/uses): its excerpts, sources, open tasks. */
 export interface MaterialUses {
@@ -69,6 +105,8 @@ export interface MaterialUses {
   sources: { id: string; title: string }[];
   /** The tasks that hold it now (open, begun, put aside, waiting). */
   tasks: { id: string; title: string; state: Task["state"] }[];
+  /** The sources it is the source of, each with how (feature material.sourceOf). */
+  of: SourceOf[];
 }
 
 export interface MaterialBatch {
@@ -151,21 +189,27 @@ export function workingCopyOf(tree: Tree, shared: string | undefined, sha: strin
 
 /** What finds the uses of the material's files at once (the sources, images and tasks read once for the whole list). */
 interface UsesIndex {
+  tree: Tree;
   media: Map<string, Media[]>;
   byMedia: Map<string, Source[]>;
   byInput: Map<string, Source[]>;
   sources: Map<string, Source>;
   tasks: Map<string, Task[]>;
+  /** The people citing each source: made once, when a file is the source of one. */
+  citing?: Map<string, Set<string>>;
+  /** The inputs of syncs from the app: their sources are not in the app's tree. */
+  syncs?: Set<string>;
 }
 
 function usesIndex(tree: Tree): UsesIndex {
-  const idx: UsesIndex = { media: new Map(), byMedia: new Map(), byInput: new Map(), sources: new Map(), tasks: new Map() };
+  const idx: UsesIndex = { tree, media: new Map(), byMedia: new Map(), byInput: new Map(), sources: new Map(), tasks: new Map() };
   const add = <T>(m: Map<string, T[]>, k: string, v: T) => {
     const got = m.get(k);
     if (!got) m.set(k, [v]);
     else if (!got.includes(v)) got.push(v);
   };
-  for (const m of tree.list<Media>("media")) if (!m.retracted && m.sha) add(idx.media, m.sha, m);
+  // every image record of a long research (tens of thousands): read from the cache while their folder is as it was
+  for (const m of mediaRecords(tree)) if (!m.retracted && m.sha) add(idx.media, m.sha, m);
   for (const s of tree.list<Source>("source")) {
     if (s.retracted) continue;
     idx.sources.set(s.id, s);
@@ -176,6 +220,52 @@ function usesIndex(tree: Tree): UsesIndex {
   for (const t of tree.list<Task>("task"))
     if (!t.retracted && (t.state === "open" || t.state === "doing" || t.state === "parked" || t.state === "waiting")) for (const w of t.where) if (w.startsWith("I")) add(idx.tasks, w, t);
   return idx;
+}
+
+/** The people citing each source: their facts (a couple's: its partners) and names. */
+function citingIndex(tree: Tree): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const cite = (source: string, who: string) => {
+    let got = out.get(source);
+    if (!got) out.set(source, (got = new Set()));
+    got.add(live(tree, who));
+  };
+  for (const p of tree.list<Person>("person")) {
+    if (p.retracted || p.mergedInto) continue;
+    for (const e of p.events) if (!e.retracted) for (const c of e.citations) cite(c.source, p.id);
+    for (const n of p.names) for (const c of n.citations ?? []) cite(c.source, p.id);
+  }
+  for (const f of tree.list<Family>("family")) {
+    if (f.retracted) continue;
+    const cited = [...f.events.filter((e) => !e.retracted).flatMap((e) => e.citations), ...(f.citations ?? [])];
+    for (const c of cited) for (const p of f.partners) cite(c.source, p);
+  }
+  return out;
+}
+
+/** The sources a file is the source of (see SourceOf): made from it, cut out of an image of its content, with one. */
+function sourcesOf(idx: UsesIndex, i: Input, images: Map<string, Media>): SourceOf[] {
+  const via = new Map<string, SourceOf["via"]>();
+  const rank = { input: 0, excerpt: 1, media: 2 } as const;
+  const say = (s: Source | undefined, how: SourceOf["via"]) => {
+    if (!s) return;
+    const had = via.get(s.id);
+    if (!had || rank[how] < rank[had]) via.set(s.id, how);
+  };
+  for (const s of idx.byInput.get(i.id) ?? []) say(s, "input");
+  for (const id of [i.source, i.sorted?.source]) if (id) say(idx.sources.get(id), "input");
+  for (const m of images.keys())
+    for (const s of idx.byMedia.get(m) ?? []) say(s, (s.clips ?? []).some((c) => c.media === m) ? "excerpt" : "media");
+  if (!via.size) return [];
+  idx.citing ??= citingIndex(idx.tree);
+  idx.syncs ??= new Set(idx.tree.list<Input & { sync?: unknown }>("input").filter((x) => x.sync).map((x) => x.id));
+  return [...via]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, how]) => {
+      const s = idx.sources.get(id)!;
+      const cited = [...(idx.citing!.get(id) ?? [])].sort();
+      return { source: id, via: how, title: s.title, cited: cited.slice(0, CITED_SHOWN), citedCount: cited.length, inTree: !(s.input && idx.syncs!.has(s.input)) };
+    });
 }
 
 function usesFrom(idx: UsesIndex, i: Input): MaterialUses {
@@ -200,6 +290,7 @@ function usesFrom(idx: UsesIndex, i: Input): MaterialUses {
     excerpts,
     sources: [...sources.values()].sort((a, b) => a.id.localeCompare(b.id)).map((s) => ({ id: s.id, title: s.title })),
     tasks: tasks.map((t) => ({ id: t.id, title: t.what, state: t.state })),
+    of: sourcesOf(idx, i, images),
   };
 }
 
@@ -231,8 +322,12 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
   const ids = only.ids ? new Set(only.ids) : undefined;
   const files: MaterialFile[] = [];
   let idx: UsesIndex | undefined;
-  for (const i of tree.list<Input & { sync?: unknown }>("input")) {
-    if (!isMaterial(i)) continue;
+  const all = tree.list<Input & { sync?: unknown }>("input").filter(isMaterial);
+  // the oldest file of each content: the others are the same as it
+  const firstOf = new Map<string, Input>();
+  for (const i of [...all].sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id))) if (!firstOf.has(i.sha!)) firstOf.set(i.sha!, i);
+  let left: Map<string, NonNullable<MaterialFile["left"]>> | undefined;
+  for (const i of all) {
     if (ids && !ids.has(i.id)) continue;
     if (only.batch && i.batch !== only.batch) continue;
     const persons = materialPersons(tree, i);
@@ -264,7 +359,9 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
       ...(s ? { sorted: { as: s.as, ...(s.persons?.length ? { persons: s.persons.map((p) => live(tree, p)) } : {}), ...(s.source ? { source: s.source } : {}), ...(s.reason ? { reason: s.reason } : {}) } } : {}),
       ...(i.source ? { source: i.source } : {}),
       ...(hidden ? { hidden } : {}),
-      uses: { excerpts: used.excerpts.length, sources: used.sources.map((x) => x.id), tasks: used.tasks.length },
+      uses: { excerpts: used.excerpts.length, sources: used.sources.map((x) => x.id), tasks: used.tasks.length, of: used.of },
+      ...((left ??= leftBySorts(tree.root)).has(i.id) ? { left: left.get(i.id)! } : {}),
+      ...(firstOf.get(i.sha!)!.id !== i.id ? { sameAs: firstOf.get(i.sha!)!.id } : {}),
       here: !!file && fs.existsSync(file),
     });
   }
@@ -283,7 +380,24 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
       ...(b.note ? { note: b.note } : {}),
     }));
   const shown = only.files === false ? [] : files;
-  return { files: shown, batches: out, people: peopleOf(tree, [...shown.flatMap((f) => [...f.persons, ...(f.sorted?.persons ?? [])]), ...out.flatMap((b) => b.persons)]) };
+  return { files: shown, batches: out, people: peopleOf(tree, [...shown.flatMap((f) => [...f.persons, ...(f.sorted?.persons ?? []), ...f.uses.of.flatMap((o) => o.cited)]), ...out.flatMap((b) => b.persons)]) };
+}
+
+/**
+ * The files the agent left (MaterialFile.left), by the sorts kept here, oldest first: each file by the last sort done
+ * that took it — left when it proposed nothing of it for a reason of LEFT_WHY; a reader that ended without a word of it,
+ * or did not end well, leaves it to be sent again.
+ */
+export function leftBySorts(root: string, sorts: SortState[] = listSorts(root)): Map<string, NonNullable<MaterialFile["left"]>> {
+  const out = new Map<string, NonNullable<MaterialFile["left"]>>();
+  for (const s of sorts.filter((x) => x.state === "done").sort((a, b) => a.since.localeCompare(b.since) || a.id.localeCompare(b.id))) {
+    for (const id of s.files) {
+      const u = s.unproposed?.find((x) => x.id === id);
+      if (u && (LEFT_WHY as readonly string[]).includes(u.why)) out.set(id, { at: s.since, sort: s.id, why: u.why as (typeof LEFT_WHY)[number], ...(u.said ? { said: u.said } : {}) });
+      else out.delete(id);
+    }
+  }
+  return out;
 }
 
 /** The names of people as the research knows them, shortly with their years: for the app, which may not have them yet. */
@@ -487,8 +601,8 @@ export function hideMaterial(tree: Tree, ids: string[], o: { reason?: (typeof HI
   return out;
 }
 
-/** The tasks holding these files let them go: narrowed, or given up when none of their files is left. */
-function letGo(tree: Tree, ids: string[]): string[] {
+/** The tasks holding these files let them go: narrowed, or given up when none of their files is left (hidden, or deleted for good). */
+export function letGo(tree: Tree, ids: string[], why: "hidden" | "deleted" = "hidden"): string[] {
   if (!ids.length) return [];
   const set = new Set(ids);
   const out: string[] = [];
@@ -497,7 +611,7 @@ function letGo(tree: Tree, ids: string[]): string[] {
     const where = t.where.filter((w) => !set.has(w));
     const which = t.where.filter((w) => set.has(w));
     if (where.some((w) => w.startsWith("I")))
-      update<Task>(tree, t.id, "task", (x) => ({ ...x, where, subject: x.subject.filter((s) => !set.has(s)) }), { op: "task.edit", summary: `${t.id}: without ${which.join(", ")} (hidden)` });
+      update<Task>(tree, t.id, "task", (x) => ({ ...x, where, subject: x.subject.filter((s) => !set.has(s)) }), { op: "task.edit", summary: `${t.id}: without ${which.join(", ")} (${why === "hidden" ? "hidden" : "deleted for good"})` });
     else
       update<Task>(
         tree,
@@ -511,7 +625,7 @@ function letGo(tree: Tree, ids: string[]): string[] {
           delete next.heldFrom;
           return next;
         },
-        { op: "task.drop", summary: `${t.id} dropped: its files hidden (${which.join(", ")})`, reason: "the files of the material it was of are hidden" },
+        { op: "task.drop", summary: `${t.id} dropped: its files ${why === "hidden" ? "hidden" : "deleted for good"} (${which.join(", ")})`, reason: `the files of the material it was of are ${why === "hidden" ? "hidden" : "deleted for good"}` },
       );
     out.push(t.id);
   }

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.35.0-beta.7. The section is complete with the release.*
 
 - **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
   put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
@@ -64,7 +64,9 @@ The changes of each version in short. The full notes and the install lines are o
 - **Windows: nothing left running after the login check, a link's window titled:** the check whether the agent in the terminal is logged in
   ends everything it started when it takes too long, and the readers no longer print Node's warning DEP0190.
   The terminal a link of the Strom app opens on Windows is titled Strom Research (a second installation's with its
-  name), not with the path of node.exe.
+  name), not with the path of node.exe. `strom doctor` and the report of `strom error` say how many bridges to the
+  Strom app run on the computer, of which research each is, its memory and the sum, and mark one whose research is
+  gone; nothing is ended.
 - **No changes reported that were not made in the Strom app:** after a write from the Strom app, "not written" no
   longer lists a citation of a family of one parent (an older Strom app sends it with an empty marriage),
   nor a source of the edits in the Strom app (the app never gets those sources) as removed.
@@ -97,9 +99,18 @@ The changes of each version in short. The full notes and the install lines are o
   after the person's yes (in their terminal, a window of the system, or the app's dialog), never by itself or by an agent.
   A file plainly not about the family (a screenshot, a receipt, a file sent by mistake) the reader says so of, with
   its reason, so that it can be hidden in the Strom app; nothing is hidden or deleted by itself.
-  A sort reads a text file (.txt, .md) as text and judges it by what it says, says while at work how many files it is done with (the Strom app shows it), and says of every file without a proposal why (nothing said, nothing new, left out, its reader failed).
+  A sort reads a text file (.txt, .md) as text and judges it by what it says, says while at work how many files it is done with (the Strom app shows it), and says of every file without a proposal why (nothing said, nothing new, left out, its reader failed). A reader may also say which file is the back of another photo or page it was given, and which picture is the portrait of a person, for the Strom app to offer.
   A sort of the material starts without asking only when the Strom app's bridge took and signed it; a record written any
   other way (or queued by an older version) is not started and is asked for again in the app.
+  What the Strom app shows of each file names the sources made from it, cut out of it or with an image of its content,
+  with the people citing them and whether its tree has them; a file a sort left without a proposal and a file of the
+  same content as another are said, so that they are not sent again, and the list comes several times faster in a
+  research with many images. Up to 1,500 files are sorted at once from the app: in batches of 50, one after another
+  while the bridge runs, each within the app's reading limits and shown as soon as it is done; the whole run can be
+  stopped at once. A file of the family's material can be deleted for good — only by the person (`strom input delete`,
+  or in the Strom app after a list of everything it touches), never by an agent: its sources keep their text and
+  citations, its images and excerpts go only when no other file or research keeps the same content, and it remains
+  only in earlier backups of the research.
 
 ## 1.34.0
 

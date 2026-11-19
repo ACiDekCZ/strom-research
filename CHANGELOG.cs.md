@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
@@ -61,7 +61,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Windows: po kontrole přihlášení nic neběží dál, okno odkazu s titulkem:** kontrola, zda je agent v terminálu přihlášený, ukončí vše, co
   spustila, když trvá příliš dlouho, a čtečky už nevypisují varování Node DEP0190.
   Terminál, který na Windows otevře odkaz aplikace Strom, má titulek Strom Research (druhá instalace se svým jménem),
-  ne cestu k node.exe.
+  ne cestu k node.exe. `strom doctor` a hlášení `strom error` uvádějí, kolik mostů k aplikaci Strom na počítači běží,
+  ke kterému výzkumu každý patří, jeho paměť a součet, a označí most, jehož výzkum už neexistuje; nic se neukončuje.
 - **Žádné změny, které v aplikaci Strom nevznikly:** po zápisu z aplikace Strom už „nezapsáno“ neuvádí citaci rodiny
   s jedním rodičem (starší aplikace Strom ji posílá s prázdným sňatkem) ani pramen úprav v aplikaci Strom (ty
   aplikace nikdy nedostává) jako odebrané.
@@ -92,9 +93,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   v dialogu aplikace), nikdy samo ani na pokyn agenta.
   U souboru, který se rodiny zjevně netýká (snímek obrazovky, účtenka, omylem nahraný soubor), to čtenář řekne
   i s důvodem, aby ho šlo v aplikaci Strom skrýt; samo se nic neskryje ani nesmaže.
-  Třídění čte textový soubor (.txt, .md) jako text a posoudí ho podle toho, co v něm stojí, během práce říká, kolik souborů už má hotových (aplikace Strom to ukazuje), a u každého souboru bez návrhu řekne proč (nic neřekl, nic nového, vynechán, čtení selhalo).
+  Třídění čte textový soubor (.txt, .md) jako text a posoudí ho podle toho, co v něm stojí, během práce říká, kolik souborů už má hotových (aplikace Strom to ukazuje), a u každého souboru bez návrhu řekne proč (nic neřekl, nic nového, vynechán, čtení selhalo). Čtenář může také říct, který soubor je rubem jiné fotky nebo strany z těch, které dostal, a který obrázek je portrétem osoby, aby to aplikace Strom nabídla.
   Třídění materiálu se bez dotazu spustí jen tehdy, když ho přijal a podepsal most aplikace Strom; záznam zapsaný jinak
   (nebo zařazený starší verzí) se nespustí a je potřeba ho zadat znovu v aplikaci.
+  Aplikace Strom u každého souboru ukazuje prameny z něj vytvořené, z něj vystřižené nebo s obrázkem stejného obsahu,
+  i s osobami, které je citují, a zda je má její strom; soubor, u kterého třídění nic nenavrhlo, a soubor se stejným
+  obsahem jako jiný jsou označené, aby se neposílaly znovu, a ve výzkumu s mnoha obrázky přijde seznam několikrát
+  rychleji. Z aplikace jde najednou třídit až 1 500 souborů: po dávkách po 50, jedna za druhou, dokud běží most, každá
+  v limitech čtení aplikace a ukázaná hned, jak je hotová; celý běh jde zastavit najednou. Soubor rodinného materiálu
+  jde smazat natrvalo – jen člověkem (`strom input delete` nebo v aplikaci Strom po výčtu všeho, čeho se týká), nikdy
+  agentem: jeho prameny si nechají text i citace, jeho obrázky a výřezy zmizí, jen když stejný obsah nedrží jiný soubor
+  ani jiný výzkum, a zůstane jen v dřívějších zálohách výzkumu.
 
 ## 1.34.0
 
