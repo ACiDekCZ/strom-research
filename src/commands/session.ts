@@ -153,7 +153,7 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
 function takeSaved(tree: Tree, shared: string | undefined): TakenFolder[] {
   if (!shared || tree.dryRun) return [];
   try {
-    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem);
+    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem || t.aside?.length);
   } catch {
     return [];
   }

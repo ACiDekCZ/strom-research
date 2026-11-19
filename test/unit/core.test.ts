@@ -198,7 +198,7 @@ test("seal: signatures detect any change", () => {
 });
 
 test("image numbers: the part of an archive's file names that changes, not its call number", async () => {
-  const { imageNumbers, numberInName } = await import("../../src/core/media.ts");
+  const { imageNumbers, namedByNumber, numberInName } = await import("../../src/core/media.ts");
   const aron = [140, 141, 142].map((n) => `CZ_215000010_00190_KY2F4VMU_00${n}_sign-2873.jpg`);
   assert.deepEqual(imageNumbers(aron), [140, 141, 142]);
   assert.equal(numberInName(aron[1]!), 141, "one file: the zero-padded number");
@@ -207,6 +207,21 @@ test("image numbers: the part of an archive's file names that changes, not its c
   assert.deepEqual(imageNumbers(["004951234_00007.jpg", "004951234_00012.jpg", "004951234_00013.jpg"]), [7, 12, 13]);
   assert.deepEqual(imageNumbers(["page-9.png", "page-10.png"]), [9, 10]);
   assert.deepEqual(imageNumbers(["Křest.jpg"]), [undefined]);
+  // a copy a file manager made: the number of the image, never of the copy (B0408: "33 2.jpg" was taken for image 2)
+  for (const copy of ["33 2.jpg", "33 (2).jpg", "33 copy.jpg", "33 copy 2.jpg", "33 kopie.jpg", "33 kopie 3.jpg", "33 Kopie 2.jpg", "33 - Copy.jpg", "33 - Copy (2).jpg", "33 – kopie.jpg", "33 – kopie (2).jpg", "33 - kopia (2).jpg", "33 — копия.jpg", "33 kopie.jpg".normalize("NFD"), "s0033 2.jpg", "s0033 - Copy.jpg"])
+    assert.equal(numberInName(copy), 33, copy);
+  assert.deepEqual(imageNumbers(["33 2.jpg", "33 3.jpg"]), [33, 33], "two copies of one image");
+  assert.deepEqual(imageNumbers(["33.jpg", "33 2.jpg", "34 kopie.jpg"]), [33, 33, 34]);
+  // what is no copy's suffix stays the image's number
+  assert.equal(numberInName("Lhota 1850 33.jpg"), 33);
+  assert.equal(numberInName("snímek (33).jpg"), 33, "a number in parentheses alone is the image's");
+  assert.equal(numberInName("33 12.jpg"), 12, "a bare number after a number: a copy's only up to 9");
+  // a copy of a zoomed-in part ("33a.jpg") is the image its number names, too
+  for (const copy of ["33a 2.jpg", "33a 3.jpg", "33a (2).jpg", "33a copy.jpg", "33a - Copy (2).jpg", "33á 2.jpg".normalize("NFD")]) {
+    assert.equal(numberInName(copy), 33, copy);
+    assert.equal(namedByNumber(copy), true, copy);
+  }
+  assert.equal(numberInName("Lhota 2.jpg"), 2, "a bare number after a word is no copy's suffix");
 });
 
 test("a conflict of the user's edit an older strom titled in GEDCOM words reads in the research's language (found on Mac: \"Petr Svoboda: SEX — U × F\" in the Strom app)", () => {

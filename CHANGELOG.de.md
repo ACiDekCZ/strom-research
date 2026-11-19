@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.35.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
   brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
@@ -49,7 +49,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   aus der Strom-App gesendeter Scan nicht mehr abgelehnt, wenn sein Name keine Bildnummer nennt oder mehrere (ein Jahr
   und die Nummer eines Akts, Datum und Uhrzeit der Kamera): Er erhält die nächste freie Nummer des Buchs (nach der
   höchsten vorhandenen), mehrere auf einmal nacheinander; eine in der App angegebene Nummer oder die eine Nummer im
-  Namen hat weiter Vorrang. Die Brücke nennt der Strom-App die nächste freie Nummer, damit die App sie anbieten kann.
+  Namen hat weiter Vorrang. Die Brücke nennt der Strom-App die nächste freie Nummer, damit die App sie anbieten kann. Eine Kopie eines gespeicherten Bilds, die ein Dateimanager angelegt hat (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`), ist das Bild, das ihre Nummer nennt; eine Datei, die nur nach ihrer Nummer benannt ist, wird nie nach der Reihenfolge auf ein anderes Bild nummeriert, und eine Datei, die derselbe Scan wie ein anderes Bild ist, wird daneben beiseitegelegt und gemeldet – nie stillschweigend gelöscht.
   Eine von gelieferten Bildern geweckte Aufgabe kommt als Nächstes: Eine Aufgabe, die auf Bilder eines Buchs wartete,
   kommt als nächste in die Warteschlange zurück, als wäre sie von Hand nach vorn gestellt (nach der laufenden Arbeit),
   wenn die Bilder von der Person kommen – aus der Strom-App für sie gesendet, in ihren Ordner des gemeinsamen Eingangs
@@ -67,7 +67,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Anfang der Notiz der Forschung ist (wie eine ältere App sie hielt, oder in der App gekürzt – auch zwischen einem
   Buchstaben und seinem Akzent), wird nie von selbst übernommen: strom sync sagt es in einer Zeile, und eine Frage
   wartet auf den Menschen (in dem, was wartet, und in der Strom-App), ob die kürzere Notiz übernommen oder die der
-  Forschung beibehalten wird. Gefragt wird einmal: derselbe Baum, erneut gesendet, fragt nichts mehr. Wenn strom die
+  Forschung beibehalten wird. Gefragt wird einmal: derselbe Baum, erneut gesendet, fragt nichts mehr und sagt, dass die Frage weiter wartet. Wenn strom die
   Notizen zurücksetzt, die eine Sendung der Strom-App bei einer ähnlichen Angabe geschrieben hat, bleibt eine seitdem
   geänderte Notiz, wie sie ist, und eine Aufgabe, sie zu prüfen, wartet auf den Menschen (in dem, was wartet, und in der
   Strom-App), nie nur eine Zeile in der Geschichte.
@@ -113,6 +113,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bei einer Datei, die offensichtlich nichts mit der Familie zu tun hat (ein Bildschirmfoto, ein Kassenbon, eine aus
   Versehen hochgeladene Datei), sagt der Leser das mit seinem Grund, damit sie sich in der Strom-App ausblenden lässt;
   von selbst wird nichts ausgeblendet oder gelöscht.
+  Eine Sortierung liest eine Textdatei (.txt, .md) als Text und beurteilt sie nach dem, was darin steht, sagt während der Arbeit, mit wie vielen Dateien sie fertig ist (die Strom-App zeigt es), und sagt bei jeder Datei ohne Vorschlag, warum (nichts gesagt, nichts Neues, ausgelassen, das Lesen schlug fehl).
   Eine Sortierung des Materials startet ohne Rückfrage nur, wenn die Brücke der Strom-App sie angenommen und signiert
   hat; ein anders geschriebener (oder von einer älteren Version eingereihter) Eintrag startet nicht und wird in der App
   erneut angefordert.

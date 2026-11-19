@@ -204,14 +204,14 @@ done: 4 files`,
     ]);
     assert.deepEqual(marks(dir), ["start", "end"], "one reader for four files");
 
-    // what the reader was told: the person's words in NFC, the title of theirs done, the PDF's pages, the letter by its name
+    // what the reader was told: the person's words in NFC, the title of theirs done, the PDF's pages, the letter as text
     const told = fs.readFileSync(path.join(dir, "told.txt"), "utf8");
     assert.ok(told.includes(text.normalize("NFC")), "the person's text in NFC");
     assert.ok(!told.includes(text), "never in NFD");
     assert.ok(told.includes(`title: Parte Václava (the person's — DONE: propose no title)`), told.slice(0, 2000));
     assert.ok(/links now \(DONE — never propose them again\): person P0001/u.test(told));
     assert.ok(told.includes("(page 1 of 2)") && told.includes("(page 2 of 2)"), "a PDF of scans: its pages, no converter needed");
-    assert.ok(new RegExp(`${letter} · "dopis Лгота.txt"[^\\n]*\\n(?:  [^\\n]*\\n)*  not opened \\(no picture\\)`, "u").test(told), "the letter judged by its name");
+    assert.ok(new RegExp(`${letter} · "dopis Лгота.txt"[^\\n]*\\n(?:  [^\\n]*\\n)*  read as text: `, "u").test(told), "the letter read as text (no longer judged by its name)");
     assert.ok(told.includes("Václav Lhoták (1890–1960)") || told.includes("Václav Lhoták"), "the tree's people");
     assert.ok(told.includes(`F0001 · Václav Lhoták [P0001] & Eva Lhotáková [P0002]`), "its couples");
     assert.ok(told.includes("S0001 · Matrika zemřelých Lhota (burial)"), "its sources");

@@ -10,9 +10,10 @@
 //     (core/books.ts waitTarget: the book given with --book, else the one its words name beyond its where): its folder;
 //     a book still to be found (a place in words beside the book of the trail): no folder.
 //
-// The files of a folder are numbered by their names (the number the portal's viewer counts); named otherwise (a
-// screenshot's time, a download's own name), by their order when there are as many as images missing; else nothing is
-// taken and it is said what is needed. A file is taken once it has settled (not written for SETTLE_MS): a large scan
+// The files of a folder are numbered by their names (the number the portal's viewer counts; a copy's suffix a file
+// manager added aside, "33 2.jpg"); named otherwise (a screenshot's time, a download's own name), by their order when
+// there are as many as images missing — never a file named by a number alone (B0408: "1.jpg" is image 1, not the 33
+// missing); else nothing is taken and it is said what is needed. A file is taken once it has settled (not written for SETTLE_MS): a large scan
 // being copied is never taken half.
 //
 // The folder of a book the tasks still need, with no task waiting on it (spec 105 K1.4: "one download serves them
@@ -24,7 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Media, RecordSet, Repository, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { collectFiles, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, numberInName, parseImageList } from "./media.ts";
+import { collectFiles, copyless, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, namedByNumber, numberInName, parseImageList } from "./media.ts";
 import { waitKindOf } from "./waitkind.ts";
 import { booksOfTask, needsBooks, waitTarget } from "./books.ts";
 import { imageFileTimesOf } from "./knownterms.ts";
@@ -121,6 +122,13 @@ export interface BookFolder {
   times?: number;
 }
 
+/** By how much a portal's .jp2 names an image of this book (strom's list, imageFileTimes), when it says. */
+export function bookTimes(tree: Tree, b: RecordSet | string): number | undefined {
+  const book = typeof b === "string" ? tree.get<RecordSet>(b) : b;
+  const url = book?.url ?? (book?.repository ? tree.get<Repository>(book.repository)?.url : undefined);
+  return url ? imageFileTimesOf(hostOf(url)) : undefined;
+}
+
 /**
  * The folders of the books tasks still need that no task waits on (those are inboxWaits'), each once, by the books'
  * IDs. Nothing made: a folder the person never made has nothing to take.
@@ -135,8 +143,7 @@ export function bookFolders(tree: Tree): BookFolder[] {
       if (waited.has(folder.normalize("NFC"))) continue;
       let f = by.get(b.id);
       if (!f) {
-        const url = b.url ?? (b.repository ? tree.get<Repository>(b.repository)?.url : undefined);
-        const times = url ? imageFileTimesOf(hostOf(url)) : undefined;
+        const times = bookTimes(tree, b);
         f = { recordset: b.id, folder, tasks: [], ...(times ? { times } : {}) };
         by.set(b.id, f);
       }
@@ -176,14 +183,17 @@ export type Numbered =
 
 /**
  * The image number of each file: by the names when they say one each (and, of images asked for, at least one of those);
- * else by their order onto the images still missing when there are as many files; else why not.
+ * else by their order onto the images still missing when there are as many files and none is named by a number alone
+ * (B0408: "1.jpg" of a task waiting for 33 was taken for 33 — a number a person named is never overruled by the order;
+ * a portal's own name or a screenshot's date and time is); else why not. `times`: a portal's .jp2 counted back
+ * (numberBookFiles).
  */
-export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string): Numbered {
-  const names = imageNumbers(files);
+export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string, times?: number): Numbered {
+  const names = imageNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
   const named = names.every((n): n is number => n !== undefined && n > 0);
   if (named && (!want?.length || names.some((n) => want.includes(n!)))) return { numbers: names as number[], by: "names" };
   const missing = (want ?? []).filter((n) => !have.has(n));
-  if (want?.length && missing.length && files.length === missing.length) return { numbers: missing, by: "order" };
+  if (want?.length && missing.length && files.length === missing.length && !files.some(namedByNumber)) return { numbers: missing, by: "order" };
   const said = names.filter((n): n is number => n !== undefined);
   if (!want?.length)
     return {
@@ -229,7 +239,7 @@ export function inboxState(tree: Tree, shared: string | undefined, t: Task): Inb
   const files = folderFiles(dir);
   const reg = registeredImages(tree, w.recordset);
   const want = w.want ?? [];
-  const numbered = files.length ? numberFiles(files, w.want, reg, w.recordset) : undefined;
+  const numbered = files.length ? numberFiles(files, w.want, reg, w.recordset, bookTimes(tree, w.recordset)) : undefined;
   const lyingNums = numbered && "numbers" in numbered ? new Set(numbered.numbers) : new Set<number>();
   const missing = want.filter((n) => !reg.has(n) && !lyingNums.has(n));
   // which ones not known: the files lying there and the images the Strom app handed to it for this wait
@@ -245,7 +255,8 @@ export function nextImage(registered: Iterable<number>, lying: string[]): number
   let top = 0;
   for (const n of registered) if (n > top) top = n;
   for (const f of lying) {
-    const stem = path.basename(f).normalize("NFC").replace(/\.[^.]*$/u, "");
+    // (a copy's suffix a file manager added aside: "33 2.jpg" is 33)
+    const stem = copyless(f);
     if ((stem.match(/\p{Nd}+/gu)?.length ?? 0) !== 1) continue;
     const n = numberInName(stem);
     if (n !== undefined && n > top) top = n;

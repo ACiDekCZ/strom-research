@@ -13,7 +13,7 @@ import { Tree } from "../../src/core/tree.ts";
 import { inboxFolderFor } from "../../src/core/media.ts";
 import { numberFiles, unsettled, SETTLE_MS } from "../../src/core/inboxwait.ts";
 import { watchInbox } from "../../src/core/inboxwatch.ts";
-import type { Task } from "../../src/core/model.ts";
+import type { Media, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
@@ -39,8 +39,19 @@ async function world(): Promise<{ w: World; shared: string }> {
 test("the files of a folder: numbered by their names, else by their order when as many as missing, else why not", () => {
   const have = new Set<number>();
   assert.deepEqual(numberFiles(["/x/9.jpg", "/x/10.jpg"], [9, 10], have, "B0002"), { numbers: [9, 10], by: "names" });
-  // the portal's own names (×10): none of the numbers asked for — by their order onto the missing ones
+  // the portal's own names (×10): by their order onto the missing ones; a .jp2 of an archive strom's list says counts
+  // them so, counted back
   assert.deepEqual(numberFiles(["/x/kniha-00090.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002"), { numbers: [9, 10], by: "order" });
+  assert.deepEqual(numberFiles(["/x/kniha-00090.jp2", "/x/kniha-00100.jp2"], [9, 10], have, "B0002", 10), { numbers: [9, 10], by: "names" });
+  // a file named by a number alone is never numbered by the order (B0408: "1.jpg" of a task waiting for 33 taken for 33)
+  const one = numberFiles(["/x/1.jpg"], [33], new Set(), "B0408");
+  assert.ok("problem" in one && one.code === "inbox.count", JSON.stringify(one));
+  assert.match((one as { problem: string }).problem, /images 33 of B0408 were asked for, but the file names give 1 .*name each by the number its viewer counts \(33\.jpg\)/u);
+  // a copy a file manager made (Finder's "33 2.jpg", Explorer's "33 - Copy (2).jpg"): the image's number, not the copy's
+  assert.deepEqual(numberFiles(["/x/33 2.jpg"], [33], have, "B0408"), { numbers: [33], by: "names" });
+  assert.equal((numberFiles(["/x/1a.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002") as { code: string }).code, "inbox.count");
+  // a screenshot's date and time is no image's number: by their order
+  assert.deepEqual(numberFiles(["/x/Snímek obrazovky 2026-11-17 v 10.21.47.png".normalize("NFD")], [33], have, "B0408"), { numbers: [33], by: "order" });
   // a screenshot's name in any script, decomposed (NFD): no number, by order
   assert.deepEqual(numberFiles(["/x/Снимок экрана.png".normalize("NFD")], [10], new Set([9]), "B0002"), { numbers: [10], by: "order" });
   const count = numberFiles(["/x/a.jpg", "/x/b.jpg", "/x/c.jpg"], [9, 10], have, "B0002");
@@ -185,4 +196,45 @@ test("K1.2: the bridge's watch takes what is saved once it has settled, only the
     watch.end();
   }
   w.cleanup();
+});
+
+test("B0408: a file that is the same scan as another image is never deleted unsaid — set aside beside it, said by strom media add --inbox and in the bridge's log", opts, async () => {
+  const { w, shared } = await world();
+  await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", "https://archive.example.org/book/77"]); // B1
+  await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+  await w.ok(["task", "wait", "T1", "--images", "B1:9-10", "--on", "snímky 9–10 knihy Lhota"]);
+  const folder = inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" });
+  const dir = path.join(shared, "inbox", folder);
+  fs.mkdirSync(dir, { recursive: true });
+  // a copy Finder made of the first image: image 9, never image 2
+  saved("grey.jpg", path.join(dir, "9 2.jpg"));
+  const first = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+  const m9 = Tree.open(w.cwd, w.env).list<Media>("media").find((m) => m.recordset === "B0001");
+  assert.equal(m9?.image, 9, JSON.stringify(first.json));
+  // the same scan saved again as image 10: not taken, kept beside it under a name that says which image it is
+  saved("grey.jpg", path.join(dir, "10.jpg"));
+  const r = await w.ok(["media", "add", "--inbox", "--waiting"]);
+  const aside = `10.jpg.same-as-${m9!.id}`;
+  assert.ok(r.out.includes(`⚠ the file for image 10 of B0001 is the same scan as ${m9!.id} (B0001:9), registered already — not taken, set aside as ${aside}`), r.out);
+  assert.ok(fs.existsSync(path.join(dir, aside)), "set aside, never deleted");
+  assert.ok(!fs.existsSync(path.join(dir, "10.jpg")));
+  assert.equal(Tree.open(w.cwd, w.env).get<Task>("T0001")!.state, "waiting", "image 10 still missing");
+  // set aside once: the next look takes nothing again
+  const again = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
+  assert.ok(!((again.json.taken ?? []) as { aside?: string[] }[]).some((t) => t.aside?.length), JSON.stringify(again.json));
+  // the bridge: what it set aside said in its log
+  fs.rmSync(path.join(dir, aside));
+  Object.assign(w.env, { STROM_INBOX_POLL_MS: "200", STROM_INBOX_SETTLE_MS: "100" });
+  await w.ok(["live", "start"]);
+  try {
+    saved("grey.jpg", path.join(dir, "10.jpg"));
+    const log = path.join(w.cwd, ".strom", "live.log");
+    const said = () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "");
+    for (let i = 0; i < 200 && !said().includes("same scan as"); i++) await wait(100);
+    assert.ok(said().includes(`inbox ${folder}: the file for image 10 of B0001 is the same scan as ${m9!.id} (B0001:9)`), said());
+    assert.ok(fs.existsSync(path.join(dir, aside)), "the bridge sets it aside too");
+  } finally {
+    await w.ok(["live", "stop"]);
+    w.cleanup();
+  }
 });

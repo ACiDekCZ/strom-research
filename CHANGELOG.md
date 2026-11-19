@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.35.0-beta.6. The section is complete with the release.*
 
 - **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
   put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
@@ -44,7 +44,7 @@ The changes of each version in short. The full notes and the install lines are o
   gives no image number, or several (a year and an act's number, a camera's date and time): it gets the book's next
   free number (after the highest there), several at once one after another; a number given in the app, or the one
   number in the name, still goes first. The bridge tells the Strom app the next free number, so that the app can offer
-  it. A task woken by the images given for it comes next: a task that waited for images of a book comes back into the
+  it. A copy a file manager made of a saved image (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`) is the image its number names, a file named by its number alone is never numbered by the order onto another image, and a file that is the same scan as another image is set aside beside it and said, never deleted unsaid. A task woken by the images given for it comes next: a task that waited for images of a book comes back into the
   queue next, as if put next by hand (after the work at hand), when the images come from the person — sent for it from
   the Strom app, saved into its folder of the shared inbox, or taken with `strom media add --inbox`. Several woken at
   once all come forward, among them in the usual order. It holds once: after a session on the task the usual order
@@ -58,7 +58,7 @@ The changes of each version in short. The full notes and the install lines are o
   beginning of the research's own (as an older app kept it, or shortened in the app — a cut between a letter and its
   accent too) is never taken by itself: strom sync says so in one line, and a question waits for the person (in what
   waits and in the Strom app) whether the shorter note is taken or the research's kept. It is asked once: the same tree
-  sent again asks nothing more. When strom puts back the notes that a send of the Strom app wrote to a fact alike, a
+  sent again asks nothing more and says that the question still waits. When strom puts back the notes that a send of the Strom app wrote to a fact alike, a
   note changed since is left as it is and a task to check it waits for the person (in what waits and in the Strom app),
   never only a line in the history.
 - **Windows: nothing left running after the login check, a link's window titled:** the check whether the agent in the terminal is logged in
@@ -97,6 +97,7 @@ The changes of each version in short. The full notes and the install lines are o
   after the person's yes (in their terminal, a window of the system, or the app's dialog), never by itself or by an agent.
   A file plainly not about the family (a screenshot, a receipt, a file sent by mistake) the reader says so of, with
   its reason, so that it can be hidden in the Strom app; nothing is hidden or deleted by itself.
+  A sort reads a text file (.txt, .md) as text and judges it by what it says, says while at work how many files it is done with (the Strom app shows it), and says of every file without a proposal why (nothing said, nothing new, left out, its reader failed).
   A sort of the material starts without asking only when the Strom app's bridge took and signed it; a record written any
   other way (or queued by an older version) is not started and is asked for again in the app.
 

@@ -29,6 +29,11 @@ export function shorterAsked(tree: Tree, s: ShorterNote): boolean {
   return tree.list<Task>("task").some((t) => t.origin === SHORTER_ORIGIN && t.state !== "dropped" && !!t.shorterNote && sameAsk(t.shorterNote, s));
 }
 
+/** The person's question of this note still waiting for their answer (asked by an earlier send): its task, else none. */
+export function shorterWaiting(tree: Tree, s: ShorterNote): string | undefined {
+  return tree.list<Task>("task").find((t) => t.origin === SHORTER_ORIGIN && t.state !== "dropped" && t.state !== "done" && !!t.shorterNote && sameAsk(t.shorterNote, s))?.id;
+}
+
 /** The research's participant the note is of: the role, who, the note as asked. */
 function partAt(parts: readonly Participant[], s: ShorterNote): number {
   return parts.findIndex((x) => x.role === s.role && (s.person ? x.person === s.person : !x.person && whoKey(x) === whoKey(s)) && noteLine(x.note ?? "") === s.whole);

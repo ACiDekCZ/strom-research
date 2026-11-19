@@ -1248,11 +1248,13 @@ function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveIn
   // (a stuck bridge before it is ended first: up to some seconds) — a computer under load starts one slowly (the tree
   // settled, /status made first): the bridge still starting, its process alive, is waited for longer, never for ever
   const started = Date.now();
+  // (STROM_LIVE_START_MS: the first wait made short, so a test proves a slow start is waited for without a slow computer)
+  const firstMs = Number(env.STROM_LIVE_START_MS ?? BRIDGE_START_MS);
   for (;;) {
     const info = liveRunning(root);
     if (info) return before && (before.port !== info.port || before.token !== info.token) ? { ...info, moved: true } : info;
     const waited = Date.now() - started;
-    if (waited < BRIDGE_START_MS) sleep(50);
+    if (waited < firstMs) sleep(50);
     else if (waited < BRIDGE_START_MAX_MS && child.pid !== undefined && isBridge(child.pid)) sleep(250);
     else return undefined;
   }
@@ -7217,10 +7219,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
               return done(false);
             }
             try {
-              const data = JSON.parse(out) as { taken?: { folder: string; added: number[]; problem?: string; left?: number }[]; woken?: string[] };
-              for (const t of data.taken ?? [])
+              const data = JSON.parse(out) as { taken?: { folder: string; added: number[]; problem?: string; left?: number; aside?: string[] }[]; woken?: string[] };
+              for (const t of data.taken ?? []) {
                 if (t.added.length || t.problem)
                   noteLive(root, `inbox ${t.folder}: ${t.problem ? `nothing taken — ${t.problem}` : `${counted(t.added.length, "image")} registered${t.left ? `, ${counted(t.left, "file")} without an image number left lying` : ""}`}`);
+                // a file that is the same scan as another image: set aside, never deleted unsaid (B0408)
+                for (const a of t.aside ?? []) noteLive(root, `inbox ${t.folder}: ${a}`);
+              }
               if (data.woken?.length) noteLive(root, `back in the queue (images saved): ${data.woken.join(", ")}`);
             } catch {
               // said by the exit code

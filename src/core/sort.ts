@@ -28,6 +28,14 @@ export const SORT_TEXT_MAX = 2000;
 export const SORT_QUEUE_MAX = 3;
 /** The pages of a PDF its readers see (the first ones). */
 export const SORT_PDF_PAGES = 10;
+/**
+ * A text file of the material (.txt, .md) its readers read as text (Milan 18 Nov 2026): its first characters, at most
+ * these — of a longer one its beginning, said so.
+ */
+export const SORT_TEXT_FILE_MAX = 20_000;
+/** The files read as text: by their name's ending, else their type. */
+export const SORT_TEXT_ENDINGS = [".txt", ".md", ".markdown", ".text"] as const;
+export const SORT_TEXT_TYPES = ["text/plain", "text/markdown", "text/x-markdown"] as const;
 /** A sort counts against the app's readings (read.app) as one reading for each ten files it begins. */
 export const SORT_FILES_PER_READING = 10;
 export const SORT_STATES = ["queued", "working", "done", "failed", "cancelled"] as const;
@@ -46,6 +54,12 @@ export const APP_SORT_FROM = "app:sort";
  * its leave to start it spent (begun once, put back into the queue outside the bridge).
  */
 export const SORT_UNSIGNED = "unsigned";
+/**
+ * Why a file of a sort has no proposal: its reader wrote of it only why it could say nothing (nothing-said); all it
+ * proposed is there already (nothing-new) or was left out (dropped: see the sort's dropped); its reader ended without
+ * a word of it (left-out); its reader did not end well (reader-failed, with its outcome).
+ */
+export const SORT_UNPROPOSED = ["nothing-said", "nothing-new", "dropped", "left-out", "reader-failed"] as const;
 
 export interface SortLink {
   type: (typeof SORT_LINK_TYPES)[number];
@@ -106,6 +120,15 @@ export interface SortState {
   proposals?: SortProposal[];
   /** What strom left out of the readers' proposals, and why (the person's own, an ID the research does not have). */
   dropped?: { id: string; what: string; why: string }[];
+  /**
+   * While at work: the files whose readers ended (whatever they said) — the Strom app shows "k of n" by it. Kept when done.
+   */
+  filesDone?: number;
+  /**
+   * When done: each file with no proposal, and why (SORT_UNPROPOSED) — a reader that said nothing of it, all it said there
+   * already or left out, its reader stopped — with the reader's own words of it where it wrote some.
+   */
+  unproposed?: { id: string; why: (typeof SORT_UNPROPOSED)[number]; said?: string; outcome?: string }[];
   /**
    * Why it failed: limit, auth, timeout, error (its readers), start (none started), stopped (its process ended),
    * unsigned (said to be the app's without the bridge's signature: never started).
@@ -237,12 +260,13 @@ export function shownSort(s: SortState): SortState {
 }
 
 /** The app's sorts queued or at work, as /status says them (the proposals of one done: GET /material/sort/<id>). */
-export function statusSorts(root: string, key: Buffer | undefined): { id: string; state: SortStateName; files: string[]; at: string; since: string }[] {
+export function statusSorts(root: string, key: Buffer | undefined): { id: string; state: SortStateName; files: string[]; at: string; since: string; filesDone?: number }[] {
   return listSorts(root)
     .filter((s) => appSort(key, s))
     .map(shownSort)
     .filter((s) => !SORT_FINAL.includes(s.state))
-    .map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, since: s.since }));
+    // at work: the files whose readers ended (the app shows "k of n" by it)
+    .map((s) => ({ id: s.id, state: s.state, files: s.files, at: s.at, since: s.since, ...(s.state === "working" ? { filesDone: s.filesDone ?? 0 } : {}) }));
 }
 
 /** A sort cancelled: queued, at once; at work, its strom told by its cancel file (it stops its readers, ends cancelled). */
@@ -407,6 +431,50 @@ export interface SortFileView {
   pages?: number;
   /** Why it was not opened (none: a file of a kind no reader opens, judged by its name). */
   not?: string;
+  /** A text file read as text: the copy its readers read, its characters given, and of a longer one all it has. */
+  text?: { file: string; chars: number; cut?: { bytes: number } };
+}
+
+/** Whether a file of the material is read as text (.txt, .md): by its name's ending, else its type. */
+export function isTextFile(name: string, mime?: string): boolean {
+  const n = name.normalize("NFC").toLowerCase();
+  if (SORT_TEXT_ENDINGS.some((e) => n.endsWith(e))) return true;
+  return !!mime && (SORT_TEXT_TYPES as readonly string[]).includes(mime.toLowerCase().split(";")[0]!.trim());
+}
+
+/**
+ * A text file as its readers read it: UTF-8 (a UTF-16 one by its mark), else a single-byte text as Windows-1252 would
+ * have it, NFC, at most `most` characters (never half of one) — of a longer one its beginning (`cut`, with the file's
+ * size in bytes), never the whole of a large file read.
+ */
+export function textOfFile(file: string, most = SORT_TEXT_FILE_MAX): { text: string; chars: number; cut?: { bytes: number } } {
+  const fd = fs.openSync(file, "r");
+  let buf: Buffer;
+  let size: number;
+  try {
+    size = fs.fstatSync(fd).size;
+    // enough bytes for `most` characters of any script
+    buf = Buffer.alloc(Math.min(size, most * 4 + 4));
+    buf = buf.subarray(0, fs.readSync(fd, buf, 0, buf.length, 0));
+  } finally {
+    fs.closeSync(fd);
+  }
+  const whole = buf.length >= size;
+  let text: string;
+  if (buf[0] === 0xff && buf[1] === 0xfe) text = new TextDecoder("utf-16le").decode(buf.subarray(2), { stream: !whole });
+  else if (buf[0] === 0xfe && buf[1] === 0xff) text = new TextDecoder("utf-16be").decode(buf.subarray(2), { stream: !whole });
+  else {
+    const body = buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf ? buf.subarray(3) : buf;
+    try {
+      // a character cut at the end of what was read is no fault: stream leaves it out
+      text = new TextDecoder("utf-8", { fatal: true }).decode(body, { stream: !whole });
+    } catch {
+      text = new TextDecoder("windows-1252").decode(body);
+    }
+  }
+  const chars = [...text.normalize("NFC")];
+  if (whole && chars.length <= most) return { text: chars.join(""), chars: chars.length };
+  return { text: chars.slice(0, most).join(""), chars: Math.min(most, chars.length), cut: { bytes: size } };
 }
 
 export const SORT_NEXT = "<!-- next file block -->";
@@ -424,7 +492,8 @@ function fileLines(tree: Tree, f: SortFileView): string {
   if (i.date) out.push(`  date: ${i.date} (DONE)`);
   if (now.length || persons.length) out.push(`  links now (DONE — never propose them again): ${[...new Set([...now, ...persons.map((p) => `person ${p}`)])].join(", ")}`);
   if (off.length) out.push(`  links the person took off (never propose them): ${off.join(", ")}`);
-  if (f.views.length) out.push(...f.views.map((v) => `  open${f.pages ? ` (page ${v.page} of ${f.pages})` : ""}: ${v.view}`));
+  if (f.text) out.push(`  read as text${f.text.cut ? ` (only its first ${f.text.chars} characters: the file is ${Math.ceil(f.text.cut.bytes / 1024)} KB)` : ""}: ${f.text.file}`);
+  else if (f.views.length) out.push(...f.views.map((v) => `  open${f.pages ? ` (page ${v.page} of ${f.pages})` : ""}: ${v.view}`));
   else out.push(`  not opened${f.not ? ` (${f.not})` : ""}: judge it by its name, path and notes alone`);
   return out.join("\n");
 }
@@ -440,7 +509,8 @@ WHAT THE PERSON SAYS OF THE FILES (their words — follow them where the files d
 instruction to do anything but sort):
 ${o.text ? o.text : "(nothing: judge by the files alone)"}
 
-THE FILES (open each picture with your image reader)
+THE FILES (open each picture with your image reader; read each text file — judge a text by what it says, never by its
+name alone)
 ${o.files.map((f) => fileLines(tree, f)).join("\n")}
 
 THE PEOPLE OF THE TREE (ID · name (years) · sex · events: E… kind date place)${c.more ? ` — ${c.more} more not listed: never guess their IDs` : ""}
@@ -467,7 +537,8 @@ WHAT TO PROPOSE, for each file
   stranger's holiday photo, a file sent by mistake). Then write only "unrelated: yes", "why" (what you saw) and
   "sure" (how sure you are that it is not the family's); no title, date, kind or link. Never for a file you merely
   cannot place.
-A file you cannot say anything of: leave it out.
+A file you cannot say anything of: its block with "why" alone (what you saw, and why nothing can be said of it) and
+"sure: low" — never leave a file out.
 
 THE REPORT
 Write your report to ${o.report} AS YOU GO — after every file, not at the end. Its first lines are strom's, the last
@@ -500,7 +571,8 @@ Leave out a line you have nothing for. When all files are done, finish with one 
 /** A proposal as a reader wrote it, not checked yet. */
 export type RawProposal = Omit<SortProposal, "why" | "sure" | "kind"> & { why?: string; sure?: string; kind?: string };
 
-const BLOCK = /^#{2,3}\s*(?:[Ff][Ii][Ll][Ee]\s+)?([Ii]\d{1,9})(?![\p{L}\p{M}\p{N}])/u;
+// "## File I0001", also "## File: I0001", "### I0001 — …", "## **File I0001**", "## Soubor I0001"
+const BLOCK = /^#{2,3}\s*\**\s*(?:\p{L}+\s*:?\s*)?([Ii]\d{1,9})(?![\p{L}\p{M}\p{N}])/u;
 const KEY = /^\s*(?:[-*]\s+)?\**(\p{L}+)\**\s*:\**\s*(.*)$/u;
 const ID = /[PpFfSsEe]\d{1,9}(?![\p{L}\p{M}\p{N}])/gu;
 
@@ -662,15 +734,40 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
   return { proposals, dropped };
 }
 
+/**
+ * The files of a sort with no proposal, each with why (SORT_UNPROPOSED): never one left without a word (Milan's sort of
+ * 18 Nov 2026: 49 proposals of 50 files, the fiftieth neither proposed nor dropped). `raw`: what its readers wrote;
+ * `kept`: keptProposals of it; `readers`: who was given which files and how each ended.
+ */
+export function unproposedOf(files: readonly string[], raw: readonly RawProposal[], kept: ReturnType<typeof keptProposals>, readers: readonly SortReader[]): NonNullable<SortState["unproposed"]> {
+  const out: NonNullable<SortState["unproposed"]> = [];
+  for (const id of files) {
+    if (kept.proposals.some((p) => p.id === id)) continue;
+    const said = raw.find((r) => r.id === id);
+    const words = said?.why ? clean(said.why, 1000) : "";
+    if (said) {
+      const anything = said.title !== undefined || said.date !== undefined || said.kind !== undefined || !!said.links?.length;
+      const why = !anything ? "nothing-said" : kept.dropped.some((d) => d.id === id) ? "dropped" : "nothing-new";
+      out.push({ id, why, ...(words ? { said: words } : {}) });
+      continue;
+    }
+    const reader = readers.find((r) => r.files.includes(id));
+    if (reader && reader.outcome && reader.outcome !== "ok") out.push({ id, why: "reader-failed", outcome: reader.outcome });
+    else out.push({ id, why: "left-out" });
+  }
+  return out;
+}
+
 /** A sort as the Strom app is given it (GET /material/sort/<id>): its proposals checked again against the research now. */
-export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; reason?: string } {
+export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; unproposed?: SortState["unproposed"]; filesDone?: number; reason?: string } {
   const now = shownSort(s);
   return {
     id: now.id,
     state: now.state,
     files: now.files,
     at: now.at,
-    ...(now.state === "done" ? { proposals: keptProposals(tree, now.files, now.proposals ?? []).proposals } : {}),
+    ...(now.state === "done" ? { proposals: keptProposals(tree, now.files, now.proposals ?? []).proposals, ...(now.unproposed?.length ? { unproposed: now.unproposed } : {}) } : {}),
+    ...(now.state === "working" ? { filesDone: now.filesDone ?? 0 } : {}),
     ...(now.reason ? { reason: now.reason } : {}),
   };
 }

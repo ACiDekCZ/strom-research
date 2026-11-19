@@ -374,7 +374,8 @@ async function shorterWorld(): Promise<{ w: World; whole: string; short: string;
   return { w, whole, short, text: t, file: (name) => send(w, name, t) };
 }
 
-const shorterTasks = (w: World) => open(w).list<Task>("task").filter((t) => t.origin === SHORTER_ORIGIN);
+// (one a sync's undo dropped is asked no more)
+const shorterTasks = (w: World) => open(w).list<Task>("task").filter((t) => t.origin === SHORTER_ORIGIN && t.state !== "dropped");
 const godmother = (w: World) => fact(w, "P0001", "CHR").participants?.find((p) => p.role === "godparent")?.note;
 
 test("a participant's note sent shorter than the research's: not taken, said in one line, the person asked once — kept, never asked again (1116, nález 1)", opts, async () => {
@@ -383,8 +384,15 @@ test("a participant's note sent shorter than the research's: not taken, said in 
     const f = file("short.ged");
     const plan = await w.ok(["sync", f], PERSON);
     assert.doesNotMatch(plan.out, /nic nového/u);
+    // a question to the person is no change of the research: counted as what it is (1116, poznámka 1)
+    assert.match(plan.out, /short\.ged: 1 otázka k rozhodnutí, jinak nic proti výzkumu/u);
+    assert.doesNotMatch(plan.out, /1 změna/u);
     assert.match(plan.out, /kmotr\S* Marie Lhotáková, poznámka „selka z Lhoty, .*“ → „selka z Lhoty, vdova po sedlákovi, matka šesti dětí“ → nepřevezme se: je kratší než ve výzkumu — zda ji převzít, čeká v Čeká/u);
-    const r = await w.ok(["sync", f, "--apply", "--json"], FROM_APP);
+    const said = await w.ok(["sync", f, "--apply"], PERSON);
+    assert.match(said.out, /Z short\.ged se ve výzkumu nic nezměnilo: 1 otázka čeká v Čeká \(I\d+\)/u);
+    assert.doesNotMatch(said.out, /Zapsána 1 změna/u);
+    await w.ok(["sync", "undo", /\((I\d+)\)/u.exec(said.out)![1]!], PERSON);
+    const r = await w.ok(["sync", file("short-again.ged"), "--apply", "--json"], FROM_APP);
     assert.equal(godmother(w), whole, "nothing taken");
     const [t, ...more] = shorterTasks(w);
     assert.ok(t && !more.length, "one task");
@@ -397,6 +405,13 @@ test("a participant's note sent shorter than the research's: not taken, said in 
     assert.ok(item && inApp(item) && answersInApp(t), "in What waits, the Strom app's too, answered there");
     // the same tree sent again (another send of it, the file not the one synced): nothing more — no change, no second task
     assert.deepEqual(noteKinds(planSync(open(w), readGedcom(text), "conflict").changes), [], "asked already: no change");
+    // …said while it waits (1116, poznámka 2)
+    // (another file of the same tree: not the very file synced last, which is said as such)
+    const other = send(w, "short2.ged", `${text}\n`);
+    const again = await w.ok(["sync", other], PERSON);
+    assert.match(again.out, /short2\.ged: nic nového .*\n.*Otázka z dřívějšího poslání dál čeká v Čeká \(T\d+\)/u);
+    assert.ok(again.out.includes(`(${t.id})`), again.out);
+    assert.deepEqual((await w.ok(["sync", other, "--json"], PERSON)).json.waiting, [t.id]);
     await w.ok(["sync", file("again.ged"), "--apply"], FROM_APP);
     assert.equal(shorterTasks(w).length, 1, "asked once");
     // an agent decides nothing without the person's answer
@@ -410,6 +425,7 @@ test("a participant's note sent shorter than the research's: not taken, said in 
     assert.match(done.result ?? "", /ponechaná/u);
     assert.equal(godmother(w), whole);
     assert.deepEqual(noteKinds(planSync(open(w), readGedcom(text), "conflict").changes), [], "decided: not asked again");
+    assert.equal(planSync(open(w), readGedcom(text), "conflict").waiting, undefined, "decided: waits no more");
     assert.equal(shorterTasks(w).length, 1);
     const twice = await w.run(["sync", "note", t.id, "take"], PERSON);
     assert.notEqual(twice.code, 0, "decided already");

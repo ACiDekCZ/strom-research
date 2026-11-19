@@ -63,7 +63,7 @@ import { inTree, servedWithMedia } from "./treemedia.ts";
 import { MediaReader, recordOfFile, storeRel, mimeOfForm, type MediaFact, type MediaUnreadable, type SMediaFile, type SMediaPlace } from "./appmedia.ts";
 import { cleanTitle, currentName, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 import { canonicalize } from "./json.ts";
-import { askShorterNote, shorterAsked, SHORTER_ORIGIN } from "./shorternote.ts";
+import { askShorterNote, shorterAsked, shorterWaiting, SHORTER_ORIGIN } from "./shorternote.ts";
 import { appIdBlocks, entryOf, idsAdded, joinIds, livePerson, matchByIds, personIndex, withoutIds, type AddedIds, type IdBlock } from "./originalids.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -2832,6 +2832,8 @@ export interface Plan {
   identity: Identity;
   /** The file's texts whose characters a line split damaged (U+FFFD), mended from what the research has: no edit. */
   mended?: number;
+  /** The person's questions the file would ask again, asked by an earlier send and still waiting (their tasks): no change, said. */
+  waiting?: string[];
 }
 
 /** A file whose confirmations against the scan do not count (an app that was never given them): none of them read. */
@@ -3040,6 +3042,8 @@ export function planSync(
   const partNotes = opts.partNotes ?? (incoming.format === "gedcom" ? appSendsPartNotes(incoming.appVersion) : appDataPartNotes(incoming.dataVersion));
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
+  // the person's questions asked by an earlier send, still waiting (planned again: not asked again, said)
+  const waiting = new Set<string>();
   /** What the file no longer has: an archive takes it away — unless the window that sends never had it (kept, said). */
   const gone = (itHad: boolean): { action: ChangeAction; kept?: true } => (!mirror ? { action: "report" } : itHad ? { action: "remove" } : { action: "report", kept: true });
   // the kinds of facts the file carries at all, of people and of families apart: one it never has is not "gone" (the
@@ -3101,6 +3105,11 @@ export function planSync(
         const asked = { ...p, note: sentNote(p.note) };
         const ask = shorterOf({ was: o, part: asked, wasPart: mine });
         if (ask && !shorterAsked(tree, ask)) push({ kind: "fact.part.note", action: "report", code: "note.shorter", ...owner, fact: f, was: o, part: asked, wasPart: mine });
+        else if (ask) {
+          // asked by an earlier send: not asked again — said while it waits for the person's answer
+          const open = shorterWaiting(tree, ask);
+          if (open) waiting.add(open);
+        }
         return;
       }
       // …or of what the app was given, the research's changed since: the app's cut, never an edit
@@ -3998,7 +4007,7 @@ export function planSync(
         surname: c,
       });
   }
-  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
+  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}), ...(waiting.size ? { waiting: [...waiting].sort() } : {}) };
 }
 
 /** The day a file was written (its HEAD's DATE, "28 OCT 2026" → 2026-10-28). */

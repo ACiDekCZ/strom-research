@@ -34,7 +34,7 @@ import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, bookFolders, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, type InboxWait } from "../core/inboxwait.ts";
+import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
@@ -63,13 +63,15 @@ export interface NewImage {
  * Register images of a record set: stored once by content, each with its number
  * and provenance. Tasks that waited for images of the book go back into the queue.
  */
-export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined, opts: { wake?: boolean; ahead?: string } = {}): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[] } {
+export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined, opts: { wake?: boolean; ahead?: string } = {}): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[]; clashed: { file: string; same: string }[] } {
   // a withdrawn image is no longer known: its file can be registered again, where it belongs
   const known = new Map(tree.list<Media>("media").filter((m) => !m.retracted).map((m) => [m.sha, m]));
   const added: Media[] = [];
   const again: string[] = [];
   const restored: string[] = [];
   const clashes: string[] = [];
+  // the files of those clashes, with the image each is the same file as
+  const clashed: { file: string; same: string }[] = [];
   const copies: string[] = [];
   tree.withTreeLock(() => {
     for (const it of items) {
@@ -91,8 +93,10 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
         const said = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }) => as(m, partShown(shared, [...known.values()], m));
         // a portal whose sharpest part is the whole scan gives the image again: that is no clash
         const sameScan = k.recordset === recordset && k.image === it.image && isWhole(k.part) && isWhole(it.part);
-        if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part }))
+        if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part })) {
           clashes.push(`${said({ recordset, image: it.image, part: it.part })} is the same file as ${k.id} (${said(k)}) — not registered again: the portal may have given another book's image, or a number is wrong; check before citing either`);
+          clashed.push({ file: it.file, same: k.id });
+        }
         continue;
       }
       const stored = tree.dryRun ? it.file : storeShared(shared, it.file, sha);
@@ -132,7 +136,7 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
   });
   // a fetch registering its images in batches wakes the tasks once, when it is over (wakeWaiting)
   const woken = recordset && opts.wake !== false ? wakeWaiting(tree, recordset, added.length, opts.ahead ? { ahead: opts.ahead } : {}) : [];
-  return { added, again, restored, woken, clashes, copies };
+  return { added, again, restored, woken, clashes, copies, clashed };
 }
 
 /**
@@ -214,6 +218,8 @@ export interface TakenFolder {
   book?: true;
   /** Of a book's folder: files left lying, no image number in the name (taken once named by it). */
   left?: number;
+  /** Files that are the same scan as another image registered already: set aside, never deleted (B0408) — what each is. */
+  aside?: string[];
 }
 
 /**
@@ -264,7 +270,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
     // what the tasks of the folder asked for, together
     const asked = ws.some((x) => x.want?.length) ? [...new Set(ws.flatMap((x) => x.want ?? []))].sort((a, b) => a - b) : undefined;
     const before = registeredImages(tree, w.recordset);
-    const numbered = numberFiles(files, asked, before, w.recordset);
+    const numbered = numberFiles(files, asked, before, w.recordset, bookTimes(tree, w.recordset));
     if ("problem" in numbered) {
       out.push({ ...base, added: [], woken: [], missing: (asked ?? []).filter((n) => !before.has(n)), problem: numbered.problem });
       continue;
@@ -279,6 +285,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       woken: r.woken,
       missing: (asked ?? []).filter((n) => !after.has(n) || ws.some((x) => pending.has(`${x.task}:${n}`))),
       ...(r.copies.length ? { copies: r.copies } : {}),
+      ...(r.aside.length ? { aside: r.aside.map((a) => asideLine(w, a, tree)) } : {}),
     });
   }
   // the folders of the books the tasks need (K1.4): what the person saved there by hand, by the numbers in the names
@@ -306,6 +313,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       missing: [],
       ...(r.copies.length ? { copies: r.copies } : {}),
       ...(numbered.left ? { left: numbered.left } : {}),
+      ...(r.aside.length ? { aside: r.aside.map((a) => asideLine(b, a, tree)) } : {}),
     });
   }
   return out;
@@ -475,22 +483,53 @@ function waitForDownloads(tree: Tree, downloads: string, env: NodeJS.ProcessEnv)
  * the queue, but `except`), the files moved into the store, the folder gone once nobody waits on it. What takes the
  * folder (takeWaiting) and what the Strom app sends for the task (takeForTask) both register so.
  */
-function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], numbers: number[], o: { except?: string; from?: string[]; ahead?: string } = {}): ReturnType<typeof registerImages> {
+function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], numbers: number[], o: { except?: string; from?: string[]; ahead?: string } = {}): ReturnType<typeof registerImages> & { aside: SetAside[] } {
   const book = tree.get<RecordSet>(w.recordset);
   const items: NewImage[] = files.map((file, i) => ({ file, image: numbers[i]!, url: book?.url, from: o.from?.[i] ?? path.basename(file) }));
-  const r = registerImages(tree, shared, items, w.recordset, { wake: false });
+  const r = { ...registerImages(tree, shared, items, w.recordset, { wake: false }), aside: [] as SetAside[] };
   // an image saved once more (strom media save --again) came: its new copy, or the same scan again (nothing sharper
   // to have) — what its task waited for either way
   const settled = settleAgain(tree, w.recordset, numbers);
   r.woken.push(...wakeWaiting(tree, w.recordset, r.added.length || (settled ? r.again.length : 0), { ...(o.except ? { except: o.except } : {}), ...(o.ahead ? { ahead: o.ahead } : {}) }));
   if (!tree.dryRun) {
-    for (const f of files) fs.rmSync(f, { force: true }); // now in the store
+    // the same file as another image (another number, another book: B0408, "33.jpg" the same scan as image 2): never
+    // deleted unsaid — set aside beside it (no image's name: never taken again), what it is said (live.log, the output)
+    const clash = new Map(r.clashed.map((c) => [c.file, c.same]));
+    for (const f of files) {
+      const same = clash.get(f);
+      if (same === undefined) {
+        fs.rmSync(f, { force: true }); // now in the store
+        continue;
+      }
+      const to = `${f}.same-as-${same}`;
+      try {
+        fs.renameSync(f, to);
+        r.aside.push({ file: path.basename(to), image: numbers[files.indexOf(f)]!, same });
+      } catch {
+        // left lying as it is: said all the same
+        r.aside.push({ file: path.basename(f), image: numbers[files.indexOf(f)]!, same });
+      }
+    }
     // the folder goes once nobody waits on it; one still waiting keeps it for the rest
     const dir = path.join(shared, "inbox", w.folder);
     const still = tree.list<Task>("task").some((t) => inboxWaitOf(tree, t)?.folder.normalize("NFC") === w.folder.normalize("NFC"));
     if (!still && collectFiles([dir]).length === 0) fs.rmSync(dir, { recursive: true, force: true });
   }
   return r;
+}
+
+/** A file of the inbox that is the same file as another image (`same`), taken under `image`: set aside as `file`, kept. */
+export interface SetAside {
+  file: string;
+  image: number;
+  same: string;
+}
+
+/** What a file set aside says (live.log, strom media add --inbox): which image it was taken for, which one it is. */
+export function asideLine(t: { recordset: string }, a: SetAside, tree?: Tree): string {
+  const m = tree?.get<Media>(a.same);
+  const as = m ? `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}` : a.same;
+  return `the file for image ${a.image} of ${t.recordset} is the same scan as ${a.same} (${as}), registered already — not taken, set aside as ${a.file}: one of the two numbers is wrong (the image of ${a.same} renumbered, or the file named by its own number)`;
 }
 
 /** The saves once more (strom media save --again) of these images of a book: taken now. How many. */
@@ -854,7 +893,7 @@ export function takenLines(taken: TakenFolder[]): string[] {
       t.woken.length ? ` — back in the queue: ${t.woken.join(" ")}` : t.missing.length ? ` — ${who} still waits${t.missing.length ? ` for images ${runs(t.missing)}` : ""}` : "",
       t.book && t.added.length ? ` — the book's own folder: its tasks read them from disk (${who})` : "",
       t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg)` : "",
-    ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`));
+    ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`), (t.aside ?? []).map((c) => `  ⚠ ${c}`));
   });
 }
 
@@ -1606,7 +1645,7 @@ register(
       // a folder of a waiting task: numbered by the names, else by their order when as many as the images missing
       let byOrder = false;
       if (awaited && recordset && !opts.first && opts.image === undefined && !wantsPart) {
-        const numbered = numberFiles(items.map((it) => it.file), parseImageList(awaited.images), registeredImages(tree, recordset), recordset);
+        const numbered = numberFiles(items.map((it) => it.file), parseImageList(awaited.images), registeredImages(tree, recordset), recordset, bookTimes(tree, recordset));
         if ("problem" in numbered) throw new UsageError(numbered.problem, { hint: "rename the files by the image number the viewer shows (9.jpg), or --image <n> for one file", code: numbered.code, params: numbered.params });
         if (numbered.by === "order") {
           byOrder = true;

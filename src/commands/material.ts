@@ -3,6 +3,7 @@
 // its bridge (POST /material/sort), which queues it and starts it; the person takes of the proposal what they agree with.
 
 import fs from "node:fs";
+import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines } from "../cli/format.ts";
@@ -22,6 +23,7 @@ import {
   appSort,
   cancelSort,
   checkSortAsk,
+  isTextFile,
   keptProposals,
   loadSort,
   parseSortReport,
@@ -34,6 +36,7 @@ import {
   SORT_MOST_FILES,
   SORT_NEXT,
   SORT_PDF_PAGES,
+  SORT_TEXT_FILE_MAX,
   SORT_TEXT_MAX,
   sortCancelPath,
   sortContext,
@@ -42,6 +45,8 @@ import {
   sortWorkDir,
   listSorts,
   startable,
+  textOfFile,
+  unproposedOf,
   unstartableAppSort,
   unstartableSaid,
   type RawProposal,
@@ -60,10 +65,24 @@ function sortOf(tree: Tree, id: string): SortState {
   return s;
 }
 
-/** A file as its readers are given it: its pictures (a PDF's first pages), else why it is judged by its name alone. */
-function fileView(ctx: Context, tree: Tree, shared: string, i: Input, max: number, min: number): SortFileView {
+/**
+ * A file as its readers are given it: its pictures (a PDF's first pages); a text (.txt, .md) as a copy of its text in
+ * the sort's folder (`work`) — its beginning, of a long one (textOfFile); else why it is judged by its name alone.
+ */
+function fileView(ctx: Context, tree: Tree, shared: string, i: Input, max: number, min: number, work: string): SortFileView {
   const file = materialFile(tree, shared, i);
   if (!file || !fs.existsSync(file)) return { input: i, views: [], not: "its file is not on this computer" };
+  if (isTextFile(i.name ?? path.basename(file), i.mime)) {
+    try {
+      const t = textOfFile(file);
+      const copy = path.join(work, "texts", `${i.id}.txt`);
+      fs.mkdirSync(path.dirname(copy), { recursive: true });
+      fs.writeFileSync(copy, t.cut ? `${t.text}\n\n[strom: only the first ${t.chars} characters of this file are given here]\n` : t.text);
+      return { input: i, views: [], text: { file: copy, chars: t.chars, ...(t.cut ? { cut: t.cut } : {}) } };
+    } catch (e) {
+      return { input: i, views: [], not: `its text not read here (${(e as Error).message.slice(0, 80)})` };
+    }
+  }
   try {
     const pages = readableFile(tree.root, file, { env: ctx.env }).pages;
     const views = Array.from({ length: Math.min(pages, SORT_PDF_PAGES) }, (_, k) => ({
@@ -72,7 +91,7 @@ function fileView(ctx: Context, tree: Tree, shared: string, i: Input, max: numbe
     }));
     return { input: i, views, ...(pages > 1 ? { pages } : {}) };
   } catch (e) {
-    // a file no reader opens (a video, a text, a TIFF), a HEIC or PDF this computer cannot convert: judged by its name
+    // a file no reader opens (a video, a TIFF), a HEIC or PDF this computer cannot convert: judged by its name
     const code = e instanceof StromError ? e.code : undefined;
     return { input: i, views: [], not: code === "read.type" ? "no picture" : `not converted here${code ? ` (${code})` : ""}` };
   }
@@ -95,7 +114,7 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
     return fail("start", (e as Error).message);
   }
   const inputs = s.files.map((id) => tree.get<Input>(id)).filter((i): i is Input => !!i && i.type === "input" && !i.retracted);
-  s = { ...s, state: "working", since: now(), pid: process.pid, agent: team.agent, ...(team.model ? { model: team.model } : {}) };
+  s = { ...s, state: "working", since: now(), pid: process.pid, agent: team.agent, ...(team.model ? { model: team.model } : {}), filesDone: 0 };
   saveSort(tree.root, s);
   const stop = new AbortController();
   const look = setInterval(() => {
@@ -105,7 +124,7 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
   const raw: RawProposal[] = [];
   const stray: RawProposal[] = [];
   try {
-    const files = inputs.map((i) => fileView(ctx, tree, shared, i, team.viewMax, team.viewMin));
+    const files = inputs.map((i) => fileView(ctx, tree, shared, i, team.viewMax, team.viewMin, sortWorkDir(tree.root, s.id)));
     const context = sortContext(tree, inputs, s.text);
     const groups = batches(files, BATCH, (f) => Math.max(1, f.views.length));
     const langSaid = langName(s.lang, "en") || s.lang;
@@ -116,11 +135,13 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
       s = { ...s, readers: [...(s.readers ?? []), { n, files: group.map((f) => f.input.id), began: now() }] };
       saveSort(tree.root, s);
       const head = `# Sort ${s.id} · reader ${n}\n\nFiles: ${group.map((f) => f.input.id).join(", ")}\n\n${SORT_NEXT}\n`;
-      const views = group.flatMap((f) => f.views.map((v) => v.view));
+      // what it may open: the pictures, and the copy of each text file (read as text)
+      const views = group.flatMap((f) => [...f.views.map((v) => v.view), ...(f.text ? [f.text.file] : [])]);
       const r = await team.read(String(n), views, `Sort ${s.id}`, (report) => sortPrompt(tree, { files: group, text: s.text, lang: s.lang, langName: langSaid, report, context }), { head, signal: stop.signal });
       // a block of a file another reader was given: only where that reader wrote none (keptProposals: the first stands)
       for (const p of parseSortReport(r.text)) (group.some((f) => f.input.id === p.id) ? raw : stray).push(p);
-      s = { ...s, readers: (s.readers ?? []).map((x) => (x.n === n ? { ...x, ended: now(), outcome: r.outcome, ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true as const } : {}) } : x)) };
+      // its files done, whatever it said of them: the app shows how far the sort is (filesDone)
+      s = { ...s, filesDone: (s.filesDone ?? 0) + group.length, readers: (s.readers ?? []).map((x) => (x.n === n ? { ...x, ended: now(), outcome: r.outcome, ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true as const } : {}) } : x)) };
       saveSort(tree.root, s);
     };
     const queue = [...groups];
@@ -141,7 +162,11 @@ async function sortNow(ctx: Context, tree: Tree, s: SortState, opts: Record<stri
   const kept = keptProposals(tree, s.files, [...raw, ...stray]);
   const failedWhy = ran.find((r) => r.outcome && r.outcome !== "ok")?.outcome;
   if (cancelled) s = { ...s, state: "cancelled", since: now() };
-  else if (ran.some((r) => r.outcome === "ok") || (ran.length > 0 && kept.proposals.length > 0)) s = { ...s, state: "done", since: now(), proposals: kept.proposals, ...(kept.dropped.length ? { dropped: kept.dropped } : {}) };
+  else if (ran.some((r) => r.outcome === "ok") || (ran.length > 0 && kept.proposals.length > 0)) {
+    // a file with no proposal says why (never one without a word)
+    const unproposed = unproposedOf(s.files, [...raw, ...stray], kept, ran);
+    s = { ...s, state: "done", since: now(), proposals: kept.proposals, ...(kept.dropped.length ? { dropped: kept.dropped } : {}), ...(unproposed.length ? { unproposed } : {}) };
+  }
   else s = { ...s, state: "failed", since: now(), reason: failedWhy ?? "error", error: team.failed.join("; ") || "no reader ended" };
   delete s.pid;
   saveSort(tree.root, s);
@@ -159,7 +184,9 @@ function said(tree: Tree, s: SortState): string {
     for (const l of p.links ?? []) out.push(`  link ${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`);
     if (p.why) out.push(`  why: ${p.why}`);
   }
+  if (now.state === "done") for (const u of now.unproposed ?? []) if (!proposals.some((p) => p.id === u.id)) out.push("", `${u.id} · no proposal: ${u.why}${u.outcome ? ` (${u.outcome})` : ""}${u.said ? ` — ${u.said}` : ""}`);
   if (now.state === "done" && !proposals.length) out.push("", "nothing proposed");
+  if (now.state === "working") out.push("", `${now.filesDone ?? 0} of ${now.files.length} files done`);
   if (now.state === "queued") out.push("", `next: strom material sort ${now.id} sorts it (the bridge of the Strom app starts its queue by itself) — strom material cancel ${now.id}`);
   return lines(...out);
 }
@@ -229,7 +256,9 @@ register({
     "people, couples, their events and sources of the tree, each with why and how sure (high, medium, low).\n" +
     "--text: what the person knows of them (their words, followed where the files do not say otherwise).\n" +
     `At most ${SORT_MOST_FILES} files, a text of at most ${SORT_TEXT_MAX} characters; of a PDF its first ${SORT_PDF_PAGES} pages, a HEIC\n` +
-    "converted; a file no reader opens is judged by its name, path and notes. Nothing is written to the research: the\n" +
+    `converted, a text file (.txt, .md) read as text (its first ${SORT_TEXT_FILE_MAX} characters); a file no reader opens is\n` +
+    "judged by its name, path and notes. A file with no proposal says why (unproposed); while at work filesDone says\n" +
+    "how many files its readers are done with. Nothing is written to the research: the\n" +
     "proposal is kept beside it (strom material show <id>), and what the person takes of it is written as theirs\n" +
     "(strom input edit, the Strom app). Never proposed: a title, kind or date the person gave, a link they gave or took\n" +
     "off, an ID the research does not have. It waits for its readers (a few minutes): run it in the foreground.\n" +

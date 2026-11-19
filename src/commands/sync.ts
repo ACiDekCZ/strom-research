@@ -249,9 +249,15 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
 
 function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang: string, edits: string, decidePerson = false): string {
   const shown = file.includes(" ") ? `"${file}"` : file;
-  if (!plan.changes.length) return ui(lang, "ui.sync.nothing", { file: path.basename(file) });
+  // the person's questions asked by an earlier send, still waiting: said (never asked again)
+  const waiting = plan.waiting?.length ? ui(lang, "ui.sync.waiting", { n: plan.waiting.length, tasks: plan.waiting.join(", ") }) : undefined;
+  if (!plan.changes.length) return lines(ui(lang, "ui.sync.nothing", { file: path.basename(file) }), waiting);
+  // a question to the person is no change of the research: counted as what it is
+  const q = plan.changes.filter(asksPerson).length;
+  const n = plan.changes.length - q;
   return lines(
-    ui(lang, "ui.sync.title", { file: path.basename(file), n: plan.changes.length }),
+    ui(lang, !q ? "ui.sync.title" : n ? "ui.sync.title.both" : "ui.sync.title.asks", { file: path.basename(file), n, q }),
+    waiting,
     plan.base ? ui(lang, "ui.sync.base", { head: plan.head?.slice(0, 8) ?? incoming.since ?? "" }) : ui(lang, plan.head ? "ui.sync.headmissing" : "ui.sync.nobase", { head: plan.head?.slice(0, 8) ?? "" }),
     plan.partial ? ui(lang, "ui.sync.partial") : undefined,
     plan.identity.strangers.length ? ui(lang, "ui.sync.strangers", { ids: plan.identity.strangers.join(", ") }) : undefined,
@@ -443,7 +449,7 @@ register(
         if (opts.only !== undefined && !opts.apply) throw new UsageError("--only goes with --apply");
         return {
           text: lines(got ? ui(lang, "ui.sync.got") : undefined, ...said, planText(tree, plan, incoming, shownAs, lang, edits, ctx.settings.hypothesesDecide(tree.config) === "person")),
-          data: { ...(got ? { received: got } : {}), ...decoding, base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}) },
+          data: { ...(got ? { received: got } : {}), ...decoding, base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}), ...(plan.waiting ? { waiting: plan.waiting } : {}) },
         };
       }
       const only = numbers(opts.only, plan.changes.length);
@@ -532,12 +538,18 @@ register(
       settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media }, input.sync?.applied ?? []);
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
+      // a question to the person is no change of the research: counted as what it is
+      const asks = written.changes.filter((c) => asksPerson(c) && (!only || only.has(c.n))).length;
+      const changed = Math.max(0, applied - asks);
       return {
         text: lines(
           ...opsFor(ctx, tree),
           "",
           ...said,
-          ui(lang, "ui.sync.done", { n: applied, file: path.basename(file), input: input.id }),
+          asks && !changed
+            ? ui(lang, "ui.sync.done.asks", { q: asks, file: path.basename(file), input: input.id })
+            : ui(lang, "ui.sync.done", { n: changed, file: path.basename(file), input: input.id }),
+          asks > 0 && changed > 0 ? ui(lang, "ui.sync.done.asked", { q: asks }) : undefined,
           ...skipped.map((x) => ui(lang, "ui.sync.skipped", { n: x.n, why: skippedWhy(x, lang) })),
           ...(proposed.length
             ? [`${proposed.length} change(s) of the user's or an imported family tree's values proposed, not written — the user decides (strom conflict list):`, ...proposed.map((x) => `  change ${x.n}: ${x.line}`)]

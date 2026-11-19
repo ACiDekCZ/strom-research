@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.35.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
   otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
@@ -45,7 +45,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   nie wie, których skanów księgi potrzebuje, skan wysłany z aplikacji Strom nie jest już odrzucany, gdy jego nazwa nie
   podaje numeru skanu albo podaje kilka (rok i numer aktu, data i godzina z aparatu): dostaje kolejny wolny numer
   księgi (po najwyższym, który już jest), kilka naraz po kolei; numer podany w aplikacji albo jedyny numer w nazwie
-  nadal ma pierwszeństwo. Most podaje aplikacji Strom kolejny wolny numer, żeby mogła go zaproponować. Zadanie
+  nadal ma pierwszeństwo. Most podaje aplikacji Strom kolejny wolny numer, żeby mogła go zaproponować. Kopia zapisanego skanu zrobiona przez menedżer plików (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`) to skan, który wskazuje jej numer; plik nazwany samym numerem nigdy nie dostaje według kolejności numeru innego skanu, a plik będący tym samym skanem co inny zostaje odłożony obok niego i jest to powiedziane – nigdy nie jest po cichu usuwany. Zadanie
   obudzone dostarczonymi skanami jest następne w kolejce: zadanie, które czekało na skany księgi, wraca do kolejki
   jako następne, jakby przesunięte ręcznie do przodu (po pracy w toku), gdy skany dostarcza człowiek – wysłane do
   niego z aplikacji Strom, zapisane w jego folderze wspólnej skrzynki albo przejęte przez `strom media add --inbox`.
@@ -61,7 +61,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   (jak trzymała ją starsza aplikacja albo skrócona w aplikacji – także cięciem między literą a jej akcentem), nigdy nie
   jest przejmowana sama: strom sync mówi o tym jednym wierszem, a na człowieka czeka pytanie (w tym, co czeka, i w
   aplikacji Strom), czy przejąć krótszą notatkę, czy zachować notatkę badania. Pytanie pada raz: to samo drzewo wysłane
-  ponownie już o nic nie pyta. Gdy strom przywraca notatki, które wysłanie z aplikacji Strom zapisało przy podobnej
+  ponownie już o nic nie pyta i mówi, że pytanie nadal czeka. Gdy strom przywraca notatki, które wysłanie z aplikacji Strom zapisało przy podobnej
   danej, notatkę zmienioną od tego czasu zostawia, a na człowieka czeka zadanie, by ją sprawdzić (w tym, co czeka, i w
   aplikacji Strom), nigdy tylko wiersz w historii.
 - **Windows: po sprawdzeniu logowania nic nie działa dalej, okno linku z tytułem:** sprawdzenie, czy agent w terminalu jest zalogowany,
@@ -102,6 +102,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   aplikacji), nigdy samo ani na polecenie agenta.
   Przy pliku, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wgrany przez pomyłkę), czytelnik mówi to
   wraz z powodem, aby można go było ukryć w aplikacji Strom; samo nic się nie ukrywa ani nie usuwa.
+  Sortowanie czyta plik tekstowy (.txt, .md) jako tekst i ocenia go po tym, co w nim stoi, w trakcie pracy mówi, z iloma plikami już skończyło (aplikacja Strom to pokazuje), a przy każdym pliku bez propozycji mówi dlaczego (nic nie powiedziano, nic nowego, pominięty, odczyt się nie powiódł).
   Sortowanie materiałów uruchamia się bez pytania tylko wtedy, gdy przyjął je i podpisał most aplikacji Strom; wpis
   zapisany inaczej (lub dodany do kolejki przez starszą wersję) się nie uruchomi i trzeba go zlecić ponownie w
   aplikacji.

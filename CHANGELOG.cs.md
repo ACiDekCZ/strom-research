@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.35.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc
@@ -41,7 +41,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   se sken poslaný z aplikace Strom už neodmítne, když jeho název nedává číslo snímku nebo jich dává víc (rok a číslo
   aktu, datum a čas z fotoaparátu): dostane další volné číslo knihy (za nejvyšším, které tam je), víc najednou po
   sobě; číslo zadané v aplikaci nebo jediné číslo v názvu má dál přednost. Most aplikaci Strom řekne další volné
-  číslo, aby ho mohla nabídnout. Úkol probuzený dodanými snímky přijde na řadu hned: úkol, který čekal na snímky
+  číslo, aby ho mohla nabídnout. Kopie uloženého snímku, kterou udělal správce souborů (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`), je snímek, který jmenuje její číslo; soubor pojmenovaný jen číslem se nikdy nepřečísluje podle pořadí na jiný snímek a soubor, který je stejným skenem jako jiný snímek, se odloží vedle něj a řekne se to – nikdy se potichu nesmaže. Úkol probuzený dodanými snímky přijde na řadu hned: úkol, který čekal na snímky
   knihy, se vrátí do fronty jako další na řadě, jako by byl ručně posunut dopředu (po rozdělané práci), když snímky
   dodá člověk – poslané k němu z aplikace Strom, uložené do jeho složky sdílené schránky nebo převzaté přes `strom
   media add --inbox`. Víc úkolů probuzených najednou jde dopředu všechny, mezi sebou v obvyklém pořadí. Platí to
@@ -55,7 +55,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   výzkumu, ze souboru i z toho, co aplikace posílá rovnou přes most. Poznámka, která je jen začátkem poznámky výzkumu
   (jak ji držela starší aplikace, nebo zkrácená v aplikaci – i řezem mezi písmenem a jeho čárkou), se sama nikdy
   nepřevezme: strom sync to řekne jedním řádkem a na člověka čeká otázka (v tom, co čeká, i v aplikaci Strom), zda
-  kratší poznámku převzít, nebo ponechat poznámku výzkumu. Ptá se jednou: stejný strom poslaný znovu už se neptá. Když
+  kratší poznámku převzít, nebo ponechat poznámku výzkumu. Ptá se jednou: stejný strom poslaný znovu už se neptá a řekne, že otázka dál čeká. Když
   strom vrací poznámky, které odeslání z aplikace Strom zapsalo k podobnému údaji, poznámku změněnou od té doby nechá
   být a na člověka čeká úkol ji zkontrolovat (v tom, co čeká, i v aplikaci Strom), nikdy jen řádek v historii.
 - **Windows: po kontrole přihlášení nic neběží dál, okno odkazu s titulkem:** kontrola, zda je agent v terminálu přihlášený, ukončí vše, co
@@ -92,6 +92,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   v dialogu aplikace), nikdy samo ani na pokyn agenta.
   U souboru, který se rodiny zjevně netýká (snímek obrazovky, účtenka, omylem nahraný soubor), to čtenář řekne
   i s důvodem, aby ho šlo v aplikaci Strom skrýt; samo se nic neskryje ani nesmaže.
+  Třídění čte textový soubor (.txt, .md) jako text a posoudí ho podle toho, co v něm stojí, během práce říká, kolik souborů už má hotových (aplikace Strom to ukazuje), a u každého souboru bez návrhu řekne proč (nic neřekl, nic nového, vynechán, čtení selhalo).
   Třídění materiálu se bez dotazu spustí jen tehdy, když ho přijal a podepsal most aplikace Strom; záznam zapsaný jinak
   (nebo zařazený starší verzí) se nespustí a je potřeba ho zadat znovu v aplikaci.
 
