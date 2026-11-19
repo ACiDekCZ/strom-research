@@ -30,6 +30,7 @@ import { holdsPath, installation, lastingLauncher, mayTakeOver, ownFolder, strom
 import { ICON } from "./shortcut.ts";
 import { browserKind, type BrowserKind } from "./chromium.ts";
 import { normalizeKinds } from "./eventkinds.ts";
+import { HANDOFF } from "./handoffs.ts";
 
 export const LINK_SCHEME = "strom-research";
 
@@ -43,6 +44,21 @@ export function linkScheme(env: Env): string {
 function handlerName(env: Env): string {
   const suffix = ownSuffix(env);
   return suffix ? `Strom Research (${suffix})` : "Strom Research";
+}
+
+/**
+ * The title of the window a link opened (Windows: the console of node.exe the system starts for the link, titled with
+ * node.exe's path otherwise) — the handler's name, as the system shows it. Elsewhere the terminal's own, untouched.
+ */
+export function titleLinkWindow(env: Env, platform: NodeJS.Platform = process.platform, set: (title: string) => void = (t) => void (process.title = t)): string | undefined {
+  if (platform !== "win32") return undefined;
+  const title = handlerName(env);
+  try {
+    set(title);
+  } catch {
+    // the window keeps its title
+  }
+  return title;
 }
 /**
  * What the links strom understands do: send the edited tree back, open an excerpt in full, send the research
@@ -69,7 +85,7 @@ export const LINK_STORY_DOS = ["final", "keep"] as const;
 /** The research followed live: start: only its bridge started (at its last address), no window of the app opened. */
 export const LINK_LIVE_DOS = ["start"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work", "book"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -80,6 +96,11 @@ export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
  * request marked sent, a file that came for it (none: answer it).
  */
 export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "folder", "sent", "file"] as const;
+/**
+ * What a link does with a book the tasks need (spec 105): its folder of the shared inbox opened — made first when not
+ * there — no terminal, nothing written in the research.
+ */
+export const LINK_BOOK_DOS = ["folder"] as const;
 /** What a link does with a direction of the research (strom research pause|done|resume). */
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
@@ -146,6 +167,7 @@ const INPUT = /^I\d{1,9}$/;
 /** A tree the app sent, as the bridge marked it (core/sync.ts receiveTree). */
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
+const BOOK = /^B\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
 /** A change of the research's history by its commit hash (the app's /log head, or its first 8 as strom history shows it). */
 const CHANGE = /^[0-9a-f]{7,40}$/;
@@ -213,6 +235,7 @@ export type Link =
   | { action: "seal"; tree: string }
   | { action: "excerpt"; tree: string; source: string; clip: string }
   | { action: "media"; tree: string; sha: string }
+  | { action: "book"; tree: string; id: string; do: (typeof LINK_BOOK_DOS)[number] }
   | { action: "chat"; tree: string; person?: string; research?: string }
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
@@ -238,6 +261,12 @@ export type Link =
   | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
+/**
+ * A link with the app's id of it (handoff=<uuid>, feature handoffs): written when the link was taken (core/handoffs.ts)
+ * and said by the bridge for the app to know the terminal opened. Only a UUID; any other value is as if none were given.
+ */
+export type TakenLink = Link & { handoff?: string };
+
 /** Why a link was not taken: said to the user, never acted on. */
 export class LinkError extends Error {}
 
@@ -256,8 +285,19 @@ function idOf(q: URLSearchParams, name: string, shape: RegExp, needed: boolean):
   return v;
 }
 
-/** A link, checked part by part; anything else is a LinkError. No link at all (the applet opened by itself): the menu. */
-export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME): Link {
+/**
+ * A link, checked part by part; anything else is a LinkError. No link at all (the applet opened by itself): the menu.
+ * The app's id of the link (handoff) kept beside it when it is a UUID — an older app sends none, any other value is
+ * left out, never refused (core/handoffs.ts).
+ */
+export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME): TakenLink {
+  const link = linkParts(text, scheme);
+  if (link.action === "menu") return link;
+  const handoff = new URL(text!.trim()).searchParams.get("handoff")?.toLowerCase();
+  return handoff && HANDOFF.test(handoff) ? { ...link, handoff } : link;
+}
+
+function linkParts(text: string | undefined, scheme: string): Link {
   if (!text?.trim()) return { action: "menu" };
   const raw = text.trim();
   if (raw.length > 2048) throw new LinkError("too long");
@@ -307,6 +347,10 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const sha = (q.get("sha") ?? "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(sha)) throw new LinkError("no file named");
       return { action, tree: id, sha };
+    }
+    case "book": {
+      // a book by its ID alone (B…), and what is done with it: one of fixed values
+      return { action, tree: id, id: idOf(q, "id", BOOK, true)!, do: oneOf(q, "do", LINK_BOOK_DOS, "folder") };
     }
     case "chat": {
       const research = idOf(q, "research", RESEARCH, false);
@@ -441,8 +485,8 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
   throw new LinkError(`unknown action "${action.slice(0, 32)}"`);
 }
 
-/** A link written again from what was checked in it: only its known parts, in one form (handed to a new terminal). */
-export function linkText(link: Exclude<Link, { action: "menu" }>, scheme: string = LINK_SCHEME): string {
+/** A link written again from what was checked in it: only its known parts (and the app's id of it), in one form (handed to a new terminal). */
+export function linkText(link: Exclude<TakenLink, { action: "menu" }>, scheme: string = LINK_SCHEME): string {
   const { action, ...parts } = link;
   const q = new URLSearchParams(Object.entries(parts).filter((e): e is [string, string] => typeof e[1] === "string"));
   return `${scheme}://${action}?${q}`;

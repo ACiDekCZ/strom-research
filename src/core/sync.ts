@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type MediaLink, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type ShorterNote, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { checkStatus, isCompiled } from "./evidence.ts";
 import { clearRemoved } from "./citeorder.ts";
@@ -58,8 +58,12 @@ import { SURNAME_GROUPS_MARK, SURNAME_REJECTIONS_MARK } from "../gedcom/export.t
 import { bestGrade, checkReading, readingGrade, readingResult, readingSource, surer, takeReadingImages, type ReadFact, type ReadGrade, type ReadingCheck, type ReadingMark, type ReadingRefusal } from "./readsync.ts";
 import { earlierNoteTexts } from "./retractions.ts";
 import { mendAll } from "./damaged.ts";
+import { APP_FROM, sentByApp } from "./originals.ts";
+import { inTree, servedWithMedia } from "./treemedia.ts";
+import { MediaReader, recordOfFile, storeRel, mimeOfForm, type MediaFact, type MediaUnreadable, type SMediaFile, type SMediaPlace } from "./appmedia.ts";
 import { cleanTitle, currentName, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 import { canonicalize } from "./json.ts";
+import { askShorterNote, shorterAsked, shorterWaiting, SHORTER_ORIGIN } from "./shorternote.ts";
 import { appIdBlocks, entryOf, idsAdded, joinIds, livePerson, matchByIds, personIndex, withoutIds, type AddedIds, type IdBlock } from "./originalids.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -181,6 +185,13 @@ export interface SSource {
   verified?: boolean;
   /** An entry of a reading of a document the person confirmed in the app (_STROM_READING D…, checked before taken). */
   reading?: ReadingMark;
+  /** Its own files in the app's tree (1 OBJE under the source). */
+  media?: SMediaPlace[];
+}
+
+/** How a file of the app's tree is read (the files of its OBJE): their bytes kept in a store as they are read, or not read at all. */
+export interface ReadOptions {
+  media?: false | { store?: string | undefined };
 }
 
 export interface SPerson {
@@ -222,6 +233,8 @@ export interface SPerson {
   sexMarkOwn?: true;
   /** The IDs they had in a family tree of an import (the Strom app's `1 _STROM_IMPORT Ix` / `_STROM_XID` blocks, spec 066 K3.2). */
   ids?: IdBlock[];
+  /** Their files in the app's tree: the portrait, attachments, their events'. */
+  media?: SMediaPlace[];
 }
 
 /** The titles of a name: before it ("Ing.") and after it ("ml."). */
@@ -256,6 +269,8 @@ export interface SFamily {
   union?: Union;
   /** The IDs it had in a family tree of an import (the Strom app's blocks, spec 066 K3.2). */
   ids?: IdBlock[];
+  /** Its files in the app's tree: the couple's photo, attachments, its events'. */
+  media?: SMediaPlace[];
 }
 
 /** The words of a _STAT (the Strom app's own, also Legacy's and FTM's) as a union, or nothing it names. */
@@ -331,6 +346,10 @@ export interface Snapshot {
   problems: string[];
   /** How the file was read (readTreeFile): a Windows code page it was in, the characters it could not read. */
   decoding?: DecodingNote;
+  /** The files of the app's tree it carries (OBJE), each once: its key (the original's hash, else its bytes') → the file. */
+  media?: Map<string, SMediaFile>;
+  /** Files whose data could not be read: said, never written (media.unreadable). */
+  mediaUnreadable?: MediaUnreadable[];
 }
 
 const OUR_ID = /^P\d{4,}$/;
@@ -483,7 +502,7 @@ const ENTRY = appWords(APP_WORDS.birthRecord, APP_WORDS.deathRecord);
 /** Facts there is one of: an edit of one is a change, not a second fact. */
 const ONE = new Set(["BIRT", "BAPM", "DEAT", "BURI", "CREM", "MARR", "DIV"]);
 
-type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean; problems?: string[]; note?: (n: GedNode) => string };
+type GedReaders = { cite?: (n: GedNode) => SCite | undefined; parts?: (n: GedNode) => SPart[]; mark?: (n: GedNode) => ImportMark | undefined; confirmed?: boolean; problems?: string[]; note?: (n: GedNode) => string; objects?: (n: GedNode, f: SFact) => void };
 
 function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, read: GedReaders = {}): SFact[] {
   return cleanFacts(rawFacts(node, couple, read));
@@ -576,7 +595,7 @@ function resolveRoleAt(facts: SFact[], person: (ref: string) => string | undefin
   }
 }
 
-function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed, problems, note }: GedReaders = {}): SFact[] {
+function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }, { cite, parts, mark, confirmed, problems, note, objects }: GedReaders = {}): SFact[] {
   const out: SFact[] = [];
   for (const c of node.children) {
     if (["NAME", "SEX", "REFN", "NOTE", "FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "OBJE", "ASSO", "_STORY"].includes(c.tag)) continue;
@@ -628,6 +647,8 @@ function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
     // its note (an occupation's NOTE is the person's: the value is the fact)
     const said = note && !VALUE_KINDS.has(f.kind) ? factNote(children(c, "NOTE").map(note).join("\n")) : undefined;
     if (said) f.note = said;
+    // the files of the app's tree the fact has (2 OBJE under it): read with the person's, the family's
+    objects?.(c, f);
     out.push(f);
   }
   return out;
@@ -688,6 +709,32 @@ function knownNote(text: string, said: Set<string>): boolean {
 
 /** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
 export const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+
+/** A note sent as compared with the one it may be the beginning of: a character the cut broke at its end (U+FFFD, half of a pair) left out. */
+export const sentNote = (sent: string) => noteLine(sent.replace(/(?:\uFFFD|[\uD800-\uDBFF])+$/u, ""));
+
+/**
+ * Whether a note sent (`sent`) is the beginning alone of a longer one (`whole`): cut short — as the Strom app 3.28.0
+ * sent the note of someone a fact names (its first line), and a tree it kept since sends it still. Compared as lines
+ * (noteLine, sentNote), decomposed: a cut between a letter and its accent ("sedla" of "sedlák") is a beginning too. No
+ * `whole`: no.
+ */
+export function cutShort(sent: string, whole: string | undefined): boolean {
+  if (!whole) return false;
+  const a = sentNote(sent).normalize("NFD");
+  const b = noteLine(whole).normalize("NFD");
+  return a.length > 0 && a.length < b.length && b.startsWith(a);
+}
+
+/** A change that asks the person (a participant's note sent shorter than the research's): written as a task, though nothing of it is. */
+export const asksPerson = (c: Change) => c.code === "note.shorter";
+
+/** What a change of a participant's note sent shorter asks the person (core/shorternote.ts): none without the fact or the notes. */
+export function shorterOf(c: Pick<Change, "was" | "part" | "wasPart">): ShorterNote | undefined {
+  const [p, w] = [c.part, c.wasPart];
+  if (!c.was?.id || !p?.note || !w?.note) return undefined;
+  return { event: c.was.id, role: w.role, ...(w.person ? { person: w.person } : { name: w.name ?? "" }), sent: sentNote(p.note), whole: noteLine(w.note) };
+}
 
 /** A line strom intake writes into a fact's note itself: what a file said that the fact has no place for. */
 const STROM_NOTE_LINE = /^(?:source there|date as written|age as written): |^(?:husband|wife) aged /u;
@@ -795,7 +842,7 @@ function readingMarkOf(r: GedNode): { reading?: ReadingMark } {
 }
 
 /** A GEDCOM file (or one of ours, in memory) as a snapshot; an unreadable one throws. */
-export function readGedcom(text: string, lang = "en"): Snapshot {
+export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): Snapshot {
   const { records, problems } = parseGedcomText(text);
   const head = records.find((r) => r.tag === "HEAD");
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
@@ -874,7 +921,56 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
   const imports = fromApp.app ? importsOfHead(head) : undefined;
   const markOf = (n: GedNode | undefined) => markUnder(n, imports);
   // the user's confirmations against the scan (spec 065): of the research's or the app's own file alone
-  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted, problems, note: noteText };
+  // the files of the app's tree (its OBJE): read one at a time, their bytes kept as they are read when a store is given
+  const objects = opts.media === false ? undefined : new MediaReader(records, { store: opts.media?.store, problems, note: noteText });
+  const unreadable: MediaUnreadable[] = [];
+  const factObjects = new Map<SFact, { nodes: GedNode[]; eid?: string }>();
+  const onFact = objects
+    ? (c: GedNode, f: SFact) => {
+        const nodes = children(c, "OBJE");
+        const eid = val(c, "_STROM_EID")?.trim().toUpperCase();
+        if (nodes.length) factObjects.set(f, { nodes, ...(eid && /^E\d{1,9}$/u.test(eid) ? { eid } : {}) });
+      }
+    : undefined;
+  /** The places of the files a person or a family has: the record's own OBJE, then its facts'. */
+  const placesOf = (r: GedNode, facts: SFact[], at: { person?: string; family?: string[] }): SMediaPlace[] => {
+    if (!objects) return [];
+    const out: SMediaPlace[] = [];
+    const said = (u: { unreadable: string }) => unreadable.push({ name: u.unreadable, ...(at.person ? { person: at.person } : {}), ...(at.family ? { family: at.family } : {}) });
+    const own = children(r, "OBJE").map((n) => ({ n, got: objects.read(n) }));
+    // a couple's photo: where any of its files says _PRIM, only the one marked Y (none: no photo — only attachments);
+    // a file that says none of it (an older app): the first image, as the app reads it; the rest attachments
+    const marked = own.some((o) => o.got && "key" in o.got && o.got.prim !== undefined);
+    const firstPhoto = !at.family ? undefined : marked ? own.find((o) => o.got && "key" in o.got && o.got.prim) : own.find((o) => o.got && "key" in o.got && o.got.image);
+    let order = 0;
+    for (const { got } of own) {
+      if (!got) continue;
+      if ("unreadable" in got) {
+        said(got);
+        continue;
+      }
+      const sources = got.sources.map((x) => sourceKeys.get(x)).filter((k): k is string => !!k);
+      const one = (got.portrait && at.person) || (firstPhoto && firstPhoto.got === got);
+      out.push({ file: got.key, order: one ? 0 : order++, ...(one && at.person ? { portrait: true as const } : one ? { photo: true as const } : {}), ...(sources.length ? { sources } : {}) });
+    }
+    for (const f of facts) {
+      const held = factObjects.get(f);
+      if (!held) continue;
+      let n = 0;
+      for (const node of held.nodes) {
+        const got = objects.read(node);
+        if (!got) continue;
+        if ("unreadable" in got) {
+          said(got);
+          continue;
+        }
+        const fact: MediaFact = { kind: f.kind, ...(f.date ? { date: f.date } : {}), ...(f.place ? { place: f.place } : {}), ...(f.value ? { value: f.value } : {}), ...(f.label ? { label: f.label } : {}), ...(held.eid ? { eid: held.eid } : {}) };
+        out.push({ file: got.key, order: n++, fact });
+      }
+    }
+    return out;
+  };
+  const read = { cite, parts: partsOf, mark: markOf, confirmed: trusted, problems, note: noteText, ...(onFact ? { objects: onFact } : {}) };
   const keys = new Map<string, string>();
   const persons = new Map<string, SPerson>();
   for (const r of records.filter((x) => x.tag === "INDI" && x.xref)) {
@@ -935,6 +1031,7 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
     const sexMark = sex ? (sexOwn ?? markOf(r)) : undefined;
     // the IDs they had in a family tree the app imported (its blocks of an import its HEAD names; never its level-1 _UID)
     const ids = imports ? appIdBlocks(r, (k) => imports.has(k), problems, r.xref!.replace(/@/g, "")) : [];
+    const media = placesOf(r, facts, { person: key });
     persons.set(key, {
       key,
       names,
@@ -951,6 +1048,7 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
       ...(sexMark ? { sexMark } : {}),
       ...(sexOwn ? { sexMarkOwn: true as const } : {}),
       ...(ids.length ? { ids } : {}),
+      ...(media.length ? { media } : {}),
     });
   }
   // how a child belongs to a family (the child's FAMC + PEDI: adopted, foster, step): none said is birth
@@ -986,7 +1084,18 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
     const partners = [...who("HUSB"), ...who("WIFE")];
     for (const k of who("HUSB")) persons.get(k)!.husb = true;
     const union = unionOf(unionOfStat(val(r, "_STAT")), partners.length === 1, children(r, "MARR").length > 0, children(r, "DIV").length > 0);
+    const raw = rawFacts(r, { HUSB: husb, WIFE: wife }, read);
+    const facts = cleanFacts(raw);
+    // without a marriage the union's sources are the family's own, as readStromJson reads them: the Strom app before
+    // 3.30.0-beta.4 gives a family of one parent with more children a bare MARR carrying the family's citations
+    if (!facts.some((f) => f.kind === "MARR"))
+      for (const c of raw.filter((f) => f.kind === "MARR" && !facts.includes(f)).flatMap((f) => f.cites ?? []))
+        if (!cites.some((x) => x.source === c.source && x.page === c.page)) {
+          const { main: _main, ...own } = c;
+          cites.push(own);
+        }
     const famIds = imports && r.xref ? appIdBlocks(r, (k) => imports.has(k), problems, r.xref.replace(/@/g, "")) : [];
+    const media = partners.length ? placesOf(r, facts, { family: partners }) : [];
     families.push({
       ...(famIds.length ? { ids: famIds } : {}),
       ...(r.xref ? { xref: r.xref.replace(/@/g, "") } : {}),
@@ -995,12 +1104,26 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
       ...ties,
       ...(val(r, "_STROM_NO_COUPLE")?.trim().toUpperCase() === "Y" ? { noCouple: true as const } : {}),
       ...(union ? { union } : {}),
-      facts: gedFacts(r, { HUSB: who("HUSB")[0], WIFE: who("WIFE")[0] }, read),
+      facts,
       ...(cites.length ? { cites } : {}),
       ...(notes.length ? { notes } : {}),
       said: allNotes(r, noteText),
+      ...(media.length ? { media } : {}),
     });
   }
+  // a source's own files (1 OBJE under it, not the research's excerpts)
+  if (objects)
+    for (const r of records.filter((x) => x.tag === "SOUR" && x.xref)) {
+      const key = sourceKeys.get(r.xref!)!;
+      const out: SMediaPlace[] = [];
+      for (const n of children(r, "OBJE")) {
+        const got = objects.read(n);
+        if (!got) continue;
+        if ("unreadable" in got) unreadable.push({ name: got.unreadable, source: key });
+        else out.push({ file: got.key, order: out.length });
+      }
+      if (out.length) sources.get(key)!.media = out;
+    }
   resolveParts([...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)), (ref) => {
     const k = keys.get(`@${ref}@`);
     return k && persons.has(k) ? k : undefined;
@@ -1046,6 +1169,8 @@ export function readGedcom(text: string, lang = "en"): Snapshot {
     ...(appTree && SEND_MARK.test(appTree) ? { appTree } : {}),
     ...(since && /^R\d{17}-[0-9a-f]{4}$/.test(since) ? { since } : {}),
     ...(again && /^R\d{17}-[0-9a-f]{4}$/.test(again) ? { again } : {}),
+    ...(objects?.files.size ? { media: objects.files } : {}),
+    ...(unreadable.length ? { mediaUnreadable: unreadable } : {}),
     problems,
   };
 }
@@ -1454,7 +1579,7 @@ export function treeFileKept(file: string): string {
 }
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
-export function readTreeFile(file: string, lang?: string): Snapshot {
+export function readTreeFile(file: string, lang?: string, opts: ReadOptions = {}): Snapshot {
   const { text, decoded } = treeFileText(file);
   if (!text.trim()) throw new UsageError(`${path.basename(file)} is empty`, { code: "tree.empty", params: { file: path.basename(file) } });
   let snap: Snapshot;
@@ -1466,7 +1591,7 @@ export function readTreeFile(file: string, lang?: string): Snapshot {
       throw new UsageError(`${path.basename(file)} is not readable JSON: ${(e as Error).message}`, { code: "tree.unreadable", params: { file: path.basename(file) } });
     }
     snap = readStromJson(data, lang);
-  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) snap = readGedcom(text, lang);
+  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) snap = readGedcom(text, lang, opts);
   else throw new UsageError(`${path.basename(file)} is neither a GEDCOM file nor a family tree of the Strom app`, { code: "tree.unreadable", params: { file: path.basename(file) } });
   if (!snap.persons.size) throw new UsageError(`${path.basename(file)} has no people in it`, { hint: "a file exported from the Strom app or another family-tree program", code: "tree.empty", params: { file: path.basename(file) } });
   const note = decoded ? decodingNote(decoded) : {};
@@ -1495,8 +1620,8 @@ export function snapshotOfTree(tree: Tree): Snapshot {
   return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, mainCitations: true }).text);
 }
 
-/** The folders of data/ the export for the app reads. */
-const EXPORTED = ["persons", "families", "sources", "repositories", "places", "recordsets"];
+/** The folders of data/ the export for the app reads (inputs: which sources are a sync's, never given to the app). */
+const EXPORTED = ["persons", "families", "sources", "repositories", "places", "recordsets", "inputs"];
 
 /** The research at a commit, as it was given the app — undefined when the history does not have it. */
 export function snapshotAt(tree: Tree, head: string): Snapshot | undefined {
@@ -1598,6 +1723,14 @@ export interface Received {
   notWrittenCount?: number;
   /** Written: the changes the research could not write (at most NOT_WRITTEN_KEPT). */
   skipped?: Skipped[];
+  /** Written: the changes of the app's files it wrote (spec 108) — at most NOT_WRITTEN_KEPT, `mediaCount` all. */
+  media?: MediaWritten[];
+  mediaCount?: number;
+  /**
+   * The app said the send carries every file of its tree (POST /sync?media=app, spec 108 P4): a place of a file it was
+   * given with the files and no longer has is taken off. Without it the files only add.
+   */
+  mediaApp?: true;
 }
 
 /** So many changes not written a send keeps for /status (the reply to POST /sync has them all). */
@@ -1633,7 +1766,7 @@ function appSource(key: string): string {
  */
 export function notWrittenOf(c: Change): { source?: string; place?: string } {
   const source = c.sourceId ?? (c.source ? appSource(c.source) : undefined);
-  const cited = c.kind.startsWith("source.") || c.kind === "fact.uncite" || c.kind === "fact.main" || c.kind === "person.cite" || c.kind === "family.cite";
+  const cited = c.kind.startsWith("source.") || c.kind.startsWith("media.") || c.kind === "fact.uncite" || c.kind === "fact.main" || c.kind === "person.cite" || c.kind === "family.cite";
   return { ...(source && cited ? { source } : {}), ...(c.kind === "place.coords" && c.place?.name ? { place: c.place.name } : {}) };
 }
 
@@ -1666,6 +1799,8 @@ export function notWrittenList(changes: readonly Change[]): NotWritten[] {
         ...(c.takenBack ? { send: c.takenBack } : {}),
         ...(c.removedBy ? { sync: c.removedBy } : {}),
         ...(about.place ? { place: about.place } : {}),
+        ...(c.media?.record ? { record: c.media.record } : {}),
+        ...(c.code === "media.unreadable" && c.text ? { name: c.text, part: c.media ? "text" : "data" } : {}),
       };
       return {
         kind: c.kind,
@@ -1679,6 +1814,41 @@ export function notWrittenList(changes: readonly Change[]): NotWritten[] {
         ...(c.removedBy ? { removedBy: c.removedBy } : {}),
         ...(c.uncited?.length ? { cites: c.uncited.map(appSource) } : {}),
       };
+    });
+}
+
+/** A change of a file of the app's tree written, as the app reads it (POST /sync `media`, /status sends; spec 108). */
+export interface MediaWritten {
+  kind: ChangeKind;
+  person?: string;
+  family?: string;
+  source?: string;
+  /** An event's place: the research's event (its owner in person or family). */
+  event?: string;
+  /** The record of the material the file is (I…). */
+  record: string;
+  /** The file's title, the user's. */
+  title?: string;
+  /** media.edit: what of the record changed. */
+  fields?: string[];
+}
+
+/** The changes of the app's files a sync wrote (not those left out), each with the place it is of and its record. */
+export function mediaWritten(changes: readonly Change[], skipped: readonly Pick<Skipped, "n">[] = []): MediaWritten[] {
+  const left = new Set(skipped.map((x) => x.n));
+  return changes
+    .filter((c) => c.media?.record && c.media.ref && c.action !== "report" && c.action !== "pick" && !left.has(c.n))
+    .map((c) => {
+      const m = c.media!;
+      const at = m.ref!.startsWith("S") ? "source" : m.ref!.startsWith("F") ? "family" : "person";
+      return {
+        kind: c.kind,
+        [at]: m.ref!,
+        ...(m.event ? { event: m.event } : {}),
+        record: m.record!,
+        ...(c.text ? { title: c.text } : {}),
+        ...(c.kind === "media.edit" && m.fields?.length ? { fields: m.fields } : {}),
+      } as MediaWritten;
     });
 }
 
@@ -1767,7 +1937,7 @@ function decide(root: string, r: Received, to: Partial<Received> & { state: Rece
 export function settleReceived(
   root: string,
   file: string,
-  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[] },
+  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[]; media?: MediaWritten[] },
   applied: Applied[] = [],
 ): void {
   const r = receivedOf(root, file);
@@ -1776,17 +1946,18 @@ export function settleReceived(
   // brought new by the IDs the research gave them
   try {
     const ids = new Map(applied.filter((a) => a.do === "person.add" && typeof a.before === "string").map((a) => [a.before as string, a.id]));
-    if (r.tree) noteSeen(root, r.tree, r.intake, readTreeFile(file), ids);
+    if (r.tree) noteSeen(root, r.tree, r.intake, readTreeFile(file, undefined, { media: false }), ids);
   } catch {
     // its next send takes away as before
   }
-  const { kept, notWritten, skipped, ...rest } = to;
+  const { kept, notWritten, skipped, media, ...rest } = to;
   decide(root, r, {
     ...rest,
     ...(kept ? { kept } : {}),
     // what it did not write, for the app to say it later too (/status sends): the first ones, and how many
     ...(notWritten?.length ? { notWritten: notWritten.slice(0, NOT_WRITTEN_KEPT), notWrittenCount: notWritten.length } : {}),
     ...(skipped?.length ? { skipped: skipped.slice(0, NOT_WRITTEN_KEPT) } : {}),
+    ...(media?.length ? { media: media.slice(0, NOT_WRITTEN_KEPT), mediaCount: media.length } : {}),
   });
 }
 
@@ -1945,7 +2116,7 @@ const RECEIVED_KEEP = 100;
  * the user's word — nothing of the research changes here. A send of the same tree of the app that still waits is
  * replaced by it (each carries the whole tree). Returns the file, how many changes it brings, and its mark.
  */
-export function receiveTree(root: string, env: Tree["env"], text: string, opts: { keep?: string; again?: string } = {}): { file: string; changes: number; intake: string } {
+export function receiveTree(root: string, env: Tree["env"], text: string, opts: { keep?: string; again?: string; mediaApp?: boolean } = {}): { file: string; changes: number; intake: string } {
   if (!/^﻿?\s*0\s+HEAD/.test(text)) throw new UsageError("not a GEDCOM file", { code: "tree.unreadable" });
   const dir = path.join(root, SYNC_INBOX);
   fs.mkdirSync(dir, { recursive: true });
@@ -1960,7 +2131,7 @@ export function receiveTree(root: string, env: Tree["env"], text: string, opts: 
   let changes: number;
   try {
     const t = Tree.open(root, env);
-    changes = planSync(t, readTreeFile(file, t.config.lang), "conflict").changes.length;
+    changes = planSync(t, readTreeFile(file, t.config.lang), "conflict", { ...(opts.mediaApp ? { mediaApp: true } : {}) }).changes.length;
   } catch (e) {
     // refused (another research's, one without the research's IDs…): kept aside too, to see what came (said with it)
     const kept = keepSent(root, file, "refused-");
@@ -1975,10 +2146,10 @@ export function receiveTree(root: string, env: Tree["env"], text: string, opts: 
   for (const [i, r] of decided.entries())
     if (i >= RECEIVED_KEEP || Date.parse(r.decided ?? r.at) < Date.now() - RECEIVED_KEEP_MS) fs.rmSync(receivedFile(root, r.intake), { force: true });
   const known = Object.keys(given.known.persons).length || Object.keys(given.known.sources).length ? { known: given.known } : {};
-  const r: Received = { ...mark, file: path.basename(file), ...marks, changes, counted: headOf(root), state: "pending", ...known };
+  const r: Received = { ...mark, file: path.basename(file), ...marks, changes, counted: headOf(root), state: "pending", ...known, ...(opts.mediaApp ? { mediaApp: true as const } : {}) };
   // nothing the research has not: nothing waits (the app hears it from the answer)
   if (!changes) {
-    if (r.tree) noteSeen(root, r.tree, r.intake, readTreeFile(file));
+    if (r.tree) noteSeen(root, r.tree, r.intake, readTreeFile(file, undefined, { media: false }));
     decide(root, r, { state: "nothing" });
   } else writeReceived(root, r);
   return { file, changes, intake: r.intake };
@@ -2120,6 +2291,8 @@ export function recentSends(root: string, tree?: Tree, days = 7, max = 20): Reco
       // what it did not write and why, as the reply to its POST /sync said it (spec 095 V5): the first ones, and how many
       ...(r.notWritten?.length ? { notWritten: r.notWritten, notWrittenCount: r.notWrittenCount ?? r.notWritten.length } : {}),
       ...(r.skipped?.length ? { skipped: r.skipped } : {}),
+      // the app's files it wrote (spec 108): the first ones, and how many
+      ...(r.media?.length ? { media: r.media, mediaCount: r.mediaCount ?? r.media.length } : {}),
       // pending, tried while the research was busy: so many times so far (it is tried again)
       ...(r.state === "pending" && r.tries ? { tries: r.tries } : {}),
     }));
@@ -2232,8 +2405,10 @@ export function receiveAdopted(root: string, text: string, from?: string): strin
   } catch {
     // the tree's own name then
   }
+  // whole, its images too: the files of the app's tree become records of the material as it is taken in (spec 108);
+  // the copy the research keeps of it goes without them (strom sync)
   const kept = path.join(dir, `${safeFolderName(name)}.ged`);
-  fs.writeFileSync(kept, withoutImages(text));
+  fs.writeFileSync(kept, text);
   // which copy of the app handed it over (its page's origin): said where it went
   const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as Record<string, string>;
   fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ ...a, received: new Date().toISOString(), ...(from ? { from } : {}) }));
@@ -2478,7 +2653,36 @@ export type ChangeKind =
   | "fact.main"
   | "fact.uncite"
   | "fact.note"
-  | "fact.part.note";
+  | "fact.part.note"
+  | "media.photo"
+  | "media.couplePhoto"
+  | "media.attachment"
+  | "media.link"
+  | "media.edit"
+  | "media.photo.removed"
+  | "media.couplePhoto.removed"
+  | "media.attachment.removed"
+  | "media.unlink";
+
+/** A change of a file of the app's tree (media.*): which file of the send, the place it gets, what of it changes. */
+export interface MediaChange {
+  /** The file (its key in the send's `media`). */
+  file: string;
+  /** The place it gets: its kind and order; a source's by the file's key, an event's by the fact as the file has it. */
+  link?: { type: MediaLink["type"]; order: number; source?: string; fact?: MediaFact };
+  /** media.edit: what of the record changes (title, kind, date, note — original, working, orient: only kept). */
+  fields?: string[];
+  /** The record (I…): the one the research has, or the one made when written. */
+  record?: string;
+  /** A portrait's, a couple's photo: the record whose place the new version takes (its link retracted, `replaced`). */
+  replaces?: string;
+  /** The research's event (E…) of an event's place, when it is known. */
+  event?: string;
+  /** Once written: the research's person, family or source (P…, F…, S…) the place is of — an event's, its owner. */
+  ref?: string;
+  /** The place taken off (spec 108 P3, P4): the app given it with its files no longer has it — `record`'s link at `ref`. */
+  retract?: true;
+}
 
 /** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing, withdrawn, what a record's fact lacks added to it. */
 export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report" | "remove" | "refine";
@@ -2584,6 +2788,8 @@ export interface Change {
   locators?: string[];
   /** Why a change is not written, as a program reads it (spec 095 K3.4) where its kind and action do not say it. */
   code?: NotWrittenCode;
+  /** media.*: the file of the app's tree it is of (core/appmedia.ts). */
+  media?: MediaChange;
 }
 
 /**
@@ -2592,6 +2798,7 @@ export interface Change {
  */
 export type NotWrittenCode =
   | "takenBack"
+  | "note.shorter"
   | "kept"
   | "gone"
   | "person.removed"
@@ -2607,6 +2814,8 @@ export type NotWrittenCode =
   | "cite.notCarried"
   | "fact.noMatch"
   | "event.retracted"
+  | "media.eventMissing"
+  | "media.unreadable"
   | "report";
 
 export interface Plan {
@@ -2623,6 +2832,8 @@ export interface Plan {
   identity: Identity;
   /** The file's texts whose characters a line split damaged (U+FFFD), mended from what the research has: no edit. */
   mended?: number;
+  /** The person's questions the file would ask again, asked by an earlier send and still waiting (their tasks): no change, said. */
+  waiting?: string[];
 }
 
 /** A file whose confirmations against the scan do not count (an app that was never given them): none of them read. */
@@ -2728,7 +2939,7 @@ export function planSync(
   tree: Tree,
   incoming: Snapshot,
   edits: "conflict" | "user",
-  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean; partNotes?: boolean } = {},
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean } = {},
 ): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
@@ -2831,6 +3042,8 @@ export function planSync(
   const partNotes = opts.partNotes ?? (incoming.format === "gedcom" ? appSendsPartNotes(incoming.appVersion) : appDataPartNotes(incoming.dataVersion));
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
+  // the person's questions asked by an earlier send, still waiting (planned again: not asked again, said)
+  const waiting = new Set<string>();
   /** What the file no longer has: an archive takes it away — unless the window that sends never had it (kept, said). */
   const gone = (itHad: boolean): { action: ChangeAction; kept?: true } => (!mirror ? { action: "report" } : itHad ? { action: "remove" } : { action: "report", kept: true });
   // the kinds of facts the file carries at all, of people and of families apart: one it never has is not "gone" (the
@@ -2886,6 +3099,21 @@ export function planSync(
       if (!mine || noteLine(mine.note ?? "") === noteLine(p.note)) return;
       const given = was ? givenOf(o)?.parts?.find((x) => x.role === p.role && sameWho(p, incoming, x, base!)) : undefined;
       if (given && noteLine(given.note ?? "") === noteLine(p.note)) return;
+      // the beginning alone of the research's note: a tree the app kept since its 3.28.0 sends a longer note cut short
+      // still, or the user cut it — never taken (nothing guessed), the person asked once (core/shorternote.ts)
+      if (cutShort(p.note, mine.note)) {
+        const asked = { ...p, note: sentNote(p.note) };
+        const ask = shorterOf({ was: o, part: asked, wasPart: mine });
+        if (ask && !shorterAsked(tree, ask)) push({ kind: "fact.part.note", action: "report", code: "note.shorter", ...owner, fact: f, was: o, part: asked, wasPart: mine });
+        else if (ask) {
+          // asked by an earlier send: not asked again — said while it waits for the person's answer
+          const open = shorterWaiting(tree, ask);
+          if (open) waiting.add(open);
+        }
+        return;
+      }
+      // …or of what the app was given, the research's changed since: the app's cut, never an edit
+      if (cutShort(p.note, given?.note)) return;
       const action: ChangeAction = !mine.note ? "add" : !given || noteLine(given.note ?? "") !== noteLine(mine.note) ? "pick" : "correct";
       push({ kind: "fact.part.note", action, ...owner, fact: f, was: o, part: { ...p, note: noteLine(p.note) }, wasPart: mine });
     };
@@ -3728,6 +3956,8 @@ export function planSync(
   // the research does not keep yet: a change of its own — a send that brings nothing else is written too; a new person
   // or family gets its IDs with it (no change of its own); IDs the research has all already are no change
   for (const c of idsToAdd(tree, incoming)) push(c);
+  // the files of the app's tree: only added (a record, a place, a portrait's new version), never conflicts, in every state
+  planMedia(tree, incoming, ours, sources, { based: !!base, whole: !!opts.mediaApp && !partial }, changes, push);
   if (incoming.head && opts.takenBack !== false && !sentAgain) takenBack(tree, incoming, edits, changes);
   // a send of the app (`sent`: it came through the bridge) with nothing to stand on (no _STROM_HEAD, no _STROM_SINCE the research still has —
   // found on Mac after the app set itself back to its state before a load): nobody picks from a send the bridge wrote,
@@ -3777,7 +4007,7 @@ export function planSync(
         surname: c,
       });
   }
-  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
+  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}), ...(waiting.size ? { waiting: [...waiting].sort() } : {}) };
 }
 
 /** The day a file was written (its HEAD's DATE, "28 OCT 2026" → 2026-10-28). */
@@ -3954,6 +4184,7 @@ const changeKey = (c: Change) =>
     c.source,
     c.place ? [c.place.name, c.place.lat, c.place.lon] : "",
     (c.cites ?? []).map((x) => [x.source, x.page]),
+    c.media ? [c.media.file, c.media.link?.type ?? "", c.media.link?.source ?? "", c.media.fields ?? []] : "",
   ]);
 
 /**
@@ -4590,6 +4821,585 @@ function idsToAdd(tree: Tree, incoming: Snapshot): Omit<Change, "n">[] {
   return out;
 }
 
+// ── the files of the app's tree (spec 108) ─────────────────────────────────
+
+/** What the app's user gives a file: the record's fields they are. */
+const MEDIA_FIELDS = ["title", "kind", "date", "note"] as const;
+type MediaField = (typeof MEDIA_FIELDS)[number];
+
+/** A record's fields a send of the app may change: kept before it does, put back by its undo. */
+const MEDIA_KEPT = ["name", "sha", "file", "size", "mime", "origin", "working", "orient", "title", "titled", "materialKind", "date", "notes", "links"] as const;
+
+/** A record's value of a field the app gives a file (its note: the user's last). */
+function mediaValue(rec: Input, field: MediaField): string | undefined {
+  if (field === "title") return rec.title;
+  if (field === "kind") return rec.materialKind;
+  if (field === "date") return rec.date;
+  return [...(rec.notes ?? [])].reverse().find((n) => n.by === "user")?.text;
+}
+const fileValue = (f: SMediaFile, field: MediaField) => (field === "title" ? f.title : field === "kind" ? f.kind : field === "date" ? f.date : f.note);
+
+/**
+ * What of a record a file of the app changes: a value it lacks; one the app changed since the research gave it (the
+ * record at _STROM_HEAD) where the research did not. Never a value taken away (only additions, spec 108 P4) — unless
+ * the send carries all its files and the app was given them (`given`, the media base): then what it has otherwise
+ * than it was given is its user's (the last word wins, V3), and a value it was given and no longer has is taken off
+ * where the research still has that value.
+ */
+function mediaFields(rec: Input, f: SMediaFile, was: Input | undefined, given?: (k: MediaField) => string | undefined): MediaField[] {
+  return MEDIA_FIELDS.filter((k) => {
+    const theirs = fileValue(f, k);
+    const mine = mediaValue(rec, k);
+    if (theirs === mine) return false;
+    if (given) {
+      const base = given(k);
+      if (theirs === undefined) return base !== undefined && mine === base;
+      if (k === "note" && (rec.notes ?? []).some((n) => n.text === theirs)) return false;
+      return mine === undefined || theirs !== base;
+    }
+    if (theirs === undefined) return false;
+    if (k === "note" && (rec.notes ?? []).some((n) => n.text === theirs)) return false;
+    if (mine === undefined) return true;
+    return !!was && theirs !== mediaValue(was, k) && mine === mediaValue(was, k);
+  });
+}
+
+/**
+ * What the app that sends was given of the files of its tree (spec 108 P4, the research's answer "Zápis"): the places
+ * of the records at its _STROM_HEAD — only when the bridge gave that head with the files (media=app,
+ * .strom/sync/media-heads.json) — and those the sends of the same tree of the app (_STROM_APP_TREE) wrote since; a
+ * record's title, kind, date and note as they stood then (each as the last of those sends wrote it, else at the head).
+ * Never _STROM_SINCE's state nor one rebuilt: a window that never had a place cannot take it off. Undefined: only
+ * additions.
+ */
+interface MediaBase {
+  /** "<record>|<type>|<ref>|<event>" of each place given. */
+  links: Set<string>;
+  /** A record's value of a field as the app was given it (none: the record was not given). */
+  field: (id: string, k: MediaField) => string | undefined;
+  /** The records the app was given. */
+  records: Set<string>;
+}
+
+const linkKey = (id: string, l: Pick<MediaLink, "type" | "ref" | "event">) => `${id}|${l.type}|${l.ref}|${l.event ?? ""}`;
+
+function mediaBase(tree: Tree, incoming: Snapshot): MediaBase | undefined {
+  const head = incoming.head;
+  if (!head || !/^[0-9a-f]{7,64}$/i.test(head) || !servedWithMedia(tree.root, head)) return undefined;
+  if (git.runGit(tree.root, ["cat-file", "-e", `${head}^{commit}`]).status !== 0) return undefined;
+  const parse = (text: string | undefined): Input | undefined => {
+    try {
+      return text ? (JSON.parse(text) as Input) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const idOf = (file: string) => /^data\/inputs\/(I\d+)\.json$/u.exec(file)?.[1];
+  const atHead = new Map<string, Input>();
+  for (const [file, text] of git.showFiles(tree.root, head, git.listFiles(tree.root, head, "data/inputs").filter((f) => !!idOf(f)))) {
+    const rec = parse(text);
+    if (rec) atHead.set(idOf(file)!, rec);
+  }
+  const links = new Set<string>();
+  for (const [id, rec] of atHead) if (!rec.retracted) for (const l of rec.links ?? []) if (!l.retracted) links.add(linkKey(id, l));
+  // the sends of this tree of the app written since its head: the commits that brought their inputs, the oldest first
+  const own = new Set(incoming.appTree ? receivedAll(tree.root).filter((r) => r.tree === incoming.appTree && r.state === "written" && r.input && !atHead.has(r.input)).map((r) => r.input!) : []);
+  const commits: { commit: string; records: string[] }[] = [];
+  if (own.size) {
+    const r = git.runGit(tree.root, ["log", "--name-only", "--format=%x1e%H", `${head}..HEAD`, "--", "data/inputs"]);
+    if (r.status === 0)
+      for (const entry of r.stdout.split("\x1e").slice(1)) {
+        const [commit, ...files] = entry.trim().split("\n");
+        const ids = files.map((f) => idOf(f.trim())).filter((x): x is string => !!x);
+        if (commit && ids.some((x) => own.has(x))) commits.unshift({ commit, records: ids.filter((x) => !own.has(x)) });
+      }
+    for (const rec of tree.list<Input>("input")) for (const l of rec.links ?? []) if (l.input && own.has(l.input)) links.add(linkKey(rec.id, l));
+  }
+  // a record's fields: as the head had them, each as the last own send that changed it left it
+  const cache = new Map<string, Partial<Record<MediaField, string>>>();
+  const fieldsOf = (id: string): Partial<Record<MediaField, string>> | undefined => {
+    if (cache.has(id)) return cache.get(id);
+    const at = atHead.get(id);
+    const out: Partial<Record<MediaField, string>> | undefined = at ? Object.fromEntries(MEDIA_FIELDS.map((k) => [k, mediaValue(at, k)])) : undefined;
+    let got = out;
+    for (const c of commits) {
+      if (!c.records.includes(id)) continue;
+      const [after, before] = [parse(git.showFile(tree.root, c.commit, `data/inputs/${id}.json`)), parse(git.showFile(tree.root, `${c.commit}^`, `data/inputs/${id}.json`))];
+      if (!after) continue;
+      got ??= {};
+      for (const k of MEDIA_FIELDS) if (!before || mediaValue(after, k) !== mediaValue(before, k)) got[k] = mediaValue(after, k);
+    }
+    cache.set(id, got!);
+    return got;
+  };
+  const records = new Set([...atHead.keys(), ...commits.flatMap((c) => c.records)]);
+  return { links, records, field: (id, k) => fieldsOf(id)?.[k] };
+}
+
+/** What of a record only follows the file (no change of the user's): the original come, a working copy, its orientation. */
+function mediaKept(rec: Input, f: SMediaFile): string[] {
+  const out: string[] = [];
+  if (f.original && rec.sha !== f.original) out.push("original");
+  if (f.working && rec.working?.sha !== f.working.sha && rec.sha !== f.working.sha) out.push("working");
+  if (f.orient !== undefined && rec.orient === undefined) out.push("orient");
+  return out;
+}
+
+/** The research's event of a fact a file is at: by the ID the app was given, else as the facts pair (kind, date, place). */
+function mediaEvent(tree: Tree, snap: Snapshot, owner: string, fact: MediaFact): string | undefined {
+  const own = owner.startsWith("F") ? tree.get<Family>(owner) : resolve(tree, owner);
+  if (!own || own.retracted) return undefined;
+  const live = own.events.filter((e) => !e.retracted);
+  if (fact.eid && live.some((e) => e.id === fact.eid)) return fact.eid;
+  const facts = own.type === "family" ? snap.families.find((x) => famKey(x.partners) === famKey(own.partners))?.facts : snap.persons.get(own.id)?.facts;
+  const key = factKey(fact as SFact);
+  return facts?.find((x) => x.id && factKey(x) === key && live.some((e) => e.id === x.id))?.id;
+}
+
+/**
+ * The files of the app's tree a send carries, as changes (spec 108, only additions — P4 without the app saying it
+ * carries all): a record new, a place new (a person's, a family's, an event's, a source's), a portrait's or a couple's
+ * photo's new version (its place taken from the record before, `replaced`), a title, kind, date or note the record
+ * lacks or the user changed since. No conflict, no task, in every state (P5, P6). An event the research does not have:
+ * the file at its person or family, said (media.eventMissing, V8); a file that cannot be read: said (media.unreadable).
+ */
+function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<string, string>, o: { based: boolean; whole: boolean }, changes: Change[], push: (c: Omit<Change, "n">) => void): void {
+  const files = incoming.media;
+  const based = o.based;
+  // a send that carries all its files (media=app) against what its app was given of them: what it no longer has goes
+  const base = o.whole ? mediaBase(tree, incoming) : undefined;
+  if (!files?.size && !incoming.mediaUnreadable?.length && !base?.links.size) return;
+  const inputs = tree.list<Input>("input");
+  // the places the send has of the research's records ("<record>|<type>|<ref>|<event>"), the places of one image it
+  // fills, a record at a fact the research's event of which it does not find ("<record>|<owner>")
+  const present = new Set<string>();
+  const filled = new Set<string>();
+  const vague = new Set<string>();
+  const here = (rec: Input | undefined, type: MediaLink["type"], ref: string | undefined, event?: string) => {
+    if (rec && ref) present.add(linkKey(rec.id, { type, ref, ...(event ? { event } : {}) }));
+  };
+  const has = (rec: Input | undefined, type: MediaLink["type"], ref: string | undefined, event?: string) =>
+    !!rec && !!ref && !!rec.links?.some((l) => !l.retracted && l.type === type && l.ref === ref && (type !== "event" || l.event === event));
+  const holder = (type: MediaLink["type"], ref: string) => inputs.find((i) => !i.retracted && i.links?.some((l) => !l.retracted && l.type === type && l.ref === ref));
+  const planned = new Set<string>();
+  const once = (k: string) => !planned.has(k) && !!planned.add(k);
+  const touched = new Set<string>();
+  const first = new Map<string, Pick<Change, "person" | "name" | "family" | "partners" | "source" | "sourceId">>();
+  const add = (c: Omit<Change, "n">) => {
+    push(c);
+    if (c.media) touched.add(c.media.file);
+  };
+  const known = (f: SMediaFile) => recordOfFile(inputs, f);
+  const recOf = (rec: Input | undefined) => (rec ? { record: rec.id } : {});
+  // a fact of the file the research gets with this send (new, changed): its event found once written
+  const comes = (owner: string, fact: MediaFact) =>
+    changes.some((c) => (c.kind === "fact.new" || c.kind === "fact.changed" || c.kind === "fact.differs") && c.fact && factKey(c.fact) === factKey(fact as SFact) && (c.person === owner || (!!c.partners && famKey(c.partners) === owner) || c.family === owner));
+  const sourceLink = (sk: string, file: string, rec: Input | undefined) => {
+    const sid = sources.get(sk) ?? (sk.startsWith("x:") ? undefined : tree.get<Source>(sk)?.id);
+    here(rec, "source", sid);
+    if (has(rec, "source", sid) || !once(`${file}|source|${sid ?? sk}`)) return;
+    add({ kind: "media.link", action: "add", source: sk, ...(sid ? { sourceId: sid } : {}), media: { file, link: { type: "source", order: 0, source: sk }, ...recOf(rec) } });
+  };
+  /** A file at a fact: its event's place, or — the event not the research's — its owner's, said. */
+  const atFact = (at: Pick<Change, "person" | "name" | "family" | "partners">, owner: string, id: string | undefined, pl: SMediaPlace, f: SMediaFile, rec: Input | undefined) => {
+    const fact = pl.fact!;
+    const type = at.partners ? "family" : "person";
+    const event = id ? mediaEvent(tree, ours, id, fact) : undefined;
+    here(rec, "event", id, event);
+    if (rec && id && !event) vague.add(`${rec.id}|${id}`);
+    if (event) {
+      if (!has(rec, "event", id, event) && once(`${pl.file}|event|${id}|${event}`))
+        add({ kind: "media.link", action: "add", ...at, fact: fact as SFact, media: { file: pl.file, link: { type: "event", order: pl.order, fact }, event, ...recOf(rec) } });
+      return;
+    }
+    if (!id || comes(owner, fact)) {
+      if (once(`${pl.file}|event|${owner}|${factKey(fact as SFact)}`)) add({ kind: "media.link", action: "add", ...at, fact: fact as SFact, media: { file: pl.file, link: { type: "event", order: pl.order, fact }, ...recOf(rec) } });
+      return;
+    }
+    if (!has(rec, type, id) && once(`${pl.file}|${type}|${owner}`))
+      add({ kind: "media.attachment", action: "add", ...at, ...(f.title ? { text: f.title } : {}), media: { file: pl.file, link: { type, order: pl.order }, ...recOf(rec) } });
+    push({ kind: "media.link", action: "report", code: "media.eventMissing", ...at, fact: fact as SFact, media: { file: pl.file, ...recOf(rec) } });
+  };
+  for (const [key, p] of incoming.persons) {
+    if (!p.media?.length) continue;
+    const id = key.startsWith("x:") ? undefined : resolve(tree, key)?.id;
+    // a person the research does not have (removed, never ours): none of their files
+    if (!key.startsWith("x:") && !id) continue;
+    const owner = id ?? key;
+    const at = { person: owner, ...(p.names[0] ? { name: p.names[0] } : {}) };
+    for (const pl of p.media) {
+      const f = files?.get(pl.file);
+      if (!f) continue;
+      if (!first.has(pl.file)) first.set(pl.file, at);
+      const rec = known(f);
+      if (pl.fact) atFact(at, owner, id, pl, f, rec);
+      else if (pl.portrait) {
+        here(rec, "personPortrait", id);
+        filled.add(`personPortrait|${owner}`);
+        if (!has(rec, "personPortrait", id) && once(`${pl.file}|personPortrait|${owner}`)) {
+          const was = id ? holder("personPortrait", id) : undefined;
+          add({ kind: "media.photo", action: "add", ...at, media: { file: pl.file, link: { type: "personPortrait", order: 0 }, ...recOf(rec), ...(was && was.id !== rec?.id ? { replaces: was.id } : {}) } });
+        }
+      } else {
+        here(rec, "person", id);
+        if (!has(rec, "person", id) && once(`${pl.file}|person|${owner}`))
+          add({ kind: "media.attachment", action: "add", ...at, ...(f.title ? { text: f.title } : {}), media: { file: pl.file, link: { type: "person", order: pl.order }, ...recOf(rec) } });
+      }
+      for (const sk of pl.sources ?? []) sourceLink(sk, pl.file, rec);
+    }
+  }
+  for (const fam of incoming.families) {
+    if (!fam.media?.length || !fam.partners.length) continue;
+    const id = fam.partners.every((k) => !k.startsWith("x:")) ? familyOfPartners(tree, fam.partners)?.id : undefined;
+    const owner = id ?? famKey(fam.partners);
+    const at = { partners: fam.partners, ...(id ? { family: id } : {}) };
+    for (const pl of fam.media) {
+      const f = files?.get(pl.file);
+      if (!f) continue;
+      if (!first.has(pl.file)) first.set(pl.file, at);
+      const rec = known(f);
+      if (pl.fact) atFact(at, owner, id, pl, f, rec);
+      else if (pl.photo) {
+        here(rec, "familyPhoto", id);
+        filled.add(`familyPhoto|${owner}`);
+        if (!has(rec, "familyPhoto", id) && once(`${pl.file}|familyPhoto|${owner}`)) {
+          const was = id ? holder("familyPhoto", id) : undefined;
+          add({ kind: "media.couplePhoto", action: "add", ...at, media: { file: pl.file, link: { type: "familyPhoto", order: 0 }, ...recOf(rec), ...(was && was.id !== rec?.id ? { replaces: was.id } : {}) } });
+        }
+      } else {
+        here(rec, "family", id);
+        if (!has(rec, "family", id) && once(`${pl.file}|family|${owner}`))
+          add({ kind: "media.attachment", action: "add", ...at, ...(f.title ? { text: f.title } : {}), media: { file: pl.file, link: { type: "family", order: pl.order }, ...recOf(rec) } });
+      }
+    }
+  }
+  for (const [key, src] of incoming.sources ?? []) {
+    for (const pl of src.media ?? []) {
+      const f = files?.get(pl.file);
+      if (!f) continue;
+      if (!first.has(pl.file)) first.set(pl.file, { source: key, ...(sources.get(key) ? { sourceId: sources.get(key)! } : {}) });
+      sourceLink(key, pl.file, known(f));
+    }
+  }
+  // what the user gave a file the research has: its title, kind, date, note — against the record as the app was given it
+  const wasOf = (id: string): Input | undefined => {
+    if (!based || !incoming.head) return undefined;
+    const text = git.showFile(tree.root, incoming.head, `data/inputs/${id}.json`);
+    try {
+      return text ? (JSON.parse(text) as Input) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  for (const [key, f] of files ?? []) {
+    const rec = known(f);
+    // a character of its name, title or note that could not be read: kept as it came, said (never renamed quietly)
+    if (f.garbled && first.has(key)) push({ kind: "media.edit", action: "report", code: "media.unreadable", ...first.get(key)!, text: f.title ?? f.name ?? key.slice(0, 12), media: { file: key, ...recOf(rec) } });
+    if (!rec || !first.has(key)) continue;
+    const fields: string[] = mediaFields(rec, f, wasOf(rec.id), base?.records.has(rec.id) ? (k) => base.field(rec.id, k) : undefined);
+    const kept = mediaKept(rec, f);
+    if (!fields.length && (!kept.length || touched.has(key))) continue;
+    add({ kind: "media.edit", action: "add", ...first.get(key)!, ...(f.title && fields.includes("title") ? { text: f.title } : {}), media: { file: key, record: rec.id, fields: fields.length ? fields : kept } });
+  }
+  if (base) planMediaGone(tree, incoming, sources, base, { present, filled, vague }, push);
+  for (const u of incoming.mediaUnreadable ?? []) {
+    const person = u.person ? (u.person.startsWith("x:") ? u.person : (resolve(tree, u.person)?.id ?? u.person)) : undefined;
+    const family = u.family?.every((k) => !k.startsWith("x:")) ? familyOfPartners(tree, u.family)?.id : undefined;
+    push({
+      kind: "media.attachment",
+      action: "report",
+      code: "media.unreadable",
+      ...(person ? { person } : {}),
+      ...(u.family ? { partners: u.family, ...(family ? { family } : {}) } : {}),
+      ...(u.source ? { source: u.source, ...(sources.get(u.source) ? { sourceId: sources.get(u.source)! } : {}) } : {}),
+      text: u.name,
+    });
+  }
+}
+
+/**
+ * The places of files the app was given (the media base) that a send carrying all its files no longer has: taken off
+ * (spec 108 P3) — a portrait, a couple's photo, an attachment of a person or a couple, a file of an event or a source.
+ * Only of a person, a couple or a source the file has (one it does not have is not the user's removal of a file), never
+ * where a file of it could not be read, never a place of one image the send fills with another (that one's new version
+ * takes it, `replaced`), never an event's file the send has at a fact the research's event of which is not found.
+ * A record left with no place is out of the tree; its file stays. Every state alike, no conflict (P5, V7).
+ */
+function planMediaGone(
+  tree: Tree,
+  incoming: Snapshot,
+  sources: Map<string, string>,
+  base: MediaBase,
+  sent: { present: Set<string>; filled: Set<string>; vague: Set<string> },
+  push: (c: Omit<Change, "n">) => void,
+): void {
+  const persons = new Set<string>();
+  for (const k of incoming.persons.keys()) if (!k.startsWith("x:")) persons.add(resolve(tree, k)?.id ?? k);
+  const families = new Set(incoming.families.map((f) => familyOfPartners(tree, f.partners)?.id).filter((x): x is string => !!x));
+  const srcs = new Set([...(incoming.sources?.keys() ?? [])].map((k) => sources.get(k) ?? (k.startsWith("x:") ? undefined : tree.get<Source>(k)?.id)).filter((x): x is string => !!x));
+  // a file that could not be read: its person's, couple's or source's places stay as they are
+  const blocked = new Set<string>();
+  for (const u of incoming.mediaUnreadable ?? []) {
+    if (u.person && !u.person.startsWith("x:")) blocked.add(resolve(tree, u.person)?.id ?? u.person);
+    const fam = u.family ? familyOfPartners(tree, u.family)?.id : undefined;
+    if (fam) blocked.add(fam);
+    const sid = u.source ? (sources.get(u.source) ?? tree.get<Source>(u.source)?.id) : undefined;
+    if (sid) blocked.add(sid);
+  }
+  const ownerOf = (ref: string) => (ref.startsWith("P") ? resolve(tree, ref)?.id : ref);
+  const inFile = (ref: string) => (ref.startsWith("F") ? families.has(ref) : ref.startsWith("S") ? srcs.has(ref) : persons.has(ref));
+  for (const rec of tree.list<Input>("input")) {
+    if (rec.retracted || !rec.links?.length) continue;
+    for (const l of rec.links) {
+      if (l.retracted || !base.links.has(linkKey(rec.id, l))) continue;
+      const owner = ownerOf(l.ref);
+      if (!owner || !inFile(owner) || blocked.has(owner)) continue;
+      if (sent.present.has(linkKey(rec.id, { ...l, ref: owner }))) continue;
+      if ((l.type === "personPortrait" || l.type === "familyPhoto") && sent.filled.has(`${l.type}|${owner}`)) continue;
+      if (l.type === "event" && sent.vague.has(`${rec.id}|${owner}`)) continue;
+      const kind: ChangeKind =
+        l.type === "personPortrait" ? "media.photo.removed" : l.type === "familyPhoto" ? "media.couplePhoto.removed" : l.type === "person" || l.type === "family" ? "media.attachment.removed" : "media.unlink";
+      const fam = owner.startsWith("F") ? tree.get<Family>(owner) : undefined;
+      const name = owner.startsWith("P") ? incoming.persons.get(owner)?.names[0] : undefined;
+      const at = owner.startsWith("S") ? { source: owner, sourceId: owner } : fam ? { family: owner, partners: fam.partners } : { person: owner, ...(name ? { name } : {}) };
+      const ev = l.event ? (fam ?? resolve(tree, owner))?.events.find((e) => e.id === l.event) : undefined;
+      push({
+        kind,
+        action: "remove",
+        ...at,
+        ...(ev ? { fact: { kind: ev.kind, ...(ev.label ? { label: ev.label } : {}) } as SFact } : {}),
+        media: { file: `record:${rec.id}`, link: { type: l.type, order: l.order }, record: rec.id, ref: owner, ...(l.event ? { event: l.event } : {}), retract: true },
+      });
+    }
+  }
+}
+
+/** A record of the material a file of the app becomes: of which kind of input (a photo, a document …). */
+function inputKindOf(mime: string | undefined, f: SMediaFile, origin: Input["origin"]): Input["kind"] {
+  if (f.kind === "photo" || ((origin === "portrait" || origin === "couple") && mime?.startsWith("image/"))) return "photo";
+  if (mime?.startsWith("image/") || mime === "application/pdf") return "document";
+  return "other";
+}
+
+/** Where the research keeps an original by its hash already (a record of the material, a scan of a source): its file. */
+function originalFile(tree: Tree, sha: string): { file: string; size?: number; mime?: string } | undefined {
+  const i = tree.list<Input>("input").find((x) => !x.retracted && x.sha === sha && x.file?.startsWith("media:"));
+  if (i) return { file: i.file!, ...(i.size !== undefined ? { size: i.size } : {}), ...(i.mime ? { mime: i.mime } : {}) };
+  const m = tree.list<Media>("media").find((x) => !x.retracted && x.sha === sha);
+  return m ? { file: `media:${m.file}`, size: m.size, mime: m.mime } : undefined;
+}
+
+/** The origin of a record by the place it first gets. */
+const originOfLink = (type: MediaLink["type"]): NonNullable<Input["origin"]> => (type === "personPortrait" ? "portrait" : type === "familyPhoto" ? "couple" : "attachment");
+
+/**
+ * The changes of the app's files written (applySync): records made or completed, places added, a portrait's or a couple
+ * photo's place taken from the version before (`replaced`), the user's title, kind, date, note. Each record written once
+ * (one operation), kept as it was for the undo; an event not found once written: its owner's place, said (V8).
+ */
+function applyMedia(
+  tree: Tree,
+  plan: Plan,
+  incoming: Snapshot,
+  changes: Change[],
+  by: { person: (key: string | undefined) => string | undefined; family: (c: Change) => string | undefined; source: (key: string) => string | undefined; input?: string | undefined; applied: Applied[]; skipped: Skipped[] },
+): void {
+  const at = now();
+  const files = incoming.media ?? new Map<string, SMediaFile>();
+  const recs = new Map<string, Input>(); // a record as it becomes (a new one: by "+<file>")
+  const was = new Map<string, string>(); // a record of the research as it was
+  const fresh = new Map<string, string>(); // a file → its record (an ID, or "+<file>" of one made at the end)
+  const all = tree.list<Input>("input");
+  let snap: Snapshot | undefined;
+  const touch = (id: string): Input => {
+    if (!recs.has(id)) {
+      const r = structuredClone(tree.get<Input>(id)!);
+      was.set(id, JSON.stringify(Object.fromEntries(MEDIA_KEPT.flatMap((k) => (r[k] !== undefined ? [[k, r[k]]] : [])))));
+      recs.set(id, r);
+    }
+    return recs.get(id)!;
+  };
+  const workingOf = (f: SMediaFile): Input["working"] | undefined => (f.working ? { sha: f.working.sha, mime: f.working.mime, bytes: f.working.bytes, ...(f.working.width ? { width: f.working.width, height: f.working.height! } : {}) } : undefined);
+  /** The record of a file: the research's (completed by what only follows the file), or one to make. */
+  const recordFor = (key: string, first: MediaLink["type"]): Input | undefined => {
+    const f = files.get(key);
+    if (!f) return undefined;
+    const id = fresh.get(key);
+    if (id) return recs.get(id);
+    const known = recordOfFile(all, f);
+    if (known) {
+      const r = touch(known.id);
+      if (f.original && r.sha !== f.original) {
+        // the original comes to a record known by its working copy (V1): the file is the original where the research has it
+        const orig = originalFile(tree, f.original);
+        if (!r.working && r.sha) r.working = { sha: r.sha, mime: r.mime ?? "application/octet-stream", bytes: r.size ?? 0 };
+        r.sha = f.original;
+        if (orig) Object.assign(r, { file: orig.file, ...(orig.size !== undefined ? { size: orig.size } : {}), ...(orig.mime ? { mime: orig.mime } : {}) });
+        else delete r.file;
+      }
+      if (f.working && r.working?.sha !== f.working.sha && r.sha !== f.working.sha) r.working = workingOf(f);
+      if (f.orient !== undefined && r.orient === undefined) r.orient = f.orient;
+      // the research's own file (strom intake, a connector) keeps none: material of the research (spec 102 M4)
+      if (sentByApp(r)) r.origin ??= originOfLink(first);
+      fresh.set(key, r.id);
+      return r;
+    }
+    const orig = f.original ? originalFile(tree, f.original) : undefined;
+    const own = !f.original || f.original === f.working?.sha;
+    const mime = orig?.mime ?? (own ? f.working?.mime : mimeOfForm(f.form)) ?? f.working?.mime;
+    const origin = originOfLink(first);
+    const r = {
+      id: `+${key}`,
+      type: "input",
+      name: (f.name ?? key.slice(0, 12)).slice(0, 200),
+      ...(orig ? { file: orig.file } : own && f.working ? { file: `media:${storeRel(f.working.sha, f.working.ext)}` } : {}),
+      sha: f.original ?? f.working!.sha,
+      ...(orig?.size !== undefined ? { size: orig.size } : own && f.working ? { size: f.working.bytes } : {}),
+      ...(mime ? { mime } : {}),
+      from: APP_FROM,
+      kind: inputKindOf(mime, f, origin),
+      // nothing to take in (spec 108 P6): a file of the app's tree is no task
+      state: "processed",
+      origin,
+      ...(!own && f.working ? { working: workingOf(f) } : {}),
+      ...(f.orient !== undefined ? { orient: f.orient } : {}),
+      ...(f.title ? { title: f.title, titled: { by: "user", at } } : {}),
+      ...(f.kind ? { materialKind: f.kind } : {}),
+      ...(f.date ? { date: f.date } : {}),
+      notes: f.note ? [{ text: f.note, at, by: "user" }] : [],
+      links: [],
+    } as unknown as Input;
+    recs.set(r.id, r);
+    fresh.set(key, r.id);
+    return r;
+  };
+  const sameLink = (l: MediaLink, x: Pick<MediaLink, "type" | "ref" | "event">) => !l.retracted && l.type === x.type && l.ref === x.ref && (l.event ?? "") === (x.event ?? "");
+  for (const c of changes) {
+    const m = c.media!;
+    if (m.retract) {
+      // a place the app no longer has (spec 108 P3): taken off with the reason, the send that took it — sync undo puts it back
+      const r = m.record && !m.record.startsWith("+") && tree.get<Input>(m.record) ? touch(m.record) : undefined;
+      const type = m.link?.type;
+      const hit = r?.links?.find((l) => !l.retracted && l.type === type && (l.ref.startsWith("P") ? resolve(tree, l.ref)?.id : l.ref) === m.ref && (l.event ?? "") === (m.event ?? ""));
+      if (!r || !hit) {
+        by.skipped.push({ n: c.n, kind: c.kind, why: "the place is not the research's any more", code: "media.place", params: { ...(m.record ? { record: m.record } : {}) } });
+        continue;
+      }
+      r.links = r.links!.map((l) => (l === hit ? { ...l, retracted: { at, reason: "app" as const, ...(by.input ? { input: by.input } : {}) } } : l));
+      continue;
+    }
+    const rec = recordFor(m.file, m.link?.type ?? "person");
+    if (!rec) {
+      by.skipped.push({ n: c.n, kind: c.kind, why: "the file is not in the send", code: "media.file", params: {} });
+      continue;
+    }
+    if (c.kind === "media.edit") {
+      // the user's value; none: the one the app was given taken off (a send carrying all its files, mediaFields)
+      for (const field of m.fields ?? []) {
+        const f = files.get(m.file)!;
+        if (field === "title") {
+          if (f.title) Object.assign(rec, { title: f.title, titled: { by: "user", at } });
+          else {
+            delete rec.title;
+            delete rec.titled;
+          }
+        } else if (field === "kind") {
+          if (f.kind) rec.materialKind = f.kind;
+          else delete rec.materialKind;
+        } else if (field === "date") {
+          if (f.date) rec.date = f.date;
+          else delete rec.date;
+        } else if (field === "note") {
+          const last = [...rec.notes].reverse().find((n) => n.by === "user");
+          rec.notes = [...rec.notes.filter((n) => n !== last), ...(f.note ? [{ text: f.note, at, by: "user" as const }] : [])];
+        }
+      }
+      const ref = c.source ? by.source(c.source) : c.partners ? by.family(c) : by.person(c.person);
+      if (ref) m.ref = ref;
+      continue;
+    }
+    const link = m.link!;
+    const owner = link.type === "source" ? by.source(link.source!) : c.partners ? by.family(c) : by.person(c.person);
+    if (!owner) {
+      by.skipped.push({ n: c.n, kind: c.kind, why: `${c.person ?? c.family ?? link.source ?? "?"} is not in the research`, code: "media.place", params: { ...(c.person ? { person: c.person } : {}), ...(link.source ? { source: link.source } : {}) } });
+      continue;
+    }
+    let type = link.type;
+    let event = m.event;
+    if (type === "event" && !event) {
+      snap ??= snapshotOfTree(tree);
+      event = mediaEvent(tree, snap, owner, link.fact!);
+      if (!event) {
+        // the event not written (a fact the sync did not take): the file at its owner, said (V8)
+        type = c.partners ? "family" : "person";
+        Object.assign(c, { kind: "media.attachment" as const });
+        plan.changes.push({ n: plan.changes.length + 1, kind: "media.link", action: "report", code: "media.eventMissing", ...(c.person ? { person: owner } : { family: owner, partners: c.partners }), ...(c.fact ? { fact: c.fact } : {}), media: { file: m.file } });
+      }
+    }
+    if (type !== "event") event = undefined;
+    // a place of one image (a portrait, a couple's photo): the version before gives it up
+    if (type === "personPortrait" || type === "familyPhoto")
+      for (const other of tree.list<Input>("input").filter((i) => !i.retracted && i.id !== rec.id && i.links?.some((l) => sameLink(l, { type, ref: owner }))).concat([...recs.values()].filter((r) => r.id !== rec.id && r.links?.some((l) => sameLink(l, { type, ref: owner }))))) {
+        const o = other.id.startsWith("+") ? other : touch(other.id);
+        o.links = o.links!.map((l) => (sameLink(l, { type, ref: owner }) ? { ...l, retracted: { at, reason: "replaced" as const, ...(by.input ? { input: by.input } : {}) } } : l));
+        m.replaces = o.id;
+      }
+    if (!(rec.links ?? []).some((l) => sameLink(l, { type, ref: owner, ...(event ? { event } : {}) })))
+      rec.links = [...(rec.links ?? []), { type, ref: owner, ...(event ? { event } : {}), order: link.order, at, ...(by.input ? { input: by.input } : {}) }];
+    if (event) m.event = event;
+    m.link = { ...link, type };
+    m.ref = owner;
+  }
+  // written: each record once — a new one made, the research's with what it was kept for the undo
+  const made = new Map<string, string>();
+  for (const [id, r] of recs) {
+    if (id.startsWith("+")) {
+      const { id: _id, type: _t, notes, ...fields } = r as Input & Record<string, unknown>;
+      const rec = create<Input>(tree, "input", fields as never, (iid) => `+${iid} input ${r.kind} "${r.name.slice(0, 50)}" (a file of the Strom app's tree)`);
+      if (notes.length) update<Input>(tree, rec.id, "input", (x) => ({ ...x, notes }), { op: "input.note", summary: `${rec.id} the user's note of the file (the Strom app)` });
+      made.set(id, rec.id);
+      by.applied.push({ do: "input.media", id: rec.id });
+    } else {
+      const before = was.get(id)!;
+      const now = JSON.stringify(Object.fromEntries(MEDIA_KEPT.flatMap((k) => (r[k] !== undefined ? [[k, r[k]]] : []))));
+      if (now === before) continue;
+      update<Input>(tree, id, "input", () => r, { op: "input.media", summary: `${id} its places in the Strom app's tree, as the app gave them` });
+      by.applied.push({ do: "input.media.edit", id, before });
+    }
+  }
+  // the records the changes are of (the answer to the app: "record")
+  const idOf = (x: string | undefined) => (x ? (made.get(x) ?? x) : undefined);
+  for (const c of plan.changes) {
+    if (!c.media) continue;
+    const r = idOf(fresh.get(c.media.file) ?? c.media.record);
+    if (r) c.media.record = r;
+    if (c.media.replaces) c.media.replaces = idOf(c.media.replaces)!;
+  }
+}
+
+/**
+ * A record of the app's tree a send took off it (no place left, spec 108 K2.2), or the user in the family's material
+ * (its people taken off, strom input assign): the places the last write that took any of them took, given back (102
+ * M3, V5 "Vrátit"). Undefined: the record is in the tree, or no write took a place of it (a version replaced stays so).
+ * Written under the tree's lock (one already held is kept).
+ */
+export function restoreTakenOff(tree: Tree, id: string, reason: string): MediaLink[] | undefined {
+  const rec = tree.get<Input>(id);
+  if (!rec || rec.retracted || inTree(rec)) return undefined;
+  const by = (l: MediaLink) => (l.retracted?.reason === "app" || l.retracted?.reason === "removed" ? (l.retracted.input ?? l.retracted.at) : undefined);
+  const off = (rec.links ?? []).filter((l) => by(l) !== undefined);
+  if (!off.length) return undefined;
+  const last = off.reduce((a, l) => (l.retracted!.at > a.retracted!.at ? l : a));
+  const back = new Set(off.filter((l) => by(l) === by(last)));
+  const links = rec.links!.map((l) => {
+    if (!back.has(l)) return l;
+    const { retracted: _r, ...was } = l;
+    return was;
+  });
+  update<Input>(tree, id, "input", (x) => ({ ...x, links }), { op: "input.media", summary: `${id} back in the Strom app's tree: the ${back.size} place(s) ${last.retracted!.input ?? (last.retracted!.reason === "removed" ? "the user" : "a send")} took off`, reason });
+  return links.filter((l, i) => back.has(rec.links![i]!));
+}
+
 /** The research's family of these partners (our IDs, through merges): none where one is not ours. */
 function familyOfPartners(tree: Tree, keys: readonly string[]): Family | undefined {
   const partners = keys.map((k) => (k.startsWith("x:") ? undefined : (resolve(tree, k)?.id ?? k)));
@@ -4643,6 +5453,8 @@ export interface Applied {
     | "name.cite"
     | "family.cite"
     | "media.add"
+    | "input.media"
+    | "input.media.edit"
     | "input.sort"
     | "surname.set"
     | "lineage.set"
@@ -4920,7 +5732,7 @@ export function applySync(
     }
     return out;
   };
-  const taken = (c: Change) => (only ? only.has(c.n) : c.action !== "pick") && c.action !== "report";
+  const taken = (c: Change) => (only ? only.has(c.n) : c.action !== "pick") && (c.action !== "report" || asksPerson(c));
   const changes = plan.changes.filter(taken).length;
   const ids = new Map<string, string>(); // a new person's key → their ID
   const who = (key: string | undefined) => (key ? (ids.get(key) ?? (key.startsWith("x:") ? undefined : key)) : undefined);
@@ -5405,6 +6217,13 @@ export function applySync(
           break;
         }
         case "fact.part.note": {
+          // only the beginning of the research's note: the person asked whether it is taken, nothing written
+          if (asksPerson(c)) {
+            const ask = shorterOf(c);
+            const t = ask ? askShorterNote(tree, ask, guard.input ?? source.input ?? source.id) : undefined;
+            if (t) applied.push({ do: "task.add", id: t.id });
+            break;
+          }
           // the note of someone the record names at the research's fact, as the user wrote it in the app
           const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
           if (!owner || !mine || mine.retracted || !c.part?.note || !c.wasPart) break;
@@ -6183,6 +7002,20 @@ export function applySync(
     // a family the research had: only by its change (above); one made now, or with all its IDs kept already (nothing to add)
     if (fam && !asChange.has(fam.id)) addIds<Family>(fam.id, "family", f.ids);
   }
+  // the files of the app's tree (spec 108): each one record of the material, its places links of it — written last,
+  // when the people, families, sources and events this sync makes are there
+  const mediaChanges = plan.changes.filter((x) => x.media && x.action !== "report" && taken(x));
+  if (mediaChanges.length) applyMedia(tree, plan, incoming, mediaChanges, {
+    person: (key) => {
+      const id = who(key);
+      return id ? resolve(tree, id)?.id : undefined;
+    },
+    family: (c) => c.family ?? (c.partners ? (families.get(famKey(c.partners.map((k) => who(k) ?? k))) ?? familyOfPartners(tree, c.partners.map((k) => who(k) ?? k))?.id) : undefined),
+    source: (key) => srcId(key) ?? (key.startsWith("x:") ? undefined : tree.get<Source>(key)?.id),
+    input: guard.input,
+    applied,
+    skipped,
+  });
   // what became a proposal is no change written
   return { applied, changes: changes - skipped.length - new Set(proposed.map((x) => x.n)).size, skipped, ...(asked.length ? { asked } : {}), ...(proposed.length ? { proposed } : {}) };
 }
@@ -6954,6 +7787,28 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "media.add":
         update<Media>(tree, a.id, "media", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "media.retract", summary: `${a.id} retracted: ${reason}`, reason });
         break;
+      case "input.media":
+        // a record of a file of the app's tree the sync made: withdrawn (its bytes stay in the shared store)
+        update<Input>(tree, a.id, "input", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "input.retract", summary: `${a.id} retracted: ${reason}`, reason });
+        break;
+      case "input.media.edit": {
+        // the record as it stood before: its places, its versions' places, its file, the user's title, kind, date, note
+        const b = JSON.parse(String(a.before ?? "{}")) as Record<string, unknown>;
+        update<Input>(
+          tree,
+          a.id,
+          "input",
+          (x) => {
+            const y = { ...x } as unknown as Record<string, unknown>;
+            for (const k of MEDIA_KEPT)
+              if (b[k] !== undefined) y[k] = b[k];
+              else if (k !== "notes" && k !== "name") delete y[k];
+            return y as unknown as Input;
+          },
+          { op: "input.media", summary: `${a.id} its places in the Strom app's tree as before: ${reason}`, reason },
+        );
+        break;
+      }
       case "input.sort": {
         // the material as it stood before the reading's source was made of it
         const b = JSON.parse(String(a.before ?? "{}")) as Pick<Input, "state" | "sorted">;
@@ -6964,7 +7819,8 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         update<Repository>(tree, a.id, "repository", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "repo.retract", summary: `${a.id} retracted: ${reason}`, reason });
         break;
       case "task.add":
-        update<Task>(tree, a.id, "task", (t) => (t.state === "open" || t.state === "parked" ? { ...t, state: "dropped", result: reason } : t), { op: "task.drop", summary: `${a.id} dropped: ${reason}` });
+        // …and the person's question of a note sent shorter, while it waits for them
+        update<Task>(tree, a.id, "task", (t) => (t.state === "open" || t.state === "parked" || (t.state === "waiting" && t.origin === SHORTER_ORIGIN) ? { ...t, state: "dropped", result: reason } : t), { op: "task.drop", summary: `${a.id} dropped: ${reason}` });
         break;
       case "sex.edit": {
         // where the sex came from, as before (a sync before spec 066 kept none: as it is)

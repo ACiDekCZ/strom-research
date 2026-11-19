@@ -34,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, noReaderFor, readerAgent, readerAuthSaid, readerDesk, readersLang, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersLoggedOut, refuseReadersWithoutCli } from "./readers.ts";
+import { claimStem, leaveReaderRoom, noReaderFor, readerAgent, readerAuthSaid, readerDesk, readerRoomDir, readersLang, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersLoggedOut, refuseReadersWithoutCli } from "./readers.ts";
 import { ui } from "../cli/ui.ts";
 import { claudeLoginCommand } from "../core/claudedir.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
@@ -465,7 +465,6 @@ register({
     const day = new Date().toISOString().slice(0, 10);
     const reportsDir = path.join(tree.root, "notes", "readings");
     fs.mkdirSync(reportsDir, { recursive: true });
-    const work = path.join(ctx.settings.shared()!.value, "cache", "readers");
 
     refuseReadersWhenFinishing(tree.root, ctx.env);
     // Another reading of the same images on the same day keeps the earlier reports — also one started at the same
@@ -504,8 +503,7 @@ register({
       const minutes = limit.minutes;
       if (refused) return { group, report, outcome: "error" as const, cost: undefined, findings: [] as Finding[], minutes };
       // Its own files beside the one folder all readers work in (outside the tree: readerDesk).
-      const own = path.join(work, `${stem}-${k + 1}`);
-      fs.mkdirSync(own, { recursive: true });
+      const own = readerRoomDir(ctx.settings.shared()!.value, `${stem}-${k + 1}`);
       const settingsFile = path.join(own, "reader-settings.json");
       const seen = group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]);
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(seen, report, permissionPath), null, 2));
@@ -539,6 +537,8 @@ register({
         ...usageOpt(tree, `read-${stem}-${k + 1}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: "read" }),
       });
       const ranMs = Date.now() - startedAt;
+      // its own folder (settings, room) cleared as it ends
+      leaveReaderRoom(own);
       atWork.delete(k);
       // A reader that wrote its report whole, without strom's head (in the research language, found live): the head
       // back on top — strom readings finds a reading by it.

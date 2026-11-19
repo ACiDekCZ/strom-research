@@ -14,7 +14,9 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
+import type { Task } from "../../src/core/model.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
+import { queueRun } from "../../src/core/sort.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
 import { makePdf } from "../image-samples.ts";
@@ -160,17 +162,44 @@ async function seeded(): Promise<World> {
   const reads = path.join(w.cwd, ".strom", "reads");
   fs.mkdirSync(reads, { recursive: true });
   const at = "2026-01-01T12:00:00.000Z";
+  // a sort of the material kept to be sorted (strom material show, cancel): its state as strom material sort --queue leaves it
+  fs.mkdirSync(path.join(w.cwd, ".strom", "sorts"), { recursive: true });
+  fs.writeFileSync(path.join(w.cwd, ".strom", "sorts", "sort-20260101120000-ab12.json"), JSON.stringify({ id: "sort-20260101120000-ab12", state: "queued", files: ["I0003"], text: "", lang: "cs", at, since: at }));
+  // a run of the Strom app (strom material show, cancel): as its bridge queues one, signed with the tree's key
+  const runTree = Tree.open(w.cwd, w.env);
+  queueRun(runTree, { files: ["I0003"], text: "" }, { lang: "cs", key: runTree.key!, run: "run-20260101120000-cd34" });
   // a second record of Horní Lhota close by (place merge)
   const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
   assert.equal(dup, "L0003", "the place merge example's ID");
   // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
   await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
+  // a godmother's note the Strom app 3.29.0 sent shorter than the research's: a task asks the person (strom sync note) — before any fact cites its original, so no sync queues one to verify
+  await w.ok(["event", "add", "P0006", "CHR", "--date", "1872", "--with", "godparent:Anna Lhotová (selka z Lhoty, vdova po sedlákovi)"]);
+  const shorter = path.join(w.dir, "kratsi.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", shorter]);
+  const cut = fs.readFileSync(shorter, "utf8").replace(/^1 SOUR STROM_RESEARCH\r?\n2 VERS [^\n]*\n/mu, "1 SOUR STROM\n2 VERS 3.29.0\n").replace("selka z Lhoty, vdova po sedlákovi", "selka z Lhoty");
+  assert.ok(cut.includes("2 VERS 3.29.0") && !cut.includes("vdova po sedlákovi"), "the app's file with the note cut");
+  fs.writeFileSync(shorter, cut);
+  await w.ok(["sync", shorter, "--apply"], { env: { STROM_FOR_APP: "1" } });
+  const asked = Tree.open(w.cwd, w.env).list<Task>("task").filter((t) => t.origin === "sync:note-shorter").map((t) => t.id);
+  assert.deepEqual(asked, ["T0008"], "the sync note example's ID");
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
   await w.ok(["cite", "E0001", baptism]);
   // Jan's birth cited by the baptism register too (strom event main)
   await w.ok(["cite", "E0001", "S0001", "--locator", "fol. 12"]);
+  // two waits for images written in words, as an older strom took them (strom task audit): T0009 to fix, T0010 fixed
+  for (const what of ["Křest Josefa", "Křest Marie"]) await w.ok(["task", "add", what, "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis nalezen", "--anyway"]);
+  const inWords = Tree.open(w.cwd, w.env);
+  inWords.withTreeLock(() => {
+    for (const id of ["T0009", "T0010"]) {
+      const t = inWords.get<Task>(id)!;
+      inWords.put({ ...t, state: "waiting", waitingOn: "Snímky 12–14 z knihy Týnec 17 k ručnímu uložení", updated: new Date().toISOString() }, { op: "task.wait", targets: [id], summary: `${id} waits` });
+    }
+  });
+  inWords.commit("T0009, T0010 wait in words");
+  await w.ok(["task", "audit", "T0010", "--fix"]);
   return w;
 }
 
@@ -190,11 +219,12 @@ test("every example in the help runs", opts, async () => {
       // --with-data): in their terminal — this test's own settings (R8)
       const withData = def.path.join(" ") === "error" && argv.includes("--with-data");
       const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" || withData ||
-        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event main", "event revert", "person revert"].includes(def.path.join(" "));
+        ["fixes run", "fixes decline", "fixes reopen", "source reading", "event main", "event revert", "person revert", "sync note", "material sort"].includes(def.path.join(" "));
       // putting back a family tree's value (the person's): this world imported none — its answer that nothing is to put back
       // a reading again asked about at the person's terminal (no --take): left undecided (0)
       // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it
-      const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : withData ? { answers: ["", "y", "y"] } : {};
+      // paid readings of a sort: the person's Enter says no — nothing sorted
+      const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : withData ? { answers: ["", "y", "y"] } : def.path.join(" ") === "material sort" ? { answers: [""] } : {};
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
       if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }

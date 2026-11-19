@@ -15,7 +15,8 @@ import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
 import { aliasesHere, modelSaid } from "./model-choice.ts";
-import { DEFAULT_RUN_MINUTES, readStored, type HistoryPace } from "../core/config.ts";
+import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, DEFAULT_RUN_MINUTES, readStored, type HistoryPace } from "../core/config.ts";
+import { SAME_BOOK_MAX } from "../core/queue.ts";
 import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
 import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
@@ -494,6 +495,56 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
 }
 
 /**
+ * The books most tasks need (Settings → Archives → Books, spec 105): from how many tasks a book is offered to download
+ * by hand (books.minTasks), and whether the next session goes on in the book the last one read (queue.sameBook). Both
+ * are the research's own (its strom.json), as the Strom app sets them.
+ */
+async function booksSettings(ctx: Context, run: Run, lang: string, root: string): Promise<"quit" | void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  return subMenu(
+    ctx,
+    lang,
+    () => {
+      ctx.settings.reload();
+      const tree = Tree.open(root, ctx.env).config;
+      const min = ctx.settings.booksMinTasks(tree);
+      const same = ctx.settings.sameBook(tree);
+      return {
+        title: t("ui.books.settings.title"),
+        items: [
+          {
+            key: "1",
+            label: t("ui.books.min", { n: min }),
+            act: async () => {
+              out(t("ui.books.min.about", { n: BOOKS_MIN_TASKS }));
+              for (;;) {
+                const a = (await ctx.ask(t("ui.books.min.ask", { max: BOOKS_MIN_TASKS_MAX }), String(min))).trim();
+                if (a === "0" || a === String(min)) return;
+                const n = Number(a);
+                if (Number.isInteger(n) && n >= 1 && n <= BOOKS_MIN_TASKS_MAX) return void (await run(["config", "set", "books.minTasks", String(n), "--for-tree"], true));
+                out(t("ui.books.min.bad", { max: BOOKS_MIN_TASKS_MAX }));
+                if (ctx.io.answers !== undefined && ctx.io.answers.length === 0) return;
+              }
+            },
+          },
+          {
+            key: "2",
+            label: t("ui.books.same", { state: t(same ? "ui.settings.on" : "ui.settings.off") }),
+            act: async () => {
+              out(t("ui.books.same.about", { max: SAME_BOOK_MAX }));
+              if (!(await ctx.confirm(t(same ? "ui.books.same.off" : "ui.alone.places.on"), false))) return;
+              await run(["config", "set", "queue.sameBook", same ? "no" : "yes", "--for-tree"], true);
+            },
+          },
+        ],
+      };
+    },
+    { fixed: true },
+  );
+}
+
+/**
  * The work off the lines (Settings → the agent working alone → Work off the lines, spec 038 K7): when it comes — each
  * choice with what it does and how many open tasks it decides —, whether a line is proposed for a branch that grows,
  * and the branches and tasks the person gave a choice of their own, each back to the default. A research with a value
@@ -828,7 +879,17 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
         act: async () => void (await run(["login", c.name])),
       })),
     ];
-    // at most nine
-    return { title, items: items.slice(0, 9) };
+    // the books most tasks need (spec 105): from how many tasks one is offered, the next session in the same book —
+    // last, so that the numbers of the archives' own items never move; at most nine with it
+    const books: Item[] = root && treeConfig
+      ? [
+          {
+            key: "k",
+            label: t("ui.archives.books", { n: ctx.settings.booksMinTasks(treeConfig), state: t(ctx.settings.sameBook(treeConfig) ? "ui.settings.on" : "ui.settings.off") }),
+            act: async () => void (await booksSettings(ctx, run, lang, root)),
+          },
+        ]
+      : [];
+    return { title, items: [...items.slice(0, 9 - books.length), ...books] };
   });
 }

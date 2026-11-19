@@ -1,4 +1,5 @@
-// The bridge watching the folders of the shared inbox that tasks wait on (core/inboxwait.ts) — only those, never the
+// The bridge watching the folders of the shared inbox that tasks wait on (core/inboxwait.ts), and those of the books
+// tasks still need (spec 105 K1.4: images saved there by hand serve all the book's tasks) — only those, never the
 // whole inbox: images the person saves there by hand are taken as they come (strom media add --inbox --waiting, a strom
 // of the bridge's own writing as the person), and a task they complete comes back to the queue without a command.
 //
@@ -11,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
 import { Tree } from "./tree.ts";
-import { folderFiles, inboxWaits, SETTLE_MS, unsettled } from "./inboxwait.ts";
+import { bookFolders, folderFiles, inboxWaits, SETTLE_MS, unsettled } from "./inboxwait.ts";
 
 export interface InboxWatch {
   /** The folders watched now (for the log and tests). */
@@ -63,12 +64,13 @@ export function watchInbox(o: InboxWatchOptions): InboxWatch {
     timer.unref?.();
   };
 
-  /** The folders tasks wait on now. */
+  /** The folders tasks wait on now, and those of the books tasks need (only those already made: rewatch). */
   const wanted = (): string[] => {
     const shared = o.shared();
     if (!shared) return [];
     try {
-      return [...new Set(inboxWaits(Tree.open(o.root, o.env)).map((w) => path.join(shared, "inbox", w.folder)))];
+      const tree = Tree.open(o.root, o.env);
+      return [...new Set([...inboxWaits(tree), ...bookFolders(tree)].map((w) => path.join(shared, "inbox", w.folder)))];
     } catch {
       return [...watchers.keys()];
     }

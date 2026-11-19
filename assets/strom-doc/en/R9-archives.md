@@ -276,7 +276,7 @@ images itself, one at a time: it opens the image in Chrome and saves what the ar
   - the image's address passes the check of the agent's browser ([R9.4](#R9.4));
   - only an image that the tab shows at its own address is saved. A viewer moved to another image is refused and
     nothing is saved. Never more than the archive's viewer gives, never larger than the original;
-  - saving waits until the archive's viewer shows the whole image, 30 s at most. Since research 1.31.0 only the time
+  - saving waits until the archive's viewer shows the whole image, 30 s at most (a browser that draws the tab slowly: [R9.5.2](#R9.5.2)). Since research 1.31.0 only the time
     while the browser draws the tab counts (it does not draw a tab behind another tab or in a covered or minimized
     window). A tab not drawn for 30 s is reported as such ("the browser did not draw the tab with the viewer for 30 s
     …": the tab in front, its window uncovered, then the script again); a viewer that meanwhile pages to another
@@ -333,6 +333,38 @@ the archive's viewer zoomed in, or at its full resolution.
 
 <!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
 
+<a id="R9.5.2"></a>
+### R9.5.2 A browser that draws the tab slowly
+
+An archive's image viewer that builds an image from tiles (OpenSeadragon, e.g. ACTA PUBLICA) asks for about one tile
+each time the tab is drawn. Where the browser draws the tab only about once a second, the tiles of one image take
+minutes, and saving ends after 30 s with "the viewer's tiles did not all come in 30 s …".
+
+- **The browser first:** a tab draws slowly without graphics acceleration, on a remote desktop or in a virtual
+  machine. In Chrome: turn graphics acceleration on in `chrome://settings/system` and restart Chrome; `chrome://gpu`
+  shows whether Canvas and Compositing are "Software only" (then a newer graphics driver helps). The field "last frame
+  … s ago" in the message says how long ago the browser last drew the tab.
+- **Enforced by the code:**
+  - the setting `browser.tileWait` is hidden: neither `strom config where` nor `strom help config` shows it until it
+    is set. It takes whole seconds from 60 to 600 (180 suggested) and refuses another value with a hint. It is saved
+    in the user's settings and holds for all researches on the computer;
+  - unset: the tiles are waited for 30 s, as before; the message "tiles did not all come in 30 s" also tells the agent
+    that `strom config set browser.tileWait 180` helps, then the same strom command again (a new script);
+  - set: while tiles still come (one within the last 10 s), the script goes on waiting as long as they come. It ends
+    after 30 s without a new tile, at the latest after the time set;
+  - one call of the script answers "strom-wait …" after 35 s: the agent runs the same script again in the same tab,
+    and it goes on waiting where it was. Only the last answer, "strom-result …", counts; `strom fetch … --take` takes
+    nothing over from a "strom-wait" answer;
+  - it holds for `strom media save` ([R9.5](#R9.5)) and for a downloader that saves from an archive's image viewer
+    through the browser (`strom fetch`, [R8.2](R8-reading-scans.md#R8.2)).
+- **Limits:** a tab drawn quickly is saved the same with the setting or without it. Without the setting nothing
+  changes.
+- **Why:** the tiles come only as fast as the browser draws the tab; 30 s stays for everyone else.
+- **Controls:** terminal: `strom config set browser.tileWait 180`, back to 30 s with `strom config unset browser.tileWait`.
+- **Since:** research 1.32.0
+
+<!-- zdroj: research:75245c94 src/core/browser.ts TILE_WAIT_MIN_S 60, TILE_WAIT_MAX_S 600, TILE_WAIT_SUGGESTED_S 180, TILE_RECENT_MS 10_000, TILE_QUIET_MS 30_000, WAIT_CALL_MS 35_000, CAPTURE_JS ("the viewer's tiles did not all come in 30 s" + věta strom config set browser.tileWait 180; "last frame … s ago"), "strom-wait" · src/core/config.ts browser.tileWait (hidden, tree false, rozsah, hint config unset) · src/commands/media.ts:1686 media save · src/commands/connectors.ts:3152 viewerScript, takeOver (strom-wait nic nepřevezme) · test/cli/connector-mza.test.ts:303 (skryté do nastavení: config where, help config) · CHANGELOG.cs.md 1.32.0 · dirigent:prace/1112-vyzkum-dlazdice-pokrok/karta.md (OSD ~1 dlaždice na snímek; závěr 2: grafická akcelerace, chrome://gpu, neověřeno u reportéra) -->
+
 <a id="R9.6"></a>
 ## R9.6 Waiting for images and the task's return
 
@@ -362,7 +394,8 @@ research.
     that it came from the app. A task that meanwhile waits for something else stays unchanged.
 - **Limits (when images return a task):**
   - a task waiting for images is returned only by its book, and only once all images are there;
-  - a task waiting for a site (`--kind web`) is returned by the book it names, or by the only book it works in;
+  - a task waiting for a site (`--kind web`) is returned by the book it names, or by the only book it works in; from
+    research 1.35.0 instead of it by the book it waits under ([R6.8.4](R6-awaiting-action.md#R6.8.4));
   - a letter and a request to the family are returned only by the book they name;
   - a task waiting for a person to check a site is never returned (only a person answers).
 - **Method only (the method, `strom guide` and the agent's brief alike):** for images by hand, the agent names the
@@ -375,8 +408,9 @@ research.
 - **Controls:** terminal: `strom task wait T… --images B…:40-45`, `strom media add --inbox --waiting`, in What waits
   **Open the folder (M/N saved)**. App: Awaiting action, at the item in this order **Add images**, **Open
   website ↗**, **Answer**, **Discuss with the agent**, **Open folder** (the last two open the research in the
-  terminal). The state of the images shows "1 of 2 images" and, at the book, the chips **saved** / **missing**. The
-  sites of one archive wait in one group **Archive** under the archive's name, with the link **Archive website ↗**
+  terminal); from app 3.30.0 the block **Deliver** with steps and the link **Images can’t be obtained…**
+  ([S4.4.7](S4-research-from-the-app.md#S4.4.7)). The state of the images shows "1 of 2 images" and, at the book,
+  the chips **saved** / **missing**. The sites of one archive wait in one group **Archive** under the archive's name, with the link **Archive website ↗**
   and the number of images missing.
 - **Limits (the archive's group):** the group is the research's archive the task belongs to: by the task's book, the
   archive's address, the address of its book, another site of the same archive by the list of archives, or the
@@ -387,8 +421,27 @@ research.
 - **Since:** research 1.0.0 (a folder in the inbox), waking after saving from 1.15.0. Taking in without a command,
   part of the images, the answer and images from the app and an archive under one name from research 1.27.0 and app
   3.23.0.
+- **From research 1.35.0:** strom also takes in the folders of books that tasks need and that nothing waits for, only
+  by the number in the file name ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
+- **From research 1.35.0:** a task comes back by itself only when its wait is written by image numbers or a book of the
+  research; a wait written otherwise is found by `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **From research 1.35.0 (files in the folder):**
+  - a copy that a file manager or a browser made beside a file carries the number of the original file: "33 2.jpg",
+    "33 kopie.jpg", "33 copy.jpg", "33 - Copy (2).jpg" and "33 (1).jpg" are image 33, "33a 2.jpg" image 33a. A bare
+    " 2" to " 9" after the name is taken as a copy suffix only after a name that is only a number (with a letter,
+    if any);
+  - files are not numbered by their order when some file has a name that is only a number (`1.jpg` is image 1, not
+    the missing 33): the order does not override a number a person gave; it does override a name from the portal or
+    the date and time of a screenshot;
+  - a file that is the same scan as an image already taken in under another number or in another book is neither
+    taken in nor deleted: it is put aside as `<file>.same-as-M…` (under this name it is never taken in again), and
+    the listing of `strom media add --inbox`, the bridge's log and the JSON output say which image it was for, which
+    image it is, and that one of the two numbers is wrong. When renaming is not possible, the file stays lying and
+    the same is said;
+  - `.jp2` files from the portal of Moravský zemský archiv are counted back ([R6.8.2](R6-awaiting-action.md#R6.8.2))
+    in the folder of a waiting task too.
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) · research:dddeb8a6 src/core/media.ts copyless (COPY_WORD copy/kopie/kopia/…, COPY_PAREN, COPY_BARE jen za číslem), namedByNumber · src/core/inboxwait.ts numberFiles (pořadí jen bez souboru pojmenovaného samým číslem; times .jp2 i u čekajících), bookTimes · src/commands/media.ts registerImages clashed, takeFiles (kolize → rename `${f}.same-as-${same}`, jinak leží; SetAside), asideLine (live.log, výpis ⚠, aside v JSON) · research:18fd10ec COPY_BARE \p{Nd}+\p{L}? („33a 2.jpg“) · CHANGELOG.cs.md 1.35.0 (research:e263eacb) -->
 
 <a id="R9.7"></a>
 ## R9.7 An automatic session and a chat
@@ -492,7 +545,7 @@ The steps for a task that waits for images of an archive where the agent may not
 ## R9.10 Examples
 
 The levels and limits are from the list of archives of the research 1.27.0, DigiArchiv SOA Třeboň from the research
-1.28.0. The Horák family is made up.
+1.28.0, BLHA from the research 1.35.0. The Horák family is made up.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -581,3 +634,26 @@ The levels and limits are from the list of archives of the research 1.27.0, Digi
 - **Since:** research 1.28.0
 
 <!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->
+
+<a id="R9.10.7"></a>
+### R9.10.7 Brandenburgisches Landeshauptarchiv (BLHA)
+
+- Archive: restricted, only through a person's browser. It concerns the duplicate registers (Rep. 5KB) in the
+  archive's online access (blha-recherche.brandenburg.de); the images come from the image server
+  blha-digi.brandenburg.de. Robots.txt closes the whole site, so neither strom's own requests nor the downloader go
+  there.
+- The archive replied on 18 November 2026 (the verbatim quote is in the list): a person may save single images in
+  their browser at a human pace and let the AI assistant on their computer read them; the images are under the CC-0
+  licence. At most two requests at once. Never a search of the archive's database, never a whole book.
+- Task: the baptism of Anna Vlková in a duplicate register. With Claude Code, the extension and the permission
+  **through the browser**, the agent opens the book's viewer, goes to the image and saves the one shown with
+  `strom media save`, at a person's pace (10 s). The viewer's address does not name the image.
+- Without the permission or with another agent: the task waits for images; What waits says with what the agent would
+  save them itself.
+- Book: the list has no entry on a whole book for the archive, so only the needed images are offered
+  ([R6.8.1](R6-awaiting-action.md#R6.8.1)).
+- Citation: “BLHA, Rep. 5KB Nr. <n>”, where n is the book's number from the reference “5KB <n>”, with the number of
+  the image in the book.
+- **Since:** research 1.35.0
+
+<!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->

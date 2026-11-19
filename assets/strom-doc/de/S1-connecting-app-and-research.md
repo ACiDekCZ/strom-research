@@ -239,9 +239,11 @@ auf dem Datenträger. Zwischen beiden geht der Stammbaum nur über die Brücke a
   - Der Stammbaum in der App und der Stammbaum in der Forschung sind zwei Kopien. Maßgeblich ist der Stammbaum in der
     App, die Forschung hat eine eigene Kopie, und was die Forschung nicht schreibt, ist in der App immer zu sehen
     ([S2](S2-edits-from-the-app.md)).
+  - Ab der Forschung 1.35.0 hat die Forschung auch die Porträts, Paarfotos und Anhänge des Stammbaums. Was wo
+    gespeichert ist und was nur im Browser liegt, beschreibt [S8](S8-where-the-data-are.md).
 - **Gilt seit:** App 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Forschung an: der Schalter der Brücke am Stammbaum
@@ -263,6 +265,10 @@ Einstellung **Forschung bei Untätigkeit ausschalten** sagt.
     Fenster. Wenn nichts passiert oder die Forschung sich aus der App nicht einschalten lässt, zeigt die App den Befehl
     `strom live start` (im Terminal im Ordner des Stammbaums auszuführen) mit der Schaltfläche **Kopieren**. Eine
     ältere Forschung, die sich aus der App nicht ausschalten lässt, zeigt ebenso den Befehl `strom live stop`.
+  - Der Schalter zeigt inzwischen den neuen Stand und **Wird eingeschaltet…** (**Wird ausgeschaltet…**). Antwortet
+    die Brücke nicht in 30 s, geht der Schalter zurück, und an ihm steht **Die Forschung hat sich in 30 s nicht
+    gemeldet. Strom Research muss gestartet werden.** mit dem Befehl und **Erneut versuchen**
+    ([A9.7.2](A9-using-the-app.md#A9.7.2)).
   - Nach dem Herunterfahren oder Neustart des Computers läuft die Brücke nicht und startet nicht von selbst. Der
     Mensch schaltet sie ein: im Panel der Forschung **Einschalten**, oder `strom live start`.
   - **Forschung bei Untätigkeit ausschalten** hat zwei Wahlmöglichkeiten: **Bis zum Herunterfahren des Computers**
@@ -277,6 +283,6 @@ Einstellung **Forschung bei Untätigkeit ausschalten** sagt.
   Forschung, wenn die Forschung nicht läuft: **Einschalten**; **Einstellungen** → **Forschung auf diesem Computer** →
   **Forschung bei Untätigkeit ausschalten**. Terminal: `strom live start`, `strom live stop`, `strom config set
   live.idleMinutes 0` (bis zum Herunterfahren des Computers) oder `120` (nach 2 Stunden ohne Arbeit).
-- **Gilt seit:** App 3.25.0, Forschung 1.29.0
+- **Gilt seit:** App 3.25.0, Forschung 1.29.0. Der Stand am Schalter und der Satz nach 30 s seit App 3.30.0.
 
-<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->

@@ -28,6 +28,7 @@ import { liveWorkers } from "./workers.ts";
 import { receivedAll, resent, SYNC_INBOX } from "./sync.ts";
 import { refreshRollup } from "./readstats.ts";
 import { selfTune } from "./tune.ts";
+import { listSorts, shownSort, SORT_FINAL } from "./sort.ts";
 
 const DAY = 24 * 3600_000;
 const MB = 1024 * 1024;
@@ -42,6 +43,9 @@ export const LIMITS = {
   converted: { days: 30, bytes: 500 * MB },
   /** Small previews of the material for the Strom app (core/thumbs.ts): made again when asked. */
   thumbs: { days: 60, bytes: 200 * MB },
+  /** The sorts of the material that ended (core/sort.ts): what the person took of one is the research's already. Beyond
+   * a month, so what the app's sorts cost this month (/status spend.sorts) stays whole. */
+  sorts: { days: 60 },
   kept: { written: 5, days: 7, undoneDays: 30, refused: 5 },
   /** The measurements (core/metrics.ts): each journal and the use of the sessions together — never a summary. */
   metrics: { days: 90, bytes: 20 * MB },
@@ -69,7 +73,7 @@ const SHRINK_FROM = 64 * 1024;
 /** A file (or a work folder) only touched this long ago is left: something may still write it. */
 const QUIET_MS = 10 * 60_000;
 
-export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "converted" | "thumbs" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
+export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "converted" | "thumbs" | "sorts" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
 
 export interface TidyItem {
   kind: TidyKind;
@@ -327,6 +331,19 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     }
   }
 
+  // the sorts of the material that ended long ago: each one's state, its cancel mark and its readers' reports — never
+  // one queued or at work (a mark or reports whose sort is gone: by their own age)
+  {
+    const sorts = new Map(listSorts(root).map((x) => [x.id, shownSort(x)]));
+    for (const e of [...entries(root, "sorts"), ...entries(root, "sorts", true)]) {
+      const id = /^(sort-\d{14}-[0-9a-f]{4})(?:\.json|\.cancel)?$/u.exec(path.basename(e.rel))?.[1];
+      if (!id || !quiet(e)) continue;
+      const sort = sorts.get(id);
+      const ended = !sort ? e.mtime : SORT_FINAL.includes(sort.state) ? Date.parse(sort.since) : undefined;
+      if (ended !== undefined && Number.isFinite(ended) && at - ended > LIMITS.sorts.days * DAY) items.push({ kind: "sorts", path: e.rel, bytes: e.bytes, do: "remove", why: `a sort of the material that ended over ${LIMITS.sorts.days} days ago` });
+    }
+  }
+
   // work folders of downloads left by one cut short
   for (const e of entries(root, "fetch", true)) {
     const stamp = Number(/-(\d{12,})$/.exec(path.basename(e.rel))?.[1] ?? NaN);
@@ -506,7 +523,7 @@ export function shrinkLog(src: string, dest: string, o: { chunk?: number; block?
 
 /** The path checked again as it goes: in the tree's .strom, of its kind, no link. */
 function safe(root: string, item: TidyItem): string | undefined {
-  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", converted: "converted", thumbs: "thumbs", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
+  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", converted: "converted", thumbs: "thumbs", sorts: "sorts", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
   const abs = path.resolve(root, item.path);
   const expected = path.resolve(root, ".strom", dirs[item.kind]);
   // the measurements: a journal in .strom/metrics, the use of a session in its usage folder — nothing else
@@ -519,7 +536,7 @@ function safe(root: string, item: TidyItem): string | undefined {
   if (!fits) return undefined;
   try {
     const st = fs.lstatSync(abs);
-    if (st.isSymbolicLink() || (item.kind === "fetch" || item.kind === "converted" ? !st.isDirectory() : !st.isFile())) return undefined;
+    if (st.isSymbolicLink() || (item.kind === "sorts" ? !st.isDirectory() && !st.isFile() : item.kind === "fetch" || item.kind === "converted" ? !st.isDirectory() : !st.isFile())) return undefined;
     const strom = fs.realpathSync(path.join(root, ".strom"));
     if (path.relative(strom, fs.realpathSync(abs)).startsWith("..")) return undefined;
   } catch {
@@ -550,7 +567,7 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto", budget:
     if (!abs) continue;
     try {
       if (item.do === "remove") {
-        fs.rmSync(abs, { recursive: item.kind === "fetch" || item.kind === "converted", force: true });
+        fs.rmSync(abs, { recursive: item.kind === "fetch" || item.kind === "converted" || item.kind === "sorts", force: true });
         removed++;
         freed += item.bytes;
       } else if (item.kind === "logs") {

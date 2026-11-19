@@ -38,7 +38,7 @@ import { spawnSync } from "node:child_process";
 import { configDir, type Env } from "./paths.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { acquireLock } from "./lock.ts";
-import { bare, loopbackGuard, openByTerms, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "./knownterms.ts";
+import { bare, loopbackGuard, openByTerms, readPack, shippedTerms, strictestEntry, within, type KnownTerms, type WholeBook } from "./knownterms.ts";
 import { webDomain } from "./metrics.ts";
 import { HUMAN_PACE, MIN_INTERVAL_MS, readHostState, REFUSED_FOREVER, robotsAll, robotsNamesAi, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
 import { loadUserConfig, Settings } from "./config.ts";
@@ -141,6 +141,29 @@ export function knownTerms(env: Env): KnownTerms[] {
   // asked only while they still lead here: resolved again before each request (core/net.ts)
   for (const k of extra) if (k.level === "allowed") loopbackGuard.hosts.add(k.host.replace(/^\[|\]$/g, ""));
   return [...own, ...extra.map((k) => ({ ...k, extra: true }))];
+}
+
+/** The ways an archive lets a book be downloaded by hand, the most lenient first (KnownTerms.wholeBook). */
+const WHOLE_BOOK: readonly WholeBook[] = ["offered", "allowed", "selected", "never"];
+
+/**
+ * What a person may download by hand of a book on a host, as the known terms say (spec 105): the most specific entry
+ * that says it (at the same host the strictest), with the entry's host. A test's own list (STROM_ARCHIVES_FILE) says it
+ * only of hosts strom's own list says nothing of — never laxer than strom's. Nothing known: undefined (a range only).
+ */
+export function wholeBookFor(env: Env, host: string): (NonNullable<KnownTerms["wholeBook"]> & { host: string }) | undefined {
+  const hits = knownTerms(env).filter((k) => !!k.wholeBook && WHOLE_BOOK.includes(k.wholeBook.how) && typeof k.wholeBook.says === "string" && within(host, k.host));
+  const own = hits.filter((k) => !k.extra);
+  const best = (own.length ? own : hits).reduce<KnownTerms | undefined>(
+    (a, b) =>
+      !a ||
+      b.host.split(".").length > a.host.split(".").length ||
+      (b.host.split(".").length === a.host.split(".").length && WHOLE_BOOK.indexOf(b.wholeBook!.how) > WHOLE_BOOK.indexOf(a.wholeBook!.how))
+        ? b
+        : a,
+    undefined,
+  );
+  return best ? { ...best.wholeBook!, host: best.host } : undefined;
 }
 
 /** What strom's known terms say of a host: the strictest entry for it or a site above it. */

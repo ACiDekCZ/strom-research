@@ -229,8 +229,16 @@ jest cytat źródła ([A3.2](#A3.2)). Z obrazowego załącznika można wyciąć 
 - **Obsługa:** edycja osoby, sekcja **Załączniki** → **Dodaj załącznik**; sekcja jest widoczna z **Pola
   zaawansowane** albo gdy osoba ma załączniki.
 - **Obowiązuje od:** aplikacja 1.4.0; TIFF, HEIC i duże PDF dla badania 3.9.0
+- **Od aplikacji 3.30.0:** całe zdjęcie, z którego jest portret osoby, to załącznik z etykietą **Portret**. Powstaje
+  sam przy wyborze nowego zdjęcia portretu. Inny załącznik graficzny oferuje **Jako portret…** (w materiałach
+  i podglądzie **Użyj jako portretu…**). Usunięcie załącznika z etykietą Portret zostawia portret
+  ([A12.2](A12-portrait-and-couple-photo.md#A12.2)).
+- **Od aplikacji 3.30.0:** załącznik to materiał drzewa ([A3.5](#A3.5)). Ten sam plik przy kilku osobach to jeden
+  plik; dodany drugi raz oferuje **Połącz też tutaj** ([A3.5.4](#A3.5.4)). Kosz przy załączniku usuwa go tylko od tej
+  osoby, z **Cofnij**; ostatnie miejsce pyta jak **Usuń z drzewa…** ([A3.5.6](#A3.5.6)). Na szerszym ekranie akcje
+  załącznika są w menu ⋯.
 
-<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning -->
+<!-- zdroj: app:src/attachments.ts:12-18 ATTACHMENT_MAX_SIDE, ATTACHMENT_QUALITY, MAX_PDF_BYTES, ATTACHMENT_WARN_BYTES · src/ui/attachments-ui.ts:28-31 ORIGINAL_ONLY_TYPES/needsOriginalOnly, :161 accept, :211 addAttachmentFile · strings.ts attachments.*, media.originalOnlyMeta/originalOnlyNeedsResearch, treeOverview.mediaWarning · 3.30.0: app:e6f0595d attachments-ui.ts štítek Portrét, asPortrait, danger.portraitSourceNote · 3.30.0 příloha jako materiál: app:2b66d7cf (verze dat 24), a275d977 (Soubor už ve stromu je), 13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson, 30b0accd (akce v ⋯) -->
 
 <a id="A3.4.1"></a>
 ### A3.4.1 Oryginały dla badania
@@ -261,25 +269,468 @@ ewentualnie przy źródle i miejscu wycinka.
 <a id="A3.5"></a>
 ## A3.5 Materiały
 
-Materiał to plik wysłany do badania przy osobie lub przy źródle: list, zdjęcie, kopia z archiwum. Do drzewa nic się
-nie dodaje. Badanie zapisuje pliki i tworzy z nich zadanie dla agenta.
+Materiał to każdy plik drzewa: skan, zdjęcie, list, akt. Ten sam plik jest w drzewie raz, nawet gdy jest przy kilku
+osobach, i niesie swoje miejsca: osoby, daną lub wydarzenie, związek, źródło. Okno **Materiały** ma każde drzewo.
+Przy drzewie z badaniem lub z Archiwum Strom pokazuje też pliki badania, których nigdzie w drzewie nie ma (**tylko
+w archiwum**).
 
-- **Wyślij materiał…** (przy osobie) i **Wyślij materiał do źródła…** (podgląd i edytor źródła): najwyżej 20 plików
-  naraz i **Notatka dla badania**. Cały folder wysyła **Dodaj materiały…** w menu badania
-  ([S4](S4-research-from-the-app.md)).
-- **Również jako załącznik w drzewie** (tylko przy osobie): w drzewie powstaje też podgląd jak przy załączniku.
-- Gdy badanie nie działa, pliki czekają w przeglądarce. Gdy badanie jeszcze nie zna osoby, zostaną wysłane po
+- Materiałem drzewa jest załącznik osoby ([A3.4](#A3.4)), całe zdjęcie portretu i zdjęcie pary
+  ([A12](A12-portrait-and-couple-photo.md)), plik przy wydarzeniu lub związku i dowód źródła ([A3.5.5](#A3.5.5)).
+  Gdzie plik jest zapisany, opisuje [S8](S8-where-the-data-are.md).
+- Pliki można wysłać do badania także bez dodania do drzewa: **Wyślij materiał…** przy osobie i **Wyślij materiał do
+  źródła…** (podgląd i edytor źródła), najwyżej 20 plików naraz, z **Notatka dla badania**. Badanie tworzy z nich
+  zadanie dla agenta ([R11.1](R11-material-from-the-user.md#R11.1)). **Również jako załącznik w drzewie** daje do
+  drzewa też podgląd. Cały folder wysyła **Dodaj materiały…** w menu badania
+  ([R11.4](R11-material-from-the-user.md#R11.4)) i w nagłówku okna **Materiały** ([A3.5.15](#A3.5.15)). Przy
+  Archiwum Strom to **Dodaj materiał…** i **Również w drzewie**
+  (obrazy i PDF do 2 MB).
+- Gdy badanie nie działa, wysłane pliki czekają w przeglądarce. Gdy badanie jeszcze nie zna osoby, zostaną wysłane po
   kolejnym wysłaniu drzewa.
-- Sekcja **Materiały** w edycji osoby, **Materiały** w menu osoby i okno **Wszystkie materiały ›** pokazują załączniki
-  drzewa i pliki badania razem. Ten sam plik pokazuje się raz.
-- **Granice:** tylko na komputerze, przy drzewie połączonym z badaniem, które przyjmuje oryginały. Badanie nigdy nie
-  przyjmie programów, kluczy, archiwów ani plików drzewa genealogicznego (GEDCOM). Przypisanie i ukrycie materiału
-  działa tylko z uruchomionym badaniem. Przy Archiwum Strom materiał zapisuje się w archiwum; **Również w drzewie**
-  dodaje obrazy i PDF do 2 MB także do drzewa.
-- **Obsługa:** zob. wyżej.
-- **Obowiązuje od:** aplikacja 3.9.0; sekcja i okno **Materiały** 3.16.0
+- **Granice:**
+  - materiał można wysłać tylko na komputerze, przy drzewie połączonym z badaniem, które przyjmuje oryginały. Badanie
+    nigdy nie przyjmie programów, kluczy, archiwów ani plików drzewa genealogicznego (GEDCOM);
+  - pliki badania spoza drzewa są widoczne tylko w aplikacji na komputerze („Materiały z badania są widoczne
+    w aplikacji na komputerze.”); na telefonie okno pokazuje pliki drzewa;
+  - przy drzewie tylko do odczytu pliki można oglądać i pobierać, nie zmieniać;
+  - badanie starsze niż 1.35.0 nie obsługuje tytułów, połączeń, użycia ani porządkowania plików spoza drzewa;
+    aplikacja mówi to przy akcji („… obsługuje nowsza wersja badania”).
+- **Obsługa:** drzewo bez badania: **Akcje › Materiały** (z liczbą plików); drzewo z badaniem: **Materiały** w menu
+  badania. Przy osobie: **Wszystkie materiały osoby (N) ›** pod załącznikami i **Materiały** w menu osoby (okno
+  z filtrem na osobę).
+- **Obowiązuje od:** aplikacja 3.9.0; sekcja i okno **Materiały** 3.16.0; 3.30.0: okno przy każdym drzewie, plik
+  drzewa jako jeden materiał z miejscami (wersja danych 24)
 
-<!-- zdroj: app:src/ui/material-ui.ts:30-33 MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, :38 materialAccepted, :51 alsoTreeEligible, :71 materialAvailable · src/materials.ts:477 personMaterials, :519-529 gates · src/ui/originals-ui.ts:269 · src/ui/research-actions-ui.ts:357 batch · strings.ts material.*, materials.*, batch.menu -->
+<!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
+
+<a id="A3.5.1"></a>
+### A3.5.1 Okno Materiały
+
+Okno pokazuje każdy plik raz: pliki drzewa ze wszystkimi osobami, przy których są, a obok archiwum także pliki
+badania.
+
+- **Grupuj:** **Według daty dodania** (z osobami, przy których plik dodano) albo **Według osoby**; plik tylko przy
+  źródle lub związku jest pod **Bez osoby**. Obok archiwum dodatkowo **Partie** i **Według daty otrzymania**.
+- **Widok** **Siatka** albo **Lista**. Lista ma kolumny **Tytuł**, **Rodzaj**, **Data**, **Osoby**, **Źródło**,
+  **W drzewie** i **Użyto**; sortuje się kliknięciem w nagłówek. Kafelek pokazuje, w ilu miejscach plik jest użyty.
+- **Szukaj w tytule, nazwie i notatce**; **Filtry** według osoby, rodzaju i partii. Ukryte pliki badania pokaże
+  **Pokaż ukryte**.
+- ⓘ przy tytule okna (**Gdzie są pliki**) mówi, gdzie są pliki: „Pliki są tylko w tej przeglądarce. Kopia: Eksportuj
+  wszystko.”, albo w badaniu lub w Archiwum Strom na tym komputerze z pomniejszonymi kopiami w aplikacji; przy
+  zaszyfrowanym drzewie także to, że badanie na dysku zaszyfrowane nie jest.
+- Osoba bez imienia lub zapisana jako „?” to **Nieznana osoba** (z latami, gdy je ma).
+- **Granice:** na telefonie okna nie ma w menu **Więcej**; otwiera się od osoby. Gdy badanie nie działa, okno pokazuje
+  stan z czasu, gdy działało, i mówi, co można zmieniać: tytuły i połączenia plików drzewa zapiszą się z drzewem,
+  materiał spoza drzewa dopiero z działającym badaniem.
+- **Sortuj ▾** na pasku okna sortuje Siatkę i Listę jednakowo, wewnątrz grup: **Domyślna kolejność** albo kolumna
+  (**Tytuł**, **Rodzaj**, **Data**, **Osoby**, **Źródło**, przy archiwum **W drzewie**, **Użyto**) i **Rosnąco** /
+  **Malejąco**. Kliknięcie w nagłówek Listy zmienia to samo sortowanie. Sortowanie jest zapamiętane na tym urządzeniu.
+  Na tablecie i w oknie do 1024 px jest w **Filtry**.
+- **Obsługa:** zob. [A3.5](#A3.5); zaznaczanie plików: **Zaznacz**, Ctrl/Cmd+A zaznacza to, co pokazują filtry.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+
+<a id="A3.5.2"></a>
+### A3.5.2 Tytuł, rodzaj i data
+
+Plik może mieć **tytuł**, **rodzaj** (**Zdjęcie**, **Dokument**, **Akt**, **Inne**) i **datę**. Tytuł pokazuje się
+zamiast nazwy pliku; pusty tytuł oznacza nazwę pliku.
+
+- Data to rok, data lub przedział („ok. 1920”); tego, czego nie da się odczytać, aplikacja nie zapisze („Nie da się
+  odczytać daty.”).
+- Strona osoby, księga rodu i zapisana strona opisują plik całym tytułem, rodzajem i rokiem daty.
+- Edycja pliku drzewa to jeden krok **Cofnij**; plik spoza drzewa edytuje się w badaniu, z komunikatem i **Cofnij**.
+- GEDCOM niesie tytuł jako `TITL` (nazwę pliku jako `_STROM_NAME`) i rodzaj jako `TYPE` pod `FORM`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Granice:** plik spoza drzewa można edytować tylko z działającym badaniem 1.35.0 lub nowszym („Tytuł materiału
+  spoza drzewa obsługuje nowsza wersja badania.”).
+- **Obsługa:** podgląd pliku: ołówek, **Dodaj tytuł** lub F2 (Enter zapisuje, Esc anuluje); okno **Załącznik**
+  (**Tytuł i dane…**: tytuł, rodzaj, data, notatka).
+- **Obowiązuje od:** aplikacja 3.30.0; plik spoza drzewa z badaniem 1.35.0
+
+<!-- zdroj: app:30b0accd src/ui/material-viewer-ui.ts, src/ui/material-details-ui.ts (titulek, druh, datum, F2) · app:6d8fba0e DataManager (titulek vedle názvu) · app:dfb50772 src/ged-exporter.ts TITL, _STROM_NAME, TYPE pod FORM · strings.ts materials.kind, titleHint, datePh, dateInvalid, olderEdit, attachmentDialog, titleAndData, addTitle · research:a7df632d POST /material/edit -->
+
+<a id="A3.5.3"></a>
+### A3.5.3 Gdzie użyto
+
+Każdy plik pokazuje, gdzie jest użyty: osoby, portret, związek, wydarzenia, źródła i wycinki, w tej kolejności.
+Każdy wiersz to odnośnik do osoby lub źródła.
+
+- Dowód źródła mówi też, gdzie źródło jest cytowane („dowód · cytowane przy Urodzenie”).
+- Powyżej pięciu miejsc pokazują się cztery i „+ N więcej”.
+- × przy miejscu (**Odłącz:**) usuwa plik tylko z tego miejsca, z komunikatem i **Cofnij**. Ostatnie miejsce pliku,
+  którego nic innego nie trzyma, najpierw pyta ([A3.5.6](#A3.5.6)).
+- Obok archiwum są dwie części: **W drzewie** i **W archiwum**, z osobami przypisanymi w archiwum i z tym, do czego
+  badanie plik użyło (wycinki, źródła badania, otwarte zadania).
+- Plik, który jest plikiem źródła badania, ma na górze **Plik źródła**: źródła, jak plik do nich należy, kto je
+  cytuje, oraz „Plik jest w badaniu; w drzewie jest przez źródło.” ([A3.5.14](#A3.5.14)).
+- **Granice:** drzewo tylko do odczytu pokazuje miejsca bez ×. Użycie w archiwum pokaże tylko badanie 1.35.0
+  i nowsze; gdy badanie nie działa, jest według stanu, który aplikacja ostatnio znała.
+- **Obsługa:** podgląd pliku (panel, na telefonie wysunięty arkusz); okno **Załącznik**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:4bf66048 src/ui/material-uses-ui.ts (prameny první, usesSourceOf, keptViaSource) · app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+
+<a id="A3.5.4"></a>
+### A3.5.4 Połącz z…
+
+**Połącz z…** daje plik do osób, do wydarzenia, do związku lub do źródła, jednym krokiem **Cofnij**.
+
+- Przy źródle plik jest jego dowodem; przy związku załącznikiem związku. Zdjęcie pary zmienia się przy związku
+  ([A12.4](A12-portrait-and-couple-photo.md#A12.4)).
+- Materiał tylko w archiwum łączy się ze swoją pomniejszoną kopią z badania: wtedy jest też w drzewie, w eksporcie,
+  w księdze i na telefonie.
+- Ten sam plik dodany drugi raz: **Plik już jest w drzewie** oferuje **Połącz też tutaj**, **Dodaj jako nowy plik**
+  albo anulowanie. Obok archiwum łączy się bez pytania.
+- Usunięcie osoby lub źródła mówi, które pliki zostaną, a które znikną.
+- **Granice:** najwyżej 50 osób naraz. Materiał tylko w archiwum można połączyć tylko wtedy, gdy badanie działa.
+  Osobę, której badanie jeszcze nie zna, badanie dostanie z kolejnym zapisem drzewa.
+- **Obsługa:** podgląd pliku (**Połącz z…** lub P; strzałki zmieniają cel, Enter łączy); zaznaczenie w oknie
+  **Materiały**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+
+<a id="A3.5.5"></a>
+### A3.5.5 Źródło z pliku i dowód źródła
+
+Źródło może mieć **dowód**: plik, z którego pochodzi. Dowód to miejsce pliku przy źródle; pliku nie wstawia się
+ponownie.
+
+- **Utwórz źródło z tego pliku…** otwiera edytor źródła wypełniony z pliku: nazwa z tytułu, data zapisu z daty, plik
+  jako dowód i **Cytuj przy** z osobą, od której plik jest, i z wydarzeniem, którego rok pasuje. Zapis to jeden krok
+  **Cofnij**: źródło, dowód i cytowanie.
+- Nowe źródło przy osobie oferuje **Dowód z materiałów osoby**: pliki osoby **Bez źródła** i **Przy innym źródle**,
+  powyżej 12 plików z wyszukiwaniem (**Szukaj w tytule i nazwie**).
+- Podgląd źródła pokazuje **Pochodzi z**: dowody z × i **Połącz dowód…**. Wycinek odsyła do pliku, z którego go
+  wycięto („Wycinek z … ›”).
+- GEDCOM niesie dowód jako `OBJE` przy źródle; plik w kilku miejscach to jeden rekord `OBJE`
+  ([A2](A2-loading-a-family-tree.md)).
+- **Granice:** materiał tylko w archiwum staje się dowodem ze swoją pomniejszoną kopią tylko wtedy, gdy badanie
+  działa. Aplikacja nigdy nie zapisze pliku dwa razy.
+- **Obsługa:** podgląd pliku, ⋯ przy załączniku, okno **Załącznik** i w **Połącz z…** przy źródle **Nowe źródło
+  z tego pliku…**; edytor źródła, pole **Dowód**.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:0c532b5a src/ui/source-docs-ui.ts (hlavička §5–§7: Vytvořit pramen, Doklad z materiálů osoby, Z čeho je), OFFER_SEARCH_OVER=12 · app:55d66efd · strings.ts sources.docLabel, docHint, attachDoc, citeAtLabel, offerTitle, offerNoSource, offerOther, offerSearch, viewerFrom, excerptFrom · materials.makeSource, newSourceFromFile · app:dfb50772 src/ged-exporter.ts objeOf (OBJE u SOUR, _SOUR u osoby), recordOf (soubor na více místech = záznam OBJE @M…@) -->
+
+<a id="A3.5.6"></a>
+### A3.5.6 Usuń z drzewa i Przywróć
+
+**Usuń z drzewa…** usuwa plik ze wszystkich miejsc w drzewie. Co stanie się z plikiem, zależy od tego, czy trzyma go
+archiwum.
+
+- Okno najpierw mówi, co odsyła do pliku: dowód źródła („Źródło zostanie bez dowodu.”), wycinek („Wycinek
+  pozostanie.”), portret („Portret pozostanie, kadru nie będzie można zmienić.”).
+- **Bez archiwum:** **Usunąć plik z drzewa?** plik usuwa. „Plik nie jest zapisany nigdzie indziej. Przywróci go tylko
+  Cofnij lub kopia (Eksportuj wszystko).”
+- **Z archiwum** (plik jest w badaniu lub w Archiwum Strom): plik zostaje w archiwum, ukryty z powodem **Usunięto
+  z drzewa**; nieobowiązkowy powód to **Nie dotyczy rodziny** lub **Duplikat**. W **Pokaż ukryte** przycisk
+  **Przywróć** przywraca go razem z połączeniami, do miejsc, które w drzewie nadal są.
+- Kilka plików z zaznaczenia to jeden krok **Cofnij**. **Usuń osobę…** usuwa wybraną osobę z zaznaczonych plików;
+  plik bez innego miejsca jest zapowiedziany z góry.
+- Kosz przy załączniku osoby usuwa plik tylko od tej osoby, z komunikatem i **Cofnij**; ostatnie miejsce pyta jak
+  **Usuń z drzewa…**.
+- **Granice:** plik zostaje w archiwum tylko wtedy, gdy archiwum go ma: od badania 1.35.0 każdy plik drzewa po
+  zapisie, przy starszym badaniu tylko wysłany oryginał. Archiwum przejmuje usunięcie z zapisem drzewa
+  ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
+- **Obsługa:** podgląd pliku; zaznaczenie w oknie **Materiały** → ⋯.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a275d977, c2ae8441 src/ui/material-attach-ui.ts openRemoveFromTreeDialog (rmRefs, materialKeptByArchive = caps.list && item.file) · src/data.ts removeMedia (keep → removed + places), removeMediaMany, restoreMedia (jen místa, která ve stromu jsou) · app:13e4a70c src/ui/attachments-ui.ts removeAttachmentFromPerson · strings.ts materials.removeFromTree, rmRefDoc, rmKeepDoc, rmKeepExcerpt, rmKeepPortrait, rmArchiveResearch, rmAppTitle, rmApp, reason, restore, selRemovePerson, selRemovePersonLast · research:91ab6230, a7df632d -->
+
+<a id="A3.5.7"></a>
+### A3.5.7 Przejrzyj i zmiany zbiorcze
+
+Okno **Materiały** przegląda wiele plików naraz: filtry pokazują, czego brakuje, a zaznaczenie zmienia wszystkie
+zaznaczone pliki jednocześnie.
+
+- Filtry z liczbami: **Bez tytułu**, **Bez źródła**, obok archiwum **W drzewie** i **Tylko w archiwum**.
+- **Przejrzyj (N)** otwiera podgląd z polami pierwszego pliku: Enter lub → zapisuje i przechodzi do następnego, ←
+  wstecz, **Pomiń**, Esc kończy; P łączy, S tworzy źródło. Na telefonie pliki przełącza się przesunięciem.
+- Zaznaczenie: **Przejrzyj**, **Połącz z…**, **Tytuł…**, **Rodzaj…**, **Data…**; pod ⋯ **Usuń z drzewa…**, **Usuń
+  osobę…** i obok archiwum **Przypisz do osoby…** i **Ukryj…**.
+- **Tytuł…** umie **Dodaj numer według kolejności w partii**, z podglądem. **Rodzaj…** i **Data…** pomijają pliki,
+  które wartość już mają, jeśli nie zaznaczy się zastąpienia.
+- **Granice:** pliki drzewa zmieniają się jednym krokiem **Cofnij**. Pliki badania partiami po 500, powyżej 500
+  z postępem i anulowaniem; odrzucone pliki komunikat wymienia.
+- **Obsługa:** okno **Materiały** → **Zaznacz** lub filtr.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:a1127378 src/ui/materials-window.ts (filtry, výběr, Projít), src/ui/material-bulk-ui.ts BULK_CHUNK=500 · app:13e4a70c (tažení na telefonu) · strings.ts materials.fNoTitle, fNoSource, fInTree, fOnlyArchive, review, setTitle, setKind, setDate, titleNumber, titleOverwrite, bulkProgress, bulkRejected, reviewSwipe -->
+
+<a id="A3.5.8"></a>
+### A3.5.8 Uporządkuj agentem
+
+**Uporządkuj agentem…** wysyła pliki badania agentowi. Agent zaproponuje dla każdego tytuł, datę, rodzaj i połączenia
+(osoby, wydarzenie, źródło) z krótkim uzasadnieniem. Nic się nie zapisze, dopóki propozycja nie zostanie przyjęta.
+
+- Okno pokazuje pliki i pole **Co wiadomo o plikach** (nieobowiązkowe, własne słowa jako wskazówka). Mówi, że to, co
+  agent otworzy, trafia do dostawcy modelu, i że porządkowanie zużywa subskrypcję lub kredyt. Pliki wysyła tylko
+  przycisk **Uporządkuj agentem** w oknie, raz.
+- Okno można zamknąć; postęp i gotowa propozycja są w pasku okna **Materiały**.
+  - **Od aplikacji 3.30.0:** pasek pokazuje „Oczekiwanie na agenta…”, potem „Agent porządkuje · k z n” ze wskaźnikiem,
+    ile plików agent już ocenił. Badanie, które liczby ocenionych nie podaje, ma „Agent porządkuje · N plików” z paskiem
+    bez liczby; przy ograniczeniu ruchu w systemie ten pasek stoi. Pod tym „Okno można zamknąć, propozycja poczeka
+    w Materiałach.”
+- **Propozycja agenta** ma **Propozycje**, **Nieprzypisane** i **Załatwione**, a przy każdym pliku **Przyjmij**,
+  **Edytuj**, **Odrzuć**; dalej **Przyjmij wybrane** i **Przyjmij wszystkie**. Pewność propozycji: pewne,
+  prawdopodobne, niepewne.
+  - **Od aplikacji 3.30.0:** w **Nieprzypisane** przy pliku bez propozycji stoi cichym wierszem, dlaczego propozycji
+    nie ma: „Czytelnik nic nie powiedział o pliku”, „Plik ma już wszystko, co zaproponowano”, „Propozycji nie dało się
+    użyć”, „Agent pominął plik” albo „Nie udało się odczytać pliku”. Co czytelnik napisał o pliku, stoi pod tym w jednym
+    wierszu, w całości po najechaniu. Badanie, które powodu nie podaje, albo powód, którego aplikacja nie zna: wiersz
+    bez powodu jak wcześniej.
+  - **Od aplikacji 3.30.0:** plik, o którym agent powie, że nie dotyczy rodziny, stoi w **Nieprzypisane** pierwszy,
+    ze znacznikiem **Nie dotyczy rodziny** ([A3.5.9](#A3.5.9)).
+  - Pliki tekstowe (.txt, .md) agent czyta według treści, nie jako obraz
+    ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
+- Tytuł, data i rodzaj od człowieka zostają; propozycja agenta zostanie użyta tylko wtedy, gdy wybierze się **Użyj
+  propozycji**.
+- Przyjęte się zapisze: pliki drzewa jednym krokiem **Cofnij** razem z drzewem, materiał spoza drzewa do archiwum.
+  Źródło badania, którego drzewo jeszcze nie ma, przyjdzie do drzewa z numerem badania, a zapis go nie podwoi.
+  Przyjętą propozycję można w jej wierszu cofnąć przez **Cofnij**.
+- **Co się wysyła:** z partii i ze wszystkich nieuporządkowanych tylko pliki bez własnego tytułu albo bez osoby, bez
+  kopii, plików źródła, plików, których agent ostatnio nie przypisał, oraz plików tekstowych i danych; pliki
+  zaznaczone ręcznie idą wszystkie ([A3.5.11](#A3.5.11)).
+- Pasek porządkowania jest jeden nad całym archiwum ([A3.5.10](#A3.5.10)); partię porządkuje się z jej ⋯.
+- **Granice:**
+  - tylko przy badaniu 1.35.0 i nowszym, które ma agenta, i tylko wtedy, gdy badanie działa; przy Archiwum Strom
+    i przy badaniu, które czeka na agenta, oferty w ogóle nie ma;
+  - najwyżej 30 partii po 50 plików jako jeden przebieg ([A3.5.12](#A3.5.12)), przy badaniu bez przebiegów 50
+    plików; 2000 znaków tekstu;
+  - badanie może porządkowanie odrzucić: wyczerpany limit czytania, zbyt wiele czekających porządkowań, agent teraz
+    nie może pracować. Jak porządkuje badanie, opisuje [R11.5.3](R11-material-from-the-user.md#R11.5.3);
+  - tylko w aplikacji na komputerze.
+- **Obsługa:** okno **Materiały**: zaznaczenie, pasek porządkowania, ⋯ partii; koniec partii z aplikacji.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:9752aead (jeden pruh nad archivem, pruhy dávek a nabídka nad vším pryč, dávka z ⋯), 2fbab382 src/material-sort.ts sortNext, 1047b9d6 (běh do 1 500 souborů, bez material.sortRun jedna dávka) · app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem · app:32f1e29f src/ui/material-sort-ui.ts (counted jen s job.filesDone: run k z n, progressbar aria-valuenow; jinak runFiles, is-indeterminate; runNote), strings.ts agentSort.queued, run, runFiles, runNote · app:30688d6b src/materials.ts parseSortUnproposed, material-sort-ui.ts (unassigned && !p → unproposed[why], said na jednom řádku s title), strings.ts agentSort.unproposed.* · research:ae866bb7 filesDone, unproposed, čtení textu · app:8a8131be src/material-sort.ts sortNeedy, sortWholeOffered (narrowed, remembered, jedna dávka se stejným počtem), materials-window.ts sortWholeClosed, strings.ts agentSort.stripWhole, closeWhole · app:a947b426 sortCandidates (dávka, filtr, celé okno: jen bez titulku nebo osoby; výběr vše) -->
+
+<a id="A3.5.9"></a>
+### A3.5.9 Nie dotyczy rodziny
+
+Gdy agent podczas porządkowania ([A3.5.8](#A3.5.8)) powie, że plik wyraźnie nie dotyczy rodziny (zrzut ekranu,
+paragon, cudze zdjęcie z wakacji, plik wysłany przez pomyłkę), plik ma w **Propozycja agenta** w **Nieprzypisane**
+znacznik **Nie dotyczy rodziny**. Ukryć go może tylko człowiek; ani aplikacja, ani badanie same go nie ukryją ani
+nie usuną.
+
+- Taki plik nie ma propozycji tytułu, daty, rodzaju ani połączeń. Wiersz pokazuje pewność (pewne, prawdopodobne,
+  niepewne: na ile pewne jest, że plik do rodziny nie należy) i „Dlaczego nie: …” z tym, co agent na pliku zobaczył.
+- Agent oznacza tak tylko plik wyraźnie spoza rodziny; plik, którego tylko nie umie przypisać, zostaje
+  w **Nieprzypisane** bez znacznika ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
+- Te pliki stoją w **Nieprzypisane** pierwsze. Nad nimi jest **Ukryj jako Nie dotyczy rodziny (N)**, przy każdym
+  **Ukryj…**. Oba otwierają okno **Ukryć plik?** z wybranym powodem **Nie dotyczy rodziny** (można go zmienić na
+  **Duplikat** lub **Bez powodu**); plik ukrywa dopiero przycisk **Ukryj**. Powiadomienie ma **Cofnij**. Po oknie,
+  także anulowanym, propozycja agenta wraca na **Nieprzypisane**.
+- Ukryty plik ma w wierszu „Ukryte · nie dotyczy rodziny” i **Przywróć**. Zostaje w badaniu razem z oryginałem i jest
+  widoczny w **Pokaż ukryte** ([A3.5.1](#A3.5.1)). **Przejrzyj ręcznie (N)** pomija ukryte pliki.
+- **Granice:**
+  - ukryć można tylko plik badania spoza drzewa, który nie jest jeszcze ukryty. Plik w drzewie ma znacznik bez
+    **Ukryj…**; z drzewa usuwa go **Usuń z drzewa…** ([A3.5.6](#A3.5.6));
+  - **Ukryj…** i **Przywróć** działają tylko przy działającym badaniu; inaczej są wyłączone;
+  - badanie, które znacznika nie wysyła, zostawia **Nieprzypisane** jak wcześniej.
+- **Obsługa:** okno **Materiały** → pasek propozycji → **Propozycja agenta** → **Nieprzypisane**; terminal:
+  `strom material show <id>`, ukrycie `strom input hide I… --why unrelated`
+  ([R11.5.2](R11-material-from-the-user.md#R11.5.2)).
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:f2bebc4c (v 401eaca4) src/materials.ts SortProposal.unrelated, parseSortProposal · src/material-sort.ts sortRows (unrelated: bez polí a vazeb), sortUnrelatedHideable (origin ≠ tree, file, !hidden, bez places) · src/ui/material-sort-ui.ts (Nepřiřazeno: unrelated první, msp-flag reason.unrelated, conf, unassignedWhy + why; hideUnrelated, hide, restore, hiddenLabel; hideCan: caps.assign, jinak null; bridgeUp && base, jinak vypnuto; reopen na tab unassigned; Projít ručně bez skrytých) · src/ui/material-actions-ui.ts openHideDialog (důvod unrelated předvybraný, ctx.back) · strings.ts materials.agentSort.hideUnrelated, unassignedWhy, reviewByHand, materials.hide, hideTitle, reasonLabel, reason, hideConfirm, hiddenLabel, hiddenToastResearch, restore · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts unrelated -->
+
+<a id="A3.5.10"></a>
+### A3.5.10 Pasek porządkowania i koniec propozycji
+
+Okno **Materiały** ma jeden pasek porządkowania nad całym archiwum. Pokazuje stan wszystkich plików badania, także
+gdy filtr pokazuje tylko część; pod partiami pasków nie ma.
+
+- **Stany paska:**
+  - nieuporządkowane pliki: „N plików bez tytułu lub osoby” z **Uporządkuj agentem…**, **Przejrzyj ręcznie** i ×;
+  - agent porządkuje: postęp ([A3.5.8](#A3.5.8), [A3.5.12](#A3.5.12)) z **Anuluj**; gdy propozycje już czekają,
+    także **Załatw propozycję (N)**;
+  - propozycja czeka: „Propozycja agenta: N do załatwienia” z **Załatw propozycję (N)** i **Zamknij propozycję…**;
+  - po propozycji: „Gotowe: załatwiono a · nieprzypisane u · zostało N nieuporządkowanych” z **Uporządkuj kolejne
+    (N)…**, **Przejrzyj ręcznie** (pliki, których agent nie przypisał) i ×;
+  - nic nie zostało: „Wszystkie pliki mają tytuł i osobę.”
+- × ukrywa pasek, dopóki nie zmieni się jego stan. Partia dodana przy otwartym oknie ogłasza się w pasku „Dodano N
+  plików · M bez tytułu lub osoby” ([A3.5.15](#A3.5.15)).
+- **Koniec propozycji:** gdy wszystko jest załatwione, okno **Propozycja agenta** mówi „Gotowe · przyjęto a ·
+  odrzucono r · nieprzypisane u” (przy przebiegu także „Za cały przebieg: …”), a pod tym:
+  - „W archiwum zostało N nieuporządkowanych plików” z **Uporządkuj kolejne (N)…**: propozycja się zamyka i otwiera
+    się okno **Uporządkuj agentem**; inaczej „W archiwum nie ma już nic do uporządkowania.”;
+  - kopie z tą samą treścią, które nie zostały wysłane: **Ukryj jako Duplikat (N)…**;
+  - „N plików agent nie przypisał”: zostają bez tytułu i osoby, mają etykietę **Agent nie przypisał** i następnym
+    razem nie trafią do agenta ([A3.5.14](#A3.5.14)).
+- Propozycję, w której nic nie czeka, zamyka zamknięcie okna. **Zamknij propozycję…** pyta **Zamknąć propozycję?**:
+  niezałatwione propozycje się nie zapiszą, a pliki zostaną nieuporządkowane; przyjęte zostają przyjęte.
+- **Granice:**
+  - na telefonie pasek pokazuje tylko stan; propozycja jest w aplikacji na komputerze. Drzewo tylko do odczytu:
+    tylko stan i „Drzewo jest tylko do odczytu.”;
+  - gdy badanie nie działa, pasek jest wyłączony i mówi dlaczego;
+  - badanie bez przebiegów partiami oferuje **Uporządkuj kolejne 50…** z „Agent bierze naraz najwyżej 50 plików.
+    Partiami porządkuje nowsza wersja badania.”
+- **Obsługa:** okno **Materiały** → pasek porządkowania; ⋯ partii → **Uporządkuj agentem…**; okno **Propozycja
+  agenta**.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:9752aead src/material-sort.ts sortStripState (A–F nad celým archivem i s filtrem; × jen v A a E), src/ui/material-sort-ui.ts materialSortStripView, konec návrhu (endTitle, endRun, restLine, restNote, leftLine, leftNote, nothingLeft, endFoot, closeAsk, closeText), materialSortCloseAsk · src/ui/materials-window.ts mwSortWholeClose (sortClosedState do změny stavu), ⋯ dávky (sort) · app:17585b94 materialsBatchAdded (stripAdded) · app:0b0c9d4f (telefon, strom jen ke čtení, výzkum neběží, starší výzkum bez běhů: olderNext, olderRun) · strings.ts materials.agentSort.stripWhole, reviewHand, handle, pending, doneLine, sortNextN, allSorted, closeProposal, readOnlyNote, phoneShort, hideCopies, copiesLine -->
+
+<a id="A3.5.11"></a>
+### A3.5.11 Co uporządkować: partie i co się nie wysyła
+
+Okno **Uporządkuj agentem** najpierw mówi, co się wyśle, w ilu partiach i co się nie wyśle. Pliki idą w partiach po
+najwyżej 50.
+
+- **Co uporządkować:** kafelki z liczbami. Na górze to, skąd okno przyszło (**Tylko zaznaczone** albo **Tylko partia
+  „…”**), potem zawsze **Wszystkie nieuporządkowane**; powyżej 10 partii także **Tylko pierwsze 50** („1 partia;
+  reszta potem przez „Uporządkuj kolejne””).
+- **Kolejność:** najpierw obrazy i PDF, potem inne pliki, pliki tekstowe i danych na końcu; w tym według partii
+  i folderu, pliki jednego folderu razem.
+- **Co się nie wysyła** (z partii i ze wszystkich nieuporządkowanych): kopie z tą samą treścią co starszy plik (idzie
+  tylko starszy), plik, który jest plikiem źródła, pliki, których agent ostatnio nie przypisał, oraz pliki tekstowe
+  i danych (.md, .txt, .json, .csv). Okno mówi to jednym zdaniem ze **Szczegóły**: przy kopiach **Ukryj jako Duplikat
+  (N)…**, przy nieprzypisanych **Pokaż w Materiałach**, przy tekstowych pole **Wyślij też pliki tekstowe i danych
+  (N)**.
+- **Tylko zaznaczone** wysyła wszystkie zaznaczone pliki oprócz ukrytych; kopie i pliki źródła wśród nich okno
+  podaje liczbą i wysyła je też.
+- Okno mówi „Wysłanych zostanie N plików w M partiach po najwyżej 50. …”, a przycisk to **Uporządkuj agentem · M
+  partii**. Powyżej 10 partii mówi wyraźnie, że każda partia zużywa subskrypcję lub kredyt i że gdy limit się
+  wyczerpie, przebieg się zatrzyma; na próbę wystarczy **Tylko pierwsze 50**.
+- **Granice:**
+  - najwyżej 30 partii (1 500 plików) jako jeden przebieg ([A3.5.12](#A3.5.12)); co jest ponad to, wyśle dopiero
+    **Uporządkuj kolejne**;
+  - badanie bez przebiegów partiami bierze jedną partię (50 plików);
+  - plik źródła aplikacja rozpozna tylko według badania. Kopie i pliki, których agent nie przypisał, mówi badanie;
+    gdy tego nie umie, aplikacja rozpozna kopie po treści plików, które zna, a nieprzypisane po propozycjach, które
+    pamięta.
+- **Obsługa:** okno **Materiały**: pasek porządkowania, zaznaczenie, ⋯ partii → okno **Uporządkuj agentem**.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:1047b9d6 src/ui/material-sort-ui.ts openSortDialog (base: selection | batch | all, 'first' nad SORT_MANY_BATCHES=10, plan, planOne, costBig, overRun, goRun, selWarn, drawLeft s details), src/material-sort.ts SORT_MAX_BATCHES=30, sortRunBatches · app:2fbab382 src/material-sort.ts sortNext (obrázky a PDF první, text poslední jen s withText, dávka a složka, výběr vše bez skrytých; kopie, zdroje, left jen mimo výběr), sortIsText, sortCopyOf (material.sameAs, jinak otisk), sortLeftMap (material.left, jinak paměť aplikace) · strings.ts materials.agentSort.scopeLegend, scopeAll, scopeSel, scopeBatch, scopeFirst, scopeFirstSub, leftCopies, leftText, leftSources, leftLeft, showLeft, details, withText, withTextHint -->
+
+<a id="A3.5.12"></a>
+### A3.5.12 Przebieg partiami
+
+Więcej niż jedna partia idzie jako jeden przebieg: badanie porządkuje partie jedną po drugiej, a propozycję każdej
+gotowej partii można załatwić od razu.
+
+- Pasek i wskaźnik są jedne dla całego przebiegu: „Agent porządkuje · partia b z M · k z n”, na początku partii „…
+  się zaczyna”. Okno **Propozycja agenta** pokazuje „Partia b z M trwa · dojdą kolejne propozycje”; nowe propozycje
+  dochodzą na koniec listy z powiadomieniem i **Pokaż**.
+- Przebieg idzie dalej także po zamknięciu okna i po ponownym wczytaniu aplikacji. Powiadomienie o końcu przychodzi
+  raz, na końcu przebiegu.
+- **Anuluj** zatrzymuje przebieg od razu: partia w pracy się kończy, czekające nie ruszą. Gdy są gotowe propozycje,
+  pyta **Odrzucić gotowe propozycje?** i mówi, które partie nie ruszą i ile plików zostanie nieuporządkowanych;
+  **Zachowaj** zostawia je do załatwienia.
+- **Partia, która się nie odbyła:** po końcu przebiegu pasek w kolorze błędu mówi „Partia b z M się nie odbyła:”
+  z powodem, co zostaje nieuporządkowane, **Załatw propozycję (N)**, **Spróbuj ponownie…** i **Zamknij**. Pozostałe
+  partie w tym czasie idą dalej.
+- **Przebieg zatrzymany gdzie indziej:** „Porządkowanie zatrzymało się po partii b z M.” z **Kontynuuj (N
+  partii)…**. **Spróbuj ponownie…** i **Kontynuuj** otwierają okno z **To, co zostało z przebiegu**; nowe partie
+  dochodzą do otwartej propozycji.
+- **Partia czeka**, gdy odczyty, o które aplikacja może prosić, są wyczerpane: „Partia b z M czeka” i „Ruszy sama za
+  około N min.” (lub godz.).
+- **Granice:** najwyżej 30 partii po 50 plików; tylko badanie, które umie przebieg partiami
+  ([R11.5.5](R11-material-from-the-user.md#R11.5.5)). Każda partia zużywa subskrypcję lub kredyt i liczy się do
+  odczytów aplikacji.
+- **Obsługa:** okno **Uporządkuj agentem**; pasek okna **Materiały**; okno **Propozycja agenta**.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:acc877d6 src/ui/material-sort-ui.ts (běh výzkumu čtený do konce, jeden pruh a ukazatel, runBatch, runBatchFiles, runStarting, runInWindow, moreArrived, show; po novém načtení sledovaný znovu; toast jednou na konci) · app:687dd41b materialSortCancel (cancelMaterialSortRun, discardAsk, discardRun, discardKeep), batchFailed, runErrorText (errLimit, batchErr), leftAfterError, retry, stopped, stoppedNote, resume, scopeRest, runWaiting, runWaitText (waitApp, waitRetry) · app:0b0c9d4f (bez toastu při otevřeném okně návrhu) · research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500 -->
+
+<a id="A3.5.13"></a>
+### A3.5.13 Rewers i portret w propozycji
+
+Agent może w propozycji powiedzieć, który z wysłanych plików jest rewersem innego zdjęcia lub strony i który obraz
+jest portretem osoby. Propozycja pokazuje to jako żeton przy pliku.
+
+- **Rewers:** przy awersie żeton „Rewers:” z podglądem i nazwą rewersu. Przyjęcie zapisuje rewers razem z awersem:
+  rewers dostaje jego datę, rodzaj i powiązania oraz tytuł „… (rewers)”. Wiersz pokazuje obie nazwy („… + …
+  (rewers)”) i „2 strony”.
+- **Portret:** żeton „Portret:” z osobą. Po przyjęciu plik dostaje miejsce przy osobie i otwiera się edytor portretu
+  ([A12](A12-portrait-and-couple-photo.md)).
+- × usuwa żeton z propozycji; reszta propozycji zostaje.
+- **Granice:**
+  - rewers tylko między plikami, które dostał ten sam czytelnik badania: jeden rewers do jednego awersu, nigdy rewers
+    rewersu ani plik tekstowy ([R11.5.3](R11-material-from-the-user.md#R11.5.3));
+  - portret jest proponowany tylko przy obrazie i tylko przy osobie, która nie ma portretu i da się edytować.
+- **Obsługa:** okno **Propozycja agenta** → **Propozycje**.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/material-sort-ui.ts withPortraits (obrázek, osoba bez photo, canEditPortrait), čipy own() s × (dropped), rubFiles, twoSides, accept (sortBackRow s rubSuffix, portrét: místo personId) · strings.ts materials.agentSort.rubChip, portraitChip, rubSuffix, rubFiles, twoSides · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait -->
+
+<a id="A3.5.14"></a>
+### A3.5.14 Agent nie przypisał, Ta sama treść i Plik źródła
+
+Kafelki i wiersze okna **Materiały** mają przed osobami etykietę, która mówi, dlaczego plik został nieuporządkowany,
+albo że jest uporządkowany przez źródło.
+
+- **Agent nie przypisał:** plik, do którego agent przy porządkowaniu nic nie zaproponował. Podgląd pliku pokazuje
+  przy nim „Dlaczego nie” z powodem. Filtr **Agent nie przypisał** (z liczbą) stoi za pozostałymi filtrami. Następne
+  porządkowanie takich plików nie wyśle, chyba że zostaną zaznaczone ręcznie.
+- **Ta sama treść:** plik z tą samą treścią co starszy plik; porządkowanie wyśle tylko starszy.
+- **Plik źródła** (przy kilku źródłach „Plik N źródeł”): plik, z którego badanie zrobiło źródło. Etykieta stoi przed
+  osobami, które źródło cytują, a **W drzewie** zależy od tego, czy źródło jest w drzewie. W **Lista** kolumna
+  **Źródło** pokazuje etykietę z tytułem pierwszego źródła. Taki plik jest uporządkowany: nie liczy się do **Bez
+  osoby** ani **Bez źródła** i nie ma etykiety **Agent nie przypisał**. **Gdzie użyto** pokazuje przy nim źródła
+  jako pierwsze ([A3.5.3](#A3.5.3)).
+- **Granice:** **Agent nie przypisał** i **Ta sama treść** ma tylko plik bez tytułu albo bez osoby, który nie jest
+  ukryty. **Plik źródła** tylko z badaniem, które pliki źródeł zgłasza
+  ([R11.5.4](R11-material-from-the-user.md#R11.5.4)); bez niego pliki pokazują się jak dotąd.
+- **Obsługa:** okno **Materiały** (kafelki, **Lista**, **Filtry**); podgląd pliku.
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/materials-window.ts (agentLeft, copyOf jen u souboru bez titulku nebo osoby, ne skrytý ani zdroj pramene), mwSortTagHtml, filtr left (fLeft), src/ui/material-viewer-ui.ts (unassignedWhy + said nebo unproposed[why]) · app:4bf66048 src/materials-overview.ts, src/ui/materials-window.ts mwSourceOfTag, src/ui/material-uses-ui.ts (zdroj pramene: přiřazený, bez Bez osoby a Bez pramene) · strings.ts materials.agentSort.fLeft, tagLeft, tagCopy, tagSourceOf, sourceOfN, usesSourceOf, viaInput, viaMedia, viaExcerpt, citedBy, keptViaSource · research:0cc2cfca src/core/live.ts GET /material (uses.of, left, sameAs) -->
+
+<a id="A3.5.15"></a>
+### A3.5.15 Dodaj materiały… w oknie
+
+**Dodaj materiały…** w nagłówku okna **Materiały** otwiera nad oknem kreator **Dodawanie materiałów do badania**
+([R11.4](R11-material-from-the-user.md#R11.4)).
+
+- Pliki i foldery przeciągnięte na okno pokazują „Upuść tutaj: dodaj do materiałów” i otwierają z nimi kreator. Nic
+  nie zostanie wysłane bez potwierdzenia w kreatorze.
+- Partia dodana przy otwartym oknie ogłasza się w pasku porządkowania ([A3.5.10](#A3.5.10)), a lista wczytuje się
+  ponownie.
+- **Granice:** tylko przy badaniu, które przyjmuje partie, i przy drzewie, które da się zmieniać; drzewo bez badania
+  przycisku nie ma. Na telefonie nie da się przeciągać; **Dodaj materiały…** i **Gdzie są pliki** są tam w ⋯
+  nagłówka.
+- **Obsługa:** okno **Materiały** → **Dodaj materiały…**; przeciągnięcie plików lub folderów na okno.
+- **Obowiązuje od:** aplikacja 3.30.0
+
+<!-- zdroj: app:17585b94 src/ui/materials-window.ts mwAddMaterials (showBatchDialog), mwWireDrop (ne na telefonu), mwFillHeadMenu (telefon: add, where), materialsBatchAdded · src/ui/materials-ui.ts materialsAddOffered (windowAddOffered: model archive, batchAvailable, ne jen ke čtení) · strings.ts materials.addMaterials, dropTitleMaterials, dropSubMaterials, agentSort.stripAdded -->
+
+<a id="A3.5.16"></a>
+### A3.5.16 Usuń trwale
+
+**Usuń trwale…** usuwa pliki badania z archiwum i z drzewa. Idzie to tylko przez okno, które najpierw mówi, co
+odwołuje się do plików; w aplikacji nie da się tego cofnąć.
+
+- Okno **Usunąć trwale N plików?** pokazuje podgląd (przy kilku plikach pierwsze pięć i „i N kolejnych”), **Co
+  odwołuje się do plików** według badania (wiersze **Źródło**, **Wycinki**, **Drzewo**, **Osoby**, **Zadania**), że
+  pliki zostaną usunięte z archiwum badania i z drzewa, oraz pole **Rozumiem, usunięcia nie da się cofnąć
+  w aplikacji**.
+- Przycisk **Usuń trwale** działa tylko wtedy, gdy badanie potwierdziło wykaz i pole jest zaznaczone; fokus ma
+  **Anuluj**. Pliki poza drzewem, które jeszcze nie są ukryte, oferują też **Tylko ukryj – można cofnąć**.
+- **Co się stanie:** źródło zostaje, tylko bez swojego pliku; źródło z tą samą treścią traci obraz, tekst i cytaty
+  zostają; wycinki z tych plików zostaną usunięte; miejsca w drzewie usunie następna wersja drzewa z badania; plik
+  zniknie z materiałów osób; zadanie bez innych plików zostanie porzucone. Treść, którą ma też inny plik albo inne
+  badanie na tym komputerze, zostaje zapisana i usuwa się tylko wpis.
+- Gdy wykaz się w międzyczasie zmienił albo potwierdzenie wygasło (obowiązuje 15 minut), okno pokazuje nowy wykaz,
+  odznacza pole i usunięcie trzeba potwierdzić ponownie.
+- Po usunięciu powiadomienie „Usunięto trwale: N plików.” bez **Cofnij**. Pliki znikają z okna i z propozycji
+  agenta. Zostają tylko we wcześniejszych kopiach zapasowych badania (przy Archiwum Strom archiwum). Ani agent, ani
+  drzewo nigdy nie usuwają same.
+- **Granice:**
+  - tylko pliki archiwum badania albo Archiwum Strom; plik, który jest tylko w drzewie, usuwa **Usuń z drzewa…**
+    ([A3.5.6](#A3.5.6));
+  - najwyżej 500 plików naraz („Naraz można usunąć najwyżej 500 plików.”);
+  - tylko z badaniem, które umie usuwać, i z działającym mostem; nigdy w drzewie tylko do odczytu;
+  - na wąskim ekranie okno jest arkuszem od dołu.
+- **Obsługa:** okno **Materiały** → zaznaczenie → ⋯ → **Usuń trwale…** (ostatnia pozycja); podgląd pliku (ostatnia
+  akcja). Terminal: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+
+<!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
 
 <a id="A3.6"></a>
 ## A3.6 Źródła osoby

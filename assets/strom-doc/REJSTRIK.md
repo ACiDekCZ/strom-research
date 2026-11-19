@@ -53,7 +53,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | de | Wartet auf Bearbeitung (app) · Was wartet (terminal) | Eine einzige geordnete Liste von allem, worauf die Forschung vom Menschen wartet: wartende Aufgaben, Fragen der Archive, neue Fassungen von Erzählungen, Fragen zu Orten und im Terminal auch Entscheidungen, die nur dort gehen. |
 | pl | Czeka na załatwienie (app) · Co czeka (terminal) | Jedna uporządkowana lista wszystkiego, na co badanie czeka od człowieka: czekające zadania, pytania archiwów, nowe wersje opowieści, pytania o miejsca, a w terminalu także decyzje, które załatwia się tylko tam. |
 
-- **Čísla:** [R6.1](cs/R6-awaiting-action.md#R6.1), R6.1.1, R6.4, R6.5, S2.3
+- **Čísla:** [R6.1](cs/R6-awaiting-action.md#R6.1), R6.1.1, R6.4, R6.5, S2.3, S4.4, S4.4.2, S4.4.3
 
 <a id="reader"></a>
 ### Čtenář
@@ -648,6 +648,18 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
+<a id="not-assigned-by-agent"></a>
+### Agent nezařadil
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Agent nezařadil (app) · `left` (most) | Štítek a filtr u souboru, ke kterému agent při třídění nic nenavrhl. Soubor zůstane bez titulku a osoby a příští třídění ho nepošle, pokud se nevybere ručně. |
+| en | Not assigned by the agent (app) · `left` (bridge) | A tag and a filter at a file the agent proposed nothing for when sorting. The file stays without title and person and the next sorting does not send it unless it is selected by hand. |
+| de | Vom Agenten nicht zugeordnet (app) · `left` (Brücke) | Etikett und Filter bei einer Datei, zu der der Agent beim Sortieren nichts vorgeschlagen hat. Die Datei bleibt ohne Titel und Person, und das nächste Sortieren sendet sie nicht, außer sie wird von Hand ausgewählt. |
+| pl | Agent nie przypisał (app) · `left` (most) | Etykieta i filtr przy pliku, do którego agent przy porządkowaniu nic nie zaproponował. Plik zostaje bez tytułu i osoby, a następne porządkowanie go nie wyśle, chyba że zostanie zaznaczony ręcznie. |
+
+- **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.10, A3.5.11, R11.5.4
+
 <a id="strom-archive"></a>
 ### Archiv Stromu
 
@@ -696,6 +708,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A4.3](cs/A4-surnames-and-families.md#A4.3)
 
+<a id="source-evidence"></a>
+### Doklad pramene
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Doklad (app) | Soubor, ze kterého pramen je. Místo souboru u pramene; soubor se znovu nevkládá. |
+| en | Evidence (app) | The file a source is taken from. A place of the file at the source; the file is not added again. |
+| de | Beleg (app) | Die Datei, aus der eine Quelle stammt. Eine Stelle der Datei bei der Quelle; die Datei wird nicht noch einmal eingefügt. |
+| pl | Dowód (app) | Plik, z którego pochodzi źródło. Miejsce pliku przy źródle; pliku nie wstawia się ponownie. |
+
+- **Čísla:** [A3.5.5](cs/A3-evidence-in-the-app.md#A3.5.5)
+
 <a id="card-status-mark"></a>
 ### Doložení a spolehlivost
 
@@ -707,6 +731,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Udokumentowanie i wiarygodność (app) | Jeden znacznik w prawym dolnym rogu karty w drzewie: najsłabsza z danych imię, urodzenie i zgon (✓, ●●, ●○, ○, ○○, kropkowana ramka). Włącza się w Na karcie pokazuj. |
 
 - **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
+
+<a id="couple-photo"></a>
+### Fotka svazku
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Fotka svazku | Jedna fotka páru (svatební nebo společná) uložená u svazku, ne u osoby. Ukazuje se ve vztazích, v Tabulce svazků, na stránkách osob a v knize rodu; dají se z ní vyříznout portréty obou partnerů. V GEDCOM je to obrázek rodiny (`OBJE` u `FAM`). |
+| en | Couple's photo | One photo of a couple (a wedding or joint photo) kept with the union, not with a person. It appears in the relationships, in the Unions table, on person pages and in the Family book; portraits of both partners can be cut from it. In GEDCOM it is a picture of the family (`OBJE` at `FAM`). |
+| de | Paarfoto | Ein Foto eines Paares (Hochzeitsfoto oder gemeinsames Foto), gespeichert bei der Partnerschaft, nicht bei einer Person. Es erscheint in den Beziehungen, in der Tabelle der Partnerschaften, auf Personenseiten und im Familienbuch; aus ihm lassen sich Porträts beider Partner ausschneiden. In GEDCOM ist es ein Bild der Familie (`OBJE` bei `FAM`). |
+| pl | Zdjęcie pary | Jedno zdjęcie pary (ślubne lub wspólne) zapisane przy związku, nie przy osobie. Widać je w relacjach, w tabeli związków, na stronach osób i w księdze rodu; można z niego wykadrować portrety obojga partnerów. W GEDCOM to obraz rodziny (`OBJE` przy `FAM`). |
+
+- **Čísla:** [A12.4](cs/A12-portrait-and-couple-photo.md#A12.4), A12.5, A12.6, A12.7
 
 <a id="main-citation"></a>
 ### Hlavní citace
@@ -779,6 +815,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Gdzie brakuje dowodów: Osoby bez źródła · Urodzenia bez źródła / Urodzenia niesprawdzone w badaniu · Końce linii (app) | Blok przeglądu drzewa z grupami osób bez źródła lub bez rodziców; podświetlanie prowadzi przez nie i proponuje **Cytuj**. |
 
 - **Čísla:** [A3.7](cs/A3-evidence-in-the-app.md#A3.7), [R3.8](cs/R3-verification-and-citation.md#R3.8)
+
+<a id="where-used"></a>
+### Kde je použit
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Kde je použit (app) | Seznam míst souboru: osoby, portrét, svazek, události, prameny, výňatky; vedle archivu i Ve stromu / V archivu. |
+| en | Where used (app) | The list of a file's places: people, portrait, union, events, sources, excerpts; beside an archive also In the tree / In the archive. |
+| de | Wo verwendet (app) | Die Liste der Stellen einer Datei: Personen, Porträt, Partnerschaft, Ereignisse, Quellen, Ausschnitte; neben einem Archiv auch Im Stammbaum / Im Archiv. |
+| pl | Gdzie użyto (app) | Lista miejsc pliku: osoby, portret, związek, wydarzenia, źródła, wycinki; obok archiwum także W drzewie / W archiwum. |
+
+- **Čísla:** [A3.5.3](cs/A3-evidence-in-the-app.md#A3.5.3)
+
+<a id="where-the-data-are"></a>
+### Kde jsou data
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Kde jsou data · Jen v prohlížeči (app) | Okno o tom, kde strom je a jak ho udržet. Ukazatel Jen v prohlížeči svítí, když změny stromu nedrží žádný soubor ani výzkum. |
+| en | Where the data is · Only in browser (app) | The window about where the tree is and how to keep it. The indicator Only in browser is lit when no file and no research holds the tree's changes. |
+| de | Wo die Daten liegen · Nur im Browser (app) | Das Fenster dazu, wo der Stammbaum liegt und wie er sich halten lässt. Die Anzeige Nur im Browser leuchtet, wenn keine Datei und keine Forschung die Änderungen des Stammbaums hält. |
+| pl | Gdzie są dane · Tylko w przeglądarce (app) | Okno o tym, gdzie jest drzewo i jak je utrzymać. Wskaźnik Tylko w przeglądarce świeci, gdy zmian drzewa nie trzyma żaden plik ani badanie. |
+
+- **Čísla:** [S8](cs/S8-where-the-data-are.md#S8), S8.1, S8.4
 
 <a id="to-share-with-others"></a>
 ### Ke sdílení s ostatními
@@ -881,12 +941,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Poslat materiál… · Materiály (app) | Soubor poslaný výzkumu k osobě nebo k prameni. Do stromu se nepřidá; výzkum z něj udělá úkol pro agenta. |
-| en | Send material… · Materials (app) | A file sent to the research for a person or a source. It is not added to the tree; the research makes a task for the agent from it. |
-| de | Material senden… · Materialien (app) | Eine Datei, an die Forschung zu einer Person oder Quelle gesendet. Sie kommt nicht in den Stammbaum; die Forschung macht daraus eine Aufgabe für den Agenten. |
-| pl | Wyślij materiał… · Materiały (app) | Plik wysłany do badania przy osobie lub źródle. Do drzewa się nie dodaje; badanie robi z niego zadanie dla agenta. |
+| cs | Materiály (app) · Poslat materiál… | Každý soubor stromu (příloha, celá fotka portrétu, fotka svazku, doklad pramene) a soubor výzkumu. Stejný soubor je ve stromu jednou a nese svá místa. Soubor jde výzkumu poslat i bez přidání do stromu. |
+| en | Materials (app) · Send material… | Any file of the tree (an attachment, the whole photo of a portrait, a couple's photo, the evidence of a source) and a file of the research. The same file is in the tree once and carries its places. A file can also be sent to the research without adding it to the tree. |
+| de | Materialien (app) · Material senden… | Jede Datei des Stammbaums (Anhang, ganzes Foto eines Porträts, Paarfoto, Beleg einer Quelle) und eine Datei der Forschung. Dieselbe Datei ist im Stammbaum einmal und trägt ihre Stellen. Eine Datei lässt sich der Forschung auch senden, ohne sie dem Stammbaum hinzuzufügen. |
+| pl | Materiały (app) · Wyślij materiał… | Każdy plik drzewa (załącznik, całe zdjęcie portretu, zdjęcie pary, dowód źródła) i plik badania. Ten sam plik jest w drzewie raz i niesie swoje miejsca. Plik można wysłać do badania także bez dodania do drzewa. |
 
-- **Čísla:** [A3.5](cs/A3-evidence-in-the-app.md#A3.5), R11, R11.4
+- **Čísla:** [A3.5](cs/A3-evidence-in-the-app.md#A3.5), A3.5.1–A3.5.16, R11, R11.4, R11.5, R11.5.6
 
 <a id="research-bridge"></a>
 ### Most výzkumu
@@ -898,7 +958,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Brücke | Ein kleiner Server, den die Forschung auf diesem Computer startet (`127.0.0.1`, ein zufälliger Port, ein geheimer Schlüssel in der Adresse); darüber spricht die App mit der Forschung. |
 | pl | most | Mały serwer, który badanie uruchamia na tym komputerze (`127.0.0.1`, losowy port, tajny klucz w adresie); aplikacja rozmawia przez niego z badaniem. |
 
-- **Čísla:** [S1.1](cs/S1-connecting-app-and-research.md#S1.1), S1.5, S1.7
+- **Čísla:** [S1.1](cs/S1-connecting-app-and-research.md#S1.1), S1.5, S1.7, R13.2
 
 <a id="possible-duplicate"></a>
 ### Možná duplicitní osoba
@@ -948,6 +1008,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S4.5.2](cs/S4-research-from-the-app.md#S4.5.2)
 
+<a id="leave-as-is"></a>
+### Nechat, jak je
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Nechat, jak je (`strom task audit --keep`) | Slovo člověka, že čekání úkolu je správně tak, jak je. Nález se pak nenabízí, dokud se čekání nezmění. Smí jen člověk, ne agent. |
+| en | Leave as is | A person's word that the task's wait is right as it is. The finding is then not offered until the wait changes. Only a person may give it, not the agent. |
+| de | So lassen | Das Wort des Menschen, dass das Warten der Aufgabe so richtig ist. Der Befund wird dann nicht mehr angeboten, bis sich das Warten ändert. Nur der Mensch darf es geben, nicht der Agent. |
+| pl | Pozostawić bez zmian | Słowo człowieka, że czekanie zadania jest właściwe tak, jak jest. Ustalenie nie jest potem proponowane, dopóki czekanie się nie zmieni. Może je dać tylko człowiek, nie agent. |
+
+- **Čísla:** [R6.9.1](cs/R6-awaiting-action.md#R6.9.1), [S4.4.8](cs/S4-research-from-the-app.md#S4.4.8)
+
 <a id="not-an-error"></a>
 ### Není chyba
 
@@ -971,6 +1043,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Nieobsługiwane | Liczba części pliku GEDCOM, których aplikacja nie zna i nie przeniosła; z nazwy podaje je wiersz Pominięte rekordy. Osoby i relacje do nich nie należą. |
 
 - **Čísla:** [A2.1](cs/A2-loading-a-family-tree.md#A2.1), A2.1.1, A2.2, A2.5
+
+<a id="not-about-the-family"></a>
+### Netýká se rodiny
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Netýká se rodiny · Skrýt jako Netýká se rodiny (app) · `unrelated` (terminál) | Značka agenta při třídění u souboru, který se rodiny zjevně netýká (snímek obrazovky, účtenka, omylem poslaný soubor): bez návrhu, jen s důvodem a jistotou. Skryje ho jen člověk; skrytý soubor zůstane ve výzkumu a jde vrátit. |
+| en | Not about the family · Hide as Not about the family (app) · `unrelated` (terminal) | The agent's mark when sorting a file plainly not about the family (a screenshot, a receipt, a file sent by mistake): no proposal, only a reason and a certainty. Only a person hides it; a hidden file stays in the research and can be restored. |
+| de | Betrifft nicht die Familie · Als „Betrifft nicht die Familie“ ausblenden (app) · `unrelated` (terminal) | Die Markierung des Agenten beim Sortieren einer Datei, die offensichtlich nicht die Familie betrifft (ein Bildschirmfoto, eine Quittung, eine versehentlich geschickte Datei): kein Vorschlag, nur Begründung und Sicherheit. Ausblenden kann sie nur ein Mensch; eine ausgeblendete Datei bleibt in der Forschung und lässt sich wiederherstellen. |
+| pl | Nie dotyczy rodziny · Ukryj jako Nie dotyczy rodziny (app) · `unrelated` (terminal) | Znacznik agenta przy porządkowaniu pliku, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wysłany przez pomyłkę): bez propozycji, tylko z uzasadnieniem i pewnością. Ukrywa go tylko człowiek; ukryty plik zostaje w badaniu i można go przywrócić. |
+
+- **Čísla:** [A3.5.9](cs/A3-evidence-in-the-app.md#A3.5.9), A3.5.8, R11.5.3
+
+<a id="remove-from-tree"></a>
+### Odstranit ze stromu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Odstranit ze stromu… · Vrátit (app) | Odebere soubor ze všech míst ve stromu. Bez archivu ho smaže (vrátí jen Zpět nebo záloha); s archivem zůstane v archivu skrytý a Vrátit ho vrátí i s vazbami. |
+| en | Remove from the tree… · Restore (app) | Removes a file from all its places in the tree. Without an archive it deletes it (only Undo or a backup brings it back); with an archive it stays hidden in the archive and Restore brings it back with its links. |
+| de | Aus dem Stammbaum entfernen… · Wiederherstellen (app) | Entfernt eine Datei von allen Stellen im Stammbaum. Ohne Archiv wird sie gelöscht (nur Rückgängig oder eine Sicherung holt sie zurück); mit Archiv bleibt sie ausgeblendet im Archiv, und Wiederherstellen holt sie mitsamt Verknüpfungen zurück. |
+| pl | Usuń z drzewa… · Przywróć (app) | Usuwa plik ze wszystkich miejsc w drzewie. Bez archiwum go kasuje (przywróci go tylko Cofnij lub kopia); z archiwum zostaje w nim ukryty, a Przywróć przywraca go razem z połączeniami. |
+
+- **Čísla:** [A3.5.6](cs/A3-evidence-in-the-app.md#A3.5.6), R11.5.1
 
 <a id="living-privacy"></a>
 ### Ochrana žijících
@@ -1007,6 +1103,42 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Zweryfikuj (przy danej) · Zweryfikuj dane (N), Zweryfikuj dane · N (przy osobie) · Zweryfikuj dane w drzewie… (app) · `strom verify facts`, `strom verify bulk` | Zadanie dla badania, by zweryfikować daną według oryginalnego aktu: przeczytać znany akt albo go znaleźć i przeczytać. Działa w tle badania; wynik to udokumentowane albo pozostawione z uzasadnieniem. |
 
 - **Čísla:** [S7.3](cs/S7-reliability-and-verification.md#S7.3), S7.4, S7.5, S7.6, S7.7
+
+<a id="progress-notice"></a>
+### Oznámení s průběhem
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Oznámení s průběhem | Oznámení akce, která běží déle než 3 s: název, krok, čas od 10 s, **Trvá déle než obvykle.**, **Zrušit** jen kde jde zrušit, na konci souhrn. |
+| en | Notice with progress | The notice of an action running longer than 3 s: title, step, time from 10 s, **Taking longer than usual.**, **Cancel** only where it can be cancelled, a summary at the end. |
+| de | Meldung mit Fortschritt | Die Meldung einer Aktion, die länger als 3 s läuft: Titel, Schritt, Zeit ab 10 s, **Dauert länger als üblich.**, **Abbrechen** nur, wo es geht, am Ende eine Zusammenfassung. |
+| pl | Powiadomienie z postępem | Powiadomienie działania, które trwa dłużej niż 3 s: nazwa, krok, czas od 10 s, **Trwa dłużej niż zwykle.**, **Anuluj** tylko tam, gdzie można anulować, na końcu podsumowanie. |
+
+- **Čísla:** [A9.7.1](cs/A9-using-the-app.md#A9.7.1), A9.7
+
+<a id="portrait"></a>
+### Portrét · výřez portrétu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Portrét · Výřez portrétu | Fotka osoby na kartě a stránce osoby: čtverec 256 px vyříznutý v editoru z celé fotky. Celá fotka zůstane u osoby jako příloha se štítkem **Portrét**, takže výřez jde později změnit; portrét bez ní jde měnit jen uvnitř svého čtverce. |
+| en | Portrait · Portrait crop | A person's photo on the card and the person page: a 256 px square cut in the editor from the whole photo. The whole photo stays with the person as an attachment tagged **Portrait**, so the crop can be changed later; a portrait without it can only change within its square. |
+| de | Porträt · Porträtausschnitt | Das Foto einer Person auf der Karte und der Personenseite: ein Quadrat von 256 px, im Editor aus dem ganzen Foto ausgeschnitten. Das ganze Foto bleibt als Anhang mit der Markierung **Porträt** bei der Person, sodass sich der Ausschnitt später ändern lässt; ein Porträt ohne es lässt sich nur innerhalb seines Quadrats ändern. |
+| pl | Portret · Kadrowanie portretu | Zdjęcie osoby na karcie i stronie osoby: kwadrat 256 px wykadrowany w edytorze z całego zdjęcia. Całe zdjęcie zostaje przy osobie jako załącznik z etykietą **Portret**, więc kadr można później zmienić; portret bez niego można zmieniać tylko w obrębie jego kwadratu. |
+
+- **Čísla:** [A12](cs/A12-portrait-and-couple-photo.md), A12.1, A12.1.1, A12.2, A12.3, A12.8
+
+<a id="link-handoff"></a>
+### Potvrzení odkazu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Potvrzení odkazu (číslo předání, `handoff`) | Výzkum aplikaci řekne, že odkaz převzal (terminál naběhl nebo akce bez terminálu je hotová). Aplikace pak přestane čekat; bez potvrzení do limitu ukáže **Terminál se neotevřel?** se **Zkusit znovu**. |
+| en | Link confirmation (handoff number) | The research tells the app that it has taken a link (the terminal came up or an action without a terminal is done). The app then stops waiting; without confirmation within the limit it shows **Did the terminal not open?** with **Try again**. |
+| de | Bestätigung des Links (Übergabenummer) | Die Forschung sagt der App, dass sie einen Link übernommen hat (das Terminal ist hochgefahren oder eine Aktion ohne Terminal ist erledigt). Die App hört dann auf zu warten; ohne Bestätigung innerhalb des Limits zeigt sie **Terminal nicht geöffnet?** mit **Erneut versuchen**. |
+| pl | Potwierdzenie linku (numer przekazania) | Badanie mówi aplikacji, że przejęło link (terminal się uruchomił lub działanie bez terminala jest wykonane). Aplikacja przestaje wtedy czekać; bez potwierdzenia w limicie pokazuje **Terminal się nie otworzył?** ze **Spróbować ponownie**. |
+
+- **Čísla:** [S4.5.4](cs/S4-research-from-the-app.md#S4.5.4), S4.5, S4.2.3
 
 <a id="send-mode"></a>
 ### Posílat úpravy
@@ -1145,12 +1277,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Přílohy (app) | Soubor u osoby ve stromu (JPG, PNG zmenšené; PDF do 2 MB). Sama nic nedokládá. U stromu s výzkumem jde originál v plné kvalitě do výzkumu. |
-| en | Attachments (app) | A file at a person in the tree (JPG, PNG reduced; PDF up to 2 MB). By itself it proves nothing. For a tree with a research the original goes to the research in full quality. |
-| de | Anhänge (app) | Eine Datei bei einer Person im Stammbaum (JPG, PNG verkleinert; PDF bis 2 MB). Für sich belegt sie nichts. Bei einem Stammbaum mit Forschung geht das Original in voller Qualität in die Forschung. |
-| pl | Załączniki (app) | Plik przy osobie w drzewie (JPG, PNG pomniejszone; PDF do 2 MB). Sam niczego nie dokumentuje. W drzewie z badaniem oryginał w pełnej jakości trafia do badania. |
+| cs | Přílohy (app) | Soubor u osoby ve stromu (JPG, PNG zmenšené; PDF do 2 MB). Sama nic nedokládá. U stromu s výzkumem jde originál v plné kvalitě do výzkumu. Od aplikace 3.30.0 je příloha materiál stromu. |
+| en | Attachments (app) | A file at a person in the tree (JPG, PNG reduced; PDF up to 2 MB). By itself it proves nothing. For a tree with a research the original goes to the research in full quality. From app 3.30.0 an attachment is a material of the tree. |
+| de | Anhänge (app) | Eine Datei bei einer Person im Stammbaum (JPG, PNG verkleinert; PDF bis 2 MB). Für sich belegt sie nichts. Bei einem Stammbaum mit Forschung geht das Original in voller Qualität in die Forschung. Ab App 3.30.0 ist ein Anhang ein Material des Stammbaums. |
+| pl | Załączniki (app) | Plik przy osobie w drzewie (JPG, PNG pomniejszone; PDF do 2 MB). Sam niczego nie dokumentuje. W drzewie z badaniem oryginał w pełnej jakości trafia do badania. Od aplikacji 3.30.0 załącznik to materiał drzewa. |
 
-- **Čísla:** [A3.4](cs/A3-evidence-in-the-app.md#A3.4), A3.4.1
+- **Čísla:** [A3.4](cs/A3-evidence-in-the-app.md#A3.4), A3.4.1, A3.5, A3.5.6, A12.2
 
 <a id="linked-in-the-view-only"></a>
 ### Připojeno jen v zobrazení
@@ -1186,7 +1318,43 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Stammlinie | Die männliche Linie vom ältesten bekannten Träger des Namens, bestimmt durch den Stammvater, nicht durch den Nachnamen. Die App berechnet sie aus den Daten des Stammbaums. |
 | pl | Ród | Linia męska od najstarszego znanego nosiciela nazwiska, wyznaczona przez założyciela, nie przez nazwisko. Aplikacja liczy ją z danych drzewa. |
 
-- **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4
+- **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4, A6.4.1
+
+<a id="sort-with-agent"></a>
+### Roztřídit agentem
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Roztřídit agentem… (app) · `strom material sort` | Agent výzkumu navrhne k souborům titulek, datum, druh a vazby s důvodem. Nic se nezapíše, dokud člověk návrh nepřijme; titulky a vazby od člověka agent nemění. |
+| en | Sort with the agent… (app) · `strom material sort` | The research's agent proposes a title, date, kind and links for files, with a reason. Nothing is written until a person accepts the proposal; the agent does not change titles and links set by a person. |
+| de | Mit dem Agenten sortieren… (app) · `strom material sort` | Der Agent der Forschung schlägt zu Dateien Titel, Datum, Art und Verknüpfungen mit Begründung vor. Nichts wird geschrieben, bevor ein Mensch den Vorschlag annimmt; Titel und Verknüpfungen von Menschen ändert der Agent nicht. |
+| pl | Uporządkuj agentem… (app) · `strom material sort` | Agent badania proponuje dla plików tytuł, datę, rodzaj i połączenia z uzasadnieniem. Nic się nie zapisze, dopóki człowiek nie przyjmie propozycji; tytułów i połączeń nadanych przez człowieka agent nie zmienia. |
+
+- **Čísla:** [A3.5.8](cs/A3-evidence-in-the-app.md#A3.5.8), A3.5.10–A3.5.13, R11.5.3, R11.5.5
+
+<a id="list-of-people"></a>
+### Seznam osob
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Seznam osob · pevný · automatický · pracovní | Vybrané osoby stromu pod jedním jménem. Pevný drží své osoby a mění se ručně; automatický je uložené pravidlo (rod, předci, potomci, linie výzkumu, filtr Tabulky, přidáno za období), jeho osoby se počítají vždy znovu; pracovní je pevný s odškrtáváním hotových. Slouží jako rozsah Tabulky a v exportu. |
+| en | List of people · fixed · automatic · checklist | Chosen people of the tree under one name. A fixed list holds its people and changes by hand; an automatic list is a saved rule (family line, ancestors, descendants, research line, Table filter, added in a period) whose people are worked out again each time; a checklist is a fixed list with ticking off done. It serves as the Table's scope and in export. |
+| de | Personenliste · fest · automatisch · Arbeitsliste | Ausgewählte Personen des Stammbaums unter einem Namen. Eine feste Liste hält ihre Personen und ändert sich von Hand; eine automatische Liste ist eine gespeicherte Regel (Stamm, Vorfahren, Nachkommen, Forschungslinie, Tabellenfilter, im Zeitraum hinzugefügt), deren Personen jedes Mal neu berechnet werden; eine Arbeitsliste ist eine feste Liste mit Abhaken des Erledigten. Sie dient als Umfang der Tabelle und im Export. |
+| pl | Lista osób · stała · automatyczna · robocza | Wybrane osoby drzewa pod jedną nazwą. Lista stała trzyma swoje osoby i zmienia się ręcznie; automatyczna to zapisana reguła (ród, przodkowie, potomkowie, linia badania, filtr tabeli, dodane w okresie), której osoby są za każdym razem wyliczane na nowo; robocza to lista stała z odhaczaniem gotowych. Służy jako zakres tabeli i w eksporcie. |
+
+- **Čísla:** [A11](cs/A11-lists-of-people.md), A11.1, A11.2, A11.3, A11.4, A11.5, A11.6, A11.7, A11.8, A11.9, A11.10, A6.7.19
+
+<a id="archive-scans-family-photos"></a>
+### Skeny z archivů, rodinné fotky a originály
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | skeny z archivů · rodinné fotky a originály (výzkum) | Dvě skupiny souborů v `strom pack` a `strom trees remove`. Skeny jdou z archivu stáhnout znovu, rodinné fotky a originály ne. |
+| en | archive scans · the family's photos and originals (research) | Two groups of files in `strom pack` and `strom trees remove`. Scans can be downloaded from the archive again, the family's photos and originals cannot. |
+| de | Scans aus Archiven · Familienfotos und Originale (Forschung) | Zwei Gruppen von Dateien in `strom pack` und `strom trees remove`. Scans lassen sich aus dem Archiv wieder laden, Familienfotos und Originale nicht. |
+| pl | skany z archiwów · rodzinne zdjęcia i oryginały (badanie) | Dwie grupy plików w `strom pack` i `strom trees remove`. Skany można pobrać z archiwum ponownie, rodzinnych zdjęć i oryginałów nie. |
+
+- **Čísla:** [S8.6](cs/S8-where-the-data-are.md#S8.6)
 
 <a id="make-copies-match"></a>
 ### Sjednotit kopie
@@ -1206,11 +1374,11 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | Jazyk | Termín | Definice |
 |---|---|---|
 | cs | Sledovat agenta ve stromu (`live.followOn`) · Přestat sledovat (`live.followOff`) | Strom sám přechází na osobu, na které agent právě pracuje. Dotyk stromu to přeruší, po chvíli klidu se to vrátí. |
-| en | Follow the agent in the tree (`live.followOn`) · Stop following (`live.followOff`) | The tree moves by itself to the person the agent is working on right now. Touching the tree interrupts it; after a moment of quiet it comes back. |
-| de | Agenten im Stammbaum folgen (`live.followOn`) · Nicht mehr folgen (`live.followOff`) | Der Stammbaum wechselt von selbst zu der Person, an der der Agent gerade arbeitet. Eine Berührung des Stammbaums unterbricht das, nach einer Weile Ruhe kehrt es zurück. |
+| en | Follow the agent in the tree (`live.followOn`) · Stop following here (`live.followOff`) | The tree moves by itself to the person the agent is working on right now. Touching the tree interrupts it; after a moment of quiet it comes back. |
+| de | Agenten im Stammbaum folgen (`live.followOn`) · Hier nicht mehr folgen (`live.followOff`) | Der Stammbaum wechselt von selbst zu der Person, an der der Agent gerade arbeitet. Eine Berührung des Stammbaums unterbricht das, nach einer Weile Ruhe kehrt es zurück. |
 | pl | Śledź agenta w drzewie (`live.followOn`) · Przestań śledzić (`live.followOff`) | Drzewo samo przechodzi do osoby, nad którą agent właśnie pracuje. Dotknięcie drzewa to przerywa, po chwili spokoju wraca. |
 
-- **Čísla:** [S4.1.1](cs/S4-research-from-the-app.md#S4.1.1)
+- **Čísla:** [S4.1.1](cs/S4-research-from-the-app.md#S4.1.1), S4.1.7
 
 <a id="follow-live"></a>
 ### Sledovat živě
@@ -1235,6 +1403,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Scal z istniejącym | Import, który paruje osoby z pliku z osobami bieżącego drzewa i zapisuje wynik jako nowe drzewo; bieżące drzewo i plik pozostają bez zmian. |
 
 - **Čísla:** [A8.1](cs/A8-merging-trees.md#A8.1), A2.1.1, A2.8, A8.2, A8.3, S6.7
+
+<a id="delete-permanently"></a>
+### Smazat natrvalo
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Smazat natrvalo… (app) · `strom input delete` | Smaže soubory výzkumu z archivu i ze stromu; jen člověk, po výčtu toho, co na soubory odkazuje. V aplikaci to nejde vrátit; soubor zůstane jen v dřívější záloze. Skrytí ani odebrání ze stromu soubor nesmaže. |
+| en | Delete permanently… (app) · `strom input delete` | Deletes files of the research from the archive and from the tree; only a person, after a list of what refers to the files. It cannot be undone in the app; a file stays only in an earlier backup. Hiding or removing from the tree does not delete a file. |
+| de | Endgültig löschen… (app) · `strom input delete` | Löscht Dateien der Forschung aus dem Archiv und aus dem Stammbaum; nur ein Mensch, nach einer Liste dessen, was auf die Dateien verweist. In der App lässt es sich nicht rückgängig machen; eine Datei bleibt nur in einer früheren Sicherung. Ausblenden oder Entfernen aus dem Stammbaum löscht keine Datei. |
+| pl | Usuń trwale… (app) · `strom input delete` | Usuwa pliki badania z archiwum i z drzewa; tylko człowiek, po wykazie tego, co odwołuje się do plików. W aplikacji nie da się tego cofnąć; plik zostaje tylko we wcześniejszej kopii zapasowej. Ukrycie ani usunięcie z drzewa pliku nie kasuje. |
+
+- **Čísla:** [A3.5.16](cs/A3-evidence-in-the-app.md#A3.5.16), R11.5, R11.5.4, R11.5.6
 
 <a id="paired-phones"></a>
 ### Spárované telefony
@@ -1296,6 +1476,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S6.7](cs/S6-tree-from-another-program.md#S6.7), A8.2
 
+<a id="same-content"></a>
+### Stejný obsah
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Stejný obsah (app) · `sameAs` (most) | Štítek u souboru se stejným obsahem jako starší soubor. Třídění pošle jen starší; kopie jde skrýt jako Duplikát. |
+| en | Same content (app) · `sameAs` (bridge) | A tag at a file with the same content as an older file. Sorting sends only the older one; the copy can be hidden as Duplicate. |
+| de | Gleicher Inhalt (app) · `sameAs` (Brücke) | Etikett bei einer Datei mit gleichem Inhalt wie eine ältere Datei. Das Sortieren sendet nur die ältere; die Kopie lässt sich als Duplikat ausblenden. |
+| pl | Ta sama treść (app) · `sameAs` (most) | Etykieta przy pliku z tą samą treścią co starszy plik. Porządkowanie wyśle tylko starszy; kopię można ukryć jako Duplikat. |
+
+- **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.10, A3.5.11, R11.5.4
+
 <a id="research-on-this-computer"></a>
 ### Strom Research na tomto počítači
 
@@ -1342,7 +1534,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Tabelle (Ansicht) · Personen · Verbindungen · Ereignisse · Quellen (Zeilen) | Die Ansicht der App auf den ganzen Stammbaum in Zeilen von Personen, Verbindungen, Ereignissen oder Quellen: Angaben, berechnete Werte, Vollständigkeit, Quellenangaben und Befunde der Prüfung in Spalten, mit Filter, Sortierung, gespeicherten Ansichten und CSV- und XLSX-Export. |
 | pl | Tabela (widok) · Osoby · Związki · Wydarzenia · Źródła (wiersze) | Widok aplikacji na całe drzewo w wierszach osób, związków, wydarzeń lub źródeł: dane, wartości obliczone, kompletność, cytowania i wyniki kontroli w kolumnach, z filtrem, sortowaniem, zapisanymi widokami i eksportem CSV i XLSX. |
 
-- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15
+- **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15, A6.7.16, A6.7.17, A6.7.18, A6.7.19, A6.7.20
 
 <a id="surname-spellings"></a>
 ### Tvary příjmení
@@ -1356,6 +1548,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A4.5](cs/A4-surnames-and-families.md#A4.5), A4.7
 
+<a id="task-audit"></a>
+### Úkol není zapsaný, jak má
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Úkol není zapsaný, jak má (`strom task audit`) | Nález kontroly výzkumu u čekajícího úkolu: čekání na snímky není zapsané podle knihy výzkumu a čísel, takže uložené snímky úkol nevrátí do fronty. Aplikace nabídne **Opravit**, **Probrat s agentem** a **Nechat, jak je**. |
+| en | Task not recorded as needed | A finding of the research's check at a waiting task: the wait for images is not written by a book of the research and numbers, so saved images do not bring the task back to the queue. The app offers **Fix**, **Discuss with the agent** and **Leave as is**. |
+| de | Aufgabe nicht wie nötig erfasst | Befund der Prüfung der Forschung bei einer wartenden Aufgabe: das Warten auf Bilder ist nicht nach einem Buch der Forschung und Nummern erfasst, deshalb bringen gespeicherte Bilder die Aufgabe nicht in die Warteschlange zurück. Die App bietet **Korrigieren**, **Mit Agent besprechen** und **So lassen** an. |
+| pl | Zadanie nie jest zapisane tak, jak trzeba | Ustalenie kontroli badania przy czekającym zadaniu: czekanie na skany nie jest zapisane według księgi badania i numerów, więc zapisane skany nie przywrócą zadania do kolejki. Aplikacja proponuje **Poprawić**, **Omów z agentem** i **Pozostawić bez zmian**. |
+
+- **Čísla:** [R6.9](cs/R6-awaiting-action.md#R6.9), R6.9.1, R6.9.2, [S4.4.8](cs/S4-research-from-the-app.md#S4.4.8), S4.4.9
+
 <a id="central-person"></a>
 ### Ústřední osoba
 
@@ -1366,7 +1570,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | zentrale Person | Die Person, um die herum eine Ansicht die Umgebung zeigt; sie wechselt mit einem Klick auf eine Karte. Die Ansicht zeigt nicht den ganzen Stammbaum, nur die Umgebung dieser Person. |
 | pl | osoba w centrum | Osoba, wokół której widok pokazuje otoczenie; zmienia się kliknięciem karty. Widok nie pokazuje całego drzewa, tylko otoczenie tej osoby. |
 
-- **Čísla:** [A6.1](cs/A6-views.md#A6.1), A1.3, A6.1.1, A6.6
+- **Čísla:** [A6.1](cs/A6-views.md#A6.1), A1.3, A6.1.1, A6.1.6, A6.6
 
 <a id="duplicate-verdict"></a>
 ### Verdikt výzkumu u duplicity
@@ -1475,6 +1679,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Osoba zastępcza | Osoba bez imienia i nazwiska („?”), którą aplikacja dodaje za brakującego rodzica albo przejmuje z pliku. Przy scalaniu się jej nie paruje. |
 
 - **Čísla:** [A2.1.1](cs/A2-loading-a-family-tree.md#A2.1.1), A2.3, A2.5, A8.2
+
+<a id="file-of-a-source"></a>
+### Zdroj pramene
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Zdroj pramene (app) · `uses.of` (most) | Soubor, ze kterého výzkum udělal pramen. Je zařazený přes pramen: třídění ho nepošle a **Kde je použit** ukáže prameny první. |
+| en | File of a source (app) · `uses.of` (bridge) | A file the research made a source of. It is sorted through the source: sorting does not send it and **Where used** shows the sources first. |
+| de | Datei einer Quelle (app) · `uses.of` (Brücke) | Eine Datei, aus der die Forschung eine Quelle gemacht hat. Sie ist über die Quelle eingeordnet: das Sortieren sendet sie nicht, und **Wo verwendet** zeigt die Quellen zuerst. |
+| pl | Plik źródła (app) · `uses.of` (most) | Plik, z którego badanie zrobiło źródło. Jest uporządkowany przez źródło: porządkowanie go nie wyśle, a **Gdzie użyto** pokazuje źródła jako pierwsze. |
+
+- **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.3, A3.5.11, R11.5.4
+
+<a id="lineage-markers"></a>
+### Značení linií
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Značení linií | Značka na kartě osoby, která říká její linii vůči zaměřené osobě: otcovská (modrá), mateřská (růžová), potomci (okrová). Není to linie výzkumu. |
+| en | Lineage markers | A marker on a person's card that says their lineage relative to the focused person: paternal (blue), maternal (pink), descendants (ochre). Not a line of the research. |
+| de | Linienmarkierung | Eine Markierung auf der Karte einer Person, die ihre Linie relativ zur fokussierten Person angibt: väterlich (blau), mütterlich (rosa), Nachkommen (ocker). Keine Linie der Forschung. |
+| pl | Oznaczenie linii | Znak na karcie osoby, który mówi o jej linii względem wybranej osoby: ojcowska (niebieska), matczyna (różowa), potomkowie (ochra). To nie linia badania. |
+
+- **Čísla:** [A6.1.5](cs/A6-views.md#A6.1.5), A6.3, A6.4, A6.7.2
 
 <a id="surname-display"></a>
 ### Zobrazení příjmení

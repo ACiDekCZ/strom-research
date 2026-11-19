@@ -32,6 +32,7 @@ import { holdsPath, insideProgram, installation, lastingLauncher, replacedHoldin
 import { busyIn, isBusy, type Busy } from "../core/busy.ts";
 import { otherVersionsAtWork } from "../core/workers.ts";
 import { liveRunning } from "../core/live.ts";
+import { bridgesHere, type BridgesHere } from "../core/bridgeprocs.ts";
 import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
 /** So many bytes of the shared store no research here names: worth a warning. */
@@ -294,7 +295,7 @@ function gitLost(dir: string): boolean {
   }
 }
 
-function diagnose(ctx: Context): Check[] {
+function diagnose(ctx: Context, pre: { bridges?: BridgesHere; name?: (name: string) => string } = {}): Check[] {
   const lang = ctx.uiLang();
   const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
   const checks: Check[] = [];
@@ -307,7 +308,7 @@ function diagnose(ctx: Context): Check[] {
     if (showing) ctx.io.stderr(`\r\x1b[K${t("ui.doc.progress", { what: of ? `${t(`ui.doc.${name}` as UIKey)} · ${of}` : t(`ui.doc.${name}` as UIKey) })}`);
   };
   try {
-    diagnoseInto(ctx, checks, t, add, progress);
+    diagnoseInto(ctx, checks, t, add, progress, pre);
   } finally {
     if (showing) ctx.io.stderr("\r\x1b[K");
   }
@@ -330,8 +331,12 @@ function doctorTable(checks: Check[], lang: string): string {
  * strom doctor as strom error's report reads it (spec 070 K1.2): its checks and its table, nothing repaired, no new
  * version looked for (no network), no write tried — ctx a reading one (Context.readOnly), in its language.
  */
-export function doctorChecks(ctx: Context): { ok: boolean; checks: { name: string; status: string; detail: string; fix?: string; code?: string }[]; text: string } {
-  const all = diagnose(ctx);
+/**
+ * pre.name: how a research's name is said in the checks (strom error's report: by its code — a folder named by a word
+ * of strom's, "Beta", "update", is left readable by the text's masking)
+ */
+export function doctorChecks(ctx: Context, pre: { bridges?: BridgesHere; name?: (name: string) => string } = {}): { ok: boolean; checks: { name: string; status: string; detail: string; fix?: string; code?: string }[]; text: string } {
+  const all = diagnose(ctx, pre);
   const checks = ctx.archiveHere() ? all.filter((c) => !AGENT_CHECKS.has(c.name)) : all;
   return {
     ok: !checks.some((c) => c.status === "fail"),
@@ -352,8 +357,11 @@ function diagnoseInto(
   t: (key: UIKey, values?: Record<string, string | number>) => string,
   add: (name: string, status: Check["status"], detail: string, fix?: string, repair?: Check["repair"]) => void,
   progress: (name: string, of?: string) => void,
+  pre: { bridges?: BridgesHere; name?: (name: string) => string } = {},
 ): void {
   const lang = ctx.uiLang();
+  // a research's name as the checks say it
+  const said = pre.name ?? ((n: string) => n);
 
   // The program itself: the installer's (its own Node), or npm's or the sources' on the Node of the computer.
   // the channel said only when it is beta (the releases are what strom is: nothing said)
@@ -435,7 +443,7 @@ function diagnoseInto(
     const treeFolders = [...new Set([ctx.settings.trees()?.value, ...trees.map((k) => k.root)].filter((p): p is string => inProgram(p)))];
     const treesIn = treeFolders.filter((p) => !(homeIn && holdsPath(home.value, p)) && !treeFolders.some((o) => o !== p && holdsPath(o, p)));
     if (treesIn.length) add("trees", "warn", treesIn.map(program).join(" · "), "strom setup");
-    else add("trees", "ok", trees.length ? trees.map((k) => k.name).join(", ") : t("ui.doc.none"));
+    else add("trees", "ok", trees.length ? trees.map((k) => said(k.name)).join(", ") : t("ui.doc.none"));
     // the disk: what strom keeps beside each research (strom tidy frees it), the shared scans (only said)
     const named = new Set<string>();
     let beside = 0;
@@ -448,7 +456,7 @@ function diagnoseInto(
       const size = timed("doctor.history", () => gitSize(k.root));
       history += size ? size.loose + size.packed : 0;
       const last = lastCompacted(k.root);
-      if (last && !last.ok) wrong.push(t("ui.doc.history.wrong", { name: k.name, error: last.error ?? "" }));
+      if (last && !last.ok) wrong.push(t("ui.doc.history.wrong", { name: said(k.name), error: last.error ?? "" }));
       try {
         // one step, the records read once: the research worked on is the one its check reads below (found on Windows,
         // 2026-10-28: a research on a network's disk read twice)
@@ -459,7 +467,7 @@ function diagnoseInto(
         });
         const plan = timed("doctor.tidy", () => tidyPlan(tree));
         beside += plan.size.strom;
-        if (plan.frees >= TIDY_SAID) much.push(t("ui.doc.disk.tree", { name: k.name, size: mb(plan.frees, lang) }));
+        if (plan.frees >= TIDY_SAID) much.push(t("ui.doc.disk.tree", { name: said(k.name), size: mb(plan.frees, lang) }));
       } catch {
         // a tree not readable here: said by its own checks
       }
@@ -654,6 +662,13 @@ function diagnoseInto(
     }
   }
 
+  // the bridges running on this computer, each with its research's folder and memory, and their sum (K046: a computer
+  // slow with nothing to see, a bridge of each research running on for days) — only said: none ended, none changed
+  progress("bridges");
+  // (strom error's report: read once for it and its own area)
+  const bridges = pre.bridges ?? timed("doctor.bridges", () => bridgesHere(ctx.knownTrees(), { env: ctx.env }));
+  add("bridges", "ok", bridgesText(bridges, lang));
+
   const locked = lockedTree(ctx);
   if (locked) add("tree", "fail", t("ui.error.tree.newer", locked.params ?? {}), (locked.details as { way?: string } | undefined)?.way);
   else if (ctx.hasTree()) {
@@ -661,10 +676,10 @@ function diagnoseInto(
     progress("tree", tr.config.name);
     const sealErrs = timed("doctor.verify", () => verifyFull(tr).findings.filter((f) => f.level === "error"));
     const errs = timed("doctor.check", () => check(tr).filter((f) => f.level === "error").length) + sealErrs.length;
-    if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
+    if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: said(tr.config.name) }));
     // two seal keys of this computer (strom of an app packaged for Windows and of a terminal): united, never repaired
-    else if (sealErrs.length === errs && sealErrs.every((f) => f.code === OTHER_KEY)) add("tree", "fail", t("ui.doc.tree.twokeys", { name: tr.config.name }), "strom seal adopt", "unite");
-    else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
+    else if (sealErrs.length === errs && sealErrs.every((f) => f.code === OTHER_KEY)) add("tree", "fail", t("ui.doc.tree.twokeys", { name: said(tr.config.name) }), "strom seal adopt", "unite");
+    else add("tree", "fail", t("ui.doc.tree.bad", { name: said(tr.config.name), n: errs }), "strom verify ; strom check");
     // facts with the original cited waiting to be verified against it (spec 065 K6.9): a sentence, never a problem;
     // nothing in an archive
     if (!actsAsArchive(tr)) {
@@ -714,6 +729,21 @@ function diagnoseInto(
   const sharedNet = ctx.settings.shared()?.value;
   const refused = refusedHosts(ctx.env, sharedNet ? path.join(sharedNet, "net") : undefined);
   if (refused.length) add("refused", "warn", t(refused.length > 1 ? "ui.doc.refused.hosts.more" : "ui.doc.refused.hosts", { hosts: refused.join(", ") }), t("ui.doc.refused.fix", { host: refused[0]! }));
+}
+
+/** The bridges running here as doctor says them: how many, each with its research's folder, PID and memory, the sum. */
+export function bridgesText(b: BridgesHere, lang: string): string {
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  if (!b.read) return t("ui.doc.bridges.unread");
+  if (!b.list.length) return t("ui.doc.bridges.none");
+  const each = b.list.map((x) => {
+    const name = x.state === "unknown" ? t("ui.doc.bridges.unknown") : x.name!;
+    const one = x.rss !== undefined ? t("ui.doc.bridges.one", { name, pid: x.pid, size: mb(x.rss, lang) }) : t("ui.doc.bridges.nomem", { name, pid: x.pid });
+    return x.state === "orphan" ? t("ui.doc.bridges.orphan", { name: one }) : x.state === "other" ? t("ui.doc.bridges.other", { name: one }) : one;
+  });
+  // the sum of those measured, when any was
+  const total = b.unmeasured < b.list.length ? ` · ${t("ui.doc.bridges.total", { size: mb(b.rss, lang) })}` : "";
+  return t("ui.doc.bridges.running", { n: b.list.length, list: each.join(" · ") }) + total;
 }
 
 /** The changes strom made by itself for the research's agent and model after which the reading got worse (none in an archive). */
@@ -853,7 +883,7 @@ register({
     { name: "check", type: "boolean", description: "only say whether there is a new version" },
     { name: "now", type: "boolean", description: "update while work goes on in a research (it finishes with the version it started with)" },
     // which versions the installation takes from now on: the newest of that channel installed, an older one too
-    { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true },
+    { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true, beta: true },
   ],
   examples: ["strom update --check", "strom update"],
   async run(ctx, { opts }) {
@@ -1178,6 +1208,8 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "queue.offLineShare": (s, tree) => String(s.offLineShare(tree)),
   "queue.suggestLines": (s, tree) => (s.suggestLines(tree).on ? "yes" : "no"),
   "queue.suggestTasks": (s, tree) => String(s.suggestLines(tree).tasks),
+  "queue.sameBook": (s, tree) => (s.sameBook(tree) ? "yes" : "no"),
+  "books.minTasks": (s, tree) => String(s.booksMinTasks(tree)),
   "queue.suggestPersons": (s, tree) => String(s.suggestLines(tree).persons),
   "gedcom.for": () => "both",
   stories: () => "yes",

@@ -5,6 +5,119 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.35.0
+
+*19.11.2026 · współpracuje z aplikacją Strom 3.30.0.*
+
+- **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
+  otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co
+  czeka › księgi z największą liczbą zadań) i poleceniem `strom task books`, przy każdej archiwum, lata, ile zadań
+  czeka, skany na dysku i brakujące, potrzebne skany, których jeszcze nie ma na dysku, oraz folder na jej skany.
+  Oferowane są tylko księgi, które da się pobrać i nie są jeszcze całe na dysku: cała księga tam, gdzie pozwalają na to
+  warunki archiwum (z własnymi słowami archiwum), w przeciwnym razie skany, na które czekają zadania. Pobranie jest
+  dobrowolne: bez niego agent czyta księgę dalej online. Agent na początku zadania dowiaduje się, które inne zadania
+  potrzebują tej samej księgi, aby zrobić je razem, a `strom task list --book` je wypisuje.
+- **Księgi w aplikacji Strom i ich ustawienia:** most daje aplikacji Strom księgi z największą liczbą zadań i przy
+  każdej to, co wolno z niej pobrać, a w tym, co czeka, i w kolejce podaje przy każdym zadaniu jego księgę. Od ilu
+  zadań księga jest proponowana (`books.minTasks`, domyślnie 5) i czy następna sesja ciągnie dalej tę samą księgę
+  (`queue.sameBook`, domyślnie wyłączone: po sesji nad księgą, której skany są na dysku, najpierw przychodzi kolejne
+  zadanie tej samej księgi, najwyżej 5 sesji po kolei) ma każde badanie własne – ustawia się w aplikacji Strom, w menu
+  stroma (Ustawienia › Archiwa › Księgi z największą liczbą zadań) albo poleceniem `strom config set … --for-tree`. Link z aplikacji otwiera
+  folder księgi, bez terminala.
+- **Czekające zadanie pod księgą do przeszukania:** zadanie, które czeka na przeszukanie księgi na stronie archiwum,
+  jest w aplikacji Strom pod tą księgą, a nie pod księgą, w której znaleziono ślad: pod księgą, którą nadał mu agent
+  (`strom task wait|edit --book`), inaczej pod jedyną księgą, którą wymienia jego tekst. Dopóki księgę trzeba dopiero
+  znaleźć, zadanie czeka bez księgi i dla jego skanów nie jest proponowany folder innej księgi. „Co czeka” w menu
+  stroma porządkuje zadania nadal według tego, na kogo czekają (archiwum, urząd, rodzina).
+  Zadanie czekające na skany zapisywane ręcznie wraca samo tylko wtedy, gdy jego oczekiwanie wskazuje księgę badania i
+  numery skanów (`strom task wait T… --images B…:57-58`), jedna księga na zadanie. strom odrzuca teraz oczekiwanie,
+  które wymienia skany tylko słowami, chce skanów kilku ksiąg naraz lub księgi, której badanie jeszcze nie ma, i zamiast
+  tego podaje dokładne polecenia. `strom task audit` znajduje oczekiwania zapisane tak wcześniej (przez starszą wersję)
+  i poprawia każde jednym krokiem – zadanie czeka na skany swojej księgi, każda kolejna księga dostaje własne zadanie,
+  już zapisane skany są od razu przejmowane – z drogą powrotu, dopóki nic się w międzyczasie nie zmieniło; oczekiwanie
+  można też zostawić bez zmian. Rozmowa o takim zadaniu (`strom chat --task`) od tego się zaczyna, a agent zapisuje
+  poprawkę dopiero po zgodzie osoby.
+  Aplikacja Strom dostaje te same ustalenia przy każdym czekającym zadaniu i można w niej oczekiwanie poprawić, cofnąć
+  poprawkę albo zostawić je bez zmian.
+- **Skany księgi od człowieka:** skany zapisane ręcznie do folderu księgi, na którą nie czeka żadne zadanie, strom
+  bierze (most albo następna sesja) według numeru skanu w nazwie, a wszystkie zadania tej księgi czytają je z dysku;
+  pliki JPEG 2000 portalu, którego nazwy liczą skan × 10 (MZA Brno), są przeliczane z powrotem. Przy zadaniu, które
+  nie wie, których skanów księgi potrzebuje, skan wysłany z aplikacji Strom nie jest już odrzucany, gdy jego nazwa nie
+  podaje numeru skanu albo podaje kilka (rok i numer aktu, data i godzina z aparatu): dostaje kolejny wolny numer
+  księgi (po najwyższym, który już jest), kilka naraz po kolei; numer podany w aplikacji albo jedyny numer w nazwie
+  nadal ma pierwszeństwo. Most podaje aplikacji Strom kolejny wolny numer, żeby mogła go zaproponować. Kopia zapisanego skanu zrobiona przez menedżer plików (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`) to skan, który wskazuje jej numer; plik nazwany samym numerem nigdy nie dostaje według kolejności numeru innego skanu, a plik będący tym samym skanem co inny zostaje odłożony obok niego i jest to powiedziane – nigdy nie jest po cichu usuwany. Zadanie
+  obudzone dostarczonymi skanami jest następne w kolejce: zadanie, które czekało na skany księgi, wraca do kolejki
+  jako następne, jakby przesunięte ręcznie do przodu (po pracy w toku), gdy skany dostarcza człowiek – wysłane do
+  niego z aplikacji Strom, zapisane w jego folderze wspólnej skrzynki albo przejęte przez `strom media add --inbox`.
+  Kilka obudzonych naraz idzie do przodu razem, między sobą w zwykłej kolejności. Obowiązuje to raz: po sesji nad
+  zadaniem znów zwykła kolejność. Zadanie obudzone inaczej (odpowiedź archiwum, decyzja, list, skany pobrane przez
+  agenta albo konektor) zostaje na swoim miejscu, a kolejność ustawiona ręcznie (na koniec, gałąź niebadana)
+  obowiązuje dalej.
+  Brandenburskie Archiwum Krajowe (BLHA) według swojej odpowiedzi z 18 listopada 2026: pojedyncze skany jego duplikatów
+  ksiąg metrykalnych (Rep. 5KB, CC-0) można zapisywać w przeglądarce osoby w ludzkim tempie i dawać do czytania
+  agentowi – nigdy przeszukiwanie jego bazy ani cała księga; cytuje się „BLHA, Rep. 5KB Nr. <n>” z numerem skanu.
+- **Notatki z aplikacji Strom:** notatka chrzestnego lub świadka zmieniona w aplikacji Strom 3.29.0 lub nowszej wraca do
+  badania, z pliku i z tego, co aplikacja wysyła wprost przez most. Notatka, która jest tylko początkiem notatki badania
+  (jak trzymała ją starsza aplikacja albo skrócona w aplikacji – także cięciem między literą a jej akcentem), nigdy nie
+  jest przejmowana sama: strom sync mówi o tym jednym wierszem, a na człowieka czeka pytanie (w tym, co czeka, i w
+  aplikacji Strom), czy przejąć krótszą notatkę, czy zachować notatkę badania. Pytanie pada raz: to samo drzewo wysłane
+  ponownie już o nic nie pyta i mówi, że pytanie nadal czeka. Gdy strom przywraca notatki, które wysłanie z aplikacji Strom zapisało przy podobnej
+  danej, notatkę zmienioną od tego czasu zostawia, a na człowieka czeka zadanie, by ją sprawdzić (w tym, co czeka, i w
+  aplikacji Strom), nigdy tylko wiersz w historii.
+- **Windows: po sprawdzeniu logowania nic nie działa dalej, okno linku z tytułem:** sprawdzenie, czy agent w terminalu jest zalogowany,
+  kończy wszystko, co uruchomiło, gdy trwa za długo, a czytniki nie wypisują już ostrzeżenia Node DEP0190.
+  Terminal, który w Windows otwiera link aplikacji Strom, ma tytuł Strom Research (druga instalacja ze swoją nazwą),
+  a nie ścieżkę do node.exe. `strom doctor` i raport `strom error` podają, ile mostów do aplikacji Strom działa na
+  komputerze, do którego badania należy każdy, jego pamięć i sumę, oraz oznaczają most, którego badania już nie ma;
+  nic nie jest kończone.
+- **Żadnych zmian, których nie było w aplikacji Strom:** po zapisie z aplikacji Strom „niezapisane” nie podaje już jako
+  usuniętych cytowania rodziny z jednym rodzicem (starsza aplikacja Strom wysyła je z pustym małżeństwem) ani
+  źródła zmian w aplikacji Strom (tych źródeł aplikacja nigdy nie dostaje).
+  Link aplikacji Strom, który otwiera terminal lub coś robi na komputerze, badanie potwierdza aplikacji, gdy tylko
+  terminal się pojawi lub rzecz jest zrobiona, więc aplikacja od razu przestaje czekać i odzywa się tylko wtedy, gdy
+  nic się nie otworzyło.
+- **Rodzinne materiały: w paczce osobno, z partiami, odłożone, dopóki nie ma agenta, zdjęcia i pliki aplikacji Strom zachowane z miejscami w drzewie:** `strom pack` i usunięcie drzewa
+  genealogicznego z tego komputera odróżniają skany z archiwów od rodzinnych zdjęć i oryginałów: paczka mówi, ile czego
+  zawiera, a pytanie o rodzinne zdjęcia i oryginały przy usuwaniu pada osobno (bez wyraźnego tak zostają) – nikt ich nie
+  pobierze ponownie. Paczka zabiera też partie, w których aplikacja Strom wysłała rodzinne materiały (nazwa, osoby,
+  notatka), a rozpakowanie je przywraca. Paczka, która miałaby ponad 4 GB, jest odrzucana, zanim cokolwiek zostanie
+  zapisane, jednym zdaniem: takie badanie przeniesie skopiowany cały folder. Badanie, które czeka na swojego agenta,
+  odkłada zadania do materiałów, które w tym czasie przyjdą, jak archiwum; wracają do kolejki, gdy tylko agent znów nad
+  nim pracuje.
+  Portrety, zdjęcia pary i pliki dołączone w aplikacji Strom do
+  osoby, pary, zdarzenia lub źródła zapisują się w badaniu, gdy aplikacja wysyła swoje drzewo: każdy plik raz (według
+  zawartości), jako wpis materiałów rodziny z tytułem, rodzajem, datą, notatką i swoimi miejscami w drzewie. Nowy
+  portret zachowuje poprzedni jako starszą wersję. Plik zdjęty z miejsca w aplikacji zostaje zdjęty tylko wtedy, gdy
+  aplikacja wysyła wszystkie swoje pliki, i tylko to, co aplikacja już dostała (nigdy plik dodany w innym oknie ani to,
+  co dodało badanie); `strom sync undo` go przywraca, a sam plik nigdy nie jest usuwany. Badanie oddaje pliki aplikacji
+  Strom razem z drzewem, pakiet (`strom pack`) je przenosi, oryginał pary wysłany z aplikacji jest materiałem obojga
+  partnerów, a drzewo przejęte z aplikacji przynosi swoje pliki. Starsze dane badania nie potrzebują niczego: schemat
+  przechodzi na 3 sam, nic nie jest przepisywane.
+  To, co aplikacja Strom pokazuje z materiałów, mówi, gdzie każdy plik jest
+  użyty (osoby, pary, zdarzenia, źródła), gdzie powstały z niego wycinki lub cytaty i które zadania go potrzebują; plik
+  zdjęty ze wszystkich miejsc w drzewie pokazuje się jako usunięty i można go przywrócić. Tytuł, rodzaj i datę
+  edytuje się dla jednego lub wielu plików naraz (`strom input edit`, też z aplikacji, z drogą powrotu), a osoba dodana
+  do pliku drzewa staje się jego miejscem. W badaniu z agentem wybrane pliki może uporządkować czytelnik
+  (`strom material sort` lub z aplikacji): proponuje tytuł, datę, rodzaj i miejsca z powodem i pewnością, niczego nie
+  zapisuje, nigdy nie nadpisuje tego, co ustawiła osoba, i liczy się do limitów czytania z aplikacji. Odczyty są
+  płatne: sortowanie zaczyna się dopiero po zgodzie osoby (w terminalu, w oknie systemu lub w oknie dialogowym
+  aplikacji), nigdy samo ani na polecenie agenta.
+  Przy pliku, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wgrany przez pomyłkę), czytelnik mówi to
+  wraz z powodem, aby można go było ukryć w aplikacji Strom; samo nic się nie ukrywa ani nie usuwa.
+  Sortowanie czyta plik tekstowy (.txt, .md) jako tekst i ocenia go po tym, co w nim stoi, w trakcie pracy mówi, z iloma plikami już skończyło (aplikacja Strom to pokazuje), a przy każdym pliku bez propozycji mówi dlaczego (nic nie powiedziano, nic nowego, pominięty, odczyt się nie powiódł). Czytający może też powiedzieć, który plik jest odwrotem innego otrzymanego zdjęcia lub strony, a który obraz jest portretem osoby, aby aplikacja Strom to zaproponowała.
+  Sortowanie materiałów uruchamia się bez pytania tylko wtedy, gdy przyjął je i podpisał most aplikacji Strom; wpis
+  zapisany inaczej (lub dodany do kolejki przez starszą wersję) się nie uruchomi i trzeba go zlecić ponownie w
+  aplikacji.
+  To, co aplikacja Strom pokazuje przy każdym pliku, wymienia źródła z niego utworzone, z niego wycięte lub z obrazem
+  tej samej treści, wraz z osobami, które je cytują, i informacją, czy ma je jej drzewo; plik, dla którego sortowanie
+  niczego nie zaproponowało, oraz plik o tej samej treści co inny są oznaczone, aby nie wysyłać ich ponownie, a w
+  badaniu z wieloma obrazami lista przychodzi kilkakrotnie szybciej. Z aplikacji można naraz sortować do 1500 plików:
+  w partiach po 50, jedna po drugiej, dopóki działa most, każda w limitach czytania aplikacji i pokazana, gdy tylko
+  jest gotowa; cały przebieg można zatrzymać naraz. Plik materiałów rodzinnych można usunąć na stałe – tylko przez
+  osobę (`strom input delete` lub w aplikacji Strom po wykazie wszystkiego, czego dotyczy), nigdy przez agenta: jego
+  źródła zachowują tekst i cytaty, jego obrazy i wycinki znikają tylko wtedy, gdy tej samej treści nie trzyma inny plik
+  ani inne badanie, a pozostaje on tylko we wcześniejszych kopiach zapasowych badania.
+
 ## 1.34.0
 
 *15.11.2026 · współpracuje z aplikacją Strom 3.29.0.*

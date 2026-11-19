@@ -46,18 +46,18 @@ test("trees remove: a backup first, the name typed, the tree and the images only
   const gone = new Promise((done) => bridge.on("exit", done));
   // a name typed wrong takes nothing off
   const wrong = await w.ok(["trees", "remove", "Novákovi"], { answers: ["n", "a", "Svobodovi"] });
-  assert.match(wrong.out, /„Novákovi“ \(.*\) · osoby: 0[\s\S]*Nejdřív ho zabalit jako zálohu, se všemi snímky[\s\S]*snímky: 1, \d+ kB[\s\S]*napsat název rodokmenu \(Novákovi\)[\s\S]*Nic se neodebralo/);
+  assert.match(wrong.out, /„Novákovi“ \(.*\) · osoby: 0[\s\S]*Nejdřív ho zabalit jako zálohu, se všemi snímky[\s\S]*skeny: 1, \d+ kB[\s\S]*napsat název rodokmenu \(Novákovi\)[\s\S]*Nic se neodebralo/);
   assert.ok(fs.existsSync(root));
   await w.ok(["init", "Dvořákovi"]);
   await w.ok(["trees", "use", "Novákovi"]);
   // typed without its accents and capitals: it goes, with a backup and its own image
   const r = await w.ok(["trees", "remove", "Novákovi"], { answers: ["a", "a", "novakovi"] });
-  assert.match(r.out, /záloha: [\s\S]*„Novákovi“ je v koši\.\n  aplikace Strom ho už živě nesleduje\n[\s\S]*jeho snímky v koši: 1[\s\S]*vrátí se ze zálohy: strom unpack "(.+)"[\s\S]*z koše systému/);
+  assert.match(r.out, /záloha: [\s\S]*„Novákovi“ je v koši\.\n  aplikace Strom ho už živě nesleduje\n[\s\S]*jeho skeny z archivů v koši: 1[\s\S]*vrátí se ze zálohy: strom unpack "(.+)"[\s\S]*z koše systému/);
   assert.ok(!fs.existsSync(root));
   await gone;
   const trash = w.env.STROM_TRASH!;
   assert.ok(fs.existsSync(path.join(trash, "Novákovi", "strom.json")), "the tree is in the trash, whole");
-  assert.ok(fs.existsSync(path.join(trash, "Novákovi – snímky", ...only.split("/"))), "its own image beside it");
+  assert.ok(fs.existsSync(path.join(trash, "Novákovi – soubory", ...only.split("/"))), "its own image beside it");
   assert.ok(!fs.existsSync(path.join(w.home, "shared", only)));
   assert.ok(fs.existsSync(path.join(w.home, "shared", both)), "an image another tree uses stays");
   assert.deepEqual((await w.ok(["trees", "--json"])).json.trees.map((t: { name: string }) => t.name), ["Dvořákovi", "Svobodovi"]);

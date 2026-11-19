@@ -597,7 +597,7 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   // the brief knows the book's archive has a connector the user allowed
   // (its book unknown yet: how to find it)
   assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the connector fetches the ones you need\n {4}fetch: zkusebni <book: its ID on the portal — strom fetch zkusebni --find "<place>" lists them> — strom fetch zkusebni <book> --images <from-to> --recordset B0001\n/);
-  await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001"]);
+  await w.ok(["task", "wait", "T1", "--kind", "web", "--book", "B1", "--on", "the images of B0001"]);
   const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1", "--dry-run"]);
   assert.match(dry.out, /dry run: would fetch images 1–3 of book 5359 as images of B0001 through zkusebni — nothing was fetched/);
   assert.deepEqual(a.hits, [], "a dry run never contacts the archive");

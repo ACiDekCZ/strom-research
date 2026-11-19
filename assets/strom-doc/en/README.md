@@ -38,6 +38,8 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [A8 Merging trees](A8-merging-trees.md): merging a file, a tree or a view into a new tree, matching people
 - [A9 Using the app](A9-using-the-app.md): where things are, readable names of controls, editing while following the research, the agent in the app, the bottom bar on a phone and a tablet
 - [A10 One event of several people](A10-shared-events.md): a household's shared event (Shared with), Make all match, Join into one event, godparents and witnesses in a person's life, merging and older trees
+- [A11 Lists of people](A11-lists-of-people.md): fixed, automatic and checklist, rules, Freeze, manual order, Add to list, Save as list, the date added, ticking off done, exporting a list
+- [A12 The portrait and the couple's photo](A12-portrait-and-couple-photo.md): the portrait crop editor, the original tagged Portrait, Edit crop, As portrait…, the couple's photo and portraits from it, where they appear, export, GEDCOM and data version 24
 
 ## S The app and the research together
 
@@ -48,5 +50,6 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [S5 Phone](S5-phone.md): the research page on a phone, pairing, photos in batches
 - [S6 A tree from another program](S6-tree-from-another-program.md): a family tree from MyHeritage, Gramps, FamilySearch and Windows programs: what loads, reliability marks, family-tree facts as leads, the What next card, backups, export back, repeated import
 - [S7 Reliability of facts and verification against the originals](S7-reliability-and-verification.md): marks at facts and on the card, Verify at a fact, at a person and in the tree, verifying in the research's queue, Confirm against the scan, what works with the bridge and without it
+- [S8 Where the data are](S8-where-the-data-are.md): what is only in the browser, what is in the research and in the Strom archive, the tree's photos and attachments in the research, the indicator Only in browser, photos that could not be loaded, the pack and removing a tree
 
 License: [CC BY 4.0](../LICENSE). The texts may be shared and adapted with attribution.

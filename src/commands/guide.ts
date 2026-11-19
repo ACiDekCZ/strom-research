@@ -63,6 +63,8 @@ HARD RULES
    record proves it.
 3. Nothing is deleted. Wrong facts are retracted with --reason, so is a wrong
    name or note (strom name retract, strom note retract|edit) — yours to do.
+   Deleting a file of the family's material for good (strom input delete) is
+   the user's alone: never run it, nor offer to run it for them.
 4. A namesake is not your person: check year, place, house and parents —
    different parents mean two people, not a clerk's error.
 5. Negative results are results: record every search, also when nothing
@@ -129,6 +131,8 @@ GETTING STARTED (once)
   strom intake <file or folder>        documents, photos, a GEDCOM or Strom tree
   strom document read <photo or PDF>   one document of the user's read at once: its transcript, translation,
                                        terms and people — tell the user; nothing of it enters the tree by itself
+  strom material sort I… [--text "…"]   only when the user asks: files of the family's material sorted by
+                                       readers (paid readings; the user says yes, never you) — a proposal, nothing written
 
 THE WORK, STEP BY STEP (every agent — also one strom did not start: a
 conversation opened anywhere, a bot on its own server)
@@ -146,6 +150,10 @@ conversation opened anywhere, a bot on its own server)
   "I will then…"). Say its kind (--kind letter|family|web|other) and, when known, whom it waits on (--to),
   the request's text saved in notes/ (--request notes/<file>.md), the site (--url); strom task sent T…
   once the user says the request went out (the task still waits for the reply).
+  Images the user saves by hand: --images B…:<numbers> (or --kind web --book B… while the numbers are still to be
+  found), one book per task, the book a record set of the research first (strom recordset add) — never the images
+  named in words alone: strom task wait refuses that (task.wait-images) with the exact commands; strom task audit
+  shows each wait not written so and fixes it in one step (strom task audit T… --fix, undone by --unfix).
   A conversation that begins with a waiting task (strom chat --task T…: the user picked it in the menu
   or the Strom app) leads the user through it and the tasks waiting at the same place: strom guide waiting.
   then, in a conversation, tell the user what was found (strom person card …) and what comes next

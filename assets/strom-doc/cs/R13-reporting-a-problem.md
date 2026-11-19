@@ -37,6 +37,7 @@ je, jak je velký a kam ho poslat.
 | agenti | kteří jsou nainstalovaní, jejich verze, výchozí model, hooky stromu |
 | konektory | seznam, verze, povolené servery, poslední test (bez přihlášení) |
 | most do aplikace Strom | běh, verze aplikace, poslední synchronizace |
+| mosty běžící na tomto počítači (od výzkumu 1.35.0) | kolik, paměť každého a součet; výzkumy jen kódem, bez cest |
 | výzkum v číslech | počty, `strom check`, git, stahování, sezení (bez jmen) |
 | technické záznamy | logy stromu za posledních 7 dní (most, úklid, stahování) |
 | příkazy | příkazy skončené chybou, včetně příkazů z rozhovoru s agentem |
@@ -49,8 +50,18 @@ je, jak je velký a kam ho poslat.
   - oblast, kterou přečíst nejde, má ve výpisu ✗ a chybu („nešlo přečíst (…)“); zpráva se udělá z ostatních;
   - v ZIPu je README.txt (co kde je) a report.json.
 - **Platí od:** výzkum 1.30.0
+- **Od výzkumu 1.35.0:** `strom doctor` má řádek **mosty k aplikaci Strom**: „žádný neběží“, nebo „běží 2: …“ se
+  všemi mosty k aplikaci Strom na tomto počítači, seřazenými podle paměti, každý jako „{výzkum} (PID {pid},
+  {paměť})“, a „celkem {paměť}“. Výzkum je název složky výzkumu, nikdy cesta. Řádek je jen informace: kontrola je
+  vždy v pořádku a žádný most neukončuje.
+  - most, jehož složka už neexistuje: „– osiřelý, výzkum už neexistuje“;
+  - most ze složky, kterou strom nezná: „– složka, kterou tento strom nezná“;
+  - výzkum, který nejde zjistit (Windows): „výzkum nezjištěn“; paměť, kterou nejde zjistit: „paměť nezjištěna“;
+  - seznam procesů nejde přečíst: „nezjištěno: seznam procesů nešel přečíst“;
+  - ve zprávě `strom error` mají výzkumy v řádku mostů i v řádku rodokmenů jen kódy, stejné jako v oblasti mostů;
+    výzkum, ze kterého zpráva vznikla, je v oblasti mostů „this“.
 
-<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 -->
+<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 · 1.35.0: research:0add8370 src/core/bridgeprocs.ts bridgesHere (ps / Windows CIM node.exe, jen `live serve` tohoto uživatele, stav known/other/orphan/unknown, RSS, řazení podle paměti, nic neukončuje) · src/commands/setup.ts bridgesText, kontrola bridges vždy ok · src/commands/error.ts bridgesArea (read, running, memory, unmeasured, each pid/memory/state/research; aktuální výzkum „this“) · research:f5acd25a, 730e3c3a (výzkumy v řádku mostů a stromů jen kódy) · cs.json ui.doc.bridges.*, ui.report.area.bridges · CHANGELOG.cs.md 1.35.0 · test/vysledek-1119-research-doctor-mosty, -n1, -n2 -->
 
 <a id="R13.3"></a>
 ## R13.3 Který problém, jaký příkaz

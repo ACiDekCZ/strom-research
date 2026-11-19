@@ -151,11 +151,19 @@ v [R5.2](R5-conflicts.md#R5.2); přepisy pramenů z aplikace v [R3.5.1](R3-verif
     které soubor aplikace nese, pak podle podrobností a názvu. Poznámka jedné události nikdy neopraví jinou; u dvou
     stejných událostí jedné osoby (stejný typ, den a pramen), které nic z toho nerozliší, se poznámka nebere u žádné.
     Strom z aplikace bez úprav žádnou poznámku nezmění.
-  - **Poznámka účastníka:** poznámku účastníka události (kmotra, svědka…) z aplikace výzkum 1.34.0 nebere, ani od
-    aplikace 3.29.0: strom uložený v aplikaci ze starší verze může mít delší poznámku účastníka zkrácenou a výzkum by
-    ji zkrátil také.
+  - **Poznámka účastníka:** poznámku účastníka události (kmotra, svědka…) z aplikace výzkum 1.34.0 nebere; od
+    výzkumu 1.35.0 ji bere podle [S2.3.2](#S2.3.2).
+  - **Poznámky zapsané k podobné události:** `strom sync` výzkumu staršího než 1.34.0 mohl k události zapsat poznámku
+    jiné události téže osoby nebo rodiny se stejným druhem, dnem, místem a hodnotou, a k účastníkovi jeho poznámku
+    zkrácenou aplikací 3.28.0. Výzkum 1.34.0 to opraví sám a jednou, při prvním spuštění nové verze nebo při startu
+    mostu, když na stromu nikdo nepracuje; je-li co opravit, výzkum předtím zálohuje. Vrátí poznámku, jaká byla před
+    posláním, a zapsaná zůstane v historii poznámky. Poznámku události, která se od toho poslání změnila, nechá, jak je.
+    - **Od výzkumu 1.35.0:** na každou takovou ponechanou poznámku čeká úkol na člověka, v **Co čeká** i v aplikaci
+      ([R6.2](R6-awaiting-action.md#R6.2), [S4.4](S4-research-from-the-app.md#S4.4)): „Zkontrolovat poznámku
+      {událost} ({osoba}): odeslání z aplikace Strom do ní zapsalo poznámku podobného údaje“. Úkol uvádí poznámku
+      před posláním, co poslání zapsalo, a poznámku teď. Dřív o tom zůstal jen řádek v historii.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) -->
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) · poznámky k podobné události: research:7a556be2 src/core/notefix.ts settleNotes, noteFixes (alike: druh, datum, místo, hodnota; wrongPartNote cut: aplikace před 3.29.0, poznámka > 200 B), applyNoteFixes (noteEdits, marker twin-notes-1), backupBeforeNotes; src/cli/main.ts (první spuštění verze), src/core/live.ts (start mostu) · 1.35.0: research:bb79ee54 askLeftNotes (origin sync:notes-left, waiting, kind other), assets/lang/cs.json notes.left.* · CHANGELOG.cs.md 1.35.0 „Poznámka změněná po odeslání z aplikace“ · dirigent:prace/1116-vyzkum-po-134 bod 2 -->
 
 <a id="S2.3.1"></a>
 ### S2.3.1 Hlavní citace a odebraná citace z aplikace
@@ -192,6 +200,46 @@ Hlavní citaci ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)) a citaci odebranou o
 - **Platí od:** aplikace 3.29.0 s výzkumem 1.34.0
 
 <!-- zdroj: research:355df0a5 src/core/sync.ts fact.main (op event.main, _STROM_HEAD: zrušení), fact.uncite (jen s HEAD, APP_SENDS_UNCITE, BIRT/DEAT/LifeEvent/MARR/události páru/DIV; cite.notCarried, cite.sourceRemoved, cite.olderApp, fact.noMatch, main.notCarried), :5268 · src/core/stromapp.ts:806-820 APP_READS_MAIN_CITATION, APP_SENDS_UNCITE, APP_DATA_MAIN_CITATION 21 · src/core/live.ts features citations.order, citations.main, citations.remove, sync.notWritten.codes · 4cd81f14 (vrácení) · app:src/citation-gates.ts · ZADANI_VYZKUM_hlavni-citace.md 3.2, 4.1, Upřesnění 3 a 5, V6, V7 · spec 095 K2, K3 -->
+
+<a id="S2.3.2"></a>
+### S2.3.2 Poznámka účastníka z aplikace
+
+Bližší určení kmotra, svědka nebo jiného účastníka události (pole **Bližší určení (řemeslo, „soused“…)**,
+[A10.5](A10-shared-events.md#A10.5)) upravené v aplikaci výzkum převezme jako úpravu uživatele, stejně jako poznámku
+události ([S2.3](#S2.3)): poznámku, kterou výzkum u účastníka nemá, doplní; poznámku, kterou uživatel od posledního
+předání změnil, opraví; poznámku změněnou od té doby i ve výzkumu, nebo bez známého předání, nechá na volbě. Úpravu
+jde vrátit ([S2.7](#S2.7)).
+
+- **Odkud:** ze souboru GEDCOM aplikace 3.29.0 a novější a ze souboru JSON aplikace s verzí dat 21 a vyšší, ze
+  souboru i z toho, co aplikace posílá rovnou přes most. Ze starší aplikace, nebo ze souboru, který verzi neříká, se
+  poznámka účastníka nebere.
+- **Kratší poznámka:** poznámka, která je jen začátkem poznámky výzkumu, se sama nikdy nepřevezme. Strom uložený
+  v aplikaci 3.28 nese delší poznámku účastníka zkrácenou i v novější aplikaci a výzkum nepozná, zda ji zkrátila
+  aplikace, nebo uživatel. Za začátek se počítá i řez mezi písmenem a jeho čárkou („sedla“ ze „sedlák“) a rozlomený
+  znak na konci.
+  - kratší než poznámka výzkumu: `strom sync` to řekne řádkem „nepřevezme se: je kratší než ve výzkumu — zda ji
+    převzít, čeká v Čeká“ a zápis založí úkol čekající na člověka „Poznámka z aplikace Strom u {událost} ({osoba}),
+    {kdo}, je kratší než ve výzkumu – převzít, nebo ponechat?“ s oběma poznámkami. Úkol je v **Co čeká** i v aplikaci
+    ([S4.4](S4-research-from-the-app.md#S4.4)). Aplikace 3.30.0 má v **Co se zapsalo** ([S2.5.1](#S2.5.1)) řádek
+    „kratší bližší určení kmotra či svědka nepřevzato: výzkum se v Čeká na vyřízení ptá, zda ho vzít“;
+  - kratší jen než to, co aplikace od výzkumu dostala (výzkum poznámku mezitím změnil): nic se nezapíše a nikdo se
+    neptá.
+- **Ptá se jednou:** stejný strom poslaný znovu úkol znovu nezaloží, ani po rozhodnutí. Vrácení poslání
+  ([S2.7](#S2.7)) zahodí úkol, který ještě čeká.
+- **Otázka není změna:** `strom sync` počítá otázku zvlášť od změn výzkumu („N změn proti výzkumu, N otázek
+  k rozhodnutí“; když je jen otázka, „Z … se ve výzkumu nic nezměnilo: N otázka čeká v Čeká“). Stejný strom poslaný
+  znovu, dokud otázka čeká, řekne „Otázka z dřívějšího poslání dál čeká v Čeká“ s číslem úkolu.
+- **Rozhoduje člověk:** **Převzít kratší poznámku z aplikace** zapíše kratší poznámku u účastníka, **Ponechat poznámku
+  výzkumu** nechá poznámku výzkumu; úkol je v obou případech hotový. Agent rozhodnutí provede jen podle odpovědi
+  člověka na úkol ([R6.6](R6-awaiting-action.md#R6.6)). Když se poznámka výzkumu od dotazu změnila, převzetí nic
+  nezapíše a řekne to.
+- **Hranice:** poznámka, kterou soubor už nemá, nic neodebere. Poznámka se bere jen u účastníka ve stejné roli a jen
+  u události, kterou výzkum spáruje jistě ([S2.3](#S2.3), Která událost).
+- **Ovládání:** terminál: **Co čeká** → úkol → **Převzít kratší poznámku z aplikace** nebo **Ponechat poznámku
+  výzkumu**; `strom sync note T… take|keep`.
+- **Platí od:** výzkum 1.35.0 (aplikace 3.29.0, data 21); řádek v **Co se zapsalo** od aplikace 3.30.0
+
+<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes · research:7a4b3e5c src/commands/sync.ts asksPerson (otázka ≠ změna), ui.sync.title.asks / title.both / done.asks / done.asked, ui.sync.waiting; src/core/sync.ts planSync waiting (shorterWaiting) -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiv Stromu a výzkum bez agenta

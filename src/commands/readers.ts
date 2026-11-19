@@ -90,6 +90,63 @@ export function readerDesk(shared: string): string {
   return desk;
 }
 
+/** How long a reader's own folder left behind (its strom stopped before it cleared it) is kept. */
+export const READER_ROOM_KEEP_MS = 2 * 24 * 3600_000;
+let roomsSwept = false;
+
+/**
+ * A reader's own folder beside the desk (`<shared>/cache/readers/<name>`: its settings, its room), made empty. The
+ * first in a process clears the folders of readers that ended long ago (sweepReaderRooms: found 18 Nov 2026, ~3900 of
+ * them never cleared); each is cleared as its reader ends (leaveReaderRoom).
+ */
+export function readerRoomDir(shared: string, name: string): string {
+  const work = path.join(shared, "cache", "readers");
+  if (!roomsSwept) {
+    roomsSwept = true;
+    sweepReaderRooms(work);
+  }
+  const own = path.join(work, name);
+  fs.rmSync(own, { recursive: true, force: true });
+  fs.mkdirSync(own, { recursive: true });
+  return own;
+}
+
+/**
+ * The folders of readers left in `work` (the readers' cache) unchanged for READER_ROOM_KEEP_MS: removed — never the
+ * desk all readers work in, never a file or a link (only what strom made there: folders). How many went.
+ */
+export function sweepReaderRooms(work: string, now = Date.now()): number {
+  let gone = 0;
+  let names: string[];
+  try {
+    names = fs.readdirSync(work);
+  } catch {
+    return 0;
+  }
+  for (const name of names) {
+    if (name === "desk") continue;
+    const p = path.join(work, name);
+    try {
+      const st = fs.lstatSync(p);
+      if (!st.isDirectory() || now - st.mtimeMs < READER_ROOM_KEEP_MS) continue;
+      fs.rmSync(p, { recursive: true, force: true });
+      gone++;
+    } catch {
+      // being cleared by another strom, or not ours to clear: left
+    }
+  }
+  return gone;
+}
+
+/** A reader's own folder cleared as it ends (its report and log are elsewhere: nothing of it is needed after). */
+export function leaveReaderRoom(own: string): void {
+  try {
+    fs.rmSync(own, { recursive: true, force: true });
+  } catch {
+    // still held (Windows: a process of the agent not ended yet): the next sweep takes it
+  }
+}
+
 /**
  * The stem of a reading no other reading has (found live: two strom read of one image started in the same second got
  * one reader id — one usage file, one log, one report, one record, the second reader's result lost): `<base>`, else
@@ -197,7 +254,6 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   const reportsDir = reportsAt ?? path.join(tree.root, "notes", "readings");
   fs.mkdirSync(reportsDir, { recursive: true });
   const stem = own.stem ?? claimStem(tree.root, kind, `${day}-${kind}`, (s) => fs.existsSync(path.join(reportsDir, `${s}-${first}-1.md`)));
-  const work = path.join(shared, "cache", "readers");
   const progress = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
   let cost = 0;
   let runs = 0;
@@ -206,8 +262,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   let authTold = false;
   const read = async (name: string, views: string[], title: string, prompt: (report: string) => string, more: ReadMore = {}) => {
     const report = path.join(reportsDir, `${stem}-${name}.md`);
-    const own = path.join(work, `${stem}-${name}`);
-    fs.mkdirSync(own, { recursive: true });
+    const own = readerRoomDir(shared, `${stem}-${name}`);
     const settingsFile = path.join(own, "reader-settings.json");
     fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(views, report, permissionPath), null, 2));
     // the strom, agent and model that read, kept with the report (a later check of strom's knows them)
@@ -240,6 +295,8 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       ...usageOpt(tree, `${kind}-${stem}-${name}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: kind }),
     });
     const ranMs = Date.now() - startedAt;
+    // its own folder (settings, room) cleared as it ends
+    leaveReaderRoom(own);
     // the reader as it went, for the measure of the reading of scans (core/metrics.ts)
     recordReader(tree, ctx.env, {
       reader: `${kind}-${stem}-${name}`,

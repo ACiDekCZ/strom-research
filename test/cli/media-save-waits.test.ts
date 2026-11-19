@@ -141,6 +141,8 @@ test("media add --inbox --waiting: this session's task first, the others in one 
     assert.doesNotMatch(came.out, /T0001 \(this session's task\) still waits/);
     assert.match(came.out, /other tasks wait as well \(not this session's\): T0002/);
     assert.deepEqual(fs.readdirSync(downloads), []);
+    // the agent's own download, not the person's images: the queue's own order, nothing ahead
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.queueAt, undefined);
 
     // no task waits any more: said so
     await w.ok(["task", "park", "T2", "--reason", "jinde"]);
@@ -176,8 +178,9 @@ test("strom's own files of images registered already never stay in the downloads
     assert.deepEqual(r.json.tidied.sort(), [`${named(w, "T0001", 5)} (1).jpg`, `${named(w, "T0001", 5)}.jpg`, `${named(w, "T0002", 6)} (2).jpg`]);
     assert.deepEqual(fs.readdirSync(downloads).sort(), [...theirs].sort());
     assert.match((await w.ok(["media", "add", "--inbox", "--waiting"])).out, /^no task waits for images saved into the inbox$/m);
-    // a copy still being written: the next look
-    fs.copyFileSync(path.join(fixtures, "grey.jpg"), path.join(downloads, `${named(w, "T0002", 6)}.jpg`));
+    // a copy still being written: the next look (written as a browser writes it, its time now — a copy by the system
+    // keeps its source's time on Windows, which no browser's download does)
+    fs.writeFileSync(path.join(downloads, `${named(w, "T0002", 6)}.jpg`), fs.readFileSync(path.join(fixtures, "grey.jpg")));
     assert.deepEqual((await w.ok(["media", "add", "--inbox", "--waiting", "--json"])).json.tidied, []);
     assert.ok(fs.existsSync(path.join(downloads, `${named(w, "T0002", 6)}.jpg`)));
     // the images as they were: one each, nothing registered of the copies

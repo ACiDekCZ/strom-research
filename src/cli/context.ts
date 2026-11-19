@@ -19,6 +19,7 @@ import { canonicalize, readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
+import { updateChannel } from "../core/update.ts";
 import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
@@ -238,17 +239,19 @@ export class Context {
    * agent too (nothing offered it would refuse) — never to an agent strom is run by, which always reads its whole
    * catalog where research is on (the agent there makes it research again).
    */
-  helpShown(): { archive: boolean; waiting: boolean } {
-    if (this.archiveHere()) return { archive: true, waiting: false };
-    if (isAgent(this.env)) return { archive: false, waiting: false };
+  helpShown(): { archive: boolean; waiting: boolean; beta: boolean } {
+    // a strom on the beta channel shows that channel's options too (strom update --channel); the releases never
+    const beta = updateChannel(this.env) === "beta";
+    if (this.archiveHere()) return { archive: true, waiting: false, beta };
+    if (isAgent(this.env)) return { archive: false, waiting: false, beta };
     try {
       const root = this.locateTree();
       const config = root ? readJsonIfExists<TreeConfig>(path.join(root, "strom.json")) : undefined;
-      if (root && config && stateOf({ config, env: this.env, root }) === "waiting") return { archive: true, waiting: true };
+      if (root && config && stateOf({ config, env: this.env, root }) === "waiting") return { archive: true, waiting: true, beta };
     } catch {
       // no tree to say
     }
-    return { archive: false, waiting: false };
+    return { archive: false, waiting: false, beta };
   }
 
   /**

@@ -35,7 +35,7 @@ import { moveToTrash } from "../core/trash.ts";
 import { history, stopLive } from "../core/live.ts";
 import { humanWhen } from "../cli/human.ts";
 import { onlyItsFiles, packPlan } from "../core/pack.ts";
-import { defaultPackFile, packTree } from "./pack.ts";
+import { defaultPackFile, packOrSay, splitFiles } from "./pack.ts";
 import { archiveWaitingItems } from "../core/archiveasks.ts";
 import { agentReady, claudeHere } from "../cli/menu-parts.ts";
 import { agentFirst, agentStepsSkipped } from "../cli/menu-mode.ts";
@@ -242,9 +242,10 @@ register({
   summary: "Take a family tree off this computer — into the system's trash, a backup offered first (the person runs this)",
   group: "research",
   description:
-    "Offers a backup first (strom pack --all-images: it comes back with strom unpack), then the images no other tree\n" +
-    "uses; the person types the tree's name to confirm. The tree's folder goes into the system's trash (never deleted\n" +
-    "for good), so do the images they chose. Never while somebody works on it; only the person at the computer —\n" +
+    "Offers a backup first (strom pack --all-images: it comes back with strom unpack; over 4 GB: the whole folder\n" +
+    "copied instead), then the archive scans no other tree uses, and apart from them the family's photos and originals\n" +
+    "(asked on their own, no by default); the person types the tree's name to confirm. The tree's folder goes into the\n" +
+    "system's trash (never deleted for good), so do the files they chose. Never while somebody works on it; only the person at the computer —\n" +
     "never an agent. The way to delete a family tree: its bridge for the Strom app is stopped first (a folder deleted\n" +
     "by hand: the bridge ends by itself once it finds its research gone).",
   args: [{ name: "tree", description: "tree name or folder", required: true }],
@@ -262,30 +263,41 @@ register({
     const shared = ctx.settings.shared()!.value;
     const others = ctx.knownTrees().map((k) => k.root).filter((r) => path.resolve(r) !== path.resolve(root));
     const only = onlyItsFiles(root, others, shared);
-    const onlyBytes = only.reduce((s, f) => s + f.size, 0);
+    const { scans, family } = splitFiles(only);
     ctx.io.stdout(ui(lang, "ui.remove.what", { name, root: ctx.display(root), persons: tree.list("person").length }) + "\n");
     // a way back first
     let backup: string | undefined;
     const all = packPlan(tree, shared, true).media.reduce((s, m) => s + m.size, 0);
     if (await ctx.confirm(ui(lang, "ui.remove.backup", { size: mb(all, lang) }), true)) {
       const out = defaultPackFile(ctx, tree);
-      backup = packTree(tree, shared, out, true).file;
-      ctx.io.stdout(ui(lang, "ui.remove.backup.done", { file: ctx.display(backup) }) + "\n");
+      try {
+        backup = packOrSay(ctx, tree, shared, out, true).file;
+        ctx.io.stdout(ui(lang, "ui.remove.backup.done", { file: ctx.display(backup) }) + "\n");
+      } catch (e) {
+        // over 4 GB: no backup made — said, and the person goes on or not (anything but the name takes nothing off)
+        if (!(e instanceof UsageError) || e.code !== "pack.too-large") throw e;
+        ctx.io.stdout(`  ${ui(lang, e.textCode === "pack.too-large.two" ? "ui.error.pack.too-large.two" : "ui.error.pack.too-large", e.params ?? {})}\n`);
+      }
     }
-    const images = only.length > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: only.length, size: mb(onlyBytes, lang) }), backup !== undefined));
+    // the archive scans, and apart from them the family's own photos and originals: nobody fetches those again
+    const takeScans = scans.n > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: scans.n, size: mb(scans.bytes, lang) }), backup !== undefined));
+    const takeFamily = family.n > 0 && (await ctx.confirm(ui(lang, "ui.remove.family", { n: family.n, size: mb(family.bytes, lang) }), false));
     const typed = (await ctx.ask(ui(lang, "ui.remove.type", { name }))).trim();
     if (!typed || foldText(typed) !== foldText(name)) return { text: ui(lang, "ui.remove.cancelled"), data: { removed: false, ...(backup ? { backup } : {}) } };
     if (atWork(root, { bridge: false })) throw new UsageError(ui(lang, "ui.remove.busy", { name }), { hint: "strom" });
     const { followed, next } = forgetTree(ctx, root, "the family tree is taken off this computer");
     let moved = 0;
-    if (images) {
-      // the images together, one folder in the trash named after the tree
+    let movedFamily = 0;
+    const going = only.filter((f) => (f.family ? takeFamily : takeScans));
+    if (going.length) {
+      // the files together, one folder in the trash named after the tree
       const folder = path.join(shared, `.${safeFolderName(name) || "tree"}-${Date.now()}`);
-      for (const f of only) {
+      for (const f of going) {
         const to = path.join(folder, ...f.file.split("/"));
         fs.mkdirSync(path.dirname(to), { recursive: true });
         fs.renameSync(path.join(shared, ...f.file.split("/")), to);
-        moved++;
+        if (f.family) movedFamily++;
+        else moved++;
       }
       moveToTrash(folder, ctx.env, ui(lang, "ui.remove.images.folder", { name }));
     }
@@ -293,12 +305,13 @@ register({
     const text = lines(
       ui(lang, "ui.remove.done", { name }),
       followed ? ui(lang, "ui.remove.live") : undefined,
-      moved ? ui(lang, "ui.remove.images.done", { n: moved, size: mb(onlyBytes, lang) }) : undefined,
+      moved ? ui(lang, "ui.remove.images.done", { n: moved, size: mb(scans.bytes, lang) }) : undefined,
+      movedFamily ? ui(lang, "ui.remove.family.done", { n: movedFamily, size: mb(family.bytes, lang) }) : undefined,
       backup ? ui(lang, "ui.remove.backup.back", { file: ctx.display(backup) }) : undefined,
       ui(lang, backup ? "ui.remove.trash" : "ui.remove.trash.alone"),
       next ? ui(lang, "ui.remove.next", { name: next }) : undefined,
     );
-    return { text, data: { removed: true, root, images: moved, ...(backup ? { backup } : {}), ...(next ? { current: cfg.currentTree } : {}) } };
+    return { text, data: { removed: true, root, images: moved, family: movedFamily, ...(backup ? { backup } : {}), ...(next ? { current: cfg.currentTree } : {}) } };
   },
 });
 

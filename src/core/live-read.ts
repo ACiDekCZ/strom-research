@@ -113,12 +113,16 @@ function askedTimes(root: string, now = Date.now()): number[] {
   return out.sort((a, b) => a - b);
 }
 
-/** A reading the app asked: noted (the file keeps the last day). */
-export function noteAsked(root: string, id: string, what: "read" | "again", now = Date.now()): void {
+/**
+ * A reading the app asked: noted (the file keeps the last day). A sort of its material (core/sort.ts) counts as so many
+ * readings (`times`: one for each ten files it begins).
+ */
+export function noteAsked(root: string, id: string, what: "read" | "again" | "sort", now = Date.now(), times = 1): void {
   const keep = askedTimes(root, now).map((at) => JSON.stringify({ at: new Date(at).toISOString() }));
   fs.mkdirSync(readsDir(root), { recursive: true });
   const tmp = `${askedFile(root)}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, [...keep, JSON.stringify({ at: new Date(now).toISOString(), id, what })].join("\n") + "\n");
+  const asked = Array.from({ length: Math.max(1, times) }, () => JSON.stringify({ at: new Date(now).toISOString(), id, what }));
+  fs.writeFileSync(tmp, [...keep, ...asked].join("\n") + "\n");
   fs.renameSync(tmp, askedFile(root));
 }
 

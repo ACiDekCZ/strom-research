@@ -1,8 +1,11 @@
 // A research handed to someone else: one ZIP file with the tree as it was last
-// saved (its history too), the images its records stand on, the images nobody
-// can fetch again (saved by hand, the family's material) and the connectors
-// that fetched the rest. The other images are left out: the archive gives the
-// same scan again when it is needed (strom fetch puts it back, checked).
+// saved (its history too), the archive scans its records stand on, the images
+// nobody can fetch again (saved by hand), the family's photos and originals, the
+// batches the Strom app sent them in (their name, people, note) and the
+// connectors that fetched the rest. The other scans are left out: the archive
+// gives the same scan again when it is needed (strom fetch puts it back, checked).
+// No ZIP64: a package over 4 GB is refused before anything is written (ZipTooLarge),
+// the whole folder copied takes such a research along.
 // The one who gets it unpacks it with strom: into their trees, the images into
 // their shared folder, the connectors into their plugins, and takes it over.
 
@@ -19,9 +22,11 @@ import { createKey } from "./seal.ts";
 import { safeFolderName } from "./text.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { verifyFull } from "./integrity.ts";
-import { readZip, unzipTo, ZipWriter } from "./zip.ts";
+import { readZip, unzipTo, ZipTooLarge, ZipWriter, ZIP_MAX_BYTES, ZIP_MAX_FILES } from "./zip.ts";
+import { BATCH_ID, listBatches } from "./batches.ts";
 import type { Input, Media, Place, Source } from "./model.ts";
 import type { Env } from "./paths.ts";
+import { workingRel } from "./treemedia.ts";
 
 export const PACK_MANIFEST = "strom-pack.json";
 export const INSTALL_WINDOWS = "irm https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.ps1 | iex";
@@ -46,15 +51,24 @@ export interface PackManifest {
   places?: string[];
   /** Images left out (the archive gives them again). */
   left: { count: number; bytes: number };
+  /** The batches of the Strom app the family's material came in (<folder>/.strom/batches/<id>.json); none before 1.35. */
+  batches?: string[];
 }
 
 export interface PackPlan {
-  /** Shared-relative files to take, with their size. */
-  media: { file: string; size: number }[];
+  /** Shared-relative files to take, with their size; `family`: the family's photos and originals, not an archive scan. */
+  media: { file: string; size: number; family: boolean }[];
+  /** The batches of the Strom app that go along (.strom/batches/<id>.json). */
+  batches: string[];
   connectors: string[];
   left: { count: number; bytes: number; connectors: number };
   /** Shared-relative files the tree names that are not on this computer. */
   missing: string[];
+}
+
+/** An archive's scan: an image of a book (its record set), or one a connector fetched — not the family's photo or original. */
+export function isScan(m: { recordset?: string; fetched?: unknown }): boolean {
+  return !!m.recordset || !!m.fetched;
 }
 
 /** What goes into a package of this tree: every image (all), or the ones its records stand on and the ones nobody can fetch again. */
@@ -68,11 +82,12 @@ export function packPlan(tree: Tree, shared: string, all: boolean): PackPlan {
   }
   // an image's other copies and parts go along: a view uses the sharpest
   const citedImages = new Set(media.filter((m) => cited.has(m.id) && m.recordset && m.image !== undefined).map((m) => `${m.recordset}:${m.image}`));
-  const take = new Map<string, number>();
-  const missing: string[] = [];
-  const add = (file: string, size: number) => {
-    if (fs.existsSync(path.join(shared, file))) take.set(file, size);
-    else missing.push(file);
+  const take = new Map<string, { size: number; family: boolean }>();
+  const missing = new Set<string>();
+  // a file both a scan and the family's (the same content) is the family's: said so where it goes
+  const add = (file: string, size: number, family: boolean) => {
+    if (fs.existsSync(path.join(shared, file))) take.set(file, { size, family: family || !!take.get(file)?.family });
+    else missing.add(file);
   };
   let leftCount = 0;
   let leftBytes = 0;
@@ -80,20 +95,27 @@ export function packPlan(tree: Tree, shared: string, all: boolean): PackPlan {
   for (const m of media) {
     if (m.fetched) connectors.add(m.fetched.connector);
     const needed = all || cited.has(m.id) || !m.fetched || citedImages.has(`${m.recordset}:${m.image}`);
-    if (needed) add(m.file, m.size);
+    if (needed) add(m.file, m.size, !isScan(m));
     else {
       leftCount++;
       leftBytes += m.size;
     }
   }
   // the family's material kept in the shared store
-  for (const i of tree.list<Input>("input")) if (i.file?.startsWith("media:")) add(i.file.slice(6), i.size ?? 0);
+  // …and the working copy the Strom app shows of a record of its tree (spec 108): the original and it go together
+  for (const i of tree.list<Input>("input")) {
+    if (i.file?.startsWith("media:")) add(i.file.slice(6), i.size ?? 0, true);
+    if (i.working) add(workingRel(shared, i.working), i.working.bytes, true);
+  }
   const have = [...connectors].filter((c) => fs.existsSync(path.join(connectorsDir(shared), c, "connector.json")));
   return {
-    media: [...take].map(([file, size]) => ({ file, size })).sort((a, b) => a.file.localeCompare(b.file)),
+    media: [...take].map(([file, t]) => ({ file, size: t.size, family: t.family })).sort((a, b) => a.file.localeCompare(b.file)),
+    batches: listBatches(tree.root)
+      .map((b) => b.id)
+      .filter((id) => BATCH_ID.test(id)),
     connectors: have.sort(),
     left: { count: leftCount, bytes: leftBytes, connectors: connectors.size - have.length },
-    missing,
+    missing: [...missing],
   };
 }
 
@@ -110,6 +132,20 @@ function walk(dir: string, rel = ""): string[] {
   }
   if (rel && !entries.length) out.push(`${rel}/`);
   return out;
+}
+
+/** The size and number of the files under a folder, as walk() takes them. */
+function measure(dir: string): { bytes: number; files: number } {
+  let bytes = 0;
+  const all = walk(dir);
+  for (const f of all) if (!f.endsWith("/")) bytes += fs.statSync(path.join(dir, ...f.split("/"))).size;
+  return { bytes, files: all.length };
+}
+
+/** The most a package may hold: a ZIP without ZIP64, lower where STROM_PACK_MAX_BYTES says (never higher). */
+function packMax(env: Env): number {
+  const n = Number(env.STROM_PACK_MAX_BYTES);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, ZIP_MAX_BYTES) : ZIP_MAX_BYTES;
 }
 
 function addTree(zip: ZipWriter, prefix: string, dir: string): void {
@@ -190,6 +226,11 @@ export function writePack(
     git.runGit(clone, ["remote", "remove", "origin"]);
     git.runGit(clone, ["gc", "--quiet", "--prune=now"]);
     const commit = git.head(clone) ?? "";
+    // over 4 GB (or 65 535 files) is no ZIP strom writes: said before a byte of it is written
+    const sizes = [measure(clone), ...plan.connectors.map((c) => measure(path.join(connectorsDir(shared), c)))];
+    const bytes = sizes.reduce((s, x) => s + x.bytes, 0) + plan.media.reduce((s, m) => s + m.size, 0);
+    const files = sizes.reduce((s, x) => s + x.files, 0) + plan.media.length + plan.batches.length + 8;
+    if (bytes > packMax(tree.env) || files >= ZIP_MAX_FILES) throw new ZipTooLarge("the package would be over 4 GB or 65 535 files");
     const manifest: PackManifest = {
       kind: "strom-research-pack",
       format: 1,
@@ -202,6 +243,7 @@ export function writePack(
       media: plan.media.map((m) => m.file),
       connectors: plan.connectors,
       left: { count: plan.left.count, bytes: plan.left.bytes },
+      ...(plan.batches.length ? { batches: plan.batches } : {}),
     };
     const regions = regionsOfTree(tree).filter((id) => fs.existsSync(regionFile(shared, id)));
     if (regions.length) manifest.history = regions;
@@ -212,6 +254,8 @@ export function writePack(
     for (const l of launchers(opts.say)) zip.add(l.name, Buffer.from(l.text, "utf8"), { mode: l.mode });
     zip.add(PACK_MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8"));
     addTree(zip, folder, clone);
+    // the batches beside the tree, where strom keeps them (.strom, not its data): unpacking puts them in place
+    for (const id of plan.batches) zip.addFile(`${folder}/.strom/batches/${id}.json`, path.join(tree.root, ".strom", "batches", `${id}.json`));
     for (const m of plan.media) zip.addFile(`shared/${m.file}`, path.join(shared, ...m.file.split("/")));
     for (const c of plan.connectors) {
       addTree(zip, `shared/plugins/connectors/${c}`, path.join(connectorsDir(shared), c));
@@ -268,6 +312,8 @@ export interface Unpacked {
   adopted: boolean;
   /** The events of history taken into this computer's catalogs (those it had stay as they are). */
   historyEvents: number;
+  /** The batches of the Strom app put back beside the tree. */
+  batches: number;
 }
 
 /**
@@ -306,6 +352,7 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
   }
   fs.cpSync(from, root, { recursive: true, errorOnExist: true });
   try {
+    const batches = keepBatchesOnly(root, m.batches ?? []);
     const tree = Tree.open(root, env);
     const bad = verifyFull(tree).findings.filter((f) => f.level === "error");
     if (bad.length) throw new StromError(`the tree in the package does not check out: ${bad[0]!.message}${bad.length > 1 ? ` (+${bad.length - 1})` : ""}`, { hint: "ask for the package again" });
@@ -363,17 +410,46 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
       if (given?.place?.key !== key) continue;
       historyEvents += mergePlaceCatalog(shared, given).added;
     }
-    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted, historyEvents };
+    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted, historyEvents, batches };
   } catch (e) {
     fs.rmSync(root, { recursive: true, force: true });
     throw e;
   }
 }
 
-/** The files of the shared store a tree names (its images, the family's material kept there), by its folder alone. */
-export function sharedFilesOf(root: string): Map<string, number> {
-  const out = new Map<string, number>();
-  const read = (dir: string, f: (r: { file?: string; size?: number }) => void) => {
+/**
+ * Of strom's working folder a package brings only the batches its manifest names, each a batch of this name (a file
+ * damaged on the way or anything else there is not kept: this computer makes its own). How many are kept.
+ */
+function keepBatchesOnly(root: string, named: string[]): number {
+  const work = path.join(root, ".strom");
+  if (!fs.existsSync(work)) return 0;
+  const want = new Set(named.filter((id) => BATCH_ID.test(id)));
+  const kept: { id: string; text: string }[] = [];
+  for (const id of want) {
+    try {
+      const text = fs.readFileSync(path.join(work, "batches", `${id}.json`), "utf8");
+      const b = JSON.parse(text) as { id?: unknown; inputs?: unknown };
+      if (b.id === id && Array.isArray(b.inputs)) kept.push({ id, text });
+    } catch {
+      // not in the package, or damaged: its inputs keep their batch's mark, the rest is gone
+    }
+  }
+  fs.rmSync(work, { recursive: true, force: true });
+  if (!kept.length) return 0;
+  fs.mkdirSync(path.join(work, "batches"), { recursive: true });
+  for (const b of kept) fs.writeFileSync(path.join(work, "batches", `${b.id}.json`), b.text);
+  return kept.length;
+}
+
+/**
+ * The files of the shared store a tree names (its images, the family's material kept there), by its folder alone, each
+ * with its size and whether it is the family's photo or original (not an archive scan; a file both is the family's).
+ */
+export function sharedFilesOf(root: string): Map<string, { size: number; family: boolean }> {
+  const out = new Map<string, { size: number; family: boolean }>();
+  const put = (file: string, size: number, family: boolean) => out.set(file, { size, family: family || !!out.get(file)?.family });
+  const read = (dir: string, f: (r: { file?: string; size?: number; recordset?: string; fetched?: unknown }) => void) => {
     let names: string[] = [];
     try {
       names = fs.readdirSync(path.join(root, "data", dir)).filter((n) => n.endsWith(".json"));
@@ -382,19 +458,23 @@ export function sharedFilesOf(root: string): Map<string, number> {
     }
     for (const n of names)
       try {
-        f(JSON.parse(fs.readFileSync(path.join(root, "data", dir, n), "utf8")) as { file?: string; size?: number });
+        f(JSON.parse(fs.readFileSync(path.join(root, "data", dir, n), "utf8")) as { file?: string; size?: number; recordset?: string; fetched?: unknown });
       } catch {
         // an unreadable record names nothing
       }
   };
-  read("images", (m) => m.file && out.set(m.file, m.size ?? 0));
-  read("inputs", (i) => i.file?.startsWith("media:") && out.set(i.file.slice(6), i.size ?? 0));
+  read("images", (m) => m.file && put(m.file, m.size ?? 0, !isScan(m)));
+  read("inputs", (i) => {
+    if (i.file?.startsWith("media:")) put(i.file.slice(6), i.size ?? 0, true);
+    const w = (i as { working?: { sha?: unknown; mime?: unknown; bytes?: unknown } }).working;
+    if (w && typeof w.sha === "string" && /^[0-9a-f]{64}$/u.test(w.sha) && typeof w.mime === "string") put(workingRel(undefined, { sha: w.sha, mime: w.mime }), typeof w.bytes === "number" ? w.bytes : 0, true);
+  });
   return out;
 }
 
 /** The files of the shared store only this tree names — none of the other trees (their folders) does. */
-export function onlyItsFiles(root: string, others: string[], shared: string): { file: string; size: number }[] {
+export function onlyItsFiles(root: string, others: string[], shared: string): { file: string; size: number; family: boolean }[] {
   const theirs = new Set<string>();
   for (const o of others) for (const f of sharedFilesOf(o).keys()) theirs.add(f);
-  return [...sharedFilesOf(root)].filter(([f]) => !theirs.has(f) && fs.existsSync(path.join(shared, f))).map(([file, size]) => ({ file, size }));
+  return [...sharedFilesOf(root)].filter(([f]) => !theirs.has(f) && fs.existsSync(path.join(shared, f))).map(([file, x]) => ({ file, size: x.size, family: x.family }));
 }

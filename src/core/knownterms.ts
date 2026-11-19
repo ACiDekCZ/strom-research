@@ -63,9 +63,26 @@ export interface KnownTerms {
    * robots.txt that names AI agents or strom, never the paths `disallow` keeps off. Optional: none, robots.txt holds.
    */
   automatedUse?: boolean;
+  /**
+   * What a person may download of a book by hand (spec 105: the offer to speed up the tasks of a book): offered — the
+   * archive offers the whole book (a ZIP, a button); allowed — its terms or reply let the whole book be downloaded;
+   * selected — only selected images, never a whole book nor a substantial part; never — nothing to offer. `says` word
+   * for word from its terms (`terms`), its terms page (`termsPage`) or its reply (`reply`). None: the images the tasks
+   * need, nothing more.
+   */
+  wholeBook?: { how: WholeBook; says: string; from: "terms" | "termsPage" | "reply" };
+  /**
+   * The image number in the name of a file as the portal names it (.jp2) is the image × this (MZA: its viewer's file
+   * …/0570.jp2 is image 57) — counted back when a folder of the inbox is taken; a .jp2 named so that is no multiple, not
+   * taken. A file the person named by the number its viewer counts (57.jpg) is that image.
+   */
+  imageFileTimes?: number;
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
 }
+
+/** What a person may download of a book by hand, as an archive's terms say (KnownTerms.wholeBook). */
+export type WholeBook = "offered" | "allowed" | "selected" | "never";
 
 export interface KnownSearch {
   what: string;
@@ -124,6 +141,17 @@ function stricterAtRank(a: KnownTerms, b: KnownTerms): number {
 export function strictestEntry(hits: KnownTerms[]): KnownTerms | undefined {
   if (!hits.length) return undefined;
   return hits.reduce((a, b) => (RANK[b.level] > RANK[a.level] || (RANK[b.level] === RANK[a.level] && stricterAtRank(a, b) > 0) ? b : a));
+}
+
+/**
+ * By how much the image number in the name of a portal's .jp2 file is the image's (KnownTerms.imageFileTimes, strom's
+ * own list: the most specific entry that says it), else undefined (the name's number is the image).
+ */
+export function imageFileTimesOf(host: string): number | undefined {
+  const hit = shippedTerms()
+    .filter((k) => within(host, k.host) && Number.isInteger(k.imageFileTimes) && k.imageFileTimes! > 1)
+    .sort((a, b) => b.host.split(".").length - a.host.split(".").length)[0];
+  return hit?.imageFileTimes;
 }
 
 /** The slowest pause strom's list asks of a host (its Crawl-delay; 0: none) — a floor, slower only. */

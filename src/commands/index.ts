@@ -27,6 +27,7 @@ import "./delegate.ts";
 import "./read.ts";
 import "./readings.ts";
 import "./document.ts";
+import "./material.ts";
 import "./clips.ts";
 import "./transcripts.ts";
 import "./analysis.ts";

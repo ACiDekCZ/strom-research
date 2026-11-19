@@ -128,7 +128,7 @@ test("through the browser: the connector says where the images are, strom plans 
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
   await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
-  await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001"]);
+  await w.ok(["task", "wait", "T1", "--kind", "web", "--book", "B1", "--on", "the images of B0001"]);
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1", "--dry-run"])).out, /dry run: would fetch images 1–3 of book 5359 as images of B0001 through zkusebni, in your browser/);
   assert.deepEqual([...a.hits], [], "a dry run never contacts the archive");
 

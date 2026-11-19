@@ -69,6 +69,8 @@ Vor einer Ausgabe aus dem Stammbaum wird gewählt, wie lebende Personen gezeigt 
   der Auswahl dazu). Familienbuch, Seiten und Personenseite nehmen Quellen nur lebenden Personen; eine Quelle, die
   nur bei lebenden Personen zitiert ist, fällt weg.
 - **Gilt seit:** App 1.2.0; Quellen Verstorbener im Buch und auf den Seiten App 3.18.0
+- **Ab App 3.30.0:** eine lebende Person verliert mit dem Foto auch das Original des Porträts; eine Partnerschaft mit
+  einem lebenden Partner verliert das Paarfoto ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Ab App 3.26.0:** der GEDCOM-Export behält Quellen und Zitate Verstorbener bei jeder Auswahl; er lässt nur die
   Zitate lebender Personen weg und sagt es („Bei N lebenden Personen entfallen K Zitate. Verstorbene behalten ihre
   Quellen.“, Auswahl **Quellen behalten**). Der Export App mit den Daten und JSON ändert sich nicht. Der GEDCOM-Export
@@ -112,9 +114,14 @@ Beim Export wird neben dem Schutz der **Inhalt** gewählt: was in die Datei gesp
 - **Grenzen:** die Struktur des Stammbaums und die Namen bleiben immer. Die Werkstatt der Forschung (Warteschlange,
   Aufgaben, Entwürfe von Erzählungen) kommt nie in den Export. Die Auswahl des Schutzes kann Quellen und Anhänge auch
   beim Vollständigen Archiv weglassen ([A7.2](#A7.2)).
+- **Ab App 3.30.0:** die Wahl **Was exportieren** hat neben **Ganzer Stammbaum** und **Nur aktuelle Ansicht** auch
+  **Personenliste**: Datensicherung (JSON) und GEDCOM nur mit den Personen der Liste ([A11.9](A11-lists-of-people.md#A11.9)).
+- **Ab App 3.30.0:** zu **Fotos** gehören auch die Originale der Porträts und die Paarfotos. Ohne Fotos verschwinden
+  auch sie, auch wenn die Anhänge exportiert werden; ohne Anhänge bleiben die Porträts ohne Verknüpfung mit dem
+  Original ([A12.7](A12-portrait-and-couple-photo.md#A12.7)).
 - **Gilt seit:** App 2.4.0
 
-<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent -->
+<!-- zdroj: app:src/privacy.ts CONTENT_PRESETS, stripResearchWork · strings.ts privacy.contentLabel, privacy.presetComplete, privacy.presetSmall, privacy.presetSkeleton, privacy.dropsSourcesContent · 3.30.0: app:33fa6cd4 src/ui/import-export.ts scope 'list', strings.ts exportMenu.scopeLabel, scopeWhole, scopeView, scopeList -->
 
 <a id="A7.4"></a>
 ## A7.4 Familienbuch
@@ -140,6 +147,9 @@ Quellen.
 - Die Auswahl wird für jeden Stammbaum gespeichert.
 - **Bedienung:** Export **Familienbuch**; Fenster des Buchs: Druck auf A4 und **Als HTML speichern**.
 - **Gilt seit:** App 3.19.0; Voreinstellung Eigene App 3.21.0
+- **Ab App 3.30.0:** der Teil **Ausschnitte und Fotos** setzt in das Kapitel der Familie auch das Paarfoto, über die
+  Ereignisse des Paares; ein Stammbaum, dessen einzige Bilder Paarfotos sind, bietet diesen Teil an
+  ([A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 
 <!-- zdroj: app:src/book-options.ts (části, předvolby, výchozí :55) · strings.ts book.dlg.kind, book.dlg.parts, book.dlg.preset, book.dlg.lang, book.parts, book.unavailable · CHANGELOG.cs.md 3.19.0, 3.21.0 -->
 
@@ -188,6 +198,11 @@ den Abschnitt **Für Forschende**.
   Person in der Migration im Zeitverlauf ([A6.5.4](A6-views.md#A6.5.4)). Die gespeicherte Seite hat ihn nicht.
   Er steht im Abschnitt **Lebensorte**; eine Person mit höchstens einem eigenen Ort, die Vorfahren auf der Karte hat,
   hat ihn in einer eigenen Zeile dort, wo der Abschnitt wäre.
+- **Ab App 3.30.0:** die Galerie **Bilder und Dokumente** beginnt mit dem Foto jeder Partnerschaft der Person
+  („{A} und {B} · Paarfoto“). Die Vergrößerung eines Porträts mit Original hat den Umschalter **Porträt** | **Ganzes
+  Foto**, die gespeicherte Seite den Link **Ganzes Foto**, wenn die Datei dieses Foto enthält. ⋯ **Weitere Aktionen**
+  bietet **Porträtausschnitt bearbeiten** ([A12.3](A12-portrait-and-couple-photo.md#A12.3),
+  [A12.6](A12-portrait-and-couple-photo.md#A12.6)).
 - **Bedienung:** Angebot der Personenkarte, **Personenseite**; auch aus dem Fächer.
 - **Gilt seit:** App 3.18.0
 

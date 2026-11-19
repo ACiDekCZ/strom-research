@@ -101,7 +101,38 @@ export function collectFiles(paths: string[]): string[] {
   return out;
 }
 
-const digitGroups = (file: string): string[] => path.basename(file, path.extname(file)).match(/\d+/g) ?? [];
+/**
+ * What a file manager adds to the name of a copy of a file (B0408: "33 2.jpg" was taken for image 2), at the end of the
+ * name: macOS Finder's " 2", " copy", " copy 2" (" kopie", " Kopie", " kopia" in its languages), Windows Explorer's
+ * " - Copy", " - Copy (2)", " – kopie" and a browser's " (1)". A word of a copy at the end; a number in parentheses
+ * only when a number is left before it; a bare " 2" … " 9" (Finder's first copies) only after a name that is a number
+ * alone, or a number and a zoomed-in part's letter ("33a 2.jpg").
+ */
+const COPY_WORD = /(?:\s*[-–—]\s*|\s+)(?:copy|kopie|kopia|kopija|copia|copie|копия|копія)(?:\s+\p{Nd}+|\s*\(\p{Nd}+\))?$/iu;
+const COPY_PAREN = /\s*\(\p{Nd}+\)$/u;
+const COPY_BARE = /^(\p{Nd}+\p{L}?)\s+[2-9]$/u;
+
+/** A file's name without its extension and without what a file manager adds to a copy (COPY_WORD): NFC. */
+export function copyless(file: string): string {
+  let stem = path.basename(file, path.extname(file)).normalize("NFC").trim();
+  const word = stem.replace(COPY_WORD, "");
+  if (word !== stem && /\p{Nd}/u.test(word)) return word.trim();
+  const paren = stem.replace(COPY_PAREN, "");
+  if (paren !== stem && /\p{Nd}/u.test(paren)) stem = paren.trim();
+  const bare = COPY_BARE.exec(stem);
+  return bare ? bare[1]! : stem;
+}
+
+const digitGroups = (file: string): string[] => copyless(file).match(/\d+/g) ?? [];
+
+/**
+ * Whether a file is named by a number alone (a copy's suffix aside; a zoomed-in part's letter: "33.jpg", "33 2.jpg",
+ * "9a.jpg"): a person named it by the image it is — never overruled by an order (B0408). A portal's own name
+ * ("kniha-00090.jpg") or a screenshot's date and time is no such name.
+ */
+export function namedByNumber(file: string): boolean {
+  return /^\p{Nd}+\p{L}?$/u.test(copyless(file));
+}
 
 /**
  * The image number in one file name: the last zero-padded group of digits

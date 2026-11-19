@@ -94,6 +94,8 @@ Otevřené úkoly všech běžících linií tvoří jednu frontu. Agent vždy b
 - **Od výzkumu 1.32.0:** most hledá v celé frontě (číslo úkolu nebo osoby, jména osob, slova úkolu, jeho kniha,
   signatura, archiv a místo, bez ohledu na diakritiku) a hledaný text se nikam neukládá, ani do záznamu mostu.
   V aplikaci: pole hledání ve **Frontě** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
+- **Od výzkumu 1.35.0:** s `queue.sameBook yes` jde mezi klíči 7 a 8 napřed další úkol knihy, ve které pracovalo
+  poslední sezení ([R2.2.4](#R2.2.4)).
 
 <!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
@@ -144,6 +146,27 @@ Podklady (úkol typu podklady) a rozdělaný úkol nečekají nikdy.
 - **Platí od:** výzkum 1.9.0 (mimo strom); ostatní důvody podle verzí v odkazovaných pravidlech.
 
 <!-- zdroj: research:src/core/queue.ts:205-210 waits · src/core/kin.ts:98 offTree · assets/method/core.md „The tree first, then above it“ -->
+
+<a id="R2.2.4"></a>
+### R2.2.4 Další úkol téže knihy: `queue.sameBook`
+
+S volbou `queue.sameBook yes` fronta po sezení v knize, která má snímky na disku, vezme napřed další úkol téže knihy.
+Snímky jsou už stažené a agent je čte z disku.
+
+- **Hlídá kód:**
+  - kniha posledního sezení: kniha jeho úkolu, která má na disku aspoň jeden snímek;
+  - napřed jdou úkoly téže knihy, které jde udělat hned (nečekají na snímky stažené člověkem). Úkoly dějin míst ne;
+  - nejvýš 5 sezení po sobě v jedné knize, pak zase vlastní pořadí fronty;
+  - v pořadí [R2.2](#R2.2) je to klíč mezi 7 a 8: rozdělaný úkol, ruční volba, práce mimo linie, krátká práce
+    a vyprávění na řadě mají přednost dál. Ve strategii **priority** jde až po pořadí linií;
+  - `no` (výchozí): pořadí se nemění. Agent jen dostane větu, které další úkoly knihu potřebují
+    ([R6.8](R6-awaiting-action.md#R6.8)).
+- **Ovládání:** terminál: `strom config set queue.sameBook yes|no --for-tree`, menu **Nastavení › Archivy › Knihy
+  s nejvíc úkoly**; `strom task list` u takového úkolu řekne důvod („the same book as the last session …“).
+  Aplikace: **Výzkum u stromu › Knihy › Přednost stažené knize** ([S4.4.6](S4-research-from-the-app.md#S4.4.6)).
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:b1749433 src/core/queue.ts SAME_BOOK_MAX 5, sameBookTurn (ended[0], kniha se snímky: setsWithImages count > 0; inRow < 5), rankTasks inBook (!blocked, !forHistory), cmp (za a.blocked a lineRank u priority, před score), why „the same book as the last session …“ · src/core/mediaindex.ts setsWithImages · src/core/config.ts queue.sameBook (no výchozí) · CHANGELOG.cs.md 1.35.0 -->
 
 <a id="R2.3"></a>
 ## R2.3 Práce mimo linie

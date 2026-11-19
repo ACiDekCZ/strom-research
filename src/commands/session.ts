@@ -41,6 +41,7 @@ import { takenLines, takeWaiting, type TakenFolder } from "./media.ts";
 import { clockUp } from "../core/net.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
+import { auditLine, auditOf, audited, WAIT_CHECKLIST } from "../core/taskaudit.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { claudeAgentsFile } from "../agents/scanreader.ts";
 import { setTreeSetting } from "./setup.ts";
@@ -67,7 +68,7 @@ import { Tree, VERSION } from "../core/tree.ts";
 import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
-import { refuseInArchive } from "../core/state.ts";
+import { refuseInArchive, settleWaiting } from "../core/state.ts";
 import { isArchive } from "../core/mode.ts";
 import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
@@ -152,7 +153,7 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
 function takeSaved(tree: Tree, shared: string | undefined): TakenFolder[] {
   if (!shared || tree.dryRun) return [];
   try {
-    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem);
+    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem || t.aside?.length);
   } catch {
     return [];
   }
@@ -183,6 +184,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       refuseInArchive(tree, "strom session start", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
+      // an agent at work: what was put aside while the research waited for it back in the queue first
+      settleWaiting(tree, true);
       const research = researchOf(tree, opts.research);
       // images the person saved for waiting tasks while no bridge ran: taken first, a task they complete back in the queue
       const taken = takeSaved(tree, ctx.settings.shared()?.value);
@@ -345,6 +348,8 @@ register(
         continueTask: Boolean(opts.continue),
         interrupted: Boolean(opts.interrupted),
       });
+      // the waits it touched not written as strom needs them: said to the agent, never in the way of the close (K1.2)
+      const audits = touchedWaits(tree, s, also, ctx.settings.shared()?.value);
       const research = s.research ? tree.get<Research>(s.research) : undefined;
       const newTasks = research ? applyFrontier(tree, research) : [];
       // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
@@ -364,13 +369,15 @@ register(
           ...alsoDone.flatMap((a) => a.said),
           // its task waits: what brings it back, as strom does it (never a promise strom does not keep)
           ((t) => (t ? wakesBy(tree, ctx.settings.shared()?.value, t, (p) => ctx.display(p)) : undefined))(s.task ? tree.get<Task>(s.task) : undefined),
+          ...audits.map((a) => a.line),
+          audits.length ? `check of each wait: ${WAIT_CHECKLIST}` : undefined,
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${counted(newTasks.length, "new task")} from the research frontier` : undefined,
           offMap(tree),
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
         ),
-        data: { session: closed, ...(finished ? { task: finished.task } : {}), ...(alsoDone.length ? { alsoDone: alsoDone.map((a) => a.task) } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
+        data: { session: closed, ...(finished ? { task: finished.task } : {}), ...(alsoDone.length ? { alsoDone: alsoDone.map((a) => a.task) } : {}), ...(audits.length ? { audit: audits.map((a) => ({ task: a.task, kinds: a.kinds })) } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
       };
     },
   },
@@ -760,6 +767,32 @@ export const TASKS_MAX = 100;
 /** The states of a task settled after its session (strom run --tasks): done, waiting for the user, parked, dropped. */
 const SETTLED: readonly string[] = ["done", "waiting", "parked", "dropped"];
 
+/**
+ * The waiting tasks a session touched (its task, --also-done, every task its operations wrote) whose wait is not written
+ * as strom needs it and the person has not kept as it is: a line for the agent each (K1.2, core/taskaudit.ts).
+ */
+function touchedWaits(tree: Tree, s: Session, also: string[], shared: string | undefined): { task: string; kinds: string[]; line: string }[] {
+  const ids = new Set<string>([...(s.task ? [s.task] : []), ...also]);
+  for (const line of opsLogsOf(tree.dataDir, s.id).flatMap((file) => fs.readFileSync(file, "utf8").split("\n"))) {
+    if (!line.includes('"T')) continue;
+    try {
+      const op = JSON.parse(line) as { targets?: unknown };
+      if (Array.isArray(op.targets)) for (const x of op.targets) if (typeof x === "string" && /^T\d+$/u.test(x)) ids.add(x);
+    } catch {
+      // a line cut short (a write that died): nothing of it
+    }
+  }
+  const out: { task: string; kinds: string[]; line: string }[] = [];
+  for (const id of [...ids].sort()) {
+    const t = tree.get<Task>(id);
+    if (!t || !audited(t)) continue;
+    const a = auditOf(tree, t, { shared });
+    if (!a.findings.length || a.kept) continue;
+    out.push({ task: id, kinds: a.findings.map((f) => f.kind), line: auditLine(tree, a, t) });
+  }
+  return out;
+}
+
 /** How many research writes a session made (bookkeeping of sessions and tasks does not count). */
 function sessionWrites(tree: Tree, sessionId: string): number {
   let n = 0;
@@ -921,6 +954,8 @@ register(
   examples: ["strom run", "strom run --tasks 5", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     refuseInArchive(ctx.tree(), "strom run", ctx.settings.agent(ctx.tree().config).value);
+    // the agent starts: what was put aside while the research waited for it back in the queue before a task is chosen
+    if (!ctx.dryRun) settleWaiting(ctx.tree(), true);
     // the agent's CLI not here (its desktop app alone): said before anything is asked (core/agentcli.ts)
     requireAgentCli(ctx.settings.agent(ctx.tree().config).value, ctx.env, "strom run");
     ctx.confirmElsewhere(

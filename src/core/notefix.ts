@@ -5,16 +5,19 @@
 // Found in what each sync wrote (its input's `sync.applied`): a note whose new lines the file did not give that fact
 // (its `_STROM_EID`), else — no file kept, no IDs in it — that its twin has; a participant's note cut to its beginning
 // by an app before APP_SENDS_PART_NOTES. Only while the fact still says what the sync wrote: one changed since is
-// left as it is and said. The note before is put back, the wrong one kept in the note's history; each fact one
+// left as it is and asked of the person (a task waiting for them: whether the note now is right). The note before is put back, the wrong one kept in the note's history; each fact one
 // operation, the marker in strom.json, one commit.
 
 import fs from "node:fs";
-import type { Event, Family, NoteEdit, Participant, Person } from "./model.ts";
+import type { Event, Family, NoteEdit, Participant, Person, Task } from "./model.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
 import { inputPath } from "./media.ts";
 import { freshConfig, quiet } from "./hypolinks.ts";
 import { writableUnasked } from "./integrity.ts";
-import { update } from "./records.ts";
+import { create, update } from "./records.ts";
+import { phrase } from "./phrases.ts";
+import { displayName } from "./people.ts";
+import { truncate } from "../cli/format.ts";
 import { factNote, noteLine, readGedcom, readStromJson, type SFact, type Snapshot, type SyncInput } from "./sync.ts";
 import { compareVersions } from "./semver.ts";
 import { isAppVersion } from "./stromapp.ts";
@@ -30,6 +33,9 @@ export const NOTES_SETTLED = "twin-notes-1";
 
 /** The first Strom app that sends a participant's longer note whole (its 3.28.0 cut it short). */
 const WHOLE_PART_NOTES = "3.29.0";
+
+/** The origin of the person's task of a note a send wrote of a fact alike, changed since (left as it is). */
+export const NOTES_LEFT_ORIGIN = "sync:notes-left";
 
 /** A participant's note the 3.28.0 cut short was longer than this (its ~260 bytes): a shorter one is never taken so. */
 const CUT_LONGER = 200;
@@ -227,6 +233,45 @@ export function applyNoteFixes(tree: Tree, found: NoteFindings): number {
   return byEvent.size;
 }
 
+/**
+ * A note changed since the send wrote a fact alike's there, left as it is: one task for the person per fact, waiting —
+ * whether the note now is right is theirs to say (the menu's What waits, the Strom app); the notes before and after the
+ * send and now in its words, in the research's language. Inside the tree's lock. The tasks made.
+ */
+export function askLeftNotes(tree: Tree, left: NoteFix[]): Task[] {
+  const lang = tree.lang;
+  const out: Task[] = [];
+  const quote = (t: string) => `„${truncate(noteLine(t), 200)}“`;
+  for (const f of left) {
+    if (out.some((t) => t.where.includes(f.event))) continue;
+    const owner = tree.get<Person | Family>(f.owner);
+    const event = owner?.events.find((e) => e.id === f.event);
+    if (!owner || !event) continue;
+    const name = owner.type === "person" ? displayName(owner as Person) : owner.id;
+    out.push(
+      create<Task>(
+        tree,
+        "task",
+        {
+          level: "verify",
+          priority: 3,
+          what: truncate(phrase(lang, "notes.left.what", { event: f.event, owner: name }), 200),
+          where: [f.event],
+          why: truncate(phrase(lang, "notes.left.why", { input: f.input, event: f.event, before: f.before ? quote(f.before) : "—", wrote: quote(f.wrote), now: event.note ? quote(event.note) : "—" }), 1000),
+          doneWhen: truncate(phrase(lang, "notes.left.done", { event: f.event }), 500),
+          subject: [owner.id],
+          state: "waiting",
+          waitingOn: phrase(lang, "notes.left.on", { event: f.event }),
+          wait: { kind: "other" },
+          origin: NOTES_LEFT_ORIGIN,
+        } as never,
+        (tid) => `+${tid} task: the person says whether the note of ${f.event} is right — a send of the Strom app wrote a fact alike's there, changed since`,
+      ),
+    );
+  }
+  return out;
+}
+
 /** A local date and time for the backup's README. */
 function when(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -260,6 +305,15 @@ export function backupBeforeNotes(tree: Tree, from?: string): BackupRecord | und
   });
 }
 
+/** What settleNotes did: facts and notes set right, the facts left as they are (changed since) and the person's tasks of them. */
+export interface NotesSettled {
+  facts: number;
+  notes: number;
+  left: string[];
+  asked: string[];
+  backup?: BackupRecord;
+}
+
 /**
  * Once per research, at the first start of this strom and at a bridge's start: the notes set right by themselves, in
  * one commit — the research backed up first when there is a note to set right (`from`: the strom that ran before, for
@@ -268,14 +322,14 @@ export function backupBeforeNotes(tree: Tree, from?: string): BackupRecord | und
  * outside strom), in a dry run; a backup that cannot be made writes nothing (it throws: tried again next time). What it
  * did, else undefined.
  */
-export function settleNotes(tree: Tree, opts: { from?: string } = {}): { facts: number; notes: number; left: string[]; backup?: BackupRecord } | undefined {
+export function settleNotes(tree: Tree, opts: { from?: string } = {}): NotesSettled | undefined {
   if (tree.dryRun || tree.config.settled?.includes(NOTES_SETTLED)) return undefined;
   const first = noteFixes(tree);
   if ((!first.fixes.length && !first.left.length) || !quiet(tree)) return undefined;
   // a note to set right: the research backed up first (outside its lock — the backup takes it to copy)
   const backedUp = first.fixes.length > 0 && writableUnasked(tree);
   const backup = backedUp ? backupBeforeNotes(tree, opts.from) : undefined;
-  let out: { facts: number; notes: number; left: string[]; backup?: BackupRecord } | undefined;
+  let out: NotesSettled | undefined;
   tree.atomically(() => {
     // read afresh under the lock: another strom may have settled it meanwhile
     if (!freshConfig(tree) || tree.config.settled?.includes(NOTES_SETTLED) || !writableUnasked(tree)) return;
@@ -285,10 +339,12 @@ export function settleNotes(tree: Tree, opts: { from?: string } = {}): { facts: 
     if (found.fixes.length && !backedUp) return;
     const facts = applyNoteFixes(tree, found);
     const left = [...new Set(found.left.map((f) => f.event))];
+    // one changed since: the person asked whether it is right (1116, N2 of 1115 B1) — never set right unasked
+    const asked = askLeftNotes(tree, found.left).map((t) => t.id);
     tree.commit(
-      `Notes a send of the Strom app wrote to a fact alike set right: ${[...new Set(found.fixes.map((f) => f.event))].join(", ") || "none"}${left.length ? `; changed since, left as they are: ${left.join(", ")}` : ""}`,
+      `Notes a send of the Strom app wrote to a fact alike set right: ${[...new Set(found.fixes.map((f) => f.event))].join(", ") || "none"}${left.length ? `; changed since, left as they are: ${left.join(", ")} (asked: ${asked.join(", ")})` : ""}`,
     );
-    out = { facts, notes: found.fixes.length, left, ...(backup ? { backup } : {}) };
+    out = { facts, notes: found.fixes.length, left, asked, ...(backup ? { backup } : {}) };
   });
   return out;
 }

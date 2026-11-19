@@ -47,6 +47,7 @@ import { placeQuestions } from "../core/placesview.ts";
 import { inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
 import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
 import { viewModel } from "../core/viewsizes.ts";
+import { offeredBooks, type BookRow } from "../core/books.ts";
 import { SENDABLE, type WaitKind, type WaitPhase } from "../core/waitkind.ts";
 
 /** A person for the person reading: "Jan Novák (*1905) [P0001]". */
@@ -110,13 +111,14 @@ function stampOf(ctx: Context, tree: Tree): string {
 }
 
 /** The keys of the overview in the person's language: next, previous, all, and a letter per section. */
-export function waitKeys(lang: string): { next: string; prev: string; all: string; section: Record<WaitSection, string> } {
+export function waitKeys(lang: string): { next: string; prev: string; all: string; books: string; section: Record<WaitSection, string> } {
   const t = translator(lang);
   const low = (s: string) => s.toLocaleLowerCase(lang);
   return {
     next: low(t("ui.wait.key.next")),
     prev: low(t("ui.wait.key.prev")),
     all: low(t("ui.wait.key.all")),
+    books: low(t("ui.wait.key.books")),
     section: Object.fromEntries(SECTIONS.map((s) => [s, low(t(`ui.wait.key.${s}` as UIKey))])) as Record<WaitSection, string>,
   };
 }
@@ -256,6 +258,9 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     if (places.length) controls.push(t("ui.wait.c.number"));
     if (places.length > PAGE) controls.push(t("ui.wait.c.next", { key: keys.next }), t("ui.wait.c.prev", { key: keys.prev }), "10-20", t("ui.wait.c.all", { key: keys.all }));
     if (present.length > 1 || filter) controls.push(t("ui.wait.c.filter", { keys: present.map((s) => keys.section[s]).join("/") }));
+    // the books most tasks need: an offer to download them by hand, never counted in what waits
+    const books = booksHere(ctx, tree);
+    if (books.length) controls.push(t("ui.wait.c.books", { key: keys.books, n: books.length }));
     if (phase === "todo" && sent.length) controls.push(t("ui.wait.c.sent"));
     if (phase === "sent" && todo.length) controls.push(t("ui.wait.c.todo"));
     controls.push(t(filter ? "ui.wait.c.unfilter" : "ui.wait.c.back"));
@@ -297,6 +302,10 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
         view = undefined;
         break;
       }
+      if (a === keys.books && books.length) {
+        await guarded(ctx, lang, () => showBooks(ctx, lang, root, books));
+        break;
+      }
       if (a === keys.all && places.length > PAGE) {
         view = "all";
         break;
@@ -325,6 +334,42 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
       out(controlLine);
     }
   }
+}
+
+/** The books worth downloading by hand here (none in an archive: no agent reads them). */
+function booksHere(ctx: Context, tree: Tree): BookRow[] {
+  return actsAsArchive(tree) ? [] : offeredBooks(tree);
+}
+
+/** At most this many books on the screen of the books (all of them: strom task books). */
+const BOOKS_SHOWN = 9;
+
+/**
+ * The books most tasks need (strom task books, in the research language): one download by hand serves all their
+ * tasks. Read only, an overview — Enter after it. False when there is none to show.
+ */
+export async function showBooks(ctx: Context, lang: string, root: string, rows?: BookRow[]): Promise<boolean> {
+  const tree = Tree.open(root, ctx.env);
+  const books = rows ?? booksHere(ctx, tree);
+  if (!books.length) return false;
+  const t = translator(lang);
+  const shared = ctx.settings.shared()?.value;
+  const screen = ["", `${t("ui.books.title")} · ${books.length}`, ` ${t("ui.books.why")}`];
+  for (const [i, r] of books.slice(0, BOOKS_SHOWN).entries()) {
+    const counts = [t("ui.books.tasks", { n: r.tasks }), ...(r.waiting ? [t("ui.books.waiting", { n: r.waiting })] : [])];
+    const dir = shared ? ctx.display(path.join(shared, "inbox", r.folder)) : `inbox/${r.folder}`;
+    screen.push(
+      `${String(i + 1).padStart(2)}  ${truncate(r.title, 60)} · ${counts.join(" · ")}`,
+      `    ${[r.archive?.name, r.years, r.images !== undefined ? t("ui.books.images", { images: r.images, have: r.onDisk, missing: r.missing ?? 0 }) : t("ui.books.disk", { have: r.onDisk })].filter(Boolean).join(" · ")}`,
+      ...(r.need ? [`    ${t("ui.books.need", { need: r.need })}`] : []),
+      ...(r.url ? [`    ${r.url}`] : []),
+      `    ${t("ui.books.folder", { dir: `${dir}${path.sep}` })}`,
+    );
+  }
+  if (books.length > BOOKS_SHOWN) screen.push(` ${t("ui.books.more", { n: books.length - BOOKS_SHOWN })}`);
+  ctx.io.stdout(screen.join("\n") + "\n");
+  await pause(ctx, lang);
+  return true;
 }
 
 /** One place: its things, then for all of them at once — the request texts joined, sent, a conversation. */
@@ -463,6 +508,17 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
       answer();
       file();
     } else {
+      // a note the Strom app sent shorter than the research's (core/shorternote.ts): taken, or the research's kept
+      if (x.shorterNote)
+        for (const take of ["take", "keep"] as const)
+          choices.push({
+            label: t(take === "take" ? "ui.wait.a.shorter.take" : "ui.wait.a.shorter.keep"),
+            act: async () => {
+              if ((await run(["sync", "note", x.id, take], true)) !== 0) return false;
+              out(t(take === "take" ? "ui.wait.shorter.taken" : "ui.wait.shorter.kept"));
+              return true;
+            },
+          });
       if (url) open(kind === "web" ? "ui.wait.a.web" : "ui.wait.a.link", url);
       // a site of the one book of the task: its images saved into its folder bring it back
       if (inbox)

@@ -316,8 +316,10 @@ nicht angemeldet – einmal … starten und anmelden**.
 
   Eine Antwort, aus der die Anmeldung nicht hervorgeht, entscheidet nichts. Terminal: `claude`, dann `/login`;
   `strom doctor`.
+- **Ab Forschung 1.35.0:** eine Anmeldeprüfung, die nicht innerhalb von 5 s antwortet, entscheidet nichts und beendet
+  alles, was sie gestartet hat, auch unter Windows, wo das Programm des Agenten früher weiterlaufen konnte.
 
-<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 -->
+<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 · 1.35.0: research:bb79ee54 src/core/claudedir.ts AUTH_STATUS_MS 5000, claudeLoggedIn přes src/core/runsync.ts runSync (win32 taskkill /T /F, jinde skupina procesů) · CHANGELOG.cs.md 1.35.0 „Windows: po kontrole přihlášení nic neběží dál“ -->
 
 <a id="R7.8"></a>
 ## R7.8 Strom-Archiv: eine Forschung, an der kein Agent arbeitet
@@ -358,18 +360,22 @@ Eine Forschung, deren Agent auf diesem Computer nicht ist (nicht installiert, od
 anderen Computer übertragen), wartet auf ihn. Bis dahin verhält sie sich wie ein Strom-Archiv.
 
 - **Prüft der Code:**
-  - was die App sendet, wird wie im Archiv erfasst; für den Agenten entsteht nichts, und die Arbeit des Agenten wird
+  - was die App sendet, wird wie im Archiv erfasst; der Agent bekommt nichts, und die Arbeit des Agenten wird
     mit einem Satz abgelehnt, dass die Forschung auf einen Agenten wartet und wo er installiert oder ein anderer
     gewählt wird;
-  - der gespeicherte Modus ändert sich nicht, und die Aufgaben werden nicht zurückgestellt. Nach der Installation des
+  - der gespeicherte Modus ändert sich nicht, und die Aufgaben, die die Forschung hatte, werden nicht zurückgestellt. Nach der Installation des
     Agenten macht die Forschung von selbst mit den Aufgaben weiter, die sie hatte;
   - ein Agent, der gerade in der Forschung arbeitet (auch ein anderer als der eingestellte), macht sie zur Forschung.
 - **Warum:** ein Archiv ist die Wahl des Menschen, und strom erfasst sie nicht für ihn. Eine Forschung ohne Agenten
   verhält sich nur wie ein Archiv, deshalb macht sie nach der Installation des Agenten von selbst mit den Aufgaben
-  weiter, die sie hatte; keine ist zurückgestellt.
+  weiter, die sie hatte.
 - **Bedienung:** Terminal: Menü, erster Punkt (**Nur als Strom-Archiv behalten: die Daten aus der Strom-App
   speichern** oder die Installation des Agenten); `strom mode` zeigt den Zustand. Die App zeigt eine solche Forschung
   als **Archiv** ([S1.3](S1-connecting-app-and-research.md#S1.3)).
-- **Gilt seit:** Forschung 1.15.0
+- **Gilt seit:** Forschung 1.15.0; 1.35.0: neue Aufgaben zurückgestellt
+- **Ab Forschung 1.35.0:** eine Aufgabe, die inzwischen kommt (zu gesendetem Material, ein Scan zum Lesen), entsteht
+  zurückgestellt wie im Archiv. In die Warteschlange kehrt sie zurück, sobald ein Agent an der Forschung zu arbeiten
+  beginnt (Beginn einer Sitzung, `strom run`, Chat; auch ein anderer als der eingestellte), oder wenn der eingestellte
+  Agent wieder auf dem Computer ist.
 
-<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 -->
+<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->

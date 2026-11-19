@@ -217,9 +217,11 @@ nimi jde strom jen přes most na tomto počítači ([S1.1](#S1.1)).
   - Každý prohlížeč má vlastní úložiště. Strom otevřený v Chrome v Edge není.
   - Strom v aplikaci a strom ve výzkumu jsou dvě kopie. Hlavní je strom v aplikaci, výzkum má vlastní kopii, a co
     výzkum nezapíše, je v aplikaci vždy vidět ([S2](S2-edits-from-the-app.md)).
+  - Od výzkumu 1.35.0 má výzkum i portréty, fotky svazků a přílohy stromu. Co je kde uložené a co je jen
+    v prohlížeči, popisuje [S8](S8-where-the-data-are.md).
 - **Platí od:** aplikace 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Výzkum zapnutý: přepínač mostu u stromu
@@ -237,6 +239,9 @@ počítače, nebo podle nastavení **Vypnout výzkum po nečinnosti**.
   - Zapnutí pošle výzkumu odkaz, který spustí jen most na jeho poslední adrese, bez okna. Když se nic nestane, nebo
     výzkum zapnutí z aplikace neumí, aplikace ukáže příkaz `strom live start` (spustit v terminálu ve složce stromu)
     s tlačítkem **Kopírovat**. Starší výzkum, který vypnutí z aplikace neumí, ukáže stejně příkaz `strom live stop`.
+  - Přepínač mezitím ukazuje nový stav a **Zapíná se…** (**Vypíná se…**). Když most do 30 s neodpoví, přepínač se
+    vrátí a stojí u něj **Výzkum se do 30 s neozval. Je potřeba spustit Strom Research.** s příkazem a **Zkusit
+    znovu** ([A9.7.2](A9-using-the-app.md#A9.7.2)).
   - Po vypnutí nebo restartu počítače most neběží a sám se nespustí. Zapne ho člověk: v panelu výzkumu **Zapnout**,
     nebo `strom live start`.
   - **Vypnout výzkum po nečinnosti** má dvě volby: **Do vypnutí počítače** (výchozí) a **Po 2 hodinách nečinnosti**.
@@ -248,6 +253,6 @@ počítače, nebo podle nastavení **Vypnout výzkum po nečinnosti**.
   sledování) a ve **Správě stromů** u řádku stromu; panel výzkumu, když výzkum neběží: **Zapnout**; **Nastavení** →
   **Výzkum na tomto počítači** → **Vypnout výzkum po nečinnosti**. Terminál: `strom live start`, `strom live stop`,
   `strom config set live.idleMinutes 0` (do vypnutí počítače) nebo `120` (po 2 hodinách nečinnosti).
-- **Platí od:** aplikace 3.25.0, výzkum 1.29.0
+- **Platí od:** aplikace 3.25.0, výzkum 1.29.0. Stav na přepínači a věta po 30 s od aplikace 3.30.0.
 
-<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->

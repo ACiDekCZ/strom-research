@@ -61,6 +61,7 @@ import { cliMissing } from "../core/agentcli.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
 import { activeFetches, endedFetches, heavySaid, withRegistered } from "../core/fetching.ts";
+import { needsBooks, sameBookLine } from "../core/books.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -1470,6 +1471,8 @@ export function buildBrief(
             repo ? `    ${repo.name} · automated download: ${repo.automation}${repo.terms ? ` · terms: ${repo.terms}` : ""}` : "",
             archiveLine(tree, b, repo, opts.shared, installed, asked),
             browserLine(tree, b, repo, opts.shared, tuneAgent, task?.id),
+            // the other tasks that need this book: done in the same session, its images downloaded once
+            task && !located.guessed && needsBooks(task) ? `    ${sameBookLine(tree, task, b.id) ?? ""}`.trimEnd() : "",
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
             ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b), hand, saveAgainFor(b)),

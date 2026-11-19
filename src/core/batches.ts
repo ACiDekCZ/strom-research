@@ -169,7 +169,7 @@ export function closeBatch(tree: Tree, id: string, opts: { name?: string | undef
   const name = opts.name?.trim().slice(0, 120) || b.name || phrase(lang, phone ? "batch.unnamed.phone" : "batch.unnamed");
   const persons = [...new Set([...(b.persons ?? []), ...(opts.persons ?? [])])];
   const note = opts.note?.replace(/[\p{Cc}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 500) || b.note;
-  const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && i.state === "new");
+  const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && !i.retracted && i.state === "new");
   // by folder, in the order they came; each folder in parts of about 25
   const byFolder = new Map<string, Input[]>();
   for (const i of inputs) byFolder.set(folderOf(i.path), [...(byFolder.get(folderOf(i.path)) ?? []), i]);
@@ -292,7 +292,8 @@ export function batchStatus(tree: Tree): Record<string, unknown>[] {
   const kept = actsAsArchive(tree);
   const out: Record<string, unknown>[] = [];
   for (const b of listBatches(tree.root)) {
-    const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i);
+    // a file deleted for good is no file of the batch any more
+    const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && i.retracted?.reason !== "deleted");
     const sorted = inputs.filter((i) => i.sorted || i.state !== "new").length;
     if (Date.parse(b.updated) < month && (kept || sorted === inputs.length)) continue;
     const persons = [...new Set(inputs.flatMap((i) => [...(i.persons ?? []), ...(i.sorted?.persons ?? [])]))];

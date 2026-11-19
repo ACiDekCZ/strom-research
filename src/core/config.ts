@@ -88,6 +88,10 @@ export interface UserConfig {
   queueSuggestLines?: string;
   queueSuggestTasks?: number;
   queueSuggestPersons?: number;
+  /** The books most tasks need (spec 105): how many tasks a book needs to be offered to download (books.minTasks). */
+  booksMinTasks?: number;
+  /** After a session in a book on disk, the next task of that book (queue.sameBook): no (default) or yes. */
+  queueSameBook?: string;
   /** Ask the user before a connector runs: off (default) or on. */
   connectorsConsent?: string;
   /** The route chosen for a connector (strom connector use): its images come directly or through the browser. */
@@ -262,6 +266,10 @@ export const OFF_LINE_SHARE = 10;
 /** A line proposed for a branch off the lines from so many open tasks, or so many people (queue.suggestTasks, queue.suggestPersons). */
 export const SUGGEST_TASKS = 10;
 export const SUGGEST_PERSONS = 5;
+/** A book is offered to download by hand once so many tasks need it (books.minTasks; spec 105). */
+export const BOOKS_MIN_TASKS = 5;
+/** books.minTasks at most (a whole number). */
+export const BOOKS_MIN_TASKS_MAX = 999;
 
 export const SETTINGS: SettingDef[] = [
   { key: "home", env: "STROM_HOME", tree: false, kind: "path", description: "folder with the trees and shared data" },
@@ -302,6 +310,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "queue.offLineShare", env: "", tree: true, kind: "number", description: `with queue.offLine occasional: one task off the lines in so many sessions (default ${OFF_LINE_SHARE}, a whole number from 2)` },
   { key: "queue.suggestLines", env: "", tree: true, kind: "choice", choices: ["yes", "no"], description: "a line proposed for a branch off the lines that grows (What waits for you, the Strom app): yes (default), no" },
   { key: "queue.suggestTasks", env: "", tree: true, kind: "number", description: `the open tasks of a branch off the lines from which a line is proposed for it (default ${SUGGEST_TASKS}; again only at twice as many after an answer)` },
+  { key: "queue.sameBook", env: "", tree: true, kind: "choice", choices: ["no", "yes"], description: "after a session in a book that is on disk, the next task of the same book first (at most 5 sessions in a row in one book; the person's own turn, the lines and the work off the lines still go first): no (default — the agent is only told which other tasks need the book) or yes" },
+  { key: "books.minTasks", env: "", tree: true, kind: "number", description: `how many tasks a book needs to be offered to download by hand (strom task books, the Strom app's "Speed up by downloading"): default ${BOOKS_MIN_TASKS}, a whole number from 1 to ${BOOKS_MIN_TASKS_MAX}` },
   { key: "queue.suggestPersons", env: "", tree: true, kind: "number", description: `the people of a branch off the lines from which a line is proposed for it (default ${SUGGEST_PERSONS}; again only at twice as many after an answer)` },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -374,6 +384,8 @@ const FIELDS: Record<string, string> = {
   "queue.suggestLines": "queueSuggestLines",
   "queue.suggestTasks": "queueSuggestTasks",
   "queue.suggestPersons": "queueSuggestPersons",
+  "queue.sameBook": "queueSameBook",
+  "books.minTasks": "booksMinTasks",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
   "browser.tileWait": "browserTileWait",
@@ -543,6 +555,8 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
       if (def.key === "queue.offLineShare" && (!Number.isInteger(n) || n < 2)) throw new UsageError(`${def.key} is a whole number from 2`, { hint: `one task off the lines in so many sessions — strom config set queue.offLineShare ${OFF_LINE_SHARE}` });
       if ((def.key === "queue.suggestTasks" || def.key === "queue.suggestPersons") && !Number.isInteger(n)) throw new UsageError(`${def.key} is a whole number from 1`);
+      if (def.key === "books.minTasks" && (!Number.isInteger(n) || n > BOOKS_MIN_TASKS_MAX))
+        throw new UsageError(`${def.key} is a whole number from 1 to ${BOOKS_MIN_TASKS_MAX}`, { hint: `the tasks a book needs to be offered to download — strom config set books.minTasks ${BOOKS_MIN_TASKS} --for-tree` });
       if (def.key === "browser.tileWait" && (!Number.isInteger(n) || n < TILE_WAIT_MIN_S || n > TILE_WAIT_MAX_S))
         throw new UsageError(`${def.key} is a whole number of seconds from ${TILE_WAIT_MIN_S} to ${TILE_WAIT_MAX_S}`, { hint: `strom config set browser.tileWait ${TILE_WAIT_SUGGESTED_S} · back to 30 s: strom config unset browser.tileWait` });
       if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
@@ -785,6 +799,17 @@ export class Settings {
       return Number.isInteger(n) && n >= 1 ? n : fallback;
     };
     return { on: this.resolve("queue.suggestLines", tree)?.value !== "no", tasks: whole("queue.suggestTasks", SUGGEST_TASKS), persons: whole("queue.suggestPersons", SUGGEST_PERSONS) };
+  }
+
+  /** How many tasks a book needs to be offered to download by hand (books.minTasks, a whole number from 1; spec 105). */
+  booksMinTasks(tree?: TreeConfig): number {
+    const n = Number(this.resolve("books.minTasks", tree)?.value ?? BOOKS_MIN_TASKS);
+    return Number.isInteger(n) && n >= 1 && n <= BOOKS_MIN_TASKS_MAX ? n : BOOKS_MIN_TASKS;
+  }
+
+  /** After a session in a book on disk, the next task of that book first (queue.sameBook: no by default). */
+  sameBook(tree?: TreeConfig): boolean {
+    return this.resolve("queue.sameBook", tree)?.value === "yes";
   }
 
   /** The GEDCOM files to write: standard (any program), strom (the Strom app), or both. */

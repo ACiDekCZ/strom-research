@@ -302,8 +302,10 @@ zalogowany – raz uruchomić … i się zalogować**.
 
   Odpowiedź, z której logowania nie da się poznać, niczego nie rozstrzyga. Terminal: `claude`, potem `/login`;
   `strom doctor`.
+- **Od badania 1.35.0:** sprawdzenie logowania, które nie odpowie w ciągu 5 s, niczego nie rozstrzyga i kończy
+  wszystko, co uruchomiło, także w Windows, gdzie program agenta mógł wcześniej działać dalej.
 
-<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 -->
+<!-- zdroj: research:src/commands/session.ts:916 loggedOut, :1260-1264 auth · src/core/claudedir.ts claudeConfigSet :33, forClaude, claudeLoggedIn :91 · gate.ts:253-258 loggedIn · CHANGELOG.cs.md 1.25.2 · 1.34.0 (K040): src/core/agentcli.ts requireClaudeLogin, agentLoggedOut (agent.logged-out) · src/commands/readers.ts refuseReadersLoggedOut, readerAuthSaid · src/commands/read.ts · src/commands/session.ts loggedOut bez claudeConfigSet · src/commands/setup.ts doctor login (ne v archivu) · assets/lang/*.json ui.read.auth, ui.doc.login*, ui.error.agent.logged-out* · CHANGELOG 1.34.0 · 1.35.0: research:bb79ee54 src/core/claudedir.ts AUTH_STATUS_MS 5000, claudeLoggedIn přes src/core/runsync.ts runSync (win32 taskkill /T /F, jinde skupina procesů) · CHANGELOG.cs.md 1.35.0 „Windows: po kontrole přihlášení nic neběží dál“ -->
 
 <a id="R7.8"></a>
 ## R7.8 Archiwum Strom: badanie, nad którym agent nie pracuje
@@ -342,16 +344,19 @@ Badanie, którego agenta nie ma na tym komputerze (niezainstalowany albo badanie
 na niego. Do tego czasu zachowuje się jak Archiwum Strom.
 
 - **Pilnuje kod:**
-  - to, co wyśle aplikacja, zapisuje się jak w archiwum; dla agenta nic nie powstaje, a praca agenta jest odrzucana
+  - to, co wyśle aplikacja, zapisuje się jak w archiwum; agent nic nie dostaje, a praca agenta jest odrzucana
     ze zdaniem, że badanie czeka na agenta, i gdzie go zainstalować albo wybrać innego;
-  - zapisany tryb się nie zmienia, a zadania nie są odkładane. Po instalacji agenta badanie samo kontynuuje
+  - zapisany tryb się nie zmienia, a zadania, które badanie miało, nie są odkładane. Po instalacji agenta badanie samo kontynuuje
     z zadaniami, które miało;
   - agent, który właśnie pracuje w badaniu (także inny niż ustawiony), czyni je badaniem.
 - **Dlaczego:** archiwum to wybór człowieka i strom go za niego nie zapisze. Badanie bez agenta tylko zachowuje się
-  jak archiwum, więc po instalacji agenta samo kontynuuje z zadaniami, które miało; żadne nie jest odłożone.
+  jak archiwum, więc po instalacji agenta samo kontynuuje z zadaniami, które miało.
 - **Obsługa:** terminal: menu, pierwsza pozycja (**Zostaw tylko jako Archiwum Strom: przechowywanie danych z aplikacji
   Strom** albo instalacja agenta); `strom mode` pokazuje stan. Aplikacja pokazuje takie badanie jako **Archiwum**
   ([S1.3](S1-connecting-app-and-research.md#S1.3)).
-- **Obowiązuje od:** badanie 1.15.0
+- **Obowiązuje od:** badanie 1.15.0; 1.35.0: nowe zadania odłożone
+- **Od badania 1.35.0:** zadanie, które w międzyczasie przyjdzie (do wysłanego materiału, skan do odczytania), powstaje
+  odłożone jak w archiwum. Do kolejki wraca, gdy tylko agent zacznie pracować nad badaniem (początek sesji,
+  `strom run`, czat; także inny niż ustawiony), albo gdy ustawiony agent jest znów na komputerze.
 
-<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 -->
+<!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->

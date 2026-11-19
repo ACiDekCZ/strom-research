@@ -163,10 +163,19 @@ w [R3.5.1](R3-verification-and-citation.md#R3.5.1).
     przy dwóch takich samych wydarzeniach jednej osoby (ten sam typ, dzień i źródło), których nic z tego nie
     rozróżnia, notatka nie jest brana przy żadnym. Drzewo z aplikacji bez zmian nie zmienia żadnej notatki.
   - **Notatka uczestnika:** notatki uczestnika wydarzenia (chrzestnego, świadka…) z aplikacji badanie 1.34.0 nie
-    bierze, także z aplikacji 3.29.0: drzewo zapisane w aplikacji w starszej wersji może mieć dłuższą notatkę
-    uczestnika skróconą, a badanie skróciłoby ją również.
+    bierze; od badania 1.35.0 bierze ją według [S2.3.2](#S2.3.2).
+  - **Notatki zapisane do podobnego wydarzenia:** `strom sync` badania starszego niż 1.34.0 mógł zapisać do wydarzenia
+    notatkę innego wydarzenia tej samej osoby lub rodziny o tym samym typie, dniu, miejscu i wartości, a do uczestnika
+    jego notatkę skróconą przez aplikację 3.28.0. Badanie 1.34.0 naprawia to samo i raz, przy pierwszym uruchomieniu
+    nowej wersji albo przy starcie mostu, gdy nikt nie pracuje nad drzewem; jeśli jest co naprawić, najpierw robi kopię
+    zapasową badania. Przywraca notatkę taką, jaka była przed wysłaniem, a zapisana zostaje w historii notatki.
+    Notatkę wydarzenia zmienioną od tamtego wysłania zostawia tak, jak jest.
+    - **Od badania 1.35.0:** na każdą tak zostawioną notatkę czeka zadanie dla człowieka, w **Co czeka** i w
+      aplikacji ([R6.2](R6-awaiting-action.md#R6.2), [S4.4](S4-research-from-the-app.md#S4.4)): „Sprawdzić notatkę
+      {wydarzenie} ({osoba}): wysyłka z aplikacji Strom wpisała tam notatkę podobnego faktu”. Zadanie podaje notatkę
+      przed wysłaniem, co wysyłka zapisała, i notatkę teraz. Wcześniej mówił o tym tylko wiersz w historii.
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) -->
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 · src/core/config.ts:285 sync.review · src/core/live.ts accepts() :1455 sync.auto write|off|mirror · app:src/ui/research-sync-ui.ts :1-21 · strings.ts sync.statePendingSub, sync.flyConflict, sync.showConflicts, sync.decideInResearch, sync.writtenConflictsSub, treeSettings.effectReview · 1.32.0: research:ac489205 src/core/sync.ts readStromJson (appPersonEvent, appParticipants; fact.new, fact.part, fact.share), research:f8eb2032 note.correct (zkrácená poznámka → celá), research:01125661 (NFD zkrácená poznámka), dirigent:prace/1113-vyzkum-json-intake-drobnosti bod 5 (vynechané osoby 1.31 → nové), postřeh 2 (sync poznámek událostí a účastníků) · 3.28.0: app:80c2ffb9 src/research-link.ts keepEventShares, EVENT_SHARE_FEATURE event.share, eventMatchKey · 1.34.0: research:4cfc233c src/core/sync.ts fact.note, fact.part.note (noteEdits, pick, smazání nic), dirigent:prace/1115-vyzkum-095-cli-drobnosti B1 · párování podle čísla: src/core/sync.ts planSync (byId `2 _STROM_EID`, sure), poznámka účastníka: src/core/stromapp.ts APP_SENDS_PART_NOTES undefined (dirigent:prace/1115-release-vyzkum-1.34.0 Průběh 22:02) · poznámky k podobné události: research:7a556be2 src/core/notefix.ts settleNotes, noteFixes (alike: druh, datum, místo, hodnota; wrongPartNote cut: aplikace před 3.29.0, poznámka > 200 B), applyNoteFixes (noteEdits, marker twin-notes-1), backupBeforeNotes; src/cli/main.ts (první spuštění verze), src/core/live.ts (start mostu) · 1.35.0: research:bb79ee54 askLeftNotes (origin sync:notes-left, waiting, kind other), assets/lang/cs.json notes.left.* · CHANGELOG.cs.md 1.35.0 „Poznámka změněná po odeslání z aplikace“ · dirigent:prace/1116-vyzkum-po-134 bod 2 -->
 
 <a id="S2.3.1"></a>
 ### S2.3.1 Cytat główny i usunięty cytat z aplikacji
@@ -206,6 +215,49 @@ Cytat główny ([A3.2.2](A3-evidence-in-the-app.md#A3.2.2)) i cytat usunięty z 
 - **Obowiązuje od:** aplikacja 3.29.0 z badaniem 1.34.0
 
 <!-- zdroj: research:355df0a5 src/core/sync.ts fact.main (op event.main, _STROM_HEAD: zrušení), fact.uncite (jen s HEAD, APP_SENDS_UNCITE, BIRT/DEAT/LifeEvent/MARR/události páru/DIV; cite.notCarried, cite.sourceRemoved, cite.olderApp, fact.noMatch, main.notCarried), :5268 · src/core/stromapp.ts:806-820 APP_READS_MAIN_CITATION, APP_SENDS_UNCITE, APP_DATA_MAIN_CITATION 21 · src/core/live.ts features citations.order, citations.main, citations.remove, sync.notWritten.codes · 4cd81f14 (vrácení) · app:src/citation-gates.ts · ZADANI_VYZKUM_hlavni-citace.md 3.2, 4.1, Upřesnění 3 a 5, V6, V7 · spec 095 K2, K3 -->
+
+<a id="S2.3.2"></a>
+### S2.3.2 Notatka uczestnika z aplikacji
+
+Bliższe określenie chrzestnego, świadka lub innego uczestnika wydarzenia (pole **Bliższe określenie (rzemiosło,
+„sąsiad”…)**, [A10.5](A10-shared-events.md#A10.5)) zmienione w aplikacji badanie przejmuje jako zmianę użytkownika,
+tak jak notatkę wydarzenia ([S2.3](#S2.3)): notatkę, której badanie przy uczestniku nie ma, uzupełni; notatkę, którą
+użytkownik od ostatniego przekazania zmienił, poprawi; notatkę zmienioną od tego czasu także w badaniu, albo bez
+znanego przekazania, zostawi do wyboru. Zmianę można cofnąć ([S2.7](#S2.7)).
+
+- **Skąd:** z pliku GEDCOM aplikacji 3.29.0 i nowszej oraz z pliku JSON aplikacji z wersją danych 21 i wyższą,
+  z pliku i z tego, co aplikacja wysyła wprost przez most. Ze starszej aplikacji albo z pliku, który nie podaje swojej
+  wersji, notatka uczestnika nie jest brana.
+- **Krótsza notatka:** notatka, która jest tylko początkiem notatki badania, nigdy nie jest przejmowana sama. Drzewo
+  zapisane w aplikacji 3.28 niesie dłuższą notatkę uczestnika skróconą także w nowszej aplikacji, a badanie nie
+  rozpozna, czy skróciła ją aplikacja, czy użytkownik. Za początek liczy się też cięcie między literą a jej znakiem
+  diakrytycznym („sedla” z „sedlák”) i złamany znak na końcu.
+  - krótsza niż notatka badania: `strom sync` mówi to wierszem
+    `nie przejęta: krótsza niż w badaniu — czy ją przejąć, czeka w „Czeka“`, a zapis zakłada zadanie czekające na
+    człowieka „Notatka z aplikacji Strom przy {wydarzenie} ({osoba}), {kto}, jest krótsza niż w badaniu – przejąć
+    czy zachować?” z obiema notatkami. Zadanie jest w **Co czeka** i w aplikacji
+    ([S4.4](S4-research-from-the-app.md#S4.4)). Aplikacja 3.30.0 ma w **Co zostało zapisane** ([S2.5.1](#S2.5.1))
+    wiersz „krótsze bliższe określenie chrzestnego lub świadka nieprzyjęte: badanie pyta w „Czeka na załatwienie”,
+    czy je przyjąć”;
+  - krótsza tylko niż to, co aplikacja dostała od badania (badanie w międzyczasie notatkę zmieniło): nic się nie
+    zapisuje i nikt nie jest pytany.
+- **Pyta raz:** to samo drzewo wysłane ponownie nie zakłada nowego zadania, także po decyzji. Cofnięcie wysłania
+  ([S2.7](#S2.7)) odrzuca zadanie, które jeszcze czeka.
+- **Pytanie to nie zmiana:** `strom sync` liczy pytanie osobno od zmian badania („N zmian względem badania, N pytań
+  do rozstrzygnięcia”; gdy jest tylko pytanie, „Plik … niczego w badaniu nie zmienił: N pytanie czeka w „Czeka””).
+  To samo drzewo wysłane ponownie, dopóki pytanie czeka, mówi „Pytanie z wcześniejszego wysłania nadal czeka
+  w „Czeka”” z numerem zadania.
+- **Decyduje człowiek:** **Przejąć krótszą notatkę z aplikacji** zapisuje krótszą notatkę przy uczestniku,
+  **Zachować notatkę badania** zostawia notatkę badania; zadanie jest w obu przypadkach wykonane. Agent wykonuje
+  decyzję tylko według odpowiedzi człowieka na zadanie ([R6.6](R6-awaiting-action.md#R6.6)). Gdy notatka badania
+  zmieniła się od pytania, przejęcie niczego nie zapisuje i mówi to.
+- **Granice:** notatka, której plik już nie ma, niczego nie usuwa. Notatka jest brana tylko przy uczestniku w tej
+  samej roli i tylko przy wydarzeniu, które badanie łączy pewnie ([S2.3](#S2.3), Które wydarzenie).
+- **Obsługa:** terminal: **Co czeka** → zadanie → **Przejąć krótszą notatkę z aplikacji** albo **Zachować notatkę
+  badania**; `strom sync note T… take|keep`.
+- **Obowiązuje od:** badanie 1.35.0 (aplikacja 3.29.0, dane 21); wiersz w **Co zostało zapisane** od aplikacji 3.30.0
+
+<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes · research:7a4b3e5c src/commands/sync.ts asksPerson (otázka ≠ změna), ui.sync.title.asks / title.both / done.asks / done.asked, ui.sync.waiting; src/core/sync.ts planSync waiting (shorterWaiting) -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiwum Strom i badanie bez agenta

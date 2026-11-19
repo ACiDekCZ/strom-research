@@ -820,13 +820,18 @@ export const APP_SENDS_UNCITE: string | undefined = "3.29.0";
  * The first Strom app whose file gives the note of someone a fact names whole (the app's full check of 3.29.0, N1: the
  * 3.28.0 reads a longer note of a participant in part and sends it cut short) — a real version, not a gate, as
  * APP_SENDS_UNCITE: from it the user's edit of such a note comes back into the research (fact.part.note); of an older
- * app, or one that says no version, nothing of it. None (not set yet): never. Not 3.29.0 itself: a tree the app has
- * kept since 3.28.0 gives the note cut short under 3.29.0 too, and taken as an edit it would cut the research's.
+ * app, or one that says no version, nothing of it. None (not set yet): never. A tree the app has kept since 3.28.0
+ * gives the note cut short under 3.29.0 too: a note that is the beginning alone of the research's (or of what the app
+ * was given) is never taken as an edit (core/sync.ts cutShort) — nothing guessed.
  */
-export const APP_SENDS_PART_NOTES: string | undefined = undefined;
+export const APP_SENDS_PART_NOTES: string | undefined = "3.29.0";
 
-/** The data version of the Strom app's JSON that gives a participant's note whole (as APP_SENDS_PART_NOTES). None: never. */
-export const APP_DATA_PART_NOTES: number | undefined = undefined;
+/**
+ * The data version of the Strom app's JSON that gives a participant's note whole (as APP_SENDS_PART_NOTES): its answer,
+ * 21 — its JSON never cut it, but a tree it read from a GEDCOM in its 3.28 keeps the note cut short there too, so a note
+ * that is the beginning alone is never taken as an edit (core/sync.ts cutShort), as of its GEDCOM. None: never.
+ */
+export const APP_DATA_PART_NOTES: number | undefined = 21;
 
 /** Does a file of the Strom app of this version (its HEAD's 2 VERS) give the note of someone a fact names whole? No version said: no. */
 export function appSendsPartNotes(version: string | undefined, gate: string | undefined = APP_SENDS_PART_NOTES): boolean {

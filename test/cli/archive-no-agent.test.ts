@@ -1,6 +1,7 @@
 // A research whose agent is not on this computer waits for it and acts as an archive meanwhile (Milan's decision,
-// 2026-10-15): what the app sends is mirrored, no task is made, the bridge, the orientation and the plan say nothing of
-// an agent, a queue or a cost — and nothing is stored for it: the agent installed, it is research again with its tasks.
+// 2026-10-15): what the app sends is mirrored, a task that comes meanwhile is put aside (K1b.5), the bridge, the
+// orientation and the plan say nothing of an agent, a queue or a cost — and nothing is stored for it: the agent
+// installed, it is research again with its tasks, those put aside back in the queue once the agent works.
 // An archive is the person's choice alone, with an agent here too (the setup, the settings), and stays one.
 
 import { test } from "node:test";
@@ -96,30 +97,65 @@ test("K1.4 setup --yes + init with no agent: nothing stored, the research waits 
   w.cleanup();
 });
 
-test("K1.3 the agent installed: research again by itself — the tasks it had in place, none put aside, the stored mode never changed", opts, async () => {
+test("K1.3 the agent installed: research again by itself — what came while it waited put aside (K1b.5), back in the queue when the agent works; the stored mode never changed", opts, async () => {
   const w = new World();
   noAgent(w);
   await w.withTree();
-  // material from the family while it waits: its task waits for the agent (not put aside)
+  // material from the family while it waits: its task put aside as in an archive, with the reason why
   await w.ok(["intake", "--text", "Děda Josef byl mlynář"]);
   const open = () => Tree.open(w.cwd, w.env).list<Task>("task");
-  assert.ok(open().some((t) => t.state === "open" && !t.heldBy));
+  const held = open().filter((t) => t.state === "parked" && t.heldBy === "archive");
+  assert.ok(held.length > 0, "the task of the material put aside");
+  assert.ok(!open().some((t) => t.state === "open"), "nothing open for an agent that is not here");
+  assert.match(held[0]!.parkedReason ?? "", /čeká na svého agenta, který na tomto počítači není; do fronty se vrátí, až tu agent bude/);
   const before = commits(w);
   installAgent(w);
   assert.deepEqual((await w.ok(["mode", "--json"])).json, { mode: "research", state: "research" });
   assert.equal(stored(w.cwd), undefined, "nothing written for the agent");
-  assert.equal(commits(w), before, "nothing committed for the agent");
-  assert.ok(open().some((t) => t.state === "open" && !t.heldBy), "the tasks in place");
+  assert.equal(commits(w), before, "a look writes nothing");
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
     const st = JSON.parse((await get(`${info.url}/status?poll=1`)).body);
     assert.equal(st.accepts.agentHere, undefined, "the agent here: nothing said");
     assert.equal(st.accepts.sync.auto, "write");
+    assert.equal(st.accepts.media.tasks, "open");
     assert.equal(st.agent?.id, "claude");
     assert.ok((st.queue ?? []).length > 0, "the queue again");
   } finally {
     await w.ok(["live", "stop"]);
   }
+  for (const t of held) assert.equal(Tree.open(w.cwd, w.env).get<Task>(t.id)?.state, "open", `${t.id} back in the queue once the bridge found the agent here`);
+  assert.equal(commits(w), before + 1, "brought back in one commit");
+  assert.equal(stored(w.cwd), undefined);
+  w.cleanup();
+});
+
+test("K1b.5 a research waiting for its agent: the bridge says the tasks of what is sent are put aside; the tasks it had stay; an agent starting a session brings the rest back first", opts, async () => {
+  const w = new World();
+  installAgent(w);
+  await w.withTree();
+  await w.ok(["intake", "--text", "Babička Marie z Lhoty"]);
+  const tasks = () => Tree.open(w.cwd, w.env).list<Task>("task");
+  const had = tasks().filter((t) => t.state === "open").map((t) => t.id);
+  assert.ok(had.length > 0);
+  uninstallAgent(w);
+  noAgent(w);
+  const info = (await w.ok(["live", "start", "--json"])).json;
+  try {
+    const st = JSON.parse((await get(`${info.url}/status?poll=1`)).body);
+    assert.equal(st.accepts.media.tasks, "parked", "what the app sends meanwhile waits put aside");
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  await w.ok(["intake", "--text", "Strýc Vojtěch Lhoták, kovář"]);
+  const now = tasks();
+  for (const id of had) assert.equal(now.find((t) => t.id === id)?.state, "open", `${id}: the tasks it had stay as they were`);
+  const aside = now.filter((t) => t.state === "parked" && t.heldBy === "archive").map((t) => t.id);
+  assert.equal(aside.length, 1);
+  // an agent starts (another one than the research's own, here): the tasks put aside back first
+  installAgent(w, "codex");
+  await w.ok(["session", "start", had[0]!, "--json"], { env: { STROM_AGENT: "codex" } });
+  assert.equal(tasks().find((t) => t.id === aside[0])?.state, "open", "back in the queue for the agent at work");
   w.cleanup();
 });
 

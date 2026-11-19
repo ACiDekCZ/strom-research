@@ -11,6 +11,7 @@ import { findPack, freeRoot, INSTALL_UNIX, INSTALL_WINDOWS, packPlan, unpack, wr
 import { desktopDir, userHome } from "../core/paths.ts";
 import { safeFolderName } from "../core/text.ts";
 import { mb } from "../core/tidy.ts";
+import { ZipTooLarge } from "../core/zip.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
 import { syncAgentFiles } from "../agents/files.ts";
@@ -43,16 +44,52 @@ export function packTree(tree: Tree, shared: string, out: string, all: boolean):
   return writePack(tree, shared, out, { all, readme, say });
 }
 
+/**
+ * A package over 4 GB (ZIP64 strom does not write): one sentence in the research language — the whole folder copied
+ * takes the research along (the trees' folder with the shared one in it, else both — said as two folders, each named).
+ * The hint a program reads is the person's English hint.
+ */
+export function tooLargeError(ctx: Context, tree: Tree, shared: string): UsageError {
+  const home = ctx.settings.home()?.value;
+  const inside = (dir: string, f: string) => {
+    const r = path.relative(dir, f);
+    return !r.startsWith("..") && !path.isAbsolute(r);
+  };
+  const one = home && inside(home, tree.root) && inside(home, shared) ? ctx.display(home) : undefined;
+  const [a, b] = [ctx.display(tree.root), ctx.display(shared)];
+  const text = one ? "pack.too-large" : "pack.too-large.two";
+  const params: Record<string, string> = one ? { folder: one } : { folder: `${a}, ${b}`, a, b };
+  return new UsageError(ui("en", `ui.error.${text}`, params), { code: "pack.too-large", params, textCode: text, hint: ui("en", `ui.error.${text}.hint`) });
+}
+
+/** The package written, or the sentence why it cannot be (over 4 GB). */
+export function packOrSay(ctx: Context, tree: Tree, shared: string, out: string, all: boolean): ReturnType<typeof writePack> {
+  try {
+    return packTree(tree, shared, out, all);
+  } catch (e) {
+    if (e instanceof ZipTooLarge) throw tooLargeError(ctx, tree, shared);
+    throw e;
+  }
+}
+
+/** How many of the files go along are the family's photos and originals, how many archive scans, and their sizes. */
+export function splitFiles(files: { size: number; family: boolean }[]): { scans: { n: number; bytes: number }; family: { n: number; bytes: number } } {
+  const sum = (xs: { size: number }[]) => ({ n: xs.length, bytes: xs.reduce((s, x) => s + x.size, 0) });
+  return { scans: sum(files.filter((f) => !f.family)), family: sum(files.filter((f) => f.family)) };
+}
+
 register({
   path: ["pack"],
-  summary: "Pack the research into one ZIP file for someone to go on with it (the tree, the images its records stand on, the connectors)",
+  summary: "Pack the research into one ZIP file for someone to go on with it (the tree, the scans its records stand on, the family's photos, the connectors)",
   group: "research",
   tree: true,
   description:
-    "The family tree as it was last saved, with its history; the images its records stand on, the images nobody can\n" +
-    "fetch again (saved by hand, the family's material) and the connectors that fetched the others. The pages only\n" +
-    "searched through are left out — the archive gives the same scan again (strom fetch puts it back, checked);\n" +
-    "--all-images takes them too. Logins, settings and seal keys never go along. The one who gets it: strom unpack.",
+    "The family tree as it was last saved, with its history; the archive scans its records stand on, the images nobody\n" +
+    "can fetch again (saved by hand), the family's photos and originals with the batches the Strom app sent them in\n" +
+    "(name, people, note), and the connectors that fetched the others. The pages only searched through are left out —\n" +
+    "the archive gives the same scan again (strom fetch puts it back, checked); --all-images takes them too. Logins,\n" +
+    "settings and seal keys never go along. Over 4 GB is refused before anything is written: copy the whole folder\n" +
+    "instead. The one who gets it: strom unpack.",
   options: [
     { name: "out", type: "string", value: "<file.zip>", description: "where to write it (default: the desktop, named after the tree and the day)" },
     { name: "all-images", type: "boolean", description: "every image, the pages searched through too" },
@@ -68,15 +105,20 @@ register({
     if (fs.existsSync(out)) throw new UsageError(`${ctx.display(out)} is there already`, { hint: "another --out, or without it" });
     if (ctx.dryRun) {
       const plan = packPlan(tree, shared, all);
-      const bytes = plan.media.reduce((s, m) => s + m.size, 0);
-      return { text: `dry run: would pack "${tree.config.name}" with ${counted(plan.media.length, "image")} (${mb(bytes)}) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
+      const { scans, family } = splitFiles(plan.media);
+      return {
+        text: `dry run: would pack "${tree.config.name}" with ${counted(scans.n, "archive scan")} (${mb(scans.bytes)}) and ${counted(family.n, "family photo or original", "family photos and originals")} (${mb(family.bytes)}) into ${ctx.display(out)} — nothing written`,
+        data: { out, plan },
+      };
     }
-    const r = packTree(tree, shared, out, all);
-    const took = r.plan.media.reduce((s, m) => s + m.size, 0);
+    const r = packOrSay(ctx, tree, shared, out, all);
+    const { scans, family } = splitFiles(r.plan.media);
     const text = lines(
       ui(lang, "ui.pack.done", { name: tree.config.name, file: ctx.display(r.file), size: mb(r.bytes, lang) }),
       ui(lang, "ui.pack.saved"),
-      ui(lang, all ? "ui.pack.images.all" : "ui.pack.images", { n: r.plan.media.length, size: mb(took, lang) }),
+      scans.n || !family.n ? ui(lang, all ? "ui.pack.images.all" : "ui.pack.images", { n: scans.n, size: mb(scans.bytes, lang) }) : undefined,
+      family.n ? ui(lang, "ui.pack.family", { n: family.n, size: mb(family.bytes, lang) }) : undefined,
+      r.plan.batches.length ? ui(lang, "ui.pack.batches", { n: r.plan.batches.length }) : undefined,
       r.plan.left.count ? ui(lang, "ui.pack.left", { n: r.plan.left.count, size: mb(r.plan.left.bytes, lang) }) : undefined,
       r.plan.connectors.length ? ui(lang, "ui.pack.connectors", { list: r.plan.connectors.join(", ") }) : undefined,
       r.plan.left.count && r.plan.left.connectors ? ui(lang, "ui.pack.noconnector") : undefined,
@@ -146,6 +188,7 @@ register({
       const text = lines(
         ui(lang, "ui.unpack.done", { name: r.name, root: ctx.display(r.root) }),
         r.images || r.imagesHad ? ui(lang, "ui.unpack.images", { n: r.images, had: r.imagesHad ? ui(lang, "ui.unpack.had", { n: r.imagesHad }) : "" }) : undefined,
+        r.batches ? ui(lang, "ui.unpack.batches", { n: r.batches }) : undefined,
         r.connectors.length ? ui(lang, "ui.unpack.connectors", { list: r.connectors.join(", ") }) : undefined,
         ...r.connectorsKept.map((c) => ui(lang, "ui.unpack.kept", { name: c })),
         m.left.count ? ui(lang, "ui.unpack.left", { n: m.left.count }) : undefined,

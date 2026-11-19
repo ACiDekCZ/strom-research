@@ -81,8 +81,12 @@ napojení.
   - **Vložit do stromu** si nejdřív uloží zálohu stromu ([S6.5](S6-tree-from-another-program.md#S6.5)).
 - **Od aplikace 3.28.0:** řádek „Sdílené události z {program}: n převedeno (m osob)“, když soubor jiného programu
   měl společné události (`_SHAR`, [A2.1](#A2.1)).
+- **Od aplikace 3.30.0:** věta o souborech médií, které soubor jen odkazuje, je rozdělí na osoby a svazky („Soubor
+  odkazuje na 3 externí soubory médií: 2 u osob, 1 u svazků …“). Napojený obrázek rodiny se stane fotkou svazku
+  ([A12.7](A12-portrait-and-couple-photo.md#A12.7)), jen obrázek a jen u svazku, který fotku ještě nemá. Výsledek
+  napojení to spočítá: „Napojeno 3 z 3 odkazovaných souborů: 1 portrét, 1 příloha, 1 fotka svazku.“
 
-<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted -->
+<!-- zdroj: app:src/ui/import-export.ts:374 handleGedcomFile, :410 showGedcomResultDialog · app:src/ged-parser.ts:3880 statistiky convertToStrom, :3186 pohlaví · strings.ts gedcom.*, importImages.* · 3.28.0: app:80c2ffb9 strings.ts gedcom.sharedConverted · 3.30.0: app:68c232ad ExternalMediaRef.partnershipId, src/ged-media-attach.ts attachGedcomMediaFile, strings.ts gedcom.externalMediaSplit, mediaAttachedParts -->
 
 <a id="A2.2"></a>
 ## A2.2 Kódování a verze GEDCOM
@@ -114,8 +118,12 @@ Aplikace čte GEDCOM 5.5.1 i GEDCOM 7 a kódování pozná sama. Exportuje vždy
   ale uchová se tak, jak ji soubor zapsal, pro export **Zpět do {program}** ([S6.6](S6-tree-from-another-program.md#S6.6)).
   Záznam média, na který rodina odkazuje, jde zpět jako fotka zapsaná přímo u rodiny. Souhrn importu ji uvádí
   v řádku „Uchováno pro export „Zpět do {program}“…“, ne v **Nepodporováno**. Neplatí pro soubor výzkumu.
+- **Od aplikace 3.30.0:** první obrázek rodiny, který je obsažený přímo v souboru, je ve stromu **fotka svazku**
+  ([A12.7](A12-portrait-and-couple-photo.md#A12.7)); přednost má obrázek označený `_PRIM`. Ostatní obrázky rodiny se
+  uchovají pro **Zpět do {program}** jako v 3.27.0 a obrázek, který se stal fotkou svazku, se tam nezapíše podruhé.
+  Fotka rodiny odkázaná cestou k souboru se nabídne k napojení ([A2.1.1](#A2.1.1)).
 
-<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 -->
+<!-- zdroj: app:src/ged-parser.ts:1262 decodeGedcomFile, :1236 decodeAnsel, :1290–1380 předzpracování CONC/CONT, :1683 parseGedcom · app:src/ged-exporter.ts:508 exportToGedcom · index.html input accept=".ged" · 3.27.0: app:a5fc9656 src/ged-parser.ts fam.mediaLinks, keptMedia (řádky záznamu média pod rodinu o úroveň níž), extraBlock OBJE na místě, keepsExtra (ne soubor výzkumu), convertToStrom usedMedia · CHANGELOG.cs.md 3.27.0 · dirigent:prace/1109-app-drobnosti-ged Výsledek bod 5 · 3.30.0: app:68c232ad src/ged-parser.ts první obrázek rodiny (_PRIM/_PRIMARY/_PERSONALPHOTO Y první) → Partnership.photo, ostatní v extras, vložený se nezapíše dvakrát -->
 
 <a id="A2.3"></a>
 ## A2.3 Jména a příjmení

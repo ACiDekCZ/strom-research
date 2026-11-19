@@ -5,6 +5,131 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.35.0
+
+*19.11.2026 · gehört zur Strom-App 3.30.0.*
+
+- **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
+  brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im
+  Menü von strom (Was wartet › die Bücher mit den meisten Aufgaben) und mit `strom task books`, jedes mit seinem
+  Archiv, seinen Jahren, wie viele Aufgaben warten, seinen Bildern auf der Festplatte und den fehlenden, den benötigten
+  Bildern, die noch nicht auf der Festplatte sind, und dem Ordner für seine Bilder. Angeboten werden nur Bücher, die
+  sich herunterladen lassen und noch nicht ganz auf der Festplatte sind: das ganze Buch, wo die Bedingungen des Archivs
+  es erlauben (mit den eigenen Worten des Archivs), sonst die Bilder, auf die Aufgaben warten. Das Herunterladen ist
+  freiwillig: ohne es liest der Agent das Buch online weiter. Der Agent erfährt zu Beginn einer Aufgabe, welche anderen
+  Aufgaben dasselbe Buch brauchen, um sie zusammen zu erledigen, und `strom task list --book` listet sie auf.
+- **Die Bücher in der Strom-App und ihre Einstellungen:** Die Brücke gibt der Strom-App die Bücher mit den meisten
+  Aufgaben und zu jedem, was davon heruntergeladen werden darf, und nennt bei jeder Aufgabe ihr Buch in dem, was wartet,
+  und in der Warteschlange. Ab wie vielen Aufgaben ein Buch angeboten wird (`books.minTasks`, Standard 5) und ob die
+  nächste Sitzung im selben Buch weitergeht (`queue.sameBook`, Standard aus: nach einer Sitzung in einem Buch, dessen
+  Bilder auf der Festplatte sind, kommt zuerst eine weitere Aufgabe desselben Buchs, höchstens 5 Sitzungen nacheinander),
+  hat jede Forschung für sich – eingestellt in der Strom-App, im Menü von strom (Einstellungen › Archive › Bücher mit den meisten Aufgaben) oder
+  mit `strom config set … --for-tree`. Ein Link aus der App öffnet den Ordner eines Buchs, ohne Terminal.
+- **Eine wartende Aufgabe unter dem zu durchsuchenden Buch:** Eine Aufgabe, die darauf wartet, dass ein Buch auf der
+  Seite eines Archivs durchsucht wird, steht in der Strom-App unter diesem Buch, nicht unter dem Buch, in dem die Spur
+  gefunden wurde: unter dem Buch, das ihr der Agent gibt (`strom task wait|edit --book`), sonst unter dem einen Buch,
+  das ihr Text nennt. Solange das Buch erst noch zu finden ist, wartet die Aufgabe unter keinem Buch, und für ihre
+  Bilder wird kein Ordner eines anderen Buchs angeboten. „Was wartet“ im Menü von strom ordnet die Aufgaben weiter
+  danach, auf wen sie warten (Archiv, Amt, Familie).
+  Eine Aufgabe, die auf von Hand gespeicherte Bilder wartet, kommt nur dann von selbst zurück, wenn ihr Warten das Buch
+  der Forschung und die Nummern der Bilder nennt (`strom task wait T… --images B…:57-58`), ein Buch je Aufgabe. strom
+  lehnt jetzt ein Warten ab, das die Bilder nur in Worten nennt, Bilder mehrerer Bücher auf einmal will oder ein Buch,
+  das die Forschung noch nicht hat, und nennt stattdessen die genauen Befehle. `strom task audit` findet so (von einer
+  älteren Version) geschriebene Wartezustände und korrigiert jeden in einem Schritt – die Aufgabe wartet auf die Bilder
+  ihres Buches, jedes weitere Buch bekommt eine eigene Aufgabe, schon gespeicherte Bilder werden gleich übernommen – mit
+  einem Weg zurück, solange sich seitdem nichts geändert hat; ein Warten lässt sich auch so lassen, wie es ist. Ein
+  Gespräch über eine solche Aufgabe (`strom chat --task`) beginnt damit, und der Agent schreibt die Korrektur erst nach
+  dem Ja der Person.
+  Die Strom-App bekommt dieselben Befunde zu jeder wartenden Aufgabe; dort lässt sich das Warten korrigieren, die
+  Korrektur zurücknehmen oder das Warten so lassen, wie es ist.
+- **Bilder eines Buchs von Hand:** Bilder, die von Hand in den Ordner eines Buchs gespeichert werden, auf das keine
+  Aufgabe wartet, nimmt strom (die Brücke oder die nächste Sitzung) nach der Bildnummer im Namen, und alle Aufgaben
+  des Buchs lesen sie von der Festplatte; JPEG-2000-Dateien eines Portals, dessen Namen das Bild × 10 zählen (MZA
+  Brünn), werden zurückgerechnet. Bei einer Aufgabe, die nicht weiß, welche Bilder eines Buchs sie braucht, wird ein
+  aus der Strom-App gesendeter Scan nicht mehr abgelehnt, wenn sein Name keine Bildnummer nennt oder mehrere (ein Jahr
+  und die Nummer eines Akts, Datum und Uhrzeit der Kamera): Er erhält die nächste freie Nummer des Buchs (nach der
+  höchsten vorhandenen), mehrere auf einmal nacheinander; eine in der App angegebene Nummer oder die eine Nummer im
+  Namen hat weiter Vorrang. Die Brücke nennt der Strom-App die nächste freie Nummer, damit die App sie anbieten kann. Eine Kopie eines gespeicherten Bilds, die ein Dateimanager angelegt hat (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`), ist das Bild, das ihre Nummer nennt; eine Datei, die nur nach ihrer Nummer benannt ist, wird nie nach der Reihenfolge auf ein anderes Bild nummeriert, und eine Datei, die derselbe Scan wie ein anderes Bild ist, wird daneben beiseitegelegt und gemeldet – nie stillschweigend gelöscht.
+  Eine von gelieferten Bildern geweckte Aufgabe kommt als Nächstes: Eine Aufgabe, die auf Bilder eines Buchs wartete,
+  kommt als nächste in die Warteschlange zurück, als wäre sie von Hand nach vorn gestellt (nach der laufenden Arbeit),
+  wenn die Bilder von der Person kommen – aus der Strom-App für sie gesendet, in ihren Ordner des gemeinsamen Eingangs
+  gespeichert oder mit `strom media add --inbox` übernommen. Mehrere auf einmal geweckte kommen alle nach vorn,
+  untereinander in der üblichen Reihenfolge. Das gilt einmal: nach einer Sitzung an der Aufgabe wieder die übliche
+  Reihenfolge. Eine anders geweckte Aufgabe (Antwort eines Archivs, Entscheidung, Brief, von einem Agenten oder
+  Downloader geladene Bilder) behält ihren Platz, und eine von Hand gesetzte Reihenfolge (ans Ende, ein nicht
+  erforschter Zweig) bleibt.
+  Das Brandenburgische Landeshauptarchiv (BLHA) nach seiner Antwort vom 18. November 2026: Einzelne Bilder seiner
+  Kirchenbuchduplikate (Rep. 5KB, CC-0) lassen sich im Browser der Person in menschlichem Tempo speichern und vom
+  Agenten lesen – nie eine Suche durch seine Datenbank, nie ein ganzes Buch; zitiert wird „BLHA, Rep. 5KB Nr. <n>“ mit
+  der Nummer des Bildes.
+- **Notizen aus der Strom-App:** Die Notiz eines Paten oder Zeugen, in der Strom-App 3.29.0 oder neuer bearbeitet, kommt
+  in die Forschung zurück, aus ihrer Datei wie aus dem, was sie direkt über die Brücke sendet. Eine Notiz, die nur der
+  Anfang der Notiz der Forschung ist (wie eine ältere App sie hielt, oder in der App gekürzt – auch zwischen einem
+  Buchstaben und seinem Akzent), wird nie von selbst übernommen: strom sync sagt es in einer Zeile, und eine Frage
+  wartet auf den Menschen (in dem, was wartet, und in der Strom-App), ob die kürzere Notiz übernommen oder die der
+  Forschung beibehalten wird. Gefragt wird einmal: derselbe Baum, erneut gesendet, fragt nichts mehr und sagt, dass die Frage weiter wartet. Wenn strom die
+  Notizen zurücksetzt, die eine Sendung der Strom-App bei einer ähnlichen Angabe geschrieben hat, bleibt eine seitdem
+  geänderte Notiz, wie sie ist, und eine Aufgabe, sie zu prüfen, wartet auf den Menschen (in dem, was wartet, und in der
+  Strom-App), nie nur eine Zeile in der Geschichte.
+- **Windows: nach der Anmeldeprüfung läuft nichts weiter, das Fenster eines Links mit Titel:** Die Prüfung, ob der Agent im Terminal angemeldet ist,
+  beendet alles, was sie gestartet hat, wenn sie zu lange dauert, und die Leser geben die Node-Warnung DEP0190 nicht
+  mehr aus.
+  Das Terminal, das ein Link der Strom-App unter Windows öffnet, trägt den Titel Strom Research (eine zweite
+  Installation mit ihrem Namen), nicht den Pfad von node.exe. `strom doctor` und der Bericht von `strom error`
+  nennen, wie viele Brücken zur Strom-App auf dem Computer laufen, zu welcher Forschung jede gehört, ihren Speicher
+  und die Summe, und kennzeichnen eine, deren Forschung es nicht mehr gibt; nichts wird beendet.
+- **Keine Änderungen, die in der Strom-App nicht gemacht wurden:** Nach dem Schreiben aus der Strom-App nennt „nicht
+  geschrieben“ weder ein Zitat einer Familie mit einem Elternteil (eine ältere Strom-App sendet es mit einer leeren
+  Heirat) noch eine Quelle der Änderungen in der Strom-App (diese Quellen bekommt die App nie) als entfernt.
+  Einen Link der Strom-App, der ein Terminal öffnet oder auf dem Computer etwas tut, bestätigt die Forschung der App,
+  sobald das Terminal da ist oder es erledigt ist – die App wartet nicht länger und meldet sich nur, wenn sich nichts
+  geöffnet hat.
+- **Das Material der Familie: im Paket für sich, mit den Stapeln, zurückgestellt, solange der Agent fehlt, Fotos und Dateien der Strom-App mit ihren Stellen im Stammbaum bewahrt:** `strom
+  pack` und das Entfernen eines Stammbaums von diesem Computer unterscheiden die Scans aus Archiven von den
+  Familienfotos und Originalen: Das Paket sagt, wie viele es von beiden enthält, und beim Entfernen wird nach den
+  Familienfotos und Originalen eigens gefragt (ohne ausdrückliches Ja bleiben sie) – niemand kann sie wieder laden. Ein
+  Paket nimmt auch die Stapel mit, in denen die Strom-App das Material der Familie geschickt hat (Name, Personen,
+  Notiz), und das Entpacken legt sie zurück. Ein Paket, das über 4 GB hätte, wird abgelehnt, bevor etwas geschrieben
+  wird, in einem Satz: Eine solche Forschung nimmt der ganze Ordner mit, kopiert. Eine Forschung, die auf ihren Agenten
+  wartet, stellt die Aufgaben zum Material, das inzwischen kommt, zurück wie ein Archiv; sie kehren in die Warteschlange
+  zurück, sobald wieder ein Agent an ihr arbeitet.
+  Porträts, Fotos eines Paares und Dateien, die in der
+  Strom-App einer Person, einem Paar, einem Ereignis oder einer Quelle angehängt sind, werden beim Senden des Stammbaums
+  aus der App in der Forschung gespeichert: jede Datei einmal (nach ihrem Inhalt), als Eintrag des Familienmaterials mit
+  Titel, Art, Datum, Notiz und ihren Stellen im Stammbaum. Ein neues Porträt behält das vorige als ältere Version. Eine
+  von einer Stelle in der App genommene Datei wird nur genommen, wenn die App alle ihre Dateien sendet, und nur, was die
+  App schon bekommen hatte (nie eine in einem anderen Fenster hinzugefügte Datei oder was die Forschung hinzufügte);
+  `strom sync undo` stellt sie zurück, die Datei selbst wird nie gelöscht. Die Forschung gibt die Dateien der Strom-App
+  mit dem Stammbaum zurück, ein Paket (`strom pack`) nimmt sie mit, ein aus der App gesendetes Original eines Paares ist
+  Material beider Partner, und ein aus der App übernommener Stammbaum bringt seine Dateien mit. Ältere Daten einer
+  Forschung brauchen nichts: Das Schema geht von selbst auf 3, nichts wird neu geschrieben.
+  Was die Strom-App vom Material zeigt, sagt, wo jede Datei
+  verwendet wird (Personen, Paare, Ereignisse, Quellen), wo aus ihr Auszüge oder Zitate wurden und welche Aufgaben sie
+  brauchen; eine von allen Stellen im Stammbaum genommene Datei erscheint als entfernt und lässt sich zurückgeben. Titel,
+  Art und Datum werden für eine oder viele Dateien auf einmal bearbeitet (`strom input edit`, auch aus der App, mit
+  einem Weg zurück), und eine einer Datei des Stammbaums hinzugefügte Person wird zu ihrer Stelle. In einer Forschung
+  mit Agent lassen sich ausgewählte Dateien von einem Leser ordnen (`strom material sort` oder aus der App): Er schlägt
+  Titel, Datum, Art und Stellen mit Grund und Sicherheit vor, schreibt nichts, überschreibt nie, was die Person
+  festlegte, und zählt zu den Lesegrenzen der App. Die Lesungen sind bezahlt: Ein Sortieren beginnt erst nach dem Ja
+  der Person (im Terminal, in einem Fenster des Systems oder im Dialog der App), nie von selbst oder durch einen Agenten.
+  Bei einer Datei, die offensichtlich nichts mit der Familie zu tun hat (ein Bildschirmfoto, ein Kassenbon, eine aus
+  Versehen hochgeladene Datei), sagt der Leser das mit seinem Grund, damit sie sich in der Strom-App ausblenden lässt;
+  von selbst wird nichts ausgeblendet oder gelöscht.
+  Eine Sortierung liest eine Textdatei (.txt, .md) als Text und beurteilt sie nach dem, was darin steht, sagt während der Arbeit, mit wie vielen Dateien sie fertig ist (die Strom-App zeigt es), und sagt bei jeder Datei ohne Vorschlag, warum (nichts gesagt, nichts Neues, ausgelassen, das Lesen schlug fehl). Ein Leser kann auch sagen, welche Datei die Rückseite eines anderen ihm gegebenen Fotos oder einer Seite ist und welches Bild das Porträt einer Person ist, damit die Strom-App es anbietet.
+  Eine Sortierung des Materials startet ohne Rückfrage nur, wenn die Brücke der Strom-App sie angenommen und signiert
+  hat; ein anders geschriebener (oder von einer älteren Version eingereihter) Eintrag startet nicht und wird in der App
+  erneut angefordert.
+  Was die Strom-App zu jeder Datei zeigt, nennt die Quellen, die aus ihr angelegt, aus ihr ausgeschnitten oder mit einem
+  Bild desselben Inhalts versehen wurden, mit den Personen, die sie zitieren, und ob ihr Stammbaum sie hat; eine Datei,
+  zu der eine Sortierung nichts vorschlug, und eine Datei mit demselben Inhalt wie eine andere werden genannt, damit sie
+  nicht erneut gesendet werden, und in einer Forschung mit vielen Bildern kommt die Liste um ein Mehrfaches schneller.
+  Bis zu 1.500 Dateien lassen sich aus der App auf einmal sortieren: in Stapeln zu 50, einer nach dem anderen, solange
+  die Brücke läuft, jeder innerhalb der Lesegrenzen der App und gezeigt, sobald er fertig ist; der ganze Lauf lässt sich
+  auf einmal anhalten. Eine Datei des Familienmaterials lässt sich endgültig löschen – nur durch die Person
+  (`strom input delete` oder in der Strom-App nach einer Liste von allem, was sie betrifft), nie durch einen Agenten:
+  Ihre Quellen behalten Text und Zitate, ihre Bilder und Ausschnitte verschwinden nur, wenn keine andere Datei und
+  keine andere Forschung denselben Inhalt hält, und sie bleibt nur in früheren Sicherungen der Forschung.
+
 ## 1.34.0
 
 *15.11.2026 · gehört zur Strom-App 3.29.0.*

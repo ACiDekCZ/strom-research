@@ -41,6 +41,15 @@ pass, never yours.
    `9a.jpg`).
 5. Where: the exact folder of the shared inbox the task shows — say it whole.
 
+The task's wait is written so that the images bring it back:
+`strom task wait T… --images B…:<numbers>` (or `--kind web --book B…` while
+the numbers are still to be found), one book per task (another book: a task of its own),
+the book a record set of the research first (`strom recordset add`). Images
+named only in words wake nothing. A task whose wait is not written so (an
+older strom took it): `strom task audit T…` says what is wrong and the fix;
+suggest it to the user and write it (`strom task audit T… --fix`) only after
+their yes in this conversation.
+
 strom takes what is saved there by itself; the task comes back once all are
 there (it says which are missing — ask for those). Saved now:
 `strom media add --inbox --waiting`. Then `strom session start T…`: its brief says how to read and record.

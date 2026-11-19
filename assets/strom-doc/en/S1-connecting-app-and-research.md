@@ -228,9 +228,11 @@ Between them the tree travels only through the bridge on this computer ([S1.1](#
   - The tree in the app and the tree in the research are two copies. The main one is the tree in the app, the research
     has its own copy, and what the research does not write is always visible in the app
     ([S2](S2-edits-from-the-app.md)).
+  - From the research 1.35.0 the research also has the portraits, couples' photos and attachments of the tree. What
+    is stored where and what is only in the browser is described in [S8](S8-where-the-data-are.md).
 - **Since:** app 3.0.0
 
-<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 -->
+<!-- zdroj: app:src/storage.ts strom-db, strom-originals · strings.ts treeSettings.principles · research:src/core/live.ts 127.0.0.1 · S8: dirigent:spec/108-kde-se-co-uklada, research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
 
 <a id="S1.9"></a>
 ## S1.9 Research on: the bridge's switch at a tree
@@ -249,6 +251,9 @@ state: on when the bridge answers, otherwise off. A bridge switched on runs unti
     nothing happens, or the research cannot be switched on from the app, the app shows the command `strom live start`
     (to run in the terminal, in the tree's folder) with the button **Copy**. An older research that cannot be
     switched off from the app likewise shows the command `strom live stop`.
+  - Meanwhile the switch shows the new state and **Turning on…** (**Turning off…**). When the bridge does not answer
+    within 30 s, the switch goes back and **The research did not respond within 30 s. Strom Research needs to be
+    started.** stands at it with the command and **Try again** ([A9.7.2](A9-using-the-app.md#A9.7.2)).
   - After the computer shuts down or restarts, the bridge is not running and does not start by itself. The user
     switches it on: **Switch on** in the research panel, or `strom live start`.
   - **Switch research off when idle** has two choices: **Until the computer shuts down** (the default) and **After 2
@@ -262,6 +267,6 @@ state: on when the bridge answers, otherwise off. A bridge switched on runs unti
   on**; **Settings** → **Research on this computer** → **Switch research off when idle**. Terminal: `strom live
   start`, `strom live stop`, `strom config set live.idleMinutes 0` (until the computer shuts down) or `120` (after
   2 hours without work).
-- **Since:** app 3.25.0, research 1.29.0
+- **Since:** app 3.25.0, research 1.29.0. The state on the switch and the sentence after 30 s since app 3.30.0.
 
-<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 -->
+<!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->

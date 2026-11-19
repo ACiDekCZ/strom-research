@@ -25,7 +25,7 @@ function put(file: string, bytes: number | string, daysAgo = 0): void {
 }
 
 /** What an older strom left in .strom: logs, views, a download cut short, sends kept, a pointer of an agent gone. */
-function gathered(root: string): { outside: string } {
+function gathered(root: string): { outside: string; linked: boolean } {
   const s = (...p: string[]) => path.join(root, ".strom", ...p);
   const image = `{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"${"QUJD".repeat(50_000)}"}}\n`;
   put(s("runs", "N0001.log"), image.repeat(3), 40); // old: goes
@@ -58,19 +58,26 @@ function gathered(root: string): { outside: string } {
   // a link out of the tree, among the views: never followed, never removed
   const outside = path.join(path.dirname(root), "outside-keep.jpg");
   put(outside, 1000, 30);
-  fs.symlinkSync(outside, s("views", "link-out.jpg"));
-  const at = new Date(Date.now() - 30 * DAY);
-  fs.lutimesSync(s("views", "link-out.jpg"), at, at);
+  // Windows without the right to make links (no administrator, no developer mode): the tree has none
+  let linked = true;
+  try {
+    fs.symlinkSync(outside, s("views", "link-out.jpg"));
+    const at = new Date(Date.now() - 30 * DAY);
+    fs.lutimesSync(s("views", "link-out.jpg"), at, at);
+  } catch (e) {
+    if (process.platform !== "win32" || (e as NodeJS.ErrnoException).code !== "EPERM") throw e;
+    linked = false;
+  }
   // what a person made: never touched
   put(path.join(root, "notes", "moje.txt"), "Babička říkala…", 400);
   put(path.join(root, "inputs", "I0001-dopis.txt"), "dopis", 400);
-  return { outside };
+  return { outside, linked };
 }
 
 test("strom tidy: what goes is shown, the person's yes takes it; the research, links out, sends taken back and what is new stay", opts, async () => {
   const w = new World();
   await w.withTree("Novákovi");
-  const { outside } = gathered(w.cwd);
+  const { outside, linked } = gathered(w.cwd);
   const has = (...p: string[]) => fs.existsSync(path.join(w.cwd, ".strom", ...p));
   // an agent cannot: nothing goes
   const agent = await w.run(["tidy"]);
@@ -109,7 +116,7 @@ test("strom tidy: what goes is shown, the person's yes takes it; the research, l
   assert.match(log, /\[image \d+ kB left out\]/);
   for (const kept of [["views", "B0001-2-bbbbbbbbbb.jpg"], ["converted", "fedcba9876543210", "1.jpg"], ["thumbs", `${"b".repeat(64)}-256.jpg`], ["excerpts", "S0001-x.jpg"], ["sync", "kept", "strom-app-undone.ged"], ["sync", "kept", "strom-app-2026-10-00.ged"], ["sync", "kept", "strom-app-2026-10-04.ged"]])
     assert.ok(has(...kept), kept.join("/"));
-  assert.ok(fs.lstatSync(path.join(w.cwd, ".strom", "views", "link-out.jpg")).isSymbolicLink(), "a link stays");
+  if (linked) assert.ok(fs.lstatSync(path.join(w.cwd, ".strom", "views", "link-out.jpg")).isSymbolicLink(), "a link stays");
   assert.ok(fs.existsSync(outside), "what it leads to stays");
   for (const f of ["notes/moje.txt", "inputs/I0001-dopis.txt", "strom.json"]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);
   assert.equal((await w.ok(["check"])).code, 0);
@@ -300,5 +307,29 @@ test("by itself, the logs are made smaller within a budget, the newest first, th
   const done = await w.run(["tidy"], { tty: true, answers: ["a"] });
   assert.equal(done.code, 0, done.out + done.err);
   assert.equal(gz().length, 9);
+  w.cleanup();
+});
+
+test("the sorts of the material that ended over 60 days ago go with their cancel mark and readers' reports; one queued, one ended lately and one being written stay", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const tree = () => Tree.open(w.cwd, { ...process.env, ...w.env });
+  const s = (...p: string[]) => path.join(w.cwd, ".strom", "sorts", ...p);
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  const sort = (id: string, state: string, days: number) => put(s(`${id}.json`), JSON.stringify({ id, state, files: ["I0001"], text: "Dopisy z Lhoty", lang: "cs", at: ago(days), since: ago(days), from: "app:sort" }), days);
+  sort("sort-20260901120000-aaaa", "done", 70);
+  put(s("sort-20260901120000-aaaa.cancel"), "x", 70);
+  put(s("sort-20260901120000-aaaa", "reader-1.md"), "## File I0001\n", 70);
+  fs.utimesSync(s("sort-20260901120000-aaaa"), new Date(Date.now() - 70 * DAY), new Date(Date.now() - 70 * DAY));
+  sort("sort-20260902120000-bbbb", "queued", 70);
+  sort("sort-20261110120000-cccc", "failed", 7);
+  put(s("sort-20260801120000-dddd.cancel"), "x", 90); // its sort gone
+  put(s("sort-20260901120000-eeee.json.123.tmp"), "{", 90); // not a sort's own file
+  const plan = tidyPlan(tree());
+  assert.deepEqual(plan.items.filter((i) => i.kind === "sorts").map((i) => path.basename(i.path)).sort(), ["sort-20260801120000-dddd.cancel", "sort-20260901120000-aaaa", "sort-20260901120000-aaaa.cancel", "sort-20260901120000-aaaa.json"]);
+  const done = await w.run(["tidy"], { tty: true, answers: ["a"] });
+  assert.equal(done.code, 0, done.out + done.err);
+  assert.match(done.out, /Dávno skončená třídění|Sorts of the material/u, done.out);
+  assert.deepEqual(fs.readdirSync(s()).sort(), ["sort-20260901120000-eeee.json.123.tmp", "sort-20260902120000-bbbb.json", "sort-20261110120000-cccc.json"]);
   w.cleanup();
 });

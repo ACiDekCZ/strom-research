@@ -38,6 +38,8 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [A8 Scalanie drzew](A8-merging-trees.md): scalanie pliku, drzewa lub widoku w nowe drzewo, parowanie osób
 - [A9 Obsługa aplikacji](A9-using-the-app.md): gdzie co jest, czytelne nazwy elementów, edycja podczas śledzenia badania, agent w aplikacji, dolny pasek na telefonie i tablecie
 - [A10 Jedno wydarzenie wielu osób](A10-shared-events.md): wspólne wydarzenie gospodarstwa (Razem z), Ujednolić, Połącz w jedno wydarzenie, chrzestni i świadkowie w życiu osoby, scalanie i starsze drzewa
+- [A11 Listy osób](A11-lists-of-people.md): lista stała, automatyczna i robocza, reguły, Zamroź, ręczna kolejność, Dodaj do listy, zapisanie jako listy, data dodania, odhaczanie gotowych, eksport listy
+- [A12 Portret i zdjęcie pary](A12-portrait-and-couple-photo.md): edytor kadrowania portretu, oryginał z etykietą Portret, Edytuj kadr, Jako portret…, zdjęcie pary i portrety z niego, gdzie je widać, eksport, GEDCOM i wersja danych 24
 
 ## S Aplikacja i badanie razem
 
@@ -48,5 +50,6 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [S5 Telefon](S5-phone.md): strona badania w telefonie, parowanie, zdjęcia partiami
 - [S6 Drzewo z innego programu](S6-tree-from-another-program.md): drzewo z MyHeritage, Gramps, FamilySearch i programów dla Windows: co się wczytuje, znaczniki wiarygodności, dane z drzewa jako wskazówki, karta Co dalej, kopie zapasowe, eksport z powrotem, ponowny import
 - [S7 Wiarygodność danych i weryfikacja według oryginałów](S7-reliability-and-verification.md): znaczniki przy danych i na karcie, Zweryfikuj przy danej, przy osobie i w drzewie, weryfikacja w kolejce badania, Potwierdź według skanu, co działa z mostem, a co bez niego
+- [S8 Gdzie są dane](S8-where-the-data-are.md): co jest tylko w przeglądarce, co jest w badaniu i w Archiwum Strom, zdjęcia i załączniki drzewa w badaniu, wskaźnik Tylko w przeglądarce, zdjęcia, których nie udało się wczytać, paczka i usunięcie drzewa
 
 Licencja: [CC BY 4.0](../LICENSE). Teksty można udostępniać i przerabiać z podaniem źródła.

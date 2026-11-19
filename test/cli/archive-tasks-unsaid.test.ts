@@ -53,12 +53,12 @@ test("an archive's material: its task put aside, never said in status, history o
   w.cleanup();
 });
 
-test("a research waiting for its agent: its open task not said in status or the history either", opts, async () => {
+test("a research waiting for its agent: its task put aside (spec 108 K1b.5), not said in status or the history either", opts, async () => {
   const w = new World();
   noAgent(w);
   await w.withTree("Čekající");
   await w.ok(["intake", "--text", "Teta Marie šila šaty"]);
-  assert.ok(Tree.open(w.cwd, w.env).list<Task>("task").some((x) => x.state === "open" && !x.heldBy));
+  assert.ok(Tree.open(w.cwd, w.env).list<Task>("task").some((x) => x.state === "parked" && x.heldBy === "archive"));
   for (const args of [["status"], ["history"]]) {
     const r = await w.ok(args);
     assert.doesNotMatch(r.out, TASK, `${args.join(" ")}:\n${r.out}`);

@@ -5,6 +5,113 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.35.0
+
+*2026-11-19 · goes with the Strom app 3.30.0.*
+
+- **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
+  put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›
+  the books with the most tasks) and with `strom task books`, each with its archive, its years, how many tasks wait,
+  its images on disk and missing, the images its tasks need and not on disk yet, and the folder for its images. Only
+  books that can be downloaded and are not whole on disk yet are offered: the whole book where the archive's terms
+  allow it (with the archive's own words), else the images the waiting tasks need. The download is optional: without
+  it the agent goes on reading the book online. The agent hears at the start of a task which other tasks need the same
+  book, to do them together, and `strom task list --book` lists them.
+- **The books in the Strom app, and their settings:** the bridge gives the Strom app the books with the most tasks and
+  what may be downloaded of each, and names each task's book in what waits and in the queue. From how many tasks a
+  book is offered (`books.minTasks`, 5 by default) and whether the next session goes on in the same book
+  (`queue.sameBook`, off by default: after a session in a book whose images are on disk, another task of that book
+  comes first, at most 5 sessions in a row) are each research's own — set in the Strom app, in strom's menu (Settings ›
+  Archives › Books with the most tasks) or with `strom config set … --for-tree`. A link from the app opens a book's folder, no terminal.
+- **A waiting task under the book to be searched:** a task that waits for a book to be searched on an archive's site
+  waits in the Strom app under that book, not under the book where the trail was found: the book the agent gives it
+  (`strom task wait|edit --book`), else the one book its words name. While the book is still to be found, the task
+  waits under no book, and no folder of another book is offered for its images. What waits in strom's menu groups the
+  tasks by whom they wait on (an archive, an office, the family) as before.
+  A task waiting for images the person saves by hand comes back by itself only when its wait names the book of the
+  research and the images' numbers (`strom task wait T… --images B…:57-58`), one book per task. strom now refuses a wait
+  that names the images only in words, the images of several books at once or a book the research does not have yet, and
+  says the exact commands instead. `strom task audit` finds the waits written so before (by an older version) and fixes
+  each in one step — the task waits for the images of its book, each other book gets a task of its own, the images
+  already saved are taken at once — with a way back while nothing has changed since; a wait can also be kept as it is. A
+  conversation about such a task (`strom chat --task`) begins with it, and the agent writes the fix only after the
+  person's yes.
+  The Strom app gets the same findings for each waiting task and can fix the wait, undo the fix or keep it as it is.
+- **Images of a book from the person:** images saved by hand into the folder of a book that no task waits on are taken
+  by strom (the bridge, or the next session) by the image number in their names, and every task of the book reads them
+  from disk; a portal's JPEG 2000 files whose names count the image × 10 (MZA Brno) are counted back. For a task that
+  does not know which images of a book it needs, a scan sent from the Strom app is no longer refused when its name
+  gives no image number, or several (a year and an act's number, a camera's date and time): it gets the book's next
+  free number (after the highest there), several at once one after another; a number given in the app, or the one
+  number in the name, still goes first. The bridge tells the Strom app the next free number, so that the app can offer
+  it. A copy a file manager made of a saved image (`33 2.jpg`, `33 - Copy (2).jpg`, `33a kopie.jpg`) is the image its number names, a file named by its number alone is never numbered by the order onto another image, and a file that is the same scan as another image is set aside beside it and said, never deleted unsaid. A task woken by the images given for it comes next: a task that waited for images of a book comes back into the
+  queue next, as if put next by hand (after the work at hand), when the images come from the person — sent for it from
+  the Strom app, saved into its folder of the shared inbox, or taken with `strom media add --inbox`. Several woken at
+  once all come forward, among them in the usual order. It holds once: after a session on the task the usual order
+  applies again. A task woken otherwise (an archive's reply, a decision, a letter, images an agent or a connector
+  downloaded) keeps its place, and an order set by hand (at the end, a branch not researched) stays.
+  Brandenburg's archive (BLHA) by its reply of 18 November 2026: single images of its church-book duplicates (Rep. 5KB,
+  CC-0) may be saved through the person's browser at a human pace and read by the agent — never a search through its
+  database, never a whole book; cited as "BLHA, Rep. 5KB Nr. <n>" with the image's number.
+- **Notes from the Strom app:** a godparent's or a witness's note edited in the Strom app 3.29.0 or newer comes back
+  into the research, from its file and from what it sends straight through the bridge alike. A note that is only the
+  beginning of the research's own (as an older app kept it, or shortened in the app — a cut between a letter and its
+  accent too) is never taken by itself: strom sync says so in one line, and a question waits for the person (in what
+  waits and in the Strom app) whether the shorter note is taken or the research's kept. It is asked once: the same tree
+  sent again asks nothing more and says that the question still waits. When strom puts back the notes that a send of the Strom app wrote to a fact alike, a
+  note changed since is left as it is and a task to check it waits for the person (in what waits and in the Strom app),
+  never only a line in the history.
+- **Windows: nothing left running after the login check, a link's window titled:** the check whether the agent in the terminal is logged in
+  ends everything it started when it takes too long, and the readers no longer print Node's warning DEP0190.
+  The terminal a link of the Strom app opens on Windows is titled Strom Research (a second installation's with its
+  name), not with the path of node.exe. `strom doctor` and the report of `strom error` say how many bridges to the
+  Strom app run on the computer, of which research each is, its memory and the sum, and mark one whose research is
+  gone; nothing is ended.
+- **No changes reported that were not made in the Strom app:** after a write from the Strom app, "not written" no
+  longer lists a citation of a family of one parent (an older Strom app sends it with an empty marriage),
+  nor a source of the edits in the Strom app (the app never gets those sources) as removed.
+  A link of the Strom app that opens a terminal or does something on the computer is confirmed to the app as soon as
+  the terminal comes up or the thing is done, so the app stops waiting at once and says only when nothing opened.
+- **The family's material: packed apart, batches along, put aside while the agent is away, the Strom app's photos and files kept with their places in the tree:** `strom pack` and taking a
+  family tree off this computer tell the archive scans apart from the family's photos and originals: the package says
+  how many of each it holds, and taking a tree off asks about the family's photos and originals on their own (they stay
+  unless the answer is yes) — nobody can fetch them again. A package carries the batches the Strom app sent the family's
+  material in (their name, people and note), and unpacking puts them back. A package that would be over 4 GB is refused
+  before anything is written, in one sentence: the whole folder copied takes such a research along. A research waiting
+  for its agent puts the tasks of the material that comes meanwhile aside, as an archive does; they come back into the
+  queue as soon as an agent works on it again.
+  Portraits, a couple's photos and the files attached to a
+  person, a couple, an event or a source in the Strom app are kept in the research when the app sends its tree: each
+  file once (by its content), as a record of the family's material with its title, kind, date, note and its places in
+  the tree. A new portrait keeps the one before as an older version. A file taken off a place in the app is taken off
+  only when the app sends all its files and only what the app had already been given (never a file added in another
+  window or what the research added), and `strom sync undo` puts it back; the file itself is never deleted. The
+  research gives the files back to the Strom app with its tree, a package (`strom pack`) carries them, a couple's
+  original sent from the app is material of both partners, and a tree adopted from the app brings its files along.
+  Older research data need nothing: the schema goes to 3 by itself, nothing rewritten.
+  What the Strom app shows of the material says where each file
+  is used (people, couples, events, sources), where it was cut into excerpts or cited, and which tasks need it; a file
+  taken off every place in the tree shows as removed and can be given back. Titles, kind and date are edited for one or
+  many files at once (`strom input edit`, also from the app, with a way back), and a person added to a file of the tree
+  becomes its place. In a research with an agent, chosen files can be sorted by a reader (`strom material sort`, or
+  from the app): it proposes a title, date, kind and places with its reason and how sure it is, writes nothing, never
+  overrides what the person set, and counts as reading in the app's limits. The readings are paid: a sort starts only
+  after the person's yes (in their terminal, a window of the system, or the app's dialog), never by itself or by an agent.
+  A file plainly not about the family (a screenshot, a receipt, a file sent by mistake) the reader says so of, with
+  its reason, so that it can be hidden in the Strom app; nothing is hidden or deleted by itself.
+  A sort reads a text file (.txt, .md) as text and judges it by what it says, says while at work how many files it is done with (the Strom app shows it), and says of every file without a proposal why (nothing said, nothing new, left out, its reader failed). A reader may also say which file is the back of another photo or page it was given, and which picture is the portrait of a person, for the Strom app to offer.
+  A sort of the material starts without asking only when the Strom app's bridge took and signed it; a record written any
+  other way (or queued by an older version) is not started and is asked for again in the app.
+  What the Strom app shows of each file names the sources made from it, cut out of it or with an image of its content,
+  with the people citing them and whether its tree has them; a file a sort left without a proposal and a file of the
+  same content as another are said, so that they are not sent again, and the list comes several times faster in a
+  research with many images. Up to 1,500 files are sorted at once from the app: in batches of 50, one after another
+  while the bridge runs, each within the app's reading limits and shown as soon as it is done; the whole run can be
+  stopped at once. A file of the family's material can be deleted for good — only by the person (`strom input delete`,
+  or in the Strom app after a list of everything it touches), never by an agent: its sources keep their text and
+  citations, its images and excerpts go only when no other file or research keeps the same content, and it remains
+  only in earlier backups of the research.
+
 ## 1.34.0
 
 *2026-11-15 · goes with the Strom app 3.29.0.*

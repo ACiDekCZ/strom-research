@@ -29,11 +29,12 @@ import { bookTuned, bookViewSizes, readingOf, treeTuning, tuningOn, type TuneSta
 import { READING_DEFAULTS } from "../core/readstats.ts";
 import { currentSession } from "../core/session.ts";
 import { knownOriginal, originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
+import { workingCopyOf } from "../core/material.ts";
 import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberFiles, numbersForTask, registeredImages, SETTLE_MS, singleBook, unsettled, type InboxWait } from "../core/inboxwait.ts";
+import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
@@ -42,6 +43,7 @@ import { bookOn, browserGate, otherWay } from "../core/webgate.ts";
 import { allows } from "../core/terms.ts";
 import { phrase } from "../core/phrases.ts";
 import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
+import { goesAhead } from "../core/queue.ts";
 
 const IMAGE_EXT = IMAGE_FILE_EXT;
 
@@ -61,13 +63,15 @@ export interface NewImage {
  * Register images of a record set: stored once by content, each with its number
  * and provenance. Tasks that waited for images of the book go back into the queue.
  */
-export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined, opts: { wake?: boolean } = {}): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[] } {
+export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined, opts: { wake?: boolean; ahead?: string } = {}): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[]; clashed: { file: string; same: string }[] } {
   // a withdrawn image is no longer known: its file can be registered again, where it belongs
   const known = new Map(tree.list<Media>("media").filter((m) => !m.retracted).map((m) => [m.sha, m]));
   const added: Media[] = [];
   const again: string[] = [];
   const restored: string[] = [];
   const clashes: string[] = [];
+  // the files of those clashes, with the image each is the same file as
+  const clashed: { file: string; same: string }[] = [];
   const copies: string[] = [];
   tree.withTreeLock(() => {
     for (const it of items) {
@@ -89,8 +93,10 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
         const said = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }) => as(m, partShown(shared, [...known.values()], m));
         // a portal whose sharpest part is the whole scan gives the image again: that is no clash
         const sameScan = k.recordset === recordset && k.image === it.image && isWhole(k.part) && isWhole(it.part);
-        if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part }))
+        if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part })) {
           clashes.push(`${said({ recordset, image: it.image, part: it.part })} is the same file as ${k.id} (${said(k)}) — not registered again: the portal may have given another book's image, or a number is wrong; check before citing either`);
+          clashed.push({ file: it.file, same: k.id });
+        }
         continue;
       }
       const stored = tree.dryRun ? it.file : storeShared(shared, it.file, sha);
@@ -129,27 +135,32 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
     }
   });
   // a fetch registering its images in batches wakes the tasks once, when it is over (wakeWaiting)
-  const woken = recordset && opts.wake !== false ? wakeWaiting(tree, recordset, added.length) : [];
-  return { added, again, restored, woken, clashes, copies };
+  const woken = recordset && opts.wake !== false ? wakeWaiting(tree, recordset, added.length, opts.ahead ? { ahead: opts.ahead } : {}) : [];
+  return { added, again, restored, woken, clashes, copies, clashed };
 }
 
 /**
  * Tasks that waited for images of a book back in the queue, now that this many of them are registered. One that asked
  * for images by their numbers comes back once all of them are there (a part: it waits on — core/inboxwait.ts says
  * which are missing); a site the person looks at, by images of the book its words name or of the one book it works in.
+ * `ahead` (the person's own images: saved into the inbox, sent from the Strom app — the time it is written with): a task
+ * that waited for images of the book (its numbers, a site with the book) goes ahead in the queue as strom task order
+ * next does, once (core/queue.ts goesAhead) — all woken at once with the one time, among them the queue's own order.
  */
-export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { except?: string } = {}): string[] {
+export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { except?: string; ahead?: string } = {}): string[] {
   const woken: string[] = [];
+  let ahead: ((t: Task) => boolean) | undefined;
   // a task that waits for images of a book is woken by that book alone, whatever other books it names; the person's
   // check of a site never (only the person answers it, as an archive's decision leaves it: core/archivewait.ts);
   // somebody's answer (a letter, the family) only by the book it waits on, never by a book it merely works in; a site
-  // the person looks at also by the one book it works in (the images saved there are what it waited for)
+  // the person looks at also by the book it is to be searched in, else the one book it works in (the images saved there
+  // are what it waited for)
   const wakes = (t: Task, b: string) => {
     if (t.awaits) return t.awaits.recordset === b;
     const kind = waitKindOf(t);
     if (kind === "check" || t.awaitsCheck) return false;
     const named = (t.waitingOn ?? "").includes(b);
-    if (kind === "web") return named || singleBook(tree, t)?.id === b;
+    if (kind === "web") return named || webWaitBook(tree, t)?.id === b;
     return kind === "letter" || kind === "family" ? named : named || t.where.includes(b);
   };
   if (count) {
@@ -161,12 +172,14 @@ export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { e
       if (want.some((n) => !have.has(n) || pending.has(`${t.id}:${n}`))) continue;
       // what it asked for, for the session that takes it up
       const note = `${counted(count, "image")} of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images})` : ""}`;
+      // the person's own images of a task that waited for them: ahead in the queue, once (a letter, the family: never)
+      const next = !!o.ahead && (!!t.awaits || waitKindOf(t) === "web") && (ahead ??= goesAhead(tree))(t);
       update<Task>(tree, t.id, "task", (x) => {
         const { awaits: _, wait: _w, sent: _s, ...rest } = x;
-        return { ...rest, state: "open", notes: [...x.notes, makeNote(tree, note)] };
+        return { ...rest, state: "open", notes: [...x.notes, makeNote(tree, note)], ...(next ? { queueAt: { do: "next" as const, at: o.ahead! } } : {}) };
       }, {
         op: "task.wake",
-        summary: `${t.id} wake: images of ${recordset} arrived`,
+        summary: `${t.id} wake: images of ${recordset} arrived${next ? " from the person — next in the queue, once" : ""}`,
       });
       woken.push(t.id);
     }
@@ -201,13 +214,20 @@ export interface TakenFolder {
   settling?: number;
   /** An image with several copies now (one saved once more): which one is the image. */
   copies?: string[];
+  /** The folder of a book the tasks need, no task waiting on it (K1.4): its tasks read the images from disk now. */
+  book?: true;
+  /** Of a book's folder: files left lying, no image number in the name (taken once named by it). */
+  left?: number;
+  /** Files that are the same scan as another image registered already: set aside, never deleted (B0408) — what each is. */
+  aside?: string[];
 }
 
 /**
  * What the person saved into the folders of tasks that wait (core/inboxwait.ts): each folder with files that settled
  * taken whole — registered as images of its book, numbered by their names or their order, the files moved into the store
- * — and the tasks it completes back in the queue. A folder that is not there yet is made (an older wait). Never a
- * folder of no waiting task, never the inbox as a whole. `folder`: that one alone.
+ * — and the tasks it completes back in the queue. A folder that is not there yet is made (an older wait). Then the
+ * folders of the books tasks still need that no task waits on (spec 105 K1.4, core/inboxwait.ts bookFolders): taken by
+ * the numbers in their names alone, never made. Never another folder, never the inbox as a whole. `folder`: that one alone.
  *
  * Under the tree's lock from the first look at the folders to the last file registered: another strom taking them at
  * the same moment (the bridge, the agent's own command) finds them taken — nothing to take, never a file gone under it.
@@ -219,7 +239,14 @@ export function takeWaiting(tree: Tree, shared: string, o: { now?: number; folde
 function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: string; downloads?: string }): TakenFolder[] {
   const out: TakenFolder[] = [];
   const byFolder = new Map<string, InboxWait[]>();
-  if (o.downloads && !tree.dryRun) fromDownloads(tree, shared, o.downloads, inboxWaits(tree));
+  // what the agent's browser saved (strom media save) is the agent's download, not the person's images
+  const agents = o.downloads && !tree.dryRun ? fromDownloads(tree, shared, o.downloads, inboxWaits(tree)) : new Set<string>();
+  // the tasks the person's images wake in this look go ahead in the queue, all with one time (core/queue.ts goesAhead)
+  const at = new Date().toISOString();
+  let saves: SaveRecord[] | undefined;
+  /** A file the person saved by hand: not moved from the downloads now, no image a save of the agent's browser was for. */
+  const persons = (ws: InboxWait[], files: string[], numbers: number[]) =>
+    files.some((f, i) => !agents.has(path.resolve(f)) && !(saves ??= loadSaves(tree.root)).some((r) => r.recordset === ws[0]!.recordset && r.n === numbers[i] && ws.some((x) => x.task === r.task)));
   for (const w of inboxWaits(tree)) {
     const key = w.folder.normalize("NFC");
     if (o.folder && key !== o.folder.normalize("NFC")) continue;
@@ -243,12 +270,12 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
     // what the tasks of the folder asked for, together
     const asked = ws.some((x) => x.want?.length) ? [...new Set(ws.flatMap((x) => x.want ?? []))].sort((a, b) => a - b) : undefined;
     const before = registeredImages(tree, w.recordset);
-    const numbered = numberFiles(files, asked, before, w.recordset);
+    const numbered = numberFiles(files, asked, before, w.recordset, bookTimes(tree, w.recordset));
     if ("problem" in numbered) {
       out.push({ ...base, added: [], woken: [], missing: (asked ?? []).filter((n) => !before.has(n)), problem: numbered.problem });
       continue;
     }
-    const r = takeFiles(tree, shared, w, files, numbered.numbers);
+    const r = takeFiles(tree, shared, w, files, numbered.numbers, persons(ws, files, numbered.numbers) ? { ahead: at } : {});
     const after = registeredImages(tree, w.recordset);
     const pending = againPending(tree);
     out.push({
@@ -258,6 +285,35 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       woken: r.woken,
       missing: (asked ?? []).filter((n) => !after.has(n) || ws.some((x) => pending.has(`${x.task}:${n}`))),
       ...(r.copies.length ? { copies: r.copies } : {}),
+      ...(r.aside.length ? { aside: r.aside.map((a) => asideLine(w, a, tree)) } : {}),
+    });
+  }
+  // the folders of the books the tasks need (K1.4): what the person saved there by hand, by the numbers in the names
+  for (const b of bookFolders(tree)) {
+    if (o.folder && b.folder.normalize("NFC") !== o.folder.normalize("NFC")) continue;
+    const files = folderFiles(path.join(shared, "inbox", b.folder));
+    if (!files.length) continue;
+    const base = { folder: b.folder, recordset: b.recordset, tasks: b.tasks, book: true as const };
+    const busy = unsettled(files, o.now);
+    if (busy.length) {
+      out.push({ ...base, added: [], woken: [], missing: [], settling: busy.length });
+      continue;
+    }
+    const numbered = numberBookFiles(files, b.recordset, b.times);
+    if ("problem" in numbered) {
+      out.push({ ...base, added: [], woken: [], missing: [], problem: numbered.problem });
+      continue;
+    }
+    // the files with a number taken; one without a number stays lying, never holding back the rest
+    const r = takeFiles(tree, shared, { task: "", recordset: b.recordset, folder: b.folder, by: "images" }, numbered.files, numbered.numbers, { ahead: at });
+    out.push({
+      ...base,
+      added: r.added.map((m) => m.image).filter((n): n is number => n !== undefined),
+      woken: r.woken,
+      missing: [],
+      ...(r.copies.length ? { copies: r.copies } : {}),
+      ...(numbered.left ? { left: numbered.left } : {}),
+      ...(r.aside.length ? { aside: r.aside.map((a) => asideLine(b, a, tree)) } : {}),
     });
   }
   return out;
@@ -269,14 +325,15 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
  * number (40.jpg) — the folder is then taken as the person's own. A name given before the mark (strom-T0007-0040.jpg)
  * only where this research's record of the save gives it: the downloads folder is every research's, another one's file
  * never taken. A copy the browser saved twice (… (1).jpg): the newest kept, the rest gone. A download still running is
- * left for the next look.
+ * left for the next look. The files moved (their paths): the agent's download, never the person's images (the queue).
  */
-function fromDownloads(tree: Tree, shared: string, downloads: string, waits: InboxWait[]): void {
+function fromDownloads(tree: Tree, shared: string, downloads: string, waits: InboxWait[]): Set<string> {
+  const moved = new Set<string>();
   let names: string[];
   try {
     names = fs.readdirSync(downloads);
   } catch {
-    return;
+    return moved;
   }
   const esc = (x: string) => x.normalize("NFC").replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const saves = loadSaves(tree.root);
@@ -336,9 +393,11 @@ function fromDownloads(tree: Tree, shared: string, downloads: string, waits: Inb
           continue; // gone meanwhile: the next look
         }
       }
+      moved.add(path.resolve(to));
       for (const f of rest) fs.rmSync(f, { force: true });
     }
   }
+  return moved;
 }
 
 /** A browser's download not finished yet: Chrome's .crdownload, Firefox's .part, Safari's .download, a .tmp. */
@@ -424,22 +483,53 @@ function waitForDownloads(tree: Tree, downloads: string, env: NodeJS.ProcessEnv)
  * the queue, but `except`), the files moved into the store, the folder gone once nobody waits on it. What takes the
  * folder (takeWaiting) and what the Strom app sends for the task (takeForTask) both register so.
  */
-function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], numbers: number[], o: { except?: string; from?: string[] } = {}): ReturnType<typeof registerImages> {
+function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], numbers: number[], o: { except?: string; from?: string[]; ahead?: string } = {}): ReturnType<typeof registerImages> & { aside: SetAside[] } {
   const book = tree.get<RecordSet>(w.recordset);
   const items: NewImage[] = files.map((file, i) => ({ file, image: numbers[i]!, url: book?.url, from: o.from?.[i] ?? path.basename(file) }));
-  const r = registerImages(tree, shared, items, w.recordset, { wake: false });
+  const r = { ...registerImages(tree, shared, items, w.recordset, { wake: false }), aside: [] as SetAside[] };
   // an image saved once more (strom media save --again) came: its new copy, or the same scan again (nothing sharper
   // to have) — what its task waited for either way
   const settled = settleAgain(tree, w.recordset, numbers);
-  r.woken.push(...wakeWaiting(tree, w.recordset, r.added.length || (settled ? r.again.length : 0), o.except ? { except: o.except } : {}));
+  r.woken.push(...wakeWaiting(tree, w.recordset, r.added.length || (settled ? r.again.length : 0), { ...(o.except ? { except: o.except } : {}), ...(o.ahead ? { ahead: o.ahead } : {}) }));
   if (!tree.dryRun) {
-    for (const f of files) fs.rmSync(f, { force: true }); // now in the store
+    // the same file as another image (another number, another book: B0408, "33.jpg" the same scan as image 2): never
+    // deleted unsaid — set aside beside it (no image's name: never taken again), what it is said (live.log, the output)
+    const clash = new Map(r.clashed.map((c) => [c.file, c.same]));
+    for (const f of files) {
+      const same = clash.get(f);
+      if (same === undefined) {
+        fs.rmSync(f, { force: true }); // now in the store
+        continue;
+      }
+      const to = `${f}.same-as-${same}`;
+      try {
+        fs.renameSync(f, to);
+        r.aside.push({ file: path.basename(to), image: numbers[files.indexOf(f)]!, same });
+      } catch {
+        // left lying as it is: said all the same
+        r.aside.push({ file: path.basename(f), image: numbers[files.indexOf(f)]!, same });
+      }
+    }
     // the folder goes once nobody waits on it; one still waiting keeps it for the rest
     const dir = path.join(shared, "inbox", w.folder);
     const still = tree.list<Task>("task").some((t) => inboxWaitOf(tree, t)?.folder.normalize("NFC") === w.folder.normalize("NFC"));
     if (!still && collectFiles([dir]).length === 0) fs.rmSync(dir, { recursive: true, force: true });
   }
   return r;
+}
+
+/** A file of the inbox that is the same file as another image (`same`), taken under `image`: set aside as `file`, kept. */
+export interface SetAside {
+  file: string;
+  image: number;
+  same: string;
+}
+
+/** What a file set aside says (live.log, strom media add --inbox): which image it was taken for, which one it is. */
+export function asideLine(t: { recordset: string }, a: SetAside, tree?: Tree): string {
+  const m = tree?.get<Media>(a.same);
+  const as = m ? `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}` : a.same;
+  return `the file for image ${a.image} of ${t.recordset} is the same scan as ${a.same} (${as}), registered already — not taken, set aside as ${a.file}: one of the two numbers is wrong (the image of ${a.same} renumbered, or the file named by its own number)`;
 }
 
 /** The saves once more (strom media save --again) of these images of a book: taken now. How many. */
@@ -481,7 +571,7 @@ export interface TakenForTask {
   /** Back in the queue now: the task, and others its book completes. */
   back: string[];
   /** How far the wait got: of the images asked for, how many are there (want: none when which ones is not known). */
-  inbox: { have: number; want?: number; missing: number[] };
+  inbox: { have: number; want?: number; missing: number[]; next?: number };
   state: Task["state"];
 }
 
@@ -537,98 +627,116 @@ export function takeForTask(tree: Tree, shared: string, env: NodeJS.ProcessEnv, 
   const tmp = fs.mkdtempSync(path.join(shared, "media", ".incoming", "task-"));
   try {
     const pics = picturesOf(tree, env, file, o.name, tmp);
-    const state = inboxState(tree, shared, t)!;
-    const numbered = numbersForTask(pics.length, { image: o.image, name: o.name, want: w.want, missing: state.missing });
-    if ("code" in numbered) {
-      const list = numbered.code === "waiting.image-unwanted" ? numbered.want : numbered.missing;
-      const said = numbered.code === "waiting.image-unwanted"
-        ? `${t.id} asks for images ${runs(list)} of ${w.recordset}, not ${o.image}${pics.length > 1 ? `–${o.image! + pics.length - 1}` : ""}`
-        : `which image of ${w.recordset} ${pics.length > 1 ? `these ${pics.length} pages are` : `${o.name} is`} is not known${list.length ? ` — missing: ${runs(list)}` : ""}: say its number (X-Strom-Image)`;
-      throw new UsageError(said, { code: numbered.code, params: { [numbered.code === "waiting.image-unwanted" ? "want" : "missing"]: runs(list), recordset: w.recordset } });
-    }
-    const numbers = numbered.numbers;
     const shas = pics.map((p) => fileSha256(p.file));
-    const media = tree.list<Media>("media").filter((m) => !m.retracted && m.recordset === w.recordset && m.image !== undefined && isWhole(m.part));
-    const lying = folderFiles(dir);
-    const clash: number[] = [];
-    const replaced: string[] = [];
-    const aside: string[] = [];
-    const take: number[] = [];
-    numbers.forEach((n, i) => {
-      const there = media.filter((m) => m.image === n);
-      const files = lying.filter((f) => numberInName(path.basename(f).replace(/\.[^.]*$/u, "")) === n);
-      if (there.some((m) => m.sha === shas[i]) || files.some((f) => fileSha256(f) === shas[i])) return;
-      if ((there.length || files.length) && !o.replace) clash.push(n);
-      take.push(i);
-    });
-    // the same file as another image already registered (another number, another book): never taken under this one —
-    // said, with which it is, so the app can tell the person (else it vanished as a copy, nothing said)
-    const known = tree.list<Media>("media").filter((m) => !m.retracted);
-    numbers.forEach((n, i) => {
-      const k = known.find((m) => m.sha === shas[i] && !(m.recordset === w.recordset && m.image === n && isWhole(m.part)));
-      if (!k) return;
-      const as = `${k.recordset ?? "no record set"}${k.image !== undefined ? `:${k.image}` : ""}${isWhole(k.part) ? "" : " (a part)"}`;
-      throw new UsageError(`image ${n} of ${w.recordset}: this file is the same as ${k.id} (${as}), taken already — nothing taken; image ${n} is another scan`, {
-        code: "waiting.image-same",
-        params: { image: String(n), same: k.id, as, ...(k.recordset ? { sameRecordset: k.recordset } : {}), ...(k.image !== undefined ? { sameImage: String(k.image) } : {}), recordset: w.recordset },
-      });
-    });
-    if (clash.length) throw new UsageError(`image ${runs(clash)} of ${w.recordset} is there already, another scan — send it again to replace it (X-Strom-Replace: 1)`, { code: "waiting.image-exists", params: { image: runs(clash), recordset: w.recordset } });
-    const out = tree.withTreeLock(() => {
-      const placed: string[] = [];
-      for (const i of take) {
-        const n = numbers[i]!;
-        for (const m of media.filter((x) => x.image === n)) {
-          const cited = tree.list<Source>("source").some((s) => !s.retracted && (s.media?.includes(m.id) || s.clips?.some((c) => c.media === m.id)));
-          if (cited) continue; // what a source cites stays; the new scan is registered beside it
-          update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: "replaced by the person's scan from the Strom app" } }), { op: "media.retract", summary: `${m.id} retracted: replaced by the person's scan of image ${n}` });
-          replaced.push(m.id);
-        }
-        if (!tree.dryRun) {
-          fs.mkdirSync(dir, { recursive: true });
-          for (const f of lying.filter((f) => numberInName(path.basename(f).replace(/\.[^.]*$/u, "")) === n)) {
-            const to = `${f}.replaced-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-            fs.renameSync(f, to);
-            aside.push(path.basename(to));
-          }
-          const target = path.join(dir, `${n}${pics[i]!.ext}`);
-          fs.copyFileSync(pics[i]!.file, target);
-          placed.push(target);
-        }
-      }
-      // the task waits on for the person's answer when it does not know which images: never woken by these
-      const r = placed.length ? takeFiles(tree, shared, w, placed, take.map((i) => numbers[i]!), { except: w.want?.length ? "" : t.id, from: take.map(() => o.name) }) : undefined;
-      if (r?.added.length) {
-        const asked = askedNow(t);
-        const at = new Date().toISOString();
-        const handed = r.added.map((m) => ({ input: m.id, by: o.by, asked, at }));
-        update<Task>(tree, t.id, "task", (x) => ({ ...x, files: [...(x.files ?? []), ...handed] }), { op: "task.files", summary: `${t.id}: images ${runs(r.added.map((m) => m.image!))} of ${w.recordset} from ${o.by === "app" ? "the Strom app" : o.by}` });
-      }
-      return r;
-    });
-    const after = tree.get<Task>(t.id)!;
-    const reg = registeredImages(tree, w.recordset);
-    const want = w.want ?? [];
-    const missing = want.filter((n) => !reg.has(n));
-    const have = want.length ? want.length - missing.length : handedImages(tree, after, w.recordset).length + folderFiles(dir).length;
-    return {
-      task: t.id,
-      recordset: w.recordset,
-      image: numbers[0]!,
-      images: numbers,
-      by: numbered.by,
-      added: out?.added.map((m) => m.id) ?? [],
-      same: !take.length,
-      replaced,
-      aside,
-      woken: (out?.woken ?? []).includes(t.id),
-      back: out?.woken ?? [],
-      inbox: { have, ...(want.length ? { want: want.length } : {}), missing: missing.slice(0, 50) },
-      state: after.state,
-    };
+    // numbered and taken under the tree's lock: two files sent at once never get the same next free number
+    return tree.withTreeLock(() => takeNumbered(tree, shared, t, w, dir, pics, shas, o));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/** takeForTask under the tree's lock: the pictures numbered, put into the task's folder and registered. */
+function takeNumbered(tree: Tree, shared: string, t: Task, w0: InboxWait, dir: string, pics: { file: string; ext: string }[], shas: string[], o: { name: string; image?: number | undefined; replace?: boolean; by: string }): TakenForTask {
+  const now0 = tree.get<Task>(t.id);
+  const w = now0 ? inboxWaitOf(tree, now0) : undefined;
+  if (!now0 || !w || w.recordset !== w0.recordset) throw new UsageError(`${t.id} waits for these images no more`, { code: "task.not-waiting", params: { id: t.id } });
+  t = now0;
+  const state = inboxState(tree, shared, t)!;
+  const numbered = numbersForTask(pics.length, { image: o.image, name: o.name, want: w.want, missing: state.missing, next: state.next });
+  if ("code" in numbered) {
+    const list = numbered.code === "waiting.image-unwanted" ? numbered.want : numbered.missing;
+    const said = numbered.code === "waiting.image-unwanted"
+      ? `${t.id} asks for images ${runs(list)} of ${w.recordset}, not ${o.image}${pics.length > 1 ? `–${o.image! + pics.length - 1}` : ""}`
+      : `it is not known which image of ${w.recordset} ${pics.length > 1 ? `these ${pics.length} pages are` : `${o.name} is`}${list.length ? ` — missing: ${runs(list)}` : ""}: say its number (X-Strom-Image)`;
+    throw new UsageError(said, { code: numbered.code, params: { [numbered.code === "waiting.image-unwanted" ? "want" : "missing"]: runs(list), recordset: w.recordset } });
+  }
+  const media = tree.list<Media>("media").filter((m) => !m.retracted && m.recordset === w.recordset && m.image !== undefined && isWhole(m.part));
+  // the next free numbers (a task that does not know which images, a name with none): a scan of the book sent again
+  // keeps the number it has — the same, only said — and only the new ones go on from the next free number
+  let numbers = numbered.numbers;
+  if (numbered.by === "order" && !w.want?.length) {
+    let k = 0;
+    numbers = shas.map((sha) => media.find((m) => m.sha === sha)?.image ?? numbered.numbers[k++]!);
+  }
+  const lying = folderFiles(dir);
+  const clash: number[] = [];
+  const replaced: string[] = [];
+  const aside: string[] = [];
+  const take: number[] = [];
+  numbers.forEach((n, i) => {
+    const there = media.filter((m) => m.image === n);
+    const files = lying.filter((f) => numberInName(path.basename(f).replace(/\.[^.]*$/u, "")) === n);
+    if (there.some((m) => m.sha === shas[i]) || files.some((f) => fileSha256(f) === shas[i])) return;
+    if ((there.length || files.length) && !o.replace) clash.push(n);
+    take.push(i);
+  });
+  // the same file as another image already registered (another number, another book): never taken under this one —
+  // said, with which it is, so the app can tell the person (else it vanished as a copy, nothing said)
+  const known = tree.list<Media>("media").filter((m) => !m.retracted);
+  numbers.forEach((n, i) => {
+    const k = known.find((m) => m.sha === shas[i] && !(m.recordset === w.recordset && m.image === n && isWhole(m.part)));
+    if (!k) return;
+    const as = `${k.recordset ?? "no record set"}${k.image !== undefined ? `:${k.image}` : ""}${isWhole(k.part) ? "" : " (a part)"}`;
+    throw new UsageError(`image ${n} of ${w.recordset}: this file is the same as ${k.id} (${as}), taken already — nothing taken; image ${n} is another scan`, {
+      code: "waiting.image-same",
+      params: { image: String(n), same: k.id, as, ...(k.recordset ? { sameRecordset: k.recordset } : {}), ...(k.image !== undefined ? { sameImage: String(k.image) } : {}), recordset: w.recordset },
+    });
+  });
+  if (clash.length) throw new UsageError(`image ${runs(clash)} of ${w.recordset} is there already, another scan — send it again to replace it (X-Strom-Replace: 1)`, { code: "waiting.image-exists", params: { image: runs(clash), recordset: w.recordset } });
+  const out = tree.withTreeLock(() => {
+    const placed: string[] = [];
+    for (const i of take) {
+      const n = numbers[i]!;
+      for (const m of media.filter((x) => x.image === n)) {
+        const cited = tree.list<Source>("source").some((s) => !s.retracted && (s.media?.includes(m.id) || s.clips?.some((c) => c.media === m.id)));
+        if (cited) continue; // what a source cites stays; the new scan is registered beside it
+        update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: "replaced by the person's scan from the Strom app" } }), { op: "media.retract", summary: `${m.id} retracted: replaced by the person's scan of image ${n}` });
+        replaced.push(m.id);
+      }
+      if (!tree.dryRun) {
+        fs.mkdirSync(dir, { recursive: true });
+        for (const f of lying.filter((f) => numberInName(path.basename(f).replace(/\.[^.]*$/u, "")) === n)) {
+          const to = `${f}.replaced-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+          fs.renameSync(f, to);
+          aside.push(path.basename(to));
+        }
+        const target = path.join(dir, `${n}${pics[i]!.ext}`);
+        fs.copyFileSync(pics[i]!.file, target);
+        placed.push(target);
+      }
+    }
+    // the task waits on for the person's answer when it does not know which images: never woken by these
+    // sent by the person (the Strom app, their terminal): the tasks they complete go ahead in the queue, once — an agent's never
+    const person = o.by === "app" || o.by === "user";
+    const r = placed.length ? takeFiles(tree, shared, w, placed, take.map((i) => numbers[i]!), { except: w.want?.length ? "" : t.id, from: take.map(() => o.name), ...(person ? { ahead: new Date().toISOString() } : {}) }) : undefined;
+    if (r?.added.length) {
+      const asked = askedNow(t);
+      const at = new Date().toISOString();
+      const handed = r.added.map((m) => ({ input: m.id, by: o.by, asked, at }));
+      update<Task>(tree, t.id, "task", (x) => ({ ...x, files: [...(x.files ?? []), ...handed] }), { op: "task.files", summary: `${t.id}: images ${runs(r.added.map((m) => m.image!))} of ${w.recordset} from ${o.by === "app" ? "the Strom app" : o.by}` });
+    }
+    return r;
+  });
+  const after = tree.get<Task>(t.id)!;
+  const reg = registeredImages(tree, w.recordset);
+  const want = w.want ?? [];
+  const missing = want.filter((n) => !reg.has(n));
+  const have = want.length ? want.length - missing.length : handedImages(tree, after, w.recordset).length + folderFiles(dir).length;
+  return {
+    task: t.id,
+    recordset: w.recordset,
+    image: numbers[0]!,
+    images: numbers,
+    by: numbered.by,
+    added: out?.added.map((m) => m.id) ?? [],
+    same: !take.length,
+    replaced,
+    aside,
+    woken: (out?.woken ?? []).includes(t.id),
+    back: out?.woken ?? [],
+    inbox: { have, ...(want.length ? { want: want.length } : { next: inboxState(tree, shared, after)?.next ?? numbers.at(-1)! + 1 }), missing: missing.slice(0, 50) },
+    state: after.state,
+  };
 }
 
 /** The tasks still waiting for images of a book by their numbers: which are missing. */
@@ -720,7 +828,12 @@ export function tidyDownloads(tree: Tree, downloads: string, now = Date.now()): 
       if (!m || !IMAGE_FILE_EXT.has(`.${m[1]!.toLowerCase()}`)) continue;
       const f = path.join(downloads, name);
       if (unsettled([f], now).length) continue;
-      if (!tree.dryRun) fs.rmSync(f, { force: true });
+      if (!tree.dryRun)
+        try {
+          fs.rmSync(f, { force: true });
+        } catch {
+          continue; // held open at this moment (Windows): the next look
+        }
       gone.push(name);
     }
   }
@@ -778,7 +891,9 @@ export function takenLines(taken: TakenFolder[]): string[] {
     return [[
       `${t.folder}/: ${t.added.length ? `images ${runs(t.added)} of ${t.recordset} registered${t.byOrder ? " (numbered by their order: the names gave none of the numbers asked for)" : ""}` : "nothing new (the same scans are registered)"}`,
       t.woken.length ? ` — back in the queue: ${t.woken.join(" ")}` : t.missing.length ? ` — ${who} still waits${t.missing.length ? ` for images ${runs(t.missing)}` : ""}` : "",
-    ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`));
+      t.book && t.added.length ? ` — the book's own folder: its tasks read them from disk (${who})` : "",
+      t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg)` : "",
+    ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`), (t.aside ?? []).map((c) => `  ⚠ ${c}`));
   });
 }
 
@@ -1370,7 +1485,7 @@ register(
       { name: "url", type: "string", value: "<url>", description: "where the images come from (portal, catalog entry)" },
       { name: "from", type: "string", value: "<text>", description: "who provided them or how they were obtained" },
       { name: "inbox", type: "boolean", description: "take the files the user put in the shared inbox (they are moved into the store); a folder there is named as the argument — one folder, one record set" },
-      { name: "waiting", type: "boolean", description: "with --inbox: take the folders of the tasks that wait for images (strom task wait --images, a site with one book) — each folder whose files settled, numbered by their names, else by their order when as many as missing; the tasks they complete come back (the bridge does it as they are saved, a session's start too)" },
+      { name: "waiting", type: "boolean", description: "with --inbox: take the folders of the tasks that wait for images (strom task wait --images, a site with one book) — each folder whose files settled, numbered by their names, else by their order when as many as missing; the tasks they complete come back (the bridge does it as they are saved, a session's start too); then the folders of the books tasks need that no task waits on, numbered by their names alone — the book's tasks read them from disk" },
       { name: "half", type: "string", value: "<side>", description: "the file is a half of image n: left, right, top or bottom (a half page saved on its own)" },
       { name: "crop", type: "string", value: "<x,y,w,h>", description: "the file is this part of image n: fractions of it, or pixels of the registered image (a detail saved from the viewer)" },
       { name: "from-input", type: "string", multiple: true, value: "<I…>", description: "inputs that are the scans of a book (a batch from the Strom app): their files registered as its images, numbered by their names" },
@@ -1530,7 +1645,7 @@ register(
       // a folder of a waiting task: numbered by the names, else by their order when as many as the images missing
       let byOrder = false;
       if (awaited && recordset && !opts.first && opts.image === undefined && !wantsPart) {
-        const numbered = numberFiles(items.map((it) => it.file), parseImageList(awaited.images), registeredImages(tree, recordset), recordset);
+        const numbered = numberFiles(items.map((it) => it.file), parseImageList(awaited.images), registeredImages(tree, recordset), recordset, bookTimes(tree, recordset));
         if ("problem" in numbered) throw new UsageError(numbered.problem, { hint: "rename the files by the image number the viewer shows (9.jpg), or --image <n> for one file", code: numbered.code, params: numbered.params });
         if (numbered.by === "order") {
           byOrder = true;
@@ -1548,7 +1663,8 @@ register(
             hint: "name each by its number as the portal's viewer counts it (9.jpg), or --image <n> for one file, --first <n> for files in order",
           });
       }
-      const { added, again, restored, woken, clashes, copies } = registerImages(tree, shared, items, recordset);
+      // what the person put into the shared inbox: the tasks it completes go ahead in the queue, once (core/queue.ts goesAhead)
+      const { added, again, restored, woken, clashes, copies } = registerImages(tree, shared, items, recordset, opts.inbox ? { ahead: new Date().toISOString() } : {});
       // the material is the book's images now: sorted, done with
       for (const i of taken) {
         const m = tree.list<Media>("media").find((x) => x.sha === i.sha && !x.retracted);
@@ -1991,7 +2107,8 @@ register({
     const px = opts.px === undefined ? 256 : Number(opts.px);
     if (!(THUMB_SIZES as readonly number[]).includes(px)) throw new UsageError(`--px: ${THUMB_SIZES.join(", ")}`, { code: "thumb.size" });
     if (!/^[0-9a-f]{64}$/.test(sha)) throw new UsageError("the file's SHA-256 (64 hexadecimal digits)", { code: "thumb.sha" });
-    const known = knownOriginal(tree, ctx.settings.shared()?.value, sha);
+    // a file of the Strom app's tree whose original is not here yet: the preview of its working copy
+    const known = knownOriginal(tree, ctx.settings.shared()?.value, sha) ?? workingCopyOf(tree, ctx.settings.shared()?.value, sha);
     if (!known) throw new UsageError(`the research has no file of the content ${sha.slice(0, 12)}…`, { code: "media.unknown", hint: "strom input list" });
     if (!known.file || !fs.existsSync(known.file)) throw new UsageError(`the file of ${known.id} is not on this computer`, { code: "media.gone", params: { known: known.id } });
     const file = makeThumb(tree.root, known.file, sha, px, ctx.env);
@@ -2027,6 +2144,7 @@ register({
     { name: "sha", type: "string", value: "<sha256>", description: "its SHA-256 (checked)" },
     { name: "name", type: "string", value: "<name>", description: "its name in the app" },
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
+    { name: "family", type: "string", multiple: true, value: "<F…>", description: "a couple it is of (repeatable): material of both partners" },
     { name: "source", type: "string", value: "<S…>", description: "the source it is an image of" },
     { name: "region", type: "string", value: "<x,y,w,h>", description: "where the entry is on it (fractions of the image)" },
     { name: "note", type: "string", value: "<text>", description: "what the user said of it" },
@@ -2048,6 +2166,7 @@ register({
     const sha = typeof opts.sha === "string" ? opts.sha.toLowerCase() : fileSha256(file);
     if (!/^[0-9a-f]{64}$/.test(sha) || fileSha256(file) !== sha) throw new UsageError("the file is not the one named: its SHA-256 differs", { hint: "send it again", code: "media.sha-differs", params: { sha: sha.slice(0, 64) } });
     const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
+    const families = (Array.isArray(opts.family) ? opts.family : opts.family ? [opts.family] : []).flatMap((f) => String(f).split(",")).map((f) => f.trim().toUpperCase()).filter(Boolean);
     const name = typeof opts.name === "string" ? opts.name : path.basename(file);
     const batch = typeof opts.batch === "string" ? opts.batch : undefined;
     const where = batchPath(typeof opts.path === "string" ? opts.path : undefined) ?? batchPath(name) ?? name;
@@ -2086,6 +2205,7 @@ register({
         return takeOriginal(tree, shared, file, sha, {
           name,
           persons,
+          ...(families.length ? { families } : {}),
           source: typeof opts.source === "string" ? opts.source.toUpperCase() : undefined,
           region: parseRegion(typeof opts.region === "string" ? opts.region : undefined),
           note: typeof opts.note === "string" ? opts.note : undefined,

@@ -48,6 +48,14 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
     assert.equal(level(h), "restricted", h);
     assert.equal(termsFor({}, h)?.browserOnly, undefined, h);
   }
+  // BLHA: its reply of 2026-11-18 lets single images be saved in a person's browser — restricted, its viewer through
+  // the browser only; its image server not closed whole (else the images would be by hand only)
+  assert.equal(level("blha-recherche.brandenburg.de"), "restricted");
+  assert.equal(termsFor({}, "blha-recherche.brandenburg.de")?.browserOnly, true);
+  assert.equal(termsFor({}, "blha-recherche.brandenburg.de")?.quoteFrom, "reply");
+  assert.match(termsFor({}, "blha-recherche.brandenburg.de")?.scope ?? "", /BLHA, Rep\. 5KB Nr\. <n>/u);
+  assert.equal(level("blha-digi.brandenburg.de"), "restricted");
+  assert.deepEqual(knownDisallow("blha-digi.brandenburg.de"), []);
   // Matricula: allowed, not for a person's browser only (its robots.txt group for AI crawlers is no agent's own web tool)
   assert.equal(level("data.matricula-online.eu"), "allowed");
   assert.equal(termsFor({}, "data.matricula-online.eu")?.browserOnly, undefined);

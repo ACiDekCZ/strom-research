@@ -31,6 +31,15 @@ export const MIGRATIONS: Migration[] = [
     what: "the operations of each commit in a file of its own",
     run() {},
   },
+  {
+    // 1.35: the material's records (data/inputs) may carry the Strom app's places in the tree — a portrait, a couple's
+    // photo, an attachment of a person, a couple, an event or a source (origin, links, working …). An older strom would
+    // take portraits and couples' photos for a person's material and show them there. Nothing is rewritten: the records
+    // written before mean what they meant.
+    to: 3,
+    what: "the material's records may carry the Strom app's places in the tree",
+    run() {},
+  },
 ];
 
 /** Bring the tree to the target schema; returns what was done, one line a step. */

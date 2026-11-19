@@ -138,6 +138,19 @@ export function verifyOp(op: Record<string, unknown>, key: Buffer): boolean {
   return typeof op.sig === "string" && safeEqual(op.sig, signOp(op, key));
 }
 
+/**
+ * A record strom keeps beside the tree (outside its history) signed with the tree's key, so that only a strom of this
+ * computer could have written it — an agent of the tree has no key. `kind` keeps the signature apart from an
+ * operation's and a commit's seal: neither is ever one of these.
+ */
+export function signRecord(key: Buffer, kind: string, value: unknown): string {
+  return crypto.createHmac("sha256", key).update(`${kind}\n${JSON.stringify(canonicalize(value))}`).digest("hex");
+}
+
+export function verifyRecord(key: Buffer, kind: string, value: unknown, sig: unknown): boolean {
+  return typeof sig === "string" && safeEqual(sig, signRecord(key, kind, value));
+}
+
 export const SEAL_TRAILER = "Strom-Seal";
 
 export function commitSeal(key: Buffer, treeHash: string): string {

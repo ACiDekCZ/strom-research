@@ -57,6 +57,7 @@ import { updateChannel } from "../core/update.ts";
 import { isAgent } from "../core/which.ts";
 import { readAskedData, type DataAdded, type DataAsked } from "../core/reportdata.ts";
 import { doctorChecks } from "./setup.ts";
+import { bridgesHere, type BridgesHere } from "../core/bridgeprocs.ts";
 
 /** The size a report keeps within (spec 070 K1.6): past it its logs are trimmed further. */
 export const REPORT_MAX_BYTES = 2 * 1024 * 1024;
@@ -114,11 +115,12 @@ register({
   group: "setup",
   description:
     "The report: this computer and the installation, strom doctor, the agents and their versions, the connectors, the\n" +
-    "bridge to the Strom app, the research in numbers only (counts, strom check, git, downloads, sessions) and strom's\n" +
-    "technical logs of the last days, with the commands that ended with an error. Names, places, notes, paths with the\n" +
-    "user's name and e-mails are replaced by codes; logins, keys and tokens never go. The ZIP goes to the downloads\n" +
-    "folder (else the current one); strom sends nothing — the user sends it. Nothing in the research is written. A note\n" +
-    "(--note) goes as written: only names the research knows are replaced in it.\n" +
+    "bridge to the Strom app and the bridges running on this computer (each one's memory), the research in numbers only\n" +
+    "(counts, strom check, git, downloads, sessions) and strom's technical logs of the last days, with the commands that\n" +
+    "ended with an error. Names, places, notes, paths with the user's name and e-mails are replaced by codes; logins,\n" +
+    "keys and tokens never go. The ZIP goes to the downloads folder (else the current one); strom sends nothing — the\n" +
+    "user sends it. Nothing in the research is written. A note (--note) goes as written: only names the research knows\n" +
+    "are replaced in it.\n" +
     "\n" +
     REPORT_TABLE,
   options: [
@@ -225,7 +227,7 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
         );
     }
 
-    const shown: string[] =["system", "config", "doctor", ...(archive ? [] : ["agents"]), "connectors", ...(root ? ["bridge", "research", "logs"] : others.length ? ["research"] : []), "commands", ...about.filter((a) => !(archive && a === "agent"))];
+    const shown: string[] =["system", "config", "doctor", ...(archive ? [] : ["agents"]), "connectors", "bridges", ...(root ? ["bridge", "research", "logs"] : others.length ? ["research"] : []), "commands", ...about.filter((a) => !(archive && a === "agent"))];
     const label = (name: string) => t(`ui.report.area.${archive && (name === "commands" || name === "research") ? `${name}.archive` : name}` as UIKey, { since: new Date(sinceMs).toISOString().slice(0, 10) });
 
     // the person at a terminal sees what goes in and says yes (K1.4); --yes, an agent, a script: made at once
@@ -252,6 +254,15 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
       }
     }
     for (const k of others) masker.addTerms([k.name], { weak: true });
+    // the bridges running on this computer (K046), read once: their researches' folder names masked like the research's
+    let known: { name: string; root: string }[] = others;
+    try {
+      known = ctx.knownTrees();
+    } catch {
+      // only those found above
+    }
+    const bridges = bridgesHere(known, { env });
+    masker.addTerms(bridges.list.flatMap((b) => (b.name ? [b.name] : [])), { weak: true });
 
     const config = ctx.settings.config as unknown as Record<string, unknown>;
     const shared = ctx.settings.shared()?.value;
@@ -284,7 +295,11 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
         const quiet = new Context({ env, cwd: ctx.cwd, io: { stdout: () => undefined, stderr: () => undefined, tty: false }, flags: {}, json: true, yes: true, tree: ctx.treeFlag });
         quiet.readOnly = true;
         quiet.langShown = "en";
-        const d = doctorChecks(quiet);
+        // every research by its code, as the bridges area says them (the bridges', the family trees', each one's
+        // history, disk and check): a folder named by a word of strom's ("Beta", "update") is no weak term the text's
+        // masking would leave nor a word its arguments' masking keeps
+        const coded: BridgesHere = { ...bridges, list: bridges.list.map((x) => (x.name ? { ...x, name: masker.code(x.name) } : x)) };
+        const d = doctorChecks(quiet, { bridges: coded, name: (n) => masker.code(n) });
         return {
           ok: d.ok,
           checks: d.checks.map((c) => ({ ...c, detail: masker.text(c.detail), ...(c.fix ? { fix: masker.text(c.fix) } : {}) })),
@@ -294,6 +309,7 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
     );
     if (!archive) fixed.push(readArea("agents", masker, () => agentsArea(env, config, root, masker)));
     fixed.push(readArea("connectors", masker, () => connectorsArea(env, shared, root, masker)));
+    fixed.push(readArea("bridges", masker, () => bridgesArea(bridges, root, masker)));
     if (root) {
       const r = root;
       fixed.push(readArea("bridge", masker, () => ({ ...bridgeArea(r, masker), ...(config.stromAppSeen ? { appSeen: configArea({ stromAppSeen: config.stromAppSeen }, { archive }).stromAppSeen } : {}) })));
@@ -486,4 +502,24 @@ function dataText(lang: string, added: DataAdded[]): string {
 /** Where the problem happened, as a person says it (an archive's terminal: no word of an agent). */
 function whereLabel(lang: string, where: ReportWhere, archive: boolean): string {
   return ui(lang, archive && where === "terminal" ? "ui.report.where.terminal.archive" : (`ui.report.where.${where}` as UIKey));
+}
+
+/**
+ * The bridges running on this computer for the report (K046): how many, each one's memory, the sum — each research named
+ * by its code (this one: "this"), never a path; whether the table could be read at all.
+ */
+export function bridgesArea(b: BridgesHere, root: string | undefined, masker: Masker): Record<string, unknown> {
+  const here = root ? path.resolve(root) : undefined;
+  return {
+    read: b.read,
+    running: b.list.length,
+    memory: b.rss,
+    unmeasured: b.unmeasured,
+    each: b.list.map((x) => ({
+      pid: x.pid,
+      ...(x.rss !== undefined ? { memory: x.rss } : {}),
+      state: x.state,
+      ...(x.root && here && path.resolve(x.root) === here ? { research: "this" } : x.name ? { research: masker.code(x.name) } : {}),
+    })),
+  };
 }

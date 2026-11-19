@@ -238,10 +238,10 @@ test("a task waiting for the images of its book comes back when they are registe
   await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
   await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
   assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the user saves them by hand \(never scrape an archive\): strom task wait <T…> --images B0001:<numbers> --on "<for the user, impersonal, in the research language/);
-  await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001 in the inbox"]);
+  await w.ok(["task", "wait", "T1", "--kind", "web", "--book", "B1", "--on", "the images of B0001 in the inbox"]);
   assert.equal((await w.ok(["task", "next", "--json"])).json.task, null, "a waiting task is not offered");
   // the user sees what the research waits for
-  for (const cmd of [["status"], []]) assert.match((await w.ok(cmd)).out, /čeká \(1\)\n  T0001  images 1–3 of B0001 in the inbox\n  snímky patří do schránky \(inbox\), pro každou knihu vlastní složka, každý pojmenovaný číslem snímku/);
+  for (const cmd of [["status"], []]) assert.match((await w.ok(cmd)).out, /čeká \(1\)\n  T0001  the images of B0001 in the inbox\n {9}snímky knihy B0001 [^\n]* vrátí úkol samy[^\n]*\n  snímky patří do schránky \(inbox\), pro každou knihu vlastní složka, každý pojmenovaný číslem snímku/);
   assert.match((await w.ok([])).out, /dál\s+strom task list --state waiting/);
   const r = await w.ok(["media", "add", scans, "--recordset", "B1"]);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
