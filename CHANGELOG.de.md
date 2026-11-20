@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -62,17 +62,18 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   stillschweigend ab: `strom doctor`, `strom run` und `strom allow archive` sagen, seit wann, warum und was die Liste
   sagt, Was wartet und die Strom-App fragen die Person einmal, ob die Stufe bleibt oder die Bedingungen des Archivs
   gelten (`strom allow archive <host> --keep` oder `--level <Stufe>`), danach kehren nur die Aufgaben zurück, die die
-  neue Stufe öffnet; vor einem Downloader oder Archiv, das strenger als die Liste eingetragen ist, wird gewarnt; eine
-  mit `strom task audit --fix` abgetrennte Aufgabe nennt die Bilder des Buchs mit dessen Titel, ohne ID und Verb; `strom
-  task wait --images` erneut für dasselbe Buch angegeben, fügt dessen Bilder zusammen (ein anderes Buch wird abgelehnt:
-  ein Buch je Aufgabe); zwei Versuche der Sammelprüfung nacheinander kommen in der Reihenfolge, in der sie angefordert
-  wurden, der ältere zuerst; die Bedingung der Abo-Limits liest sie in ein, zwei Sekunden, ohne die auf dem Computer
-  gespeicherten Unterhaltungen zu durchsuchen; in der Strom-App zeigt jede Quellenangabe eines Stammbaums wieder ihre
-  eigene Zeile des Stammbaums (ein Verweis, den ein Import angelegt hat, bleibt außen vor), und eine nur aus den
-  erfassten Scans bekannte Bildnummer ist als solche gekennzeichnet, sodass die App sie zur Fundstelle hinzufügt, ohne
-  die Nummer eines anderen Bildes daraus zu entfernen. `strom pack` und `strom trees remove` nennen die Scans der
-  Archive als Scans (welche mitgehen, welche weggelassen werden), und die Sicherung vor dem Entfernen sagt, dass sie die
-  Fotos und Originale der Familie enthält.
+  neue Stufe öffnet; wo die Person ein Archiv „über den Browser“ erlaubt hat, verweist die Prüfung einer Seite dort den
+  Agenten auf seinen Browser statt auf die bereits erteilte Erlaubnis; vor einem Downloader oder Archiv, das strenger
+  als die Liste eingetragen ist, wird gewarnt; eine mit `strom task audit --fix` abgetrennte Aufgabe nennt die Bilder
+  des Buchs mit dessen Titel, ohne ID und Verb; `strom task wait --images` erneut für dasselbe Buch angegeben, fügt
+  dessen Bilder zusammen (ein anderes Buch wird abgelehnt: ein Buch je Aufgabe); zwei Versuche der Sammelprüfung
+  nacheinander kommen in der Reihenfolge, in der sie angefordert wurden, der ältere zuerst; die Bedingung der Abo-Limits
+  liest sie in ein, zwei Sekunden, ohne die auf dem Computer gespeicherten Unterhaltungen zu durchsuchen; in der
+  Strom-App zeigt jede Quellenangabe eines Stammbaums wieder ihre eigene Zeile des Stammbaums (ein Verweis, den ein
+  Import angelegt hat, bleibt außen vor), und eine nur aus den erfassten Scans bekannte Bildnummer ist als solche
+  gekennzeichnet, sodass die App sie zur Fundstelle hinzufügt, ohne die Nummer eines anderen Bildes daraus zu entfernen.
+  `strom pack` und `strom trees remove` nennen die Scans der Archive als Scans (welche mitgehen, welche weggelassen
+  werden), und die Sicherung vor dem Entfernen sagt, dass sie die Fotos und Originale der Familie enthält.
 
 ## 1.35.0
 

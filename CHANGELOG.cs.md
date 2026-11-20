@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -54,15 +54,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   záznam ve výzkumu je tak jednou přečetl), už tam potichu nevypíná prohlížeč agenta: `strom doctor`, `strom run` i
   `strom allow archive` řeknou, od kdy, proč a co říká seznam, Co čeká i aplikace Strom se člověka jednou zeptají, zda
   úroveň ponechat, nebo vzít podmínky archivu (`strom allow archive <host> --keep` nebo `--level <úroveň>`), a pak se do
-  fronty vrátí jen úkoly, které nová úroveň otevře; na stahovač či archiv zapsaný přísněji než seznam se upozorní; úkol
-  oddělený příkazem `strom task audit --fix` jmenuje snímky knihy jejím názvem, bez ID a slovesa; `strom task wait
-  --images` zadané znovu pro tutéž knihu snímky spojí (jiná kniha se odmítne: jedna kniha na úkol); dvě zkoušky
-  hromadného ověření po sobě jdou v pořadí zadání, starší první; brána limitů předplatného je přečte za vteřinu či dvě,
-  bez procházení uložených konverzací na počítači; v aplikaci Strom ukazuje každá citace rodokmenu znovu svůj vlastní
-  řádek rodokmenu (ukazatel vytvořený importem zůstává stranou) a číslo snímku známé jen z evidovaných skenů je tak
-  označené, aby ho aplikace k umístění přidala, aniž by z něj vystřihla číslo jiného snímku. `strom pack` a `strom trees
-  remove` jmenují skeny z archivů jako skeny (které jdou s sebou, které se vynechají) a záloha před odstraněním řekne,
-  že v ní jsou rodinné fotky a originály.
+  fronty vrátí jen úkoly, které nová úroveň otevře; kde člověk archiv svolil „přes prohlížeč“, kontrola stránky tam
+  agenta posílá do jeho prohlížeče místo ke svolení, které už platí; na stahovač či archiv zapsaný přísněji než seznam
+  se upozorní; úkol oddělený příkazem `strom task audit --fix` jmenuje snímky knihy jejím názvem, bez ID a slovesa;
+  `strom task wait --images` zadané znovu pro tutéž knihu snímky spojí (jiná kniha se odmítne: jedna kniha na úkol); dvě
+  zkoušky hromadného ověření po sobě jdou v pořadí zadání, starší první; brána limitů předplatného je přečte za vteřinu
+  či dvě, bez procházení uložených konverzací na počítači; v aplikaci Strom ukazuje každá citace rodokmenu znovu svůj
+  vlastní řádek rodokmenu (ukazatel vytvořený importem zůstává stranou) a číslo snímku známé jen z evidovaných skenů je
+  tak označené, aby ho aplikace k umístění přidala, aniž by z něj vystřihla číslo jiného snímku. `strom pack` a `strom
+  trees remove` jmenují skeny z archivů jako skeny (které jdou s sebou, které se vynechají) a záloha před odstraněním
+  řekne, že v ní jsou rodinné fotky a originály.
 
 ## 1.35.0
 

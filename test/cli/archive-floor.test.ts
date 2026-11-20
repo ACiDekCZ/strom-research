@@ -349,3 +349,52 @@ test("prevention: a downloader or a research's record of an archive of strom's l
     w.cleanup();
   }
 });
+
+test("net web --check without --browser where the person allowed it \"through the browser\" (and kept it restricted): the way through the agent's browser as it is here, never the permission that already stands; without it the permission, as before", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+  await w.ok(["recordset", "add", "Lhota N 1784–1820", "--kinds", "baptism", "--places", "Lhota", "--years", "1784-1820", "--access", "online-free", "--url", BOOK]); // B1
+  const SITE = "https://www.mza.cz/actapublica/";
+  const web = async (env: Record<string, string>) => JSON.parse((await w.run(["net", "web", "--check", SITE, "--json"], { env })).out) as Check & { why?: string };
+  try {
+    // no permission yet: the person's permission is the way, as before
+    const none = await web(AGENT);
+    assert.equal(none.allow, false);
+    assert.match(none.reason, /strom allow archive www\.mza\.cz --way browser — the person's, never yours/);
+
+    // the person allowed it "through the browser" and kept it restricted (K045's floor by the person)
+    assert.ok(grantWay(w.env, ["www.mza.cz"], "browser", { by: "terminal" }));
+    floor(w, "www.mza.cz", { floor: "restricted", floorBy: "person", floorAt: "2026-11-20T22:47:05.573Z" });
+    // Claude Code without the extension here: the truth — by hand, and once the word of the extension
+    const noext = await web(AGENT);
+    assert.deepEqual([noext.allow, noext.why, noext.level], [false, "browser", "restricted"]);
+    assert.doesNotMatch(noext.reason, /--way browser/);
+    assert.match(noext.reason, /The person allowed it "through the browser", but the Claude in Chrome extension is in no browser here — the person saves the images by hand/);
+    // the permission already stands: only the extension is named, never the permission again
+    assert.match(noext.reason, /Tell the user once: with the extension \([^)]*\) the agent would save them itself\./);
+    assert.doesNotMatch(noext.reason, /and the permission "through the browser" the agent would save them itself/);
+    // with the extension: not the web fetch, its browser — at a person's pace, and the check with --browser
+    extension(w);
+    const ready = await web(AGENT);
+    assert.equal(ready.allow, false, "the web fetch stays refused");
+    assert.doesNotMatch(ready.reason, /--way browser/);
+    assert.match(ready.reason, /The person allowed it "through the browser": not your web fetch, but your browser — its pages one at a time at a person's pace \(strom net web --check https:\/\/www\.mza\.cz\/actapublica\/ --browser says what opens\)/);
+    assert.match(ready.reason, /its images through your browser \(Claude in Chrome\), one image at a time at a person's pace: strom media save T… --image <n>/);
+    // ...which says so
+    assert.equal((await check(w, SITE)).allow, true);
+    // the web fetch hook of Claude Code: the same way on
+    const stdin = JSON.stringify({ session_id: "agent-1", cwd: w.cwd, hook_event_name: "PreToolUse", tool_name: "WebFetch", tool_input: { url: SITE, prompt: "x" }, tool_use_id: "u1" });
+    const hook = await w.run(["net", "web", "--hook"], { stdin, env: AGENT });
+    assert.match(hook.out, /not your web fetch, but your browser/);
+    assert.doesNotMatch(hook.out, /--way browser/);
+    // a person (no agent): the browser of an agent strom keeps
+    assert.match((await web({})).reason, /The person allowed it "through the browser": through the browser of an agent strom keeps \(Claude Code with Claude in Chrome\)/);
+    // an agent whose browser strom does not keep: the person's hand, as before
+    const grok = await web({ GROK_AGENT: "1" });
+    assert.match(grok.reason, /strom does not keep your browser or computer use/);
+    assert.doesNotMatch(grok.reason, /--way browser/);
+  } finally {
+    w.cleanup();
+  }
+});

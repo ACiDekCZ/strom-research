@@ -329,7 +329,7 @@ test("the browser in a run: only for a session whose task may need it — never 
   assert.doesNotMatch(browser, / (are|stay) off /);
   assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom \(401\/403\/429\) or its terms forbid or restrict automation; images only through strom fetch/);
   // B8: a site closed to automation is never a connector to build nor the browser's — another way first, the person last
-  assert.match(browser, /- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" \(strom net web --check <url> says it\): no connector, no browser — another way to the same records .*only if the source stays necessary: strom task wait T0004 --check <url> --on "<what the person checks there>", then close the session\./);
+  assert.match(browser, /- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" \(strom net web --check <url> --browser says it\): no connector, no browser — another way to the same records .*only if the source stays necessary: strom task wait T0004 --check <url> --on "<what the person checks there>", then close the session\./);
   assert.match(browser, /- Another site that allows automation: an archive the task needs without a connector — build one/);
   assert.match(browser, /terms and robots\.txt, its pace and hourly cap .*only the pages the task needs, nothing ahead/);
   assert.match(browser, /forbids automated access: never through the browser, never a way round/);

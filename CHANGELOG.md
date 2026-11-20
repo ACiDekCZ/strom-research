@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.5. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -56,16 +56,17 @@ The changes of each version in short. The full notes and the install lines are o
   research's record read them so once) no longer shuts the agent's browser there quietly: `strom doctor`, `strom run`
   and `strom allow archive` say since when, why and what the list says, What waits and the Strom app ask the person once
   whether to keep it or take the archive's terms (`strom allow archive <host> --keep` or `--level <level>`), after which
-  only the tasks the new level opens come back to the queue; a downloader or an archive recorded stricter than the list
-  is warned of; a task split off by `strom task audit --fix` names the book's images by the book's title, without its ID
-  and a verb; `strom task wait --images` given again for the same book joins its images (another book's are refused: one
-  book per task); two tries of the bulk verification in a row come in the order they were asked, the older first; the
-  gate of the subscription's limits reads them in a second or two, without going through the conversations kept on the
-  computer; in the Strom app each citation of a family tree shows its own line of the tree again (a pointer an import
-  made stays out), and an image's number known only from the registered scans is marked as such, so that the app adds it
-  to the location without cutting another image's number out of it. `strom pack` and `strom trees remove` name the
-  archives' scans as scans (which go along, which are left out), and the backup before a removal says it holds the
-  family's photos and originals.
+  only the tasks the new level opens come back to the queue; where the person allowed an archive "through the browser",
+  the agent's check of a page there points to the agent's browser rather than to the permission given already; a
+  downloader or an archive recorded stricter than the list is warned of; a task split off by `strom task audit --fix`
+  names the book's images by the book's title, without its ID and a verb; `strom task wait --images` given again for the
+  same book joins its images (another book's are refused: one book per task); two tries of the bulk verification in a
+  row come in the order they were asked, the older first; the gate of the subscription's limits reads them in a second
+  or two, without going through the conversations kept on the computer; in the Strom app each citation of a family tree
+  shows its own line of the tree again (a pointer an import made stays out), and an image's number known only from the
+  registered scans is marked as such, so that the app adds it to the location without cutting another image's number out
+  of it. `strom pack` and `strom trees remove` name the archives' scans as scans (which go along, which are left out),
+  and the backup before a removal says it holds the family's photos and originals.
 
 ## 1.35.0
 

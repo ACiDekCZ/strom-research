@@ -159,12 +159,13 @@ function checkUrl(ctx: Context, url: string, browser = false) {
   const shared = ctx.settings.shared()?.value;
   const session = tree ? currentSession(tree, ctx.env, ctx.refs) : undefined;
   const gateOf = browser ? browserGate : webGate;
-  let g: WebGate = gateOf({ env: ctx.env, ...(tree ? { tree } : {}), url: u.href, shared, ...(session?.task ? { task: session.task } : {}) });
+  // the agent running it: the way on names its browser as it is here (a permission "through the browser" that stands)
+  const runner = detectAgent(ctx.env);
+  let g: WebGate = gateOf({ env: ctx.env, ...(tree ? { tree } : {}), url: u.href, shared, ...(session?.task ? { task: session.task } : {}), ...(runner ? { runner } : {}) });
   // an agent whose browser strom does not keep (no hook of strom's before a page): an archive only a person's browser
   // goes to not through its browser or computer use on strom's word, whatever the person allowed — the person's hand
   // (Milan's decision, 4 November 2026); nothing is switched off: the person's explicit request is the person's choice
   // (5 November 2026, ON_REQUEST)
-  const runner = detectAgent(ctx.env);
   if (runner && !browserKept(runner, tree?.root, ctx.env) && g.level?.browserOnly && (g.allow || g.why === "browser")) {
     const book = bookOn(tree, session?.task, g.host, u.href);
     const rest: WebGate = { ...g };

@@ -25,6 +25,7 @@ import type { Env } from "./paths.ts";
 import { allows, archiveLevel, keyHost, loadArchives, termsFor, termsOpen, type ArchiveLevel, type ConnectorLike } from "./terms.ts";
 import { AGENT_TOOL_TOKENS, clock, hostAllowed, hostState, REFUSED_FOREVER, robotsYields, toolRobotsVerdict, type RobotsState } from "./net.ts";
 import { knownDisallow } from "./knownterms.ts";
+import { agentBrowserAdvice, browserState } from "./browserhelp.ts";
 import { listConnectors } from "./connector.ts";
 import { metricsDir, termsPagesToday } from "./metrics.ts";
 import { settingsTrust } from "./trust.ts";
@@ -154,9 +155,10 @@ export function bookOn(tree: Tree | undefined, task: string | undefined, host: s
 
 /**
  * What strom would let an agent's own web tool fetch now at an address, and why: read only. `agent`: whose tool (its
- * robots.txt token); none: every tool strom knows (the strictest).
+ * robots.txt token); none: every tool strom knows (the strictest). `runner`: the agent whose browser the way on names
+ * (strom net web --check run by it), else `agent`.
  */
-export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string | undefined; agent?: string; task?: string; now?: number }): WebGate {
+export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string | undefined; agent?: string; task?: string; now?: number; runner?: string }): WebGate {
   let u: URL;
   try {
     u = new URL(o.url);
@@ -221,6 +223,10 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
           `strom: ${name} lets automated tools in only through a person's browser — ${by} — and ${listed && a.level !== "manual" && a.permission !== "manual" ? `strom's list of archives keeps every automated tool off ${target}` : a.permission === "manual" && a.level !== "manual" ? "the person chose its images by hand" : "its terms keep it for a person's hand"}: no web fetch, not through your browser either. ` +
           `The person saves what is needed by hand: strom task wait ${o.task ?? "T…"} --images ${book}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>" (strom makes the inbox folder they go into; saved there, they bring the task back by themselves). ${otherWay(host, o.url, o.task)}`,
       });
+    // the person allowed it "through the browser" already (or its level lets a browser in): the way on is the agent's
+    // browser as it is here, never a permission that already stands (found in the K045 simulation, 20 November 2026)
+    if (allows(a, imageUrl(o.url) ? "images" : "pages", "browser").ok)
+      return out({ allow: false, why: "browser", reason: `strom: ${name} lets automated tools in only through a person's browser — ${by}: no web fetch. ${throughBrowser(o, a, book)} ${otherWay(host, o.url, o.task)}` });
     return out({
       allow: false,
       why: "browser",
@@ -260,6 +266,24 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
   }
   const blocked = hostBlocked(dir, host, now);
   return out({ allow: true, ...(blocked ? { blocked } : {}) });
+}
+
+/**
+ * The way on at an archive only a person's browser goes to that the person allowed "through the browser" (or whose
+ * level lets a browser in): the browser of the agent running this as it is here — Claude Code with Claude in Chrome,
+ * Codex with strom's hooks confirmed: through it, page by page at a person's pace; without the extension, or an agent
+ * whose browser strom does not keep: the person's hand (browserhelp.ts agentBrowserAdvice). No agent known: the
+ * browser of an agent strom keeps.
+ */
+function throughBrowser(o: { env: Env; tree?: Tree; url: string; agent?: string; task?: string; runner?: string }, a: ArchiveLevel, book: string): string {
+  const said = a.permission === "browser" ? `The person allowed it "through the browser"` : `Its terms let a browser in`;
+  const check = `strom net web --check ${o.url} --browser`;
+  const agent = o.runner ?? o.agent;
+  if (!agent) return `${said}: through the browser of an agent strom keeps (Claude Code with Claude in Chrome), one page at a time at a person's pace — ${check} says what opens.`;
+  const archive = { host: a.host, ...(a.title ? { title: a.title } : {}), permitted: true };
+  const advice = agentBrowserAdvice(o.env, agent, archive, o.task, book, true, o.tree?.root);
+  if (browserState(o.env, agent, o.tree?.root).state !== "ready") return `${said}, but ${advice}`;
+  return `${said}: not your web fetch, but your browser — its pages one at a time at a person's pace (${check} says what opens); its images ${advice}`;
 }
 
 /** The host left alone now (a refusal, its limit used up), as the limiter keeps it: until when, and why. */

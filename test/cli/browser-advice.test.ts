@@ -96,6 +96,8 @@ test("task wait --images and the brief at such an archive: what the agent's own 
     const b = (await w.ok(["brief", "T1"])).out;
     assert.match(b, /your browser: the Claude in Chrome extension is in no browser here/);
     assert.ok(b.includes(CLAUDE_IN_CHROME_URL));
+    // no permission yet: the extension and the permission (only the extension where the permission stands)
+    assert.match(b, /with the extension \([^)]*\) and the permission "through the browser" the agent would save them itself\./);
     await w.ok(["config", "set", "agent", "codex"]);
     assert.match((await w.ok(["brief", "T1"])).out, /your browser: strom does not keep your browser or computer use/);
     const t = (await w.ok(["task", "wait", "T1", "--images", "B1:1-2", "--on", "Snímky 1–2 knihy Lhota N."], { env: codex })).out;

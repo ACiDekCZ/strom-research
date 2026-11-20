@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -56,16 +56,17 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   wpis w badaniu raz tak je odczytał), nie wyłącza już tam po cichu przeglądarki agenta: `strom doctor`, `strom run` i
   `strom allow archive` mówią, od kiedy, dlaczego i co mówi lista, Co czeka i aplikacja Strom pytają osobę raz, czy
   zachować poziom, czy przyjąć warunki archiwum (`strom allow archive <host> --keep` lub `--level <poziom>`), po czym do
-  kolejki wracają tylko zadania, które nowy poziom otwiera; przed konektorem lub archiwum zapisanym surowiej niż lista
-  strom ostrzega; zadanie wydzielone przez `strom task audit --fix` nazywa skany księgi jej tytułem, bez ID i
-  czasownika; `strom task wait --images` podane ponownie dla tej samej księgi łączy jej skany (inna księga jest
-  odrzucana: jedna księga na zadanie); dwie próby zbiorczej weryfikacji po sobie idą w kolejności zlecenia, starsza
-  pierwsza; warunek limitów subskrypcji odczytuje je w sekundę lub dwie, bez przeglądania rozmów zapisanych na
-  komputerze; w aplikacji Strom każdy przypis drzewa genealogicznego znów pokazuje własny wiersz drzewa (odnośnik
-  utworzony przez import pozostaje na boku), a numer skanu znany tylko z zarejestrowanych skanów jest tak oznaczony, by
-  aplikacja dodała go do lokalizacji, nie wycinając z niej numeru innego skanu. `strom pack` i `strom trees remove`
-  nazywają skany z archiwów skanami (które idą razem, które są pominięte), a kopia zapasowa przed usunięciem mówi, że
-  zawiera rodzinne zdjęcia i oryginały.
+  kolejki wracają tylko zadania, które nowy poziom otwiera; tam, gdzie osoba zezwoliła na archiwum „przez przeglądarkę”,
+  sprawdzenie strony kieruje agenta do jego przeglądarki zamiast do zgody, która już obowiązuje; przed konektorem lub
+  archiwum zapisanym surowiej niż lista strom ostrzega; zadanie wydzielone przez `strom task audit --fix` nazywa skany
+  księgi jej tytułem, bez ID i czasownika; `strom task wait --images` podane ponownie dla tej samej księgi łączy jej
+  skany (inna księga jest odrzucana: jedna księga na zadanie); dwie próby zbiorczej weryfikacji po sobie idą w
+  kolejności zlecenia, starsza pierwsza; warunek limitów subskrypcji odczytuje je w sekundę lub dwie, bez przeglądania
+  rozmów zapisanych na komputerze; w aplikacji Strom każdy przypis drzewa genealogicznego znów pokazuje własny wiersz
+  drzewa (odnośnik utworzony przez import pozostaje na boku), a numer skanu znany tylko z zarejestrowanych skanów jest
+  tak oznaczony, by aplikacja dodała go do lokalizacji, nie wycinając z niej numeru innego skanu. `strom pack` i `strom
+  trees remove` nazywają skany z archiwów skanami (które idą razem, które są pominięte), a kopia zapasowa przed
+  usunięciem mówi, że zawiera rodzinne zdjęcia i oryginały.
 
 ## 1.35.0
 
