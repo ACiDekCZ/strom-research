@@ -482,9 +482,11 @@ const WORK_LIST = 5;
  * n tasks or for as long as there is work, the time of a session, the gate (asked once for n tasks, before each
  * session of the loop) — and on the person's yes (no by default) strom run --tasks n or strom run --loop in this
  * terminal (Ctrl-C asks the session at work to finish and stops). The loop goes only under a gate: none set, it is not
- * started — n tasks instead or the gate picked as in the settings, or nothing. The bridge never starts it.
+ * started — n tasks instead or the gate picked as in the settings, or nothing. The bridge never starts it. The tasks the
+ * link names (do=tasks&task=T…,T…: the app's "work on them now", spec 065 K7.2): those still open and held by nobody,
+ * one session each in the link's order (strom run --task), the rest said left out; none left: nothing started.
  */
-export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number): Promise<boolean> {
+export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number, picked?: string[]): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   // its sessions are strom run's: the agent's CLI not here said before anything else
@@ -492,6 +494,7 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
   // a run or a session at work already (the app's state may be older than the click): nothing more started
   const busy = busyIn(tree);
   if (busy.runs || busy.sessions.length) return stop(ctx, t("ui.link.work.busy", { runs: busy.runs, sessions: busy.sessions.length }));
+  if (picked) return workOn(ctx, run, lang, root, tree, picked);
   // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what others hold
   const held = othersAtWork(tree, tree.env).tasks;
   const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
@@ -536,6 +539,32 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
   if (!(await asks(ctx, lang, root, said, note, false))) return false;
   out(ctx, t("ui.link.work.stop"));
   return (await run(tasks !== undefined ? ["run", "--tasks", String(tasks)] : ["run", "--loop"])) === 0;
+}
+
+/** The tasks a link names worked on now (workRun): one session each, in the link's order, on the person's yes. */
+async function workOn(ctx: Context, run: Run, lang: string, root: string, tree: Tree, ids: string[]): Promise<boolean> {
+  const t = translator(lang);
+  const held = othersAtWork(tree, tree.env).tasks;
+  const named = [...new Set(ids.map((id) => normId(id, "task")))];
+  const open = named.map((id) => tree.get<Task>(id)).filter((x): x is Task => !!x && x.type === "task" && !x.retracted && x.state === "open" && !held.has(x.id));
+  if (!open.length) return stop(ctx, t("ui.link.work.picked.none"));
+  const shown = open.slice(0, WORK_LIST);
+  const minutes = ctx.settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES);
+  const spec = ctx.settings.runGate();
+  const gate = spec ? gateLabel(ctx.settings.shared()?.value, spec) : undefined;
+  const note = lines(
+    open.length < named.length ? t("ui.link.work.picked.gone", { n: named.length - open.length }) : undefined,
+    t("ui.link.work.picked.head"),
+    ...shown.map((x, k) => `  ${String(k + 1).padStart(2)}. ${truncate(humanTask(tree, x.what, lang), 100)}${lacksImages(tree, x) ? t("ui.plan.images") : ""}`),
+    open.length > shown.length ? `      ${t("ui.plan.more", { n: open.length - shown.length })}` : undefined,
+    t("ui.link.work.picked", { n: open.length }),
+    t("ui.run.limit", { minutes }),
+    gate ? t("ui.link.work.gate.once", { gate }) : t("ui.link.work.gate.none"),
+    t("ui.link.cost"),
+  );
+  if (!(await asks(ctx, lang, root, t("ui.link.what.work.picked", { n: open.length }), note, false))) return false;
+  out(ctx, t("ui.link.work.stop"));
+  return (await run(["run", "--task", open.map((x) => x.id).join(",")])) === 0;
 }
 
 /**

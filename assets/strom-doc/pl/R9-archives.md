@@ -424,8 +424,21 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
   według numeru w nazwie pliku ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
 - **Od badania 1.35.0:** samo zadanie wraca tylko wtedy, gdy jego czekanie jest zapisane według numerów skanów lub
   księgi badania; czekanie zapisane inaczej znajduje `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **Od badania 1.35.0 (pliki w folderze):**
+  - kopia, którą obok pliku zrobił menedżer plików lub przeglądarka, nosi numer pliku pierwotnego: „33 2.jpg”,
+    „33 kopie.jpg”, „33 copy.jpg”, „33 - Copy (2).jpg” i „33 (1).jpg” to skan 33, „33a 2.jpg” skan 33a. Same
+    „ 2” do „ 9” za nazwą bierze się jako przyrostek kopii tylko za nazwą, która jest samą liczbą (z ewentualną
+    literą);
+  - według kolejności się nie numeruje, gdy któryś plik ma nazwę z samej liczby (`1.jpg` to skan 1, nie brakujący
+    33): numeru, który nadał człowiek, kolejność nie przebija; nazwę z portalu albo datę i czas zrzutu ekranu tak;
+  - plik, który jest tym samym skanem co skan już przejęty pod innym numerem lub w innej księdze, nie zostaje przejęty
+    ani usunięty: odkłada się obok jako `<plik>.same-as-M…` (pod tą nazwą nie zostanie już nigdy przejęty), a wypis
+    `strom media add --inbox`, wpis mostu i wyjście JSON mówią, dla którego skanu był, którym skanem jest i że jeden
+    z obu numerów jest błędny. Gdy zmiana nazwy się nie uda, plik zostaje w folderze i mówi się to samo;
+  - pliki `.jp2` z portalu Moravský zemský archiv przelicza się z powrotem ([R6.8.2](R6-awaiting-action.md#R6.8.2))
+    także w folderze czekającego zadania.
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) · research:dddeb8a6 src/core/media.ts copyless (COPY_WORD copy/kopie/kopia/…, COPY_PAREN, COPY_BARE jen za číslem), namedByNumber · src/core/inboxwait.ts numberFiles (pořadí jen bez souboru pojmenovaného samým číslem; times .jp2 i u čekajících), bookTimes · src/commands/media.ts registerImages clashed, takeFiles (kolize → rename `${f}.same-as-${same}`, jinak leží; SetAside), asideLine (live.log, výpis ⚠, aside v JSON) · research:18fd10ec COPY_BARE \p{Nd}+\p{L}? („33a 2.jpg“) · CHANGELOG.cs.md 1.35.0 (research:e263eacb) -->
 
 <a id="R9.7"></a>
 ## R9.7 Sesja automatyczna i czat
@@ -528,8 +541,8 @@ Kroki przy zadaniu, które czeka na skany archiwum, do którego agentowi nie wol
 <a id="R9.10"></a>
 ## R9.10 Przykłady
 
-Poziomy i ograniczenia pochodzą z listy archiwów badania 1.27.0, DigiArchiv SOA Třeboň z badania 1.28.0. Rodzina
-Horáków jest zmyślona.
+Poziomy i ograniczenia pochodzą z listy archiwów badania 1.27.0, DigiArchiv SOA Třeboň z badania 1.28.0, BLHA
+z badania 1.35.0. Rodzina Horáków jest zmyślona.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -616,3 +629,24 @@ Horáków jest zmyślona.
 - **Obowiązuje od:** badanie 1.28.0
 
 <!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->
+
+<a id="R9.10.7"></a>
+### R9.10.7 Brandenburgisches Landeshauptarchiv (BLHA)
+
+- Archiwum: ograniczone, tylko przez przeglądarkę człowieka. Dotyczy duplikatów ksiąg metrykalnych (Rep. 5KB)
+  w dostępie online archiwum (blha-recherche.brandenburg.de); skany pochodzą z serwera obrazów
+  blha-digi.brandenburg.de. Robots.txt zamyka całą witrynę, więc nie prowadzą tam ani własne zapytania stromu, ani
+  program pobierający.
+- Archiwum odpowiedziało 18.11.2026 (dosłowny cytat jest w liście): człowiek może w swojej przeglądarce zapisywać
+  pojedyncze skany w ludzkim tempie i dać je przeczytać asystentowi AI na swoim komputerze; skany są na licencji
+  CC-0. Najwyżej dwa zapytania naraz. Nigdy przeszukiwanie bazy danych archiwum ani cała księga.
+- Zadanie: chrzest Anny Vlkovej w duplikacie księgi metrykalnej. Z Claude Code, rozszerzeniem i zgodą **przez
+  przeglądarkę** agent otwiera przeglądarkę księgi, przechodzi do skanu i zapisuje pokazany przez `strom media save`,
+  w tempie człowieka (10 s). Adres przeglądarki nie nazywa skanu.
+- Bez zgody albo z innym agentem: zadanie czeka na skany; Co czeka mówi, czym agent zapisałby je sam.
+- Księga: lista nie ma przy archiwum informacji o całej księdze, więc oferowane są tylko potrzebne skany
+  ([R6.8.1](R6-awaiting-action.md#R6.8.1)).
+- Cytat: „BLHA, Rep. 5KB Nr. <n>”, gdzie n to numer księgi z sygnatury „5KB <n>”, z numerem skanu w księdze.
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->

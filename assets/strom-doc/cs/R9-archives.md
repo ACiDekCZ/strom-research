@@ -394,8 +394,20 @@ vrátí do fronty sám, až jsou ve výzkumu všechny jeho snímky.
   v názvu souboru ([R6.8.2](R6-awaiting-action.md#R6.8.2)).
 - **Od výzkumu 1.35.0:** sám se úkol vrátí, jen když je čekání zapsané podle čísel snímků nebo knihy výzkumu; čekání
   zapsané jinak najde `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
+- **Od výzkumu 1.35.0 (soubory ve složce):**
+  - kopie, kterou vedle souboru udělal správce souborů nebo prohlížeč, nese číslo původního souboru: „33 2.jpg“,
+    „33 kopie.jpg“, „33 copy.jpg“, „33 - Copy (2).jpg“ i „33 (1).jpg“ jsou snímek 33, „33a 2.jpg“ snímek 33a. Holé
+    „ 2“ až „ 9“ za názvem se jako přípona kopie bere jen za názvem, který je samé číslo (s případným písmenem);
+  - podle pořadí se nečísluje, když některý soubor má název ze samého čísla (`1.jpg` je snímek 1, ne chybějící 33):
+    číslo, které dal člověk, pořadí nepřebije; název z portálu nebo datum a čas snímku obrazovky ano;
+  - soubor, který je tentýž sken jako snímek už převzatý pod jiným číslem nebo v jiné knize, se nepřevezme ani
+    nesmaže: odloží se vedle jako `<soubor>.same-as-M…` (pod tímto názvem se už nikdy nepřevezme) a výpis
+    `strom media add --inbox`, záznam mostu i výstup JSON řeknou, pro který snímek byl, který snímek to je a že jedno
+    z obou čísel je špatně. Když přejmenování nejde, soubor zůstane ležet a řekne se totéž;
+  - soubory `.jp2` z portálu Moravského zemského archivu se přepočtou zpět ([R6.8.2](R6-awaiting-action.md#R6.8.2))
+    i ve složce čekajícího úkolu.
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) · research:dddeb8a6 src/core/media.ts copyless (COPY_WORD copy/kopie/kopia/…, COPY_PAREN, COPY_BARE jen za číslem), namedByNumber · src/core/inboxwait.ts numberFiles (pořadí jen bez souboru pojmenovaného samým číslem; times .jp2 i u čekajících), bookTimes · src/commands/media.ts registerImages clashed, takeFiles (kolize → rename `${f}.same-as-${same}`, jinak leží; SetAside), asideLine (live.log, výpis ⚠, aside v JSON) · research:18fd10ec COPY_BARE \p{Nd}+\p{L}? („33a 2.jpg“) · CHANGELOG.cs.md 1.35.0 (research:e263eacb) -->
 
 <a id="R9.7"></a>
 ## R9.7 Automatické sezení a chat
@@ -490,8 +502,8 @@ Kroky u úkolu, který čeká na snímky archivu, kam agent nesmí:
 <a id="R9.10"></a>
 ## R9.10 Příklady
 
-Úrovně a meze jsou ze seznamu archivů výzkumu 1.27.0, DigiArchiv SOA Třeboň z výzkumu 1.28.0. Rodina Horákových je
-vymyšlená.
+Úrovně a meze jsou ze seznamu archivů výzkumu 1.27.0, DigiArchiv SOA Třeboň z výzkumu 1.28.0, BLHA z výzkumu
+1.35.0. Rodina Horákových je vymyšlená.
 
 <a id="R9.10.1"></a>
 ### R9.10.1 Moravský zemský archiv (Acta Publica)
@@ -572,3 +584,23 @@ vymyšlená.
 - **Platí od:** výzkum 1.28.0
 
 <!-- zdroj: research:assets/archives.json digi.ceskearchivy.cz (manual, browserOnly, terms https://digi.ceskearchivy.cz/Uvod, quote, robots 403, scope, checked 2026-11-05), www.ceskearchivy.cz (stejné terms/quote) · src/core/terms.ts allows (browserOnly + manual) · CHANGELOG.cs.md 1.28.0 · znalosti/archivy-cz.md „SOA v Třeboni (DigiArchiv)“ (odpověď archivu 5. 11. 2026) · commit 805b871d -->
+
+<a id="R9.10.7"></a>
+### R9.10.7 Brandenburgisches Landeshauptarchiv (BLHA)
+
+- Archiv: omezeno, jen přes prohlížeč člověka. Týká se duplikátů matrik (Rep. 5KB) v online přístupu archivu
+  (blha-recherche.brandenburg.de); snímky jdou z obrazového serveru blha-digi.brandenburg.de. Robots.txt zavírá celý
+  web, takže požadavky stromu samého ani stahovač tam nevedou.
+- Archiv odpověděl 18. 11. 2026 (doslovná citace je v seznamu): člověk smí ve svém prohlížeči ukládat jednotlivé
+  snímky lidským tempem a nechat je číst AI asistenta na svém počítači, snímky jsou pod licencí CC-0. Nejvýš dva
+  požadavky najednou. Nikdy prohledávání databáze archivu ani celá kniha.
+- Úkol: křest Anny Vlkové v duplikátu matriky. S Claude Code, rozšířením a svolením **přes prohlížeč** agent otevře
+  prohlížeč knihy, přejde na snímek a uloží ten zobrazený `strom media save`, tempem člověka (10 s). Adresa prohlížeče
+  snímek nejmenuje.
+- Bez svolení nebo s jiným agentem: úkol čeká na snímky; Co čeká řekne, s čím by je agent uložil sám.
+- Kniha: seznam u archivu údaj o celé knize nemá, takže se nabízejí jen potřebné snímky
+  ([R6.8.1](R6-awaiting-action.md#R6.8.1)).
+- Citace: „BLHA, Rep. 5KB Nr. <n>“, kde n je číslo knihy ze signatury „5KB <n>“, s číslem snímku v knize.
+- **Platí od:** výzkum 1.35.0
+
+<!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->

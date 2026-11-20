@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import { turnsAcross, type RawImage } from "./image.ts";
-import { decodeJpeg } from "./jpeg-decode.ts";
+import { decodeJpeg, type JpegDecodeOptions } from "./jpeg-decode.ts";
 import { encodeJpeg } from "./jpeg-encode.ts";
 import { decodePng, encodePng } from "./png.ts";
 
@@ -22,10 +22,13 @@ export function formatOf(bytes: Uint8Array): ImageFormat {
 
 export class ImageFormatError extends Error {}
 
-/** Decode a JPEG or PNG; anything else gets a clear message about what to do. */
-export function decodeImage(bytes: Uint8Array): RawImage {
+/**
+ * Decode a JPEG or PNG; anything else gets a clear message about what to do. `reduce` (a JPEG only): decoded at 1/2,
+ * 1/4 or 1/8 of its size (jpeg-decode.ts); a PNG is decoded whole.
+ */
+export function decodeImage(bytes: Uint8Array, o: JpegDecodeOptions = {}): RawImage {
   const f = formatOf(bytes);
-  if (f === "jpeg") return decodeJpeg(bytes);
+  if (f === "jpeg") return decodeJpeg(bytes, o);
   if (f === "png") return decodePng(bytes);
   throw new ImageFormatError(
     f === "unknown" ? "not an image strom can read (JPEG or PNG)" : `${f.toUpperCase()} cannot be cropped by strom yet — only JPEG and PNG; convert the file (any image viewer can save it as JPEG)`,

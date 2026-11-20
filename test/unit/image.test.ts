@@ -30,6 +30,35 @@ test("JPEG: baseline, progressive, grey, 4:2:0 and 4:4:4, restart markers, CMYK 
   }
 });
 
+test("JPEG decoded made smaller (1/2, 1/4, 1/8: a large scan looked at small, core/samescan.ts): each sample the mean of its part of the picture, of every kind of file", () => {
+  for (const name of ["base420", "base444", "grey", "prog420", "proggrey", "restart", "cmyk"]) {
+    const full = toGrey(decodeJpeg(read(`${name}.jpg`)));
+    for (const r of [2, 4, 8] as const) {
+      const small = toGrey(decodeJpeg(read(`${name}.jpg`), { reduce: r }));
+      assert.deepEqual([small.width, small.height], [Math.ceil(full.width / r), Math.ceil(full.height / r)], `${name} 1/${r}`);
+      // the light of each sample against the mean of the r × r pixels of the whole picture it stands for (the colours
+      // clipped at 0 and 255 after the mean, as libjpeg's scaled decoding: a little off at strong colours)
+      let off = 0;
+      for (let y = 0; y < small.height; y++)
+        for (let x = 0; x < small.width; x++) {
+          let sum = 0;
+          let n = 0;
+          for (let yy = y * r; yy < Math.min(full.height, y * r + r); yy++)
+            for (let xx = x * r; xx < Math.min(full.width, x * r + r); xx++) {
+              sum += full.data[yy * full.width + xx]!;
+              n++;
+            }
+          off += Math.abs(small.data[y * small.width + x]! - sum / n);
+        }
+      assert.ok(off / small.data.length <= 1.5, `${name} 1/${r}: off by ${off / small.data.length} on average`);
+    }
+  }
+  assert.throws(() => decodeJpeg(read("grey.jpg"), { reduce: 3 as 2 }), /reduce 3/);
+  // decodeImage passes it on for a JPEG; a PNG is decoded whole
+  assert.equal(decodeImage(read("grey.jpg"), { reduce: 8 }).width, 8);
+  assert.equal(decodeImage(read("png-grey.png"), { reduce: 8 }).width, decodePng(read("png-grey.png")).width);
+});
+
 test("JPEG encoder: our files decode back close to the original, and the header says the size", () => {
   const img = decodeJpeg(read("base444.jpg"));
   const bytes = encodeJpeg(img, 92);

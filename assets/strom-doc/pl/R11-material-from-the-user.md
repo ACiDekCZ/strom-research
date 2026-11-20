@@ -152,7 +152,8 @@ drzewa także swoje miejsca w drzewie aplikacji.
   Badanie pamięta, kto nadał tytuł: człowiek (aplikacja, terminal) czy badanie.
 - Ukryty plik (`unrelated`, `duplicate`, bez powodu) zostaje w badaniu razem z oryginałem i można go znowu pokazać.
 - **Pilnuje kod:**
-  - ukrycie, usunięcie z drzewa ani cofnięcie zapisu nie kasuje pliku: oryginał i rekord zostają;
+  - ukrycie, usunięcie z drzewa ani cofnięcie zapisu nie kasuje pliku: oryginał i rekord zostają. Usuwa tylko
+    `strom input delete` za zgodą człowieka ([R11.5.6](#R11.5.6));
   - zmianę tytułu, rodzaju i daty pliku spoza drzewa badanie zapisuje od razu. Przy pliku drzewa zmiana pojawi się
     w aplikacji z kolejnym wczytaniem drzewa;
   - badanie odrzuca całą zmianę, gdy nie zna jednego z plików lub nie może odczytać wartości ([R11.5.2](#R11.5.2)).
@@ -160,11 +161,11 @@ drzewa także swoje miejsca w drzewie aplikacji.
   nadpisuje; starszy `strom` drzewa w schemacie 3 nie otworzy. Materiał w aplikacji opisuje
   [A3.5](A3-evidence-in-the-app.md#A3.5).
 - **Obsługa:** terminal: `strom input list`, `strom input show I…` (gdzie plik jest i co z niego powstało), `strom
-  input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. Aplikacja: okno
-  **Materiały**.
+  input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom input delete`, `strom
+  material`. Aplikacja: okno **Materiały**.
 - **Obowiązuje od:** badanie 1.35.0
 
-<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete · research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
 
 <a id="R11.5.1"></a>
 ### R11.5.1 Pliki drzewa z aplikacji
@@ -234,12 +235,32 @@ badania nic się nie zapisuje.
   - porządkowanie z aplikacji most uruchomi tylko z własnym podpisem, a ten jest ważny raz. Rekord, który tylko
     podaje się za porządkowanie z aplikacji, nigdy się nie uruchomi;
   - w kolejce czekają najwyżej 3 porządkowania.
+- **Od badania 1.35.0:**
+  - plik tekstowy (.txt, .md, .markdown, .text albo typ text/plain lub markdown) czytelnik czyta jako tekst i ocenia
+    według tego, co mówi: najwyżej pierwsze 20 000 znaków. Przy dłuższym czytelnik wie, że dostał tylko początek i jak
+    duży jest plik. Czyta się jako UTF-8, ze znacznikiem kodowania UTF-16 jako UTF-16, a to, co nie jest UTF-8, jako windows-1252;
+  - w trakcie porządkowania `strom material show` mówi, ile plików czytelnicy już ocenili („N of M files done”);
+    aplikacja pokazuje z tego „k z n”;
+  - przy ukończonym porządkowaniu każdy plik bez propozycji ma powód: czytelnik nic o nim nie powiedział, plik ma już
+    wszystko, co zaproponowano, propozycji nie dało się użyć, agent pominął plik albo pliku nie dało się odczytać
+    (z wynikiem czytelnika). Co czytelnik napisał o pliku, stoi przy powodzie.
+  - plik, który wyraźnie nie dotyczy rodziny (zrzut ekranu, paragon, plik wysłany przez pomyłkę), czytelnik oznacza
+    `unrelated: yes`, z uzasadnieniem i pewnością. Polecenie dla czytelnika: tylko plik wyraźnie spoza rodziny, nigdy
+    plik, którego tylko nie umie przypisać. Badanie nie zaproponuje dla takiego pliku tytułu, daty, rodzaju ani
+    połączenia (co czytelnik mimo to napisał, odrzuci). `strom material show` pisze przy nim „unrelated (not of the
+    family)”. Badanie nigdy samo pliku nie ukryje ani nie usunie; ukrywa go tylko człowiek: w aplikacji
+    ([A3.5.9](A3-evidence-in-the-app.md#A3.5.9)), w terminalu `strom input hide I… --why unrelated`;
+  - czytelnik może też powiedzieć, który z wysłanych plików jest rewersem innego zdjęcia lub strony (połączenie
+    `back` na `I…` pliku, który dostał ten sam czytelnik: jeden rewers do jednego awersu, nigdy rewers rewersu ani
+    plik tekstowy) i który obraz jest portretem osoby (połączenie `portrait` na jedną `P…`; tylko obraz, nie portret,
+    który człowiek usunął, i nie plik, który już jest portretem);
+  - więcej niż 50 plików daje do uporządkowania tylko aplikacja, jako przebieg partiami ([R11.5.5](#R11.5.5)).
 - **Granice:** tylko badanie z agentem: Archiwum Strom i badanie, które czeka na agenta, materiału nie porządkują.
 - **Obsługa:** terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
   cancel`; aplikacja: **Uporządkuj agentem…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
 - **Obowiązuje od:** badanie 1.35.0
 
-<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 -->
 
 <a id="R11.5.4"></a>
 ### R11.5.4 Materiał przez most
@@ -249,18 +270,79 @@ w terminalu, z tymi samymi granicami.
 
 | Most | Co robi | Polecenie |
 |---|---|---|
-| `GET /material` | pliki z tytułem, rodzajem, datą, osobami, przy plikach drzewa miejsca, a przy każdym użycie | |
+| `GET /material` | pliki z tytułem, rodzajem, datą, osobami, przy plikach drzewa miejsca, a przy każdym użycie; plik źródła (`uses.of`), czego agent nie przypisał (`left`), ta sama treść (`sameAs`) | |
 | `GET /material/<I…>/uses` | wycinki, źródła i zadania, które używają pliku | |
 | `POST /material/assign` | osoby plików | `strom input assign` |
 | `POST /material/hide` | ukryć i pokazać znowu (przy usuniętym pliku drzewa z miejscami) | `strom input hide`, `unskip` |
 | `POST /material/edit` | tytuł, rodzaj i data, 1–500 plików | `strom input edit` |
 | `POST /material/sort` | porządkowanie 1–50 plików; postęp `GET /material/sort/<id>`, anulowanie `…/cancel` | `strom material sort` |
+| `POST /material/sort` (51–1 500) | przebieg partiami ([R11.5.5](#R11.5.5)); postęp `GET /material/sort/<run-…>`, anulowanie `…/<run-…>/cancel` | |
+| `POST /material/delete` | usunąć trwale 1–500 plików: najpierw `dryRun` (wykaz i potwierdzenie), potem z potwierdzeniem | `strom input delete` |
 
 - Badanie ogłasza, co umie, w `/status.features`: `media.app`, `material.links`, `material.edit`, `material.uses`
   i `material.sort` (tylko tam, gdzie jest agent). Bez nich aplikacja zachowuje się jak ze starszym badaniem.
+- **Od badania 1.35.0:** też `material.sourceOf`, `material.left`, `material.sameAs`, `material.sortRun`
+  i `material.delete`. Usuwanie odrzuci zmieniony wykaz (`material.delete-changed` z nowym wykazem), brakujące lub
+  stare potwierdzenie (`material.body`) i zapis, który nie przyszedł z aplikacji.
 - **Pilnuje kod:** zmiana jest cała albo żadna; zajęte badanie odpowie, że nic nie zmieniło. Porządkowanie odrzuci
   bez agenta, z wyczerpanym limitem czytania, z pełną kolejką i gdy agent teraz nie może pracować.
 - **Obsługa:** aplikacja: okno **Materiały**, z działającym mostem ([S1.1](S1-connecting-app-and-research.md#S1.1)).
 - **Obowiązuje od:** badanie 1.35.0
 
-<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->
+<!-- zdroj: research:0cc2cfca src/core/live.ts (GET /material uses.of, left {at, sort, why, said}, sameAs; POST /material/sort run 51–1500, GET/POST /material/sort/<run-…>[/cancel]; POST /material/delete dryRun → impacts + confirm, chyby material.delete-changed, material.body, material.file, material.readonly, material.busy, app.only; BRIDGE_FEATURES material.sourceOf, left, sameAs, sortRun, delete) · research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->
+
+<a id="R11.5.5"></a>
+### R11.5.5 Przebieg porządkowania z aplikacji
+
+Aplikacja może dać do uporządkowania 51 do 1 500 plików jako jeden przebieg (`run-…`). Badanie dzieli go na partie
+po 50 i porządkuje je jedną po drugiej, dopóki działa most. Propozycja każdej gotowej partii jest dostępna od razu.
+
+- Każda partia to osobne porządkowanie z własną propozycją; niesie, do którego przebiegu należy i która jest.
+- W kolejce (najwyżej 3 porządkowania) przebieg liczy się jako jedno.
+- **Odczyty aplikacji:** pierwsza partia liczy się, gdy badanie przyjmie przebieg; kolejne, gdy ruszają. Gdy limit
+  odczytów aplikacji partii nie puści, przebieg czeka i sam próbuje ponownie (`material.sort-waiting`).
+- Partia, która się nie powiedzie, nie zatrzymuje kolejnych. `strom material show run-…` mówi stan przebiegu, ile
+  plików jest gotowych i jego partie. `strom material cancel run-…` zatrzymuje partię w pracy, anuluje czekające
+  i zostawia gotowe z ich propozycjami.
+- **Pilnuje kod:** przebieg uruchamia tylko aplikacja przez most; agent nigdy przebiegu nie uruchomi, a `strom
+  material sort` z terminalu bierze najwyżej 50 plików ([R11.5.3](#R11.5.3)).
+- **Granice:** tylko badanie z agentem i z `material.sortRun` ([R11.5.4](#R11.5.4)); starsze badanie bierze od
+  aplikacji jedną partię.
+- **Obsługa:** aplikacja: **Uporządkuj agentem…** ([A3.5.12](A3-evidence-in-the-app.md#A3.5.12)); terminal:
+  `strom material show run-…`, `strom material cancel run-…`.
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500, SORT_QUEUE_MAX=3 (běh jako jedna položka), run/part/parts, první dávka započtená při přijetí, další při startu podle read.app, jinak čeká a zkusí znovu; selhaná dávka nezastaví další · src/core/live-sort.ts, src/core/live.ts POST /material/sort (51–1500 → 202 {state queued, run}), GET /material/sort/<run-…>, POST …/<run-…>/cancel · src/commands/material.ts show run-… („N of M files done“, dávky), cancel run-…, material.sort-waiting · CHANGELOG.md 1.35.0 -->
+
+<a id="R11.5.6"></a>
+### R11.5.6 Usuń trwale: `strom input delete`
+
+`strom input delete I…` usuwa pliki materiału trwale. Może to zrobić tylko człowiek: w terminalu za swoją zgodą
+albo w aplikacji przez **Usuń trwale…** ([A3.5.16](A3-evidence-in-the-app.md#A3.5.16)).
+
+- Przy każdym pliku cofa się jego rekord razem z jego miejscami w drzewie aplikacji. Źródło z niego zrobione
+  zachowuje tekst i cytaty, tylko bez powiązania z plikiem. Zadanie, które trzyma plik, go puszcza; zadanie bez
+  innych plików zostaje porzucone.
+- Treść pliku (oryginał, kopia robocza, podglądy) znika tylko wtedy, gdy tej samej treści nie ma inny plik badania
+  ani inne badanie na tym komputerze. Wtedy znikają też obrazy źródeł z tą samą treścią i ich wycinki; źródło traci
+  obraz, nigdy swój tekst.
+- `--dry-run` mówi wszystko, plik po pliku (`--json`: `impacts`). Wiele plików: `--files-from <plik>` (jedno ID na
+  wiersz, `-` to standardowe wejście).
+- `strom input show I…` mówi przy usuniętym pliku, że człowiek usunął go trwale; `strom input list` go nie pokaże.
+  Ta sama treść przyniesiona ponownie to nowy materiał.
+- **Pilnuje kod:**
+  - wszystko albo nic: plik, którego badanie nie ma, i nie usunie się nic; najwyżej 500 plików;
+  - bez `--dry-run` człowiek mówi tak we własnym terminalu (Enter to nie), inaczej w oknie systemu; gdy nie ma kogo
+    zapytać, polecenie kończy się kodem 4;
+  - agent go nigdy nie uruchomi ani nie zaproponuje; z potwierdzeniem aplikacji zostanie odrzucony
+    (`material.agent`);
+  - potwierdzenie aplikacji obowiązuje tylko dla wykazu, który człowiek widział w aplikacji, i najwyżej 15 minut.
+    Zmieniony wykaz (`material.delete-changed`) ani stare potwierdzenie nic nie usuną;
+  - gdy innego badania na tym komputerze nie da się odczytać (nowszego `strom`), treść zostaje zapisana.
+- **Granice:** w aplikacji Strom nie da się tego cofnąć; plik zostaje tylko w kopii zapasowej (`strom backup`) albo
+  paczce zrobionej wcześniej. Historia badania zachowuje rekord.
+- **Obsługa:** terminal: `strom input delete I… [--dry-run] [--files-from …]`; aplikacja: **Usuń trwale…** przez
+  most (`POST /material/delete`, [R11.5.4](#R11.5.4)).
+- **Obowiązuje od:** badanie 1.35.0
+
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 -->

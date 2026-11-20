@@ -5,9 +5,35 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.36.0
+
+*In Vorbereitung: die Betas bis 1.36.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
+  stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
+  eine Sitzung je Aufgabe, über einen Link, der die Aufgaben nennt. Jede Aufgabe der Warteschlange hat ihre Art der
+  Arbeit (Prüfen, Einträge, Material, Orte, Geschichten …): `strom task list --kind`, und die Strom-App filtert danach.
+- **Von Hand gespeicherte Bilder, sicherer:** Die Nummer eines Bildes wird dem Dateinamen nur entnommen, wenn der Name
+  sie eindeutig sagt (die Kopie eines Dateimanagers „33 2.jpg“ ist Bild 33; ein Name mit zwei Zahlen und ohne Zähler
+  bekommt keine); die Dateien eines Stapels werden nur dann nach ihrer Reihenfolge nummeriert, wenn keine eine Zahl im
+  Namen hat; ein Ordner wird erst übernommen, wenn sein Stapel fertig heruntergeladen ist (ein .crdownload oder .part
+  daneben hält ihn zurück). Eine Datei, die derselbe Scan wie ein anderes Bild ist, wird nie gelöscht: Sie wird daneben
+  beiseitegelegt, und das wird gesagt.
+- **Ein anderer Scan unter einer vergebenen Nummer:** Eine Datei, unter der Nummer eines schon erfassten Bildes
+  gespeichert, die eine andere Seite zeigt (andere Form oder andere Handschrift), ersetzt das Bild nicht mehr: Sie wird
+  daneben beiseitegelegt und unter „Was wartet“ und in der Strom-App erfragt – das Bild behalten, die neue Datei als
+  dieses Bild nehmen oder ihr eine eigene Nummer geben (`strom media aside`). Eine schärfere Kopie wird nur übernommen,
+  wenn sie sicher derselbe Scan ist – verglichen wird die Handschrift, nicht das vorgedruckte Formular; lässt sich das
+  nicht entscheiden, wird die Datei ebenfalls beiseitegelegt und erfragt.
+- **Kleinere Korrekturen:** Eine mit `strom task audit --fix` abgetrennte Aufgabe nennt die Bilder des Buchs mit dessen
+  Titel, ohne ID und Verb; `strom task wait --images` erneut für dasselbe Buch angegeben, fügt dessen Bilder zusammen (ein
+  anderes Buch wird abgelehnt: ein Buch je Aufgabe); zwei Versuche der Sammelprüfung nacheinander kommen in der Reihenfolge, in der sie
+  angefordert wurden, der ältere zuerst; die Bedingung der Abo-Limits liest sie in ein, zwei Sekunden,
+  ohne die auf dem Computer gespeicherten Unterhaltungen zu durchsuchen.
+
 ## 1.35.0
 
-*In Vorbereitung: die Betas bis 1.35.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*19.11.2026 · gehört zur Strom-App 3.30.0.*
 
 - **Die Bücher mit den meisten Aufgaben:** strom sagt, welche Bücher der Archive die meisten Aufgaben der Forschung
   brauchen – offene, zurückgestellte und wartende –, damit ein Herunterladen von Hand vielen davon auf einmal dient: im

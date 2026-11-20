@@ -176,6 +176,7 @@ nenapsáno) · `neplatí od <verze>`.
 | R9.10.4 | R9-archives.md | výzkum 1.14.0 | koncept | Matricula | Matricula | Matricula | Matricula |
 | R9.10.5 | R9-archives.md | výzkum 1.27.0 | koncept | Szukaj w Archiwach | Szukaj w Archiwach | Szukaj w Archiwach | Szukaj w Archiwach |
 | R9.10.6 | R9-archives.md | výzkum 1.28.0 | koncept | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň | DigiArchiv SOA Třeboň |
+| R9.10.7 | R9-archives.md | výzkum 1.35.0 | platí | Brandenburgisches Landeshauptarchiv (BLHA) | Brandenburgisches Landeshauptarchiv (BLHA) | Brandenburgisches Landeshauptarchiv (BLHA) | Brandenburgisches Landeshauptarchiv (BLHA) |
 | R10 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Osoby: ztotožnění, jména a hypotézy | People: identification, names and hypotheses | Personen: Identifizierung, Namen und Hypothesen | Osoby: identyfikacja, imiona i hipotezy |
 | R10.1 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Jmenovec není hledaná osoba | A namesake is not the person sought | Ein Namensvetter ist nicht die gesuchte Person | Imiennik to nie poszukiwana osoba |
 | R10.2 | R10-people-and-hypotheses.md | výzkum 1.0.0 | platí | Dva záznamy jedné osoby: sloučení | Two records of one person: merging | Zwei Einträge einer Person: Zusammenführen | Dwa wpisy jednej osoby: scalenie |
@@ -197,6 +198,8 @@ nenapsáno) · `neplatí od <verze>`.
 | R11.5.2 | R11-material-from-the-user.md | výzkum 1.20.0 | platí | Titulek, druh, datum a osoby z terminálu | Title, kind, date and people from the terminal | Titel, Art, Datum und Personen aus dem Terminal | Tytuł, rodzaj, data i osoby z terminala |
 | R11.5.3 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Třídění materiálu: `strom material sort` | Sorting material: `strom material sort` | Material sortieren: `strom material sort` | Porządkowanie materiału: `strom material sort` |
 | R11.5.4 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Materiál přes most | Material through the bridge | Material über die Brücke | Materiał przez most |
+| R11.5.5 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Běh třídění z aplikace | A sorting run from the app | Ein Lauf des Sortierens aus der App | Przebieg porządkowania z aplikacji |
+| R11.5.6 | R11-material-from-the-user.md | výzkum 1.35.0 | platí | Smazat natrvalo: `strom input delete` | Delete permanently: `strom input delete` | Endgültig löschen: `strom input delete` | Usuń trwale: `strom input delete` |
 | R12 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Kde agent pracuje a co strom hlídá | Where the agent works and what strom watches | Wo der Agent arbeitet und was strom überwacht | Gdzie agent pracuje i czego strom pilnuje |
 | R12.1 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Způsoby práce: tabulka | Ways of working: a table | Arten zu arbeiten: eine Tabelle | Sposoby pracy: tabela |
 | R12.2 | R12-where-the-agent-works.md | výzkum 1.29.0 | koncept | Prohlížeč v aplikaci Claude | The browser in the Claude app | Der Browser in der App Claude | Przeglądarka w aplikacji Claude |
@@ -264,6 +267,14 @@ nenapsáno) · `neplatí od <verze>`.
 | A3.5.6 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Odstranit ze stromu a Vrátit | Remove from the tree and Restore | Aus dem Stammbaum entfernen und Wiederherstellen | Usuń z drzewa i Przywróć |
 | A3.5.7 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Projít a hromadné úpravy | Go through and bulk edits | Durchgehen und Sammeländerungen | Przejrzyj i zmiany zbiorcze |
 | A3.5.8 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Roztřídit agentem | Sort with the agent | Mit dem Agenten sortieren | Uporządkuj agentem |
+| A3.5.9 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Netýká se rodiny | Not about the family | Betrifft nicht die Familie | Nie dotyczy rodziny |
+| A3.5.10 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Pruh třídění a konec návrhu | The sorting band and the end of the proposal | Das Band des Sortierens und das Ende des Vorschlags | Pasek porządkowania i koniec propozycji |
+| A3.5.11 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Co roztřídit: dávky a co se nepošle | What to sort: batches and what is not sent | Was sortieren: Stapel und was nicht gesendet wird | Co uporządkować: partie i co się nie wysyła |
+| A3.5.12 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Běh po dávkách | A run in batches | Ein Lauf in Stapeln | Przebieg partiami |
+| A3.5.13 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Rub a portrét v návrhu | Back and portrait in the proposal | Rückseite und Porträt im Vorschlag | Rewers i portret w propozycji |
+| A3.5.14 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Agent nezařadil, Stejný obsah a Zdroj pramene | Not assigned by the agent, Same content and File of a source | Vom Agenten nicht zugeordnet, Gleicher Inhalt und Datei einer Quelle | Agent nie przypisał, Ta sama treść i Plik źródła |
+| A3.5.15 | A3-evidence-in-the-app.md | aplikace 3.30.0 | platí | Přidat materiály… v okně | Add materials… in the window | Materialien hinzufügen… im Fenster | Dodaj materiały… w oknie |
+| A3.5.16 | A3-evidence-in-the-app.md | aplikace 3.30.0, výzkum 1.35.0 | platí | Smazat natrvalo | Delete permanently | Endgültig löschen | Usuń trwale |
 | A3.6 | A3-evidence-in-the-app.md | aplikace 3.3.0 | platí | Prameny osoby | Sources of a person | Quellen einer Person | Źródła osoby |
 | A3.7 | A3-evidence-in-the-app.md | aplikace 3.4.0 | platí | Kde chybí doklady | Where evidence is missing | Wo Belege fehlen | Gdzie brakuje dowodów |
 | A3.8 | A3-evidence-in-the-app.md | aplikace 3.14.0 | platí | Obraz jen ve výzkumu | Image only in the research | Bild nur in der Forschung | Obraz tylko w badaniu |
@@ -299,9 +310,12 @@ nenapsáno) · `neplatí od <verze>`.
 | A6.1.2 | A6-views.md | aplikace 3.27.0 | platí | Rozestupy: Normální a Husté | Spacing: Normal and Dense | Abstände: Normal und Dicht | Odstępy: Normalne i Gęste |
 | A6.1.3 | A6-views.md | aplikace 3.28.0 | platí | Děti a sourozenci najednou | Children and siblings at once | Kinder und Geschwister auf einmal | Dzieci i rodzeństwo naraz |
 | A6.1.4 | A6-views.md | aplikace 3.29.0 | koncept | Fotka na kartě | Photo on the card | Foto auf der Karte | Zdjęcie na karcie |
+| A6.1.5 | A6-views.md | aplikace 3.30.0 | koncept | Značení linií | Lineage markers | Linienmarkierung | Oznaczenie linii |
+| A6.1.6 | A6-views.md | aplikace 3.30.0 | platí | Zpět na výchozí osobu: ⌂ | Back to the default person: ⌂ | Zurück zur Standardperson: ⌂ | Powrót do osoby domyślnej: ⌂ |
 | A6.2 | A6-views.md | aplikace 1.4.0 | platí | Pohled Potomci | The Descendants view | Ansicht Nachkommen | Widok Potomkowie |
 | A6.3 | A6-views.md | aplikace 1.5.0 | platí | Časová osa | Timeline | Zeitleiste | Oś czasu |
 | A6.4 | A6-views.md | aplikace 1.8.0 | platí | Vějíř | Fan | Fächer | Wachlarz |
+| A6.4.1 | A6-views.md | aplikace 3.30.0 | platí | Barvy rodů a zvýraznění rodu | Family line colours and highlighting a family line | Stammlinienfarben und Hervorheben einer Stammlinie | Kolory rodów i wyróżnienie rodu |
 | A6.5 | A6-views.md | aplikace 1.10.0 | platí | Mapa | Map | Karte | Mapa |
 | A6.5.1 | A6-views.md | aplikace 1.10.0 | platí | Odkud mapa bere polohu místa | Where the map gets a place's location | Woher die Karte die Lage eines Ortes nimmt | Skąd mapa bierze położenie miejsca |
 | A6.5.2 | A6-views.md | aplikace 3.25.0 | platí | Místa mimo mapu dohledat ve výzkumu | Looking up places off the map in the research | Orte ohne Karte in der Forschung suchen | Odszukanie miejsc poza mapą w badaniu |
@@ -335,6 +349,7 @@ nenapsáno) · `neplatí od <verze>`.
 | A6.8.1 | A6-views.md | aplikace 3.28.0 | platí | Sledovat výběr | Follow selection | Auswahl folgen | Śledź wybór |
 | A6.8.2 | A6-views.md | aplikace 3.28.0 | platí | Když hlavní okno chybí | When the main window is missing | Wenn das Hauptfenster fehlt | Gdy brakuje okna głównego |
 | A6.8.3 | A6-views.md | aplikace 3.28.0 | platí | Druhá karta aplikace | A second tab of the app | Ein zweiter Tab der App | Druga karta aplikacji |
+| A6.8.4 | A6-views.md | aplikace 3.30.0 | platí | Co výběr v dalším okně udělá v hlavním okně | What a choice in another window does in the main window | Was eine Wahl in einem weiteren Fenster im Hauptfenster bewirkt | Co wybór w kolejnym oknie zrobi w oknie głównym |
 | A7 | A7-book-pages-and-export.md | aplikace 1.0.0 | platí | Kniha, stránky a export | Book, pages and export | Buch, Seiten und Export | Księga, strony i eksport |
 | A7.1 | A7-book-pages-and-export.md | aplikace 1.2.0 | platí | Kdo je žijící osoba | Who is a living person | Wer eine lebende Person ist | Kto jest osobą żyjącą |
 | A7.2 | A7-book-pages-and-export.md | aplikace 1.2.0 | platí | Ochrana žijících | Privacy of living people | Schutz lebender Personen | Ochrona osób żyjących |
@@ -360,6 +375,10 @@ nenapsáno) · `neplatí od <verze>`.
 | A9.6 | A9-using-the-app.md | aplikace 3.28.0 | platí | Minimapa a legenda stromu jdou sbalit | The minimap and the tree legend fold away | Minikarte und Stammbaum-Legende lassen sich einklappen | Minimapę i legendę drzewa można zwinąć |
 | A9.7 | A9-using-the-app.md | aplikace 3.30.0 | platí | Akce, která chvíli trvá | An action that takes a while | Eine Aktion, die eine Weile dauert | Działanie, które chwilę trwa |
 | A9.7.1 | A9-using-the-app.md | aplikace 3.30.0 | platí | Dlouhá akce: průběh v oznámení | A long action: progress in a notice | Eine lange Aktion: Fortschritt in einer Meldung | Długie działanie: postęp w powiadomieniu |
+| A9.7.2 | A9-using-the-app.md | aplikace 3.30.0 | platí | Zápis do výzkumu, který se ukáže hned | A write to the research shown at once | Ein Schreiben in die Forschung, sofort sichtbar | Zapis do badania widoczny od razu |
+| A9.7.3 | A9-using-the-app.md | aplikace 3.30.0 | platí | Výpočet a soubory v aplikaci | Calculations and files in the app | Berechnungen und Dateien in der App | Obliczenia i pliki w aplikacji |
+| A9.7.4 | A9-using-the-app.md | aplikace 3.30.0 | platí | Když výzkum nebo služba mlčí | When the research or a service is silent | Wenn die Forschung oder ein Dienst schweigt | Gdy badanie lub usługa milczy |
+| A9.8 | A9-using-the-app.md | aplikace 3.30.0 | platí | Klávesové zkratky | Keyboard shortcuts | Tastenkürzel | Skróty klawiszowe |
 | A10 | A10-shared-events.md | aplikace 3.28.0 | platí | Jedna událost u více osob | One event of several people | Ein Ereignis mehrerer Personen | Jedno wydarzenie wielu osób |
 | A10.1 | A10-shared-events.md | aplikace 3.28.0 | platí | Společná událost: Spolu s | A shared event: Shared with | Ein gemeinsames Ereignis: Gemeinsam mit | Wspólne wydarzenie: Razem z |
 | A10.1.1 | A10-shared-events.md | aplikace 3.28.0 | platí | Přidat osobu | Add a person | Person hinzufügen | Dodaj osobę |

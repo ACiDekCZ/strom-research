@@ -144,9 +144,12 @@ a v bublině značky na kartičce, nebo položkou **Ověřit údaje · N** v nab
   a v bublině značky na kartičce pod „N údajů čeká na ověření“ tlačítko **Ověřit přednostně**. Otevře náhled osoby
   s tímto titulkem; po spuštění dá výzkum úkoly s čekajícími údaji osoby na začátek fronty ([S7.3](#S7.3)). Karta
   osoby má dál jen řádek „N údajů čeká na ověření“.
-- **Hlídá kód:** N je přesně to, co výzkum vezme: údaje osoby a jejích rodin, které výzkum zná (i bydliště a údaje
-  už doložené jiným čtenářem), kromě potvrzených člověkem, čekajících na ověření, jména a pohlaví. Počet v nabídce,
-  v okně a ve zprávě po spuštění je stejný.
+- **Hlídá kód:** N je přesně to, co výzkum vezme: údaje osoby a jejích rodin, které výzkum zná (i údaje už doložené
+  jiným čtenářem), kromě potvrzených člověkem, čekajících na ověření, jména a pohlaví. Počet v nabídce, v okně a ve
+  zprávě po spuštění je stejný.
+  - **Od aplikace 3.30.0:** jen narození, křest, sňatek, úmrtí a pohřeb. Bydliště, povolání a jiné údaje se ověřují
+    přes **Ověřit** u údaje. Když by výzkum pro celou osobu vzal i jiné údaje, pošle aplikace k ověření každý
+    zaškrtnutý údaj jmenovitě. Do 3.29.0 i bydliště a povolání.
 - **Hranice:** tlačítko i položka se ukážou jen s běžícím mostem výzkumu ([S7.9](#S7.9)) a jen tehdy, když aspoň
   jeden údaj osoby nabízí **Ověřit**.
 - **Ovládání:** aplikace: karta osoby → **Ověřit údaje (N)** nad **Událostmi**; bublina značky na kartičce →
@@ -154,7 +157,7 @@ a v bublině značky na kartičce, nebo položkou **Ověřit údaje · N** v nab
   pod **Ověřuje se · N**; pak v okně **Ověřit (N)**. Terminál: `strom verify facts P…`.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) -->
+<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Ověřit údaje ve stromu
@@ -275,8 +278,10 @@ a **Vzít zpět**.
     se tu nepotvrzují;
   - v terminálu potvrzuje jen člověk u svého terminálu: `strom verify confirm E… [--undo]`. Agentovi `strom`
     potvrzení odmítne.
-- **Hranice:** strom napojený na výzkum, jehož most neběží, **Potvrdit podle skenu** ani **Vzít zpět** nenabídne;
-  potvrdit jde až s běžícím mostem, nebo v terminálu. Když výzkum potvrzení odmítne, řekne bublina proč, například
+- **Hranice:** strom napojený na výzkum, jehož most neběží: od aplikace 3.30.0 nabídne **Potvrdit podle skenu**
+  a **Vzít zpět** u údaje, který výzkum zná pod svým číslem. Potvrzení i jeho vzetí zpět drží aplikace a do
+  výzkumu dojdou s nejbližším předáním stromu. U údaje bez čísla výzkumu jde bez mostu jen vzít zpět potvrzení,
+  které drží aplikace. Do 3.29.0 bez mostu ani jedno. Když výzkum potvrzení odmítne, řekne bublina proč, například
   že výzkum je archiv, nebo že ho drží jiná relace; „Nezměněno, výzkum neodpovídá.“ jen tehdy, když neodpoví.
 - **Proč:** jistota o údaji vzniká tím, že člověk sám vidí záznam. Ověření agentem je čtení AI; ✓ říká, že záznam
   viděl člověk. Potvrzený přepis ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1),
@@ -285,7 +290,7 @@ a **Vzít zpět**.
   `strom verify confirm E…`, `strom verify confirm E… --undo`.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value · app:0fbda127 src/verify-offer.ts researchConfirms (offline), verifyOffer (offline bez eid: scan ne, undo jen confirmedBy app; scanViaBridge/undoViaBridge ne offline), src/verify-ui-model.ts PERSON_VERIFY_KINDS (BIRT, CHR, BAPM, MARR, DEAT, BURI), personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích), CHANGELOG.cs.md 3.30.0 „Spolehlivost údajů“ -->
 
 <a id="S7.9"></a>
 ## S7.9 Co jde s mostem a co bez něj
@@ -294,7 +299,7 @@ a **Vzít zpět**.
 |---|---|---|---|
 | Značky u údajů a na kartičce | ano | ano, stejné jako s mostem (podle posledního stavu ze souboru) | ano, z importu a z citací |
 | **Ověřit**, **Ověřit přednostně**, **Ověřit údaje · N**, **Ověřit údaje ve stromu…** | ano | ne | ne (řádek o výzkumu předků) |
-| **Potvrdit podle skenu**, **Vzít zpět** | ano, zapíše výzkum | ne | ano, drží aplikace |
+| **Potvrdit podle skenu**, **Vzít zpět** | ano, zapíše výzkum | od aplikace 3.30.0 ano u údaje s číslem výzkumu, drží aplikace do předání stromu ([S7.8](#S7.8)) | ano, drží aplikace |
 | **Zastavit** ověřování | ano | ne; `strom verify stop` v terminálu | – |
 | Ověřování ve frontě výzkumu | běží | běží (výzkum na aplikaci nečeká) | – |
 
@@ -303,4 +308,4 @@ a **Vzít zpět**.
   [S1.1](S1-connecting-app-and-research.md#S1.1).
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->

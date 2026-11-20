@@ -351,9 +351,10 @@ innego; pozostałe okna śledzą dalej. Wszystkie okna są przy tym tylko do odc
   i ślad w Wachlarzu i na Mapie) w nim zostają. **Śledź agenta** ponownie dołącza okno i od razu przeskakuje do
   agenta. Odłączenie przetrwa odświeżenie okna (F5) i zostaje zapomniane wraz z końcem śledzenia.
 - **Wybór z innego okna:** śledzące okno, które nie jest wstrzymane, osobę wybraną w innym oknie tylko zaznacza, także
-  przy **Śledź wybór: przełączaj** ([A6.8.1](A6-views.md#A6.8.1)); centrum zostaje przy agencie. Tabela zaznacza
-  wiersz tej osoby, ale do niego nie przewija. Przeskok za agentem nie jest wysyłany innym oknom jako wybór osoby.
-  Wstrzymane i odłączone okno kieruje się **Śledź wybór** jak poza śledzeniem.
+  przy **Wybór** → **To okno**: **przełączaj** ([A6.8.1](A6-views.md#A6.8.1)); centrum zostaje przy agencie. Tabela
+  zaznacza wiersz tej osoby, ale do niego nie przewija. Przeskok za agentem nie jest wysyłany innym oknom jako wybór
+  osoby. Wstrzymane i odłączone okno kieruje się wyborem **To okno** jak poza śledzeniem. Wybór wysłany do okna głównego
+  z **ustaw w centrum** okno główne śledzące agenta tylko zaznacza ([A6.8.4](A6-views.md#A6.8.4)).
 - **Koniec:**
   - ◎ **Przestań śledzić** w oknie głównym zatrzymuje przeskoki tylko w oknie głównym; inne okna śledzą dalej;
   - **Zakończ śledzenie** (panel badania, menu **Badanie**, menu osoby) i koniec sesji kończą śledzenie we wszystkich
@@ -997,7 +998,7 @@ w jednym kroku. Pozycja czeka dalej, liczby się nie zmieniają.
   | Ustalenie badania | Zdanie |
   |---|---|
   | skany tylko w tekście | **Skany zapisane tylko tekstem, bez księgi – zapisane skany nie wznowią zadania.** |
-  | kilka ksiąg w jednym czekaniu | **Czeka na skany z dwóch ksiąg**, z nieznaną księgą **; jednej z nich badanie nie zna.** |
+  | kilka ksiąg w jednym czekaniu | **Czeka na skany z kilku ksiąg**, z nieznaną księgą **; jednej z nich badanie nie zna.** |
   | księga, której badanie nie zna | **Badanie nie zna księgi – zadanie nie ma folderu na skany.** |
   | brakuje folderu | **Brakuje folderu na skany – poprawka go utworzy.** |
 
@@ -1024,7 +1025,7 @@ w jednym kroku. Pozycja czeka dalej, liczby się nie zmieniają.
   `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
 - **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
 
-<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) · app:cf12b70d auditKindBooks „z více knih“ -->
 
 <a id="S4.4.9"></a>
 ### S4.4.9 Podgląd poprawki i Cofnij
@@ -1085,7 +1086,8 @@ zapłaci.
     10 s (praca nad kolejką 30 s, [S4.2.3](#S4.2.3)). Drugie kliknięcie w tym czasie niczego ponownie nie otwiera.
     Bez potwierdzenia element się zwalnia, a pod nim stoi **Terminal się nie otworzył?** ze **Spróbować ponownie**
     i radą **Jeśli nic się nie otworzyło, trzeba uruchomić Strom Research.** Przy linku bez terminala stoi **Jeśli
-    nic się nie stanie, Strom Research jeszcze nie działa.**
+    nic się nie stanie, Strom Research jeszcze nie działa.** Badanie starsze niż 1.35.0 nie umie potwierdzić
+    przejęcia: bez nowej sesji agenta element po 10 s zwalnia się po cichu, bez zdania.
   - Systemowego okna przeglądarki, które pyta przed otwarciem linku, aplikacja nie widzi. Potwierdzone późno samo
     usuwa zdanie po limicie ([S4.5.4](#S4.5.4)).
 - **Obsługa:** aplikacja: **Ustawienia → Dane i prywatność → Strom Research na tym komputerze**.
@@ -1093,7 +1095,7 @@ zapłaci.
   na agenta od 1.15.0. Czekanie na otwarcie od aplikacji 3.30.0; do 3.29.0 aplikacja nie wiedziała, czy terminal się
   otworzył, i pokazywała tylko powiadomienie **Otwieranie badania…** z radą.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 · app:c3e09951 (79a05311) research-open-busy.ts unprovable → tichý konec u výzkumu bez handoffs (n1 N2) -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Oznaczenia działań
@@ -1191,8 +1193,10 @@ wykonane. Aplikacja przestaje więc od razu czekać i odzywa się tylko wtedy, g
     razu, bez czekania;
   - ten sam link otwarty ponownie w ciągu 400 ms nic nie robi.
 - **Granice:**
-  - badanie bez potwierdzenia: za potwierdzenie uchodzi nowa sesja agenta, w przeciwnym razie aplikacja czeka tylko
-    do limitu;
+  - badanie bez potwierdzenia (starsze niż 1.35.0): za potwierdzenie uchodzi nowa sesja agenta. W przeciwnym razie
+    element po limicie zwalnia się po cichu, bez zdania **Terminal się nie otworzył?**: aplikacja nie rozpozna, czy
+    terminal się uruchomił. Most, który nie odpowiada, mówi to zdanie także tutaj. Praca nad kolejką ma własny dowód
+    i zdanie ([S4.2.3](#S4.2.3));
   - link do nowego badania (`new?app=…`) kończy się po limicie po cichu; dalej aplikacja czeka, aż badanie przejmie
     drzewo;
   - bez działającego mostu nic się nie zgłasza, a zapisany plik sam wygasa.
@@ -1200,7 +1204,7 @@ wykonane. Aplikacja przestaje więc od razu czekać i odzywa się tylko wtedy, g
   `strom link open '<link>'`.
 - **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
 
-<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
 <a id="S4.6"></a>
 ## S4.6 Co jest tylko w terminalu

@@ -121,6 +121,14 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage` (3×): skončilo s kódem 3; vypsalo: „Error: overloaded“ — znovu za 15 minut");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\nexit 3\n", { mode: 0o755 });
   assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage` (3×): skončilo s kódem 3; nevypsalo nic — znovu za 15 minut");
+  // a Claude Code that answers the control request get_usage: its limits read, /usage (here a failure) never asked
+  const limit = (used: number, at: Date) => ({ utilization: used, resets_at: at.toISOString() });
+  const said = { type: "control_response", response: { subtype: "success", request_id: "strom-gate-usage", response: { subscription_type: "max", rate_limits_available: true, rate_limits: { five_hour: limit(10, soon), seven_day: limit(30, week) } } } };
+  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n[ "$2" = "--input-format" ] || exit 3\ncat <<'X'\n${JSON.stringify(said)}\nX\n`, { mode: 0o755 });
+  const quick = await ask("claude-usage 10");
+  assert.equal(quick.verdict, "go", quick.reason);
+  // (after the waits above, with the reserve too)
+  assert.match(quick.reason, /^týden: využito 30 %, teď dovoleno nejvýš 3\d % \(uplynulo 4\d % týdne, minus 10, po čekání ještě minus 2\); týden se obnoví za [34],\d dne$/);
   w.cleanup();
 });
 

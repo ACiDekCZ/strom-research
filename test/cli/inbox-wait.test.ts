@@ -39,9 +39,9 @@ async function world(): Promise<{ w: World; shared: string }> {
 test("the files of a folder: numbered by their names, else by their order when as many as missing, else why not", () => {
   const have = new Set<number>();
   assert.deepEqual(numberFiles(["/x/9.jpg", "/x/10.jpg"], [9, 10], have, "B0002"), { numbers: [9, 10], by: "names" });
-  // the portal's own names (×10): by their order onto the missing ones; a .jp2 of an archive strom's list says counts
-  // them so, counted back
-  assert.deepEqual(numberFiles(["/x/kniha-00090.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002"), { numbers: [9, 10], by: "order" });
+  // the portal's own names (×10): a number in a name is never put aside for the order (B0408) — said what to do; a .jp2
+  // of an archive strom's list says counts them so, counted back
+  assert.equal((numberFiles(["/x/kniha-00090.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002") as { code: string }).code, "inbox.count");
   assert.deepEqual(numberFiles(["/x/kniha-00090.jp2", "/x/kniha-00100.jp2"], [9, 10], have, "B0002", 10), { numbers: [9, 10], by: "names" });
   // a file named by a number alone is never numbered by the order (B0408: "1.jpg" of a task waiting for 33 taken for 33)
   const one = numberFiles(["/x/1.jpg"], [33], new Set(), "B0408");

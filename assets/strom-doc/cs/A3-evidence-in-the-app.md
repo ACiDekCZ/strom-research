@@ -261,8 +261,9 @@ s výzkumem nebo Archivem Stromu ukazuje i soubory výzkumu, které ve stromu ni
 - Soubory jde výzkumu poslat i bez přidání do stromu: **Poslat materiál…** u osoby a **Poslat materiál k
   prameni…** (prohlížeč a editor pramene), nejvýš 20 souborů najednou, s **Poznámka pro výzkum**. Výzkum z nich
   udělá úkol pro agenta ([R11.1](R11-material-from-the-user.md#R11.1)). **Přidat i jako přílohu do stromu** dá do
-  stromu i náhled. Celou složku pošle **Přidat materiály…** v menu výzkumu ([R11.4](R11-material-from-the-user.md#R11.4)).
-  U Archivu Stromu je to **Přidat materiál…** a **Uložit i do stromu** (obrázky a PDF do 2 MB).
+  stromu i náhled. Celou složku pošle **Přidat materiály…** v menu výzkumu
+  ([R11.4](R11-material-from-the-user.md#R11.4)) i v záhlaví okna **Materiály** ([A3.5.15](#A3.5.15)). U Archivu
+  Stromu je to **Přidat materiál…** a **Uložit i do stromu** (obrázky a PDF do 2 MB).
 - Když výzkum neběží, poslané soubory čekají v prohlížeči. Když výzkum osobu ještě nezná, pošlou se po dalším
   poslání stromu.
 - **Hranice:**
@@ -300,10 +301,14 @@ výzkumu.
 - **Hranice:** na telefonu není okno v nabídce **Více**; otevře se od osoby. Když výzkum neběží, okno ukazuje stav
   z doby, kdy běžel, a řekne, co jde upravit: titulky a vazby souborů stromu se zapíšou se stromem, materiál mimo
   strom až s běžícím výzkumem.
+- **Řadit ▾** v liště okna řadí Mřížku i Seznam stejně, uvnitř skupin: **Výchozí pořadí**, nebo sloupec (**Titulek**,
+  **Druh**, **Datum**, **Osoby**, **Pramen**, u archivu **Ve stromu**, **Použito**) a **Vzestupně** / **Sestupně**.
+  Klik na záhlaví Seznamu mění totéž řazení. Řazení se pamatuje na tomto zařízení. Na tabletu a v okně do 1024 px je
+  v **Filtry**.
 - **Ovládání:** viz [A3.5](#A3.5); výběr souborů: **Vybrat**, Ctrl/Cmd+A vybere, co filtry ukazují.
 - **Platí od:** aplikace 3.30.0
 
-<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Titulek, druh a datum
@@ -336,12 +341,14 @@ Každý soubor ukazuje, kde je použit: osoby, portrét, svazek, události, pram
   jinak nic nedrží, se nejdřív zeptá ([A3.5.6](#A3.5.6)).
 - Vedle archivu jsou dvě části: **Ve stromu** a **V archivu**, s osobami přiřazenými v archivu a s tím, k čemu
   soubor výzkum použil (výňatky, prameny výzkumu, otevřené úkoly).
+- Soubor, který je zdrojem pramene výzkumu, má nahoře **Zdroj pramene**: prameny, jak k nim soubor patří, kdo je
+  cituje, a „Soubor je ve výzkumu; ve stromu je přes pramen.“ ([A3.5.14](#A3.5.14)).
 - **Hranice:** strom jen ke čtení ukáže místa bez ×. Použití v archivu ukáže jen výzkum 1.35.0 a novější; když
   výzkum neběží, jsou podle stavu, který aplikace naposledy znala.
 - **Ovládání:** prohlížeč souboru (panel, na telefonu vytažený list); dialog **Příloha**.
 - **Platí od:** aplikace 3.30.0
 
-<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+<!-- zdroj: app:4bf66048 src/ui/material-uses-ui.ts (prameny první, usesSourceOf, keptViaSource) · app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
 
 <a id="A3.5.4"></a>
 ### A3.5.4 Připojit k…
@@ -440,23 +447,249 @@ najednou.
   otevře, odchází k poskytovateli modelu a že třídění čerpá předplatné nebo kredit. Soubory pošle jen tlačítko
   **Roztřídit agentem** v dialogu, jednou.
 - Okno jde zavřít; průběh a hotový návrh jsou v pruhu okna **Materiály**.
+  - **Od aplikace 3.30.0:** pruh ukazuje „Čeká se na agenta…“, pak „Agent třídí · k z n“ s ukazatelem, kolik
+    souborů agent už posoudil. Výzkum, který počet posouzených neříká, má „Agent třídí · N souborů“ s pruhem bez
+    čísla; při omezení pohybu v systému ten pruh stojí. Pod tím „Okno jde zavřít, návrh počká v Materiálech.“
 - **Návrh agenta** má **Návrhy**, **Nepřiřazeno** a **Vyřízeno** a u každého souboru **Přijmout**, **Upravit**,
   **Odmítnout**; dál **Přijmout vybrané** a **Přijmout vše**. Jistota návrhu: jistě, asi, nejisté.
+  - **Od aplikace 3.30.0:** v **Nepřiřazeno** stojí u souboru bez návrhu tichým řádkem, proč návrh nemá: „Čtenář
+    k souboru nic neřekl“, „Vše navržené už soubor má“, „Návrh nešel použít“, „Agent soubor vynechal“ nebo „Soubor
+    se nepodařilo přečíst“. Co k souboru čtenář napsal, stojí pod tím na jednom řádku, celé při najetí. Výzkum,
+    který důvod neříká, nebo důvod, který aplikace nezná: řádek bez důvodu jako dřív.
+  - **Od aplikace 3.30.0:** soubor, o kterém agent řekne, že se rodiny netýká, stojí v **Nepřiřazeno** první, se
+    značkou **Netýká se rodiny** ([A3.5.9](#A3.5.9)).
+  - Textové soubory (.txt, .md) agent čte podle obsahu, ne jako obrázek ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
 - Titulek, datum a druh od člověka zůstanou; návrh agenta se použije, jen když se zvolí **Použít návrh**.
 - Přijaté se zapíše: soubory stromu jedním krokem **Zpět** se stromem, materiál mimo strom do archivu. Pramen
   výzkumu, který strom ještě nemá, přijde do stromu s číslem výzkumu a zápis ho nezdvojí. Přijatý návrh jde u
   řádku **Vrátit**.
+- **Co se pošle:** z dávky a ze všech nezařazených jen soubory bez vlastního titulku nebo bez osoby, bez kopií,
+  zdrojů pramene, souborů, které agent minule nezařadil, a textových a datových souborů; ručně vybrané soubory jdou
+  všechny ([A3.5.11](#A3.5.11)).
+- Pruh třídění je jeden nad celým archivem ([A3.5.10](#A3.5.10)); dávka se třídí z jejího ⋯.
 - **Hranice:**
   - jen u výzkumu 1.35.0 a novějšího, který má agenta, a jen když výzkum běží; u Archivu Stromu a u výzkumu, který
     čeká na agenta, není nabídka vůbec;
-  - nejvýš 50 souborů naráz (pošle se prvních 50) a 2000 znaků textu;
+  - nejvýš 30 dávek po 50 souborech jako jeden běh ([A3.5.12](#A3.5.12)), u výzkumu bez běhů 50 souborů; 2000 znaků
+    textu;
   - výzkum může třídění odmítnout: vyčerpaný limit čtení, příliš mnoho čekajících třídění, agent teď pracovat
     nemůže. Jak třídí výzkum, popisuje [R11.5.3](R11-material-from-the-user.md#R11.5.3);
   - jen v aplikaci na počítači.
-- **Ovládání:** okno **Materiály**: výběr, pruh nad dávkou nebo nad filtrem; konec dávky z aplikace.
+- **Ovládání:** okno **Materiály**: výběr, pruh třídění, ⋯ dávky; konec dávky z aplikace.
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
 
-<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
+<!-- zdroj: app:9752aead (jeden pruh nad archivem, pruhy dávek a nabídka nad vším pryč, dávka z ⋯), 2fbab382 src/material-sort.ts sortNext, 1047b9d6 (běh do 1 500 souborů, bez material.sortRun jedna dávka) · app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem · app:32f1e29f src/ui/material-sort-ui.ts (counted jen s job.filesDone: run k z n, progressbar aria-valuenow; jinak runFiles, is-indeterminate; runNote), strings.ts agentSort.queued, run, runFiles, runNote · app:30688d6b src/materials.ts parseSortUnproposed, material-sort-ui.ts (unassigned && !p → unproposed[why], said na jednom řádku s title), strings.ts agentSort.unproposed.* · research:ae866bb7 filesDone, unproposed, čtení textu · app:8a8131be src/material-sort.ts sortNeedy, sortWholeOffered (narrowed, remembered, jedna dávka se stejným počtem), materials-window.ts sortWholeClosed, strings.ts agentSort.stripWhole, closeWhole · app:a947b426 sortCandidates (dávka, filtr, celé okno: jen bez titulku nebo osoby; výběr vše) -->
+
+<a id="A3.5.9"></a>
+### A3.5.9 Netýká se rodiny
+
+Když agent při třídění ([A3.5.8](#A3.5.8)) řekne, že se soubor rodiny zjevně netýká (snímek obrazovky, účtenka,
+cizí fotka z dovolené, omylem poslaný soubor), má soubor v **Návrh agenta** v **Nepřiřazeno** značku **Netýká se
+rodiny**. Skrýt ho může jen člověk; aplikace ani výzkum ho samy neskryjí ani nesmažou.
+
+- Takový soubor nemá návrh titulku, data, druhu ani vazeb. Řádek ukáže jistotu (jistě, asi, nejisté: jak jisté je,
+  že soubor rodině nepatří) a „Proč ne: …“ s tím, co agent na souboru viděl.
+- Agent tak označí jen soubor zjevně mimo rodinu; soubor, který jen neumí zařadit, zůstane v **Nepřiřazeno** bez
+  značky ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
+- Tyto soubory stojí v **Nepřiřazeno** první. Nad nimi je **Skrýt jako Netýká se rodiny (N)**, u každého **Skrýt…**.
+  Obojí otevře dialog **Skrýt soubor?** s předvybraným důvodem **Netýká se rodiny** (jde změnit na **Duplikát** nebo
+  **Bez důvodu**); soubor skryje až tlačítko **Skrýt**. Oznámení má **Zpět**. Po dialogu, i zrušeném, se návrh
+  agenta vrátí na **Nepřiřazeno**.
+- Skrytý soubor má na řádku „Skryto · netýká se rodiny“ a **Vrátit**. Zůstane ve výzkumu i s originálem a je vidět
+  v **Zobrazit skryté** ([A3.5.1](#A3.5.1)). **Projít ručně (N)** skryté soubory vynechá.
+- **Hranice:**
+  - skrýt jde jen soubor výzkumu mimo strom, který ještě skrytý není. Soubor ve stromu má značku bez **Skrýt…**;
+    ze stromu ho odebere **Odstranit ze stromu…** ([A3.5.6](#A3.5.6));
+  - **Skrýt…** a **Vrátit** fungují jen s běžícím výzkumem; jinak jsou vypnuté;
+  - výzkum, který značku neposílá, nechá **Nepřiřazeno** jako dřív.
+- **Ovládání:** okno **Materiály** → pruh návrhu → **Návrh agenta** → **Nepřiřazeno**; terminál: `strom material
+  show <id>`, skrytí `strom input hide I… --why unrelated` ([R11.5.2](R11-material-from-the-user.md#R11.5.2)).
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:f2bebc4c (v 401eaca4) src/materials.ts SortProposal.unrelated, parseSortProposal · src/material-sort.ts sortRows (unrelated: bez polí a vazeb), sortUnrelatedHideable (origin ≠ tree, file, !hidden, bez places) · src/ui/material-sort-ui.ts (Nepřiřazeno: unrelated první, msp-flag reason.unrelated, conf, unassignedWhy + why; hideUnrelated, hide, restore, hiddenLabel; hideCan: caps.assign, jinak null; bridgeUp && base, jinak vypnuto; reopen na tab unassigned; Projít ručně bez skrytých) · src/ui/material-actions-ui.ts openHideDialog (důvod unrelated předvybraný, ctx.back) · strings.ts materials.agentSort.hideUnrelated, unassignedWhy, reviewByHand, materials.hide, hideTitle, reasonLabel, reason, hideConfirm, hiddenLabel, hiddenToastResearch, restore · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts unrelated -->
+
+<a id="A3.5.10"></a>
+### A3.5.10 Pruh třídění a konec návrhu
+
+Okno **Materiály** má jeden pruh třídění nad celým archivem. Ukazuje stav všech souborů výzkumu, i když filtr
+ukazuje jen část; pod dávkami pruhy nejsou.
+
+- **Stavy pruhu:**
+  - nezařazené soubory: „N souborů bez titulku nebo osoby“ s **Roztřídit agentem…**, **Projít ručně** a ×;
+  - agent třídí: průběh ([A3.5.8](#A3.5.8), [A3.5.12](#A3.5.12)) se **Zrušit**; když už návrhy čekají, i
+    **Vyřídit návrh (N)**;
+  - návrh čeká: „Návrh agenta: N k vyřízení“ s **Vyřídit návrh (N)** a **Zavřít návrh…**;
+  - po návrhu: „Hotovo: vyřízeno a · nepřiřazeno u · zbývá N nezařazených“ s **Roztřídit další (N)…**, **Projít
+    ručně** (soubory, které agent nezařadil) a ×;
+  - nic nezbývá: „Všechny soubory mají titulek a osobu.“
+- × pruh skryje, dokud se jeho stav nezmění. Dávka přidaná při otevřeném okně se v pruhu ohlásí „Přidáno N souborů
+  · M bez titulku nebo osoby“ ([A3.5.15](#A3.5.15)).
+- **Konec návrhu:** když je vše vyřízené, okno **Návrh agenta** řekne „Hotovo · přijato a · odmítnuto r ·
+  nepřiřazeno u“ (u běhu i „Za celý běh: …“) a pod tím:
+  - „V archivu zbývá N nezařazených souborů“ s **Roztřídit další (N)…**: návrh se uzavře a otevře se dialog
+    **Roztřídit agentem**; jinak „V archivu už nic dalšího k roztřídění není.“;
+  - kopie se stejným obsahem, které se neposlaly, se **Skrýt jako Duplikát (N)…**;
+  - „N souborů agent nezařadil“: zůstávají bez titulku a osoby, mají štítek **Agent nezařadil** a příště se
+    agentovi neposílají ([A3.5.14](#A3.5.14)).
+- Návrh, ve kterém nic nečeká, se uzavře zavřením okna. **Zavřít návrh…** se zeptá **Zavřít návrh?**: nevyřízené
+  návrhy se nezapíšou a soubory zůstanou nezařazené; přijaté zůstávají přijaté.
+- **Hranice:**
+  - na telefonu pruh ukáže jen stav; návrh je v aplikaci na počítači. Strom jen ke čtení: jen stav a „Strom je jen
+    ke čtení.“;
+  - když výzkum neběží, je pruh vypnutý a řekne proč;
+  - výzkum bez běhů po dávkách nabídne **Roztřídit dalších 50…** s „Agent vezme naráz nejvýš 50 souborů. Po dávkách
+    třídí novější verze výzkumu.“
+- **Ovládání:** okno **Materiály** → pruh třídění; ⋯ dávky → **Roztřídit agentem…**; okno **Návrh agenta**.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:9752aead src/material-sort.ts sortStripState (A–F nad celým archivem i s filtrem; × jen v A a E), src/ui/material-sort-ui.ts materialSortStripView, konec návrhu (endTitle, endRun, restLine, restNote, leftLine, leftNote, nothingLeft, endFoot, closeAsk, closeText), materialSortCloseAsk · src/ui/materials-window.ts mwSortWholeClose (sortClosedState do změny stavu), ⋯ dávky (sort) · app:17585b94 materialsBatchAdded (stripAdded) · app:0b0c9d4f (telefon, strom jen ke čtení, výzkum neběží, starší výzkum bez běhů: olderNext, olderRun) · strings.ts materials.agentSort.stripWhole, reviewHand, handle, pending, doneLine, sortNextN, allSorted, closeProposal, readOnlyNote, phoneShort, hideCopies, copiesLine -->
+
+<a id="A3.5.11"></a>
+### A3.5.11 Co roztřídit: dávky a co se nepošle
+
+Dialog **Roztřídit agentem** nejdřív řekne, co se pošle, v kolika dávkách a co se nepošle. Soubory jdou v dávkách
+po nejvýš 50.
+
+- **Co roztřídit:** dlaždice s počty. Nahoře to, odkud dialog přišel (**Jen vybrané** nebo **Jen dávka „…“**), pak
+  vždy **Všechny nezařazené**; nad 10 dávek i **Jen prvních 50** („1 dávka; zbytek pak „Roztřídit další““).
+- **Pořadí:** nejdřív obrázky a PDF, pak ostatní soubory, textové a datové soubory poslední; uvnitř podle dávky
+  a složky, soubory jedné složky pohromadě.
+- **Co se nepošle** (z dávky a ze všech nezařazených): kopie se stejným obsahem jako starší soubor (jde jen
+  starší), soubor, který je zdrojem pramene, soubory, které agent minule nezařadil, a textové a datové soubory
+  (.md, .txt, .json, .csv). Dialog to řekne jednou větou s **Podrobnosti**: u kopií **Skrýt jako Duplikát (N)…**,
+  u nezařazených **Ukázat v Materiálech**, u textových zaškrtnutí **Poslat i textové a datové soubory (N)**.
+- **Jen vybrané** pošle všechny vybrané soubory kromě skrytých; kopie a zdroje pramene dialog vyjmenuje počtem
+  a pošle je taky.
+- Dialog řekne „Pošle se N souborů v M dávkách po nejvýš 50. …“ a tlačítko je **Roztřídit agentem · M dávek**.
+  Nad 10 dávek řekne důrazně, že každá dávka čerpá předplatné nebo kredit a že při vyčerpaném limitu se běh zastaví;
+  na vyzkoušení stačí **Jen prvních 50**.
+- **Hranice:**
+  - nejvýš 30 dávek (1 500 souborů) jako jeden běh ([A3.5.12](#A3.5.12)); co je nad to, pošle až **Roztřídit
+    další**;
+  - výzkum bez běhů po dávkách vezme jednu dávku (50 souborů);
+  - zdroj pramene pozná aplikace jen podle výzkumu. Kopie a soubory, které agent nezařadil, říká výzkum; když to
+    neumí, pozná kopie podle obsahu souborů, které zná, a nezařazené podle návrhů, které si pamatuje.
+- **Ovládání:** okno **Materiály**: pruh třídění, výběr, ⋯ dávky → dialog **Roztřídit agentem**.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:1047b9d6 src/ui/material-sort-ui.ts openSortDialog (base: selection | batch | all, 'first' nad SORT_MANY_BATCHES=10, plan, planOne, costBig, overRun, goRun, selWarn, drawLeft s details), src/material-sort.ts SORT_MAX_BATCHES=30, sortRunBatches · app:2fbab382 src/material-sort.ts sortNext (obrázky a PDF první, text poslední jen s withText, dávka a složka, výběr vše bez skrytých; kopie, zdroje, left jen mimo výběr), sortIsText, sortCopyOf (material.sameAs, jinak otisk), sortLeftMap (material.left, jinak paměť aplikace) · strings.ts materials.agentSort.scopeLegend, scopeAll, scopeSel, scopeBatch, scopeFirst, scopeFirstSub, leftCopies, leftText, leftSources, leftLeft, showLeft, details, withText, withTextHint -->
+
+<a id="A3.5.12"></a>
+### A3.5.12 Běh po dávkách
+
+Víc než jedna dávka jde jako jeden běh: výzkum třídí dávky jednu za druhou a návrh každé hotové dávky jde vyřídit
+hned.
+
+- Pruh a ukazatel jsou jeden pro celý běh: „Agent třídí · dávka b z M · k z n“, na začátku dávky „… začíná“.
+  Okno **Návrh agenta** ukáže „Dávka b z M běží · přibudou další návrhy“; nové návrhy přibudou na konec seznamu
+  s oznámením a **Ukázat**.
+- Běh jde dál i po zavření okna a po novém načtení aplikace. Oznámení o konci přijde jednou, na konci běhu.
+- **Zrušit** běh zastaví hned: dávka v práci skončí, čekající se nespustí. Když už jsou hotové návrhy, zeptá se
+  **Zahodit hotové návrhy?** a řekne, které dávky se nespustí a kolik souborů zůstane nezařazených; **Ponechat** je
+  nechá k vyřízení.
+- **Dávka, která neproběhla:** po konci běhu pruh v barvě chyby „Dávka b z M neproběhla:“ s důvodem, co zůstává
+  nezařazené, **Vyřídit návrh (N)**, **Zkusit znovu…** a **Zavřít**. Další dávky mezitím běží dál.
+- **Běh zastavený jinde:** „Třídění se zastavilo po dávce b z M.“ s **Pokračovat (N dávek)…**. **Zkusit znovu…**
+  i **Pokračovat** otevřou dialog s **Co zbylo z běhu**; nové dávky přibudou do návrhu, který je otevřený.
+- **Dávka čeká**, když čtení, o která smí aplikace požádat, jsou vyčerpaná: „Dávka b z M čeká“ a „Spustí se sama
+  asi za N min.“ (nebo h).
+- **Hranice:** nejvýš 30 dávek po 50 souborech; jen výzkum, který umí běh po dávkách
+  ([R11.5.5](R11-material-from-the-user.md#R11.5.5)). Každá dávka čerpá předplatné nebo kredit a počítá se do čtení
+  aplikace.
+- **Ovládání:** dialog **Roztřídit agentem**; pruh okna **Materiály**; okno **Návrh agenta**.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:acc877d6 src/ui/material-sort-ui.ts (běh výzkumu čtený do konce, jeden pruh a ukazatel, runBatch, runBatchFiles, runStarting, runInWindow, moreArrived, show; po novém načtení sledovaný znovu; toast jednou na konci) · app:687dd41b materialSortCancel (cancelMaterialSortRun, discardAsk, discardRun, discardKeep), batchFailed, runErrorText (errLimit, batchErr), leftAfterError, retry, stopped, stoppedNote, resume, scopeRest, runWaiting, runWaitText (waitApp, waitRetry) · app:0b0c9d4f (bez toastu při otevřeném okně návrhu) · research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500 -->
+
+<a id="A3.5.13"></a>
+### A3.5.13 Rub a portrét v návrhu
+
+Agent může v návrhu říct, který z poslaných souborů je rubem jiné fotky nebo strany a který obrázek je portrétem
+osoby. Návrh to ukáže jako čip u souboru.
+
+- **Rub:** u přední strany čip „Rub:“ s náhledem a názvem zadní strany. Přijetí zapíše rub spolu s přední stranou:
+  rub dostane její datum, druh a vazby a titulek „… (rub)“. Řádek ukáže oba názvy („… + … (rub)“) a „2 strany“.
+- **Portrét:** čip „Portrét:“ s osobou. Po přijetí dostane soubor místo u osoby a otevře se editor portrétu
+  ([A12](A12-portrait-and-couple-photo.md)).
+- × čip z návrhu odebere; zbytek návrhu zůstane.
+- **Hranice:**
+  - rub jde jen mezi soubory, které dostal tentýž čtenář výzkumu: jeden rub k jedné přední straně, nikdy rub rubu
+    ani textový soubor ([R11.5.3](R11-material-from-the-user.md#R11.5.3));
+  - portrét se nabídne jen u obrázku a jen u osoby, která portrét nemá a jde upravit.
+- **Ovládání:** okno **Návrh agenta** → **Návrhy**.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/material-sort-ui.ts withPortraits (obrázek, osoba bez photo, canEditPortrait), čipy own() s × (dropped), rubFiles, twoSides, accept (sortBackRow s rubSuffix, portrét: místo personId) · strings.ts materials.agentSort.rubChip, portraitChip, rubSuffix, rubFiles, twoSides · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait -->
+
+<a id="A3.5.14"></a>
+### A3.5.14 Agent nezařadil, Stejný obsah a Zdroj pramene
+
+Dlaždice a řádky okna **Materiály** nesou před osobami štítek, který říká, proč soubor zůstal nezařazený, nebo že
+je zařazený přes pramen.
+
+- **Agent nezařadil:** soubor, ke kterému agent při třídění nic nenavrhl. Prohlížeč souboru u něj ukáže „Proč ne“
+  s důvodem. Filtr **Agent nezařadil** (s počtem) stojí za ostatními filtry. Příští třídění takové soubory
+  nepošle, pokud se nevyberou ručně.
+- **Stejný obsah:** soubor se stejným obsahem jako starší soubor; třídění pošle jen ten starší.
+- **Zdroj pramene** (u více pramenů „Zdroj N pramenů“): soubor, ze kterého výzkum udělal pramen. Štítek stojí před
+  osobami, které pramen citují, a **Ve stromu** se řídí tím, jestli je pramen ve stromu. V **Seznam** ukáže
+  sloupec **Pramen** štítek s titulkem prvního pramene. Takový soubor je zařazený: nepočítá se do **Bez osoby** ani
+  **Bez pramene** a štítek **Agent nezařadil** nemá. **Kde je použit** u něj ukáže prameny první
+  ([A3.5.3](#A3.5.3)).
+- **Hranice:** **Agent nezařadil** a **Stejný obsah** nese jen soubor bez titulku nebo bez osoby, který není skrytý.
+  **Zdroj pramene** jen s výzkumem, který zdroje pramenů hlásí ([R11.5.4](R11-material-from-the-user.md#R11.5.4));
+  bez něj se soubory ukazují jako dřív.
+- **Ovládání:** okno **Materiály** (dlaždice, **Seznam**, **Filtry**); prohlížeč souboru.
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/materials-window.ts (agentLeft, copyOf jen u souboru bez titulku nebo osoby, ne skrytý ani zdroj pramene), mwSortTagHtml, filtr left (fLeft), src/ui/material-viewer-ui.ts (unassignedWhy + said nebo unproposed[why]) · app:4bf66048 src/materials-overview.ts, src/ui/materials-window.ts mwSourceOfTag, src/ui/material-uses-ui.ts (zdroj pramene: přiřazený, bez Bez osoby a Bez pramene) · strings.ts materials.agentSort.fLeft, tagLeft, tagCopy, tagSourceOf, sourceOfN, usesSourceOf, viaInput, viaMedia, viaExcerpt, citedBy, keptViaSource · research:0cc2cfca src/core/live.ts GET /material (uses.of, left, sameAs) -->
+
+<a id="A3.5.15"></a>
+### A3.5.15 Přidat materiály… v okně
+
+**Přidat materiály…** v záhlaví okna **Materiály** otevře nad oknem průvodce **Přidat materiály do výzkumu**
+([R11.4](R11-material-from-the-user.md#R11.4)).
+
+- Soubory a složky přetažené na okno ukážou „Pustit sem: přidat do materiálů“ a otevřou průvodce s nimi. Nic se
+  nepošle bez potvrzení v průvodci.
+- Dávka přidaná při otevřeném okně se ohlásí v pruhu třídění ([A3.5.10](#A3.5.10)) a seznam se načte znovu.
+- **Hranice:** jen u výzkumu, který přijímá dávky, a u stromu, který jde měnit; strom bez výzkumu tlačítko nemá. Na
+  telefonu nejde přetahovat; **Přidat materiály…** a **Kde soubory jsou** jsou tam v ⋯ záhlaví.
+- **Ovládání:** okno **Materiály** → **Přidat materiály…**; přetažení souborů nebo složek na okno.
+- **Platí od:** aplikace 3.30.0
+
+<!-- zdroj: app:17585b94 src/ui/materials-window.ts mwAddMaterials (showBatchDialog), mwWireDrop (ne na telefonu), mwFillHeadMenu (telefon: add, where), materialsBatchAdded · src/ui/materials-ui.ts materialsAddOffered (windowAddOffered: model archive, batchAvailable, ne jen ke čtení) · strings.ts materials.addMaterials, dropTitleMaterials, dropSubMaterials, agentSort.stripAdded -->
+
+<a id="A3.5.16"></a>
+### A3.5.16 Smazat natrvalo
+
+**Smazat natrvalo…** smaže soubory výzkumu z archivu i ze stromu. Jde to jen přes dialog, který nejdřív řekne, co
+na soubory odkazuje; v aplikaci to nejde vrátit.
+
+- Dialog **Smazat natrvalo N souborů?** ukáže náhled (u více souborů prvních pět a „a N dalších“), **Co na soubory
+  odkazuje** podle výzkumu (řádky **Pramen**, **Výřezy**, **Strom**, **Osoby**, **Úkoly**), že se soubory smažou
+  z archivu výzkumu i ze stromu, a zaškrtnutí **Rozumím, smazání nejde v aplikaci vrátit**.
+- Tlačítko **Smazat natrvalo** funguje, jen když výzkum výčet potvrdil a pole je zaškrtnuté; fokus má **Zrušit**.
+  Soubory mimo strom, které ještě nejsou skryté, nabídnou i **Jen skrýt – jde vrátit**.
+- **Co se stane:** pramen zůstane, jen bez zdroje; pramen se stejným obsahem přijde o obrázek, text a citace
+  zůstanou; výřezy z těchto souborů se smažou; místa ve stromu odebere další verze stromu z výzkumu; soubor zmizí
+  z materiálů osob; úkol bez dalších souborů se vzdá. Obsah, který má i jiný soubor nebo jiný výzkum na tomto
+  počítači, zůstane uložený a smaže se jen záznam.
+- Když se výčet mezitím změnil, nebo potvrzení vypršelo (platí 15 minut), dialog ukáže nový výčet, zaškrtnutí
+  zruší a smazání je třeba potvrdit znovu.
+- Po smazání oznámení „Smazáno natrvalo: N souborů.“ bez **Zpět**. Soubory zmizí z okna i z návrhu agenta.
+  Zůstanou jen v dřívějších zálohách výzkumu (u Archivu Stromu archivu). Agent ani strom nemažou nikdy sami.
+- **Hranice:**
+  - jen soubory archivu výzkumu nebo Archivu Stromu; soubor, který je jen ve stromu, odebere **Odstranit ze
+    stromu…** ([A3.5.6](#A3.5.6));
+  - nejvýš 500 souborů najednou („Najednou jde smazat nejvýš 500 souborů.“);
+  - jen s výzkumem, který mazání umí, a s běžícím mostem; nikdy ve stromu jen ke čtení;
+  - na úzké obrazovce je dialog list zespodu.
+- **Ovládání:** okno **Materiály** → výběr → ⋯ → **Smazat natrvalo…** (poslední položka); prohlížeč souboru
+  (poslední akce). Terminál: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+
+<!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
 
 <a id="A3.6"></a>
 ## A3.6 Prameny osoby

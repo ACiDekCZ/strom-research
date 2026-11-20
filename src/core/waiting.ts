@@ -16,7 +16,7 @@
 // of its own (the person can save them by hand, or talk about them, whatever the question): in the question's `tasks`
 // too, as what the decision touches, yet each task one item at most.
 
-import { inboxState, type InboxState } from "./inboxwait.ts";
+import { asideFiles, inboxState, type AsideFile, type InboxState } from "./inboxwait.ts";
 import { bookOfTask } from "./books.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -46,7 +46,7 @@ import { UsageError } from "./errors.ts";
 import { auditOf, audited, bookIndex, type BookIndex } from "./taskaudit.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "aside" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "images" | "sent" | "chat";
@@ -62,6 +62,7 @@ const SECTION: Record<string, WaitSection> = {
   story: "decide",
   send: "decide",
   tune: "decide",
+  aside: "decide",
   conflict: "decide",
   hypothesis: "decide",
   place: "decide",
@@ -83,7 +84,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, tune: 6, transcript: 0 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, aside: 4, tune: 6, transcript: 0 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: boolean): WaitAction[] {
@@ -136,6 +137,8 @@ export interface Waiting {
   story?: string;
   send?: Received;
   tune?: Question;
+  /** A file of a book's folder of the inbox set aside, not taken (B0408, B0374): which one is the image (the terminal). */
+  aside?: AsideFile;
   /** An open conflict the person decides (the terminal). */
   conflict?: Conflict;
   /** A question of a place the research asks (core/placeid.ts): which of the candidates, the position, the facts' writing. */
@@ -154,7 +157,7 @@ export interface Waiting {
  * The options that add what only the terminal shows (the menu's What waits): the bridge never asks for them, so the
  * Strom app never shows them. Each item they add is marked `terminalOnly`; a new kind of the terminal's own goes here.
  */
-export const TERMINAL_ONLY = ["sends", "tune", "conflicts", "milder", "hypotheses", "hypothesesOpen"] as const satisfies readonly (keyof WaitingOptions)[];
+export const TERMINAL_ONLY = ["sends", "tune", "aside", "conflicts", "milder", "hypotheses", "hypothesesOpen"] as const satisfies readonly (keyof WaitingOptions)[];
 
 /** Whether the Strom app shows a thing that waits too (its /status `waiting`): everything but the terminal's own. */
 export function inApp(w: Waiting): boolean {
@@ -194,6 +197,8 @@ export interface WaitingOptions {
   sends?: boolean;
   /** The questions about the reading of scans that are due (the terminal): the settings to ask them with. */
   tune?: Settings;
+  /** The files of the books' folders of the inbox set aside, not taken (the terminal; the app: /status books.aside). */
+  aside?: boolean;
   /** The open conflicts the person decides (the terminal; core/conflicts.ts conflictsToDecide). */
   conflicts?: boolean;
   /** A connector's word that an archive allows more (the terminal). */
@@ -651,6 +656,24 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         tune: q,
         terminalOnly: true,
         item: { id: q.id, what: q.text, on: q.why, at: q.asked, kind: "tune", section: "decide", group: { key: "tune", name: phrase(lang, "wait.group.tune"), kind: "other" }, phase: "todo", actions: [] },
+      });
+  // the files of the inbox set aside: which one is the image of its number, or which number is wrong — the person's
+  if (o.aside && !actsAsArchive(tree))
+    for (const a of asideFiles(tree, o.shared))
+      out.push({
+        aside: a,
+        terminalOnly: true,
+        item: {
+          id: `aside:${a.folder}/${a.file}`,
+          what: ui(lang, a.kind === "same" ? "ui.waiting.aside.same" : "ui.waiting.aside.other", { file: a.name, book: a.recordset, image: a.image ?? "?", media: a.media }),
+          on: "",
+          at: a.at,
+          kind: "aside",
+          section: "decide",
+          group: { key: "aside", name: phrase(lang, "wait.group.aside"), kind: "other" },
+          phase: "todo",
+          actions: [],
+        },
       });
   // one place, one name: the first said of it (an archive's question names it as the research knows the archive; its
   // tasks by their book's site would name it by the host)

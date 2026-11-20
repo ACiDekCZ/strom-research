@@ -284,8 +284,9 @@ nowhere in the tree (**only in the archive**).
   material for this source…** (source viewer and editor), at most 20 files at once, with **Note for the research**.
   The research makes a task for the agent from them ([R11.1](R11-material-from-the-user.md#R11.1)). **Also add as an
   attachment in the tree** puts a preview into the tree too. A whole folder is sent by **Add materials…** in the
-  research menu ([R11.4](R11-material-from-the-user.md#R11.4)). With the Strom archive it is **Add material…** and
-  **Also save to the tree** (images and PDF up to 2 MB).
+  research menu ([R11.4](R11-material-from-the-user.md#R11.4)) and in the header of the window **Materials**
+  ([A3.5.15](#A3.5.15)). With the Strom archive it is **Add material…** and **Also save to the tree** (images and
+  PDF up to 2 MB).
 - When the research is not running, the sent files wait in the browser. When the research does not know the person
   yet, they are sent after the next sending of the tree.
 - **Limits:**
@@ -323,10 +324,14 @@ research's files too.
 - **Limits:** on a phone the window is not in the menu **More**; it opens from a person. When the research is not
   running, the window shows the state from when it ran and says what can be edited: titles and links of the tree's
   files are written with the tree, material outside the tree only with the research running.
+- **Sort ▾** in the window's bar sorts the Grid and the List alike, within the groups: **Default order**, or a column
+  (**Title**, **Type**, **Date**, **People**, **Source**, with an archive **In the tree**, **Used**) and **Ascending** /
+  **Descending**. A click on a header of the List changes the same sort. The sort is remembered on this device. On a
+  tablet and in a window up to 1024 px it is in **Filters**.
 - **Controls:** see [A3.5](#A3.5); selecting files: **Select**, Ctrl/Cmd+A selects what the filters show.
 - **Since:** app 3.30.0
 
-<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Title, kind and date
@@ -362,12 +367,15 @@ a link to the person or the source.
   file nothing else holds asks first ([A3.5.6](#A3.5.6)).
 - Beside an archive there are two parts: **In the tree** and **In the archive**, with the people assigned in the
   archive and with what the research used the file for (excerpts, the research's sources, open tasks).
+- A file that is the file of a research's source has **File of a source** at the top: the sources, how the file
+  belongs to them, who cites them, and "The file is in the research; in the tree it is there through a source."
+  ([A3.5.14](#A3.5.14)).
 - **Limits:** a read-only tree shows the places without ×. The uses in the archive are shown only by the research
   1.35.0 and newer; when the research is not running, they follow the state the app last knew.
 - **Controls:** the file viewer (a panel, on a phone a pulled-up sheet); the dialog **Attachment**.
 - **Since:** app 3.30.0
 
-<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+<!-- zdroj: app:4bf66048 src/ui/material-uses-ui.ts (prameny první, usesSourceOf, keptViaSource) · app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
 
 <a id="A3.5.4"></a>
 ### A3.5.4 Link to…
@@ -468,24 +476,271 @@ kind and links (people, event, source) with a short reason. Nothing is written u
   says that what the agent opens goes to the model provider and that sorting uses the subscription or credit. Only
   the button **Sort with the agent** in the dialog sends the files, once.
 - The window can be closed; the progress and the finished proposal are in the band of the window **Materials**.
+  - **From app 3.30.0:** the band shows "Waiting for the agent…", then "The agent is sorting · k of n" with a bar
+    showing how many files the agent has already assessed. A research that does not tell the number assessed has
+    "The agent is sorting · N files" with a bar without a number; with reduced motion set in the system that bar
+    stands still. Below it "The window can be closed; the proposal waits in Materials."
 - **The agent's proposal** has **Proposals**, **Unassigned** and **Done**, and at each file **Accept**, **Edit**,
   **Reject**; further **Accept selected** and **Accept all**. The certainty of a proposal: sure, likely, uncertain.
+  - **From app 3.30.0:** in **Unassigned** a file without a proposal has a quiet row saying why it has none: "The
+    reader said nothing about the file", "The file already has everything proposed", "The proposal could not be
+    used", "The agent left the file out" or "The file could not be read". What the reader wrote about the file stands
+    below it on one line, in full on hovering. A research that does not give the reason, or a reason the app does not
+    know: a row without a reason as before.
+  - **From app 3.30.0:** a file the agent says is not about the family stands first in **Unassigned**, marked
+    **Not about the family** ([A3.5.9](#A3.5.9)).
+  - The agent reads text files (.txt, .md) by their content, not as an image
+    ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
 - A title, date and kind set by a person stay; the agent's proposal is used only when **Use the proposal** is chosen.
 - What is accepted is written: the tree's files in one step of **Undo** with the tree, material outside the tree to
   the archive. A source of the research the tree does not have yet comes into the tree with the research's number,
   and writing does not duplicate it. An accepted proposal can be undone at its row with **Undo**.
+- **What is sent:** from a batch and from all unsorted only files without a title of their own or without a person,
+  without copies, files of a source, files the agent left unassigned last time, and text and data files; files
+  selected by hand all go ([A3.5.11](#A3.5.11)).
+- The sorting band is one above the whole archive ([A3.5.10](#A3.5.10)); a batch is sorted from its ⋯.
 - **Limits:**
   - only with the research 1.35.0 and newer that has an agent, and only while the research runs; with the Strom
     archive and with a research waiting for an agent the offer is not there at all;
-  - at most 50 files at once (the first 50 are sent) and 2000 characters of text;
+  - at most 30 batches of 50 files as one run ([A3.5.12](#A3.5.12)), with a research without runs 50 files; 2000
+    characters of text;
   - the research can refuse the sorting: the reading limit used up, too many sortings waiting, the agent cannot work
     now. How the research sorts is described in [R11.5.3](R11-material-from-the-user.md#R11.5.3);
   - only in the app on a computer.
-- **Controls:** the window **Materials**: a selection, the band above a batch or above a filter; the end of a batch
-  from the app.
+- **Controls:** the window **Materials**: a selection, the sorting band, ⋯ of a batch; the end of a batch from the
+  app.
 - **Since:** app 3.30.0, research 1.35.0
 
-<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
+<!-- zdroj: app:9752aead (jeden pruh nad archivem, pruhy dávek a nabídka nad vším pryč, dávka z ⋯), 2fbab382 src/material-sort.ts sortNext, 1047b9d6 (běh do 1 500 souborů, bez material.sortRun jedna dávka) · app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem · app:32f1e29f src/ui/material-sort-ui.ts (counted jen s job.filesDone: run k z n, progressbar aria-valuenow; jinak runFiles, is-indeterminate; runNote), strings.ts agentSort.queued, run, runFiles, runNote · app:30688d6b src/materials.ts parseSortUnproposed, material-sort-ui.ts (unassigned && !p → unproposed[why], said na jednom řádku s title), strings.ts agentSort.unproposed.* · research:ae866bb7 filesDone, unproposed, čtení textu · app:8a8131be src/material-sort.ts sortNeedy, sortWholeOffered (narrowed, remembered, jedna dávka se stejným počtem), materials-window.ts sortWholeClosed, strings.ts agentSort.stripWhole, closeWhole · app:a947b426 sortCandidates (dávka, filtr, celé okno: jen bez titulku nebo osoby; výběr vše) -->
+
+<a id="A3.5.9"></a>
+### A3.5.9 Not about the family
+
+When the agent says while sorting ([A3.5.8](#A3.5.8)) that a file is plainly not about the family (a screenshot, a
+receipt, a stranger's holiday photo, a file sent by mistake), the file is marked **Not about the family** in **The
+agent's proposal** under **Unassigned**. Only a person can hide it; neither the app nor the research hides or deletes
+it by itself.
+
+- Such a file has no proposed title, date, kind or links. Its row shows the certainty (sure, likely, uncertain: how
+  sure it is that the file is not the family's) and "Why not: …" with what the agent saw on the file.
+- The agent marks only a file plainly outside the family; a file it merely cannot place stays under **Unassigned**
+  without the mark ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
+- These files stand first under **Unassigned**. Above them is **Hide as Not about the family (N)**, at each one
+  **Hide…**. Both open the dialog **Hide the file?** with the reason **Not about the family** preselected (it can be
+  changed to **Duplicate** or **No reason**); only the button **Hide** hides the file. The notice has **Undo**. After
+  the dialog, even a cancelled one, the agent's proposal comes back on **Unassigned**.
+- A hidden file says "Hidden · not about the family" in its row, with **Restore**. It stays in the research with its
+  original and is seen in **Show hidden** ([A3.5.1](#A3.5.1)). **Go through by hand (N)** leaves hidden files out.
+- **Limits:**
+  - only a research file outside the tree that is not hidden yet can be hidden. A file in the tree has the mark
+    without **Hide…**; **Remove from the tree…** takes it out of the tree ([A3.5.6](#A3.5.6));
+  - **Hide…** and **Restore** work only while the research runs; otherwise they are disabled;
+  - a research that does not send the mark leaves **Unassigned** as before.
+- **Controls:** the window **Materials** → the proposal's band → **The agent's proposal** → **Unassigned**;
+  terminal: `strom material show <id>`, hiding `strom input hide I… --why unrelated`
+  ([R11.5.2](R11-material-from-the-user.md#R11.5.2)).
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:f2bebc4c (v 401eaca4) src/materials.ts SortProposal.unrelated, parseSortProposal · src/material-sort.ts sortRows (unrelated: bez polí a vazeb), sortUnrelatedHideable (origin ≠ tree, file, !hidden, bez places) · src/ui/material-sort-ui.ts (Nepřiřazeno: unrelated první, msp-flag reason.unrelated, conf, unassignedWhy + why; hideUnrelated, hide, restore, hiddenLabel; hideCan: caps.assign, jinak null; bridgeUp && base, jinak vypnuto; reopen na tab unassigned; Projít ručně bez skrytých) · src/ui/material-actions-ui.ts openHideDialog (důvod unrelated předvybraný, ctx.back) · strings.ts materials.agentSort.hideUnrelated, unassignedWhy, reviewByHand, materials.hide, hideTitle, reasonLabel, reason, hideConfirm, hiddenLabel, hiddenToastResearch, restore · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts unrelated -->
+
+<a id="A3.5.10"></a>
+### A3.5.10 The sorting band and the end of the proposal
+
+The window **Materials** has one sorting band above the whole archive. It shows the state of all files of the
+research, even when a filter shows only a part; there are no bands under the batches.
+
+- **States of the band:**
+  - unsorted files: "N files without title or person" with **Sort with the agent…**, **Go through by hand** and ×;
+  - the agent is sorting: the progress ([A3.5.8](#A3.5.8), [A3.5.12](#A3.5.12)) with **Cancel**; when proposals
+    are already waiting, also **Go through the proposal (N)**;
+  - a proposal is waiting: "The agent's proposal: N to go through" with **Go through the proposal (N)** and **Close
+    the proposal…**;
+  - after the proposal: "Done: a handled · u unassigned · N unsorted left" with **Sort the next (N)…**, **Go
+    through by hand** (the files the agent did not assign) and ×;
+  - nothing left: "All files have a title and a person."
+- × hides the band until its state changes. A batch added while the window is open is announced in the band as
+  "N files added · M without title or person" ([A3.5.15](#A3.5.15)).
+- **The end of the proposal:** when everything is gone through, the window **The agent's proposal** says "Done · a
+  accepted · r rejected · u unassigned" (for a run also "For the whole run: …") and below it:
+  - "N unsorted files are left in the archive" with **Sort the next (N)…**: the proposal closes and the dialog
+    **Sort with the agent** opens; otherwise "Nothing else in the archive is left to sort.";
+  - copies with the same content that were not sent: **Hide as Duplicate (N)…**;
+  - "The agent did not assign N files": they stay without title and person, carry the tag **Not assigned by the
+    agent** and are not sent to the agent next time ([A3.5.14](#A3.5.14)).
+- A proposal in which nothing waits is closed by closing the window. **Close the proposal…** asks **Close the
+  proposal?**: open proposals are not written and the files stay unsorted; accepted ones stay accepted.
+- **Limits:**
+  - on a phone the band only shows the state; the proposal is in the app on the computer. A read-only tree: only the
+    state and "The tree is read-only.";
+  - when the research is not running, the band is off and says why;
+  - a research without runs in batches offers **Sort the next 50…** with "The agent takes at most 50 files at once.
+    A newer version of the research sorts in batches."
+- **Controls:** the window **Materials** → the sorting band; ⋯ of a batch → **Sort with the agent…**; the window
+  **The agent's proposal**.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:9752aead src/material-sort.ts sortStripState (A–F nad celým archivem i s filtrem; × jen v A a E), src/ui/material-sort-ui.ts materialSortStripView, konec návrhu (endTitle, endRun, restLine, restNote, leftLine, leftNote, nothingLeft, endFoot, closeAsk, closeText), materialSortCloseAsk · src/ui/materials-window.ts mwSortWholeClose (sortClosedState do změny stavu), ⋯ dávky (sort) · app:17585b94 materialsBatchAdded (stripAdded) · app:0b0c9d4f (telefon, strom jen ke čtení, výzkum neběží, starší výzkum bez běhů: olderNext, olderRun) · strings.ts materials.agentSort.stripWhole, reviewHand, handle, pending, doneLine, sortNextN, allSorted, closeProposal, readOnlyNote, phoneShort, hideCopies, copiesLine -->
+
+<a id="A3.5.11"></a>
+### A3.5.11 What to sort: batches and what is not sent
+
+The dialog **Sort with the agent** first says what is sent, in how many batches and what is not sent. Files go in
+batches of at most 50.
+
+- **What to sort:** tiles with counts. At the top where the dialog came from (**Selected only** or **Batch "…"
+  only**), then always **All unsorted**; over 10 batches also **First 50 only** ("1 batch; the rest later with
+  "Sort the next"").
+- **Order:** images and PDF first, then other files, text and data files last; within that by batch and folder, the
+  files of one folder together.
+- **What is not sent** (from a batch and from all unsorted): copies with the same content as an older file (only
+  the older one goes), a file that is the file of a source, files the agent left unassigned last time, and text and
+  data files (.md, .txt, .json, .csv). The dialog says so in one sentence with **Details**: for copies **Hide as
+  Duplicate (N)…**, for the unassigned ones **Show in Materials**, for text files the checkbox **Send text and data
+  files too (N)**.
+- **Selected only** sends all selected files except hidden ones; the dialog counts the copies and files of a source
+  among them and sends them too.
+- The dialog says "N files are sent in M batches of at most 50. …" and the button is **Sort with the agent · M
+  batches**. Over 10 batches it says firmly that each batch uses the subscription or credit and that the run stops
+  when the limit runs out; **First 50 only** is enough for a try.
+- **Limits:**
+  - at most 30 batches (1,500 files) as one run ([A3.5.12](#A3.5.12)); anything above that waits for **Sort the
+    next**;
+  - a research without runs in batches takes one batch (50 files);
+  - the app knows a file of a source only from the research. Copies and files the agent left unassigned are told by
+    the research; when it cannot, the app knows copies by the content of the files it knows and the unassigned ones
+    by the proposals it remembers.
+- **Controls:** the window **Materials**: the sorting band, a selection, ⋯ of a batch → the dialog **Sort with the
+  agent**.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:1047b9d6 src/ui/material-sort-ui.ts openSortDialog (base: selection | batch | all, 'first' nad SORT_MANY_BATCHES=10, plan, planOne, costBig, overRun, goRun, selWarn, drawLeft s details), src/material-sort.ts SORT_MAX_BATCHES=30, sortRunBatches · app:2fbab382 src/material-sort.ts sortNext (obrázky a PDF první, text poslední jen s withText, dávka a složka, výběr vše bez skrytých; kopie, zdroje, left jen mimo výběr), sortIsText, sortCopyOf (material.sameAs, jinak otisk), sortLeftMap (material.left, jinak paměť aplikace) · strings.ts materials.agentSort.scopeLegend, scopeAll, scopeSel, scopeBatch, scopeFirst, scopeFirstSub, leftCopies, leftText, leftSources, leftLeft, showLeft, details, withText, withTextHint -->
+
+<a id="A3.5.12"></a>
+### A3.5.12 A run in batches
+
+More than one batch goes as one run: the research sorts the batches one after another and the proposal of each
+finished batch can be gone through at once.
+
+- The band and the indicator are one for the whole run: "The agent is sorting · batch b of M · k of n", at the
+  start of a batch "… is starting". The window **The agent's proposal** shows "Batch b of M is running · more
+  proposals will come"; new proposals are added at the end of the list with a notice and **Show**.
+- The run goes on after the window is closed and after the app is reloaded. The notice of the end comes once, at
+  the end of the run.
+- **Cancel** stops the run at once: the batch at work ends, the waiting ones do not start. When finished proposals
+  exist, it asks **Discard the finished proposals?** and says which batches will not run and how many files stay
+  unsorted; **Keep them** leaves them to go through.
+- **A batch that did not run:** after the end of the run the band in the error colour says "Batch b of M did not
+  run:" with the reason, what stays unsorted, **Go through the proposal (N)**, **Try again…** and **Close**. The
+  other batches run on meanwhile.
+- **A run stopped elsewhere:** "Sorting stopped after batch b of M." with **Continue (N batches)…**. **Try again…**
+  and **Continue** open the dialog with **What is left of the run**; new batches are added to the proposal that is
+  open.
+- **A batch waits** when the readings the app may ask for are used up: "Batch b of M is waiting" and "It starts by
+  itself in about N min." (or h).
+- **Limits:** at most 30 batches of 50 files; only a research that can run batches
+  ([R11.5.5](R11-material-from-the-user.md#R11.5.5)). Each batch uses the subscription or credit and counts towards
+  the app's readings.
+- **Controls:** the dialog **Sort with the agent**; the band of the window **Materials**; the window **The agent's
+  proposal**.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:acc877d6 src/ui/material-sort-ui.ts (běh výzkumu čtený do konce, jeden pruh a ukazatel, runBatch, runBatchFiles, runStarting, runInWindow, moreArrived, show; po novém načtení sledovaný znovu; toast jednou na konci) · app:687dd41b materialSortCancel (cancelMaterialSortRun, discardAsk, discardRun, discardKeep), batchFailed, runErrorText (errLimit, batchErr), leftAfterError, retry, stopped, stoppedNote, resume, scopeRest, runWaiting, runWaitText (waitApp, waitRetry) · app:0b0c9d4f (bez toastu při otevřeném okně návrhu) · research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500 -->
+
+<a id="A3.5.13"></a>
+### A3.5.13 Back and portrait in the proposal
+
+In the proposal the agent can say which of the sent files is the back of another photo or page and which image is
+a person's portrait. The proposal shows it as a chip at the file.
+
+- **Back:** at the front a chip "Back:" with the preview and name of the back. Accepting writes the back together
+  with the front: the back gets its date, kind and links and the title "… (back)". The row shows both names ("… +
+  … (back)") and "2 sides".
+- **Portrait:** a chip "Portrait:" with the person. When accepted, the file gets a place at the person and the
+  portrait editor opens ([A12](A12-portrait-and-couple-photo.md)).
+- × takes the chip off the proposal; the rest of the proposal stays.
+- **Limits:**
+  - a back only between files the same reader of the research got: one back to one front, never a back of a back
+    nor a text file ([R11.5.3](R11-material-from-the-user.md#R11.5.3));
+  - a portrait is offered only for an image and only at a person who has no portrait and can be edited.
+- **Controls:** the window **The agent's proposal** → **Proposals**.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/material-sort-ui.ts withPortraits (obrázek, osoba bez photo, canEditPortrait), čipy own() s × (dropped), rubFiles, twoSides, accept (sortBackRow s rubSuffix, portrét: místo personId) · strings.ts materials.agentSort.rubChip, portraitChip, rubSuffix, rubFiles, twoSides · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait -->
+
+<a id="A3.5.14"></a>
+### A3.5.14 Not assigned by the agent, Same content and File of a source
+
+The tiles and rows of the window **Materials** carry a tag before the people that says why a file stayed unsorted,
+or that it is sorted through a source.
+
+- **Not assigned by the agent:** a file the agent proposed nothing for when sorting. The file viewer shows "Why not"
+  with the reason. The filter **Not assigned by the agent** (with a count) stands after the other filters. The next
+  sorting does not send such files unless they are selected by hand.
+- **Same content:** a file with the same content as an older file; sorting sends only the older one.
+- **File of a source** (for more sources "File of N sources"): a file the research made a source of. The tag stands
+  before the people who cite the source, and **In the tree** follows whether the source is in the tree. In **List**
+  the column **Source** shows a tag with the title of the first source. Such a file is sorted: it does not count
+  towards **No person** nor **Without source** and does not carry **Not assigned by the agent**. **Where used**
+  shows the sources first for it ([A3.5.3](#A3.5.3)).
+- **Limits:** **Not assigned by the agent** and **Same content** are carried only by a file without a title or
+  without a person that is not hidden. **File of a source** only with a research that reports the files of sources
+  ([R11.5.4](R11-material-from-the-user.md#R11.5.4)); without it the files show as before.
+- **Controls:** the window **Materials** (tiles, **List**, **Filters**); the file viewer.
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/materials-window.ts (agentLeft, copyOf jen u souboru bez titulku nebo osoby, ne skrytý ani zdroj pramene), mwSortTagHtml, filtr left (fLeft), src/ui/material-viewer-ui.ts (unassignedWhy + said nebo unproposed[why]) · app:4bf66048 src/materials-overview.ts, src/ui/materials-window.ts mwSourceOfTag, src/ui/material-uses-ui.ts (zdroj pramene: přiřazený, bez Bez osoby a Bez pramene) · strings.ts materials.agentSort.fLeft, tagLeft, tagCopy, tagSourceOf, sourceOfN, usesSourceOf, viaInput, viaMedia, viaExcerpt, citedBy, keptViaSource · research:0cc2cfca src/core/live.ts GET /material (uses.of, left, sameAs) -->
+
+<a id="A3.5.15"></a>
+### A3.5.15 Add materials… in the window
+
+**Add materials…** in the header of the window **Materials** opens the wizard **Add materials to the research**
+over the window ([R11.4](R11-material-from-the-user.md#R11.4)).
+
+- Files and folders dragged onto the window show "Drop here: add to materials" and open the wizard with them.
+  Nothing is sent without confirming in the wizard.
+- A batch added while the window is open is announced in the sorting band ([A3.5.10](#A3.5.10)) and the list is
+  loaded again.
+- **Limits:** only with a research that takes batches and with a tree that can be changed; a tree without a
+  research has no button. On a phone there is no dragging; **Add materials…** and **Where the files are** are in
+  the header's ⋯ there.
+- **Controls:** the window **Materials** → **Add materials…**; dragging files or folders onto the window.
+- **Since:** app 3.30.0
+
+<!-- zdroj: app:17585b94 src/ui/materials-window.ts mwAddMaterials (showBatchDialog), mwWireDrop (ne na telefonu), mwFillHeadMenu (telefon: add, where), materialsBatchAdded · src/ui/materials-ui.ts materialsAddOffered (windowAddOffered: model archive, batchAvailable, ne jen ke čtení) · strings.ts materials.addMaterials, dropTitleMaterials, dropSubMaterials, agentSort.stripAdded -->
+
+<a id="A3.5.16"></a>
+### A3.5.16 Delete permanently
+
+**Delete permanently…** deletes files of the research from the archive and from the tree. It goes only through a
+dialog that first says what refers to the files; it cannot be undone in the app.
+
+- The dialog **Delete N files permanently?** shows a preview (for more files the first five and "and N more"),
+  **What refers to the files** according to the research (rows **Source**, **Excerpts**, **Tree**, **People**,
+  **Tasks**), that the files are deleted from the archive of the research and from the tree, and the checkbox **I
+  understand that deleting cannot be undone in the app**.
+- The button **Delete permanently** works only when the research has confirmed the list and the box is ticked; the
+  focus is on **Cancel**. Files outside the tree that are not hidden yet also offer **Only hide – can be undone**.
+- **What happens:** a source stays, only without its file; a source with the same content loses the image, its text
+  and citations stay; excerpts from these files are deleted; places in the tree are removed by the next version of
+  the tree from the research; the file disappears from the people's materials; a task with no other files is given
+  up. Content that another file or another research on this computer also has stays stored and only the record is
+  deleted.
+- When the list has changed meanwhile, or the confirmation has expired (it holds 15 minutes), the dialog shows the
+  new list, clears the tick and the deleting must be confirmed again.
+- After deleting the notice "Deleted permanently: N files." without **Undo**. The files disappear from the window
+  and from the agent's proposal. They stay only in earlier backups of the research (with the Strom archive, of the
+  archive). Neither the agent nor the tree ever delete on their own.
+- **Limits:**
+  - only files of the research's archive or of the Strom archive; a file that is only in the tree is removed by
+    **Remove from the tree…** ([A3.5.6](#A3.5.6));
+  - at most 500 files at once ("At most 500 files can be deleted at once.");
+  - only with a research that can delete and with a running bridge; never in a read-only tree;
+  - on a narrow screen the dialog is a sheet from the bottom.
+- **Controls:** the window **Materials** → a selection → ⋯ → **Delete permanently…** (the last item); the file
+  viewer (the last action). Terminal: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Since:** app 3.30.0, research 1.35.0
+
+<!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
 
 <a id="A3.6"></a>
 ## A3.6 Sources of a person

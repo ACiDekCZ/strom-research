@@ -121,8 +121,10 @@ export const LINK_PLACES_DOS = ["run"] as const;
 export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
 /**
  * What a link does with the queue (the Strom app's "work on the queue"): the agent working alone — for as long as there
- * is work (loop: strom run --loop, only under a gate) or n tasks settled (tasks: strom run --tasks n). What starts is
- * shown and started only on the person's yes in the terminal (the bridge never starts one).
+ * is work (loop: strom run --loop, only under a gate), n tasks settled (tasks: strom run --tasks n) or the tasks the link
+ * names (tasks with task=T…,T…: strom run --task, one session each — the app's "work on them now" after a try of the
+ * verification, spec 065 K7.2). What starts is shown and started only on the person's yes in the terminal (the bridge
+ * never starts one).
  */
 export const LINK_WORK_DOS = ["loop", "tasks"] as const;
 /** The most tasks a link asks for (strom run --tasks: 1–100); none named: the app's default. */
@@ -253,7 +255,7 @@ export type Link =
   | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "history"; tree: string; place: string; do: (typeof LINK_HISTORY_DOS)[number] }
   | { action: "places"; tree: string; do: (typeof LINK_PLACES_DOS)[number]; place?: string }
-  | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string }
+  | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string; task?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
@@ -434,6 +436,13 @@ function linkParts(text: string | undefined, scheme: string): Link {
       // at most three digits — never a text
       if (!q.has("do")) throw new LinkError("nothing to do named");
       const what = oneOf(q, "do", LINK_WORK_DOS);
+      if (q.has("task")) {
+        // the tasks named (feature work.tasks): only with do=tasks, never with n; IDs alone, at most LINK_WORK_MAX, each once
+        if (what !== "tasks" || q.has("n")) throw new LinkError("task only with do=tasks, not with n");
+        const ids = (q.get("task") ?? "").split(",").map((x) => x.trim().toUpperCase());
+        if (!ids.length || ids.length > LINK_WORK_MAX || !ids.every((x) => TASK.test(x))) throw new LinkError(`task is 1–${LINK_WORK_MAX} task IDs, T…,T…`);
+        return { action, tree: id, do: what, task: [...new Set(ids)].join(",") };
+      }
       if (!q.has("n")) return { action, tree: id, do: what };
       if (what !== "tasks") throw new LinkError("n only with do=tasks");
       const n = q.get("n") ?? "";

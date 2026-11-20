@@ -144,7 +144,8 @@ test("claude-usage --cap: reads what the agent said when fresh (no /usage), stop
   // /usage: the week at 30 % — only when asked
   const reset = new Date(Math.ceil((Date.now() + 4 * 86_400_000) / 3_600_000) * 3_600_000);
   const resetText = `${reset.toLocaleString("en-US", { month: "short", timeZone: "UTC" })} ${reset.getUTCDate()} at ${reset.getUTCHours() % 12 || 12}${reset.getUTCHours() < 12 ? "am" : "pm"} (UTC)`;
-  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\necho asked >> "${asked}"\ncat <<'X'\nCurrent session: 10% used · resets ${resetText}\nCurrent week (all models): 30% used · resets ${resetText}\nX\n`, { mode: 0o755 });
+  // (get_usage unknown, as to an older Claude Code: /usage is what it reads here)
+  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n[ "$2" = "--input-format" ] && exit 1\necho asked >> "${asked}"\ncat <<'X'\nCurrent session: 10% used · resets ${resetText}\nCurrent week (all models): 30% used · resets ${resetText}\nX\n`, { mode: 0o755 });
   const gate = path.join(w.home, "shared", "plugins", "gates", "claude-usage", "gate.ts");
   const run = (args: string[], limits?: unknown) => {
     const r = spawnSync(process.execPath, [gate, ...args], {

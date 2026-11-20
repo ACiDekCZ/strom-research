@@ -28,19 +28,29 @@ function resetText(inMs: number, clock: 12 | 24 = 12): { at: number; text: strin
 
 /**
  * A stand-in `claude`: `-p /usage` prints the n-th of `answers` (the last one again after them; `exit:N` first line =
- * that exit status), `auth status` prints `auth` (exit 0) — or nothing; each asking noted.
+ * that exit status), `auth status` prints `auth` (exit 0) — or nothing; each asking noted. The control request
+ * get_usage (`--input-format stream-json`) is answered with `get` (`exit:N` first line = that exit status, `sleep:N` =
+ * no answer for N seconds); without it as an older Claude Code that does not know the option — noted apart (got()),
+ * with the line it was given.
  */
-function standIn(answers: string[], auth?: string) {
+function standIn(answers: string[], auth?: string, get?: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom gate čtení "));
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin);
   answers.forEach((a, i) => fs.writeFileSync(path.join(dir, `a${i + 1}`), a));
   if (auth !== undefined) fs.writeFileSync(path.join(dir, "auth"), auth);
+  fs.writeFileSync(path.join(dir, "get"), get ?? "exit:1\nerror: unknown option '--input-format'\n");
   fs.writeFileSync(
     path.join(bin, "claude"),
     `#!/bin/sh
 D="${dir}"
 if [ "$1" = "auth" ]; then echo auth >> "$D/asked"; [ -f "$D/auth" ] && cat "$D/auth"; exit 0; fi
+if [ "$2" = "--input-format" ]; then
+  IFS= read -r line; printf '%s\n' "$line" >> "$D/got"
+  first=$(head -n 1 "$D/get")
+  case "$first" in exit:*) tail -n +2 "$D/get"; exit "\${first#exit:}";; sleep:*) exec sleep "\${first#sleep:}";; esac
+  cat "$D/get"; exit 0
+fi
 echo usage >> "$D/asked"
 n=$(grep -c usage "$D/asked")
 f="$D/a$n"; [ -f "$f" ] || f="$D/a${answers.length}"
@@ -59,7 +69,8 @@ cat "$f"
     const said = JSON.parse(r.stdout.trim().split("\n").pop()!) as { reason: string; until?: string };
     return { code: r.status, reason: said.reason, until: said.until ? Date.parse(said.until) : undefined };
   };
-  return { ask, asked, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const got = () => (fs.existsSync(path.join(dir, "got")) ? fs.readFileSync(path.join(dir, "got"), "utf8").trim().split("\n") : []);
+  return { ask, asked, got, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 test("claude-usage reads the shapes /usage prints: no session line, a model's week before all models', a 24-hour clock, a session's time alone", posix, () => {
@@ -177,5 +188,118 @@ test("claude-usage: Claude Code not logged in (its /usage a bare /cost) stops th
       assert.match(s.ask(["10"], { CLAUDE_CONFIG_DIR: dir, STROM_LANG: lang }).reason, re);
   } finally {
     s.done();
+  }
+});
+
+/** Claude Code's answer to get_usage (stream-json, a hook's line before it): the week's and the session's utilization 0–100. */
+function limitsSaid(week: { used: number; at?: number } | null, session: { used: number; at: number } | null = null, o: { id?: string; available?: boolean } = {}): string {
+  const lim = (l: { used: number; at?: number } | null) => (l ? { utilization: l.used, resets_at: l.at === undefined ? null : new Date(l.at).toISOString().replace("Z", "+00:00"), limit_dollars: null } : null);
+  const available = o.available ?? true;
+  const response = {
+    session: { total_cost_usd: 0, model_usage: {} },
+    subscription_type: available ? "max" : null,
+    rate_limits_available: available,
+    rate_limits: available ? { five_hour: lim(session), seven_day: lim(week), seven_day_opus: null, limits: [] } : null,
+  };
+  return [
+    JSON.stringify({ type: "system", subtype: "hook_started", hook_name: "SessionStart:startup" }),
+    JSON.stringify({ type: "control_response", response: { subtype: "success", request_id: o.id ?? "strom-gate-usage", response } }),
+    "",
+  ].join("\n");
+}
+
+test("claude-usage asks get_usage first — the limits alone, in a second — and `claude -p /usage` only when that is not read", posix, () => {
+  const week = resetText(3 * 24 * H);
+  const usage = `Current week (all models): 30% used · resets ${week.text}\n`;
+  const request = '{"type":"control_request","request_id":"strom-gate-usage","request":{"subtype":"get_usage","skip_behaviors":true}}';
+  // the week and the session from get_usage: /usage never asked, the request one line of JSON on stdin
+  const ok = standIn([usage], '{"loggedIn": true}', limitsSaid({ used: 20, at: week.at }, { used: 5, at: Date.now() + 2 * H }));
+  try {
+    const r = ok.ask();
+    assert.equal(r.code, 0, r.reason);
+    assert.match(r.reason, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\); weekly reset in 3\.0 days$/);
+    assert.deepEqual(ok.got(), [request]);
+    assert.deepEqual(ok.asked(), [], "no /usage, no login asked");
+    assert.equal(ok.ask(["10"], { STROM_LANG: "cs" }).reason.slice(0, 21), "týden: využito 20 %, ");
+  } finally {
+    ok.done();
+  }
+  // the session used up: until it resets (and a minute)
+  const sessionAt = Date.now() + 2 * H;
+  const full = standIn([usage], undefined, limitsSaid({ used: 20, at: week.at }, { used: 100, at: sessionAt }));
+  try {
+    const r = full.ask();
+    assert.equal(r.code, 1, r.reason);
+    assert.match(r.reason, /^the session is used up/);
+    assert.ok(Math.abs(r.until! - (sessionAt + 60_000)) < 1000, `${(r.until! - sessionAt) / 60_000} min`);
+    assert.deepEqual(full.asked(), []);
+  } finally {
+    full.done();
+  }
+  // no session window open (five_hour null), and the week far ahead: read as it is
+  const ahead = standIn([usage], undefined, limitsSaid({ used: 74.5, at: week.at }));
+  try {
+    const r = ahead.ask();
+    assert.equal(r.code, 1, r.reason);
+    assert.match(r.reason, /^week 74 % used/);
+    assert.deepEqual(ahead.asked(), []);
+  } finally {
+    ahead.done();
+  }
+  // not read — /usage as before (30 %): an older Claude Code (unknown option, or the request unknown), an error, not
+  // JSON, another request's answer, no week in it, its week used with no reset
+  const unread: [string, string][] = [
+    ["older: unknown option", "exit:1\nerror: unknown option '--input-format'\n"],
+    ["older: request unknown", '{"type":"control_response","response":{"subtype":"error","request_id":"strom-gate-usage","error":"Unsupported control request subtype: get_usage","error_code":"unsupported_request"}}\n'],
+    ["exit status", "exit:3\n"],
+    ["not JSON", "{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"strom-gate-usage\"\n"],
+    ["another request", limitsSaid({ used: 20, at: week.at }, null, { id: "jiný" })],
+    ["no week", limitsSaid(null, { used: 5, at: Date.now() + H })],
+    ["no reset", limitsSaid({ used: 20 })],
+  ];
+  for (const [name, get] of unread) {
+    const s = standIn([usage], undefined, get);
+    try {
+      const r = s.ask();
+      assert.equal(r.code, 0, `${name}: ${r.reason}`);
+      assert.match(r.reason, /^week 30 % used/, name);
+      assert.deepEqual([s.got().length, s.asked()], [1, ["usage"]], name);
+    } finally {
+      s.done();
+    }
+  }
+  // no answer in time: /usage within the rest of the budget
+  const slow = standIn([usage], undefined, "sleep:20\n");
+  try {
+    const before = Date.now();
+    const r = slow.ask(["10"], { CLAUDE_USAGE_GET_MS: "300" });
+    assert.equal(r.code, 0, r.reason);
+    assert.match(r.reason, /^week 30 % used/);
+    assert.ok(Date.now() - before < 10_000, `${Date.now() - before} ms`);
+    assert.deepEqual(slow.asked(), ["usage"]);
+  } finally {
+    slow.done();
+  }
+});
+
+test("claude-usage: get_usage with no limits (an API key, no login) — /usage says which, as before", posix, () => {
+  const none = limitsSaid(null, null, { available: false });
+  const api = standIn(["Claude Code is using an API key — no plan limits apply\n"], undefined, none);
+  try {
+    const r = api.ask(["10", "--cap", "95"]);
+    assert.equal(r.code, 0);
+    assert.match(r.reason, /API key/);
+    assert.deepEqual([api.got().length, api.asked()], [1, ["usage"]]);
+  } finally {
+    api.done();
+  }
+  const out = standIn(["Total cost:            $0.0000\n"], '{"loggedIn": false, "authMethod": "none"}', none);
+  try {
+    const r = out.ask(["10"], { STROM_LANG: "cs" });
+    assert.equal(r.code, 2);
+    assert.equal(r.reason, "Claude Code není přihlášený — přihlásit jednou: claude, pak /login");
+    assert.deepEqual(out.asked(), ["usage", "auth"]);
+  } finally {
+    out.done();
   }
 });

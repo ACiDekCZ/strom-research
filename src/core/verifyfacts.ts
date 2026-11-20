@@ -28,6 +28,13 @@ const ORIGINS = new Set([VERIFY_AUTO, VERIFY_BULK, VERIFY_ASKED, VERIFY_SEARCH])
 export const isVerifyTask = (t: Pick<Task, "origin">): boolean => ORIGINS.has(t.origin);
 /** A task that waits for its turn after the lines' work (the sweep's, a bulk verification's). */
 export const verifiesInTurn = (t: Pick<Task, "origin">): boolean => t.origin === VERIFY_AUTO || t.origin === VERIFY_BULK;
+/** The priority of a try of a bulk verification's tasks (strom verify bulk --try): the person's "verify"'s; the rest of a scope low. */
+export const TRY_PRIORITY = 3;
+/**
+ * A task of a bulk verification's try (strom verify bulk --try, spec 065 K7.1): first in the queue (queueAt next) at the
+ * person's "verify"'s priority. Two tries in the order they were made — the older one's tasks first (core/queue.ts).
+ */
+export const isBulkTry = (t: Pick<Task, "origin" | "priority" | "queueAt">): boolean => t.origin === VERIFY_BULK && t.queueAt?.do === "next" && t.priority >= TRY_PRIORITY;
 /** A task of verification that looks for the record first (no original of its facts read): asked for, or a bulk one's of a family tree's leads. */
 export const searchesRecord = (t: Pick<Task, "origin" | "level">): boolean => t.origin === VERIFY_SEARCH || (t.origin === VERIFY_BULK && t.level === "link");
 /** A task that looks at originals cited already (not a search for the record). */

@@ -8,6 +8,7 @@ import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { UsageError, StromError } from "../core/errors.ts";
+import { workingNow } from "../core/busy.ts";
 import { BULK_ORDERS, BULK_SCOPES, emptyFunnel, taskPlaces, verifyAsk, verifyStop, verifyCandidates, verifyBulk, verifyConfirmAll, verifyCounts, verifyFactDone, type AskResult, type Estimate, type VerifyTarget } from "../core/verify.ts";
 import { displayName, resolvePerson } from "../core/people.ts";
 import { actsAsArchive, refuseInArchive } from "../core/state.ts";
@@ -133,13 +134,14 @@ register({
     "low priority: after the lines' work, now and then one first. A line (--of G…), a lineage (--of P…: its founder\n" +
     "and who carries it on through the sons) or the tree. A family tree's leads too (facts of an imported family\n" +
     "tree, no original read): the record their citation names looked for first, a task of its own (dearer: two\n" +
-    "sessions). --try n: the first n people; --budget: as many as the estimate fits (once sessions were measured\n" +
+    "sessions). --try n: the first n people, first in the queue (a try, as strom verify facts puts a person first);\n" +
+    "--budget: as many as the estimate fits (once sessions were measured\n" +
     "here). --dry-run: the counts (--json how: read, search) and the estimate, nothing written.",
   options: [
     { name: "scope", type: "string", value: "<line|lineage|tree>", description: "what: a line (G…), a lineage (its founder P…), the whole tree" },
     { name: "of", type: "string", value: "<G…|P…>", description: "the line (G…) or the lineage's founder (P…)" },
     { name: "order", type: "string", value: "<ancestors|weakest|oldest>", description: "who first: the nearest ancestors (default), the weakest facts, the longest unverified" },
-    { name: "try", type: "string", value: "<n>", description: "only the first n people: a try before the rest" },
+    { name: "try", type: "string", value: "<n>", description: "only the first n people, first in the queue: a try before the rest" },
     { name: "budget", type: "string", value: "<usd>", description: "only as many people as the estimate fits in this amount (USD)" },
   ],
   examples: ["strom verify bulk --scope tree --dry-run", "strom verify bulk --scope line --of G0001 --try 3", "strom verify bulk --scope lineage --of P0001 --order weakest --budget 20"],
@@ -165,12 +167,13 @@ register({
     const lang = tree.lang;
     return {
       text: lines(
-        ui(lang, dry ? "ui.verify.bulk.would" : "ui.verify.bulk.queued", { people: r.people, facts: r.facts }),
+        ui(lang, dry ? "ui.verify.bulk.would" : r.first ? "ui.verify.bulk.first" : "ui.verify.bulk.queued", { people: r.people, facts: r.facts }),
         r.how.search ? ui(lang, "ui.verify.bulk.search", { n: r.how.search }) : undefined,
         estimateLine(lang, r.estimate),
         r.left ? ui(lang, "ui.verify.bulk.left", { n: r.left }) : undefined,
       ),
-      data: { dryRun: dry, ...r },
+      // working: an agent at work in the research now (a run, a session) — a try waits for the next session either way
+      data: { dryRun: dry, ...r, working: workingNow(tree) },
     };
   },
 });

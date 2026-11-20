@@ -53,6 +53,7 @@ import { applyAuditFix, auditOf, auditTasks, audited, bookIndex, changesSaid, fi
 import { head } from "../core/git.ts";
 import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
+import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 
 
 function written(tree: Tree): string {
@@ -805,12 +806,13 @@ register(
       { name: "all", type: "boolean", description: "every task, whatever its state (the same as --state all)" },
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
+      { name: "kind", type: "string", value: "<kind>", description: `only this kind of work: ${TASK_KINDS.join(", ")} (verify: every verification against the originals)` },
       { name: "about", type: "string", value: "<who>", description: "only tasks about this person/record (also X…, H…)" },
       { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
       { name: "book", type: "string", value: "<B…>", description: "the tasks that need this book (open, at work, parked, waiting — open first; with --state only those): strom task books" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
-    examples: ["strom task list", "strom task list --state waiting", "strom task list --book B0001"],
+    examples: ["strom task list", "strom task list --state waiting", "strom task list --kind verify", "strom task list --book B0001"],
     run(ctx, input) {
       const tree = ctx.tree();
       if (input.opts.all && input.opts.state !== undefined && input.opts.state !== "all")
@@ -818,6 +820,8 @@ register(
       // --all: what --state all lists
       const opts = input.opts.all ? { ...input.opts, state: "all" } : input.opts;
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
+      const kind = opts.kind === undefined ? undefined : parseTaskKind(String(opts.kind));
+      if (opts.kind !== undefined && !kind) throw new UsageError(`no kind of work ${String(opts.kind)}: ${TASK_KINDS.join(", ")}`, { code: "task.kind", hint: "strom task list --kind verify" });
       let all: Task[];
       const why = new Map<string, string>();
       const ranks = new Map<string, Ranked>();
@@ -855,10 +859,11 @@ register(
         const id = subjects(tree, [String(opts.about)])[0]!;
         all = all.filter((t) => t.subject.includes(id));
       }
+      if (kind) all = all.filter((t) => taskKind(t) === kind);
       // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
       // the queue says what waits out of it for a link to the tree
-      const held = !opts.state && !opts["off-tree"] && !opts.about && !book ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
+      const held = !opts.state && !opts["off-tree"] && !opts.about && !book && !kind ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
       if (book)
         return {
           text: lines(
@@ -1234,7 +1239,7 @@ register(
     options: [
       // the sheet of a brief shows the placeholder: how to write it, where the agent writes it (a live run: "Otevřete …")
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
-      { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
+      { name: "images", type: "string", value: "<B…:n-m>", multiple: true, description: "the images of one book the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12); again, more of the same book — another book's images: a task of its own (one book per task)" },
       { name: "check", type: "string", value: "<URL>", description: "a site for the user to check (one strom may not read): only after another way was tried and the blocked way recorded (strom search add)" },
       // --images and --check say the kind themselves: --kind is for a wait of neither
       ...WAIT_OPTIONS.map((o) => (o.name === "kind" ? { ...o, description: `${o.description} — not with --images or --check: they say the kind themselves` } : o)),
@@ -1256,11 +1261,29 @@ register(
       const wait = waitOptions(tree, normId(args[0]!, "task"), opts, { images: opts.images !== undefined, check: opts.check !== undefined });
       if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: on };
       if (opts.images !== undefined) {
-        const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/.exec(String(opts.images));
-        const nums = m ? parseImageList(m[2]!) : undefined;
-        if (!m || !nums) throw new UsageError(`--images: a record set and its image numbers, e.g. B0001:40-45 or B0001:9,12 — not "${opts.images}"`);
-        b = requireRecord<RecordSet>(tree, m[1]!, "recordset");
-        awaits = { recordset: b.id, images: runs(nums), folder: inboxFolderFor(b) };
+        // --images again, or a comma before another ID ("B0001:50-52,B0002:3"): the same book's images joined, as a comma
+        // joins them in one (B0001:9,12); images of another book refused — one book per task, never the last one taken
+        const given = (Array.isArray(opts.images) ? opts.images : [opts.images]).map(String);
+        const books = new Map<string, { b: RecordSet; nums: Set<number> }>();
+        for (const one of given.flatMap((v) => v.split(/,\s*(?=[Bb]\d+\s*:)/u))) {
+          const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/u.exec(one);
+          const nums = m ? parseImageList(m[2]!) : undefined;
+          if (!m || !nums) throw new UsageError(`--images: a record set and its image numbers, e.g. B0001:40-45 or B0001:9,12 — not "${one}"`);
+          const rb = requireRecord<RecordSet>(tree, m[1]!, "recordset");
+          const key = liveBook(tree, rb.id)?.id ?? rb.id;
+          const had = books.get(key);
+          if (had) for (const n of nums) had.nums.add(n);
+          else books.set(key, { b: rb, nums: new Set(nums) });
+        }
+        if (books.size > 1) {
+          const ids = [...books.keys()];
+          throw new UsageError(`--images: images of ${ids.join(", ")} — one book per task`, {
+            hint: `--images ${ids[0]}:<numbers> here; each other book a task of its own: strom task add "<what>" --where ${ids[1]} … --anyway, then strom task wait <its T…> --images ${ids[1]}:<numbers> --on "…"`,
+          });
+        }
+        const [one] = books.values();
+        b = one!.b;
+        awaits = { recordset: b.id, images: runs([...one!.nums].sort((x, y) => x - y)), folder: inboxFolderFor(b) };
       }
       if (b && wait?.book) {
         // --images names its book itself: the same one only repeats it

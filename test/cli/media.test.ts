@@ -275,8 +275,12 @@ test("images the user saves by hand: the folder is made and shown with the link,
   assert.equal(wrong.code, 2);
   assert.match(wrong.err, /images 9–10 of B0002 were asked for, but the file names give 90, 100, 110 — 3 files for 2 images: name each by the number its viewer counts \(9\.jpg\)/);
   assert.equal(fs.readdirSync(dir).length, 3, "nothing moved");
-  // as many as the images missing: taken by their order (the names gave none of the numbers asked for)
+  // as many as the images missing, but numbered otherwise: never by their order (B0408) — nothing is taken
   fs.rmSync(path.join(dir, "kniha-00110.jpg"));
+  assert.equal((await w.run(["media", "add", "--inbox", folder.normalize("NFD")])).code, 2);
+  // named with no number at all, as many as missing: taken by their order
+  fs.renameSync(path.join(dir, "kniha-00090.jpg"), path.join(dir, "stažená stránka.jpg".normalize("NFD")));
+  fs.renameSync(path.join(dir, "kniha-00100.jpg"), path.join(dir, "stažená stránka – kopie.jpg".normalize("NFD")));
   const r = await w.ok(["media", "add", "--inbox", folder.normalize("NFD")]);
   assert.match(r.out, /2 images registered: M0001–M0002 of B0002 \(images 9–10, numbered by their order: the names gave none of the numbers asked for\)/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);

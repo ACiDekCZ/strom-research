@@ -50,6 +50,8 @@ export function waitingStamp(tree: Tree, env: Env, shared: string | undefined, w
     ...["rollup.json", "fetch.jsonl", "models.json"].map((f) => fileStamp(path.join(metrics, f))),
     dirStamp(tuneDir(root)),
     dirStamp(path.join(root, SYNC_INBOX)),
+    // the inbox's folders (a file set aside, answered: core/inboxwait.ts asideFiles) — a folder's time changes with its files
+    shared ? dirStamp(path.join(shared, "inbox")) : "-",
     dirStamp(configDir(env)),
     plugins,
   ].join("\n");

@@ -38,6 +38,7 @@ sagt, wo die Datei liegt, wie groß sie ist und wohin sie zu schicken ist.
 | Agenten | welche installiert sind, ihre Versionen, das Standardmodell, die Hooks von strom |
 | Konnektoren | Liste, Versionen, erlaubte Server, letzter Test (ohne Anmeldungen) |
 | die Brücke zur Strom-App | Lauf, Version der App, letzte Synchronisation |
+| die Brücken, die auf diesem Computer laufen (ab Forschung 1.35.0) | wie viele, der Speicher jeder und die Summe; Forschungen nur als Code, ohne Pfade |
 | die Forschung in Zahlen | Anzahlen, `strom check`, git, Downloads, Sitzungen (ohne Namen) |
 | technische Protokolle | Protokolle von strom der letzten 7 Tage (Brücke, Aufräumen, Downloads) |
 | Befehle | mit einem Fehler beendete Befehle, auch die aus dem Gespräch mit dem Agenten |
@@ -52,8 +53,20 @@ sagt, wo die Datei liegt, wie groß sie ist und wohin sie zu schicken ist.
     entsteht aus den übrigen;
   - im ZIP sind README.txt (was wo ist) und report.json.
 - **Gilt seit:** Forschung 1.30.0
+- **Ab Forschung 1.35.0:** `strom doctor` hat die Zeile **Brücken zur Strom-App**: „keine läuft“, oder „2 laufen: …“
+  mit allen Brücken zur Strom-App auf diesem Computer, nach Speicher sortiert, jede als „{Forschung} (PID {pid},
+  {Speicher})“, und „insgesamt {Speicher}“. Die Forschung ist der Name des Ordners der Forschung, nie ein Pfad.
+  Die Zeile ist nur eine Information: die Prüfung ist immer in Ordnung und beendet keine Brücke.
+  - eine Brücke, deren Ordner es nicht mehr gibt: „– verwaist, die Forschung gibt es nicht mehr“;
+  - eine Brücke aus einem Ordner, den strom nicht kennt: „– ein Ordner, den dieses strom nicht kennt“;
+  - eine Forschung, die sich nicht ermitteln lässt (Windows): „Forschung nicht ermittelt“; Speicher, der sich nicht
+    messen lässt: „Speicher nicht gemessen“;
+  - die Liste der Prozesse ist nicht lesbar: „nicht ermittelt: die Liste der Prozesse war nicht lesbar“;
+  - im Bericht von `strom error` haben die Forschungen in der Zeile der Brücken und der Stammbäume nur Codes,
+    dieselben wie im Bereich der Brücken; die Forschung, aus der der Bericht entstand, ist im Bereich der Brücken
+    „this“.
 
-<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 -->
+<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 · 1.35.0: research:0add8370 src/core/bridgeprocs.ts bridgesHere (ps / Windows CIM node.exe, jen `live serve` tohoto uživatele, stav known/other/orphan/unknown, RSS, řazení podle paměti, nic neukončuje) · src/commands/setup.ts bridgesText, kontrola bridges vždy ok · src/commands/error.ts bridgesArea (read, running, memory, unmeasured, each pid/memory/state/research; aktuální výzkum „this“) · research:f5acd25a, 730e3c3a (výzkumy v řádku mostů a stromů jen kódy) · cs.json ui.doc.bridges.*, ui.report.area.bridges · CHANGELOG.cs.md 1.35.0 · test/vysledek-1119-research-doctor-mosty, -n1, -n2 -->
 
 <a id="R13.3"></a>
 ## R13.3 Welches Problem, welcher Befehl

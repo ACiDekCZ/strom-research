@@ -21,6 +21,7 @@ import { inboxWaitOf, singleBook } from "./inboxwait.ts";
 import { liveBook } from "./books.ts";
 import { runs, runsArg, shellArg, truncate } from "../cli/format.ts";
 import { now, type Tree } from "./tree.ts";
+import { phrase } from "./phrases.ts";
 
 export const AUDIT_KINDS = ["images-as-text", "several-books", "book-unknown", "folder-missing"] as const;
 export type AuditKind = (typeof AUDIT_KINDS)[number];
@@ -111,9 +112,18 @@ const NUMBERS_AFTER = new RegExp(
 );
 /** A joining word or a comma right before an image word: where the words go on to another book's images. */
 const LIST_JOIN = new RegExp(`\\s*(?:&|${NB}(?:a|i|and|und|oraz)${NA})\\s*`, "gu");
-const JOIN_RE = new RegExp(`(?:(?<=\\s)(?:a|i|and|und|oraz)\\s+|,\\s*)(?=${IMAGE_SRC})`, "gu");
+/** A book's ID with its images' numbers, as --images writes them (folded): "b0001:20-22", "b0002: 5–6". */
+const ID_IMAGES_SRC = `${NB}b\\d{4,}\\s*:(?=\\s*\\d)`;
+const ID_IMAGES_RE = new RegExp(ID_IMAGES_SRC, "gu");
+/**
+ * Where the words go on to another book's images: a joining word or a comma before an image word, or before a book's
+ * ID with its numbers — the ID with its numbers after a space alone too ("B0001:20-22 B0002:5-6").
+ */
+const JOIN_RE = new RegExp(`(?:(?<=\\s)(?:a|i|and|und|oraz)\\s+|,\\s*)(?=${IMAGE_SRC}|${ID_IMAGES_SRC})|(?<=\\s)(?<!(?:,|${NB}(?:a|i|and|und|oraz))\\s+)(?=${ID_IMAGES_SRC})`, "gu");
 const URL_G = /https?:\/\/[^\s<>"'“”‚‘’)\]]+/giu;
 const BOOK_ID_IN = /(?<![\p{L}\p{M}\p{N}])B\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
+/** A book's ID alone, as a name: the research has no book of it. */
+const ID_ONLY = /^B\d{4,}$/u;
 /** A list's numbers: "1) … 2) …", "1. … 2. …". */
 const LIST_RE = /(?:^|[\s:;(])(\d{1,2})[.)](?=\s)/gu;
 /** Where a book's name begins after its words: "z knihy Vranov 9", "of the book …", "aus dem Buch …". */
@@ -339,13 +349,24 @@ function readPart(text: string, index: BookIndex, tree: Tree): ReadPart {
     const list = after[1]!.replace(LIST_JOIN, ",").replace(/—/gu, "-");
     for (const n of parseImageList(list) ?? []) numbers.add(n);
   }
+  // a book's ID with its numbers ("B0001:20-22", as --images writes them): images of that book by their numbers
+  for (const m of folded.matchAll(ID_IMAGES_RE)) {
+    const after = NUMBERS_AFTER.exec(folded.slice(m.index! + m[0].length));
+    if (!after) continue;
+    images = true;
+    const list = after[1]!.replace(LIST_JOIN, ",").replace(/—/gu, "-");
+    for (const n of parseImageList(list) ?? []) numbers.add(n);
+  }
   const bookWord = BOOK_RE.test(folded);
   const urls = [...raw.matchAll(URL_G)].map((m) => ({ url: trimUrl(m[0]), at: m.index! }));
   // the book of the research it names first: by its ID, its link, its name or call number
   const found: { id: string; at: number; len: number }[] = [];
+  // an ID of no record set of the research at all ("B0009"): a book it does not have, named by that ID alone
+  let missingId: string | undefined;
   for (const m of raw.matchAll(BOOK_ID_IN)) {
     const b = liveBook(tree, m[0]);
     if (b) found.push({ id: b.id, at: m.index!, len: m[0].length });
+    else if (!tree.get(m[0])) missingId ??= m[0];
   }
   for (const u of urls) {
     const id = bookOfUrl(index, u.url);
@@ -364,7 +385,8 @@ function readPart(text: string, index: BookIndex, tree: Tree): ReadPart {
   const foreign = urls.find((u) => !bookOfUrl(index, u.url));
   // a book it does not have: a link not of the research's books, or a name after a book word that has a letter and a
   // digit as a book's name does ("Vranov 9, O 1801–1850", "kniha zemřelých Lhoty po r. 1786") — never "knihy narozených"
-  const said = !book && (images || bookWord) ? bookName(raw) : undefined;
+  const byName = !book && (images || bookWord) ? bookName(raw) : undefined;
+  const said = byName && !byName.named && missingId ? { name: missingId, named: true } : byName;
   const unknown = said && (foreign || (said.named && HAS_LETTER.test(said.name) && HAS_DIGIT.test(said.name))) ? said.name : undefined;
   return {
     part: {
@@ -398,12 +420,77 @@ function bookName(raw: string): { name: string; named: boolean } {
   const at = NAME_AT.exec(marked);
   // the first of them: "4) kniha zemřelých fary Podhradí od 1782 … U každé knihy …" is the book of "kniha", not of "knihy"
   const from = after && (!at || after.index <= at.index) ? after.index + after[0].length : at ? at.index : -1;
-  let name = from >= 0 ? marked.slice(from).split(NAME_END)[0]!.split(/\s[–—]\s/u)[0]! : "";
+  let name = from >= 0 ? nameOnly(marked.slice(from).split(NAME_END)[0]!.split(/\s[–—]\s/u)[0]!) : "";
   const named = !!cleaned(name);
   // no words of a book's name before the first link or bracket: the words of the part, without them
   if (!named) name = marked.split(new RegExp(`${NAME_END}+`, "u")).join(" ");
   name = cleaned(name.replace(/\s+/gu, " "));
   return { name: [...name].length > 80 ? [...name].slice(0, 79).join("").trimEnd() + "…" : name, named };
+}
+
+/**
+ * What is to be done with the images, after a book's name (folded, whole words): "uložit ručně", "ručně stáhnout",
+ * "save by hand", "to be downloaded", "von Hand speichern", "zapisać ręcznie" — never words of the name.
+ */
+const TO_DO_WORDS =
+  "ulozit|ulozeni|ulozi|ulozeny|ulozene|rucne|rucni|rucnimu|rucniho|stahnout|stazeni|stahnuti|stahne|stazeny|stazene|" +
+  "stiahnut|stiahnutie|ulozenie|" +
+  "save|saved|saving|download|downloaded|downloading|manually|by hand|" +
+  "speichern|gespeichert|herunterladen|heruntergeladen|manuell|handisch|von hand|" +
+  "zapisac|zapisane|zapisany|zachowac|pobrac|pobrane|pobrany|sciagnac|sciagniete|recznie|reczne";
+const TO_DO_RE = new RegExp(`${NB}(?:${TO_DO_WORDS})${NA}`, "u");
+/** Words that stand before what is to be done (folded): left off a name with it. */
+const BEFORE_TO_DO = new Set(
+  "k ke ku pro na a i to be is are must need needs have has for and zu zum zur und muss mussen sollen soll do oraz trzeba nalezy nutno treba potreba musi maji ma je jsou se sa".split(" "),
+);
+
+/**
+ * A book's name without the words after it of what is to be done with its images ("Lhota 5 uložit ručně" →
+ * "Lhota 5"); an ID with its numbers, the ID alone ("B0009:7-9" → "B0009").
+ */
+function nameOnly(name: string): string {
+  const id = /^\s*(B\d{4,})(?![\p{L}\p{M}\p{N}])/u.exec(name);
+  if (id) return id[1]!;
+  const folded = foldText(name);
+  const m = TO_DO_RE.exec(folded);
+  if (!m) return name;
+  let out = name.slice(0, unfoldIndex(name, m.index));
+  for (;;) {
+    const last = /[\p{L}\p{M}\p{N}]+[^\p{L}\p{M}\p{N}]*$/u.exec(out);
+    if (!last || !BEFORE_TO_DO.has(foldText(last[0]).replace(/[^\p{L}\p{M}\p{N}]+$/u, ""))) break;
+    out = out.slice(0, last.index);
+  }
+  return out;
+}
+
+const TO_DO_G = new RegExp(`${NB}(?:${TO_DO_WORDS})${NA}`, "gu");
+
+/**
+ * Whether the words given to a book's task say no more than its images by the book's ID with their numbers and what is
+ * to be done with them ("B0002:5-6 uložit ručně", "Snímky B0001:20-22"): then the fix says them by the book's title
+ * (the task waits for them already) — any other words (a note, another book) are kept as they stood.
+ */
+function idImagesOnly(words: string, id: string): boolean {
+  const raw = words.normalize("NFC");
+  const ids = [...raw.matchAll(BOOK_ID_IN)].map((m) => m[0]);
+  if (!ids.length || ids.some((x) => x !== id)) return false;
+  const folded = mask(foldText(raw));
+  let rest = "";
+  let from = 0;
+  for (const m of folded.matchAll(ID_IMAGES_RE)) {
+    const after = NUMBERS_AFTER.exec(folded.slice(m.index! + m[0].length));
+    if (!after) return false;
+    rest += folded.slice(from, m.index!);
+    from = m.index! + m[0].length + after[0].length;
+  }
+  if (!from) return false;
+  rest = `${rest} ${folded.slice(from)}`.replace(IMAGE_RE, " ").replace(TO_DO_G, " ");
+  return rest.split(WORD_SPLIT).every((w) => !w || BEFORE_TO_DO.has(w));
+}
+
+/** A book's images as the fix says them, in the research language: its title, never its ID. */
+function imagesWords(tree: Tree, b: RecordSet, images: string): string {
+  return phrase(tree.lang, "audit.wait.images", { images, book: b.title });
 }
 
 const HAS_LETTER = /\p{L}/u;
@@ -698,7 +785,12 @@ export function waitCommands(tree: Tree, t: Task, parts: WaitPart[]): string[] {
           ? `strom task wait ${id} --images ${w.book}:${runsArg(w.numbers)} --on ${shellArg(w.text)}`
           : `strom task wait ${id} --kind web --book ${w.book} --on ${shellArg(w.text)}`
         : `strom task wait ${id} --images B…:${w.numbers.length ? runsArg(w.numbers) : "<numbers>"} --on ${shellArg(w.text)}`;
-    const add = w.book ? "" : `strom recordset add ${shellArg(w.unknown!)}${w.url ? ` --url ${w.url}` : ""} (the book first), then `;
+    // a book named by an ID the research has none of: the book by its title (strom gives it its ID)
+    const add = w.book
+      ? ""
+      : ID_ONLY.test(w.unknown!)
+        ? `the research has no ${w.unknown}: strom recordset add "<the book's title>"${w.url ? ` --url ${w.url}` : ""} (the book first), then `
+        : `strom recordset add ${shellArg(w.unknown!)}${w.url ? ` --url ${w.url}` : ""} (the book first), then `;
     if (i === 0 && !(own && w.book !== own)) {
       out.push(`${add}${wait(t.id)}`);
       return;
@@ -810,7 +902,9 @@ export function applyAuditFix(tree: Tree, id: string, o: { by: string; givenIn?:
     for (const c of a.fix.changes) {
       if (c.op === "wait-images" || c.op === "wait-book") {
         const b = liveBook(tree, c.book)!;
-        next.waitingOn = textOf(undefined) || `${b.title}${c.op === "wait-images" ? `: ${c.images}` : ""}`;
+        const words = textOf(undefined);
+        // its images by the book's ID alone in its words ("Snímky B0001:20-22"): said by the book's title instead
+        next.waitingOn = c.op === "wait-images" ? (words && !idImagesOnly(words, b.id) ? words : imagesWords(tree, b, c.images)) : words || b.title;
         const kept = rest(t.wait);
         if (c.op === "wait-images") {
           next.awaits = { recordset: b.id, images: c.images, folder: c.folder };
@@ -829,7 +923,10 @@ export function applyAuditFix(tree: Tree, id: string, o: { by: string; givenIn?:
       } else {
         const sid = tree.allocate("T");
         const b = c.book ? liveBook(tree, c.book) : undefined;
-        const text = textOf(c.book ?? unknownKey(c.title)) || c.title;
+        const words = textOf(c.book ?? unknownKey(c.title));
+        // another book's images by its ID and what is to be done with them ("B0002:5-6 uložit ručně"): by its title, as
+        // the task's own — the task waits for them already
+        const text = b && c.waits === "images" && (!words || idImagesOnly(words, b.id)) ? imagesWords(tree, b, c.images!) : words || c.title;
         const split: Task = {
           id: sid,
           type: "task",

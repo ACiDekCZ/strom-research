@@ -32,8 +32,9 @@
 // is kept for the turn: it is counted from the sessions.
 // The tasks of verification against the originals (core/verify.ts, core/verifyfacts.ts): the sweep's (verify:auto) and
 // the person's bulk one (verify:bulk, a family tree's leads' search too) come after the lines' work, whatever the
-// strategy, but after VERIFY_EVERY − 1
-// sessions since the last one on them one comes forward, the nearest ancestor first; never in a loop (each fact once,
+// strategy (a bulk one's try first, as the person's "verify": queueAt next — two tries in the order they were made),
+// but after VERIFY_EVERY − 1 sessions since the last one on them one comes forward, the nearest ancestor first; never
+// in a loop (each fact once,
 // its task done when every fact of it has its result). The person's "verify" of a person, a family or a fact
 // (verify:asked, verify:search) comes first (queueAt next), like strom task order next. One whose originals have no
 // image here waits for the download as any work that reads records.
@@ -55,7 +56,7 @@ import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTu
 import { Settings } from "./config.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
-import { readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
+import { isBulkTry, readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
 import { booksOfTask } from "./books.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
@@ -382,6 +383,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           .sort((a, b) => a.gen - b.gen || a.t.created.localeCompare(b.t.created) || a.t.id.localeCompare(b.t.id, undefined, { numeric: true }))[0]?.t.id
       : undefined;
 
+  // the tries of a bulk verification (verify bulk --try): one block among the person's "next" choices, at the time of
+  // the latest try — within it the tries in the order they were made, the older one's tasks first (each "next" else
+  // the latest chosen first)
+  const bulkTry = (t: Task) => !forHistory(t) && isBulkTry(t) && own(t) === "next";
+  const triesAt = open.filter(bulkTry).reduce((m, t) => (t.queueAt!.at > m ? t.queueAt!.at : m), "");
   const rows = open.map((t) => {
     const hist = forHistory(t);
     const p = hist ? {} : placing(t);
@@ -480,7 +486,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(ahead || verifyNow ? { turn: true as const } : {}),
       ...(inBook ? { sameBook: sameBook!.book } : {}),
     };
-    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
+    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? (bulkTry(t) ? triesAt : t.queueAt!.at) : "", tryAt: mine === "next" && bulkTry(t) ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
@@ -488,6 +494,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // next" goes next), last after everything
         a.own - b.own ||
         b.nextAt.localeCompare(a.nextAt) ||
+        // two tries of a bulk verification: the older one's tasks first
+        a.tryAt.localeCompare(b.tryAt) ||
         // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
         a.horder - b.horder ||

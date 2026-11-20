@@ -14,7 +14,8 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
-import type { Task } from "../../src/core/model.ts";
+import type { RecordSet, Task } from "../../src/core/model.ts";
+import { inboxFolderFor } from "../../src/core/media.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
 import { queueRun } from "../../src/core/sort.ts";
 
@@ -77,6 +78,10 @@ async function seeded(): Promise<World> {
   for (const f of ["s0001.jpg", "s0002.jpg", "s0003.jpg"]) fs.copyFileSync(path.join(scans, f), path.join(downloads, f));
   await w.ok(["media", "add", downloads, "--recordset", "B0001"]);
   await w.ok(["recordset", "calibrate", "B0001", "--point", "1=110", "--point", "3=114"]);
+  // another scan saved as image 3 of B0001, set aside beside it (strom media aside)
+  const book = path.join(w.home, "shared", "inbox", inboxFolderFor(Tree.open(w.cwd, w.env).get<RecordSet>("B0001")!));
+  fs.mkdirSync(book, { recursive: true });
+  fs.copyFileSync(path.join(scans, "base444.jpg"), path.join(book, "3.jpg.other-than-M0003"));
   fs.mkdirSync(path.join(w.home, "shared", "inbox", "register-17"), { recursive: true });
   fs.copyFileSync(path.join(scans, "base420.jpg"), path.join(w.home, "shared", "inbox", "register-17", "s0004.jpg"));
   fs.copyFileSync(path.join(scans, "s0002.jpg"), path.join(w.env.HOME!, "Downloads", "40-left.jpg")); // a half page saved on its own

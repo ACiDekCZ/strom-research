@@ -366,14 +366,17 @@ nečeká. Patří knize a všechny její úkoly je pak čtou z disku.
   - soubory JPEG 2000 (`.jp2`) z portálu Moravského zemského archivu mají v názvu snímek × 10: strom je přepočte
     zpět. Číslo, které není násobkem 10, není číslo snímku a soubor zůstane ležet;
   - kniha, která je celá na disku, z nabídky zmizí. Soubory, které ve složce leží a ještě se nepřevzaly, aplikace
-    ukáže jako „převezme se N souborů“.
+    ukáže jako „převezme se N souborů“;
+  - kopie od správce souborů („33 2.jpg“, „33 kopie.jpg“) je snímek 33 a soubor, který je tentýž sken jako snímek
+    pod jiným číslem, se odloží vedle jako `<soubor>.same-as-M…` a ohlásí, nikdy se potichu nesmaže; stejně jako
+    ve složce čekajícího úkolu ([R9.6](R9-archives.md#R9.6)).
 - **Hranice:** složky čekajících úkolů se řídí [R9.6](R9-archives.md#R9.6) (tam se jinak pojmenované soubory
   očíslují i podle pořadí).
 - **Ovládání:** terminál: `strom media add --inbox --waiting`, složka v `strom task books`. Aplikace: **Otevřít
   složku** u knihy ([S4.4.4](S4-research-from-the-app.md#S4.4.4)).
 - **Platí od:** výzkum 1.35.0
 
-<!-- zdroj: research:b1749433 src/core/inboxwait.ts bookFolders (knihy, které úkoly potřebují, bez čekající složky; nic se nevytváří), imageFileTimesOf (assets/archives.json mza.cz imageFileTimes 10) · edfd2b88 numberBookFiles (jen čísla ze jmen, .jp2 ÷ times, nenásobek → bez čísla, left; žádné číslo → inbox.unnamed), src/commands/media.ts (po čekajících složky knih, book: true, „N file(s) left lying“), src/core/live.ts (live.log) · src/core/inboxwatch.ts (most hlídá i složky knih) · src/commands/links.ts book?tree=&id=&do=folder (mkdir, openForUser, bez terminálu) · src/core/live.ts booksStatus pending · CHANGELOG.cs.md 1.35.0 „Snímky uložené do složky knihy“ · karta prace/1116-vyzkum-105-knihy-c -->
+<!-- zdroj: research:b1749433 src/core/inboxwait.ts bookFolders (knihy, které úkoly potřebují, bez čekající složky; nic se nevytváří), imageFileTimesOf (assets/archives.json mza.cz imageFileTimes 10) · edfd2b88 numberBookFiles (jen čísla ze jmen, .jp2 ÷ times, nenásobek → bez čísla, left; žádné číslo → inbox.unnamed), src/commands/media.ts (po čekajících složky knih, book: true, „N file(s) left lying“), src/core/live.ts (live.log) · src/core/inboxwatch.ts (most hlídá i složky knih) · src/commands/links.ts book?tree=&id=&do=folder (mkdir, openForUser, bez terminálu) · src/core/live.ts booksStatus pending · CHANGELOG.cs.md 1.35.0 „Snímky uložené do složky knihy“ · karta prace/1116-vyzkum-105-knihy-c · research:dddeb8a6 numberBookFiles stem = copyless(f), takeFiles same-as (i u knih: asideLine(b, …)) · 18fd10ec -->
 
 <a id="R6.8.3"></a>
 ### R6.8.3 Nastavení knih

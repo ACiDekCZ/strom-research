@@ -155,9 +155,12 @@ w karcie osoby i w podpowiedzi znacznika na karcie w drzewie albo pozycją **Zwe
   weryfikację” przycisk **Zweryfikuj w pierwszej kolejności**. Otwiera podgląd osoby z tym tytułem; po uruchomieniu
   badanie przesunie zadania z czekającymi danymi osoby na początek kolejki ([S7.3](#S7.3)). Karta osoby ma nadal tylko
   wiersz „N danych czeka na weryfikację”.
-- **Pilnuje kod:** N to dokładnie to, co weźmie badanie: dane osoby i jej rodzin, które badanie zna (także miejsce
-  zamieszkania i dane już udokumentowane przez innego czytelnika), poza potwierdzonymi przez człowieka, czekającymi na
-  weryfikację, imieniem i płcią. Liczba w menu, w oknie i w komunikacie po uruchomieniu jest taka sama.
+- **Pilnuje kod:** N to dokładnie to, co weźmie badanie: dane osoby i jej rodzin, które badanie zna (także dane już
+  udokumentowane przez innego czytelnika), poza potwierdzonymi przez człowieka, czekającymi na weryfikację, imieniem
+  i płcią. Liczba w menu, w oknie i w komunikacie po uruchomieniu jest taka sama.
+  - **Od aplikacji 3.30.0:** tylko urodzenie, chrzest, ślub, zgon i pochówek. Miejsce zamieszkania, zawód i inne dane
+    weryfikuje się przez **Zweryfikuj** przy danej. Gdyby badanie dla całej osoby wzięło także inne dane, aplikacja
+    wysyła do weryfikacji każdą zaznaczoną daną z osobna. Do 3.29.0 także miejsce zamieszkania i zawód.
 - **Granice:** przycisk i pozycja pokazują się tylko przy działającym moście badania ([S7.9](#S7.9)) i tylko wtedy,
   gdy co najmniej jedna dana osoby oferuje **Zweryfikuj**.
 - **Obsługa:** aplikacja: karta osoby → **Zweryfikuj dane (N)** nad **Zdarzeniami**; podpowiedź znacznika na karcie
@@ -166,7 +169,7 @@ w karcie osoby i w podpowiedzi znacznika na karcie w drzewie albo pozycją **Zwe
   `strom verify facts P…`.
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) -->
+<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Zweryfikuj dane w drzewie
@@ -296,8 +299,11 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
     potrafi; imienia i płci się tu nie potwierdza;
   - w terminalu potwierdza tylko człowiek przy swoim terminalu: `strom verify confirm E… [--undo]`. Agentowi `strom`
     potwierdzenie odrzuca.
-- **Granice:** drzewo powiązane z badaniem, którego most nie działa, nie oferuje **Potwierdź według skanu** ani
-  **Cofnij**; potwierdzić można dopiero przy działającym moście albo w terminalu. Gdy badanie odrzuci potwierdzenie,
+- **Granice:** drzewo powiązane z badaniem, którego most nie działa: od aplikacji 3.30.0 oferuje **Potwierdź według
+  skanu** i **Cofnij** przy danej, którą badanie zna pod swoim numerem. Potwierdzenie i jego cofnięcie przechowuje
+  aplikacja, a do badania docierają z najbliższym przekazaniem drzewa. Przy danej bez numeru badania bez mostu można
+  tylko cofnąć potwierdzenie, które przechowuje aplikacja. Do 3.29.0 bez mostu ani jedno, ani drugie. Gdy badanie
+  odrzuci potwierdzenie,
   podpowiedź mówi dlaczego, na przykład że badanie jest archiwum albo że trzyma je inna sesja; „Bez zmian; badanie
   nie odpowiada.” tylko wtedy, gdy nie odpowiada.
 - **Dlaczego:** pewność o danej powstaje wtedy, gdy człowiek sam widzi akt. Weryfikacja przez agenta to odczyt AI; ✓
@@ -307,7 +313,7 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
   `strom verify confirm E…`, `strom verify confirm E… --undo`.
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value · app:0fbda127 src/verify-offer.ts researchConfirms (offline), verifyOffer (offline bez eid: scan ne, undo jen confirmedBy app; scanViaBridge/undoViaBridge ne offline), src/verify-ui-model.ts PERSON_VERIFY_KINDS (BIRT, CHR, BAPM, MARR, DEAT, BURI), personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích), CHANGELOG.cs.md 3.30.0 „Spolehlivost údajů“ -->
 
 <a id="S7.9"></a>
 ## S7.9 Co działa z mostem, a co bez niego
@@ -316,7 +322,7 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
 |---|---|---|---|
 | Znaczniki przy danych i na karcie | tak | tak, takie same jak z mostem (według ostatniego stanu z pliku) | tak, z importu i z cytatów |
 | **Zweryfikuj**, **Zweryfikuj w pierwszej kolejności**, **Zweryfikuj dane · N**, **Zweryfikuj dane w drzewie…** | tak | nie | nie (wiersz o badaniu przodków) |
-| **Potwierdź według skanu**, **Cofnij** | tak, zapisuje badanie | nie | tak, przechowuje aplikacja |
+| **Potwierdź według skanu**, **Cofnij** | tak, zapisuje badanie | od aplikacji 3.30.0 tak przy danej z numerem badania, przechowuje aplikacja do przekazania drzewa ([S7.8](#S7.8)) | tak, przechowuje aplikacja |
 | **Zatrzymaj** weryfikację | tak | nie; `strom verify stop` w terminalu | – |
 | Weryfikacja w kolejce badania | działa | działa (badanie nie czeka na aplikację) | – |
 
@@ -325,4 +331,4 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
   badania: [S1.1](S1-connecting-app-and-research.md#S1.1).
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->

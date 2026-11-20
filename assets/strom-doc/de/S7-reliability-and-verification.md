@@ -165,9 +165,12 @@ im Menü der Person.
   Start stellt die Forschung die Aufgaben mit den wartenden Angaben der Person an den Anfang der Warteschlange
   ([S7.3](#S7.3)). Die Personenkarte hat weiter nur die Zeile „N Angaben warten auf Prüfung“.
 - **Prüft der Code:** N ist genau das, was die Forschung nimmt: Angaben der Person und ihrer Familien, die die
-  Forschung kennt (auch Wohnorte und Angaben, die schon ein anderer Leser belegt hat), außer den von einem Menschen
-  bestätigten, den auf Prüfung wartenden, Name und Geschlecht. Die Zahl im Menü, im Fenster und in der Meldung nach dem
-  Start ist dieselbe.
+  Forschung kennt (auch Angaben, die schon ein anderer Leser belegt hat), außer den von einem Menschen bestätigten,
+  den auf Prüfung wartenden, Name und Geschlecht. Die Zahl im Menü, im Fenster und in der Meldung nach dem Start ist
+  dieselbe.
+  - **Ab App 3.30.0:** nur Geburt, Taufe, Heirat, Tod und Begräbnis. Wohnorte, Berufe und andere Angaben werden über
+    **Prüfen** bei der Angabe geprüft. Würde die Forschung für die ganze Person auch andere Angaben nehmen, schickt
+    die App jede angekreuzte Angabe einzeln benannt zur Prüfung. Bis 3.29.0 auch Wohnorte und Berufe.
 - **Grenzen:** Schaltfläche und Eintrag erscheinen nur mit laufender Brücke der Forschung ([S7.9](#S7.9)) und nur,
   wenn mindestens eine Angabe der Person **Prüfen** anbietet.
 - **Bedienung:** App: Personenkarte → **Angaben prüfen (N)** über **Ereignisse**; Popup der Marke auf dem Kärtchen →
@@ -175,7 +178,7 @@ im Menü der Person.
   prüfen** unter **Wird geprüft · N**; dann im Fenster **Prüfen (N)**. Terminal: `strom verify facts P…`.
 - **Gilt seit:** Forschung 1.30.0, App 3.26.0
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) -->
+<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Angaben im Baum prüfen
@@ -311,9 +314,11 @@ statt der Aktion den Stand „✓ Am {datum} anhand des Scans bestätigt“ und 
     läuft und die Forschung es beherrscht; Name und Geschlecht werden hier nicht bestätigt;
   - im Terminal bestätigt nur ein Mensch an seinem Terminal: `strom verify confirm E… [--undo]`. Einem Agenten lehnt
     `strom` die Bestätigung ab.
-- **Grenzen:** ein an die Forschung gebundener Stammbaum, dessen Brücke nicht läuft, bietet weder **Anhand des Scans
-  bestätigen** noch **Zurücknehmen** an; bestätigen lässt sich erst mit laufender Brücke oder im Terminal. Lehnt die
-  Forschung die Bestätigung ab, sagt das Popup warum, zum Beispiel dass die Forschung ein Archiv ist oder dass eine
+- **Grenzen:** ein an die Forschung gebundener Stammbaum, dessen Brücke nicht läuft: ab App 3.30.0 bietet er
+  **Anhand des Scans bestätigen** und **Zurücknehmen** bei einer Angabe an, die die Forschung unter ihrer eigenen
+  Nummer kennt. Die Bestätigung und ihre Rücknahme hält die App, und sie gelangen mit der nächsten Übergabe des
+  Stammbaums in die Forschung. Bei einer Angabe ohne Nummer der Forschung lässt sich ohne Brücke nur eine Bestätigung
+  zurücknehmen, die die App hält. Bis 3.29.0 ohne Brücke keines von beiden. Lehnt die Forschung die Bestätigung ab, sagt das Popup warum, zum Beispiel dass die Forschung ein Archiv ist oder dass eine
   andere Sitzung sie hält; „Nicht geändert; die Recherche antwortet nicht.“ nur, wenn sie nicht antwortet.
 - **Warum:** Gewissheit über eine Angabe entsteht dadurch, dass ein Mensch den Eintrag selbst sieht. Die Prüfung durch
   einen Agenten ist eine Lesung durch KI; ✓ sagt, dass ein Mensch den Eintrag gesehen hat. Die bestätigte Abschrift
@@ -323,7 +328,7 @@ statt der Aktion den Stand „✓ Am {datum} anhand des Scans bestätigt“ und 
   `strom verify confirm E…`, `strom verify confirm E… --undo`.
 - **Gilt seit:** Forschung 1.30.0, App 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value · app:0fbda127 src/verify-offer.ts researchConfirms (offline), verifyOffer (offline bez eid: scan ne, undo jen confirmedBy app; scanViaBridge/undoViaBridge ne offline), src/verify-ui-model.ts PERSON_VERIFY_KINDS (BIRT, CHR, BAPM, MARR, DEAT, BURI), personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích), CHANGELOG.cs.md 3.30.0 „Spolehlivost údajů“ -->
 
 <a id="S7.9"></a>
 ## S7.9 Was mit der Brücke geht und was ohne sie
@@ -332,7 +337,7 @@ statt der Aktion den Stand „✓ Am {datum} anhand des Scans bestätigt“ und 
 |---|---|---|---|
 | Marken an Angaben und auf dem Kärtchen | ja | ja, gleich wie mit der Brücke (nach dem letzten Stand aus der Datei) | ja, aus dem Import und aus den Zitationen |
 | **Prüfen**, **Vorrangig prüfen**, **Angaben prüfen · N**, **Angaben im Baum prüfen…** | ja | nein | nein (Zeile zur Ahnenforschung) |
-| **Anhand des Scans bestätigen**, **Zurücknehmen** | ja, schreibt die Forschung | nein | ja, hält die App |
+| **Anhand des Scans bestätigen**, **Zurücknehmen** | ja, schreibt die Forschung | ab App 3.30.0 ja bei einer Angabe mit Nummer der Forschung, hält die App bis zur Übergabe des Stammbaums ([S7.8](#S7.8)) | ja, hält die App |
 | **Anhalten** der Prüfung | ja | nein; `strom verify stop` im Terminal | – |
 | Prüfung in der Warteschlange der Forschung | läuft | läuft (die Forschung wartet nicht auf die App) | – |
 
@@ -341,4 +346,4 @@ statt der Aktion den Stand „✓ Am {datum} anhand des Scans bestätigt“ und 
   der Forschung: [S1.1](S1-connecting-app-and-research.md#S1.1).
 - **Gilt seit:** Forschung 1.30.0, App 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->

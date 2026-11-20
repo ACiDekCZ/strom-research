@@ -306,8 +306,8 @@ oder Strom-Archiv zeigt es auch Dateien der Forschung, die im Stammbaum nirgends
   **Notiz für die Forschung**. Die Forschung macht aus ihnen eine Aufgabe für den Agenten
   ([R11.1](R11-material-from-the-user.md#R11.1)). **Auch als Anhang im Stammbaum hinzufügen** legt auch eine Vorschau
   in den Stammbaum. Einen ganzen Ordner sendet **Materialien hinzufügen…** im Menü der Forschung
-  ([R11.4](R11-material-from-the-user.md#R11.4)). Beim Strom-Archiv sind es **Material hinzufügen…** und **Auch im
-  Stammbaum speichern** (Bilder und PDF bis 2 MB).
+  ([R11.4](R11-material-from-the-user.md#R11.4)) und im Kopf des Fensters **Materialien** ([A3.5.15](#A3.5.15)).
+  Beim Strom-Archiv sind es **Material hinzufügen…** und **Auch im Stammbaum speichern** (Bilder und PDF bis 2 MB).
 - Läuft die Forschung nicht, warten die gesendeten Dateien im Browser. Kennt die Forschung die Person noch nicht,
   werden sie nach dem nächsten Senden des Stammbaums gesendet.
 - **Grenzen:**
@@ -349,10 +349,15 @@ einem Archiv auch die Dateien der Forschung.
   Forschung nicht, zeigt das Fenster den Stand aus der Zeit, als sie lief, und sagt, was sich bearbeiten lässt: Titel
   und Verknüpfungen der Dateien des Stammbaums werden mit dem Stammbaum geschrieben, Material außerhalb des
   Stammbaums erst bei laufender Forschung.
+- **Sortieren ▾** in der Leiste des Fensters sortiert Raster und Liste gleich, innerhalb der Gruppen:
+  **Standardreihenfolge** oder eine Spalte (**Titel**, **Art**, **Datum**, **Personen**, **Quelle**, bei einem Archiv
+  **Im Stammbaum**, **Verwendet**) und **Aufsteigend** / **Absteigend**. Ein Klick auf eine Kopfzeile der Liste ändert
+  dieselbe Sortierung. Die Sortierung wird auf diesem Gerät gemerkt. Auf dem Tablet und in einem Fenster bis 1024 px
+  ist sie in **Filter**.
 - **Bedienung:** siehe [A3.5](#A3.5); Dateien auswählen: **Auswählen**, Strg/Cmd+A wählt aus, was die Filter zeigen.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Titel, Art und Datum
@@ -388,12 +393,15 @@ dieser Reihenfolge. Jede Zeile ist ein Link auf die Person oder die Quelle.
   **Rückgängig**. Die letzte Stelle einer Datei, die sonst nichts hält, fragt zuerst ([A3.5.6](#A3.5.6)).
 - Neben einem Archiv gibt es zwei Teile: **Im Stammbaum** und **Im Archiv**, mit den im Archiv zugeordneten Personen
   und damit, wofür die Forschung die Datei verwendet hat (Ausschnitte, Quellen der Forschung, offene Aufgaben).
+- Eine Datei, die die Datei einer Quelle der Forschung ist, hat oben **Datei einer Quelle**: die Quellen, wie die
+  Datei zu ihnen gehört, wer sie zitiert, und „Die Datei ist in der Forschung; im Baum ist sie über eine Quelle.“
+  ([A3.5.14](#A3.5.14)).
 - **Grenzen:** ein schreibgeschützter Stammbaum zeigt die Stellen ohne ×. Die Verwendung im Archiv zeigt nur die
   Forschung 1.35.0 und neuer; läuft die Forschung nicht, gilt der Stand, den die App zuletzt kannte.
 - **Bedienung:** Dateibetrachter (Seitenleiste, auf dem Telefon ein hochgezogenes Blatt); der Dialog **Anhang**.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
+<!-- zdroj: app:4bf66048 src/ui/material-uses-ui.ts (prameny první, usesSourceOf, keptViaSource) · app:1ccc666c src/media-uses.ts (pořadí person, portrait, couple, event, source, excerpt) · src/ui/material-uses-ui.ts COLLAPSE_OVER=5, COLLAPSED_ROWS=4 · app:55d66efd sourceCitedAt · strings.ts materials.used, usedInTree, usedInArchive, usedType, docCitedAt, moreN, unlink, usesArchive, usesOlder, usesStale · research:a7df632d GET /material/<I…>/uses -->
 
 <a id="A3.5.4"></a>
 ### A3.5.4 Verknüpfen mit…
@@ -501,28 +509,287 @@ Vorschlag angenommen ist.
   oder Guthaben nutzt. Die Dateien sendet nur die Schaltfläche **Mit dem Agenten sortieren** im Dialog, einmal.
 - Das Fenster lässt sich schließen; der Fortschritt und der fertige Vorschlag sind im Band des Fensters
   **Materialien**.
+  - **Ab App 3.30.0:** das Band zeigt „Warten auf den Agenten…“, dann „Der Agent sortiert · k von n“ mit einer
+    Anzeige, wie viele Dateien der Agent schon beurteilt hat. Eine Forschung, die die Zahl der beurteilten nicht
+    nennt, hat „Der Agent sortiert · N Dateien“ mit einem Balken ohne Zahl; bei reduzierter Bewegung im System steht
+    dieser Balken still. Darunter „Das Fenster lässt sich schließen, der Vorschlag wartet in den Materialien.“
 - **Vorschlag des Agenten** hat **Vorschläge**, **Nicht zugeordnet** und **Erledigt** und bei jeder Datei
   **Annehmen**, **Bearbeiten**, **Ablehnen**; außerdem **Ausgewählte annehmen** und **Alle annehmen**. Die Sicherheit
   eines Vorschlags: sicher, wahrscheinlich, unsicher.
+  - **Ab App 3.30.0:** unter **Nicht zugeordnet** steht bei einer Datei ohne Vorschlag in einer leisen Zeile, warum
+    sie keinen hat: „Der Leser sagte nichts zur Datei“, „Die Datei hat schon alles Vorgeschlagene“, „Der Vorschlag
+    ließ sich nicht verwenden“, „Der Agent hat die Datei ausgelassen“ oder „Die Datei ließ sich nicht lesen“. Was der
+    Leser zur Datei schrieb, steht darunter in einer Zeile, ganz beim Überfahren. Eine Forschung, die den Grund nicht
+    nennt, oder ein Grund, den die App nicht kennt: eine Zeile ohne Grund wie bisher.
+  - **Ab App 3.30.0:** eine Datei, von der der Agent sagt, dass sie nicht die Familie betrifft, steht unter
+    **Nicht zugeordnet** zuerst, markiert mit **Betrifft nicht die Familie** ([A3.5.9](#A3.5.9)).
+  - Textdateien (.txt, .md) liest der Agent nach ihrem Inhalt, nicht als Bild
+    ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
 - Titel, Datum und Art von einem Menschen bleiben; der Vorschlag des Agenten wird nur verwendet, wenn **Vorschlag
   übernehmen** gewählt wird.
 - Angenommenes wird geschrieben: die Dateien des Stammbaums in einem Schritt **Rückgängig** mit dem Stammbaum,
   Material außerhalb des Stammbaums ins Archiv. Eine Quelle der Forschung, die der Stammbaum noch nicht hat, kommt mit
   der Nummer der Forschung in den Stammbaum, und das Schreiben verdoppelt sie nicht. Ein angenommener Vorschlag lässt
   sich in seiner Zeile mit **Rückgängig** zurücknehmen.
+- **Was geschickt wird:** aus einem Stapel und aus allen nicht eingeordneten nur Dateien ohne eigenen Titel oder ohne
+  Person, ohne Kopien, Dateien einer Quelle, Dateien, die der Agent zuletzt nicht zugeordnet hat, und Text- und
+  Datendateien; von Hand ausgewählte Dateien gehen alle ([A3.5.11](#A3.5.11)).
+- Das Band des Sortierens gibt es einmal über dem ganzen Archiv ([A3.5.10](#A3.5.10)); ein Stapel wird aus seinem ⋯
+  sortiert.
 - **Grenzen:**
   - nur bei der Forschung 1.35.0 und neuer, die einen Agenten hat, und nur bei laufender Forschung; beim
     Strom-Archiv und bei einer Forschung, die auf einen Agenten wartet, gibt es das Angebot gar nicht;
-  - höchstens 50 Dateien auf einmal (gesendet werden die ersten 50) und 2000 Zeichen Text;
+  - höchstens 30 Stapel zu 50 Dateien als ein Lauf ([A3.5.12](#A3.5.12)), bei einer Forschung ohne Läufe 50
+    Dateien; 2000 Zeichen Text;
   - die Forschung kann das Sortieren ablehnen: das Leselimit ist aufgebraucht, zu viele Sortierungen warten, der
     Agent kann gerade nicht arbeiten. Wie die Forschung sortiert, beschreibt
     [R11.5.3](R11-material-from-the-user.md#R11.5.3);
   - nur in der App am Computer.
-- **Bedienung:** Fenster **Materialien**: eine Auswahl, das Band über einem Stapel oder über einem Filter; das Ende
-  eines Stapels aus der App.
+- **Bedienung:** Fenster **Materialien**: eine Auswahl, das Band des Sortierens, ⋯ eines Stapels; das Ende eines
+  Stapels aus der App.
 - **Gilt seit:** App 3.30.0, Forschung 1.35.0
 
-<!-- zdroj: app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem -->
+<!-- zdroj: app:9752aead (jeden pruh nad archivem, pruhy dávek a nabídka nad vším pryč, dávka z ⋯), 2fbab382 src/material-sort.ts sortNext, 1047b9d6 (běh do 1 500 souborů, bez material.sortRun jedna dávka) · app:1affd46e, d5b6ef8e src/ui/material-sort-ui.ts (odeslání jen klikem v dialogu), src/materials.ts SORT_MAX_FILES=50, SORT_MAX_TEXT=2000 · src/ui/materials-window.ts materialSortGate (sel-sort) · src/ui/batch-ui.ts doneSort · app:2a6dd268 pramen z výzkumu s REFN S… · strings.ts materials.agentSort.* (will, keep, privacy, cost, tooMany, errLimit, errQueue, errNotReady, offRun, phone, write, useProposal, undoRow) · research:87376d11 POST /material/sort, cc709045 material.sort jen s agentem · app:32f1e29f src/ui/material-sort-ui.ts (counted jen s job.filesDone: run k z n, progressbar aria-valuenow; jinak runFiles, is-indeterminate; runNote), strings.ts agentSort.queued, run, runFiles, runNote · app:30688d6b src/materials.ts parseSortUnproposed, material-sort-ui.ts (unassigned && !p → unproposed[why], said na jednom řádku s title), strings.ts agentSort.unproposed.* · research:ae866bb7 filesDone, unproposed, čtení textu · app:8a8131be src/material-sort.ts sortNeedy, sortWholeOffered (narrowed, remembered, jedna dávka se stejným počtem), materials-window.ts sortWholeClosed, strings.ts agentSort.stripWhole, closeWhole · app:a947b426 sortCandidates (dávka, filtr, celé okno: jen bez titulku nebo osoby; výběr vše) -->
+
+<a id="A3.5.9"></a>
+### A3.5.9 Betrifft nicht die Familie
+
+Sagt der Agent beim Sortieren ([A3.5.8](#A3.5.8)), dass eine Datei offensichtlich nicht die Familie betrifft (ein
+Bildschirmfoto, eine Quittung, ein Urlaubsfoto fremder Leute, eine versehentlich geschickte Datei), ist die Datei im
+**Vorschlag des Agenten** unter **Nicht zugeordnet** mit **Betrifft nicht die Familie** markiert. Ausblenden kann
+sie nur ein Mensch; weder die App noch die Forschung blendet sie von selbst aus oder löscht sie.
+
+- Eine solche Datei hat keinen vorgeschlagenen Titel, kein Datum, keine Art und keine Verknüpfungen. Ihre Zeile zeigt
+  die Sicherheit (sicher, wahrscheinlich, unsicher: wie sicher es ist, dass die Datei nicht zur Familie gehört) und
+  „Warum nicht: …“ mit dem, was der Agent auf der Datei sah.
+- Der Agent markiert so nur eine Datei offensichtlich außerhalb der Familie; eine Datei, die er nur nicht zuordnen
+  kann, bleibt ohne Markierung unter **Nicht zugeordnet** ([R11.5.3](R11-material-from-the-user.md#R11.5.3)).
+- Diese Dateien stehen unter **Nicht zugeordnet** zuerst. Darüber steht **Als „Betrifft nicht die Familie“
+  ausblenden (N)**, bei jeder **Ausblenden…**. Beides öffnet den Dialog **Datei ausblenden?** mit dem vorgewählten
+  Grund **Betrifft nicht die Familie** (änderbar auf **Duplikat** oder **Ohne Grund**); erst die Schaltfläche
+  **Ausblenden** blendet die Datei aus. Die Meldung hat **Rückgängig**. Nach dem Dialog, auch einem abgebrochenen,
+  kehrt der Vorschlag des Agenten zu **Nicht zugeordnet** zurück.
+- Eine ausgeblendete Datei zeigt in ihrer Zeile „Ausgeblendet · betrifft nicht die Familie“ und
+  **Wiederherstellen**. Sie bleibt mit ihrem Original in der Forschung und ist in **Ausgeblendete zeigen** zu sehen
+  ([A3.5.1](#A3.5.1)). **Von Hand durchgehen (N)** lässt ausgeblendete Dateien aus.
+- **Grenzen:**
+  - ausblenden lässt sich nur eine Datei der Forschung außerhalb des Stammbaums, die noch nicht ausgeblendet ist.
+    Eine Datei im Stammbaum hat die Markierung ohne **Ausblenden…**; aus dem Stammbaum nimmt sie **Aus dem
+    Stammbaum entfernen…** ([A3.5.6](#A3.5.6));
+  - **Ausblenden…** und **Wiederherstellen** wirken nur bei laufender Forschung; sonst sind sie deaktiviert;
+  - eine Forschung, die die Markierung nicht sendet, lässt **Nicht zugeordnet** wie bisher.
+- **Bedienung:** Fenster **Materialien** → Band des Vorschlags → **Vorschlag des Agenten** → **Nicht zugeordnet**;
+  Terminal: `strom material show <id>`, Ausblenden `strom input hide I… --why unrelated`
+  ([R11.5.2](R11-material-from-the-user.md#R11.5.2)).
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:f2bebc4c (v 401eaca4) src/materials.ts SortProposal.unrelated, parseSortProposal · src/material-sort.ts sortRows (unrelated: bez polí a vazeb), sortUnrelatedHideable (origin ≠ tree, file, !hidden, bez places) · src/ui/material-sort-ui.ts (Nepřiřazeno: unrelated první, msp-flag reason.unrelated, conf, unassignedWhy + why; hideUnrelated, hide, restore, hiddenLabel; hideCan: caps.assign, jinak null; bridgeUp && base, jinak vypnuto; reopen na tab unassigned; Projít ručně bez skrytých) · src/ui/material-actions-ui.ts openHideDialog (důvod unrelated předvybraný, ctx.back) · strings.ts materials.agentSort.hideUnrelated, unassignedWhy, reviewByHand, materials.hide, hideTitle, reasonLabel, reason, hideConfirm, hiddenLabel, hiddenToastResearch, restore · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts unrelated -->
+
+<a id="A3.5.10"></a>
+### A3.5.10 Das Band des Sortierens und das Ende des Vorschlags
+
+Das Fenster **Materialien** hat ein Band des Sortierens über dem ganzen Archiv. Es zeigt den Stand aller Dateien der
+Forschung, auch wenn ein Filter nur einen Teil zeigt; unter den Stapeln gibt es keine Bänder.
+
+- **Zustände des Bands:**
+  - nicht eingeordnete Dateien: „N Dateien ohne Titel oder Person“ mit **Mit dem Agenten sortieren…**, **Von Hand
+    durchgehen** und ×;
+  - der Agent sortiert: der Fortschritt ([A3.5.8](#A3.5.8), [A3.5.12](#A3.5.12)) mit **Abbrechen**; warten schon
+    Vorschläge, auch **Vorschlag bearbeiten (N)**;
+  - ein Vorschlag wartet: „Vorschlag des Agenten: N zu bearbeiten“ mit **Vorschlag bearbeiten (N)** und **Vorschlag
+    schließen…**;
+  - nach dem Vorschlag: „Fertig: a bearbeitet · u nicht zugeordnet · N nicht eingeordnet übrig“ mit **Weitere
+    sortieren (N)…**, **Von Hand durchgehen** (die Dateien, die der Agent nicht zugeordnet hat) und ×;
+  - nichts übrig: „Alle Dateien haben Titel und Person.“
+- × blendet das Band aus, bis sich sein Zustand ändert. Ein Stapel, der bei offenem Fenster hinzukommt, meldet sich
+  im Band mit „N Dateien hinzugefügt · M ohne Titel oder Person“ ([A3.5.15](#A3.5.15)).
+- **Das Ende des Vorschlags:** ist alles bearbeitet, sagt das Fenster **Vorschlag des Agenten** „Fertig · a
+  angenommen · r abgelehnt · u nicht zugeordnet“ (bei einem Lauf auch „Für den ganzen Lauf: …“) und darunter:
+  - „Im Archiv bleiben N nicht eingeordnete Dateien“ mit **Weitere sortieren (N)…**: der Vorschlag wird geschlossen
+    und der Dialog **Mit dem Agenten sortieren** öffnet sich; sonst „Im Archiv ist nichts weiter zu sortieren.“;
+  - Kopien mit gleichem Inhalt, die nicht gesendet wurden: **Als Duplikat ausblenden (N)…**;
+  - „N Dateien hat der Agent nicht zugeordnet“: sie bleiben ohne Titel und Person, tragen das Etikett **Vom
+    Agenten nicht zugeordnet** und gehen beim nächsten Mal nicht an den Agenten ([A3.5.14](#A3.5.14)).
+- Ein Vorschlag, in dem nichts wartet, wird mit dem Schließen des Fensters geschlossen. **Vorschlag schließen…**
+  fragt **Vorschlag schließen?**: offene Vorschläge werden nicht geschrieben und die Dateien bleiben nicht
+  eingeordnet; Angenommenes bleibt angenommen.
+- **Grenzen:**
+  - auf dem Telefon zeigt das Band nur den Stand; der Vorschlag ist in der App am Computer. Ein schreibgeschützter
+    Stammbaum: nur der Stand und „Der Baum ist schreibgeschützt.“;
+  - läuft die Forschung nicht, ist das Band aus und sagt warum;
+  - eine Forschung ohne Läufe in Stapeln bietet **Die nächsten 50 sortieren…** mit „Der Agent nimmt höchstens 50
+    Dateien auf einmal. In Stapeln sortiert eine neuere Version der Forschung.“
+- **Bedienung:** Fenster **Materialien** → das Band des Sortierens; ⋯ eines Stapels → **Mit dem Agenten
+  sortieren…**; Fenster **Vorschlag des Agenten**.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:9752aead src/material-sort.ts sortStripState (A–F nad celým archivem i s filtrem; × jen v A a E), src/ui/material-sort-ui.ts materialSortStripView, konec návrhu (endTitle, endRun, restLine, restNote, leftLine, leftNote, nothingLeft, endFoot, closeAsk, closeText), materialSortCloseAsk · src/ui/materials-window.ts mwSortWholeClose (sortClosedState do změny stavu), ⋯ dávky (sort) · app:17585b94 materialsBatchAdded (stripAdded) · app:0b0c9d4f (telefon, strom jen ke čtení, výzkum neběží, starší výzkum bez běhů: olderNext, olderRun) · strings.ts materials.agentSort.stripWhole, reviewHand, handle, pending, doneLine, sortNextN, allSorted, closeProposal, readOnlyNote, phoneShort, hideCopies, copiesLine -->
+
+<a id="A3.5.11"></a>
+### A3.5.11 Was sortieren: Stapel und was nicht gesendet wird
+
+Der Dialog **Mit dem Agenten sortieren** sagt zuerst, was gesendet wird, in wie vielen Stapeln und was nicht
+gesendet wird. Die Dateien gehen in Stapeln zu höchstens 50.
+
+- **Was sortieren:** Kacheln mit Anzahlen. Oben das, woher der Dialog kam (**Nur ausgewählte** oder **Nur Stapel
+  „…“**), dann immer **Alle nicht eingeordneten**; über 10 Stapel auch **Nur die ersten 50** („1 Stapel; der Rest
+  später mit „Weitere sortieren““).
+- **Reihenfolge:** zuerst Bilder und PDF, dann andere Dateien, Text- und Datendateien zuletzt; darin nach Stapel und
+  Ordner, die Dateien eines Ordners beisammen.
+- **Was nicht gesendet wird** (aus einem Stapel und aus allen nicht eingeordneten): Kopien mit gleichem Inhalt wie
+  eine ältere Datei (nur die ältere geht), eine Datei, die die Datei einer Quelle ist, Dateien, die der Agent zuletzt
+  nicht zugeordnet hat, und Text- und Datendateien (.md, .txt, .json, .csv). Der Dialog sagt es in einem Satz mit
+  **Einzelheiten**: bei Kopien **Als Duplikat ausblenden (N)…**, bei den nicht zugeordneten **In den Materialien
+  zeigen**, bei Textdateien das Kästchen **Auch Text- und Datendateien senden (N)**.
+- **Nur ausgewählte** sendet alle ausgewählten Dateien außer ausgeblendeten; Kopien und Dateien einer Quelle darunter
+  nennt der Dialog mit ihrer Anzahl und sendet sie auch.
+- Der Dialog sagt „Gesendet werden N Dateien in M Stapeln zu höchstens 50. …“ und die Schaltfläche heißt **Mit dem
+  Agenten sortieren · M Stapel**. Über 10 Stapel sagt er deutlich, dass jeder Stapel das Abo oder Guthaben nutzt und
+  dass der Lauf anhält, wenn das Limit aufgebraucht ist; zum Ausprobieren reicht **Nur die ersten 50**.
+- **Grenzen:**
+  - höchstens 30 Stapel (1 500 Dateien) als ein Lauf ([A3.5.12](#A3.5.12)); was darüber ist, sendet erst
+    **Weitere sortieren**;
+  - eine Forschung ohne Läufe in Stapeln nimmt einen Stapel (50 Dateien);
+  - die Datei einer Quelle erkennt die App nur durch die Forschung. Kopien und Dateien, die der Agent nicht
+    zugeordnet hat, sagt die Forschung; kann sie das nicht, erkennt die App Kopien am Inhalt der Dateien, die sie
+    kennt, und die nicht zugeordneten an den Vorschlägen, die sie sich merkt.
+- **Bedienung:** Fenster **Materialien**: das Band des Sortierens, eine Auswahl, ⋯ eines Stapels → Dialog **Mit dem
+  Agenten sortieren**.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:1047b9d6 src/ui/material-sort-ui.ts openSortDialog (base: selection | batch | all, 'first' nad SORT_MANY_BATCHES=10, plan, planOne, costBig, overRun, goRun, selWarn, drawLeft s details), src/material-sort.ts SORT_MAX_BATCHES=30, sortRunBatches · app:2fbab382 src/material-sort.ts sortNext (obrázky a PDF první, text poslední jen s withText, dávka a složka, výběr vše bez skrytých; kopie, zdroje, left jen mimo výběr), sortIsText, sortCopyOf (material.sameAs, jinak otisk), sortLeftMap (material.left, jinak paměť aplikace) · strings.ts materials.agentSort.scopeLegend, scopeAll, scopeSel, scopeBatch, scopeFirst, scopeFirstSub, leftCopies, leftText, leftSources, leftLeft, showLeft, details, withText, withTextHint -->
+
+<a id="A3.5.12"></a>
+### A3.5.12 Ein Lauf in Stapeln
+
+Mehr als ein Stapel geht als ein Lauf: die Forschung sortiert die Stapel nacheinander, und der Vorschlag jedes
+fertigen Stapels lässt sich sofort bearbeiten.
+
+- Band und Anzeige gibt es einmal für den ganzen Lauf: „Der Agent sortiert · Stapel b von M · k von n“, am Anfang
+  eines Stapels „… beginnt“. Das Fenster **Vorschlag des Agenten** zeigt „Stapel b von M läuft · weitere Vorschläge
+  folgen“; neue Vorschläge kommen ans Ende der Liste, mit einer Meldung und **Zeigen**.
+- Der Lauf geht weiter, auch wenn das Fenster geschlossen und die App neu geladen wird. Die Meldung vom Ende kommt
+  einmal, am Ende des Laufs.
+- **Abbrechen** hält den Lauf sofort an: der Stapel in Arbeit endet, die wartenden starten nicht. Gibt es fertige
+  Vorschläge, fragt es **Fertige Vorschläge verwerfen?** und sagt, welche Stapel nicht starten und wie viele Dateien
+  nicht eingeordnet bleiben; **Behalten** lässt sie zum Bearbeiten.
+- **Ein Stapel, der nicht lief:** nach dem Ende des Laufs sagt das Band in der Fehlerfarbe „Stapel b von M lief
+  nicht:“ mit dem Grund, was nicht eingeordnet bleibt, **Vorschlag bearbeiten (N)**, **Erneut versuchen…** und
+  **Schließen**. Die anderen Stapel laufen inzwischen weiter.
+- **Ein anderswo angehaltener Lauf:** „Das Sortieren hielt nach Stapel b von M an.“ mit **Fortsetzen (N
+  Stapel)…**. **Erneut versuchen…** und **Fortsetzen** öffnen den Dialog mit **Was vom Lauf übrig ist**; neue
+  Stapel kommen in den offenen Vorschlag.
+- **Ein Stapel wartet**, wenn die Lesungen, die die App anfragen darf, aufgebraucht sind: „Stapel b von M wartet“
+  und „Er startet von selbst in etwa N Min.“ (oder Std.).
+- **Grenzen:** höchstens 30 Stapel zu 50 Dateien; nur eine Forschung, die Läufe in Stapeln kann
+  ([R11.5.5](R11-material-from-the-user.md#R11.5.5)). Jeder Stapel nutzt das Abo oder Guthaben und zählt zu den
+  Lesungen der App.
+- **Bedienung:** Dialog **Mit dem Agenten sortieren**; das Band des Fensters **Materialien**; Fenster **Vorschlag
+  des Agenten**.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:acc877d6 src/ui/material-sort-ui.ts (běh výzkumu čtený do konce, jeden pruh a ukazatel, runBatch, runBatchFiles, runStarting, runInWindow, moreArrived, show; po novém načtení sledovaný znovu; toast jednou na konci) · app:687dd41b materialSortCancel (cancelMaterialSortRun, discardAsk, discardRun, discardKeep), batchFailed, runErrorText (errLimit, batchErr), leftAfterError, retry, stopped, stoppedNote, resume, scopeRest, runWaiting, runWaitText (waitApp, waitRetry) · app:0b0c9d4f (bez toastu při otevřeném okně návrhu) · research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500 -->
+
+<a id="A3.5.13"></a>
+### A3.5.13 Rückseite und Porträt im Vorschlag
+
+Der Agent kann im Vorschlag sagen, welche der gesendeten Dateien die Rückseite eines anderen Fotos oder einer
+anderen Seite ist und welches Bild das Porträt einer Person ist. Der Vorschlag zeigt es als Chip an der Datei.
+
+- **Rückseite:** an der Vorderseite ein Chip „Rückseite:“ mit Vorschau und Namen der Rückseite. Das Annehmen
+  schreibt die Rückseite zusammen mit der Vorderseite: die Rückseite bekommt deren Datum, Art und Verknüpfungen und
+  den Titel „… (Rückseite)“. Die Zeile zeigt beide Namen („… + … (Rückseite)“) und „2 Seiten“.
+- **Porträt:** ein Chip „Porträt:“ mit der Person. Nach dem Annehmen bekommt die Datei eine Stelle bei der Person,
+  und der Porträt-Editor öffnet sich ([A12](A12-portrait-and-couple-photo.md)).
+- × nimmt den Chip aus dem Vorschlag; der Rest des Vorschlags bleibt.
+- **Grenzen:**
+  - eine Rückseite nur zwischen Dateien, die derselbe Leser der Forschung bekam: eine Rückseite zu einer
+    Vorderseite, nie die Rückseite einer Rückseite und nie eine Textdatei
+    ([R11.5.3](R11-material-from-the-user.md#R11.5.3));
+  - ein Porträt wird nur bei einem Bild angeboten und nur bei einer Person, die kein Porträt hat und sich bearbeiten
+    lässt.
+- **Bedienung:** Fenster **Vorschlag des Agenten** → **Vorschläge**.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/material-sort-ui.ts withPortraits (obrázek, osoba bez photo, canEditPortrait), čipy own() s × (dropped), rubFiles, twoSides, accept (sortBackRow s rubSuffix, portrét: místo personId) · strings.ts materials.agentSort.rubChip, portraitChip, rubSuffix, rubFiles, twoSides · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait -->
+
+<a id="A3.5.14"></a>
+### A3.5.14 Vom Agenten nicht zugeordnet, Gleicher Inhalt und Datei einer Quelle
+
+Kacheln und Zeilen des Fensters **Materialien** tragen vor den Personen ein Etikett, das sagt, warum eine Datei nicht
+eingeordnet blieb oder dass sie über eine Quelle eingeordnet ist.
+
+- **Vom Agenten nicht zugeordnet:** eine Datei, zu der der Agent beim Sortieren nichts vorgeschlagen hat. Der
+  Dateibetrachter zeigt bei ihr „Warum nicht“ mit dem Grund. Der Filter **Vom Agenten nicht zugeordnet** (mit
+  Anzahl) steht nach den anderen Filtern. Das nächste Sortieren sendet solche Dateien nicht, außer sie werden von
+  Hand ausgewählt.
+- **Gleicher Inhalt:** eine Datei mit gleichem Inhalt wie eine ältere Datei; das Sortieren sendet nur die ältere.
+- **Datei einer Quelle** (bei mehreren Quellen „Datei von N Quellen“): eine Datei, aus der die Forschung eine Quelle
+  gemacht hat. Das Etikett steht vor den Personen, die die Quelle zitieren, und **Im Stammbaum** richtet sich danach,
+  ob die Quelle im Stammbaum ist. In **Liste** zeigt die Spalte **Quelle** ein Etikett mit dem Titel der ersten
+  Quelle. So eine Datei ist eingeordnet: sie zählt weder zu **Ohne Person** noch zu **Ohne Quelle** und trägt nicht
+  **Vom Agenten nicht zugeordnet**. **Wo verwendet** zeigt bei ihr die Quellen zuerst ([A3.5.3](#A3.5.3)).
+- **Grenzen:** **Vom Agenten nicht zugeordnet** und **Gleicher Inhalt** trägt nur eine Datei ohne Titel oder ohne
+  Person, die nicht ausgeblendet ist. **Datei einer Quelle** nur mit einer Forschung, die die Dateien der Quellen
+  meldet ([R11.5.4](R11-material-from-the-user.md#R11.5.4)); ohne sie zeigen sich die Dateien wie bisher.
+- **Bedienung:** Fenster **Materialien** (Kacheln, **Liste**, **Filter**); Dateibetrachter.
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:2fbab382 src/ui/materials-window.ts (agentLeft, copyOf jen u souboru bez titulku nebo osoby, ne skrytý ani zdroj pramene), mwSortTagHtml, filtr left (fLeft), src/ui/material-viewer-ui.ts (unassignedWhy + said nebo unproposed[why]) · app:4bf66048 src/materials-overview.ts, src/ui/materials-window.ts mwSourceOfTag, src/ui/material-uses-ui.ts (zdroj pramene: přiřazený, bez Bez osoby a Bez pramene) · strings.ts materials.agentSort.fLeft, tagLeft, tagCopy, tagSourceOf, sourceOfN, usesSourceOf, viaInput, viaMedia, viaExcerpt, citedBy, keptViaSource · research:0cc2cfca src/core/live.ts GET /material (uses.of, left, sameAs) -->
+
+<a id="A3.5.15"></a>
+### A3.5.15 Materialien hinzufügen… im Fenster
+
+**Materialien hinzufügen…** im Kopf des Fensters **Materialien** öffnet über dem Fenster den Assistenten
+**Materialien zur Forschung hinzufügen** ([R11.4](R11-material-from-the-user.md#R11.4)).
+
+- Dateien und Ordner, die auf das Fenster gezogen werden, zeigen „Hier loslassen: zu den Materialien hinzufügen“
+  und öffnen den Assistenten mit ihnen. Ohne Bestätigung im Assistenten wird nichts gesendet.
+- Ein Stapel, der bei offenem Fenster hinzukommt, meldet sich im Band des Sortierens ([A3.5.10](#A3.5.10)), und die
+  Liste wird neu geladen.
+- **Grenzen:** nur bei einer Forschung, die Stapel annimmt, und bei einem Stammbaum, der sich ändern lässt; ein
+  Stammbaum ohne Forschung hat die Schaltfläche nicht. Auf dem Telefon gibt es kein Ziehen; **Materialien
+  hinzufügen…** und **Wo die Dateien liegen** sind dort im ⋯ des Kopfs.
+- **Bedienung:** Fenster **Materialien** → **Materialien hinzufügen…**; Dateien oder Ordner auf das Fenster ziehen.
+- **Gilt seit:** App 3.30.0
+
+<!-- zdroj: app:17585b94 src/ui/materials-window.ts mwAddMaterials (showBatchDialog), mwWireDrop (ne na telefonu), mwFillHeadMenu (telefon: add, where), materialsBatchAdded · src/ui/materials-ui.ts materialsAddOffered (windowAddOffered: model archive, batchAvailable, ne jen ke čtení) · strings.ts materials.addMaterials, dropTitleMaterials, dropSubMaterials, agentSort.stripAdded -->
+
+<a id="A3.5.16"></a>
+### A3.5.16 Endgültig löschen
+
+**Endgültig löschen…** löscht Dateien der Forschung aus dem Archiv und aus dem Stammbaum. Es geht nur über einen
+Dialog, der zuerst sagt, was auf die Dateien verweist; in der App lässt es sich nicht rückgängig machen.
+
+- Der Dialog **N Dateien endgültig löschen?** zeigt eine Vorschau (bei mehreren Dateien die ersten fünf und „und N
+  weitere“), **Was auf die Dateien verweist** nach der Forschung (Zeilen **Quelle**, **Ausschnitte**, **Baum**,
+  **Personen**, **Aufgaben**), dass die Dateien aus dem Archiv der Forschung und aus dem Stammbaum gelöscht werden,
+  und das Kästchen **Verstanden, Löschen lässt sich in der App nicht rückgängig machen**.
+- Die Schaltfläche **Endgültig löschen** wirkt nur, wenn die Forschung die Liste bestätigt hat und das Kästchen
+  angehakt ist; den Fokus hat **Abbrechen**. Dateien außerhalb des Stammbaums, die noch nicht ausgeblendet sind,
+  bieten auch **Nur ausblenden – lässt sich rückgängig machen**.
+- **Was geschieht:** eine Quelle bleibt, nur ohne ihre Datei; eine Quelle mit gleichem Inhalt verliert das Bild, Text
+  und Zitate bleiben; Ausschnitte aus diesen Dateien werden gelöscht; Stellen im Stammbaum entfernt die nächste
+  Version des Stammbaums aus der Forschung; die Datei verschwindet aus den Materialien der Personen; eine Aufgabe
+  ohne weitere Dateien wird aufgegeben. Inhalt, den auch eine andere Datei oder eine andere Forschung auf diesem
+  Computer hat, bleibt gespeichert, und nur der Eintrag wird gelöscht.
+- Hat sich die Liste inzwischen geändert oder ist die Bestätigung abgelaufen (sie gilt 15 Minuten), zeigt der Dialog
+  die neue Liste, nimmt den Haken weg, und das Löschen muss neu bestätigt werden.
+- Nach dem Löschen die Meldung „Endgültig gelöscht: N Dateien.“ ohne **Rückgängig**. Die Dateien verschwinden aus
+  dem Fenster und aus dem Vorschlag des Agenten. Sie bleiben nur in früheren Sicherungen der Forschung (beim
+  Strom-Archiv des Archivs). Weder Agent noch Baum löschen je von selbst.
+- **Grenzen:**
+  - nur Dateien des Archivs der Forschung oder des Strom-Archivs; eine Datei, die nur im Stammbaum ist, entfernt
+    **Aus dem Stammbaum entfernen…** ([A3.5.6](#A3.5.6));
+  - höchstens 500 Dateien auf einmal („Auf einmal lassen sich höchstens 500 Dateien löschen.“);
+  - nur mit einer Forschung, die löschen kann, und mit laufender Brücke; nie in einem schreibgeschützten Stammbaum;
+  - auf einem schmalen Bildschirm ist der Dialog ein Blatt von unten.
+- **Bedienung:** Fenster **Materialien** → Auswahl → ⋯ → **Endgültig löschen…** (der letzte Eintrag);
+  Dateibetrachter (die letzte Aktion). Terminal: `strom input delete`
+  ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Gilt seit:** App 3.30.0, Forschung 1.35.0
+
+<!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
 
 <a id="A3.6"></a>
 ## A3.6 Quellen einer Person

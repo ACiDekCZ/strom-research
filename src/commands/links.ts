@@ -323,7 +323,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "work": {
       // the agent working on the queue alone: what starts shown here, started in this terminal only on the person's yes
       const { workRun } = await import("../cli/menu-links.ts");
-      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n)));
+      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n), link.task?.split(",")));
     }
     case "fixes": {
       // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
@@ -615,6 +615,8 @@ register(
       "  default 5; strom run --tasks n) or for as long as there is work (strom run --loop, only under a gate — none set: n\n" +
       "  tasks or the gate offered instead); the first tasks, the session's time and the gate shown, started in the terminal\n" +
       "  only on the person's yes (no by default; the bridge never starts it). Refused where nobody researches.\n" +
+      "  &do=tasks&task=T0003,T0007 (not with n): these tasks alone, one session each in this order (strom run --task) —\n" +
+      "  those no longer open or held by another left out, none left: nothing started.\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +

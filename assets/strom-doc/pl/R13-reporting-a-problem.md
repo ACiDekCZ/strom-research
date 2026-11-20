@@ -37,6 +37,7 @@ jest, jak jest duży i dokąd go wysłać.
 | agenci | którzy są zainstalowani, ich wersje, domyślny model, hooki stromu |
 | konektory | lista, wersje, dozwolone serwery, ostatni test (bez logowań) |
 | most do aplikacji Strom | działanie, wersja aplikacji, ostatnia synchronizacja |
+| mosty działające na tym komputerze (od badania 1.35.0) | ile, pamięć każdego i suma; badania tylko kodem, bez ścieżek |
 | badanie w liczbach | liczby, `strom check`, git, pobierania, sesje (bez nazwisk) |
 | techniczne dzienniki | dzienniki stromu z ostatnich 7 dni (most, porządki, pobierania) |
 | polecenia | polecenia zakończone błędem, także polecenia z rozmowy z agentem |
@@ -51,8 +52,19 @@ jest, jak jest duży i dokąd go wysłać.
     z pozostałych;
   - w pliku ZIP jest README.txt (co gdzie jest) i report.json.
 - **Obowiązuje od:** badanie 1.30.0
+- **Od badania 1.35.0:** `strom doctor` ma wiersz **mosty do aplikacji Strom**: „żaden nie działa”, albo
+  „działają 2: …” ze wszystkimi mostami do aplikacji Strom na tym komputerze, posortowanymi według pamięci, każdy
+  jako „{badanie} (PID {pid}, {pamięć})”, i „razem {pamięć}”. Badanie to nazwa folderu badania, nigdy ścieżka.
+  Wiersz jest tylko informacją: kontrola jest zawsze w porządku i nie kończy żadnego mostu.
+  - most, którego folder już nie istnieje: „– osierocony, badania już nie ma”;
+  - most z folderu, którego strom nie zna: „– folder, którego ten strom nie zna”;
+  - badanie, którego nie da się ustalić (Windows): „badanie nieustalone”; pamięć, której nie da się ustalić:
+    „pamięć nieustalona”;
+  - nie da się odczytać listy procesów: „nieustalone: nie udało się odczytać listy procesów”;
+  - w zgłoszeniu `strom error` badania mają w wierszu mostów i w wierszu drzew tylko kody, te same co w obszarze
+    mostów; badanie, z którego zgłoszenie powstało, jest w obszarze mostów „this”.
 
-<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 -->
+<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 · 1.35.0: research:0add8370 src/core/bridgeprocs.ts bridgesHere (ps / Windows CIM node.exe, jen `live serve` tohoto uživatele, stav known/other/orphan/unknown, RSS, řazení podle paměti, nic neukončuje) · src/commands/setup.ts bridgesText, kontrola bridges vždy ok · src/commands/error.ts bridgesArea (read, running, memory, unmeasured, each pid/memory/state/research; aktuální výzkum „this“) · research:f5acd25a, 730e3c3a (výzkumy v řádku mostů a stromů jen kódy) · cs.json ui.doc.bridges.*, ui.report.area.bridges · CHANGELOG.cs.md 1.35.0 · test/vysledek-1119-research-doctor-mosty, -n1, -n2 -->
 
 <a id="R13.3"></a>
 ## R13.3 Jaki problem, jakie polecenie

@@ -243,6 +243,10 @@ znanego przekazania, zostawi do wyboru. Zmianę można cofnąć ([S2.7](#S2.7)).
     zapisuje i nikt nie jest pytany.
 - **Pyta raz:** to samo drzewo wysłane ponownie nie zakłada nowego zadania, także po decyzji. Cofnięcie wysłania
   ([S2.7](#S2.7)) odrzuca zadanie, które jeszcze czeka.
+- **Pytanie to nie zmiana:** `strom sync` liczy pytanie osobno od zmian badania („N zmian względem badania, N pytań
+  do rozstrzygnięcia”; gdy jest tylko pytanie, „Plik … niczego w badaniu nie zmienił: N pytanie czeka w „Czeka””).
+  To samo drzewo wysłane ponownie, dopóki pytanie czeka, mówi „Pytanie z wcześniejszego wysłania nadal czeka
+  w „Czeka”” z numerem zadania.
 - **Decyduje człowiek:** **Przejąć krótszą notatkę z aplikacji** zapisuje krótszą notatkę przy uczestniku,
   **Zachować notatkę badania** zostawia notatkę badania; zadanie jest w obu przypadkach wykonane. Agent wykonuje
   decyzję tylko według odpowiedzi człowieka na zadanie ([R6.6](R6-awaiting-action.md#R6.6)). Gdy notatka badania
@@ -253,7 +257,7 @@ znanego przekazania, zostawi do wyboru. Zmianę można cofnąć ([S2.7](#S2.7)).
   badania**; `strom sync note T… take|keep`.
 - **Obowiązuje od:** badanie 1.35.0 (aplikacja 3.29.0, dane 21); wiersz w **Co zostało zapisane** od aplikacji 3.30.0
 
-<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes -->
+<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes · research:7a4b3e5c src/commands/sync.ts asksPerson (otázka ≠ změna), ui.sync.title.asks / title.both / done.asks / done.asked, ui.sync.waiting; src/core/sync.ts planSync waiting (shorterWaiting) -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiwum Strom i badanie bez agenta

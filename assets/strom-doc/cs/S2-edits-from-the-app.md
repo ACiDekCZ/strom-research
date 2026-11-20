@@ -226,6 +226,9 @@ jde vrátit ([S2.7](#S2.7)).
     neptá.
 - **Ptá se jednou:** stejný strom poslaný znovu úkol znovu nezaloží, ani po rozhodnutí. Vrácení poslání
   ([S2.7](#S2.7)) zahodí úkol, který ještě čeká.
+- **Otázka není změna:** `strom sync` počítá otázku zvlášť od změn výzkumu („N změn proti výzkumu, N otázek
+  k rozhodnutí“; když je jen otázka, „Z … se ve výzkumu nic nezměnilo: N otázka čeká v Čeká“). Stejný strom poslaný
+  znovu, dokud otázka čeká, řekne „Otázka z dřívějšího poslání dál čeká v Čeká“ s číslem úkolu.
 - **Rozhoduje člověk:** **Převzít kratší poznámku z aplikace** zapíše kratší poznámku u účastníka, **Ponechat poznámku
   výzkumu** nechá poznámku výzkumu; úkol je v obou případech hotový. Agent rozhodnutí provede jen podle odpovědi
   člověka na úkol ([R6.6](R6-awaiting-action.md#R6.6)). Když se poznámka výzkumu od dotazu změnila, převzetí nic
@@ -236,7 +239,7 @@ jde vrátit ([S2.7](#S2.7)).
   výzkumu**; `strom sync note T… take|keep`.
 - **Platí od:** výzkum 1.35.0 (aplikace 3.29.0, data 21); řádek v **Co se zapsalo** od aplikace 3.30.0
 
-<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes -->
+<!-- zdroj: research:bb79ee54 src/core/stromapp.ts APP_SENDS_PART_NOTES "3.29.0", appSendsPartNotes · research:28237d57 APP_DATA_PART_NOTES 21, appDataPartNotes · src/core/sync.ts planSync partNotes, partNoteDiff (add / correct / pick; mine podle role a osoby; given; p.note povinná: odebraná nic; jen sure), cutShort (noteLine, NFD), sentNote (U+FFFD, půlka páru) · research:fb94435f src/core/shorternote.ts SHORTER_ORIGIN sync:note-shorter, shorterAsked (jednou, dropped ne), askShorterNote (waiting, kind other), decideShorterNote (personWrites nebo answers; shorter.changed) · src/commands/sync.ts sync note (person, agentMay s odpovědí) · src/cli/menu-waiting.ts shorterNote (take/keep) · assets/lang/cs.json ui.sync.do.note.shorter, note.shorter.*, ui.wait.a.shorter.* · CHANGELOG.cs.md 1.35.0 „Poznámka účastníka z aplikace Strom“ · app:2c2cec57 strings.ts sync.nw note.shorter, participantNote · dirigent:prace/1116-vyzkum-po-134, 1116-vyzkum-poznamka-kratsi, 1116-vyzkum-app-data-part-notes · research:7a4b3e5c src/commands/sync.ts asksPerson (otázka ≠ změna), ui.sync.title.asks / title.both / done.asks / done.asked, ui.sync.waiting; src/core/sync.ts planSync waiting (shorterWaiting) -->
 
 <a id="S2.4"></a>
 ## S2.4 Archiv Stromu a výzkum bez agenta

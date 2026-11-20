@@ -38,3 +38,13 @@ export function busyIn(tree: Tree, now: number = Date.now()): Busy {
 export function isBusy(b: Busy): boolean {
   return b.sessions.length > 0 || b.runs > 0 || b.conversations > 0;
 }
+
+/**
+ * Whether the research works now as the Strom app's "work on them now" asks (spec 065 K7.2): a run or a session at
+ * work — what the link work refuses to start beside (cli/menu-links.ts workRun); a conversation with no session open
+ * takes no task by itself.
+ */
+export function workingNow(tree: Tree): boolean {
+  const b = busyIn(tree);
+  return b.runs > 0 || b.sessions.length > 0;
+}

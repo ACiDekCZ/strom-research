@@ -37,6 +37,7 @@ file is, how large it is and where to send it.
 | agents | which are installed, their versions, the default model, strom's hooks |
 | connectors | list, versions, allowed hosts, the last test (no logins) |
 | the bridge to the Strom app | running, the app's version, the last sync |
+| the bridges running on this computer (from research 1.35.0) | how many, each one's memory and the sum; researches only by code, no paths |
 | the research in numbers | counts, `strom check`, git, downloads, sessions (no names) |
 | technical logs | strom's logs of the last 7 days (bridge, tidying, downloads) |
 | commands | commands ended with an error, those of the conversation with the agent too |
@@ -51,8 +52,19 @@ file is, how large it is and where to send it.
     the others;
   - the ZIP holds README.txt (what is where) and report.json.
 - **Since:** research 1.30.0
+- **From research 1.35.0:** `strom doctor` has the row **bridges to the Strom app**: "none running", or "2 running:
+  …" with all bridges to the Strom app on this computer, sorted by memory, each as "{research} (PID {pid},
+  {memory})", and "{memory} in all". The research is the name of the research's folder, never a path. The row is
+  information only: the check is always fine and ends no bridge.
+  - a bridge whose folder no longer exists: "– its research is gone";
+  - a bridge from a folder strom does not know: "– a folder this strom does not know";
+  - a research that cannot be told (Windows): "research not told"; memory that cannot be measured: "memory not
+    measured";
+  - the list of processes cannot be read: "not found out: the list of processes could not be read";
+  - in the report of `strom error` the researches have only codes in the bridges row and in the family trees row, the
+    same as in the bridges area; the research the report was made from is "this" in the bridges area.
 
-<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 -->
+<!-- zdroj: research:6c6e7c3b cs.json ui.report.area.* (system, config, doctor, agents, connectors, bridge, research, logs, commands), ui.report.area.failed, ui.report.readme.intro · src/core/redact.ts (stálé kódy) · src/core/cmdlog.ts (výzkumy jen R1, R2…, 6c6e7c3b) · src/commands/error.ts:85-97, :408 · 1.35.0: research:0add8370 src/core/bridgeprocs.ts bridgesHere (ps / Windows CIM node.exe, jen `live serve` tohoto uživatele, stav known/other/orphan/unknown, RSS, řazení podle paměti, nic neukončuje) · src/commands/setup.ts bridgesText, kontrola bridges vždy ok · src/commands/error.ts bridgesArea (read, running, memory, unmeasured, each pid/memory/state/research; aktuální výzkum „this“) · research:f5acd25a, 730e3c3a (výzkumy v řádku mostů a stromů jen kódy) · cs.json ui.doc.bridges.*, ui.report.area.bridges · CHANGELOG.cs.md 1.35.0 · test/vysledek-1119-research-doctor-mosty, -n1, -n2 -->
 
 <a id="R13.3"></a>
 ## R13.3 Which problem, which command

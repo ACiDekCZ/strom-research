@@ -23,7 +23,7 @@
 //                          working.helps.
 //                          work {gate, minutes} (features work.link, run.tasks; none in an archive or a research
 //                          waiting for its agent): before the Strom app's link work (strom-research://work?tree=…&do=loop|
-//                          tasks[&n=1..100], taken in the terminal on the person's yes — the bridge never starts an agent)
+//                          tasks[&n=1..100 | &task=T…,T… — feature work.tasks: these tasks, one session each], taken in the terminal on the person's yes — the bridge never starts an agent)
 //                          the gate the agent works alone under as the settings name it (title and what it is given),
 //                          null with none set (the loop is not started then, n tasks are), and a session's minutes
 //                          (run.minutes). busy {sessions, runs} sees a run from its start, while it waits for its gate too.
@@ -52,7 +52,9 @@
 //                          research}; none for a task about nobody) — feature queue.own. Each in the queue says its place
 //                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
 //                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
-//                          the same research and branch GET /queue filters by — feature queue.page. The order is strom
+//                          the same research and branch GET /queue filters by — feature queue.page; queueCounts.kind
+//                          {verify|records|material|places|enrich|request|story|history|other: n} (only the kinds with
+//                          a task) and each item's taskKind: the kind of the work (core/taskkind.ts) — feature queue.kind. The order is strom
 //                          run's (core/queue.ts runOrder): one story first at a story's turn, the tasks of history by
 //                          their pace; kind: story | history says such a task (none for the research's work)
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
@@ -399,7 +401,9 @@
 //                          bulk), after the lines' work; a family tree's leads too, their record looked for — {ok,
 //                          people, facts, how: {read, search} (of the facts), tasks (not dry), left, estimate, head,
 //                          parent}; 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
-//                          research.busy (feature verify.bulk)
+//                          research.busy (feature verify.bulk). Not dry: first (a try's tasks first in the queue, as
+//                          the person's "verify" — spec 065 K7.1) and working (a run or a session at work now: the app
+//                          offers the link work?do=tasks&task=<tasks> only when false — K7.2) — feature verify.tryFirst
 //   POST <token>/verify/stop {"scope"?: "all"|"bulk"}: the user stops the verification (strom verify stop [--bulk]) —
 //                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
 //                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
@@ -506,7 +510,9 @@
 //   GET <token>/offline/<B-…>   one branch and all its open tasks (those not taken too): {branch, tasks: [{id, text,
 //                          pos?, person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
 //   GET <token>/queue      a page of the whole queue (feature queue.page): ?from=<0…> (among the tasks the filter
-//                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked — {items (as /status
+//                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked &kind=<a kind of
+//                          core/taskkind.ts: verify, records, material, places, enrich, request, story, history, other;
+//                          feature queue.kind> — {items (as /status
 //                          queue[], with pos), total (what the filter leaves), from, next? (from of the next page), head};
 //                          in the order of the queue, those put aside after it without pos; an archive: none. 400
 //                          queue.query, 503 research.busy (+ Retry-After). &q=<1…100 characters> (feature queue.search):
@@ -533,6 +539,12 @@
 //                          books.minTasks … / queue.sameBook … --for-tree ("default": config unset --for-tree) — {books
 //                          {settings} (as /status books.settings), head, parent (head when nothing changed)}; feature
 //                          books; 400 books.body, 409 directions.archive, 503 research.busy
+//   POST <token>/books/aside  {file (as /status books.aside lists it), do: discard|take|image, image?: n} (feature
+//                          inbox.aside): strom media aside <file> --discard|--take|--image n — a file of a book's folder
+//                          of the inbox set aside, not taken (the same file as another image: only discard; another scan
+//                          than the image of its number: discard, take — it is that image, the one there withdrawn —, or
+//                          image n) — {done, added, replaced, aside (the list now), head, parent}; 400 aside.body, 404
+//                          aside.unknown {aside}, 409 aside.same | aside.taken | directions.archive, 503 research.busy
 //   POST <token>/queue/<T…>  {do: next|last|default}: strom task order --next|--last|--default (any open task; next
 //                          once, the last chosen first) — {task (as queue[]), was ({} or {own: next|last, at}: its turn
 //                          before), head, parent}; {do: restore, was: {} | {own, at}}: the turn put back exactly as it
@@ -615,6 +627,7 @@ import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, 
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
+import { kindCounts, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
 import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
@@ -654,7 +667,7 @@ const EXCERPTS_AT_ONCE = 12;
 import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./workers.ts";
 import { widgetTree, widgetWriter, type WidgetTree } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
-import { busyIn } from "./busy.ts";
+import { busyIn, workingNow } from "./busy.ts";
 import { effectiveState, restoredTurn, runOrder, turnWas, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { foldText } from "./text.ts";
@@ -668,7 +681,7 @@ import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
 import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, configFile, DEFAULT_RUN_MINUTES, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
-import { folderFiles } from "./inboxwait.ts";
+import { asideFiles, folderFiles } from "./inboxwait.ts";
 import { gateLabel } from "./gate.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { handoffsNow } from "./handoffs.ts";
@@ -1719,7 +1732,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
@@ -2290,6 +2303,8 @@ interface QueueItem {
   why?: Ranked["reason"];
   /** A story to write, or a task of the history of the places: none for the research's work. */
   kind?: "story" | "history";
+  /** The kind of the task as the person sees the work (core/taskkind.ts; GET /queue?kind= filters by it) — feature queue.kind. */
+  taskKind: TaskKind;
   /** Its book (spec 105): the one it waits for, else the one its where names (core/books.ts bookOfTask). */
   book?: string;
   /** queue.sameBook: it stands before the rest as a task of the book the last session read (its ID). */
@@ -2307,7 +2322,7 @@ function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: Offlin
 
 /** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
 function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}), ...bookPart(tree, t), ...(r?.sameBook ? { sameBook: r.sameBook } : {}) };
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}), taskKind: taskKind(t), ...bookPart(tree, t), ...(r?.sameBook ? { sameBook: r.sameBook } : {}) };
 }
 
 function bookPart(tree: Tree, t: Task): { book?: string } {
@@ -2363,14 +2378,15 @@ function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLi
  * queueCounts, feature queue.page): the same field GET /queue?research= and ?branch= filter by, counted from the queue
  * already ranked — next: all in the queue, parked: those put aside.
  */
-function queueCounts(ranked: Ranked[], parked: number, rev?: string): { research: Record<string, number>; branch: Record<string, number>; next: number; parked: number; rev?: string } {
+function queueCounts(ranked: Ranked[], parked: number, rev?: string): { research: Record<string, number>; branch: Record<string, number>; kind: Partial<Record<TaskKind, number>>; next: number; parked: number; rev?: string } {
   const research: Record<string, number> = {};
   const branch: Record<string, number> = {};
   for (const r of ranked) {
     if (r.research) research[r.research] = (research[r.research] ?? 0) + 1;
     if (r.branch) branch[r.branch] = (branch[r.branch] ?? 0) + 1;
   }
-  return { research, branch, next: ranked.length, parked, ...(rev ? { rev } : {}) };
+  // by the kind of the work (feature queue.kind): only the kinds with a task, the same GET /queue?kind= filters by
+  return { research, branch, kind: kindCounts(ranked.map((r) => r.task)), next: ranked.length, parked, ...(rev ? { rev } : {}) };
 }
 
 /** At most so many tasks in one page of GET /queue; so many when the app says none. */
@@ -2384,6 +2400,8 @@ export interface QueueAsk {
   branch?: string;
   research?: string;
   state?: "next" | "parked";
+  /** Only the tasks of this kind (feature queue.kind, core/taskkind.ts). */
+  kind?: TaskKind;
   /** What to find among them (feature queue.search): trimmed, 1…QUERY_MAX characters. */
   q?: string;
 }
@@ -2393,8 +2411,8 @@ export const QUERY_MAX = 100;
 
 /** The query of GET /queue read, or why it is none (400 queue.query). */
 export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
-  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&q=<1…${QUERY_MAX} characters> (each optional)`;
-  const known = new Set(["from", "count", "branch", "research", "state", "q", "app", "poll"]);
+  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&kind=${TASK_KINDS.join("|")}&q=<1…${QUERY_MAX} characters> (each optional)`;
+  const known = new Set(["from", "count", "branch", "research", "state", "kind", "q", "app", "poll"]);
   for (const k of q.keys()) if (!known.has(k)) return { bad: `unknown ${k}: ${shape}` };
   const int = (k: string, dflt: number, min: number, max: number): number | undefined => {
     const v = q.get(k);
@@ -2423,6 +2441,12 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
   if (st !== null) {
     if (st !== "next" && st !== "parked") return { bad: `state=next|parked: ${shape}` };
     ask.state = st;
+  }
+  const kd = q.get("kind");
+  if (kd !== null) {
+    const k = parseTaskKind(kd);
+    if (!k) return { bad: `kind=${TASK_KINDS.join("|")}: ${shape}` };
+    ask.kind = k;
   }
   // what to find: never said back in a refusal (nor in the log — masked)
   const find = q.get("q");
@@ -2458,7 +2482,7 @@ export function queuePage(
   const entries: Entry[] = [];
   for (const [i, r] of ranked.entries()) entries.push({ t: r.task, r, pos: i + 1, where: whereInQueue(place, offLine, file, r.task, r) });
   if (ask.state !== "next") for (const t of order.parked) entries.push({ t, where: whereInQueue(place, offLine, file, t) });
-  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research));
+  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research) && (!ask.kind || taskKind(e.t) === ask.kind));
   // what the person searches for: among what the filters leave, in the order of the queue, then paged
   const found = ask.q === undefined ? undefined : searchQueue(tree, order, left, ask.q);
   const rows = found ? found.rows : left;
@@ -2644,7 +2668,8 @@ function booksSettings(tree: Tree, settings: Settings): { minTasks: number; minT
  * /status books (spec 105, feature books): the settings, and the books — each one something waits on (the app's groups
  * by book), and those offered to download (offer) — the most tasks first, at most BOOKS_LIST_MAX (more: the rest). Each
  * as strom task books --json says it, without the task IDs and the folder's path; pending: the files lying in its folder
- * not taken yet (only when any).
+ * not taken yet (only when any). aside (feature inbox.aside, only when any): the files of the books' folders set aside,
+ * not taken — a question each for the person (asideJson, POST /books/aside).
  */
 function booksStatus(tree: Tree, settings: Settings): Record<string, unknown> {
   const shared = settings.shared()?.value;
@@ -2654,7 +2679,18 @@ function booksStatus(tree: Tree, settings: Settings): Record<string, unknown> {
     const pending = shared ? folderFiles(path.join(shared, "inbox", r.folder)).length : 0;
     return { ...row, ...(pending ? { pending } : {}) };
   });
-  return { settings: booksSettings(tree, settings), list: shown, more: rows.length - shown.length };
+  const aside = asideJson(tree, settings);
+  return { settings: booksSettings(tree, settings), list: shown, more: rows.length - shown.length, ...(aside.length ? { aside } : {}) };
+}
+
+/**
+ * The files of the books' folders of the inbox set aside, not taken (B0408, B0374; feature inbox.aside), newest first:
+ * {file (as it lies in the book's folder, the key of the answer), name (the file's own name, as saved: what a person
+ * reads), recordset, image?, kind: "same" (the same file as image `media`, registered under another number) | "other"
+ * (another scan than `media`, the image of its number), media, at} — each a question for the person (POST /books/aside).
+ */
+function asideJson(tree: Tree, settings: Settings): Record<string, unknown>[] {
+  return asideFiles(tree, settings.shared()?.value).map((a) => ({ file: a.file, name: a.name, recordset: a.recordset, ...(a.image !== undefined ? { image: a.image } : {}), kind: a.kind, media: a.media, at: a.at }));
 }
 
 /** The work off the lines without its branches (the answer to POST /offline): also for a research of one line, where nothing is off them. */
@@ -3727,6 +3763,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     // the tree's settings of the books (spec 105)
     if (req.method === "POST" && t === token && what === "books" && !sub) {
       writeFor(req, res, origin, booksWrite());
+      return;
+    }
+    // a file of a book's folder of the inbox set aside (B0408, B0374): the person's answer which one is the image
+    if (req.method === "POST" && t === token && what === "books" && sub === "aside") {
+      writeFor(req, res, origin, asideWrite());
       return;
     }
     // work off the lines: a branch's choice, the tree's, a task's own turn — each a strom command
@@ -5963,6 +6004,42 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
+   * The person's answer to a file of the inbox set aside (POST /books/aside {file, do: "discard" | "take" | "image",
+   * image?: n}; feature inbox.aside): strom media aside <file> --discard | --take | --image n — the same file as another
+   * image: only discard (409 aside.same); another scan: discard (the image stays, the file into the system's trash),
+   * take (it is the image of its number: the one there withdrawn, a cited one stays beside it), image n (it is image n,
+   * not taken yet; 409 aside.taken). {aside: [the list now], done, added, replaced, head, parent}; 404 aside.unknown (no
+   * such file set aside: answered already). Not in an archive nor a research waiting for its agent (409 directions.archive).
+   */
+  const asideWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a file of the inbox set aside",
+      codes: { badBody: "aside.body", busy: "research.busy", failed: "aside.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { file, do: act, image } = body;
+        const ok =
+          typeof file === "string" && file.length > 0 && file.length < 1024 && !/[\\/]/u.test(file) &&
+          (act === "discard" || act === "take" || (act === "image" && typeof image === "number" && Number.isInteger(image) && image >= 1)) &&
+          Object.keys(body).every((k) => k === "file" || k === "do" || (k === "image" && act === "image"));
+        if (!ok) return { code: 400, body: refusal(`the body: {"file": "<as books.aside lists it>", "do": "discard" | "take" | "image", "image"?: n}`, "aside.body") };
+        if (actsAsArchive(tree)) return directionsArchive(tree);
+        before = head(root);
+        return { args: ["media", "aside", file as string, act === "image" ? `--image=${image as number}` : `--${act as string}`] };
+      },
+      done(tree, data, h) {
+        return { ...data, aside: asideJson(tree, new Settings(env, {})), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "aside.unknown") return { code: 404, body: { ...refusal(why, code), aside: asideJson(tree, new Settings(env, {})) } };
+        if (code === "aside.same" || code === "aside.taken") return { code: 409, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
    * The bridge itself (POST /live): {"idleMinutes": n} — strom config set live.idleMinutes n (this computer's, every
    * tree's bridge; nothing of the research committed; as it is already: 200, nothing written) — or {"do": "stop"}: ended
    * as strom live stop ends it (the end event says by: "app"), once what the app sent is written — but its address kept,
@@ -6320,8 +6397,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /**
    * The person's bulk verification (POST /verify/bulk {scope: line|lineage|tree, of?, order?, try?, budget?, dry?}):
    * strom verify bulk, after the lines' work — a family tree's leads too, their record looked for (Dotazy 2 of the
-   * app, 3). {ok, people, facts, how: {read, search}, tasks, left, estimate: {sessions, usd?}, head, parent};
-   * dry: no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+   * app, 3). {ok, people, facts, how: {read, search}, tasks, first, working, left, estimate: {sessions, usd?}, head,
+   * parent}; first: a try's tasks first in the queue (K7.1), working: a run or a session at work now (K7.2) — feature
+   * verify.tryFirst; dry: no tasks (nor first, working), head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
    * research.busy.
    */
   const verifyBulkWrite = (): AppWrite => {
@@ -6361,9 +6439,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           ],
         };
       },
-      done(_tree, data, h) {
-        const { people, facts, how, tasks, left, estimate } = data;
-        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [] }), left, estimate, head: dry ? before : h, parent: before };
+      done(tree, data, h) {
+        const { people, facts, how, tasks, left, estimate, first } = data;
+        // a try (feature verify.tryFirst): first says its tasks stand first in the queue, working whether the research
+        // works now (a run, a session) — the app offers to work on them now only when it does not (spec 065 K7.2)
+        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [], first: first === true, working: workingNow(tree) }), left, estimate, head: dry ? before : h, parent: before };
       },
       refused: (_tree, code, why) => verifyRefused(code, why),
     };

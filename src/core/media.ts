@@ -218,10 +218,14 @@ export function imageNumbers(files: string[]): (number | undefined)[] {
 }
 
 /** The shared inbox by folder ("" = files lying in the inbox itself): one download, one record set. */
+/** A file of the inbox strom set aside, not taken (commands/media.ts takeFiles): a question, never a download. */
+export const SET_ASIDE = /\.(?:same-as|other-than)-M\p{N}+$/u;
+
 export function inboxFolders(inbox: string): { folder: string; files: string[] }[] {
   if (!fs.existsSync(inbox)) return [];
   const by = new Map<string, string[]>();
   for (const f of collectFiles([inbox])) {
+    if (SET_ASIDE.test(f.normalize("NFC"))) continue;
     const rel = path.relative(inbox, f).split(path.sep);
     const folder = rel.length > 1 ? rel[0]! : "";
     by.set(folder, [...(by.get(folder) ?? []), f]);

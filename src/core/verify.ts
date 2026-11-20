@@ -13,7 +13,8 @@
 // - By hand (verifyAsk: strom verify facts P…|E…, the Strom app): any fact not confirmed by the person, anywhere, before all
 //   else in the queue; a fact with no original read is looked for (verify:search).
 // - In bulk (verifyBulk: strom verify bulk, the app): a line, a lineage, the tree — the person's start alone; a family
-//   tree's leads too (K6.7: no original read), their record looked for (a bulk search, dearer).
+//   tree's leads too (K6.7: no original read), their record looked for (a bulk search, dearer). A try on the first n
+//   people (--try) first in the queue, as the person's "verify" (K7.1); the rest after the lines' work.
 // - The person's confirmation against the scan (verifyConfirm: strom verify confirm, the app's bridge): a mark of its own.
 //
 // What it keeps is in VERIFY_FILE (sealed, travels with the research): the runs of the fix, what was queued with which
@@ -40,7 +41,7 @@ import { lineMarks } from "./lineages.ts";
 import { lacksImages, ownTurn, runOrder, waitsForDecision } from "./queue.ts";
 import { setsWithImages } from "./mediaindex.ts";
 import { permissionQuestions } from "./archivewait.ts";
-import { isVerifyTask, originalCites, searchesRecord, taskFacts, VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH, verifiesInTurn } from "./verifyfacts.ts";
+import { isVerifyTask, originalCites, searchesRecord, taskFacts, TRY_PRIORITY, VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH, verifiesInTurn } from "./verifyfacts.ts";
 
 export { VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH } from "./verifyfacts.ts";
 
@@ -752,6 +753,8 @@ export interface BulkResult {
   tasks: string[];
   left: number;
   estimate: Estimate;
+  /** A try (try n): its tasks first in the queue, as the person's "verify" of a person (spec 065 K7.1). */
+  first: boolean;
 }
 
 /** A lineage: its founder and who carries it on — children of its carriers, on through the sons (a mark NOCARRY or another FOUNDER ends it). */
@@ -783,7 +786,8 @@ const RANK: Record<string, number> = { lead: -1, possible: 0, probable: 1, prove
  * task, as verifyAsk counts it). No living people, none a task holds. People in `order`; `try` the first n of them,
  * `budget` as many as the estimate fits (none measured: the budget is not used). Low priority, after the lines' work:
  * one task per person (a marriage per family) for what is read, another for what is looked for (verify:bulk, level
- * link — the brief's search). verify.nothing only with nothing to read nor to look for.
+ * link — the brief's search). A try (`try`) first in the queue instead (queueAt next, priority 3: as the person's
+ * "verify" of a person; spec 065 K7.1), first: true. verify.nothing only with nothing to read nor to look for.
  */
 export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
   if (actsAsArchive(tree)) throw err("nobody researches here: an archive, or a research waiting for its agent", "verify.archive");
@@ -872,11 +876,15 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
     const sessions = taken.reduce((n, r) => n + sessionsOf(r), 0);
     const facts = taken.reduce((n, r) => n + r.facts.length, 0);
     const search = taken.reduce((n, r) => n + r.facts.filter((f) => f.how === "search").length, 0);
-    const out: BulkResult = { people: taken.length, facts, how: { read: facts - search, search }, tasks: [], left: rows.length - taken.length, estimate: estimate(sessions, avg) };
+    // a try is the person's look at what the verification does: first in the queue, as their "verify" of a person
+    // (spec 065 K7.1) — the rest of a line, a lineage or the tree after the lines' work (K6.3)
+    const first = o.try !== undefined;
+    const out: BulkResult = { people: taken.length, facts, how: { read: facts - search, search }, tasks: [], left: rows.length - taken.length, estimate: estimate(sessions, avg), first };
     if (o.dry || !taken.length) return out;
     const file = readFile(tree);
     const all = scopes(tree);
     const records: Task[] = [];
+    const at = now();
     for (const r of taken) {
       const per = new Map<string, { owner: Person | Family; how: Kind; events: Event[] }>();
       for (const f of r.facts) {
@@ -886,7 +894,7 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
       for (const { owner, how, events } of per.values())
         for (let i = 0; i < events.length; i += REVIEW_BATCH) {
           const batch = events.slice(i, i + REVIEW_BATCH);
-          const t = newTask(tree, owner, batch, VERIFY_BULK, {}, lineOf(tree, owner, all), how);
+          const t = newTask(tree, owner, batch, VERIFY_BULK, first ? { priority: TRY_PRIORITY, queueAt: { do: "next", at } } : {}, lineOf(tree, owner, all), how);
           records.push(t);
           if (how === "read") for (const e of batch) file.queued[e.id] = { task: t.id, cites: originalCites(tree, e) };
         }
@@ -895,7 +903,7 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
     tree.putMany(records, [fileOf(file)], {
       op: "verify.bulk",
       targets: [...out.tasks, ...taken.flatMap((r) => r.facts.map((f) => f.event.id))].sort(byId),
-      summary: `the person's bulk verification against the originals (${o.scope}${o.of ? ` ${o.of}` : ""}, ${order}): ${facts} facts of ${taken.length} people in ${records.length} tasks${search ? ` (${search} of a family tree looked for)` : ""}${out.left ? `, ${out.left} people left` : ""}`,
+      summary: `the person's bulk verification against the originals (${o.scope}${o.of ? ` ${o.of}` : ""}, ${order}): ${facts} facts of ${taken.length} people in ${records.length} tasks${search ? ` (${search} of a family tree looked for)` : ""}${first ? ", a try: first in the queue" : ""}${out.left ? `, ${out.left} people left` : ""}`,
     });
     return out;
   });

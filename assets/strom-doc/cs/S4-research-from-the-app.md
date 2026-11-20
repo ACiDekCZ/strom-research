@@ -330,10 +330,11 @@ ostatní okna sledují dál. Všechna okna jsou při tom jen ke čtení.
   ke čtení. Značky agenta (karta osoby, na které se pracuje, řádek agenta v Tabulce, značky a stopa ve Vějíři a na
   Mapě) v něm zůstanou. **Sledovat agenta** okno znovu připojí a hned skočí na agenta. Odpojení vydrží obnovení okna
   (F5) a zapomene se s koncem sledování.
-- **Výběr z jiného okna:** připojené okno, které není pozastavené, osobu vybranou v jiném okně jen vyznačí, i když
-  má **Sledovat výběr: přepnout** ([A6.8.1](A6-views.md#A6.8.1)); střed zůstane u agenta. Tabulka řádek té osoby
-  vybere, ale neposune se k němu. Skok za agentem se ostatním oknům jako výběr osoby neposílá. Pozastavené
-  a odpojené okno se řídí **Sledovat výběr** jako mimo sledování.
+- **Výběr z jiného okna:** připojené okno, které není pozastavené, osobu vybranou v jiném okně jen vyznačí, i když má
+  **Výběr** → **Toto okno**: **přepnout** ([A6.8.1](A6-views.md#A6.8.1)); střed zůstane u agenta. Tabulka řádek té osoby
+  vybere, ale neposune se k němu. Skok za agentem se ostatním oknům jako výběr osoby neposílá. Pozastavené a odpojené
+  okno se řídí volbou **Toto okno** jako mimo sledování. Výběr poslaný do hlavního okna s volbou **zaměřit** hlavní okno
+  při sledování agenta jen vyznačí ([A6.8.4](A6-views.md#A6.8.4)).
 - **Konec:**
   - ◎ **Přestat sledovat** v hlavním okně zastaví skoky jen v hlavním okně; další okna sledují dál;
   - **Ukončit sledování** (panel výzkumu, nabídka **Výzkum**, nabídka osoby) i konec sezení ukončí sledování ve
@@ -925,7 +926,7 @@ fronty. Aplikace u takové položky ukáže nález a nabídne opravu v jednom kr
   | Nález výzkumu | Věta |
   |---|---|
   | snímky jsou jen v textu | **Snímky jsou zapsané jen textem, bez knihy – uložené snímky úkol neprobudí.** |
-  | víc knih v jednom čekání | **Čeká na snímky dvou knih**, s neznámou knihou **; jednu z nich výzkum nezná.** |
+  | víc knih v jednom čekání | **Čeká na snímky z více knih**, s neznámou knihou **; jednu z nich výzkum nezná.** |
   | kniha, kterou výzkum nezná | **Knihu výzkum nezná – úkol nemá složku pro snímky.** |
   | chybí složka | **Složka pro snímky chybí – oprava ji založí.** |
 
@@ -947,7 +948,7 @@ fronty. Aplikace u takové položky ukáže nález a nabídne opravu v jednom kr
   `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
 
-<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) · app:cf12b70d auditKindBooks „z více knih“ -->
 
 <a id="S4.4.9"></a>
 ### S4.4.9 Náhled opravy a Vrátit
@@ -999,7 +1000,8 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
     terminálu **Načítá se…**), dokud výzkum nepotvrdí, že odkaz převzal ([S4.5.4](#S4.5.4)), nejdéle 10 s (práce na
     frontě 30 s, [S4.2.3](#S4.2.3)). Druhý klik mezitím nic znovu neotevře. Bez potvrzení se prvek uvolní a pod ním
     stojí **Terminál se neotevřel?** se **Zkusit znovu** a radou **Když se nic neotevřelo, je potřeba spustit Strom
-    Research.** U odkazu bez terminálu stojí **Když se nic nestane, Strom Research ještě neběží.**
+    Research.** U odkazu bez terminálu stojí **Když se nic nestane, Strom Research ještě neběží.** Výzkum starší než
+    1.35.0 převzetí potvrdit neumí: bez nového sezení agenta se prvek po 10 s uvolní tiše, bez věty.
   - Systémový dialog prohlížeče, který se před otevřením odkazu ptá, aplikace nevidí. Potvrzený pozdě větu po
     limitu sám smaže ([S4.5.4](#S4.5.4)).
 - **Ovládání:** aplikace: **Nastavení → Data a soukromí → Strom Research na tomto počítači**.
@@ -1007,7 +1009,7 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
   1.15.0. Čekání na otevření od aplikace 3.30.0; do 3.29.0 aplikace nepoznala, jestli se terminál otevřel, a ukázala
   jen oznámení **Otevírám výzkum…** s radou.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 · app:c3e09951 (79a05311) research-open-busy.ts unprovable → tichý konec u výzkumu bez handoffs (n1 N2) -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Značky akcí
@@ -1098,14 +1100,16 @@ tak přestane čekat hned a ozve se, jen když se nic neotevřelo ([S4.5](#S4.5)
   - most, který na dotaz před méně než 30 s neodpověděl, platí za nedostupný: věta se ukáže hned, bez čekání;
   - tentýž odkaz otevřený znovu do 400 ms nic neudělá.
 - **Hranice:**
-  - výzkum, který potvrzení nemá: za potvrzení platí nové sezení agenta, jinak čeká aplikace jen do limitu;
+  - výzkum, který potvrzení nemá (starší než 1.35.0): za potvrzení platí nové sezení agenta. Jinak se prvek po limitu
+    uvolní tiše, bez věty **Terminál se neotevřel?**: aplikace nepozná, jestli terminál naběhl. Most, který
+    neodpovídá, větu řekne i tady. Práce na frontě má vlastní důkaz a větu ([S4.2.3](#S4.2.3));
   - odkaz na nový výzkum (`new?app=…`) končí po limitu potichu; dál aplikace čeká, až si výzkum strom vezme;
   - bez běžícího mostu se nic nehlásí a zapsaný soubor sám zanikne.
 - **Ovládání:** aplikace: každá akce se značkou terminál nebo AI a terminál ([S4.5.1](#S4.5.1)). Terminál:
   `strom link open '<odkaz>'`.
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
 
-<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
 <a id="S4.6"></a>
 ## S4.6 Co je jen v terminálu

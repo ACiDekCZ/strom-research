@@ -5,9 +5,32 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.36.0
+
+*Připravuje se: bety do 1.36.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
+  fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
+  jmenuje. Každý úkol fronty má svůj druh práce (ověření, záznamy, materiál, místa, příběhy…): `strom task list --kind`
+  a podle něj filtruje i aplikace Strom.
+- **Ručně ukládané snímky bezpečněji:** číslo snímku se z názvu souboru bere jen tehdy, když ho název říká jednoznačně
+  (kopie správce souborů „33 2.jpg“ je snímek 33; název se dvěma čísly a bez počítadla žádné nedostane); soubory dávky
+  se číslují pořadím jen tehdy, když žádný z nich nemá číslo v názvu; složka se převezme až po dostažení celé dávky
+  (rozestahovaný .crdownload nebo .part vedle ní ji zdrží). Soubor, který je tentýž sken jako jiný snímek, se nikdy
+  nesmaže: odloží se vedle a řekne se to.
+- **Jiný sken pod obsazeným číslem:** soubor uložený pod číslem už zapsaného snímku, který ukazuje jinou stránku (jiný
+  tvar nebo jiný rukopis), už snímek nenahradí: odloží se vedle a zeptá se na něj Co čeká i aplikace Strom – ponechat
+  snímek, vzít nový soubor jako tento snímek, nebo mu dát vlastní číslo (`strom media aside`). Ostřejší kopie se
+  převezme jen tehdy, když jde jistě o tentýž sken – porovnává se rukopis, ne předtištěný formulář; když to rozhodnout
+  nejde, soubor se také odloží a zeptá se na něj.
+- **Drobné opravy:** úkol oddělený příkazem `strom task audit --fix` jmenuje snímky knihy jejím názvem, bez ID a slovesa; `strom task wait --images` zadané znovu pro tutéž knihu snímky spojí (jiná kniha se odmítne:
+  jedna kniha na úkol);
+  dvě zkoušky hromadného ověření po sobě jdou v pořadí zadání, starší první; brána limitů předplatného je přečte
+  za vteřinu či dvě, bez procházení uložených konverzací na počítači.
+
 ## 1.35.0
 
-*Připravuje se: bety do 1.35.0-beta.7. Oddíl bude úplný s vydáním.*
+*19. 11. 2026 · patří k aplikaci Strom 3.30.0.*
 
 - **Knihy s nejvíc úkoly:** strom řekne, které knihy archivů potřebuje nejvíc úkolů výzkumu – otevřených, odložených
   i čekajících –, aby jedno ruční stažení posloužilo mnoha z nich najednou: v nabídce stromu (Co čeká › knihy s nejvíc

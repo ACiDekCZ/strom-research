@@ -170,7 +170,7 @@ der App.
   lässt sich wieder zeigen.
 - **Prüft der Code:**
   - Ausblenden, Entfernen aus dem Stammbaum oder Zurücknehmen eines Schreibens löscht keine Datei: Original und
-    Eintrag bleiben;
+    Eintrag bleiben. Löschen kann nur `strom input delete` mit Zustimmung des Menschen ([R11.5.6](#R11.5.6));
   - eine Änderung von Titel, Art und Datum einer Datei außerhalb des Stammbaums schreibt die Forschung sofort. Bei
     einer Datei des Stammbaums erscheint die Änderung in der App mit dem nächsten Laden des Stammbaums;
   - die Forschung lehnt die ganze Änderung ab, wenn sie eine der Dateien nicht kennt oder einen Wert nicht lesen kann
@@ -179,11 +179,11 @@ der App.
   überschreibt nichts; ein älteres `strom` öffnet einen Stammbaum im Schema 3 nicht. Material in der App beschreibt
   [A3.5](A3-evidence-in-the-app.md#A3.5).
 - **Bedienung:** Terminal: `strom input list`, `strom input show I…` (wo die Datei ist und was aus ihr entstand),
-  `strom input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom material`. App: das
-  Fenster **Materialien**.
+  `strom input edit`, `strom input assign`, `strom input hide`, `strom input unskip`, `strom input delete`,
+  `strom material`. App: das Fenster **Materialien**.
 - **Gilt seit:** Forschung 1.35.0
 
-<!-- zdroj: research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete · research:2aeeb228 src/core/model.ts SCHEMA_VERSION 3, Input (origin, working, orient, titled, materialKind, families, links), MEDIA_ORIGINS, LINK_TYPES, MATERIAL_KINDS, LINK_RETRACTIONS, HIDE_REASONS · src/core/material.ts hideMaterial, unhideMaterial, editMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · help input, material -->
 
 <a id="R11.5.1"></a>
 ### R11.5.1 Dateien des Stammbaums aus der App
@@ -260,13 +260,37 @@ Begründung und Sicherheit. In die Forschung wird nichts geschrieben.
   - ein Sortieren aus der App startet die Brücke nur mit ihrer eigenen Signatur, und die gilt einmal. Ein Eintrag,
     der sich nur als Sortieren aus der App ausgibt, startet nie;
   - in der Warteschlange warten höchstens 3 Sortierungen.
+- **Ab Forschung 1.35.0:**
+  - eine Textdatei (.txt, .md, .markdown, .text oder der Typ text/plain oder markdown) liest der Leser als Text und
+    beurteilt sie nach dem, was sie sagt: höchstens die ersten 20 000 Zeichen. Bei einer längeren weiß der Leser,
+    dass er nur den Anfang bekam und wie groß die Datei ist. Text in UTF-8 oder, mit Byte-Order-Mark, in UTF-16;
+    sonst wird er als windows-1252 gelesen;
+  - während des Sortierens sagt `strom material show`, wie viele Dateien die Leser schon beurteilt haben („N of M
+    files done“); die App zeigt daraus „k von n“;
+  - bei einem fertigen Sortieren hat jede Datei ohne Vorschlag einen Grund: der Leser sagte nichts zu ihr, die Datei
+    hat schon alles Vorgeschlagene, der Vorschlag ließ sich nicht verwenden, der Agent hat die Datei ausgelassen,
+    oder die Datei ließ sich nicht lesen (mit dem Ergebnis des Lesers). Was der Leser über die Datei schrieb, steht
+    beim Grund.
+  - eine Datei, die offensichtlich nicht die Familie betrifft (ein Bildschirmfoto, eine Quittung, eine versehentlich
+    geschickte Datei), markiert der Leser mit `unrelated: yes`, mit Begründung und Sicherheit. Die Anweisung an den
+    Leser: nur eine Datei offensichtlich außerhalb der Familie, nie eine Datei, die er nur nicht zuordnen kann. Die
+    Forschung schlägt für eine solche Datei keinen Titel, kein Datum, keine Art und keine Verknüpfung vor (was der
+    Leser trotzdem schrieb, verwirft sie). `strom material show` schreibt bei ihr „unrelated (not of the family)“.
+    Die Forschung blendet die Datei nie von selbst aus und löscht sie nie; ausblenden kann sie nur ein Mensch: in der
+    App ([A3.5.9](A3-evidence-in-the-app.md#A3.5.9)), im Terminal `strom input hide I… --why unrelated`;
+  - der Leser darf auch sagen, welche der gesendeten Dateien die Rückseite eines anderen Fotos oder einer anderen
+    Seite ist (Verknüpfung `back` auf die `I…` einer Datei, die derselbe Leser bekam: eine Rückseite zu einer
+    Vorderseite, nie die Rückseite einer Rückseite und nie eine Textdatei) und welches Bild das Porträt einer Person
+    ist (Verknüpfung `portrait` auf eine `P…`; nur ein Bild, kein Porträt, das der Mensch entfernt hat, und keine
+    Datei, die schon das Porträt ist);
+  - mehr als 50 Dateien lässt nur die App sortieren, als Lauf in Stapeln ([R11.5.5](#R11.5.5)).
 - **Grenzen:** nur eine Forschung mit Agent: das Strom-Archiv und eine Forschung, die auf einen Agenten wartet,
   sortieren kein Material.
 - **Bedienung:** Terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
   cancel`; App: **Mit dem Agenten sortieren…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
 - **Gilt seit:** Forschung 1.35.0
 
-<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort -->
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 -->
 
 <a id="R11.5.4"></a>
 ### R11.5.4 Material über die Brücke
@@ -276,16 +300,21 @@ derselbe Befehl wie im Terminal, mit denselben Grenzen.
 
 | Brücke | Was sie tut | Befehl |
 |---|---|---|
-| `GET /material` | Dateien mit Titel, Art, Datum, Personen, bei Dateien des Stammbaums Stellen und bei jeder die Verwendung | |
+| `GET /material` | Dateien mit Titel, Art, Datum, Personen, bei Dateien des Stammbaums Stellen und bei jeder die Verwendung; die Datei einer Quelle (`uses.of`), was der Agent nicht zugeordnet hat (`left`), gleicher Inhalt (`sameAs`) | |
 | `GET /material/<I…>/uses` | Ausschnitte, Quellen und Aufgaben, die die Datei verwenden | |
 | `POST /material/assign` | Personen von Dateien | `strom input assign` |
 | `POST /material/hide` | ausblenden und wieder zeigen (bei einer entfernten Datei des Stammbaums mit Stellen) | `strom input hide`, `unskip` |
 | `POST /material/edit` | Titel, Art und Datum, 1–500 Dateien | `strom input edit` |
 | `POST /material/sort` | Sortieren von 1–50 Dateien; Fortschritt `GET /material/sort/<id>`, Abbrechen `…/cancel` | `strom material sort` |
+| `POST /material/sort` (51–1 500) | ein Lauf in Stapeln ([R11.5.5](#R11.5.5)); Fortschritt `GET /material/sort/<run-…>`, Abbrechen `…/<run-…>/cancel` | |
+| `POST /material/delete` | 1–500 Dateien endgültig löschen: zuerst `dryRun` (Liste und Bestätigung), dann mit der Bestätigung | `strom input delete` |
 
 - Die Forschung meldet, was sie kann, in `/status.features`: `media.app`, `material.links`, `material.edit`,
   `material.uses` und `material.sort` (nur wo ein Agent ist). Ohne sie verhält sich die App wie mit einer älteren
   Forschung.
+- **Ab Forschung 1.35.0:** auch `material.sourceOf`, `material.left`, `material.sameAs`, `material.sortRun` und
+  `material.delete`. Das Löschen lehnt eine geänderte Liste ab (`material.delete-changed` mit der neuen Liste), eine
+  fehlende oder alte Bestätigung (`material.body`) und ein Schreiben, das nicht aus der App kam.
 - **Prüft der Code:** eine Änderung ist ganz oder gar nicht; eine beschäftigte Forschung antwortet, dass sie nichts
   geändert hat. Sortieren lehnt sie ab ohne Agent, mit aufgebrauchtem Leselimit, mit voller Warteschlange und wenn
   der Agent gerade nicht arbeiten kann.
@@ -293,4 +322,63 @@ derselbe Befehl wie im Terminal, mit denselben Grenzen.
   ([S1.1](S1-connecting-app-and-research.md#S1.1)).
 - **Gilt seit:** Forschung 1.35.0
 
-<!-- zdroj: research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->
+<!-- zdroj: research:0cc2cfca src/core/live.ts (GET /material uses.of, left {at, sort, why, said}, sameAs; POST /material/sort run 51–1500, GET/POST /material/sort/<run-…>[/cancel]; POST /material/delete dryRun → impacts + confirm, chyby material.delete-changed, material.body, material.file, material.readonly, material.busy, app.only; BRIDGE_FEATURES material.sourceOf, left, sameAs, sortRun, delete) · research:src/core/live.ts:134-160 (GET /material, /material/<I…>/uses, POST /material/assign|hide|edit|sort, chyby material.body|date|file|readonly|busy) · src/core/live-sort.ts (sort.none, sort.limit, sort.queue, sort.not-ready) · research:a7df632d, 87376d11, 7754968e -->
+
+<a id="R11.5.5"></a>
+### R11.5.5 Ein Lauf des Sortierens aus der App
+
+Die App kann 51 bis 1 500 Dateien als einen Lauf (`run-…`) sortieren lassen. Die Forschung teilt ihn in Stapel zu 50
+und sortiert sie nacheinander, solange die Brücke läuft. Der Vorschlag jedes fertigen Stapels ist sofort da.
+
+- Jeder Stapel ist ein eigenes Sortieren mit eigenem Vorschlag; er trägt, zu welchem Lauf er gehört und der
+  wievielte er ist.
+- In der Warteschlange (höchstens 3 Sortierungen) zählt ein Lauf als eines.
+- **Lesungen der App:** der erste Stapel wird gezählt, wenn die Forschung den Lauf annimmt; die weiteren, wenn sie
+  starten. Lässt das Leselimit der App einen Stapel nicht zu, wartet der Lauf und versucht es von selbst erneut
+  (`material.sort-waiting`).
+- Ein Stapel, der scheitert, hält die weiteren Stapel nicht an. `strom material show run-…` sagt den Stand des
+  Laufs, wie viele Dateien fertig sind, und seine Stapel. `strom material cancel run-…` hält den Stapel in Arbeit
+  an, bricht die wartenden ab und behält die fertigen mit ihren Vorschlägen.
+- **Prüft der Code:** einen Lauf startet nur die App über die Brücke; ein Agent startet nie einen Lauf, und
+  `strom material sort` aus dem Terminal nimmt höchstens 50 Dateien ([R11.5.3](#R11.5.3)).
+- **Grenzen:** nur eine Forschung mit Agent und mit `material.sortRun` ([R11.5.4](#R11.5.4)); eine ältere Forschung
+  nimmt von der App einen Stapel.
+- **Bedienung:** App: **Mit dem Agenten sortieren…** ([A3.5.12](A3-evidence-in-the-app.md#A3.5.12)); Terminal:
+  `strom material show run-…`, `strom material cancel run-…`.
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:0cc2cfca src/core/sort.ts SORT_RUN_MOST_FILES=1500, SORT_QUEUE_MAX=3 (běh jako jedna položka), run/part/parts, první dávka započtená při přijetí, další při startu podle read.app, jinak čeká a zkusí znovu; selhaná dávka nezastaví další · src/core/live-sort.ts, src/core/live.ts POST /material/sort (51–1500 → 202 {state queued, run}), GET /material/sort/<run-…>, POST …/<run-…>/cancel · src/commands/material.ts show run-… („N of M files done“, dávky), cancel run-…, material.sort-waiting · CHANGELOG.md 1.35.0 -->
+
+<a id="R11.5.6"></a>
+### R11.5.6 Endgültig löschen: `strom input delete`
+
+`strom input delete I…` löscht Dateien des Materials endgültig. Das darf nur ein Mensch: im Terminal mit seiner
+Zustimmung oder in der App über **Endgültig löschen…** ([A3.5.16](A3-evidence-in-the-app.md#A3.5.16)).
+
+- Bei jeder Datei wird ihr Eintrag zurückgenommen, mit ihren Stellen im Stammbaum der App. Eine Quelle, die aus ihr
+  entstand, behält Text und Zitate, nur ohne die Verknüpfung zur Datei. Eine Aufgabe, die die Datei hält, lässt sie
+  los; eine Aufgabe ohne weitere Dateien wird aufgegeben.
+- Der Inhalt der Datei (Original, Arbeitskopie, Vorschauen) verschwindet nur, wenn keine andere Datei der Forschung
+  und keine andere Forschung auf diesem Computer denselben Inhalt hat. Dann verschwinden auch Bilder von Quellen
+  mit demselben Inhalt und ihre Ausschnitte; eine Quelle verliert das Bild, nie ihren Text.
+- `--dry-run` sagt alles, Datei für Datei (`--json`: `impacts`). Viele Dateien: `--files-from <Datei>` (eine ID je
+  Zeile, `-` ist die Standardeingabe).
+- `strom input show I…` sagt bei einer gelöschten Datei, dass der Mensch sie endgültig gelöscht hat; `strom input
+  list` zeigt sie nicht. Derselbe Inhalt, erneut gebracht, ist neues Material.
+- **Prüft der Code:**
+  - alles oder nichts: eine Datei, die die Forschung nicht hat, und es wird nichts gelöscht; höchstens 500 Dateien;
+  - ohne `--dry-run` sagt der Mensch ja in seinem eigenen Terminal (Enter ist nein), sonst in einem Fenster des
+    Systems; ist niemand zu fragen, endet der Befehl mit Code 4;
+  - ein Agent führt ihn nie aus und bietet ihn nie an; mit der Bestätigung der App wird er abgelehnt
+    (`material.agent`);
+  - die Bestätigung der App gilt nur für die Liste, die der Mensch in der App sah, und höchstens 15 Minuten. Eine
+    geänderte Liste (`material.delete-changed`) oder eine alte Bestätigung löscht nichts;
+  - lässt sich eine andere Forschung auf diesem Computer nicht lesen (die eines neueren `strom`), bleibt der Inhalt
+    gespeichert.
+- **Grenzen:** in der App Strom lässt es sich nicht rückgängig machen; eine Datei bleibt nur in einer Sicherung
+  (`strom backup`) oder einem Paket, das vorher entstand. Die Geschichte der Forschung behält den Eintrag.
+- **Bedienung:** Terminal: `strom input delete I… [--dry-run] [--files-from …]`; App: **Endgültig löschen…** über
+  die Brücke (`POST /material/delete`, [R11.5.4](#R11.5.4)).
+- **Gilt seit:** Forschung 1.35.0
+
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 -->

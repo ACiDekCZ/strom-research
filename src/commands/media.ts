@@ -34,7 +34,7 @@ import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, type InboxWait } from "../core/inboxwait.ts";
+import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, SETTLE_MS, unsettled, webWaitBook, DOWNLOADING, folderBusy, STALLED_MS, asideFiles, type AsideFile, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
@@ -44,6 +44,8 @@ import { allows } from "../core/terms.ts";
 import { phrase } from "../core/phrases.ts";
 import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
 import { goesAhead } from "../core/queue.ts";
+import { scanLikeness } from "../core/samescan.ts";
+import { moveToTrash } from "../core/trash.ts";
 
 const IMAGE_EXT = IMAGE_FILE_EXT;
 
@@ -262,9 +264,10 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
     const files = folderFiles(dir);
     if (!files.length) continue;
     const base = { folder: w.folder, recordset: w.recordset, tasks: ws.map((x) => x.task) };
-    const busy = unsettled(files, o.now);
-    if (busy.length) {
-      out.push({ ...base, added: [], woken: [], missing: [], settling: busy.length });
+    // the whole batch settled: no file still written, no download of the browser still running in it (B0408)
+    const busy = folderBusy(dir, files, o.now);
+    if (busy) {
+      out.push({ ...base, added: [], woken: [], missing: [], settling: busy });
       continue;
     }
     // what the tasks of the folder asked for, together
@@ -275,7 +278,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       out.push({ ...base, added: [], woken: [], missing: (asked ?? []).filter((n) => !before.has(n)), problem: numbered.problem });
       continue;
     }
-    const r = takeFiles(tree, shared, w, files, numbered.numbers, persons(ws, files, numbered.numbers) ? { ahead: at } : {});
+    const r = takeFiles(tree, shared, w, files, numbered.numbers, { otherScans: true, ...(persons(ws, files, numbered.numbers) ? { ahead: at } : {}) });
     const after = registeredImages(tree, w.recordset);
     const pending = againPending(tree);
     out.push({
@@ -294,9 +297,9 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
     const files = folderFiles(path.join(shared, "inbox", b.folder));
     if (!files.length) continue;
     const base = { folder: b.folder, recordset: b.recordset, tasks: b.tasks, book: true as const };
-    const busy = unsettled(files, o.now);
-    if (busy.length) {
-      out.push({ ...base, added: [], woken: [], missing: [], settling: busy.length });
+    const busy = folderBusy(path.join(shared, "inbox", b.folder), files, o.now);
+    if (busy) {
+      out.push({ ...base, added: [], woken: [], missing: [], settling: busy });
       continue;
     }
     const numbered = numberBookFiles(files, b.recordset, b.times);
@@ -305,7 +308,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       continue;
     }
     // the files with a number taken; one without a number stays lying, never holding back the rest
-    const r = takeFiles(tree, shared, { task: "", recordset: b.recordset, folder: b.folder, by: "images" }, numbered.files, numbered.numbers, { ahead: at });
+    const r = takeFiles(tree, shared, { task: "", recordset: b.recordset, folder: b.folder, by: "images" }, numbered.files, numbered.numbers, { ahead: at, otherScans: true });
     out.push({
       ...base,
       added: r.added.map((m) => m.image).filter((n): n is number => n !== undefined),
@@ -400,9 +403,6 @@ function fromDownloads(tree: Tree, shared: string, downloads: string, waits: Inb
   return moved;
 }
 
-/** A browser's download not finished yet: Chrome's .crdownload, Firefox's .part, Safari's .download, a .tmp. */
-const DOWNLOADING = /\.(crdownload|part|download|tmp)$/iu;
-
 /** One of strom's own files of a waiting task's image in the downloads folder, still being written. */
 export interface Downloading {
   task: string;
@@ -460,9 +460,6 @@ export function downloadsBeingWritten(tree: Tree, downloads: string, now = Date.
   return out;
 }
 
-/** A download not written to for this long has stopped (a browser's failed or paused download): not waited for. */
-const STALLED_MS = 60_000;
-
 /**
  * Waits a moment (at most STROM_DOWNLOAD_WAIT_MS, else a few seconds: what a browser takes to finish a scan and the
  * file to settle) while strom's own files of waiting tasks are still being written in the downloads folder — only for
@@ -483,32 +480,68 @@ function waitForDownloads(tree: Tree, downloads: string, env: NodeJS.ProcessEnv)
  * the queue, but `except`), the files moved into the store, the folder gone once nobody waits on it. What takes the
  * folder (takeWaiting) and what the Strom app sends for the task (takeForTask) both register so.
  */
-function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], numbers: number[], o: { except?: string; from?: string[]; ahead?: string } = {}): ReturnType<typeof registerImages> & { aside: SetAside[] } {
+function takeFiles(tree: Tree, shared: string, w: InboxWait, all: string[], allNumbers: number[], o: { except?: string; from?: string[]; ahead?: string; otherScans?: boolean } = {}): ReturnType<typeof registerImages> & { aside: SetAside[] } {
   const book = tree.get<RecordSet>(w.recordset);
-  const items: NewImage[] = files.map((file, i) => ({ file, image: numbers[i]!, url: book?.url, from: o.from?.[i] ?? path.basename(file) }));
+  // another scan under a number taken already (B0374: page 203 saved as 3.jpg): never a sharper copy of that image,
+  // unsaid — set aside beside it, the user asked which one is the image (strom media aside); a sharper copy is taken
+  // only when surely of the same scan (core/samescan.ts)
+  const other = new Map<string, string>();
+  const unsure = new Set<string>();
+  if (o.otherScans && !tree.dryRun) {
+    const media = tree.list<Media>("media").filter((m) => !m.retracted);
+    const wholes = media.filter((m) => isWhole(m.part));
+    all.forEach((f, i) => {
+      const kept = findImage(wholes, w.recordset, allNumbers[i]!);
+      if (!kept) return;
+      const sha = fileSha256(f);
+      if (media.some((m) => m.sha === sha)) return; // the same file: registerImages says what it is
+      const was = path.join(shared, kept.file);
+      // taken as a sharper copy only when surely the same scan; unsure (nothing written to compare, a format strom does
+      // not read itself) is set aside and asked as well
+      if (!fs.existsSync(was)) return;
+      const alike = scanLikeness(f, was);
+      if (alike !== "same") other.set(f, kept.id);
+      if (alike === undefined) unsure.add(f);
+    });
+  }
+  const files = all.filter((f) => !other.has(f));
+  const numbers = files.map((f) => allNumbers[all.indexOf(f)]!);
+  const from = o.from ? files.map((f) => o.from![all.indexOf(f)]!) : undefined;
+  const items: NewImage[] = files.map((file, i) => ({ file, image: numbers[i]!, url: book?.url, from: from?.[i] ?? path.basename(file) }));
   const r = { ...registerImages(tree, shared, items, w.recordset, { wake: false }), aside: [] as SetAside[] };
   // an image saved once more (strom media save --again) came: its new copy, or the same scan again (nothing sharper
   // to have) — what its task waited for either way
   const settled = settleAgain(tree, w.recordset, numbers);
   r.woken.push(...wakeWaiting(tree, w.recordset, r.added.length || (settled ? r.again.length : 0), { ...(o.except ? { except: o.except } : {}), ...(o.ahead ? { ahead: o.ahead } : {}) }));
   if (!tree.dryRun) {
-    // the same file as another image (another number, another book: B0408, "33.jpg" the same scan as image 2): never
-    // deleted unsaid — set aside beside it (no image's name: never taken again), what it is said (live.log, the output)
+    // the same file as another image (another number, another book: B0408, "33.jpg" the same scan as image 2), another
+    // scan than the image of its number (B0374): never deleted unsaid — set aside beside it (no image's name: never
+    // taken again), what it is said (live.log, the output, strom media aside)
     const clash = new Map(r.clashed.map((c) => [c.file, c.same]));
-    for (const f of files) {
+    const setAside = (f: string, same: string, kind: "same" | "other") => {
+      const to = `${f}.${kind === "same" ? "same-as" : "other-than"}-${same}`;
+      const image = allNumbers[all.indexOf(f)]!;
+      const said = kind === "other" ? { kind, ...(unsure.has(f) ? { unsure: true as const } : {}) } : {};
+      try {
+        fs.renameSync(f, to);
+        r.aside.push({ file: path.basename(to), image, same, ...said });
+      } catch {
+        // left lying as it is: said all the same
+        r.aside.push({ file: path.basename(f), image, same, ...said });
+      }
+    };
+    for (const f of all) {
+      const otherThan = other.get(f);
+      if (otherThan !== undefined) {
+        setAside(f, otherThan, "other");
+        continue;
+      }
       const same = clash.get(f);
       if (same === undefined) {
         fs.rmSync(f, { force: true }); // now in the store
         continue;
       }
-      const to = `${f}.same-as-${same}`;
-      try {
-        fs.renameSync(f, to);
-        r.aside.push({ file: path.basename(to), image: numbers[files.indexOf(f)]!, same });
-      } catch {
-        // left lying as it is: said all the same
-        r.aside.push({ file: path.basename(f), image: numbers[files.indexOf(f)]!, same });
-      }
+      setAside(f, same, "same");
     }
     // the folder goes once nobody waits on it; one still waiting keeps it for the rest
     const dir = path.join(shared, "inbox", w.folder);
@@ -518,15 +551,23 @@ function takeFiles(tree: Tree, shared: string, w: InboxWait, files: string[], nu
   return r;
 }
 
-/** A file of the inbox that is the same file as another image (`same`), taken under `image`: set aside as `file`, kept. */
+/**
+ * A file of the inbox not taken, set aside as `file`, kept: the same file as another image (`same`), taken under
+ * `image` (B0408); or (kind other) another scan than the image `same`, registered as `image` already (B0374).
+ */
 export interface SetAside {
   file: string;
   image: number;
   same: string;
+  kind?: "other";
+  /** Of kind other: not told apart — nothing written to compare, a format strom does not read itself (never taken). */
+  unsure?: true;
 }
 
 /** What a file set aside says (live.log, strom media add --inbox): which image it was taken for, which one it is. */
 export function asideLine(t: { recordset: string }, a: SetAside, tree?: Tree): string {
+  if (a.kind === "other")
+    return `the file for image ${a.image} of ${t.recordset} is ${a.unsure ? "not surely the same scan as" : "another scan than"} ${a.same}, image ${a.image} registered already — not taken as a sharper copy of it, set aside as ${a.file}: which one is image ${a.image} is the user's to say (strom media aside)`;
   const m = tree?.get<Media>(a.same);
   const as = m ? `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}` : a.same;
   return `the file for image ${a.image} of ${t.recordset} is the same scan as ${a.same} (${as}), registered already — not taken, set aside as ${a.file}: one of the two numbers is wrong (the image of ${a.same} renumbered, or the file named by its own number)`;
@@ -889,7 +930,7 @@ export function takenLines(taken: TakenFolder[]): string[] {
     if (t.settling) return `${t.folder}/: ${counted(t.settling, "file")} still being written — taken on the next look (${who})`;
     if (t.problem) return `${t.folder}/: nothing taken — ${t.problem} (${who})`;
     return [[
-      `${t.folder}/: ${t.added.length ? `images ${runs(t.added)} of ${t.recordset} registered${t.byOrder ? " (numbered by their order: the names gave none of the numbers asked for)" : ""}` : "nothing new (the same scans are registered)"}`,
+      `${t.folder}/: ${t.added.length ? `images ${runs(t.added)} of ${t.recordset} registered${t.byOrder ? " (numbered by their order: the names gave none of the numbers asked for)" : ""}` : t.aside?.length ? `nothing taken: ${counted(t.aside.length, "file")} set aside` : "nothing new (the same scans are registered)"}`,
       t.woken.length ? ` — back in the queue: ${t.woken.join(" ")}` : t.missing.length ? ` — ${who} still waits${t.missing.length ? ` for images ${runs(t.missing)}` : ""}` : "",
       t.book && t.added.length ? ` — the book's own folder: its tasks read them from disk (${who})` : "",
       t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg)` : "",
@@ -1664,7 +1705,7 @@ register(
           });
       }
       // what the person put into the shared inbox: the tasks it completes go ahead in the queue, once (core/queue.ts goesAhead)
-      const { added, again, restored, woken, clashes, copies } = registerImages(tree, shared, items, recordset, opts.inbox ? { ahead: new Date().toISOString() } : {});
+      const { added, again, restored, woken, clashes, copies, clashed } = registerImages(tree, shared, items, recordset, opts.inbox ? { ahead: new Date().toISOString() } : {});
       // the material is the book's images now: sorted, done with
       for (const i of taken) {
         const m = tree.list<Media>("media").find((x) => x.sha === i.sha && !x.retracted);
@@ -1673,8 +1714,23 @@ register(
           summary: `${i.id} an image of ${recordset}${m ? ` (${m.id})` : ""}`,
         });
       }
+      const setAside: string[] = [];
       if (opts.inbox && !tree.dryRun) {
-        for (const f of files) fs.rmSync(f, { force: true }); // now in the store
+        // the same file as another image (B0408): never deleted unsaid — set aside beside it, kept
+        const clash = new Map(clashed.map((c) => [c.file, c.same]));
+        for (const f of files) {
+          const same = clash.get(f);
+          if (same === undefined) {
+            fs.rmSync(f, { force: true }); // now in the store
+            continue;
+          }
+          try {
+            fs.renameSync(f, `${f}.same-as-${same}`);
+            setAside.push(`${path.basename(f)} set aside as ${path.basename(f)}.same-as-${same} (the same scan as ${same}) — kept`);
+          } catch {
+            setAside.push(`${path.basename(f)} left lying (the same scan as ${same}) — kept`);
+          }
+        }
         for (const p of paths) if (p !== inbox && fs.existsSync(p) && fs.statSync(p).isDirectory() && collectFiles([p]).length === 0) fs.rmSync(p, { recursive: true, force: true });
       }
       const nums = added.map((m) => m.image).filter((n): n is number => n !== undefined);
@@ -1685,6 +1741,7 @@ register(
         restored.length ? `${counted(restored.length, "image")} put back (their file was not here; the same scan): ${restored.slice(0, 5).join(" ")}${restored.length > 5 ? " …" : ""}` : undefined,
         again.length ? `${again.length} already registered (same content): ${again.slice(0, 5).join(" ")}${again.length > 5 ? " …" : ""}` : undefined,
         ...clashes.slice(0, 10).map((c) => `⚠ ${c}`),
+        ...setAside.slice(0, 10).map((c) => `  ${c}`),
         ...copies.slice(0, 10),
         copies.length > 10 ? `… and ${copies.length - 10} more images with a sharper copy` : undefined,
         woken.length ? `back in the queue (they waited for these images): ${woken.join(" ")}` : undefined,
@@ -1919,6 +1976,84 @@ register(
         throw new UsageError(`${m.id} is cited by ${citing.map((s) => s.id).join(", ")}`, { hint: `move them to the right image first: strom source show ${citing[0]!.id}` });
       const out = update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: String(opts.reason) } }), { op: "media.retract", summary: `${m.id} retracted: ${truncate(String(opts.reason), 80)}` });
       return { text: lines(...tree.written.map((o) => o.summary)), data: { media: out } };
+    },
+  },
+  {
+    path: ["media", "aside"],
+    summary: "Files of the inbox set aside, not taken — the same scan as another image, or another scan than the image of their number: list them, or say which one is the image",
+    group: "sources",
+    tree: true,
+    writes: true,
+    description:
+      "Images saved by hand into a book's folder of the inbox that strom did not take: the same file as an image\n" +
+      "registered under another number (one of the two numbers is wrong), or another scan than the image registered\n" +
+      "under its number already (never taken as a sharper copy of it, unasked). Without a file: the list. With one,\n" +
+      "the answer: --discard (the image registered stays; the file into the system's trash), --take (another scan: it\n" +
+      "is the image of its number — the one there withdrawn and kept, one a source cites stays beside it), --image <n>\n" +
+      "(another scan: it is image n, a number not taken yet).",
+    args: [{ name: "file", description: "the file's name as listed (or <folder>/<file>)" }],
+    options: [
+      { name: "discard", type: "boolean", description: "the image registered stays; the file goes into the system's trash" },
+      { name: "take", type: "boolean", description: "another scan: it is the image of its number (the one there withdrawn, kept)" },
+      { name: "image", type: "string", value: "<n>", description: "another scan: it is image n of the book (a number not taken yet)" },
+    ],
+    examples: ["strom media aside", "strom media aside 3.jpg.other-than-M0003 --take", "strom media aside 3.jpg.other-than-M0003 --image 203", "strom media aside 3.jpg.other-than-M0003 --discard"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const shared = sharedDir(ctx);
+      const all = asideFiles(tree, shared);
+      const said = (a: AsideFile) =>
+        a.kind === "same"
+          ? `${a.folder}/${a.file}: saved as image ${a.image ?? "?"} of ${a.recordset}, the same file as ${a.media} — one of the two numbers is wrong`
+          : `${a.folder}/${a.file}: saved as image ${a.image ?? "?"} of ${a.recordset}, another scan than ${a.media} registered as that image — which one is it?`;
+      const json = (a: AsideFile) => ({ folder: a.folder, file: a.file, name: a.name, recordset: a.recordset, image: a.image, kind: a.kind, media: a.media, at: a.at });
+      const answers = [opts.discard, opts.take, opts.image !== undefined].filter(Boolean).length;
+      if (!args[0]) {
+        if (answers) throw new UsageError("which file? strom media aside <file> …", { hint: "strom media aside (the list)" });
+        return {
+          text: all.length ? lines(`${counted(all.length, "file")} of the inbox set aside, not taken:`, ...all.map((a) => `  ${said(a)}`), "answer: strom media aside <file> --discard | --take | --image <n>") : "no file of the inbox set aside",
+          data: { aside: all.map(json) },
+        };
+      }
+      const want = String(args[0]).normalize("NFC");
+      const a = all.find((x) => x.file.normalize("NFC") === want || `${x.folder}/${x.file}`.normalize("NFC") === want);
+      if (!a) throw new UsageError(`no file set aside named ${args[0]}`, { hint: "strom media aside (the list)", code: "aside.unknown" });
+      if (answers !== 1) return { text: lines(said(a), "answer: --discard | --take | --image <n>"), data: { aside: json(a) } };
+      if (opts.discard) {
+        if (!tree.dryRun) moveToTrash(a.path, ctx.env, a.file);
+        return { text: `${a.file} into the system's trash — ${a.media} stays${a.image !== undefined ? ` image ${a.image} of ${a.recordset}` : ""}`, data: { aside: json(a), done: "discard" } };
+      }
+      if (a.kind === "same") throw new UsageError(`${a.file} is the same file as ${a.media}, registered already: nothing to take`, { hint: `--discard; or renumber the image of ${a.media} (strom media retract ${a.media} --reason "…", then strom media add …)`, code: "aside.same" });
+      const n = opts.take ? a.image : Number(opts.image);
+      if (n === undefined || !Number.isInteger(n) || n < 1) throw new UsageError(opts.take ? `${a.file}: its name gives no image number` : `--image ${opts.image}: an image number`, { hint: "--image <n>" });
+      const media = tree.list<Media>("media").filter((m) => !m.retracted && m.recordset === a.recordset && m.image === n && isWhole(m.part));
+      if (opts.image !== undefined && media.length && media.every((m) => !fs.existsSync(path.join(shared, m.file)) || scanLikeness(a.path, path.join(shared, m.file)) !== "same"))
+        throw new UsageError(`image ${n} of ${a.recordset} is there already (${media.map((m) => m.id).join(", ")}), another scan`, { hint: `--take for image ${a.image ?? "?"}, or another number`, code: "aside.taken" });
+      const replaced: string[] = [];
+      const out = tree.withTreeLock(() => {
+        if (opts.take)
+          for (const m of media) {
+            const cited = tree.list<Source>("source").some((s) => !s.retracted && (s.media?.includes(m.id) || s.clips?.some((c) => c.media === m.id)));
+            if (cited) continue; // what a source cites stays; the new scan is registered beside it
+            update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: `another scan of image ${n} is the image (${a.file})` } }), { op: "media.retract", summary: `${m.id} retracted: another scan of image ${n} is the image` });
+            replaced.push(m.id);
+          }
+        const book = tree.get<RecordSet>(a.recordset);
+        return registerImages(tree, shared, [{ file: a.path, image: n, url: book?.url, from: a.name }], a.recordset);
+      });
+      if (!tree.dryRun && out.added.length) fs.rmSync(a.path, { force: true });
+      const kept = media.filter((m) => !replaced.includes(m.id));
+      return {
+        text: lines(
+          out.added.length ? `${a.file} registered as image ${n} of ${a.recordset}: ${out.added[0]!.id}` : `${a.file} not registered`,
+          replaced.length ? `withdrawn, kept: ${replaced.join(" ")}` : undefined,
+          opts.take && kept.length ? `cited by a source, stays beside it: ${kept.map((m) => m.id).join(" ")}` : undefined,
+          ...out.clashes.map((c) => `⚠ ${c}`),
+          ...out.copies,
+          out.woken.length ? `back in the queue (they waited for these images): ${out.woken.join(" ")}` : undefined,
+        ),
+        data: { aside: json(a), done: opts.take ? "take" : "image", image: n, added: out.added.map((m) => m.id), replaced, woken: out.woken },
+      };
     },
   },
   {

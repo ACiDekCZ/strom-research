@@ -158,9 +158,12 @@ person card and in the tip at the mark on the card, or with the item **Verify fa
   with the person's waiting facts to the head of its queue ([S7.3](#S7.3)). The person card keeps only the line “N facts
   waiting to be verified”.
 - **Enforced by the code:** N is exactly what the research takes: the facts of the person and their families that the
-  research knows (residences too, and facts already proven by another reader), except those confirmed by a person,
-  those waiting to be verified, the name and the sex. The count in the menu, in the window and in the message after
-  starting is the same.
+  research knows (facts already proven by another reader too), except those confirmed by a person, those waiting to
+  be verified, the name and the sex. The count in the menu, in the window and in the message after starting is the
+  same.
+  - **From app 3.30.0:** only birth, baptism, marriage, death and burial. Residences, occupations and other facts are
+    verified through **Verify** at the fact. When the research would take other facts too for the whole person, the
+    app sends each ticked fact to be verified by name. Up to 3.29.0 residences and occupations too.
 - **Limits:** the button and the item show only with the research's bridge running ([S7.9](#S7.9)) and only when at
   least one fact of the person offers **Verify**.
 - **Controls:** app: the person card → **Verify facts (N)** above **Events**; the tip at the mark on the card →
@@ -168,7 +171,7 @@ person card and in the tip at the mark on the card, or with the item **Verify fa
   **Verifying · N**; then in the window **Verify (N)**. Terminal: `strom verify facts P…`.
 - **Since:** research 1.30.0, app 3.26.0
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) -->
+<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Verify facts in the tree
@@ -298,9 +301,11 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
     and the research can do it; the name and the sex are not confirmed here;
   - in the terminal only a person at their own terminal confirms: `strom verify confirm E… [--undo]`. To the agent
     `strom` refuses the confirmation.
-- **Limits:** a tree linked to the research whose bridge does not run offers neither **Confirm against the scan** nor
-  **Undo**; confirming works only with the bridge running, or in the terminal. When the research refuses the
-  confirmation, the tip says why, for example that the research is an archive, or that another session holds it;
+- **Limits:** a tree linked to the research whose bridge does not run: from app 3.30.0 it offers **Confirm against the
+  scan** and **Undo** at a fact the research knows under its own number. The app keeps the confirmation and its
+  undoing, and they reach the research with the next handover of the tree. At a fact without a research number, only
+  undoing a confirmation the app keeps works without the bridge. Up to 3.29.0 neither without the bridge. When the
+  research refuses the confirmation, the tip says why, for example that the research is an archive, or that another session holds it;
   “Not changed: the research does not respond.” only when it does not respond.
 - **Why:** certainty about a fact comes from a person seeing the record themselves. Verification by the agent is a
   reading by AI; ✓ says that a person saw the record. A confirmed transcript
@@ -310,7 +315,7 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
   `strom verify confirm E…`, `strom verify confirm E… --undo`.
 - **Since:** research 1.30.0, app 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (human → Vzít zpět; bez výzkumu scan u citovaného; ve stromu výzkumu scan jen s researchConfirms) · src/verify.ts factConfirmation/researchConfirmation (platí jen s nezměněnou hodnotou) · src/verify-ui-model.ts (jméno, pohlaví bez scan ve stromu výzkumu) · strings.ts verify.scan, undo, undone, confirmedAt · app:7eb903a3 src/ui/verify-ui.ts (✓ jen u stavu, akce bez ✓; verifyConfirm: bez mostu DataManager.confirmFact) · src/data.ts confirmFact/unconfirmFact (undo.confirmFact, unconfirmFact, auditLog.confirmedFact, unconfirmedFact) · strings.ts verify.scan, confirmedAt · CHANGELOG.cs.md 3.26.0 · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2: bez mostu ✓ ani Vzít zpět ve stromu výzkumu) · prace/1109-app-potvrzeni-zmena · research:6c6e7c3b strom help verify confirm (jen uživatel, most; mimo něj requireHuman) · app:669c08f0 src/verify-offer.ts verifyOffer (scan jen se source: citace nebo záznam, ze kterého výzkum četl), src/verify.ts factConfirmMark (3 _TXT; changed), src/ui/verify-ui.ts verifyConfirm (409 confirm.changed → zavřít bublinu, toast, researchLoadNewer; změněno tady → jen důvod), strings.ts verify.confirmChanged, confirmLocked, confirmBusy, confirmFailed, sync.loadTitle · research:94d75934 POST /facts/confirm {txt} → 409 confirm.changed, feature facts.confirm.value · app:0fbda127 src/verify-offer.ts researchConfirms (offline), verifyOffer (offline bez eid: scan ne, undo jen confirmedBy app; scanViaBridge/undoViaBridge ne offline), src/verify-ui-model.ts PERSON_VERIFY_KINDS (BIRT, CHR, BAPM, MARR, DEAT, BURI), personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích), CHANGELOG.cs.md 3.30.0 „Spolehlivost údajů“ -->
 
 <a id="S7.9"></a>
 ## S7.9 What works with the bridge and what without it
@@ -319,7 +324,7 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
 |---|---|---|---|
 | Marks at facts and on the card | yes | yes, the same as with the bridge (by the last state from the file) | yes, from the import and the citations |
 | **Verify**, **Verify first**, **Verify facts · N**, **Verify facts in the tree…** | yes | no | no (a line about the ancestor research) |
-| **Confirm against the scan**, **Undo** | yes, the research writes it | no | yes, the app keeps it |
+| **Confirm against the scan**, **Undo** | yes, the research writes it | from app 3.30.0 yes at a fact with a research number, the app keeps it until the handover of the tree ([S7.8](#S7.8)) | yes, the app keeps it |
 | **Stop** verifying | yes | no; `strom verify stop` in the terminal | – |
 | Verifying in the research's queue | runs | runs (the research does not wait for the app) | – |
 
@@ -328,4 +333,4 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
   The research's bridge: [S1.1](S1-connecting-app-and-research.md#S1.1).
 - **Since:** research 1.30.0, app 3.26.0
 
-<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify -->
+<!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->

@@ -5,9 +5,32 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.36.0
+
+*W przygotowaniu: bety do 1.36.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
+  początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
+  sesji, przez link wskazujący zadania. Każde zadanie kolejki ma swój rodzaj pracy (weryfikacja, wpisy, materiał,
+  miejsca, historie…): `strom task list --kind`, a aplikacja Strom filtruje według niego.
+- **Skany zapisywane ręcznie, bezpieczniej:** numer skanu jest brany z nazwy pliku tylko wtedy, gdy nazwa mówi go
+  jednoznacznie (kopia menedżera plików „33 2.jpg” to skan 33; nazwa z dwiema liczbami i bez licznika nie dostaje
+  żadnego); pliki partii są numerowane według kolejności tylko wtedy, gdy żaden nie ma liczby w nazwie; folder jest
+  przejmowany dopiero po pobraniu całej partii (.crdownload lub .part obok go wstrzymuje). Plik będący tym samym skanem
+  co inny skan nigdy nie jest usuwany: zostaje odłożony obok i jest to powiedziane.
+- **Inny skan pod zajętym numerem:** plik zapisany pod numerem już zarejestrowanego skanu, pokazujący inną stronę (inny
+  kształt lub inne pismo), nie zastępuje już skanu: zostaje odłożony obok, a pytanie o niego pojawia się w „Co czeka” i
+  w aplikacji Strom – zachować skan, przyjąć nowy plik jako ten skan albo nadać mu własny numer (`strom media aside`).
+  Ostrzejsza kopia jest przejmowana tylko wtedy, gdy na pewno jest tym samym skanem – porównywane jest pismo, nie
+  drukowany formularz; gdy nie da się tego rozstrzygnąć, plik również zostaje odłożony i pojawia się pytanie o niego.
+- **Drobne poprawki:** zadanie wydzielone przez `strom task audit --fix` nazywa skany księgi jej tytułem, bez ID i
+  czasownika; `strom task wait --images` podane ponownie dla tej samej księgi łączy jej skany (inna księga jest
+  odrzucana: jedna księga na zadanie); dwie próby zbiorczej weryfikacji po sobie idą w kolejności zlecenia, starsza pierwsza; warunek limitów subskrypcji
+  odczytuje je w sekundę lub dwie, bez przeglądania rozmów zapisanych na komputerze.
+
 ## 1.35.0
 
-*W przygotowaniu: bety do 1.35.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*19.11.2026 · współpracuje z aplikacją Strom 3.30.0.*
 
 - **Księgi z największą liczbą zadań:** strom mówi, których ksiąg archiwów potrzebuje najwięcej zadań badania –
   otwartych, odłożonych i czekających –, aby jedno ręczne pobranie posłużyło wielu z nich naraz: w menu stroma (Co

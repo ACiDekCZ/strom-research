@@ -138,6 +138,10 @@ test("the bridge: /verify (dry, records, the place in the queue), /verify/bulk, 
     assert.ok(bulk.body.tasks.length >= 1 && bulk.body.left === 0, JSON.stringify(bulk.body));
     assert.notEqual(bulk.body.head, bulk.body.parent);
     assert.ok(verifyTasks(w).every((t) => t.origin === "verify:bulk" && t.state === "open"));
+    // spec 065 K7.1–K7.2: a try first in the queue, whether the research works now — what the app offers "work on them now" by
+    assert.deepEqual([bulk.body.first, bulk.body.working], [true, false], JSON.stringify(bulk.body));
+    assert.ok(verifyTasks(w).every((t) => t.queueAt?.do === "next"), "a try: first in the queue");
+    assert.deepEqual([bulkDry.body.first, bulkDry.body.working], [undefined, undefined], "a dry run: nothing of the tasks");
 
     // —— /verify/stop: the bulk's tasks dropped, their facts not queued again by themselves ——
     for (const bad of [{ scope: "some" }, { bulk: true }]) assert.deepEqual([(await post("verify/stop", bad)).status], [400], JSON.stringify(bad));

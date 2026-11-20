@@ -5,9 +5,33 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.36.0
+
+*In preparation: the betas up to 1.36.0-beta.1. The section is complete with the release.*
+
+- **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
+  stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
+  session per task, by a link that names the tasks. Each task of the queue has its kind of work (verifying, records,
+  material, places, stories…): `strom task list --kind`, and the Strom app filters by it.
+- **Images saved by hand, more safely:** an image's number is taken from a file's name only when the name says it
+  unambiguously (a file manager's copy "33 2.jpg" is image 33; a name with two numbers and no counter gets none); the
+  files of a batch are numbered by their order only when none of them has a number in its name; a folder is taken only
+  once its batch has finished downloading (a browser's .crdownload or .part beside it holds it back). A file that is the
+  same scan as another image is never deleted: it is set aside beside it and said.
+- **Another scan under a number taken already:** a file saved under the number of an image registered already that
+  shows another page (another shape or other handwriting) no longer replaces the image: it is set aside beside it and
+  asked in What waits and in the Strom app — the image kept, the new file taken as that image, or its own number given
+  (`strom media aside`). A sharper copy is taken only when it is surely the same scan — compared by the handwriting,
+  not by the printed form; when that cannot be told, the file is set aside and asked as well.
+- **Smaller fixes:** a task split off by `strom task audit --fix` names the book's images by the book's title, without
+  its ID and a verb; `strom task wait --images` given again for the same book joins its images (another book's are
+  refused: one book per task); two tries of the bulk verification in a row come in the order they were asked, the older first; the gate
+  of the subscription's limits reads them in a second or two, without going through the conversations kept on the
+  computer.
+
 ## 1.35.0
 
-*In preparation: the betas up to 1.35.0-beta.7. The section is complete with the release.*
+*2026-11-19 · goes with the Strom app 3.30.0.*
 
 - **The books with the most tasks:** strom says which books of the archives most tasks of the research need — open,
   put aside and waiting — so that one download by hand serves many of them at once: in strom's menu (What waits ›

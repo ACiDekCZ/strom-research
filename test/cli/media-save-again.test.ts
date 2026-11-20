@@ -14,6 +14,8 @@ import { World, hasGit } from "../helpers.ts";
 import { SETTLE_MS } from "../../src/core/inboxwait.ts";
 import { waitFileBase } from "../../src/core/browser.ts";
 import { grantWay } from "../../src/core/terms.ts";
+import { encodeImage } from "../../src/image/index.ts";
+import { resize } from "../../src/image/image.ts";
 
 const opts = { skip: !hasGit };
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
@@ -33,6 +35,7 @@ before(() => {
   globalThis.fetch = (u) => Promise.reject(refuse(u));
 });
 after(() => {
+  for (const d of scanDirs) fs.rmSync(d, { recursive: true, force: true });
   Object.assign(https, { request: keep.request, get: keep.get });
   Object.assign(http, { request: keep.hrequest, get: keep.hget });
   globalThis.fetch = keep.fetch;
@@ -46,8 +49,49 @@ function named(w: World, task: string, n: number): string {
 }
 
 /** A file the browser wrote `ago` ms ago. */
+/**
+ * A scan of a made-up page of a register (400 × 300: the form's lines, handwriting of its own seed) and a weak one of
+ * it: the same picture at half its size, saved poorly (B0374: a sharper copy is of the same scan — strom tells it by the
+ * handwriting).
+ */
+const scanDirs: string[] = [];
+function scanOf(seed: number): { sharp: string; weak: string } {
+  const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "scan-"));
+  scanDirs.push(dir);
+  const width = 400;
+  const height = 300;
+  let s = seed;
+  const r = () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const d = new Uint8Array(width * height).fill(222);
+  for (let y = 40; y < height; y += 30) for (let x = 20; x < width - 20; x++) d[y * width + x] = 70;
+  for (let k = 0; k < 150; k++) {
+    let x = 30 + r() * (width - 60);
+    let y = 45 + r() * (height - 70);
+    const dx = (r() - 0.5) * 3;
+    const dy = (r() - 0.5) * 3;
+    for (let i = 0; i < 15; i++) {
+      x += dx + (r() - 0.5);
+      y += dy + (r() - 0.5);
+      const xi = Math.round(x);
+      const yi = Math.round(y);
+      if (xi > 0 && yi > 0 && xi < width - 1 && yi < height - 1) d[yi * width + xi] = d[yi * width + xi + 1] = 40;
+    }
+  }
+  const img = { width, height, channels: 1 as const, data: d };
+  const sharp = path.join(dir, `scan-${seed}.jpg`);
+  const weak = path.join(dir, `weak-${seed}.jpg`);
+  fs.writeFileSync(sharp, encodeImage(img, "jpeg", 90));
+  fs.writeFileSync(weak, encodeImage(resize(img, width / 2, height / 2), "jpeg", 50));
+  return { sharp, weak };
+}
+
 function written(file: string, ago: number, from = "grey.jpg"): void {
-  fs.copyFileSync(path.join(fixtures, from), file);
+  fs.copyFileSync(path.resolve(fixtures, from), file);
   const at = new Date(Date.now() - ago);
   fs.utimesSync(file, at, at);
 }
@@ -65,8 +109,8 @@ function extension(w: World): void {
 }
 
 const CASES = [
-  { task: "T0001", book: "B0001", n: 5, at: LHOTA.page(11, 5), weak: "grey.jpg", sharp: "s0001.jpg" },
-  { task: "T0002", book: "B0002", n: 6, at: PODHRADI.page(22, 6), weak: "base420.jpg", sharp: "s0002.jpg" },
+  { task: "T0001", book: "B0001", n: 5, at: LHOTA.page(11, 5), ...scanOf(1) },
+  { task: "T0002", book: "B0002", n: 6, at: PODHRADI.page(22, 6), ...scanOf(2) },
 ] as const;
 
 test("media save --again: a weak image saved once more — a new copy beside it, nothing removed, the sharpest the image; offered by \"registered already\" and the brief (two archives)", opts, async () => {

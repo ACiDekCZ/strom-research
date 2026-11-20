@@ -385,10 +385,11 @@ um darin inzwischen etwas anderes anzusehen; die übrigen Fenster folgen weiter.
   koppelt das Fenster wieder an, und es springt sofort zum Agenten. Das Abkoppeln übersteht das Neuladen des Fensters
   (F5) und wird mit dem Ende des Folgens vergessen.
 - **Wahl aus einem anderen Fenster:** ein folgendes Fenster, das nicht pausiert ist, markiert eine in einem anderen
-  Fenster gewählte Person nur, auch mit **Auswahl folgen: wechseln** ([A6.8.1](A6-views.md#A6.8.1)); die Mitte bleibt
-  beim Agenten. Die Tabelle wählt die Zeile dieser Person aus, scrollt aber nicht zu ihr. Der Sprung zum Agenten wird
-  den anderen Fenstern nicht als Wahl einer Person geschickt. Ein pausiertes und ein abgekoppeltes Fenster richten
-  sich nach **Auswahl folgen** wie außerhalb des Folgens.
+  Fenster gewählte Person nur, auch mit **Auswahl** → **Dieses Fenster**: **wechseln** ([A6.8.1](A6-views.md#A6.8.1));
+  die Mitte bleibt beim Agenten. Die Tabelle wählt die Zeile dieser Person aus, scrollt aber nicht zu ihr. Der Sprung
+  zum Agenten wird den anderen Fenstern nicht als Wahl einer Person geschickt. Ein pausiertes und ein abgekoppeltes
+  Fenster richten sich nach der Wahl **Dieses Fenster** wie außerhalb des Folgens. Eine mit **fokussieren** an das
+  Hauptfenster geschickte Wahl markiert ein Hauptfenster, das dem Agenten folgt, nur ([A6.8.4](A6-views.md#A6.8.4)).
 - **Ende:**
   - ◎ **Hier nicht mehr folgen** im Hauptfenster stoppt die Sprünge nur im Hauptfenster; die weiteren Fenster folgen
     weiter;
@@ -1090,7 +1091,7 @@ und bietet eine Korrektur in einem Schritt an. Der Eintrag wartet weiter, die Za
   | Befund der Forschung | Satz |
   |---|---|
   | Bilder nur im Text | **Scans nur als Text erfasst, ohne Buch – gespeicherte Scans wecken die Aufgabe nicht.** |
-  | mehrere Bücher in einem Warten | **Wartet auf Scans aus zwei Büchern**, mit einem unbekannten Buch **; eines davon ist der Forschung nicht bekannt.** |
+  | mehrere Bücher in einem Warten | **Wartet auf Scans aus mehreren Büchern**, mit einem unbekannten Buch **; eines davon ist der Forschung nicht bekannt.** |
   | ein Buch, das die Forschung nicht kennt | **Das Buch ist der Forschung nicht bekannt – die Aufgabe hat keinen Ordner für Scans.** |
   | der Ordner fehlt | **Der Ordner für Scans fehlt – die Korrektur legt ihn an.** |
 
@@ -1118,7 +1119,7 @@ und bietet eine Korrektur in einem Schritt an. Der Eintrag wartet weiter, die Za
   Terminal: `strom task audit` ([R6.9](R6-awaiting-action.md#R6.9)).
 - **Gilt seit:** App 3.30.0, Forschung 1.35.0
 
-<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) -->
+<!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/research-audit.ts TASKS_AUDIT_FEATURE tasks.audit, auditExplain (text; books + BooksUnknown; unknown; folder; agentAdds jen fix none s agentem; neznámý druh jen nadpis) · src/ui/waiting-task-ui.ts waitingAuditShown, waitingAuditMarkEl (trojúhelník, title), waitingAuditEl (auditFix jen fix ≠ none, discuss s researchLinkMark task chat jen s agentem a ne sheet, auditKeep), keepWaitingAudit (toast auditKept 8000 ms, Vrátit → unkeep), waitingAuditGone (auditGone), auditResearchUnavailable (ended, lostSince), shiftHeld · src/ui/research-overview-ui.ts:1899 značka v hlavičce, :2088 blok v detailu, :2192 a :2462 chat ne pod ⋯ · src/ui/research-ui.ts panel auditMarkPanel · strings.ts live.waitingAudit.* · CHANGELOG.cs.md 3.30.0 „Kontrola úkolu“ · ZADANI_DEV_kontrola-ukolu.md · dirigent:spec/109 K1.4–K1.6, prace/1117-app-109-kontrola (D1 složka, D2 neznámý kód) · app:cf12b70d auditKindBooks „z více knih“ -->
 
 <a id="S4.4.9"></a>
 ### S4.4.9 Vorschau der Korrektur und Rückgängig
@@ -1181,7 +1182,8 @@ Terminal wird nichts geschrieben und nichts bezahlt.
     zweiter Klick öffnet inzwischen nichts erneut. Ohne Bestätigung wird das Element frei, und darunter steht
     **Terminal nicht geöffnet?** mit **Erneut versuchen** und dem Rat **Wenn sich nichts geöffnet hat, muss Strom
     Research gestartet werden.** Bei einem Link ohne Terminal steht **Wenn nichts geschieht, läuft Strom Research
-    noch nicht.**
+    noch nicht.** Eine Forschung älter als 1.35.0 kann die Übernahme nicht bestätigen: ohne neue Sitzung des Agenten
+    wird das Element nach 10 s still freigegeben, ohne Satz.
   - Den Systemdialog des Browsers, der vor dem Öffnen des Links fragt, sieht die App nicht. Spät bestätigt, löscht er
     den Satz nach dem Limit von selbst ([S4.5.4](#S4.5.4)).
 - **Bedienung:** App: **Einstellungen → Daten und Datenschutz → Strom Research auf diesem Computer**.
@@ -1189,7 +1191,7 @@ Terminal wird nichts geschrieben und nichts bezahlt.
   Agenten seit 1.15.0. Warten auf das Öffnen seit App 3.30.0; bis 3.29.0 erkannte die App nicht, ob sich das
   Terminal geöffnet hat, und zeigte nur die Meldung **Forschung wird geöffnet…** mit einem Rat.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts researchLinkAvailable, launchResearchLink, :841 onComputer · strings.ts research.linksSetting, research.openingQuietHint · index.html linksSetting · research:v1.25.2 src/commands/links.ts:128 refusedHere, :153 inTerminal, :351 ui.research.exists · src/core/links.ts (hlavička) · assets/lang/cs.json ui.link.asks, ui.link.go, ui.link.cost, ui.link.tasks, ui.archive.refuse, ui.waiting.refuse · 3.30.0: app:574e7ef9, f63cc742 src/ui/research-ui.ts launchResearchLink → src/ui/research-open-busy.ts openResearchBusy (openingResearch / openingAgent / generic podle značky, BUSY_TIMEOUTS.terminal 10 s, queueWork 30 s, notOpened + notOpenedHint, bez terminálu research.openingQuietHint, retry) · strings.ts busy.* · CHANGELOG.cs.md 3.30.0 „Tlačítka, která čekají“ · ZADANI_DEV_tlacitka-cekani.md §3.1 · app:c3e09951 (79a05311) research-open-busy.ts unprovable → tichý konec u výzkumu bez handoffs (n1 N2) -->
 
 <a id="S4.5.1"></a>
 ### S4.5.1 Marken der Aktionen
@@ -1291,8 +1293,10 @@ geöffnet hat ([S4.5](#S4.5)).
     erscheint sofort, ohne Warten;
   - derselbe Link, innerhalb von 400 ms erneut geöffnet, bewirkt nichts.
 - **Grenzen:**
-  - eine Forschung ohne die Bestätigung: als Bestätigung gilt eine neue Sitzung des Agenten, sonst wartet die App
-    nur bis zum Limit;
+  - eine Forschung ohne die Bestätigung (älter als 1.35.0): als Bestätigung gilt eine neue Sitzung des Agenten.
+    Sonst wird das Element nach dem Limit still freigegeben, ohne den Satz **Terminal nicht geöffnet?**: die App
+    erkennt nicht, ob das Terminal gestartet ist. Eine Brücke, die nicht antwortet, sagt den Satz auch hier. Die
+    Arbeit an der Warteschlange hat einen eigenen Nachweis und Satz ([S4.2.3](#S4.2.3));
   - ein Link auf eine neue Forschung (`new?app=…`) endet nach dem Limit still; danach wartet die App, bis die
     Forschung den Stammbaum übernimmt;
   - ohne laufende Brücke wird nichts gemeldet, und die geschriebene Datei verfällt von selbst.
@@ -1300,7 +1304,7 @@ geöffnet hat ([S4.5](#S4.5)).
   `strom link open '<Link>'`.
 - **Gilt seit:** App 3.30.0, Forschung 1.35.0
 
-<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ -->
+<!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
 <a id="S4.6"></a>
 ## S4.6 Was nur im Terminal geht
