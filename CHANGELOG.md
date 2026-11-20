@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.2. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -23,11 +23,35 @@ The changes of each version in short. The full notes and the install lines are o
   asked in What waits and in the Strom app — the image kept, the new file taken as that image, or its own number given
   (`strom media aside`). A sharper copy is taken only when it is surely the same scan — compared by the handwriting,
   not by the printed form; when that cannot be told, the file is set aside and asked as well.
+- **The agent from the Strom app without the question:** a setting for this computer, `run.confirm` (Settings → 1 →
+  "Starting the agent from the Strom app"): `ask` — the default, as before — or `no`, and what the Strom app asks that
+  only starts the agent on the subscription or AI credit (a conversation, a task, the work on the queue, a conflict left
+  to the agent, the identification of places — places of several batches ask only how many, and Enter starts at least
+  one) starts at once; one line in the terminal says so and where the question is turned on again. Still asked: a
+  question with a price in money, consents, deletions, a request sent, the condition of working alone, and any command
+  of an agent. Only the person turns the question off — never an agent.
+- **Deleting a source:** a source can be deleted in the research — `strom source retract` in the terminal or deleting
+  the source in the Strom app, only by the person, never by an agent (it may only propose it, with what `--dry-run` says
+  it would take). The values stay; its citations are taken off the facts and kept in the source, a fact may become less
+  sure, a task resting on it alone is put aside, and a decided conflict that stood on it is marked for review
+  (`strom conflict keep` keeps the decision as it is). What it takes is said first and the person confirms it; the
+  source can be put back with its citations (`strom source restore`, or Undo in the Strom app). A source deleted in the
+  Strom app while the tree is edited there is deleted in the research with the next send — only the person's send of the
+  whole tree; otherwise What changed says why not. A deleted source never comes back with a later file or import.
+  In the terminal `strom source show` says a source is deleted, when, and what puts it back, and
+  `strom source list --retracted` lists the deleted ones.
+- **A family tree's file in the material:** the Strom app shows the imported family tree files (GEDCOM, the app's JSON)
+  in Materials and deletes them for good as any file of the material; one a source was made of only together with that
+  source, in one step with one confirmation (`strom input delete … --retract-sources`).
 - **Smaller fixes:** a task split off by `strom task audit --fix` names the book's images by the book's title, without
   its ID and a verb; `strom task wait --images` given again for the same book joins its images (another book's are
   refused: one book per task); two tries of the bulk verification in a row come in the order they were asked, the older first; the gate
   of the subscription's limits reads them in a second or two, without going through the conversations kept on the
-  computer.
+  computer; in the Strom app each citation of a family tree shows its own line of the tree again (a pointer an import
+  made stays out), and an image's number known only from the registered scans is marked as such, so that the app adds it
+  to the location without cutting another image's number out of it. `strom pack` and `strom trees remove` name the
+  archives' scans as scans (which go along, which are left out), and the backup before a removal says it holds the
+  family's photos and originals.
 
 ## 1.35.0
 

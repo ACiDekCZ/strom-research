@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,6 +34,21 @@ async function until(ok: () => boolean, ms: number, what: string): Promise<void>
 }
 /** The threshold of the test of the hard one at once: the soft one, the hard one set to it (web.perHost). */
 const HARD = WEB_SOFT;
+
+/**
+ * How long this computer takes now to start a Node process and let it end (the longest of three), measured where a
+ * timing is asserted — under the load it runs in (the whole suite beside it outruns fixed milliseconds). The unit of a
+ * timing's budget.
+ */
+function nodeStartMs(): number {
+  let most = 0;
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    most = Math.max(most, Date.now() - t);
+  }
+  return most;
+}
 
 /** One hook as the agent runs it: its own process, the event on stdin; when it ended. */
 function hook(w: World, event: object, env: Record<string, string>): Promise<{ code: number; out: string; err: string; ended: number }> {
@@ -183,10 +198,12 @@ test("a real failure never refuses: a lock left by a process killed (kill -9) mi
   holder.kill("SIGKILL");
   await new Promise((r) => holder.on("close", r));
   assert.ok(fs.existsSync(path.join(net, "mrtvy-example.org.json.lock")), "its lock left behind");
+  // promptly: some sixty Node starts of this computer now (5 s on an idle one), never near the hook's own wait of 30 s
+  const prompt = Math.min(WEB_WAIT_MAX_MS * 2 / 3, Math.max(5000, 60 * nodeStartMs()));
   const t0 = Date.now();
   const r = await hook(w, fetchEvent(w, "https://mrtvy-example.org/1", "k1"), env);
   quiet(r, "after a holder killed");
-  assert.ok(Date.now() - t0 < 5000, `answered promptly (${Date.now() - t0} ms)`);
+  assert.ok(Date.now() - t0 < prompt, `answered promptly (${Date.now() - t0} ms, within ${prompt} ms)`);
   assert.deepEqual(journal(w).map((l) => [l.toolUse, l.decision, l.n]), [["k1", "allow", 1]], "and counted");
   // a lock older than any holder holds one (its pid given again to a live process): taken over too
   fs.writeFileSync(path.join(net, "stary-example.org.json.lock"), JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date(Date.now() - 3600_000).toISOString(), owner: "strom net" }));
@@ -297,7 +314,9 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
     ms.push(Date.now() - s0);
   }
   ms.sort((a, b) => a - b);
-  t.diagnostic(`one hook call: median ${ms[ms.length >> 1]} ms, max ${ms.at(-1)} ms (the wait at most ${WEB_WAIT_MAX_MS} ms, the call at most ${WEB_CALL_MAX_MS} ms)`);
-  assert.ok(ms[ms.length >> 1]! < 3000, "a light start");
+  // light: some forty Node starts of this computer now (3 s on an idle one), never near half the hook's wait
+  const light = Math.min(WEB_WAIT_MAX_MS / 2, Math.max(3000, 40 * nodeStartMs()));
+  t.diagnostic(`one hook call: median ${ms[ms.length >> 1]} ms, max ${ms.at(-1)} ms, light within ${light} ms (the wait at most ${WEB_WAIT_MAX_MS} ms, the call at most ${WEB_CALL_MAX_MS} ms)`);
+  assert.ok(ms[ms.length >> 1]! < light, "a light start");
   w.cleanup();
 });

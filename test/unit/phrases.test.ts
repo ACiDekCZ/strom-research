@@ -111,7 +111,7 @@ test("localized: a catalog's plural in its language, English's in English", () =
   assert.equal(ui("cs", "ui.check.found", { errors: 3, warnings: 1 }), "3 chyby, 1 varování");
   assert.equal(ui("de", "ui.check.found", { errors: 1, warnings: 1 }), "1 Fehler, 1 Warnung");
   // a count with its noun: 1 image, not 1 images — in English too
-  assert.deepEqual([1, 3].map((n) => ui("en", "ui.pack.left", { n, mb: "1.0" }).trim().slice(0, 18)), ["left out: 1 image ", "left out: 3 images"]);
+  assert.deepEqual([1, 3].map((n) => ui("en", "ui.pack.left", { n, mb: "1.0" }).trim().slice(0, 25)), ["left out: 1 archive scan ", "left out: 3 archive scans"]);
   assert.deepEqual([1, 3, 5].map((n) => ui("cs", "ui.fetch.progress", { n: 1, total: n })), ["1/1 snímek", "1/3 snímky", "1/5 snímků"]);
   assert.deepEqual([1, 2].map((n) => ui("de", "ui.archive.cap.short", { n })), ["höchstens 1 Anfrage pro Stunde, den Katalog mitgezählt", "höchstens 2 Anfragen pro Stunde, den Katalog mitgezählt"]);
   assert.match(ui("en", "ui.doc.media.unnamed", { n: 1, size: "1 MB" }), /1 file \(1 MB\) no research here names \(left as it is\)/);

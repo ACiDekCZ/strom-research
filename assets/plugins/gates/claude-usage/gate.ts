@@ -290,19 +290,19 @@ else {
     if (tries >= ATTEMPTS || BUDGET_MS - (Date.now() - began) < RETRY_MS + ASK_MS / 2) break;
     sleep(RETRY_MS);
   }
-  if (!week) answer(1, say("unreadWait", { tries, detail, min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
+  if (!week) answer(1, say("unreadWait", { tries, detail, min: UNREAD_WAIT / 60_000 }), new Date(nowMs() + UNREAD_WAIT));
 }
 if (!week) answer(2, say("unread", { detail: say("noweek") }));
 // the week's line without its reset: nothing used yet goes (a new week), else what it says is not read
 if (!week.resets) {
   if (week.used === 0) answer(0, say("unused"));
-  answer(1, say("unreadWait", { tries: 1, detail: say("noweek"), min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
+  answer(1, say("unreadWait", { tries: 1, detail: say("noweek"), min: UNREAD_WAIT / 60_000 }), new Date(nowMs() + UNREAD_WAIT));
 }
 // the cap first: the user's own hard stop, whatever the pace
 if (cap !== undefined && week.used >= cap)
   answer(2, say("cap", { used: Math.floor(week.used), cap, resets: week.resets.toLocaleString(lang, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) }), undefined, true);
 
-const now = Date.now();
+const now = nowMs();
 const resets = week.resets.getTime();
 const start = resets - WEEK;
 const gone = Math.max(0, Math.min(100, ((now - start) / WEEK) * 100));
@@ -448,6 +448,20 @@ function loggedIn(): boolean | undefined {
   }
 }
 
+/**
+ * What time it is now: the computer's clock. A test fixes it (STROM_GATE_NOW: an ISO moment or epoch milliseconds), so
+ * the week gone, the resets and the waits it answers are exact; strom never sets it. How long an asking takes is
+ * measured on the computer's clock always.
+ */
+function nowMs(): number {
+  const fixed = process.env.STROM_GATE_NOW;
+  if (fixed) {
+    const at = /^\d+$/.test(fixed) ? Number(fixed) : Date.parse(fixed);
+    if (Number.isFinite(at)) return at;
+  }
+  return Date.now();
+}
+
 /** Waits here (the gate is one short program: nothing else to do meanwhile). */
 function sleep(ms: number): void {
   if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -469,7 +483,7 @@ function hold(resets: number | undefined): void {
   if (!HOLD) return;
   try {
     if (resets === undefined) fs.rmSync(HOLD, { force: true });
-    else fs.writeFileSync(HOLD, JSON.stringify({ week: new Date(resets).toISOString(), since: new Date().toISOString() }) + "\n");
+    else fs.writeFileSync(HOLD, JSON.stringify({ week: new Date(resets).toISOString(), since: new Date(nowMs()).toISOString() }) + "\n");
   } catch {
     // a folder it may not write here: it asks as if for the first time
   }
@@ -500,7 +514,7 @@ function fromAgent(json: string | undefined): { session?: Use; week: Use } | und
     if (!l || typeof l.used !== "number" || !Number.isFinite(l.used) || typeof l.at !== "string") return undefined;
     const at = Date.parse(l.at);
     const resets = typeof l.resetsAt === "string" ? new Date(l.resetsAt) : undefined;
-    if (Number.isNaN(at) || Date.now() - at > FRESH_MS || !resets || Number.isNaN(resets.getTime()) || resets.getTime() <= Date.now()) return undefined;
+    if (Number.isNaN(at) || nowMs() - at > FRESH_MS || !resets || Number.isNaN(resets.getTime()) || resets.getTime() <= nowMs()) return undefined;
     return { used: l.used * 100, resets };
   };
   const week = of("seven_day");
@@ -524,20 +538,21 @@ function resetAt(s: string): Date | undefined {
   const zone = m[6]!;
   if (!m[1]) {
     // a time alone: today's in the zone, else tomorrow's
-    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).split("-").map(Number) as [number, number, number];
+    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs())).split("-").map(Number) as [number, number, number];
     for (const add of [0, 1]) {
       const guess = Date.UTC(y, mo - 1, d + add, hour, minute);
       const at = guess - offsetMs(guess, zone);
-      if (at > Date.now()) return new Date(at);
+      if (at > nowMs()) return new Date(at);
     }
     return undefined;
   }
   const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(m[1].toLowerCase());
   if (month < 0) return undefined;
-  for (const year of [new Date().getUTCFullYear(), new Date().getUTCFullYear() + 1]) {
+  const thisYear = new Date(nowMs()).getUTCFullYear();
+  for (const year of [thisYear, thisYear + 1]) {
     const guess = Date.UTC(year, month, Number(m[2]), hour, minute);
     const at = guess - offsetMs(guess, zone);
-    if (at > Date.now() - DAY) return new Date(at);
+    if (at > nowMs() - DAY) return new Date(at);
   }
   return undefined;
 }

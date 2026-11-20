@@ -22,7 +22,7 @@
 import type { Citation, Conflict, Event, Family, Name, Person, Sex, Source, ValueOrigin } from "./model.ts";
 import { UsageError } from "./errors.ts";
 import { refuseRemoved } from "./citeorder.ts";
-import { isWeak, defaultStatus, checkStatus } from "./evidence.ts";
+import { isWeak, defaultStatus, checkStatus, citableSource } from "./evidence.ts";
 import { editEvent, editPerson, findEventOwner, markPrimaryName, retractEvent } from "./actions.ts";
 import { create, update } from "./records.ts";
 import { gedcomName, primaryName } from "./people.ts";
@@ -33,6 +33,7 @@ import { ui } from "../cli/ui.ts";
 import { eventName } from "../cli/human.ts";
 import { factValue, factWords, ownerWords, plainName, sexWords, staleProposal } from "./proposals.ts";
 import { whileDeciding } from "./proposalsettle.ts";
+import { deletedSource } from "./sourceretract.ts";
 
 export type FactPart = "date" | "place" | "value";
 export type NamePart = "given" | "surname";
@@ -71,7 +72,7 @@ function recordsCited(tree: Tree, citations: readonly Citation[] | undefined): s
 
 /** A citation's source is one of the research's (the change rests on it). */
 export function checkCited(tree: Tree, c: Citation): void {
-  if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
+  citableSource(tree, c.source);
 }
 
 /** How an agent's change of a value stands: free (the research's), allowed on a record (an import's), or only a proposal. */
@@ -528,7 +529,8 @@ export function revertImported(tree: Tree, target: { ref: string; person?: strin
       const left = was.parts.filter((k) => !parts.includes(k));
       if (left.length) back.was = { ...was, parts: left };
       else delete back.was;
-      const cites = (was.cites ?? (was.source ? [{ source: was.source }] : [])).filter((c) => tree.get(c.source)?.type === "source");
+      // a source the person deleted comes back with nothing (spec 117 R6): only strom source restore puts it back
+      const cites = (was.cites ?? (was.source ? [{ source: was.source }] : [])).filter((c) => tree.get(c.source)?.type === "source" && !tree.get(c.source)?.retracted);
       if (cites.length) back.citations = citationsWith(n.citations ?? [], cites);
       back.origin = { by: "user" };
       update<Person>(tree, id, "person", (q) => ({ ...q, names: q.names.map((m, j) => (j === i ? back : m)) }), {
@@ -561,7 +563,7 @@ export function revertImported(tree: Tree, target: { ref: string; person?: strin
     else delete back.was;
     // the import's citation again
     const cites = was.cites ?? (was.source ? [{ source: was.source }] : []);
-    back.citations = citationsWith(e.citations, cites.filter((c) => tree.get(c.source)?.type === "source"));
+    back.citations = citationsWith(e.citations, cites.filter((c) => tree.get(c.source)?.type === "source" && !tree.get(c.source)?.retracted));
     back.origin = { by: "user" };
     update<Person | Family>(tree, owner.id, owner.type, (o) => ({ ...o, events: o.events.map((x) => (x.id === e.id ? back : x)) }), {
       op: "event.revert",
@@ -609,15 +611,24 @@ export function knownImportSource(tree: Tree, imp: ImportOf): Source | undefined
   return tree.list<Source>("source").find((s) => !!s.imported && !s.retracted && sameImport(s.imported, imp));
 }
 
+/** The source of an import the person deleted (spec 117 J6), where the research has no other of it: never made again. */
+export function deletedImportSource(tree: Tree, imp: ImportOf): Source | undefined {
+  const same = tree.list<Source>("source").filter((s) => s.imported && sameImport(s.imported, imp));
+  return same.some((s) => !s.retracted) ? undefined : same.find((s) => deletedSource(s));
+}
+
 /**
  * The source of an import the Strom app names (HEAD `1 _STROM_IMPORT Ix`): the one made of it before, reused on every
- * later sync — or a new one (a family tree: authored, secondary), of the material it came in (`input`).
+ * later sync — or a new one (a family tree: authored, secondary), of the material it came in (`input`). One the person
+ * deleted is never made again (spec 117 J6): it is given back `deleted` — its values keep their origin, cite it never.
  */
-export function importSourceFor(tree: Tree, imp: ImportOf, input: string | undefined): { source: Source; created: boolean } {
+export function importSourceFor(tree: Tree, imp: ImportOf, input: string | undefined): { source: Source; created: boolean; deleted?: true } {
   return tree.withTreeLock(() => {
     const same = tree.list<Source>("source").filter((s) => s.imported && sameImport(s.imported, imp));
     const found = same.find((s) => !s.retracted);
     if (found) return { source: found, created: false };
+    const gone = same.find((s) => deletedSource(s));
+    if (gone) return { source: gone, created: false, deleted: true as const };
     // the one a sync's undo withdrew (nothing cited it any more): the same again, never one more
     const back = same.find((s) => /^sync I\d+ undone$/u.test(s.retracted?.reason ?? ""));
     if (back) {

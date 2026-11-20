@@ -44,6 +44,7 @@ import { allows } from "../core/terms.ts";
 import { phrase } from "../core/phrases.ts";
 import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
 import { goesAhead } from "../core/queue.ts";
+import { localDayOf } from "../core/readers.ts";
 import { scanLikeness } from "../core/samescan.ts";
 import { moveToTrash } from "../core/trash.ts";
 
@@ -1942,7 +1943,7 @@ register(
         text: lines(
           `${m.id} ${m.part ? `part ${regionText(partShown(sharedDir(ctx), all, m)!)} of ` : ""}${b ? `image ${m.image ?? "?"} of ${b.id} ${b.title}` : "image"}${pageLabel(tree, m) ? ` · page ${pageLabel(tree, m)}` : ""}`,
           `${m.width ? `${m.width}×${m.height} px · ` : ""}${Math.round(m.size / 1024)} kB · ${m.mime}${m.from ? ` · from ${m.from}` : ""}${m.url ? ` · ${m.url}` : ""}`,
-          m.retracted ? `RETRACTED ${m.retracted.at.slice(0, 10)}: ${m.retracted.reason} — no view, part or excerpt uses it` : undefined,
+          m.retracted ? `RETRACTED ${localDayOf(m.retracted.at)}: ${m.retracted.reason} — no view, part or excerpt uses it` : undefined,
           parts.length ? `parts of it, sharper (a view of the image uses them by itself): ${parts.map((p) => `${p.id} ${regionText(partShown(sharedDir(ctx), all, p)!)}${p.width ? ` ${p.width}×${p.height}` : ""}`).join(" · ")}` : undefined,
           copies.length
             ? `other copies of the image: ${copies.map((c) => `${c.id}${c.width ? ` ${c.width}×${c.height}` : ""}`).join(" · ")} — the image is the sharpest (${image!.id}); a view of any copy uses it`

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -23,10 +23,34 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   w aplikacji Strom – zachować skan, przyjąć nowy plik jako ten skan albo nadać mu własny numer (`strom media aside`).
   Ostrzejsza kopia jest przejmowana tylko wtedy, gdy na pewno jest tym samym skanem – porównywane jest pismo, nie
   drukowany formularz; gdy nie da się tego rozstrzygnąć, plik również zostaje odłożony i pojawia się pytanie o niego.
+- **Agent z aplikacji Strom bez potwierdzenia:** ustawienie tego komputera `run.confirm` (Ustawienia → 1 → „Uruchamianie
+  agenta z aplikacji Strom”): `ask` – domyślnie, jak dotąd – albo `no`, a to, o co prosi aplikacja Strom i co tylko
+  uruchamia agenta w ramach subskrypcji lub kredytu AI (rozmowa, zadanie, praca nad kolejką, sprzeczność pozostawiona
+  agentowi, ustalanie miejsc – przy kilku partiach miejsc pyta się tylko o liczbę, a Enter uruchamia co najmniej jedną),
+  uruchamia się od razu; jedna linia w terminalu mówi o tym i gdzie pytanie włącza się z powrotem. Nadal pytane są:
+  pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby, warunek samodzielnej pracy i każde polecenie agenta.
+  Pytanie wyłącza tylko człowiek, nigdy agent.
+- **Usuwanie źródła:** źródło można usunąć w badaniu – `strom source retract` w terminalu lub usunięciem źródła w
+  aplikacji Strom, tylko przez osobę, nigdy przez agenta (może je jedynie zaproponować, z tym, co według `--dry-run` by
+  zabrało). Wartości zostają; jego cytaty są zdejmowane z danych i przechowywane w źródle, dana może stać się mniej
+  pewna, zadanie oparte tylko na nim zostaje odłożone, a rozstrzygnięta sprzeczność, która na nim stała, zostaje
+  oznaczona do sprawdzenia (`strom conflict keep` zachowuje rozstrzygnięcie). To, co zabierze, jest mówione wcześniej i
+  osoba to potwierdza; źródło można przywrócić wraz z cytatami (`strom source restore` lub cofnięcie w aplikacji Strom).
+  Źródło usunięte w aplikacji Strom podczas edycji drzewa jest usuwane w badaniu przy następnym wysłaniu – tylko przy
+  wysłaniu całego drzewa przez osobę; w przeciwnym razie Zmiany mówią, dlaczego nie. Usunięte źródło nie wraca już z
+  późniejszym plikiem ani importem. W terminalu `strom source show` mówi, że źródło jest usunięte, kiedy i co je
+  przywraca, a `strom source list --retracted` wypisuje usunięte źródła.
+- **Plik drzewa genealogicznego w materiałach:** aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
+  genealogicznego (GEDCOM, JSON aplikacji) i usuwa je na stałe jak każdy plik materiałów; ten, z którego powstało
+  źródło, tylko razem z tym źródłem, w jednym kroku z jednym potwierdzeniem (`strom input delete … --retract-sources`).
 - **Drobne poprawki:** zadanie wydzielone przez `strom task audit --fix` nazywa skany księgi jej tytułem, bez ID i
   czasownika; `strom task wait --images` podane ponownie dla tej samej księgi łączy jej skany (inna księga jest
   odrzucana: jedna księga na zadanie); dwie próby zbiorczej weryfikacji po sobie idą w kolejności zlecenia, starsza pierwsza; warunek limitów subskrypcji
-  odczytuje je w sekundę lub dwie, bez przeglądania rozmów zapisanych na komputerze.
+  odczytuje je w sekundę lub dwie, bez przeglądania rozmów zapisanych na komputerze; w aplikacji Strom każdy przypis
+  drzewa genealogicznego znów pokazuje własny wiersz drzewa (odnośnik utworzony przez import pozostaje na boku), a numer
+  skanu znany tylko z zarejestrowanych skanów jest tak oznaczony, by aplikacja dodała go do lokalizacji, nie wycinając z
+  niej numeru innego skanu. `strom pack` i `strom trees remove` nazywają skany z archiwów skanami (które idą razem,
+  które są pominięte), a kopia zapasowa przed usunięciem mówi, że zawiera rodzinne zdjęcia i oryginały.
 
 ## 1.35.0
 

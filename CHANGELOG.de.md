@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -25,11 +25,38 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   dieses Bild nehmen oder ihr eine eigene Nummer geben (`strom media aside`). Eine schärfere Kopie wird nur übernommen,
   wenn sie sicher derselbe Scan ist – verglichen wird die Handschrift, nicht das vorgedruckte Formular; lässt sich das
   nicht entscheiden, wird die Datei ebenfalls beiseitegelegt und erfragt.
+- **Der Agent aus der Strom-App ohne Rückfrage:** eine Einstellung dieses Computers, `run.confirm` (Einstellungen → 1 →
+  „Agent aus der Strom-App starten“): `ask` – der Standard, wie bisher – oder `no`, und worum die Strom-App bittet und
+  was nur den Agenten auf das Abonnement oder KI-Guthaben startet (ein Gespräch, eine Aufgabe, die Arbeit an der
+  Warteschlange, ein dem Agenten überlassener Widerspruch, die Bestimmung der Orte – bei mehreren Stapeln von Orten wird
+  nur nach der Anzahl gefragt, und Enter startet mindestens einen), startet sofort; eine Zeile im Terminal sagt es und
+  wo die Rückfrage wieder eingeschaltet wird. Weiter gefragt wird: eine Frage mit einem Preis in Geld, Zustimmungen,
+  Löschen, das Absenden einer Anfrage, die Bedingung der Alleinarbeit und jeder Befehl eines Agenten. Die Rückfrage
+  schaltet nur der Mensch ab, nie ein Agent.
+- **Eine Quelle löschen:** Eine Quelle lässt sich in der Forschung löschen – `strom source retract` im Terminal oder
+  durch Löschen der Quelle in der Strom-App, nur durch die Person, nie durch einen Agenten (er darf es nur vorschlagen,
+  mit dem, was es laut `--dry-run` mitnähme). Die Werte bleiben; ihre Zitate werden von den Angaben genommen und in der
+  Quelle aufbewahrt, eine Angabe kann weniger sicher werden, eine Aufgabe, die nur auf ihr beruht, wird beiseitegelegt,
+  und ein entschiedener Widerspruch, der auf ihr beruhte, wird zur Prüfung markiert (`strom conflict keep` behält die
+  Entscheidung bei). Was es mitnimmt, wird vorher gesagt und von der Person bestätigt; die Quelle lässt sich mit ihren
+  Zitaten wiederherstellen (`strom source restore` oder „Rückgängig“ in der Strom-App). Eine in der Strom-App beim
+  Bearbeiten des Stammbaums gelöschte Quelle wird in der Forschung mit dem nächsten Senden gelöscht – nur beim Senden
+  des ganzen Stammbaums durch die Person; sonst sagen die Änderungen, warum nicht. Eine gelöschte Quelle kommt mit
+  keiner späteren Datei und keinem Import zurück. Im Terminal sagt `strom source show`, dass eine Quelle gelöscht ist,
+  wann und was sie zurückholt, und `strom source list --retracted` listet die gelöschten auf.
+- **Die Datei eines Stammbaums im Material:** Die Strom-App zeigt die importierten Stammbaumdateien (GEDCOM, JSON der
+  App) im Material und löscht sie endgültig wie jede Datei des Materials; eine, aus der eine Quelle entstand, nur
+  zusammen mit dieser Quelle, in einem Schritt mit einer Bestätigung (`strom input delete … --retract-sources`).
 - **Kleinere Korrekturen:** Eine mit `strom task audit --fix` abgetrennte Aufgabe nennt die Bilder des Buchs mit dessen
   Titel, ohne ID und Verb; `strom task wait --images` erneut für dasselbe Buch angegeben, fügt dessen Bilder zusammen (ein
   anderes Buch wird abgelehnt: ein Buch je Aufgabe); zwei Versuche der Sammelprüfung nacheinander kommen in der Reihenfolge, in der sie
   angefordert wurden, der ältere zuerst; die Bedingung der Abo-Limits liest sie in ein, zwei Sekunden,
-  ohne die auf dem Computer gespeicherten Unterhaltungen zu durchsuchen.
+  ohne die auf dem Computer gespeicherten Unterhaltungen zu durchsuchen; in der Strom-App zeigt jede Quellenangabe eines
+  Stammbaums wieder ihre eigene Zeile des Stammbaums (ein Verweis, den ein Import angelegt hat, bleibt außen vor), und eine
+  nur aus den erfassten Scans bekannte Bildnummer ist als solche gekennzeichnet, sodass die App sie zur Fundstelle
+  hinzufügt, ohne die Nummer eines anderen Bildes daraus zu entfernen. `strom pack` und `strom trees remove` nennen die
+  Scans der Archive als Scans (welche mitgehen, welche weggelassen werden), und die Sicherung vor dem Entfernen sagt,
+  dass sie die Fotos und Originale der Familie enthält.
 
 ## 1.35.0
 

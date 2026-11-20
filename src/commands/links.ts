@@ -255,8 +255,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // left to the agent: it costs — said and asked first, then the conversation about it
       const say = aboutConflict(root, ctx, link.id);
       if (!say) return said("ui.link.conflict.none", { id: link.id });
-      const { asks } = await import("../cli/menu-links.ts");
-      if (!(await asks(ctx, treeLang, root, ui(treeLang, "ui.link.what.conflict.agent", { agent, title: tree.get<Conflict>(link.id)!.title }), ui(treeLang, "ui.link.cost")))) return end(false);
+      const { asksToStart } = await import("../cli/menu-links.ts");
+      if (!(await asksToStart(ctx, treeLang, root, ui(treeLang, "ui.link.what.conflict.agent", { agent, title: tree.get<Conflict>(link.id)!.title }), ui(treeLang, "ui.link.cost")))) return end(false);
       // the user's own edit: the agent may decide it only once the user left it so — written first, by the person
       if (isEditConflict(tree.get<Conflict>(link.id)!) && (await run(["conflict", "leave", link.id], true)) !== 0) return end(false);
       return { text: "", data: { done: (await run(["chat", `--say=${say}`])) === 0, action: link.action, tree: root } };
@@ -349,7 +349,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
   const named = "person" in link ? link.person : undefined;
   const person = named ? personOf(root, ctx, named) : undefined;
   if (named && !person) return said("ui.link.noperson", { person: named });
-  const { asks } = await import("../cli/menu-links.ts");
+  const { asks, asksToStart } = await import("../cli/menu-links.ts");
   switch (link.action) {
     case "chat": {
       // one direction: its tasks only (the research's own name and ID in the first message)
@@ -361,7 +361,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
         : person
           ? ui(treeLang, "ui.link.what.chat.person", { agent, person: who(person) })
           : ui(treeLang, "ui.link.what.chat", { agent });
-      if (!(await asks(ctx, treeLang, root, what, ui(treeLang, "ui.link.cost")))) return { text: "", data: { done: false, action: link.action, tree: root } };
+      if (!(await asksToStart(ctx, treeLang, root, what, ui(treeLang, "ui.link.cost")))) return { text: "", data: { done: false, action: link.action, tree: root } };
       const first = direction ? aboutDirection(treeLang, direction) : person ? aboutPerson(treeLang, person) : undefined;
       return { text: "", data: { done: (await run(["chat", ...(first ? [`--say=${first}`] : [])])) === 0, action: link.action, tree: root } };
     }
@@ -626,7 +626,9 @@ register(
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
-      "What writes tasks or starts the agent is said and asked in the terminal first. Any page can open such a link:\n" +
+      "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
+      "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
+      "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +

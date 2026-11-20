@@ -29,8 +29,8 @@ export interface MaterialFile {
   name: string;
   /** What a person (or whoever sorted it) called it. */
   title?: string;
-  /** What it is: a record, a document, a photo (as it was sorted), other. */
-  kind?: (typeof MATERIAL_KINDS)[number];
+  /** What it is: a record, a document, a photo (as it was sorted), other — or a family tree (`?trees=1`, spec 117 K2.1). */
+  kind?: (typeof MATERIAL_KINDS)[number] | "tree";
   /** When the document was written or the photo taken (a GEDCOM date). */
   date?: string;
   sha: string;
@@ -153,6 +153,14 @@ export function live(tree: Pick<Tree, "get">, id: string): string {
  */
 function isMaterial(i: Input & { sync?: unknown }): boolean {
   return !i.retracted && !!i.sha && (!!i.file || (!!originOf(i) && !!i.working)) && !i.sync && i.kind !== "tree" && !portraitOnly(i);
+}
+
+/**
+ * A family tree's file the research keeps (spec 117 K2.1): an input of a family tree (GEDCOM, the app's JSON) with its
+ * bytes, not one a sync sent, not retracted — listed (GET /material?trees=1) and deleted as the material is.
+ */
+export function isTreeFile(i: Input & { sync?: unknown }): boolean {
+  return !i.retracted && !!i.sha && !!i.file && i.kind === "tree" && !i.sync;
 }
 
 function portraitOnly(i: Input): boolean {
@@ -315,14 +323,14 @@ function hiddenOf(i: Input): MaterialFile["hidden"] | undefined {
  * The family's files the research keeps (never the family trees sent, which are the research itself), oldest first —
  * hidden ones too, said so. `files: false`: only the batches (and the people's names), counted as with the files.
  */
-export function material(tree: Tree, shared: string | undefined, only: { person?: string; batch?: string; ids?: string[]; files?: boolean } = {}): Material {
+export function material(tree: Tree, shared: string | undefined, only: { person?: string; batch?: string; ids?: string[]; files?: boolean; trees?: boolean } = {}): Material {
   const batches = listBatches(tree.root);
   const batchPersons = new Map(batches.map((b) => [b.id, [...new Set((b.persons ?? []).map((p) => live(tree, p)))]]));
   const person = only.person ? live(tree, only.person) : undefined;
   const ids = only.ids ? new Set(only.ids) : undefined;
   const files: MaterialFile[] = [];
   let idx: UsesIndex | undefined;
-  const all = tree.list<Input & { sync?: unknown }>("input").filter(isMaterial);
+  const all = tree.list<Input & { sync?: unknown }>("input").filter((i) => isMaterial(i) || (!!only.trees && isTreeFile(i)));
   // the oldest file of each content: the others are the same as it
   const firstOf = new Map<string, Input>();
   for (const i of [...all].sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id))) if (!firstOf.has(i.sha!)) firstOf.set(i.sha!, i);
@@ -335,7 +343,7 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
     const file = materialFile(tree, shared, i);
     const s = i.sorted;
     // what the user said in the app comes before what sorting found
-    const kind = i.materialKind ?? (s ? KIND_OF_SORT[s.as] : undefined);
+    const kind = isTreeFile(i) ? ("tree" as const) : (i.materialKind ?? (s ? KIND_OF_SORT[s.as] : undefined));
     const hidden = hiddenOf(i);
     const links = (i.links ?? []).filter((l) => !l.retracted).map((l) => ({ type: l.type, ref: l.type === "person" || (l.type === "event" && l.ref.startsWith("P")) ? live(tree, l.ref) : l.ref, ...(l.event ? { event: l.event } : {}) }));
     const used = usesFrom((idx ??= usesIndex(tree)), i);
@@ -417,8 +425,8 @@ function refused(code: "material.body" | "material.file" | "material.person" | "
   return new UsageError(message, { code, params, hint: code === "material.body" ? "strom help input assign" : "strom input list — the files of the material; strom person list — its people" });
 }
 
-/** The files asked for, as they are now: each a file of the material — or the first that is not, refused. */
-export function filesAsked(tree: Tree, ids: string[]): Input[] {
+/** The files asked for, as they are now: each a file of the material (`trees`: a family tree's file too) — or the first that is not, refused. */
+export function filesAsked(tree: Tree, ids: string[], how: { trees?: boolean } = {}): Input[] {
   if (!ids.length) throw refused("material.body", "give the files (I…)");
   if (ids.length > MATERIAL_MOST_FILES) throw refused("material.body", `at most ${MATERIAL_MOST_FILES} files at once`, { most: String(MATERIAL_MOST_FILES) });
   const out: Input[] = [];
@@ -429,7 +437,7 @@ export function filesAsked(tree: Tree, ids: string[]): Input[] {
     if (seen.has(id)) continue;
     seen.add(id);
     const i = tree.get<Input & { sync?: unknown }>(id);
-    if (!i || i.type !== "input" || !isMaterial(i)) throw refused("material.file", `the research has no file ${id} of the material${i?.retracted ? " (taken back)" : ""}`, { id });
+    if (!i || i.type !== "input" || !(isMaterial(i) || (how.trees && isTreeFile(i)))) throw refused("material.file", `the research has no file ${id} of the material${i?.retracted ? " (taken back)" : ""}`, { id });
     out.push(i);
   }
   return out;

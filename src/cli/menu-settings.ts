@@ -89,6 +89,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             if (!archive) {
               const decide = ctx.settings.hypothesesDecide(tree);
               parts.push({ label: t("ui.settings.hypotheses", { state: t(decide === "agent" ? "ui.hypotheses.decide.agent" : "ui.hypotheses.decide.person") }), act: () => hypothesesStep(ctx, run, lang, root) });
+              // the question before the agent starts from the Strom app's links (run.confirm, spec 123): this computer's
+              parts.push({ label: t("ui.settings.runconfirm", { state: t(ctx.settings.runConfirm() === "no" ? "ui.runconfirm.no" : "ui.runconfirm.ask") }), act: () => runConfirmStep(ctx, run, lang) });
             }
             if (parts.length) {
               const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
@@ -203,6 +205,22 @@ async function hypothesesStep(ctx: Context, run: Run, lang: string, root: string
   if (values[i] === "agent" && !(await ctx.confirm(t("ui.consent.hypotheses.agent"), false))) return;
   const own = !!tree && readStored(tree, "hypotheses.decide", "") !== undefined;
   await run(["config", "set", "hypotheses.decide", values[i]!, ...(own ? ["--for-tree"] : [])], true);
+}
+
+/**
+ * The question before the agent starts from the Strom app's links (run.confirm): asked first (the default) or not; 0
+ * back with nothing changed. Without the question: what still asks said, and strom config set asks the person's own
+ * yes itself (an agent never turns it off). Asked again: anyone's, at once.
+ */
+async function runConfirmStep(ctx: Context, run: Run, lang: string): Promise<void> {
+  const t = translator(lang);
+  const now = ctx.settings.runConfirm();
+  const values = ["ask", "no"] as const;
+  const i = await ctx.choose(t("ui.runconfirm.pick"), [{ label: t("ui.runconfirm.choice.ask") }, { label: t("ui.runconfirm.choice.no") }], values.indexOf(now), { back: t("ui.browse.back") });
+  if (i === undefined || values[i] === now) return;
+  if (values[i] === "ask") return void (await run(["config", "unset", "run.confirm"], true));
+  ctx.io.stdout(t("ui.runconfirm.about") + "\n");
+  await run(["config", "set", "run.confirm", "no"], true);
 }
 
 /** The phone connection as the settings say it: off, or on with the phones paired (an error: said as one). */

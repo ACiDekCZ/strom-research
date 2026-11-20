@@ -14,7 +14,8 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
-import type { RecordSet, Task } from "../../src/core/model.ts";
+import type { Conflict, Input, RecordSet, Task } from "../../src/core/model.ts";
+import { create } from "../../src/core/records.ts";
 import { inboxFolderFor } from "../../src/core/media.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
 import { queueRun } from "../../src/core/sort.ts";
@@ -205,6 +206,18 @@ async function seeded(): Promise<World> {
   });
   inWords.commit("T0009, T0010 wait in words");
   await w.ok(["task", "audit", "T0010", "--fix"]);
+  // a source the person deleted (strom source restore) and a decided conflict standing on it, marked (strom conflict keep)
+  const copy = (await w.ok(["source", "add", "Opis křtů", "--kind", "baptism", "--json"])).json.source.id;
+  const marked = Tree.open(w.cwd, w.env);
+  const decided = marked.withTreeLock(() => {
+    const c = create<Conflict>(marked, "conflict", { title: "Úmrtí Marie", fact: "DEAT", subject: ["P0003"], claims: [{ source: copy, value: "1931" }, { value: "1932" }], state: "resolved", resolution: "Platí 1931.", decidedBy: "user", notes: [] } as never, (id) => `${id} added`);
+    marked.commit(`${c.id} added`);
+    return c.id;
+  });
+  await w.ok(["source", "retract", copy], { dialog: true });
+  assert.deepEqual([copy, decided], ["S0007", "X0001"], "the IDs of the examples of source restore, conflict keep");
+  // the family tree imported (I0004) and the source made of it: the example of input delete --retract-sources
+  assert.equal(Tree.open(w.cwd, w.env).get<Input>("I0004")?.source, "S0004", "the source of the family tree imported");
   return w;
 }
 

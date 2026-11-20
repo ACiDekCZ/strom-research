@@ -88,10 +88,12 @@ test("the GEDCOM: PAGE composed of the fields given, an existing locator as it w
     assert.deepEqual(validateGedcom(strom).filter((f) => f.level === "error"), []);
     // an app that reads them: the fields after the PAGE
     const fields = exportGedcom(tree, { for: "strom", research: true, sourceFields: true }).text;
-    assert.match(record(fields, "S0001"), /^1 PAGE pag\. 112, č\. 3, snímek 57\r?\n1 _STROM_FOLIO pag\. 112\r?\n1 _STROM_IMAGE 57\r?\n1 _STROM_LOCATOR č\. 3\r?\n/m);
+    assert.match(record(fields, "S0001"), /^1 PAGE pag\. 112, č\. 3, snímek 57\r?\n1 _STROM_FOLIO pag\. 112\r?\n1 _STROM_IMAGE 57\r?\n1 _STROM_LOCATOR č\. 3\r?\n/m, "an image given: no mark");
     assert.match(record(fields, "S0002"), /^1 PAGE fol\. 12v, snímek 34\r?\n1 _STROM_LOCATOR fol\. 12v, snímek 34\r?\n/m);
-    assert.match(record(fields, "S0004"), /^1 PAGE č\. 9\r?\n1 _STROM_IMAGE 60\r?\n1 _STROM_LOCATOR č\. 9\r?\n/m);
-    assert.equal(fields.replace(/^1 _STROM_(FOLIO|IMAGE|LOCATOR) .*\r?\n/gm, "").replace(/^1 _STROM_ASOF .*$/m, ""), strom.replace(/^1 _STROM_ASOF .*$/m, ""), "nothing else of the file differs");
+    // an image only its registered scans give: marked (the app cuts no other image's number out of the location)
+    assert.match(record(fields, "S0004"), /^1 PAGE č\. 9\r?\n1 _STROM_IMAGE 60\r?\n2 _STROM_DERIVED Y\r?\n1 _STROM_LOCATOR č\. 9\r?\n/m);
+    assert.equal((fields.match(/_STROM_DERIVED/g) ?? []).length, 1, "only the image of the scans");
+    assert.equal(fields.replace(/^1 _STROM_(FOLIO|IMAGE|LOCATOR) .*\r?\n(?:2 _STROM_DERIVED Y\r?\n)?/gm, "").replace(/^1 _STROM_ASOF .*$/m, ""), strom.replace(/^1 _STROM_ASOF .*$/m, ""), "nothing else of the file differs");
     assert.deepEqual(validateGedcom(fields).filter((f) => f.level === "error" || f.level === "warn"), []);
     // the standard file: the composed location on the citation's PAGE and in the note, no tag of Strom's
     const standard = exportGedcom(tree, { for: "standard" }).text;

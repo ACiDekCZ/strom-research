@@ -1218,6 +1218,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
   "read.sourceTask": () => "ask",
+  "run.confirm": () => "ask",
   "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,
@@ -1760,6 +1761,18 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
         value ? `strom config set run.gate ${value}` : "strom config unset run.gate",
         "run.gate",
         ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
+      ))
+    )
+      return false;
+  // The agent started from the Strom app's links without the question (a standing yes to its subscription or credit):
+  // turned on by the user alone, their yes in a terminal too; asking again is anyone's.
+  if (key === "run.confirm" && value === "no" && s.runConfirm() !== "no")
+    if (
+      !(await ctx.requireHumanYes(
+        "Start the agent from the Strom app's links without asking first (it works on the subscription or AI credit)?",
+        "strom config set run.confirm no",
+        "run.confirm",
+        ui(ctx.uiLang(), "ui.consent.run.confirm"),
       ))
     )
       return false;

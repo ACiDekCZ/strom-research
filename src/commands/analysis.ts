@@ -51,6 +51,7 @@ import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { refuseNegativeOverUnclear } from "./readings.ts";
 import { hypothesisPeople } from "../core/directions.ts";
+import { keepConflict } from "../core/sourceretract.ts";
 import { BIG_BRANCH, branchJoined } from "../core/kin.ts";
 
 function written(tree: Tree): string {
@@ -771,7 +772,8 @@ register(
           id,
           "conflict",
           (c) => {
-            const { taken: _t, decidedIn: _i, ...rest } = c;
+            // decided (again): a mark of review of a source deleted goes (spec 117 K1.7)
+            const { taken: _t, decidedIn: _i, review: _r, ...rest } = c;
             return { ...rest, state: "resolved", resolution, reasoning: String(opts.reasoning), decidedBy: by, ...(inApp ? { decidedIn: "app" as const } : {}), decidedAt: new Date().toISOString(), ...(side ? { taken: side } : {}), notes: [...c.notes, ...earlier, ...newer] };
           },
           {
@@ -809,6 +811,25 @@ register(
       if (c0.leftToAgent) return { text: `${id}: left to the agent already`, data: { conflict: c0 } };
       const x = update<Conflict>(tree, id, "conflict", (c) => ({ ...c, leftToAgent: new Date().toISOString() }), { op: "conflict.leave", summary: `${id} left to the agent by the user` });
       return { text: written(tree), data: { conflict: x } };
+    },
+  },
+  {
+    path: ["conflict", "keep"],
+    summary: "A decision stands though a source it stood on was deleted: its mark of review taken off (the person's own)",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    person: "Whether a decision stands without the source the person deleted is the person's judgment: the Strom app or their terminal, never an agent",
+    description:
+      "A conflict that stood on a source the person deleted (strom source retract) is marked for review, its state kept.\n" +
+      "Deciding it (again) takes the mark off; for a decided one this says the decision stands as it is. Refused for an\n" +
+      "open conflict or one with no mark (conflict.notMarked). An agent may tell the person of the mark, never take it off.",
+    args: [{ name: "conflicts", description: "conflict IDs (X0001 …)", required: true, variadic: true }],
+    examples: ["strom conflict keep X0001"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const kept = args.map((a) => keepConflict(tree, a).id);
+      return { text: written(tree), data: kept.length === 1 ? { conflict: kept[0]!, conflicts: kept } : { conflicts: kept } };
     },
   },
   {

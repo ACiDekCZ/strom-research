@@ -75,6 +75,22 @@ export function quay(src: Source | undefined, c: Citation): 0 | 1 | 2 | 3 {
   return info === "primary" ? 2 : 1; // derivative: a copy, an index, a transcript
 }
 
+/**
+ * A source a new citation may cite: the research's, not retracted — a source the person deleted (spec 117) is cited by
+ * nobody, agent or person, until it is restored (source.retracted); a duplicate merged away: its record instead.
+ */
+export function citableSource(tree: Pick<Tree, "get">, id: string): Source {
+  const s = tree.get<Source>(id);
+  if (!s || s.type !== "source") throw new UsageError(`no source ${id}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id } });
+  if (s.retracted)
+    throw new UsageError(`${id} is retracted${s.retracted.reason === "deleted" ? " (deleted by the person)" : `: ${s.retracted.reason}`} — nothing cites it`, {
+      hint: s.mergedInto ? `cite ${s.mergedInto}, the record it was merged into` : s.retracted.reason === "deleted" ? `only the person puts it back (strom source restore ${id}); cite another record` : "cite another record",
+      code: "source.retracted",
+      params: { id },
+    });
+  return s;
+}
+
 /** The status a fact gets when none is given. */
 export function defaultStatus(tree: Tree, citations: Citation[]): Status {
   if (citations.length === 0) return "lead";

@@ -25,6 +25,7 @@ import path from "node:path";
 import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type MediaLink, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type ShorterNote, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { checkStatus, isCompiled } from "./evidence.ts";
+import { deletedSource, retractSources, restoreSources, RETRACT_MOST } from "./sourceretract.ts";
 import { clearRemoved } from "./citeorder.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
@@ -49,7 +50,7 @@ import { verifyConfirm } from "./verify.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
-import { applyProposal, changedPerson, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
+import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
 import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
@@ -324,6 +325,11 @@ export interface Snapshot {
   since?: string;
   /** A send taken back, sent again (strom's own mark, _STROM_AGAIN R…): against the research as the undo left it. */
   again?: string;
+  /**
+   * The research's sources the person deleted in the Strom app (HEAD `1 _STROM_SOURCE_DELETED S…`, one line each; spec
+   * 117 K1.4): the research deletes them too (core/sourceretract.ts) when the file may say so — never a source merely missing.
+   */
+  sourcesDeleted?: string[];
   /** The Strom app's version that wrote the file (its HEAD: 1 SOUR STROM, 2 VERS). */
   appVersion?: string;
   /** The data version of the Strom app's JSON the file is (its `version`): the gates of what it decides by it. */
@@ -1148,6 +1154,8 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
   const appTree = val(head, "_STROM_APP_TREE")?.trim();
   const since = val(head, "_STROM_SINCE")?.trim();
   const again = val(head, "_STROM_AGAIN")?.trim();
+  // the sources the person deleted in the app (spec 117 K1.4): an older strom passes the lines by, as any mark it does not know
+  const sourcesDeleted = head ? deletedSourcesOf(children(head, "_STROM_SOURCE_DELETED").map((n) => n.value ?? "")) : [];
   const appVersion = fromApp.app ? val(children(head!, "SOUR")[0], "VERS")?.trim() : undefined;
   const surnames = head ? surnameMarksOf(head) : undefined;
   const lines = /^y(es)?$/i.test(val(head, "_STROM_LINES")?.trim() ?? "");
@@ -1169,10 +1177,22 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     ...(appTree && SEND_MARK.test(appTree) ? { appTree } : {}),
     ...(since && /^R\d{17}-[0-9a-f]{4}$/.test(since) ? { since } : {}),
     ...(again && /^R\d{17}-[0-9a-f]{4}$/.test(again) ? { again } : {}),
+    ...(sourcesDeleted.length ? { sourcesDeleted } : {}),
     ...(objects?.files.size ? { media: objects.files } : {}),
     ...(unreadable.length ? { mediaUnreadable: unreadable } : {}),
     problems,
   };
+}
+
+/** The IDs of `_STROM_SOURCE_DELETED` lines (S42, s0042 → S0042), each once, at most RETRACT_MOST — anything else no source. */
+export function deletedSourcesOf(values: string[]): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    const m = /^S(\d{1,9})$/iu.exec(v.trim());
+    const id = m ? `S${m[1]!.padStart(4, "0")}` : undefined;
+    if (id && !out.includes(id) && out.length < RETRACT_MOST) out.push(id);
+  }
+  return out;
 }
 
 /** A source's page where it has none of its own (the research's export: its citations'), when written, its quality: from the first citation. */
@@ -1726,6 +1746,8 @@ export interface Received {
   /** Written: the changes of the app's files it wrote (spec 108) — at most NOT_WRITTEN_KEPT, `mediaCount` all. */
   media?: MediaWritten[];
   mediaCount?: number;
+  /** Written: the research's sources the person deleted in the app, deleted with it (spec 117 K1.4, `_STROM_SOURCE_DELETED`). */
+  retracted?: string[];
   /**
    * The app said the send carries every file of its tree (POST /sync?media=app, spec 108 P4): a place of a file it was
    * given with the files and no longer has is taken off. Without it the files only add.
@@ -1766,7 +1788,7 @@ function appSource(key: string): string {
  */
 export function notWrittenOf(c: Change): { source?: string; place?: string } {
   const source = c.sourceId ?? (c.source ? appSource(c.source) : undefined);
-  const cited = c.kind.startsWith("source.") || c.kind.startsWith("media.") || c.kind === "fact.uncite" || c.kind === "fact.main" || c.kind === "person.cite" || c.kind === "family.cite";
+  const cited = c.kind.startsWith("source.") || c.kind.startsWith("media.") || c.code === "source.retracted" || c.kind === "fact.uncite" || c.kind === "fact.main" || c.kind === "person.cite" || c.kind === "family.cite";
   return { ...(source && cited ? { source } : {}), ...(c.kind === "place.coords" && c.place?.name ? { place: c.place.name } : {}) };
 }
 
@@ -1801,6 +1823,7 @@ export function notWrittenList(changes: readonly Change[]): NotWritten[] {
         ...(about.place ? { place: about.place } : {}),
         ...(c.media?.record ? { record: c.media.record } : {}),
         ...(c.code === "media.unreadable" && c.text ? { name: c.text, part: c.media ? "text" : "data" } : {}),
+        ...(c.retractWhy ? { why: c.retractWhy } : {}),
       };
       return {
         kind: c.kind,
@@ -1937,7 +1960,7 @@ function decide(root: string, r: Received, to: Partial<Received> & { state: Rece
 export function settleReceived(
   root: string,
   file: string,
-  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[]; media?: MediaWritten[] },
+  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[]; media?: MediaWritten[]; retracted?: string[] },
   applied: Applied[] = [],
 ): void {
   const r = receivedOf(root, file);
@@ -2293,6 +2316,7 @@ export function recentSends(root: string, tree?: Tree, days = 7, max = 20): Reco
       ...(r.skipped?.length ? { skipped: r.skipped } : {}),
       // the app's files it wrote (spec 108): the first ones, and how many
       ...(r.media?.length ? { media: r.media, mediaCount: r.mediaCount ?? r.media.length } : {}),
+      ...(r.retracted?.length ? { retracted: r.retracted } : {}),
       // pending, tried while the research was busy: so many times so far (it is tried again)
       ...(r.state === "pending" && r.tries ? { tries: r.tries } : {}),
     }));
@@ -2662,7 +2686,8 @@ export type ChangeKind =
   | "media.photo.removed"
   | "media.couplePhoto.removed"
   | "media.attachment.removed"
-  | "media.unlink";
+  | "media.unlink"
+  | "source.retract";
 
 /** A change of a file of the app's tree (media.*): which file of the send, the place it gets, what of it changes. */
 export interface MediaChange {
@@ -2790,7 +2815,15 @@ export interface Change {
   code?: NotWrittenCode;
   /** media.*: the file of the app's tree it is of (core/appmedia.ts). */
   media?: MediaChange;
+  /**
+   * source.retract (spec 117 K1.4): a source the person deleted in the app (`sourceId`) — deleted in the research too
+   * (action user), or not, and why (report, code source.retract-skipped).
+   */
+  retractWhy?: RetractSkipped;
 }
+
+/** Why a source the app's file says the person deleted is not deleted in the research (spec 117 R4, J7). */
+export type RetractSkipped = "noHead" | "partial" | "stillCited" | "unknown" | "retracted" | "notPerson";
 
 /**
  * Why a change of the app's file is not written (spec 095 K3.4): stable codes — new ones are only added, none changes
@@ -2816,6 +2849,8 @@ export type NotWrittenCode =
   | "event.retracted"
   | "media.eventMissing"
   | "media.unreadable"
+  | "source.retract-skipped"
+  | "source.retracted"
   | "report";
 
 export interface Plan {
@@ -3052,10 +3087,32 @@ export function planSync(
   const carriedFam = new Set(incoming.families.flatMap((f) => f.facts.map((x) => kindOf(x.kind))));
   // the sources first: what the file's citations are the research has, or what comes with them
   const readings = new Map<string, ReadingCheck>();
+  // a source the person deleted, and what cites it, never comes back with a file (spec 117 J6): each said instead
+  for (const c of withholdDeleted(tree, incoming)) push(c);
   const sources = planSources(tree, incoming, ours, base, push, readings, edits);
   const reads = readsFor(tree, incoming, sources, changes, readings);
   // the research's sources the file has at all (one it has nowhere the user removed in the app, or it never came)
   const inFile = new Set([...(incoming.sources?.keys() ?? [])].map((k) => sources.get(k) ?? k));
+  // the sources the person deleted in the app (spec 117 K1.4): the research deletes them too — only on the person's own
+  // send of a whole file the research gave the app, the source nowhere in it; anything else said, nothing deleted
+  const namedDeleted = new Set(incoming.sourcesDeleted ?? []);
+  for (const id of incoming.sourcesDeleted ?? []) {
+    const s = tree.get<Source>(id);
+    const why: RetractSkipped | undefined = !tree.personWrites
+      ? "notPerson"
+      : !incoming.head
+        ? "noHead"
+        : partial
+          ? "partial"
+          : citedInFile(incoming, sources, id)
+            ? "stillCited"
+            : !s || s.type !== "source"
+              ? "unknown"
+              : s.retracted
+                ? "retracted"
+                : undefined;
+    push({ kind: "source.retract", ...(why ? { action: "report" as const, code: "source.retract-skipped" as const, retractWhy: why } : { action: "user" as const }), sourceId: id, ...(s?.title ? { text: s.title } : {}) });
+  }
   const idOf = (key: string) => (key.startsWith("x:") ? key : (resolve(tree, key)?.id ?? key));
   // who the records name at a fact: the same person by their key or a name of theirs; the role "other" is any role
   // (the Strom app has no name for an informant or a midwife)
@@ -3251,7 +3308,8 @@ export function planSync(
       if (!e || e.retracted || !given?.cites?.length) return;
       const here = new Set([...(f.cites ?? []), ...(owner.family ? (famCites ?? []) : [])].map((c) => sources.get(c.source) ?? c.source));
       for (const id of new Set(given.cites.map((c) => c.source))) {
-        if (here.has(id) || !e.citations.some((c) => c.source === id)) continue;
+        // a source the file says the person deleted: said once, as its own line (spec 117 K1.4)
+        if (here.has(id) || !e.citations.some((c) => c.source === id) || namedDeleted.has(id)) continue;
         const code: NotWrittenCode | undefined = !inFile.has(id) ? "cite.sourceRemoved" : !sendsUncite ? "cite.olderApp" : undefined;
         if (code) {
           if (readsMain) push({ kind: "fact.uncite", action: "report", code, ...owner, fact: f, was: o, sourceId: id });
@@ -4353,6 +4411,71 @@ function citedLocators(tree: Tree, source: string): string[] {
  * before), or new. Of the research's, what the user changed in the app since it was given — the app's own source
  * corrected, a record the research read a second reading beside it — and "transcript verified" ticked.
  */
+/** Whether the file still has the research's source: a record of it, or anything citing it (spec 117 R4 stillCited). */
+function citedInFile(incoming: Snapshot, sources: Map<string, string>, id: string): boolean {
+  const is = (key: string) => (sources.get(key) ?? key) === id;
+  if ([...(incoming.sources?.keys() ?? [])].some(is)) return true;
+  const cites = (xs: SCite[] | undefined) => !!xs?.some((c) => is(c.source));
+  const facts = (fs: SFact[]) => fs.some((f) => cites(f.cites));
+  return [...incoming.persons.values()].some((p) => cites(p.cites) || facts(p.facts)) || incoming.families.some((f) => cites(f.cites) || facts(f.facts));
+}
+
+/** What a file brings of a source the person deleted: worked out once for a file (it is planned again under the lock). */
+const WITHHELD = new WeakMap<Snapshot, Omit<Change, "n">[]>();
+
+/**
+ * A source the person deleted (core/sourceretract.ts) never comes back with a file (spec 117 J6): the file's source of
+ * its ID (REFN), and each citation of it, are taken out of the file before it is planned — each said, code
+ * source.retracted. Any other source retracted (merged, a sync undone) as before.
+ */
+function withholdDeleted(tree: Tree, incoming: Snapshot): Omit<Change, "n">[] {
+  const done = WITHHELD.get(incoming);
+  if (done) return done;
+  const out: Omit<Change, "n">[] = [];
+  const keys = new Map<string, string>();
+  for (const [key, inc] of incoming.sources ?? []) {
+    if (key.startsWith("x:")) continue;
+    let s = tree.get<Source>(key);
+    for (let hops = 0; s?.mergedInto && hops < 10; hops++) s = tree.get<Source>(s.mergedInto);
+    if (!s || !deletedSource(s)) continue;
+    keys.set(key, s.id);
+    out.push({ kind: "source.new", action: "report", code: "source.retracted", source: key, sourceId: s.id, text: inc.title || s.title });
+  }
+  // an import the file names whose source the person deleted: its values come with their origin, never citing it
+  for (const imp of incoming.imports?.values() ?? []) {
+    const s = deletedImportSource(tree, imp);
+    if (s) out.push({ kind: "source.new", action: "report", code: "source.retracted", sourceId: s.id, text: s.title });
+  }
+  if (keys.size) {
+    for (const key of keys.keys()) incoming.sources!.delete(key);
+    const left = (xs: SCite[] | undefined) => xs?.filter((c) => !keys.has(c.source));
+    const gone = (xs: SCite[] | undefined) => xs?.filter((c) => keys.has(c.source)) ?? [];
+    const facts = (fs: SFact[], owner: Pick<Change, "person" | "family" | "partners">) => {
+      for (const f of fs) {
+        const off = gone(f.cites);
+        if (!off.length) continue;
+        for (const c of off) out.push({ kind: "fact.cite", action: "report", code: "source.retracted", ...owner, fact: { ...f, cites: [c] }, sourceId: keys.get(c.source)! });
+        f.cites = left(f.cites);
+      }
+    };
+    for (const p of incoming.persons.values()) {
+      const off = gone(p.cites);
+      for (const c of off) out.push({ kind: "person.cite", action: "report", code: "source.retracted", person: p.key, cites: [c], sourceId: keys.get(c.source)! });
+      if (off.length) p.cites = left(p.cites);
+      facts(p.facts, { person: p.key });
+    }
+    for (const fam of incoming.families) {
+      const owner = { ...(fam.id ? { family: fam.id } : {}), partners: fam.partners };
+      const off = gone(fam.cites);
+      for (const c of off) out.push({ kind: "family.cite", action: "report", code: "source.retracted", ...owner, cites: [c], sourceId: keys.get(c.source)! });
+      if (off.length) fam.cites = left(fam.cites);
+      facts(fam.facts, owner);
+    }
+  }
+  WITHHELD.set(incoming, out);
+  return out;
+}
+
 function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snapshot | undefined, push: (c: Omit<Change, "n">) => void, readings: Map<string, ReadingCheck>, edits: "conflict" | "user"): Map<string, string> {
   const map = new Map<string, string>();
   let readSet: Set<string> | undefined;
@@ -5460,7 +5583,8 @@ export interface Applied {
     | "lineage.set"
     | "ids.add"
     | "event.confirm"
-    | "event.share";
+    | "event.share"
+    | "source.retract";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -5589,7 +5713,7 @@ export function applySync(
   source: Source,
   only?: Set<number>,
   guard: SyncGuard = { decidePerson: false },
-): { applied: Applied[]; changes: number; skipped: Skipped[]; asked?: string[]; proposed?: SyncProposal[] } {
+): { applied: Applied[]; changes: number; skipped: Skipped[]; asked?: string[]; proposed?: SyncProposal[]; retracted?: string[] } {
   const applied: Applied[] = [];
   const skipped: Skipped[] = [];
   // the person's sync (their terminal, the Strom app's bridge) writes as theirs; anybody else's — an agent's, a script's
@@ -5602,14 +5726,17 @@ export function applySync(
   // where what the user sent comes from (spec 066): a value the app marks of an import its file names — that import's
   // source (one for each import, the same on every later send); any other the user's own, citing the day's source
   const importSources = new Map<string, string>();
+  // an import's source the person deleted (spec 117 J6): its values keep their origin, cite it never
+  const importsDeleted = new Set<string>();
   const importSource = (key: string): string | undefined => {
     const known = importSources.get(key);
     if (known) return known;
     const imp = incoming.imports?.get(key);
     if (!imp) return undefined;
-    const { source: s, created } = importSourceFor(tree, imp, guard.input ?? source.input);
+    const { source: s, created, deleted } = importSourceFor(tree, imp, guard.input ?? source.input);
     importSources.set(key, s.id);
     if (created) applied.push({ do: "source.add", id: s.id });
+    if (deleted) importsDeleted.add(s.id);
     return s.id;
   };
   /**
@@ -5625,7 +5752,7 @@ export function applySync(
   /** What a value the user sent cites: the import's source where the app marks it (and the day's for the parts the user changed), else the day's. */
   const citeFrom = (mark: ImportMark | undefined, locator: string): Citation[] => {
     const s = mark ? importSource(mark.key) : undefined;
-    return s ? [{ source: s, locator }, ...(mark!.parts?.length ? [cite(locator)] : [])] : [cite(locator)];
+    return s && !importsDeleted.has(s) ? [{ source: s, locator }, ...(mark!.parts?.length ? [cite(locator)] : [])] : [cite(locator)];
   };
   /** A fact the user changed: theirs, or the import's where the app marks it so (an import's value they changed kept to put back). */
   const markFact = (f: SFact) => (before: Event, next: Event): Event => {
@@ -7011,13 +7138,31 @@ export function applySync(
       return id ? resolve(tree, id)?.id : undefined;
     },
     family: (c) => c.family ?? (c.partners ? (families.get(famKey(c.partners.map((k) => who(k) ?? k))) ?? familyOfPartners(tree, c.partners.map((k) => who(k) ?? k))?.id) : undefined),
-    source: (key) => srcId(key) ?? (key.startsWith("x:") ? undefined : tree.get<Source>(key)?.id),
+    // never a source the person deleted (spec 117 J6)
+    source: (key) => srcId(key) ?? (key.startsWith("x:") || deletedSource(tree.get<Source>(key)) ? undefined : tree.get<Source>(key)?.id),
     input: guard.input,
     applied,
     skipped,
   });
+  // the sources the person deleted in the app (spec 117 K1.4): deleted in the research too, last — what the send wrote
+  // first, then the citations kept in each source (Source.deleted) — in the same write; the person's sync alone
+  const retracted: string[] = [];
+  const deleting = plan.changes.filter((x) => x.kind === "source.retract" && x.action === "user" && x.sourceId && taken(x));
+  if (deleting.length && person) {
+    const ok = deleting.filter((x) => {
+      const s = tree.get<Source>(x.sourceId!);
+      if (s && s.type === "source" && !s.retracted) return true;
+      skipped.push({ n: x.n, kind: x.kind, why: `${x.sourceId} is ${s ? "retracted already" : "not in the research"}`, code: "source.retract-skipped", params: { source: x.sourceId!, why: s ? "retracted" : "unknown" } });
+      return false;
+    });
+    if (ok.length) {
+      const r = retractSources(tree, ok.map((x) => x.sourceId!), { via: tree.env.STROM_FOR_APP === "1" ? "bridge" : "terminal" });
+      retracted.push(...r.retracted);
+      for (const id of r.retracted) applied.push({ do: "source.retract", id });
+    }
+  }
   // what became a proposal is no change written
-  return { applied, changes: changes - skipped.length - new Set(proposed.map((x) => x.n)).size, skipped, ...(asked.length ? { asked } : {}), ...(proposed.length ? { proposed } : {}) };
+  return { applied, changes: changes - skipped.length - new Set(proposed.map((x) => x.n)).size, skipped, ...(asked.length ? { asked } : {}), ...(proposed.length ? { proposed } : {}), ...(retracted.length ? { retracted } : {}) };
 }
 
 /** Where a task to check a reading of a document confirmed in the app comes from (one per person and its sources). */
@@ -7779,6 +7924,10 @@ export function undoSync(tree: Tree, input: SyncInput): number {
           update<Family>(tree, a.id, "family", (f) => (f.children.some((x) => x.person === link.person) ? f : { ...f, children: [...f.children, link] }), { op: "family.edit", summary: `${a.id} child ${link.person} back: ${reason}`, reason });
         break;
       }
+      case "source.retract":
+        // a source the person deleted in the app with the send (spec 117 K1.4): back, as strom source restore puts it
+        if (deletedSource(tree.get<Source>(a.id))) restoreSources(tree, [a.id]);
+        break;
       case "source.add":
         // an import's source a later send cites too stays (spec 066: one for each import)
         if (tree.get<Source>(a.id)?.imported && citedStill(tree, a.id)) break;

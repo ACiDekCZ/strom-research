@@ -5,7 +5,7 @@ import { DirectionExists, UsageError } from "./errors.ts";
 import { workOrder } from "./order.ts";
 import { normalizeDate, reversedRange } from "./gdate.ts";
 import { normalizeAge } from "./age.ts";
-import { checkStatus, defaultStatus } from "./evidence.ts";
+import { checkStatus, citableSource, defaultStatus } from "./evidence.ts";
 import { clearRemoved, refuseRemoved } from "./citeorder.ts";
 import {
   eventKind,
@@ -202,7 +202,7 @@ export function parseParticipant(tree: Tree, spec: string, o: { check?: boolean 
 }
 
 function checkCitation(tree: Tree, c: Citation): void {
-  if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
+  citableSource(tree, c.source);
 }
 
 /** A list of citations with one more; the same place of the same source twice is refused. */
@@ -222,8 +222,7 @@ export function makeEvent(tree: Tree, input: EventInput, forFamily = false): Eve
       hint: `strom event add <F…> ${kind} — or strom family add --partner … --married <date>; if the spouse is unknown use EVEN --label "Marriage"`,
     });
   const citations = input.citations ?? [];
-  for (const c of citations)
-    if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
+  for (const c of citations) citableSource(tree, c.source);
   const status = parseStatus(input.status, defaultStatus(tree, citations));
   checkStatus(tree, status, citations);
   if (forFamily && input.age?.trim())
@@ -689,8 +688,7 @@ export function notRetracted(tree: Tree, eventId: string, what: "cite" | "edit")
  */
 export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string, reason?: string): Event {
   notRetracted(tree, eventId, "cite");
-  const src = tree.get(citation.source);
-  if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: citation.source } });
+  citableSource(tree, citation.source);
   const newStatus = status === undefined ? undefined : parseStatus(status, "lead");
   const why = reason?.trim();
   const { main: _main, ...plain } = citation;
@@ -1265,7 +1263,13 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
   const facts = [...new Set((input.facts ?? []).map((f) => f.trim().toUpperCase()))];
   for (const f of facts) findEventOwner(tree, f);
   const sources = [...new Set((input.sources ?? []).map((s) => s.trim().toUpperCase()))];
-  for (const s of sources) if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web", code: "story.no-source", params: { kind: "source", id: s } });
+  for (const s of sources) {
+    if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web", code: "story.no-source", params: { kind: "source", id: s } });
+    citableSource(tree, s);
+  }
+  // a source the person deleted is named by no new story (spec 117 R3): its ID in the text is refused as a citation is
+  for (const s of sourcesNamed(tree, [input.title, text, input.note].filter(Boolean).join("\n")))
+    if (tree.get<Source>(s)?.retracted?.reason === "deleted") citableSource(tree, s);
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
     if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });

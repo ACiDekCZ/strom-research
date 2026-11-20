@@ -28,7 +28,10 @@ import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
 import { assignMaterial, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
-import { checkDeleteConfirm, DELETE_MOST_FILES, deleteImpacts, deleteMaterial, type DeleteImpact } from "../core/materialdelete.ts";
+import { checkDeleteConfirm, checkRetractWith, DELETE_MOST_FILES, deleteImpacts, deleteMaterial, deleteSourceImpacts, refuseLiveSources, type DeleteImpact } from "../core/materialdelete.ts";
+import { RETRACT_MOST } from "../core/sourceretract.ts";
+import { wouldLine } from "./sourceretract.ts";
+import { autoCommit } from "../cli/commit.ts";
 import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { appHasTree } from "../core/live.ts";
@@ -612,40 +615,57 @@ register(
       "research does not have, and nothing is written. --dry-run says all of it, file by file (--json: impacts). Without\n" +
       "it the person says yes in their own terminal (Enter says no), else in a window of the system; nobody to ask: exit\n" +
       "4. An agent never runs it, nor offers to run it for the person. It cannot be undone in the Strom app: a file stays\n" +
-      "only in a backup (strom backup) or a pack made before. Many files: --files-from <file> (one ID a line; - = stdin).",
+      "only in a backup (strom backup) or a pack made before. Many files: --files-from <file> (one ID a line; - = stdin).\n" +
+      "A family tree's file (an imported GEDCOM, the app's JSON) is deleted the same way — unless a source of the research\n" +
+      "was made of it and stands (exit with material.source-live): then only together with that source, --retract-sources\n" +
+      "S… (deleted first, as strom source retract does; one yes for both; the source can be restored, without the file).\n" +
+      "Everything is checked first and written in one commit; the bytes go only after it.",
     args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
     options: [
       { name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" },
+      { name: "retract-sources", type: "string", value: "<S…,S…>", description: "the sources made of a family tree's file, deleted with it (the person's, as strom source retract)" },
       // the Strom app's yes: what its bridge signed of the list the person saw there (POST /material/delete)
       { name: "confirm", type: "string", value: "<token>", hidden: true, description: "the Strom app's confirmation, signed by its bridge" },
     ],
-    examples: ["strom input delete I0003 --dry-run", "strom input delete I0003 I0005"],
+    examples: ["strom input delete I0003 --dry-run", "strom input delete I0003 I0005", "strom input delete I0004 --retract-sources S0004 --dry-run"],
     async run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const shared = ctx.settings.shared()?.value;
       const impacts = deleteImpacts(tree, shared, idsGiven(ctx, args, opts));
       const files = impacts.map((i) => i.id);
       const lang = tree.lang;
-      if (ctx.dryRun) return { text: lines(...impacts.map((i) => deleteWould(lang, i))), data: { files, impacts } };
+      // the sources made of a family tree's file, deleted with it (spec 117 K2.2): checked whole first
+      const given = typeof opts["retract-sources"] === "string" ? opts["retract-sources"].split(/[\s,]+/u).filter(Boolean) : [];
+      if (given.length > RETRACT_MOST) throw new UsageError(`at most ${RETRACT_MOST} sources at once`, { code: "material.body", params: { most: String(RETRACT_MOST) }, hint: "strom help input delete" });
+      checkRetractWith(impacts, given);
+      const sourceImpacts = deleteSourceImpacts(tree, given);
+      const sources = sourceImpacts.map((s) => s.id);
+      const both = sources.length ? { sources, impacts: sourceImpacts } : undefined;
+      if (ctx.dryRun) return { text: lines(...sourceImpacts.map((s) => wouldLine(lang, s)), ...impacts.map((i) => deleteWould(lang, i))), data: { files, impacts, ...(both ? { retractSources: sources, sourceImpacts } : {}) } };
+      // a family tree's file with a source standing: never without it
+      refuseLiveSources(impacts, sources);
       if (typeof opts.confirm === "string") {
         // the Strom app's: its bridge signed the list the person saw and said yes to there — only that list, only a while.
         // An agent's marks outweigh STROM_FOR_APP (the bridge runs this without them): an agent never deletes, not even
         // with a confirmation it got hold of
         if (isAgent(ctx.env))
           throw new UsageError("an agent never deletes files of the material for good, not even with the Strom app's confirmation: nothing deleted", { code: "material.agent", hint: "the person deletes them in the Strom app, or says yes to strom input delete in their own terminal" });
-        const said = ctx.env.STROM_FOR_APP === "1" ? checkDeleteConfirm(tree.key, files, impacts, opts.confirm) : "invalid";
+        const said = ctx.env.STROM_FOR_APP === "1" ? checkDeleteConfirm(tree.key, files, impacts, opts.confirm, Date.now(), both) : "invalid";
         if (said === "changed")
           throw new UsageError("the files would take other things with them than the person saw: nothing deleted", { code: "material.delete-changed", params: { files: files.join(",").slice(0, 200) }, hint: "the person looks at the list again in the Strom app" });
         if (said !== "ok") throw new UsageError("no confirmation of the Strom app that holds (signed by its bridge, at most 15 minutes old): nothing deleted", { code: "material.body", hint: "strom help input delete" });
       } else {
         const set = `strom input delete ${files.length > 10 ? `${files.slice(0, 10).join(" ")} …` : files.join(" ")}`;
-        const says = ui(ctx.uiLang(), "ui.consent.delete", { n: String(files.length) });
-        const how = await ctx.requireHumanYes(`Delete ${files.length} file(s) of the material for good (${files.slice(0, 10).join(", ")}${files.length > 10 ? " …" : ""})? Only the user decides this; an agent never deletes nor offers to.`, set, "material.delete", says);
-        if (!how) return { text: ui(ctx.uiLang(), "ui.consent.delete.no"), data: { files, deleted: [], impacts } };
+        const says = [...(sources.length ? [ui(ctx.uiLang(), "ui.consent.delete.sources", { list: sources.join(", ") })] : []), ui(ctx.uiLang(), "ui.consent.delete", { n: String(files.length) })].join(" ");
+        const how = await ctx.requireHumanYes(`Delete ${files.length} file(s) of the material for good (${files.slice(0, 10).join(", ")}${files.length > 10 ? " …" : ""})${sources.length ? `, and first the sources made of them (${sources.join(", ")})` : ""}? Only the user decides this; an agent never deletes nor offers to.`, `${set}${sources.length ? ` --retract-sources ${sources.join(",")}` : ""}`, "material.delete", says);
+        if (!how) return { text: ui(ctx.uiLang(), "ui.consent.delete.no"), data: { files, deleted: [], impacts, ...(both ? { sourceImpacts } : {}) } };
       }
       const before = filesOfTasks(tree);
-      const got = deleteMaterial(tree, shared, files, fileBy(tree, ctx.env));
+      const { removeBytes, ...got } = deleteMaterial(tree, shared, files, fileBy(tree, ctx.env), { retractSources: sources, via: ctx.env.STROM_FOR_APP === "1" ? "bridge" : "terminal" });
+      // written first, in one commit; only then do the bytes go (spec 117 R7) — a commit that fails keeps them
+      if (!autoCommit(ctx, { path: ["input", "delete"] } as never)) removeBytes();
       const out: string[] = [];
+      for (const id of got.retracted ?? []) out.push(ui(lang, "ui.input.delete.retracted", { source: id }));
       for (const i of got.impacts) {
         out.push(ui(lang, "ui.input.deleted", { id: i.id, name: i.name }));
         if (i.keptWhy === "sameAs") out.push(ui(lang, "ui.input.delete.kept.sameAs", { id: i.id, same: (i.sameAs ?? []).join(", ") }));

@@ -23,6 +23,28 @@ const STABLE = "9.0.0";
 const BETA = "9.1.0-beta.1";
 const opts = { skip: !hasGit || process.platform === "win32" };
 
+/**
+ * How long this computer takes now to start a Node process and let it end (the longest of three), measured as this
+ * file starts — under the load it runs in. The unit of the budget of a test that starts strom some fifty times: a busy
+ * computer (the whole suite beside it) outruns fixed milliseconds.
+ */
+function nodeStartMs(): number {
+  let most = 0;
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    most = Math.max(most, Date.now() - t);
+  }
+  return most;
+}
+
+/**
+ * The switch there and back (its installs, four updates with their backups, a bridge, some fifty strom commands): alone
+ * about 420 Node starts of this computer (18 s at 44 ms) — given 2000 of them, never less than the suite's own 240 s,
+ * at most 15 minutes.
+ */
+const SWITCH_MS = opts.skip ? 0 : Math.min(15 * 60_000, Math.max(240_000, 2_000 * nodeStartMs()));
+
 let dir = "";
 /** The two releases as files: GitHub's list of releases, its download folders, a Node mirror in nodejs.org's layout. */
 let rel: { stable: string; beta: string; list: string; download: string; nodes: string };
@@ -121,7 +143,8 @@ class Install {
         // not JSON
       }
     }
-    return { code: r.status ?? -1, out: r.stdout, err: r.stderr, json };
+    // stopped (its 120 s gone): said so, not a bare -1
+    return { code: r.status ?? -1, out: r.stdout, err: r.stderr + (r.signal ? `\n(stopped: ${r.signal}${r.error ? `, ${r.error.message}` : ""})` : ""), json };
   }
   ok(args: string[], o: { cwd?: string; env?: Record<string, string> } = {}) {
     const r = this.run(args, o);
@@ -205,7 +228,7 @@ function nothingMissing(a: Snapshot, b: Snapshot): void {
 
 const treeHashes = (tree: string) => files(tree, (rel) => rel === ".strom" || rel.startsWith(`.strom${path.sep}`));
 
-test("stable → beta → stable on an isolated installation: each switch backed up first, the research unchanged by it, the beta's person kept; a schema the beta raised: the stable refuses, changes nothing", opts, async () => {
+test("stable → beta → stable on an isolated installation: each switch backed up first, the research unchanged by it, the beta's person kept; a schema the beta raised: the stable refuses, changes nothing", { ...opts, timeout: SWITCH_MS }, async () => {
   const inst = new Install("switch");
   inst.install("stable");
   assert.equal(inst.version(), STABLE);

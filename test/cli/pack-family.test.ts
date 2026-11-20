@@ -121,6 +121,11 @@ test("pack and trees remove: archive scans apart from the family's photos and or
     m.batches.map((b) => ({ id: b.id, name: b.name, persons: b.persons, note: b.note })),
     [{ id: batch, name: "Krabice z půdy", persons: ["P0001"], note: "Dopisy, Фото 1946" }],
   );
+  // its files hold the batch's person again: the person's material lists both (108 V1)
+  const inBatch = material(back, shared, { batch }).files.map((f) => f.id).sort();
+  assert.equal(inBatch.length, 2, "the two files of the batch");
+  const ofPerson = material(back, shared, { person: "P0001" }).files;
+  for (const id of inBatch) assert.equal(ofPerson.find((f) => f.id === id)?.batch, batch, `${id} is the person's through its batch`);
   assert.ok(fs.existsSync(path.join(shared, ...scanFile.split("/"))), "the scan back from the package");
   // nothing else of strom's working folder came with it
   assert.deepEqual(fs.readdirSync(path.join(root, ".strom", "batches")), [`${batch}.json`]);

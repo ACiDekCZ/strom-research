@@ -529,7 +529,41 @@ export interface Source extends BaseRecord {
    * the program and its version, the file's date (HEAD DATE), when it was imported, the file and its hash.
    */
   imported?: { key: string; program?: string; version?: string; date?: string; at?: string; file?: string; sha?: string };
+  /**
+   * The person deleted the source (spec 117, strom source retract; `retracted.reason` "deleted"): the citations taken
+   * off the facts, names and families with it, the tasks and conflicts it changed — what strom source restore puts
+   * back. Optional: an older strom keeps it and sees the source retracted.
+   */
+  deleted?: SourceDeletion;
   notes: Note[];
+}
+
+/** What deleting a source (strom source retract) took off the tree, kept to put it back (core/sourceretract.ts). */
+export interface SourceDeletion {
+  at: string;
+  by: "user";
+  /** Where the person deleted it: the Strom app (the bridge) or the terminal. */
+  via?: "bridge" | "terminal";
+  reason?: string;
+  cites: DeletedCitation[];
+  /** The facts whose status the citations left could not carry: as sure as they were before. */
+  lowered?: { owner: string; event: string; from: Status; to: Status }[];
+  /** The tasks it ended or narrowed: each as it was, and when the deletion changed it (put back only if unchanged since). */
+  tasks?: { was: Task; after: string }[];
+  /** The conflicts it marked for review. */
+  conflicts?: string[];
+}
+
+/** One citation of a deleted source as it stood: on a fact (event), a name (its index and parts), or a family itself. */
+export interface DeletedCitation {
+  owner: string;
+  /** The fact's tag (NAME a name's, FAM a family's own). */
+  fact: string;
+  event?: string;
+  name?: { index: number; given: string; surname: string };
+  /** Its place among the citations it stood in. */
+  at: number;
+  citation: Citation;
 }
 
 /** The user's reading of a source: how (by hand, confirmed in the app, kept by the fix), when, of which transcript. */
@@ -1000,6 +1034,11 @@ export interface Conflict extends BaseRecord {
   decidedAt?: string;
   /** A conflict of the user's edit decided for a side: whose value the fact keeps. */
   taken?: "user" | "research";
+  /**
+   * To be looked at again (spec 117 K1.7): sources it stands on the person deleted. Gone when it is decided (again),
+   * kept as decided (strom conflict keep) or the sources restored. Optional: an older strom keeps it and ignores it.
+   */
+  review?: { why: "source.retracted"; sources: string[]; at: string };
   notes: Note[];
 }
 

@@ -145,7 +145,10 @@
 //                          citing them named in `people` too. `left` (feature material.left): {at, sort, why:
 //                          nothing-said|nothing-new|dropped, said?} — the last sort done that took it proposed nothing
 //                          of it (from the sorts kept here; a later proposal takes it off). `sameAs` (feature
-//                          material.sameAs): the oldest other file of the same content (SHA-256)
+//                          material.sameAs): the oldest other file of the same content (SHA-256). ?trees=1 (feature
+//                          material.trees, spec 117 K2.1): the family trees' files too, kind "tree" — an input of a family
+//                          tree (GEDCOM, the app's JSON) with its bytes, never one a sync sent nor an old import without
+//                          its file; `uses.of` via input only for a source standing. Without it: as before
 //   GET <token>/material/<I…>/uses   where the research uses a file (V10): {excerpts: [{source, recordset?, page?,
 //                          sha}], sources: [{id, title}], tasks: [{id, title, state}], of (as above)}; 404 material.file
 //   POST <token>/material/assign   the people files are of ({files: [I…] | batch, add: [P…], remove: [P…]}): strom
@@ -168,6 +171,16 @@
 //                          minutes); {files, confirm} → strom input delete: {files, deleted, impacts, head}. Impacts
 //                          changed since: 409 material.delete-changed {impacts}; no confirm that holds: 400 material.body;
 //                          404 material.file, 403 material.readonly, 409 material.busy (+ Retry-After), 403 app.only.
+//                          A family tree's file (feature material.trees, spec 117 K2.1–K2.3) as any file — one a source
+//                          standing was made of (source.input, input.source) has impacts[].blockedBy [S…] and is deleted
+//                          only with it: {files, confirm} alone 409 material.source-live {sources: [S…]} (params.sources
+//                          "S…,S…"); {files, retractSources: [S…] (only of blockedBy), dryRun: true} → {files,
+//                          retractSources, dryRun, impacts, sourceImpacts (as /source/retract's impacts), confirm} —
+//                          one confirm over both; {files, retractSources, confirm} → strom input delete
+//                          --retract-sources: the sources deleted first, the files taken back, one commit, only then the
+//                          bytes (R7; a failure anywhere writes nothing): {files, deleted, retracted, impacts,
+//                          sourceImpacts, head}; changed since: 409 material.delete-changed {impacts, sourceImpacts};
+//                          a source unknown or deleted already: 404 source.unknown | 409 source.retracted {id}.
 //   POST <token>/material/sort     files sorted by readers of the research (V13, feature material.sort — only where
 //                          accepts.read is: never an archive nor a research waiting for its agent; live-sort.ts):
 //                          {ids: [I…] (1–50), text (≤ 2000 characters)} → 202 {id, state: "queued"}; sorted one at a time
@@ -196,6 +209,28 @@
 //                          files, filesDone, parts: [{id, part, state, files, filesDone?}], waiting?: {why: read.app |
 //                          limit | …, retry?}} (ended: cancelled when a part was cancelled, else done when a part is done, else failed);
 //                          POST …/<run-…>/cancel: its parts not done stopped, {id, state, cancelled}
+//   POST <token>/source/retract    a source deleted by the person (spec 117 K1.1–K1.7, R4, J7; feature source.retract),
+//                          in the app's dialog, in two steps: {sources: [S…] (1–50), dryRun: true} → {sources, dryRun:
+//                          true, impacts: [{id, title, input?, counts: {persons: 0, names, events, families, stories},
+//                          cites: [{owner, fact, event?, others, locator?, main?}], stories: [{owner, inText}], bare:
+//                          [{owner, fact, event?}], lowered: [{owner, fact, event?, from, to}] (a bare one among them),
+//                          conflicts: [{id, status, becomes: review|unchanged}], tasks: [{id, state, becomes: dropped|
+//                          narrowed, heldBy?}], files: [I…], images, more: {…}}] (200 a list at most), confirm} (nothing
+//                          written; confirm: signed by the bridge with the seal key over the sources and the impacts, 15
+//                          minutes); {sources, confirm} → strom source retract --confirm (checked again under the
+//                          tree's lock): {sources, retracted, impacts, head}. Impacts changed since: 409
+//                          source.retract-changed {impacts}; no confirm that holds, a body it cannot read, more than
+//                          50: 400 source.body; 404 source.unknown {id}; 409 source.retracted {id}; 403 source.readonly
+//                          (+ reasonCode; not sealed here: no confirm); 409 source.busy (+ Retry-After); 500
+//                          source.failed. No queue an agent could write to.
+//   POST <token>/source/restore    sources the person deleted put back ({sources: [S…] (1–50)}): strom source restore;
+//                          {restored, citations, skipped: [{source, owner, fact, event?, why: gone|already|main}],
+//                          raised, tasks, conflicts, head}. 409 source.notRetracted {id} | source.notRestorable {id,
+//                          why: merged|other}, otherwise as /source/retract.
+//   POST <token>/conflict/keep     a decided conflict marked for review (a deleted source it stood on) kept as decided
+//                          ({conflict: X…}): strom conflict keep; {conflict, head}. 404 conflict.unknown {id}, 409
+//                          conflict.notMarked {id} (open, or no mark), 400 source.body, 403 source.readonly, 409
+//                          source.busy (+ Retry-After), 500 source.failed.
 //                          Every write of the app's (these, PUT /media, /batch/<id>/done, /waiting, /group) answers
 //                          `head` after it and `parent`, the head just before it (nothing written: parent = head) —
 //                          the app takes head as its version only when parent is the head it knew
@@ -640,7 +675,8 @@ import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { acquireLock, liveHolder } from "./lock.ts";
 import { checkAsked, checkEdit, material, MATERIAL_MOST_EDIT, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, materialUses, peopleOf, workingCopyOf } from "./material.ts";
-import { checkDeleteConfirm, deleteConfirm, DELETE_MOST_FILES, deleteImpacts } from "./materialdelete.ts";
+import { checkDeleteConfirm, checkRetractWith, deleteConfirm, DELETE_MOST_FILES, deleteImpacts, deleteSourceImpacts, refuseLiveSources } from "./materialdelete.ts";
+import { checkRetractConfirm, keepable, restorable, RETRACT_MOST, retractConfirm, retractImpacts } from "./sourceretract.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
 import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
@@ -1732,7 +1768,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
@@ -3738,6 +3774,12 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       batchDone(req, res, origin, decodeURIComponent(sub ?? ""));
       return;
     }
+    // a decided conflict marked for review kept as decided (spec 117 J4): no decision of it — the decision stands as the
+    // person made it, only the mark of a source they deleted goes (deciding it again stays the terminal's, below)
+    if (req.method === "POST" && t === token && what === "conflict" && sub === "keep" && !act) {
+      writeFor(req, res, origin, conflictKeep());
+      return;
+    }
     if (req.method === "POST" && t === token && what === "conflict" && sub && !act) {
       // the bridge cannot tell the app from an agent on this computer (the secret is in the research's folder, an Origin
       // is a header any program sets): a conflict is the person's to decide, in the terminal its link opens — refused
@@ -3789,6 +3831,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
     if (req.method === "POST" && t === token && what === "material" && sub === "delete" && !act) {
       writeFor(req, res, origin, materialDelete());
+      return;
+    }
+    // a source the person deletes, puts back; a decision kept without it (spec 117)
+    if (req.method === "POST" && t === token && what === "source" && (sub === "retract" || sub === "restore") && !act) {
+      writeFor(req, res, origin, sub === "retract" ? sourceRetract() : sourceRestore());
       return;
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
@@ -3994,10 +4041,12 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const person = (q.get("person") ?? "").toUpperCase();
         const batch = q.get("batch") ?? "";
         const files = q.get("files");
+        // the family trees' files too (spec 117 K2.1): only to an app that asks, never to an older one
+        const trees = q.get("trees");
         const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
-        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1"))
-          json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only)", "material.query") });
-        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}) }));
+        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1") || (trees !== null && trees !== "0" && trees !== "1"))
+          json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only), ?trees=1 (the family trees' files too)", "material.query") });
+        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}), ...(trees === "1" ? { trees: true } : {}) }));
       } else if (what === "history" && !sub) {
         // what the ancestors lived through: read in an archive too, and in a research waiting for its agent
         const tree = Tree.open(root, env);
@@ -4223,7 +4272,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     child.on("error", (e) => noteLive(root, `a send could not be written: ${errorText(e)}`));
     child.on("close", (code) => {
       clearTimeout(timer);
-      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[] } = {};
+      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[]; retracted?: string[] } = {};
       try {
         data = JSON.parse(out) as typeof data;
       } catch {
@@ -4269,6 +4318,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             ...(data.skipped?.length ? { skipped: data.skipped } : {}),
             // the app's files it wrote (spec 108): each change with the place it is of and the record the file is (I…)
             ...(data.media?.length ? { media: data.media } : {}),
+            // the research's sources the person deleted in the app, deleted with the send (spec 117 K1.4)
+            ...(data.retracted?.length ? { retracted: data.retracted } : {}),
             // the sources that said they are an entry of a reading of a document (_STROM_READING): taken as the
             // research's reading, or not (why: a stable code) and so the app's own source as any
             ...(changes.some((c) => c.reading)
@@ -4889,12 +4940,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    * {files, confirm}: the impacts again, the same as signed, written by strom input delete --confirm (which checks it once
    * more under the tree's lock). Refused: 400 material.body (no confirm that holds, a body it cannot read), 404
    * material.file, 409 material.delete-changed {impacts} (the research changed since the person saw the list), 403
-   * material.readonly, 409 material.busy (+ Retry-After).
+   * material.readonly, 409 material.busy (+ Retry-After). A family tree's file a source standing was made of (spec 117
+   * K2.2): only with that source deleted first (retractSources, one confirm over both: impacts and sourceImpacts), else
+   * 409 material.source-live {sources}.
    */
   const materialDelete = (): AppWrite => {
     let ids: string[] = [];
+    let with_: string[] = [];
     const bad = (why: string) => ({ code: 400, body: refusal(why, "material.body") });
-    const changed = (impacts: unknown) => ({ code: 409, body: { ...refusal("the files would take other things with them than the list said: look at it again", "material.delete-changed"), impacts } });
+    const changed = (impacts: unknown, sourceImpacts?: unknown) => ({ code: 409, body: { ...refusal("the files would take other things with them than the list said: look at it again", "material.delete-changed"), impacts, ...(sourceImpacts ? { sourceImpacts } : {}) } });
     return {
       what: "the material: delete",
       codes: MATERIAL_CODES,
@@ -4906,6 +4960,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const dry = body.dryRun === true;
         if (!dry && body.dryRun !== undefined && body.dryRun !== false) return bad("dryRun: true, or a confirm");
         if (!dry && typeof body.confirm !== "string") return bad("confirm: what the dry run answered (dryRun: true first)");
+        // the sources made of a family tree's file, deleted with it (spec 117 K2.2): none, or 1–50 of them
+        const given = body.retractSources === undefined || (Array.isArray(body.retractSources) && !body.retractSources.length) ? [] : sourceList(body.retractSources);
+        if (!given) return bad(`retractSources: 1 to ${RETRACT_MOST} IDs of sources (S…) made of the files`);
         const shared = new Settings(env, {}).shared()?.value;
         let impacts;
         try {
@@ -4913,35 +4970,205 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         } catch (e) {
           return refusedAsked(e);
         }
+        let sourceImpacts;
+        try {
+          checkRetractWith(impacts, given);
+          sourceImpacts = deleteSourceImpacts(tree, given);
+        } catch (e) {
+          if (e instanceof StromError && e.code === "material.body") return bad(e.message);
+          return sourceAsked(e);
+        }
         if (!writableHere()) return { code: 403, body: refusal("nothing can be written into the research on this computer", "material.readonly") };
         const key = tree.key;
         if (!key) return { code: 403, body: refusal("the research is not sealed on this computer", "material.readonly") };
         const asked = impacts.map((i) => i.id);
-        if (dry) return { code: 200, body: { files: asked, dryRun: true, impacts, confirm: deleteConfirm(key, asked, impacts) } };
-        const said = checkDeleteConfirm(key, asked, impacts, body.confirm);
-        if (said === "changed") return changed(impacts);
+        const sources = sourceImpacts.map((s) => s.id);
+        const both = sources.length ? { sources, impacts: sourceImpacts } : undefined;
+        if (dry) return { code: 200, body: { files: asked, ...(both ? { retractSources: sources } : {}), dryRun: true, impacts, ...(both ? { sourceImpacts } : {}), confirm: deleteConfirm(key, asked, impacts, Date.now(), both) } };
+        // a source standing made of a file and not deleted with it: never the file alone (the confirm aside)
+        try {
+          refuseLiveSources(impacts, sources);
+        } catch (e) {
+          return refusedAsked(e);
+        }
+        const said = checkDeleteConfirm(key, asked, impacts, body.confirm, Date.now(), both);
+        if (said === "changed") return changed(impacts, both ? sourceImpacts : undefined);
         if (said !== "ok") return bad("confirm: none that holds (signed by this bridge, at most 15 minutes old) — dryRun: true again");
         ids = asked;
+        with_ = sources;
         this.stdin = ids.join("\n");
-        return { args: ["input", "delete", "--files-from", "-", `--confirm=${String(body.confirm)}`] };
+        return { args: ["input", "delete", "--files-from", "-", ...(sources.length ? [`--retract-sources=${sources.join(",")}`] : []), `--confirm=${String(body.confirm)}`] };
       },
       done(_tree, data, head) {
-        return { files: Array.isArray(data.files) ? data.files : ids, deleted: Array.isArray(data.deleted) ? data.deleted : [], impacts: data.impacts ?? [], head };
+        return {
+          files: Array.isArray(data.files) ? data.files : ids,
+          deleted: Array.isArray(data.deleted) ? data.deleted : [],
+          ...(with_.length ? { retracted: Array.isArray(data.retracted) ? data.retracted : [] } : {}),
+          impacts: data.impacts ?? [],
+          ...(with_.length ? { sourceImpacts: data.sourceImpacts ?? [] } : {}),
+          head,
+        };
       },
-      refused(tree, code, why) {
+      refused(tree, code, why, data) {
         if (code === "material.delete-changed") {
           let impacts: unknown = [];
+          let sourceImpacts: unknown;
           try {
             impacts = deleteImpacts(tree, new Settings(env, {}).shared()?.value, ids);
           } catch {
             // the files are gone meanwhile: the list is empty
           }
-          return changed(impacts);
+          if (with_.length)
+            try {
+              sourceImpacts = deleteSourceImpacts(tree, with_);
+            } catch {
+              // a source gone or deleted meanwhile: no list
+              sourceImpacts = [];
+            }
+          return changed(impacts, sourceImpacts);
+        }
+        if (code === "material.source-live") {
+          const params = (data.params as Record<string, unknown> | undefined) ?? {};
+          const sources = String(params.sources ?? "").split(",").filter(Boolean);
+          return { code: 409, body: { ...refusal(why, code, { sources: sources.join(",") }), sources } };
+        }
+        if (code.startsWith("source.")) {
+          const r = sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+          if (r) return r;
         }
         if (code === "material.body") return { code: 400, body: refusal(why, code) };
         if (code === "material.file") return { code: 404, body: refusal(why, code) };
         if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent") return { code: 403, body: { ...refusal(why, "material.readonly"), reasonCode: code } };
         return undefined;
+      },
+    };
+  };
+  /**
+   * A source deleted by the person, put back, a decision kept without it (POST /source/retract | /source/restore,
+   * POST /conflict/keep; spec 117) — the person's in the app, never a queue an agent could write to. Retract in two steps
+   * as /material/delete: {sources, dryRun: true} answered here without a write, with the impacts and the bridge's
+   * confirmation of them (signed with the seal key, 15 minutes); {sources, confirm}: written by strom source retract
+   * --confirm, which checks it once more under the tree's lock. Refused: 400 source.body, 404 source.unknown |
+   * conflict.unknown {id}, 409 source.retracted | source.notRetracted | source.notRestorable | conflict.notMarked {id},
+   * 409 source.retract-changed {impacts}, 403 source.readonly, 409 source.busy (+ Retry-After), 500 source.failed.
+   */
+  const SOURCE_CODES = { badBody: "source.body", busy: "source.busy", failed: "source.failed" };
+  const sourceStatus: Record<string, number> = {
+    "source.body": 400,
+    "source.unknown": 404,
+    "conflict.unknown": 404,
+    "source.retracted": 409,
+    "source.notRetracted": 409,
+    "source.notRestorable": 409,
+    "conflict.notMarked": 409,
+  };
+  const sourceRefused = (code: string, why: string, params: Record<string, unknown> = {}): { code: number; body: Record<string, unknown> } | undefined => {
+    if (sourceStatus[code]) return { code: sourceStatus[code]!, body: refusal(why, code, Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]))) };
+    if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent" || code === "seal.other-key") return { code: 403, body: { ...refusal(why, "source.readonly"), reasonCode: code } };
+    return undefined;
+  };
+  const sourceAsked = (e: unknown) => {
+    if (e instanceof StromError && e.code && sourceStatus[e.code]) return sourceRefused(e.code, e.message, e.params ?? {})!;
+    throw e;
+  };
+  const readonly = (why: string) => ({ code: 403, body: refusal(why, "source.readonly") });
+  const sourceList = (v: unknown): string[] | undefined => (Array.isArray(v) && v.length && v.length <= RETRACT_MOST && v.every((x) => typeof x === "string" && x.length <= 40) ? (v as string[]) : undefined);
+  const sourceRetract = (): AppWrite => {
+    let ids: string[] = [];
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "source.body") });
+    const changed = (impacts: unknown) => ({ code: 409, body: { ...refusal("deleting the source would take other things with it than the list said: look at it again", "source.retract-changed"), impacts } });
+    return {
+      what: "a source deleted",
+      codes: SOURCE_CODES,
+      max: 64 * 1024,
+      ask(tree, body) {
+        const sources = sourceList(body.sources);
+        if (!sources) return bad(`sources: 1 to ${RETRACT_MOST} IDs of sources (S…)`);
+        const dry = body.dryRun === true;
+        if (!dry && body.dryRun !== undefined && body.dryRun !== false) return bad("dryRun: true, or a confirm");
+        if (!dry && typeof body.confirm !== "string") return bad("confirm: what the dry run answered (dryRun: true first)");
+        let impacts;
+        try {
+          impacts = retractImpacts(tree, sources);
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        const key = tree.key;
+        if (!key) return readonly("the research is not sealed on this computer");
+        const asked = impacts.map((i) => i.id);
+        if (dry) return { code: 200, body: { sources: asked, dryRun: true, impacts, confirm: retractConfirm(key, asked, impacts) } };
+        const said = checkRetractConfirm(key, asked, impacts, body.confirm);
+        if (said === "changed") return changed(impacts);
+        if (said !== "ok") return bad("confirm: none that holds (signed by this bridge, at most 15 minutes old) — dryRun: true again");
+        ids = asked;
+        this.stdin = ids.join("\n");
+        return { args: ["source", "retract", "--sources-from", "-", `--confirm=${String(body.confirm)}`] };
+      },
+      done(_tree, data, head) {
+        return { sources: Array.isArray(data.sources) ? data.sources : ids, retracted: Array.isArray(data.retracted) ? data.retracted : [], impacts: data.impacts ?? [], head };
+      },
+      refused(tree, code, why, data) {
+        if (code === "source.retract-changed") {
+          let impacts: unknown = [];
+          try {
+            impacts = retractImpacts(tree, ids);
+          } catch {
+            // a source gone or deleted meanwhile: no list
+          }
+          return changed(impacts);
+        }
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+      },
+    };
+  };
+  const sourceRestore = (): AppWrite => {
+    let ids: string[] = [];
+    return {
+      what: "a source put back",
+      codes: SOURCE_CODES,
+      max: 16 * 1024,
+      ask(tree, body) {
+        const sources = sourceList(body.sources);
+        if (!sources) return { code: 400, body: refusal(`sources: 1 to ${RETRACT_MOST} IDs of sources (S…)`, "source.body") };
+        try {
+          ids = restorable(tree, sources).map((s) => s.id);
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        this.stdin = ids.join("\n");
+        return { args: ["source", "restore", "--sources-from", "-"] };
+      },
+      done(_tree, data, head) {
+        const { commit: _commit, ...got } = data;
+        return { ...got, restored: Array.isArray(data.restored) ? data.restored : ids, head };
+      },
+      refused(_tree, code, why, data) {
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+      },
+    };
+  };
+  const conflictKeep = (): AppWrite => {
+    let id = "";
+    return {
+      what: "a decision kept without a deleted source",
+      codes: SOURCE_CODES,
+      ask(tree, body) {
+        if (typeof body.conflict !== "string" || !body.conflict.trim() || body.conflict.length > 40) return { code: 400, body: refusal("conflict: the conflict's ID (X…)", "source.body") };
+        try {
+          id = keepable(tree, body.conflict).id;
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        return { args: ["conflict", "keep", id] };
+      },
+      done(_tree, data, head) {
+        return { conflict: typeof data.conflict === "string" ? data.conflict : id, head };
+      },
+      refused(_tree, code, why, data) {
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
       },
     };
   };
@@ -6645,6 +6872,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** A write of the app's the research cannot take as asked (checkAsked): its code, the HTTP status the app reads it by. */
   const refusedAsked = (e: unknown): { code: number; body: Record<string, unknown> } => {
     if (!(e instanceof StromError) || !e.code) throw e;
+    // a family tree's file a source standing was made of (spec 117 K2.2): the sources as a list too
+    if (e.code === "material.source-live") {
+      const sources = String(e.params?.sources ?? "").split(",").filter(Boolean);
+      return { code: 409, body: { ...refusal(e.message, e.code, e.params ?? {}), sources } };
+    }
     return { code: e.code === "material.body" || e.code === "material.date" ? 400 : 404, body: refusal(e.message, e.code, e.params ?? {}) };
   };
   /** Whether the research can be written here at all: its history, its records, its locks. */

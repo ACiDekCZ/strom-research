@@ -457,6 +457,7 @@ register(
       let applied = 0;
       let skipped: Skipped[] = [];
       let proposed: SyncProposal[] = [];
+      let retracted: string[] = [];
       let written: Plan = plan;
       tree.withTreeLock(() => {
         // what another process wrote meanwhile counts: the changes again, now that the tree is ours — the ones picked by
@@ -517,10 +518,11 @@ register(
             (sid) => `+${sid} source "${path.basename(file)}" (sync)`,
           );
         // not the person's sync: a change of the user's or an imported tree's value only proposed (the user decides)
-        const { applied: done, changes, skipped: left, asked, proposed: open } = applySync(tree, fresh, now1, source, only, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person", input: made.id });
+        const { applied: done, changes, skipped: left, asked, proposed: open, retracted: gone } = applySync(tree, fresh, now1, source, only, { decidePerson: ctx.settings.hypothesesDecide(tree.config) === "person", input: made.id });
         applied = changes;
         skipped = left;
         proposed = open ?? [];
+        retracted = gone ?? [];
         input = update<SyncInput>(tree, made.id, "input", (i) => ({ ...i, source: source.id, sync: { ...(fresh.head ? { head: fresh.head } : {}), edits: edits as "conflict" | "user", applied: done, ...(asked ? { asked } : {}) } }), {
           op: "input.sync",
           summary: `${made.id} synced: ${changes} change(s)${fresh.head ? ` against ${fresh.head.slice(0, 8)}` : ""}`,
@@ -535,7 +537,7 @@ register(
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
       // the app's files it wrote, with the records they are (the bridge's answer: `media`)
       const media = mediaWritten(written.changes, skipped);
-      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media }, input.sync?.applied ?? []);
+      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media, ...(retracted.length ? { retracted } : {}) }, input.sync?.applied ?? []);
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
       // a question to the person is no change of the research: counted as what it is
@@ -555,7 +557,7 @@ register(
             ? [`${proposed.length} change(s) of the user's or an imported family tree's values proposed, not written — the user decides (strom conflict list):`, ...proposed.map((x) => `  change ${x.n}: ${x.line}`)]
             : []),
         ),
-        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}), ...(media.length ? { media } : {}) },
+        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}), ...(media.length ? { media } : {}), ...(retracted.length ? { retracted } : {}) },
       };
     },
   },

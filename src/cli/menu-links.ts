@@ -48,6 +48,7 @@ import { normId } from "../core/records.ts";
 import { settledClaim } from "../core/labels.ts";
 import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
+import { isAgent } from "../core/which.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 import { forgetTree } from "../commands/trees.ts";
@@ -76,6 +77,27 @@ export async function asks(ctx: Context, lang: string, root: string, what: strin
   const name = Tree.open(root, ctx.env).config.name;
   ctx.io.stdout(lines(translator(lang)("ui.link.asks", { what, name }), note, "") + "\n");
   return ctx.confirm(translator(lang)("ui.link.go"), suggested);
+}
+
+/**
+ * What the Strom app asks that starts the agent on the subscription or AI credit (ui.link.cost): asked as `asks` does,
+ * or — the person's standing yes, run.confirm no (spec 123) — started at once with one line saying so and where the
+ * question is turned on again. Still asked: a question that says a price in money (`priced`), an agent's or a script's
+ * own command (only the person in their terminal), and all the rest (consents, deletions, the gate of strom run).
+ */
+export async function asksToStart(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true, priced = false): Promise<boolean> {
+  if (!startsUnasked(ctx, priced)) return asks(ctx, lang, root, what, note, suggested);
+  const name = Tree.open(root, ctx.env).config.name;
+  ctx.io.stdout(translator(lang)("ui.link.noconfirm", { what: what.trim().replace(/[.:]$/u, ""), name }) + "\n");
+  return true;
+}
+
+/**
+ * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money): what
+ * the link starts right after it is then not asked yes or no again — the line said it starts.
+ */
+export function startsUnasked(ctx: Context, priced = false): boolean {
+  return !priced && ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
@@ -164,7 +186,7 @@ export async function openTask(ctx: Context, run: Run, lang: string, root: strin
   }
   const usd = taskEstimate(tree, task);
   const note = lines(usd ? t("ui.link.open.estimate", { from: humanCost(usd[0], lang), to: humanCost(usd[1], lang) }) : t("ui.link.open.estimate.none"), t("ui.link.cost"));
-  if (!(await asks(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false))) return false;
+  if (!(await asksToStart(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false, !!usd))) return false;
   return (await run(["chat", "--task", task.id])) === 0;
 }
 
@@ -187,7 +209,7 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
     if (menu) return (await run(["chat", "--task", task.id])) === 0;
     const more = sameGroup(tree, task, ctx.settings.shared()?.value).length;
     const said = `${t("ui.link.what.task.chat", { agent, what: shown })}${more ? t("ui.link.what.task.chat.more", { n: more }) : ""}`;
-    if (!(await asks(ctx, lang, root, said, t("ui.link.cost")))) return false;
+    if (!(await asksToStart(ctx, lang, root, said, t("ui.link.cost")))) return false;
     return (await run(["chat", "--task", task.id])) === 0;
   }
   if (what === "note") {
@@ -421,9 +443,9 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
  * place with &place=L…): the queue said here — how many places, in how many sessions by area, one session's estimate
  * and the whole queue's, the gate of the runs and the limit of a session, what goes to searches — and on the person's
  * yes the place queued (when it is not), the task of identification on top of the queue, then sessions started now if
- * wanted: one batch, one session (asked yes or no); more, how many of them (placesSessions), run one after another by
- * strom run --places (Ctrl-C after the session at work; the places left stay queued). The bridge never starts it
- * (403 places.link).
+ * wanted: one batch, one session (asked yes or no; at once under run.confirm no); more, how many of them (placesSessions,
+ * Enter at least one), run one after another by strom run --places (Ctrl-C after the session at work; the places left
+ * stay queued). The bridge never starts it (403 places.link).
  */
 export async function placesRun(ctx: Context, run: Run, lang: string, root: string, id?: string): Promise<boolean> {
   const t = translator(lang);
@@ -452,17 +474,21 @@ export async function placesRun(ctx: Context, run: Run, lang: string, root: stri
     t("ui.link.cost"),
   );
   const what = p ? t("ui.link.what.places.one", { place: placeLabel(p, lang) }) : t("ui.link.what.places");
-  if (!(await asks(ctx, lang, root, what, note, false))) return false;
+  // a price in money said (sessions measured here): asked whatever run.confirm says
+  const priced = !!est.session.usd || (batches > 1 && !!est.queue?.usd);
+  const unasked = startsUnasked(ctx, priced);
+  if (!(await asksToStart(ctx, lang, root, what, note, false, priced))) return false;
   // the place queued by the person (a place queued already, the whole queue: shown, its task kept with it)
   if ((await run(p && !inQueue ? ["place", "queue", p.id] : ["place", "queue"], true)) !== 0) return false;
   const queued = Tree.open(root, ctx.env);
   const task = queued.list<Task>("task").find((x) => x.origin === PLACES_IDENTIFY_ORIGIN && (x.state === "open" || x.state === "doing"));
   out(ctx, t("ui.link.places.done"));
   if (!task || task.state === "doing") return true;
-  // one batch: one session, asked as it was; more: how many now, each count with its estimate
+  // one batch: one session, asked as it was — started at once where the line said so (run.confirm no, spec 123); more:
+  // how many now, each count with its estimate (a choice, not a yes: Enter starts at least one)
   const now = queueView(queued).batches;
   if (now <= 1) {
-    if (!(await ctx.confirm(t("ui.link.places.now"), false))) return true;
+    if (!unasked && !(await ctx.confirm(t("ui.link.places.now"), false))) return true;
     return (await run(["run", "--task", task.id])) === 0;
   }
   const count = await placesSessions(ctx, t, lang, queued, now);
@@ -536,7 +562,7 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
     t("ui.link.cost"),
   );
   const said = tasks !== undefined ? t("ui.link.what.work.tasks", { n: tasks }) : t("ui.link.what.work.loop");
-  if (!(await asks(ctx, lang, root, said, note, false))) return false;
+  if (!(await asksToStart(ctx, lang, root, said, note, false))) return false;
   out(ctx, t("ui.link.work.stop"));
   return (await run(tasks !== undefined ? ["run", "--tasks", String(tasks)] : ["run", "--loop"])) === 0;
 }
@@ -562,7 +588,7 @@ async function workOn(ctx: Context, run: Run, lang: string, root: string, tree: 
     gate ? t("ui.link.work.gate.once", { gate }) : t("ui.link.work.gate.none"),
     t("ui.link.cost"),
   );
-  if (!(await asks(ctx, lang, root, t("ui.link.what.work.picked", { n: open.length }), note, false))) return false;
+  if (!(await asksToStart(ctx, lang, root, t("ui.link.what.work.picked", { n: open.length }), note, false))) return false;
   out(ctx, t("ui.link.work.stop"));
   return (await run(["run", "--task", open.map((x) => x.id).join(",")])) === 0;
 }

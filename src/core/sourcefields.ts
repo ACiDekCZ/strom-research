@@ -6,6 +6,7 @@
 // research only knows from the registered scans: an existing source's PAGE stays as it was), and the fields
 // themselves (1 _STROM_FOLIO, _STROM_IMAGE, _STROM_LOCATOR) for a Strom app that reads them.
 
+import { EVENT_KINDS } from "./model.ts";
 import type { Media, RecordSet, Source } from "./model.ts";
 import { phrase } from "./phrases.ts";
 import { foldText } from "./text.ts";
@@ -18,6 +19,20 @@ export function sourceImage(s: Pick<Source, "image" | "media" | "clips">, media:
   const numbers = [...new Set([...ids].map((id) => media(id)?.image).filter((n): n is number => Number.isInteger(n) && n! > 0))].sort((a, b) => a - b);
   if (!numbers.length) return undefined;
   return { value: imageNumbers(numbers), derived: true };
+}
+
+/**
+ * A citation's locator an import or a sync wrote, no line of a family tree a person reads: a record's ID and the tag
+ * (GEDCOM "I1 BIRT", "I1 _MARNM"; the Strom app's JSON "p_1731_ab12 BIRT"), what a sync took of a fact ("BIRT DATE
+ * PLAC", "BAPM godparent") or of a family ("family", "child", "title"). ASCII on purpose: these are strom's own
+ * machine shapes (a GEDCOM xref and tag) — a person's line with any letter beyond ASCII is never one.
+ */
+export function treePointer(locator: string): boolean {
+  const t = locator.normalize("NFC").trim();
+  if (/^(?:family|child|title)$/u.test(t)) return true;
+  if (/^@?[A-Za-z0-9_:.-]*[0-9][A-Za-z0-9_:.-]*@? _?[A-Z][A-Z0-9_]{2,}$/u.test(t)) return true;
+  const m = /^(_?[A-Z][A-Z0-9_]{2,})((?: [A-Za-z]+)*)$/u.exec(t);
+  return !!m && Object.hasOwn(EVENT_KINDS, m[1]!);
 }
 
 /** Sorted unique image numbers as one text: "57", a run "57–58", else "57, 60". */

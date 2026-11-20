@@ -2,7 +2,8 @@
 // beside all models', a 24-hour clock, a time alone, an API key), an answer it cannot read asked again and then waited
 // for — never a stop for one answer — with the first line it got in the reason, and a Claude Code not logged in said
 // with how to log in (found 2026-11-03: CLAUDE_CONFIG_DIR=~/.claude, /usage a bare /cost, the run stopped at once).
-// A stand-in `claude` of the test's own: never the real one.
+// A stand-in `claude` of the test's own: never the real one. The gate's clock fixed (STROM_GATE_NOW): the week gone and
+// every wait it answers exact, whatever the time the test runs at.
 
 import "../helpers.ts"; // run alone too: never the person's home and settings
 import { test } from "node:test";
@@ -15,10 +16,26 @@ import { spawnSync } from "node:child_process";
 const GATE = path.join(import.meta.dirname, "..", "..", "assets", "plugins", "gates", "claude-usage", "gate.ts");
 const posix = { skip: process.platform === "win32" };
 const H = 3_600_000;
+/** The gate's "now" in every test: away from midnight and from the full hour (a reset is a whole hour after it). */
+const NOW = Date.parse("2026-11-18T14:37:00Z");
 
-/** A reset `inMs` from now, whole hours, as Claude Code prints it in UTC: 12-hour ("Nov 4 at 1pm") or 24-hour ("Nov 4 at 13:00"). */
+/**
+ * How long this computer takes now to start a Node process and let it end — the budget of a check that would otherwise
+ * be fixed milliseconds (a busy computer outruns them). The longest of three.
+ */
+function nodeStartMs(): number {
+  let most = 0;
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    most = Math.max(most, Date.now() - t);
+  }
+  return most;
+}
+
+/** A reset `inMs` from NOW, whole hours, as Claude Code prints it in UTC: 12-hour ("Nov 4 at 1pm") or 24-hour ("Nov 4 at 13:00"). */
 function resetText(inMs: number, clock: 12 | 24 = 12): { at: number; text: string } {
-  const at = Math.ceil((Date.now() + inMs) / H) * H;
+  const at = Math.ceil((NOW + inMs) / H) * H;
   const d = new Date(at);
   const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const h = d.getUTCHours();
@@ -64,7 +81,7 @@ cat "$f"
   const ask = (args: string[] = ["10"], env: Record<string, string> = {}) => {
     const r = spawnSync(process.execPath, [GATE, ...args], {
       encoding: "utf8",
-      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, STROM_LANG: "en", STROM_AGENT: "claude", CLAUDE_USAGE_RETRY_MS: "10", ...env },
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, STROM_LANG: "en", STROM_AGENT: "claude", CLAUDE_USAGE_RETRY_MS: "10", STROM_GATE_NOW: new Date(NOW).toISOString(), ...env },
     });
     const said = JSON.parse(r.stdout.trim().split("\n").pop()!) as { reason: string; until?: string };
     return { code: r.status, reason: said.reason, until: said.until ? Date.parse(said.until) : undefined };
@@ -73,39 +90,51 @@ cat "$f"
   return { ask, asked, got, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
+/** What the gate says at NOW of a week `used` % used that resets at `at`, with the number 10: the week gone exact. */
+function goes(used: number, at: number): string {
+  const gone = ((NOW - (at - 7 * 24 * H)) / (7 * 24 * H)) * 100;
+  return `week ${used} % used, at most ${Math.floor(gone - 10)} % allowed by now (${Math.floor(gone)} % of the week gone, less 10); weekly reset in ${((at - NOW) / (24 * H)).toFixed(1)} days`;
+}
+
+test("the test's clock: the reset of the week 3 days on, 56.9 % of the week gone", () => {
+  const week = resetText(3 * 24 * H);
+  assert.deepEqual([new Date(week.at).toISOString(), week.text, resetText(3 * 24 * H, 24).text], ["2026-11-21T15:00:00.000Z", "Nov 21 at 3pm (UTC)", "Nov 21 at 15:00 (UTC)"]);
+  assert.equal(goes(20, week.at), "week 20 % used, at most 46 % allowed by now (56 % of the week gone, less 10); weekly reset in 3.0 days");
+});
+
 test("claude-usage reads the shapes /usage prints: no session line, a model's week before all models', a 24-hour clock, a session's time alone", posix, () => {
   const week = resetText(3 * 24 * H);
   const late = resetText(3 * 24 * H, 24);
-  const cases: [string, string, RegExp][] = [
+  const cases: [string, string, string][] = [
     // as Claude Code 2.1 prints it now: a line of its own first, no session line, the model's week after all models'
-    ["now", `You are currently using your subscription to power your Claude Code usage\n\nCurrent week (all models): 20% used · resets ${week.text}\nCurrent week (Fable): 0% used · resets ${week.text}\n\nWhat's contributing to your usage?\n`, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\)/],
+    ["now", `You are currently using your subscription to power your Claude Code usage\n\nCurrent week (all models): 20% used · resets ${week.text}\nCurrent week (Fable): 0% used · resets ${week.text}\n\nWhat's contributing to your usage?\n`, goes(20, week.at)],
     // the model's own week before all models': all models' counts
-    ["model first", `Current session: 5% used · resets ${week.text}\nCurrent week (Fable): 90% used · resets ${week.text}\nCurrent week (all models): 20% used · resets ${week.text}\n`, /^week 20 % used/],
+    ["model first", `Current session: 5% used · resets ${week.text}\nCurrent week (Fable): 90% used · resets ${week.text}\nCurrent week (all models): 20% used · resets ${week.text}\n`, goes(20, week.at)],
     // a 24-hour clock
-    ["24 h", `Current week (all models): 20% used · resets ${late.text}\n`, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\); weekly reset in 3\.0 days$/],
+    ["24 h", `Current week (all models): 20% used · resets ${late.text}\n`, goes(20, late.at)],
     // only a model's week: it counts
-    ["one model", `Current week (Fable): 30% used · resets ${week.text}\n`, /^week 30 % used/],
+    ["one model", `Current week (Fable): 30% used · resets ${week.text}\n`, goes(30, week.at)],
   ];
   for (const [name, text, said] of cases) {
     const s = standIn([text]);
     try {
       const r = s.ask();
       assert.equal(r.code, 0, `${name}: ${r.reason}`);
-      assert.match(r.reason, said, name);
+      assert.equal(r.reason, said, name);
       assert.deepEqual(s.asked(), ["usage"], `${name}: asked once, no login asked`);
     } finally {
       s.done();
     }
   }
-  // the session used up, its reset a time alone ("6pm (UTC)"): it waits until that time comes, within a day
-  const d = new Date(Date.now() + 2 * H);
+  // the session used up, its reset a time alone ("4pm (UTC)" at 14:37): it waits until that time comes, and a minute
+  const d = new Date(NOW + 2 * H);
   const sessionAt = `${d.getUTCHours() % 12 || 12}${d.getUTCHours() < 12 ? "am" : "pm"} (UTC)`;
   const s = standIn([`Current session: 100% used · resets ${sessionAt}\nCurrent week (all models): 20% used · resets ${week.text}\n`]);
   try {
     const r = s.ask();
     assert.equal(r.code, 1, r.reason);
     assert.match(r.reason, /^the session is used up/);
-    assert.ok(r.until! > Date.now() + H && r.until! < Date.now() + 3 * H, `${(r.until! - Date.now()) / H} h`);
+    assert.equal(new Date(r.until!).toISOString(), "2026-11-18T16:01:00.000Z");
   } finally {
     s.done();
   }
@@ -134,7 +163,7 @@ test("claude-usage: an answer it cannot read is asked again — a later one read
   try {
     const r = once.ask();
     assert.equal(r.code, 0, r.reason);
-    assert.match(r.reason, /^week 20 % used/);
+    assert.equal(r.reason, goes(20, week.at));
     assert.deepEqual(once.asked(), ["usage", "auth", "usage"]);
   } finally {
     once.done();
@@ -142,11 +171,10 @@ test("claude-usage: an answer it cannot read is asked again — a later one read
   // never read (an exit status with its words, an address of an account in them): three times, then a wait
   const never = standIn(["exit:1\n\nError: overloaded for lhotak@example.cz, try again later\n"], '{"loggedIn": true}');
   try {
-    const before = Date.now();
     const r = never.ask();
     assert.equal(r.code, 1, r.reason);
     assert.equal(r.reason, 'cannot read `claude -p /usage` (3×): it ended with exit status 1; it said: "Error: overloaded for …@…, try again later" — asked again in 15 minutes');
-    assert.ok(Math.abs(r.until! - (before + 15 * 60_000)) < 30_000, `${(r.until! - before) / 60_000} min`);
+    assert.equal(r.until, NOW + 15 * 60_000);
     assert.deepEqual(never.asked(), ["usage", "auth", "usage", "usage"]);
   } finally {
     never.done();
@@ -213,11 +241,11 @@ test("claude-usage asks get_usage first — the limits alone, in a second — an
   const usage = `Current week (all models): 30% used · resets ${week.text}\n`;
   const request = '{"type":"control_request","request_id":"strom-gate-usage","request":{"subtype":"get_usage","skip_behaviors":true}}';
   // the week and the session from get_usage: /usage never asked, the request one line of JSON on stdin
-  const ok = standIn([usage], '{"loggedIn": true}', limitsSaid({ used: 20, at: week.at }, { used: 5, at: Date.now() + 2 * H }));
+  const ok = standIn([usage], '{"loggedIn": true}', limitsSaid({ used: 20, at: week.at }, { used: 5, at: NOW + 2 * H }));
   try {
     const r = ok.ask();
     assert.equal(r.code, 0, r.reason);
-    assert.match(r.reason, /^week 20 % used, at most 4[67] % allowed by now \(5[67] % of the week gone, less 10\); weekly reset in 3\.0 days$/);
+    assert.equal(r.reason, goes(20, week.at));
     assert.deepEqual(ok.got(), [request]);
     assert.deepEqual(ok.asked(), [], "no /usage, no login asked");
     assert.equal(ok.ask(["10"], { STROM_LANG: "cs" }).reason.slice(0, 21), "týden: využito 20 %, ");
@@ -225,13 +253,13 @@ test("claude-usage asks get_usage first — the limits alone, in a second — an
     ok.done();
   }
   // the session used up: until it resets (and a minute)
-  const sessionAt = Date.now() + 2 * H;
+  const sessionAt = NOW + 2 * H;
   const full = standIn([usage], undefined, limitsSaid({ used: 20, at: week.at }, { used: 100, at: sessionAt }));
   try {
     const r = full.ask();
     assert.equal(r.code, 1, r.reason);
     assert.match(r.reason, /^the session is used up/);
-    assert.ok(Math.abs(r.until! - (sessionAt + 60_000)) < 1000, `${(r.until! - sessionAt) / 60_000} min`);
+    assert.equal(r.until, sessionAt + 60_000);
     assert.deepEqual(full.asked(), []);
   } finally {
     full.done();
@@ -254,7 +282,7 @@ test("claude-usage asks get_usage first — the limits alone, in a second — an
     ["exit status", "exit:3\n"],
     ["not JSON", "{\"type\":\"control_response\",\"response\":{\"subtype\":\"success\",\"request_id\":\"strom-gate-usage\"\n"],
     ["another request", limitsSaid({ used: 20, at: week.at }, null, { id: "jiný" })],
-    ["no week", limitsSaid(null, { used: 5, at: Date.now() + H })],
+    ["no week", limitsSaid(null, { used: 5, at: NOW + H })],
     ["no reset", limitsSaid({ used: 20 })],
   ];
   for (const [name, get] of unread) {
@@ -262,20 +290,24 @@ test("claude-usage asks get_usage first — the limits alone, in a second — an
     try {
       const r = s.ask();
       assert.equal(r.code, 0, `${name}: ${r.reason}`);
-      assert.match(r.reason, /^week 30 % used/, name);
+      assert.equal(r.reason, goes(30, week.at), name);
       assert.deepEqual([s.got().length, s.asked()], [1, ["usage"]], name);
     } finally {
       s.done();
     }
   }
-  // no answer in time: /usage within the rest of the budget
-  const slow = standIn([usage], undefined, "sleep:20\n");
+  // no answer in time (a minute of silence): given up at the gate's own GET_MS, then /usage within the rest of the budget
+  // — the time taken that GET_MS and the gate's Node processes on this computer now, twice and more, never the minute
+  const getMs = 300;
+  const budget = 2 * getMs + 10 * nodeStartMs();
+  const slow = standIn([usage], undefined, "sleep:60\n");
   try {
     const before = Date.now();
-    const r = slow.ask(["10"], { CLAUDE_USAGE_GET_MS: "300" });
+    const r = slow.ask(["10"], { CLAUDE_USAGE_GET_MS: String(getMs) });
+    const took = Date.now() - before;
     assert.equal(r.code, 0, r.reason);
-    assert.match(r.reason, /^week 30 % used/);
-    assert.ok(Date.now() - before < 10_000, `${Date.now() - before} ms`);
+    assert.equal(r.reason, goes(30, week.at));
+    assert.ok(took < budget, `${took} ms, the budget ${budget} ms`);
     assert.deepEqual(slow.asked(), ["usage"]);
   } finally {
     slow.done();

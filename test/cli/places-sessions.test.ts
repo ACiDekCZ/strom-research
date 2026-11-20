@@ -147,6 +147,42 @@ test("the link places with one batch: asked yes or no as before, one session", o
   }
 });
 
+test("the link places under run.confirm no (spec 123): one batch started at once, no yes or no; more, Enter starts at least one; ask as before", opts, async () => {
+  const one = await world(3);
+  try {
+    const link = `strom-research://places?tree=${readJsonFile(path.join(one.cwd, "strom.json")).id}&do=run`;
+    await one.ok(["place", "queue", "--all"]);
+    // ask (the default): both questions as before, Enter at the second starts nothing
+    const asked = await one.run(["link", "open", link], { tty: true, answers: ["a", ""] });
+    assert.match(asked.out, /Pokračovat\? \(a\/n\) \[n\][\s\S]*Spustit jedno sezení hned\? \(a\/n\) \[n\]/u, asked.out);
+    assert.doesNotMatch(asked.out, /bez potvrzení/u);
+    assert.equal(sessions(one), 0);
+    // the person's run.confirm no: the line says it starts, and it does — no question at all
+    await one.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
+    const started = await one.run(["link", "open", link], { tty: true, answers: [] });
+    assert.match(started.out, /▶ Spouští se bez potvrzení \(výzkum Lhotákovi\): /u, started.out);
+    assert.doesNotMatch(started.out, /Pokračovat\?|Spustit jedno sezení hned\?|Kolik sezení/u, started.out);
+    assert.equal(sessions(one), 1, started.out + started.err);
+    assert.equal(queued(one), 0);
+  } finally {
+    one.cleanup();
+  }
+  const more = await world();
+  try {
+    const link = `strom-research://places?tree=${readJsonFile(path.join(more.cwd, "strom.json")).id}&do=run`;
+    await more.ok(["place", "queue", "--all"]);
+    await more.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
+    // how many: a choice that stays, its Enter starts sessions (here the whole small queue)
+    const enter = await more.run(["link", "open", link], { tty: true, answers: [""] });
+    assert.match(enter.out, /▶ Spouští se bez potvrzení[\s\S]*Kolik sezení spustit teď\?/u, enter.out);
+    assert.doesNotMatch(enter.out, /Pokračovat\?/u);
+    assert.ok(sessions(more) >= 1, enter.out + enter.err);
+    assert.equal(queued(more), 0);
+  } finally {
+    more.cleanup();
+  }
+});
+
 test("how many sessions: 1, 2, 3 and the whole queue; the whole suggested up to three, else one; a price only measured", () => {
   const asked: { question: string; labels: string[]; suggested: number; back?: string }[] = [];
   const ctx = {

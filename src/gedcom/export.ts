@@ -39,7 +39,7 @@ import { orderCitations, quayAt, sourceEvents, type OrderOf } from "../core/cite
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
-import { composedPage, sourceCallNumber, sourceImage } from "../core/sourcefields.ts";
+import { composedPage, sourceCallNumber, sourceImage, treePointer } from "../core/sourcefields.ts";
 import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import type { TreeMediaItem, TreeMediaPlaces } from "../core/treemedia.ts";
 import { numbersOnly } from "../core/streets.ts";
@@ -57,7 +57,8 @@ import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { settledClaim } from "../core/labels.ts";
 import { humanTask } from "../cli/human.ts";
 import { parseYears } from "../core/years.ts";
-import { storySources } from "../core/storykeep.ts";
+import { sourcesNamed, storySources } from "../core/storykeep.ts";
+import { deletedSource } from "../core/sourceretract.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -442,12 +443,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   };
   const citedSources = new Set<string>();
   // Strom profile: one PAGE per source (Strom keeps the first) — the source's place in the book, else the first cited;
-  // an imported family tree none of its own (a person's line in it is no reference of the whole tree: each citation
-  // says it in DATA TEXT — found by the joint check of spec 066, "PAGE I1 BIRT" on every fact of the tree)
+  // a family tree with no place of its own each citation its own line of it (the app makes a page of the tree of each),
+  // never a pointer an import or a sync made ("I1 BIRT" — found by the joint check of spec 066 as the PAGE of every
+  // fact of the tree; each citation says it in DATA TEXT)
   const stromPages = new Map<string, string | undefined>();
   const stromPage = (s: Source, c: Citation): string | undefined => {
     if (!stromPages.has(s.id)) stromPages.set(s.id, composedPage(s, lang) ?? (s.kind === "family-tree" ? undefined : c.locator));
-    return stromPages.get(s.id);
+    const own = stromPages.get(s.id);
+    if (own !== undefined || s.kind !== "family-tree") return own;
+    return c.locator?.trim() && !treePointer(c.locator) ? c.locator : undefined;
   };
 
   // Places with coordinates, looked up by folded name.
@@ -807,9 +811,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     // the fields themselves, for a Strom app that reads them (an older one counts them as tags it left out): the image
     // also where only the registered scans give it
     if (!strict && opts.sourceFields) {
-      const image = sourceImage(s, (id) => tree.get<Media>(id))?.value;
+      const image = sourceImage(s, (id) => tree.get<Media>(id));
       if (s.folio?.trim()) w.text(1, "_STROM_FOLIO", s.folio.trim());
-      if (image) w.text(1, "_STROM_IMAGE", image);
+      if (image) w.text(1, "_STROM_IMAGE", image.value);
+      // one only its registered scans give, so marked: the app adds it to the location and cuts no other number of an
+      // image out of it (that of an index the location names is no image of the entry); an older app passes the line
+      if (image?.derived) w.line(2, "_STROM_DERIVED", "Y");
       if (s.locator?.trim()) w.text(1, "_STROM_LOCATOR", s.locator);
     }
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
@@ -1137,6 +1144,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // an agent's proposal to change the user's value or an import's (spec 066): whose value it would change — whose it
       // is now (the person may have changed an imported value since), as conflict list/show say it
       if (origins && c.proposal) w.line(2, "_STROM_KIND", proposalKind(tree, c)!);
+      // a source it stands on the person deleted (spec 117 K1.7): to be looked at again, its state kept — sent to every
+      // app (an older one skips the tag); under each value and the decision, the deleted source in place of its SOUR
+      if (c.review) w.line(2, "_STROM_REVIEW", c.review.why);
+      const deleted = (id: string | undefined): id is string => !!id && deletedSource(tree.get<Source>(id));
       // a conflict of the user's edit the app decides by side (open: it may now), each value with its side
       const sides = opts.conflictSides && opts.for === "strom" ? sidesOf(c) : undefined;
       if (sides && c.state === "open") w.line(2, "_STROM_TAKE", "Y");
@@ -1151,12 +1162,18 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
           citedSources.add(source);
           w.line(3, "SOUR", x(source));
         }
+        else if (deleted(source)) w.line(3, "_STROM_RETRACTED", source);
         if (side) {
           w.line(3, "_STROM_SIDE", side);
           if (c.fact === "SEX") w.line(3, "_STROM_RAW", sexRaw(claim.value));
         }
       }
-      if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
+      if (c.state === "resolved" && c.resolution) {
+        w.text(2, "DECI", c.resolution);
+        // the deleted sources the decision named or took the cited value of (the user's edit, an agent's proposal)
+        const cites = [...(c.taken === "user" ? (c.edit?.cites ?? []) : []), ...(c.taken === "research" ? (c.proposal?.cites ?? []) : [])].map((x) => x.source);
+        for (const id of new Set([...sourcesNamed(tree, `${c.resolution}\n${c.reasoning ?? ""}`), ...cites])) if (deleted(id)) w.line(3, "_STROM_RETRACTED", id);
+      }
     }
     for (const { h } of research.hypotheses.filter((x) => x.people.includes(p.id))) {
       w.line(1, "_STROM_HYPO", h.id);
@@ -1452,7 +1469,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (page) w.text(level + 1, "PAGE", page);
     w.line(level + 1, "QUAY", quayAt(src, c, factKind));
     if (c.main && opts.mainCitations && !strict) w.line(level + 1, "_STROM_MAIN", "Y");
-    const where = !strict && c.locator && c.locator !== page ? c.locator : undefined;
+    // a family tree's line in DATA TEXT also beside its PAGE (as the file gave it before)
+    const where = !strict && c.locator && (c.locator !== page || src.kind === "family-tree") ? c.locator : undefined;
     const quote = [where, c.quote].filter(Boolean).join(" — ") || undefined;
     const date = entries ? src.date : undefined;
     if (date || quote) {

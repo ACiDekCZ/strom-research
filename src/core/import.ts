@@ -311,9 +311,15 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     // the imports the app's file names (HEAD 1 _STROM_IMPORT Ix): each its own source, made once, cited by its values
     const appImports = fromApp.app ? importsOfHead(head) : undefined;
     const importSources = new Map<string, string>();
+    // an import's source the person deleted (spec 117 J6): never made again — its values keep their origin, cite the file
+    const importsDeleted = new Set<string>();
     const importSource = (key: string): string => {
       let id = importSources.get(key);
-      if (!id) importSources.set(key, (id = importSourceFor(tree, appImports!.get(key)!, opts.input).source.id));
+      if (!id) {
+        const got = importSourceFor(tree, appImports!.get(key)!, opts.input);
+        importSources.set(key, (id = got.source.id));
+        if (got.deleted) importsDeleted.add(id);
+      }
       return id;
     };
     const originOf = <P extends string>(node: GedNode | undefined, of: "fact" | "name" | "sex" = "fact"): ValueOrigin<P> => {
@@ -322,7 +328,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     };
     /** What a fact of the file cites: the import's source the app marks it with (and the file's for parts the user changed), else the file's. */
     const citesOf = (o: ValueOrigin<string>, locator: string): Event["citations"] =>
-      o.source && o.source !== source.id ? [{ source: o.source, locator }, ...(o.parts?.length ? [{ source: source.id, locator }] : [])] : [{ source: source.id, locator }];
+      o.source && o.source !== source.id && !importsDeleted.has(o.source) ? [{ source: o.source, locator }, ...(o.parts?.length ? [{ source: source.id, locator }] : [])] : [{ source: source.id, locator }];
     const xrefToId = new Map<string, string>();
     const pedi = new Map<string, Map<string, string>>(); // person xref → family xref → PEDI
     const individuals = records.filter((x) => x.tag === "INDI" && x.xref);

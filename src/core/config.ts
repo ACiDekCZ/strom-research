@@ -64,6 +64,8 @@ export interface UserConfig {
   stories?: string;
   /** The gate the agent working alone asks before each session (plugins/gates/<name>). */
   runGate?: string;
+  /** Before the agent starts from a link of the Strom app: ask (the default) or no — the person's standing yes (spec 123). */
+  runConfirm?: string;
   /** A person's pace for the images of restricted archives: "<seconds> <requests an hour>" (core/terms.ts humanPace). */
   archivePace?: string;
   /** Readings of documents the Strom app may ask: "<an hour> <a day>" (core/live-read.ts appReadLimits). */
@@ -301,6 +303,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
   { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
+  // Read from the config file only, changed by the user alone: a standing yes to the agent's subscription or credit.
+  { key: "run.confirm", env: "", tree: false, kind: "choice", choices: ["ask", "no"], description: "the question before the agent starts from a link of the Strom app (a conversation, a task, the work on the queue, a conflict left to the agent, the identification of places): ask (default — said and asked in the terminal) or no (started at once, one line says so; what says a price in money, a consent, a deletion, a request sent and the gate run.gate still ask; an agent's own command is never let through) — every research on this computer, only you set it" },
   // Read from the config file only, changed by the user alone: how fast strom may take images of an archive whose
   // terms restrict automation, once the user allowed it slowly (core/terms.ts).
   { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
@@ -408,6 +412,7 @@ const FIELDS: Record<string, string> = {
   "excerpts.for": "excerptsFor",
   "excerpts.mb": "excerptsMb",
   "run.gate": "runGate",
+  "run.confirm": "runConfirm",
   "archive.pace": "archivePace",
   "read.app": "readApp",
   "tune.transcripts": "tuneTranscripts",
@@ -934,6 +939,11 @@ export class Settings {
   /** The gate of working alone, if the user set one (the config file only). */
   runGate(): string | undefined {
     return this.config.runGate || undefined;
+  }
+
+  /** The question before the agent starts from a link of the Strom app: ask (the default) or no (the config file only, the person's). */
+  runConfirm(): "ask" | "no" {
+    return this.config.runConfirm === "no" ? "no" : "ask";
   }
 
   /** The readings of documents the Strom app may ask ("<an hour> <a day>"; the config file only, raised by the person alone). */
