@@ -27,7 +27,7 @@ const ORIGINAL_ID_TAGS = ["_XREF", "_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_MARRIED_LAST", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
   // the research's lines and the branches off them (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
   "HEAD._STROM_DIRECTION": ["NAME", "TYPE", "_FOCUS", "STAT"],
   "HEAD._STROM_BRANCH": ["_VIA", "_NEAREST", "_DIRECTION", "_MODE"],
@@ -145,7 +145,7 @@ const EXTENSIONS = new Set([
   // a source's excerpts the file leaves out, and why
   "_STROM_IMG_OMITTED",
   // the name a person is shown by; a couple's state; parents who are no couple; an archive
-  "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE",
+  "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE", "_STROM_MARRIED_LAST",
   // who read a source, the user's verification, the reading it is an entry of; how sure a fact is
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
   // the wording of a source's transcript, and the day the user confirmed it (under _STROM_READ)

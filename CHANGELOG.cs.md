@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -17,8 +17,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   (kopie správce souborů „33 2.jpg“ je snímek 33; název se dvěma čísly a bez počítadla žádné nedostane); soubory dávky
   se číslují pořadím jen tehdy, když žádný z nich nemá číslo v názvu; složka se převezme až po dostažení celé dávky
   (rozestahovaný .crdownload nebo .part vedle ní ji zdrží). Soubor, který je tentýž sken jako jiný snímek, se nikdy
-  nesmaže: odloží se vedle a řekne se to.
-- **Jiný sken pod obsazeným číslem:** soubor uložený pod číslem už zapsaného snímku, který ukazuje jinou stránku (jiný
+  nesmaže: odloží se vedle a řekne se to. Soubor uložený pod číslem už zapsaného snímku, který ukazuje jinou stránku (jiný
   tvar nebo jiný rukopis), už snímek nenahradí: odloží se vedle a zeptá se na něj Co čeká i aplikace Strom – ponechat
   snímek, vzít nový soubor jako tento snímek, nebo mu dát vlastní číslo (`strom media aside`). Ostřejší kopie se
   převezme jen tehdy, když jde jistě o tentýž sken – porovnává se rukopis, ne předtištěný formulář; když to rozhodnout
@@ -31,13 +30,23 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jakýkoli příkaz agenta. Dotaz vypíná jen člověk, nikdy agent.
 - **Smazání pramene:** pramen jde ve výzkumu smazat – `strom source retract` v terminálu nebo smazáním pramene v
   aplikaci Strom, jen člověkem, nikdy agentem (ten ho smí jen navrhnout s tím, co by podle `--dry-run` vzal). Hodnoty
-  zůstanou; citace se z údajů odeberou a uchovají v prameni, údaj může být méně jistý, úkol stojící jen na něm se odloží
+  zůstanou; citace se z údajů odeberou a uchovají v prameni, údaj může být méně jistý, úkol stojící jen na něm se vzdá
   a rozhodnutý rozpor, který na něm stál, se označí k přezkoumání (`strom conflict keep` rozhodnutí ponechá). Co to
   vezme, se řekne předem a člověk to potvrdí; pramen jde i s citacemi obnovit (`strom source restore` nebo Vrátit v
   aplikaci Strom). Pramen smazaný v aplikaci Strom při úpravách rodokmenu se ve výzkumu smaže s dalším odesláním – jen
   odesláním celého rodokmenu člověkem; jinak Změny řeknou, proč ne. Smazaný pramen se už nevrátí s pozdějším souborem
   ani importem. V terminálu `strom source show` řekne, že je pramen smazaný, kdy a co ho vrátí, a
   `strom source list --retracted` smazané prameny vypíše.
+- **Sčítání lidu:** výzkum smí jako pramen použít sčítání lidu – domácnost v jednom roce ukáže, kdo s kým bydlel a
+  odkud kdo přišel. Vypnuto, dokud ho člověk nezapne, v nastavení výzkumu („Sčítání lidu v tomto výzkumu“) nebo
+  v aplikaci Strom; agent ho smí jen jednou navrhnout. Domácnost se zapíše všem jejím členům ve stromu najednou
+  (`strom census add`): vztah k přednostovi, věk, datum, místo a dům a citace archu stejně u každého; lidé mimo strom jen
+  v poznámce. Vztah se převezme tak, jak ho píšou formuláře sčítání („přednosta“, „manželka přednosty“ a jejich slova
+  v angličtině, němčině a polštině).
+- **Jména po sňatku:** u ženy vdané víckrát je jméno nyní to po posledním sňatku – příjmení manžela z nejpozdější
+  svatby, i v ženském tvaru; jméno zvolené v aplikaci Strom jako nynější se převezme a platí, dokud se nezvolí znovu.
+  Soubor pro aplikaci Strom dává jména po sňatku na konec, nynější úplně poslední, takže i starší aplikace Strom ukáže
+  to správné.
 - **Soubor rodokmenu v materiálu:** aplikace Strom ukáže v Materiálech importované soubory rodokmenu (GEDCOM, JSON
   aplikace) a smaže je natrvalo jako každý soubor materiálu; ten, ze kterého vznikl pramen, jen spolu s tímto pramenem,
   v jednom kroku s jedním potvrzením (`strom input delete … --retract-sources`).

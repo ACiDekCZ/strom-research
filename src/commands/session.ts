@@ -28,6 +28,7 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
+import { censusHeld, censusProposal, forCensus } from "../core/census.ts";
 import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
 import { appendLog, deniedStrom, prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
@@ -144,6 +145,35 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
   return undefined;
 }
 
+/**
+ * What an agent is told of a census task started by its ID while census records are off (spec 106): held, the
+ * person's switch. Undefined when it may be worked on (or is no census task).
+ */
+function censusLine(tree: Tree, t: Task, settings: Settings): string | undefined {
+  if (!censusHeld(t, settings.census(tree.config))) return undefined;
+  return `⚠ ${t.id} is a census task and census records are off for this research (the person's switch): it waits held — close the session (strom session close --continue …) and take another task`;
+}
+
+/**
+ * The session's summary with the one sentence of a census proposal made in it (spec 106: strom census propose), in the
+ * research language — said where the person reads the session's result, unless the summary names the proposal already.
+ */
+function censusSummary(tree: Tree, s: Session, summary: string): string {
+  const p = censusProposal(tree);
+  if (!summary.trim() || !p || p.created < s.started || summary.includes(p.id)) return summary;
+  return `${summary.trim()} ${phrase(tree.lang, "census.propose.session", { task: p.id })}`;
+}
+
+/**
+ * What the agent is told at the close when its session's task is a census task and census records are off now
+ * (switched off while it worked, spec 106 M3): back in the queue, held until the person switches them on again.
+ */
+function censusCloseLine(tree: Tree, s: Session, settings: Settings): string | undefined {
+  const t = s.task ? tree.get<Task>(s.task) : undefined;
+  if (!t || !forCensus(t) || settings.census(tree.config) || !censusHeld(t, false)) return undefined;
+  return `${t.id} is a census task and census records are off for this research now (the person's switch): it waits held, out of the queue, until they switch them on again — never propose them a second time`;
+}
+
 /** Commit behind the same gate as every write. */
 /**
  * Images the person saved by hand into the folders of waiting tasks, taken (commands/media.ts takeWaiting): at a
@@ -200,7 +230,7 @@ register(
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
       const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
-      const held = task && args[0] ? historyLine(tree, task, shared, ctx.settings) : undefined;
+      const held = task && args[0] ? (historyLine(tree, task, shared, ctx.settings) ?? censusLine(tree, task, ctx.settings)) : undefined;
       return { text: lines(written(tree), ...takenLines(taken), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}), ...(taken.length ? { taken } : {}) } };
     },
   },
@@ -343,7 +373,7 @@ register(
       }
       const alsoDone = also.map((id) => finishTask(tree, id, `fulfilled in ${s.id}${s.task ? ` (${s.task})` : ""}: ${alsoResult}`, csvOpt(opts.produced)));
       const closed = closeSession(tree, s, {
-        summary: String(opts.summary ?? (done ? (finished?.task.result ?? done) : "")),
+        summary: censusSummary(tree, s, String(opts.summary ?? (done ? (finished?.task.result ?? done) : ""))),
         next: String(opts.next ?? ""),
         continueTask: Boolean(opts.continue),
         interrupted: Boolean(opts.interrupted),
@@ -370,6 +400,7 @@ register(
           // its task waits: what brings it back, as strom does it (never a promise strom does not keep)
           ((t) => (t ? wakesBy(tree, ctx.settings.shared()?.value, t, (p) => ctx.display(p)) : undefined))(s.task ? tree.get<Task>(s.task) : undefined),
           ...audits.map((a) => a.line),
+          censusCloseLine(tree, s, ctx.settings),
           audits.length ? `check of each wait: ${WAIT_CHECKLIST}` : undefined,
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${counted(newTasks.length, "new task")} from the research frontier` : undefined,

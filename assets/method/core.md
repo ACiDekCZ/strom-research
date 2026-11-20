@@ -70,6 +70,11 @@ conclusion so the next researcher can follow it.
   (`strom task list --off-tree`); they come back by themselves once the link
   is recorded.
 <!-- end -->
+<!-- for link enrich locate census-off -->
+- **Census records are off** (the person's switch). At a dead end a census
+  could help with — an origin unknown, a gap between register events —
+  propose them once: `strom census propose --why "…" [--person P…]`.
+<!-- end -->
 <!-- for link verify enrich intake links -->
 - **Say what a hypothesis would connect.** A hypothesis about a connection —
   whose child, the same person, a couple, siblings — gets each variant's links

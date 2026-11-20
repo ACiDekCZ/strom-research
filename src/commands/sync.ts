@@ -216,6 +216,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? "ui.sync.do.name.user"
       : c.kind === "name.shown"
       ? `ui.sync.do.name.shown${c.action === "conflict" ? ".conflict" : ""}`
+      : c.kind === "name.now"
+      ? "ui.sync.do.name.now"
       : c.kind === "name.gone"
       ? `ui.sync.do.name.${c.action === "remove" ? "gone" : "kept"}`
       : c.kind === "name.title" && (c.action === "add" || c.action === "user")

@@ -53,8 +53,9 @@
 //                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
 //                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
 //                          the same research and branch GET /queue filters by — feature queue.page; queueCounts.kind
-//                          {verify|records|material|places|enrich|request|story|history|other: n} (only the kinds with
-//                          a task) and each item's taskKind: the kind of the work (core/taskkind.ts) — feature queue.kind. The order is strom
+//                          {verify|records|material|places|enrich|request|story|history|census|other: n} (only the kinds
+//                          with a task; census apart — feature census) and each item's taskKind: the kind of the work
+//                          (core/taskkind.ts) — feature queue.kind. The order is strom
 //                          run's (core/queue.ts runOrder): one story first at a story's turn, the tasks of history by
 //                          their pace; kind: story | history says such a task (none for the research's work)
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
@@ -546,8 +547,10 @@
 //                          pos?, person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
 //   GET <token>/queue      a page of the whole queue (feature queue.page): ?from=<0…> (among the tasks the filter
 //                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked &kind=<a kind of
-//                          core/taskkind.ts: verify, records, material, places, enrich, request, story, history, other;
-//                          feature queue.kind> — {items (as /status
+//                          core/taskkind.ts: verify, records, material, places, enrich, request, story, history, census,
+//                          other; feature queue.kind> &known=<kind>[,<kind>…] (feature census: at most 20, each [a-z.]
+//                          {1,32}; with kind=other only, else ignored): kind=other without it gives every kind past spec
+//                          065's too (census), known= keeps the kinds it names out — {items (as /status
 //                          queue[], with pos), total (what the filter leaves), from, next? (from of the next page), head};
 //                          in the order of the queue, those put aside after it without pos; an archive: none. 400
 //                          queue.query, 503 research.busy (+ Retry-After). &q=<1…100 characters> (feature queue.search):
@@ -574,6 +577,15 @@
 //                          books.minTasks … / queue.sameBook … --for-tree ("default": config unset --for-tree) — {books
 //                          {settings} (as /status books.settings), head, parent (head when nothing changed)}; feature
 //                          books; 400 books.body, 409 directions.archive, 503 research.busy
+//   POST <token>/census    {"on": true|false} (exactly): census records as a source of this research — strom config set
+//                          census on|off --for-tree, the person's decision in the app (no window, no link) — {census
+//                          {on, held}, head, parent (head when the value holds already: nothing written)}; feature
+//                          census; 400 census.body, 409 census.archive (an archive, a research waiting for its agent),
+//                          409 seal.foreign | tree.not-downloaded, 423 locked, 503 research.busy (+ Retry-After), 507
+//                          disk.full, 500 census.failed (+ reasonCode). /status census {on, held}: always there; held —
+//                          the census tasks open or waiting kept out of the queue and What waits while it is off (one at
+//                          work not counted: its session finishes it), 0 while on, in an archive and where the research
+//                          waits for its agent
 //   POST <token>/books/aside  {file (as /status books.aside lists it), do: discard|take|image, image?: n} (feature
 //                          inbox.aside): strom media aside <file> --discard|--take|--image n — a file of a book's folder
 //                          of the inbox set aside, not taken (the same file as another image: only discard; another scan
@@ -662,7 +674,8 @@ import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, 
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
-import { kindCounts, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
+import { censusHeldCount, censusHidden } from "./census.ts";
+import { kindCounts, kindMatches, parseKnownKinds, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
 import { factMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
@@ -807,7 +820,7 @@ function placeOk(v: unknown): v is string {
   return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
 }
 
-const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue"]);
+const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -1768,7 +1781,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
@@ -2142,6 +2155,8 @@ const DIRECTION_GENERATIONS = 12;
  */
 function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string | undefined)[], found?: Map<string, Found>): Record<string, unknown>[] {
   const tasks = tree.list<Task>("task");
+  // census records off: their tasks wait for nobody (spec 106)
+  const censusHide = censusHidden(new Settings(tree.env, {}).census(tree.config));
   // each task in the one direction it belongs to — or helps (core/offline.ts)
   const line = lineOf(tree, all);
   const of = new Map(tasks.map((t) => [t.id, line(t)]));
@@ -2170,7 +2185,7 @@ function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string
       direction: r.direction,
       focus: r.focus,
       tasks: inQueue,
-      waiting: tasks.filter((t) => t.state === "waiting" && of.get(t.id) === r.id).length,
+      waiting: tasks.filter((t) => t.state === "waiting" && of.get(t.id) === r.id && !censusHide(t)).length,
       working: workingOn.includes(r.id),
       ...(reason ? { reason: short(reason) } : {}),
       since: r.stateSince ?? (r.state === "active" ? r.created : r.updated),
@@ -2414,6 +2429,16 @@ function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLi
  * queueCounts, feature queue.page): the same field GET /queue?research= and ?branch= filter by, counted from the queue
  * already ranked — next: all in the queue, parked: those put aside.
  */
+/**
+ * /status census (spec 106): on — the setting as it holds for this research; held — its census tasks open or waiting
+ * kept out of the queue and What waits while it is off (one at work not counted), 0 while on, in an archive and where
+ * the research waits for its agent.
+ */
+export function censusStatus(tree: Tree, settings: Settings): { on: boolean; held: number } {
+  const on = settings.census(tree.config);
+  return { on, held: actsAsArchive(tree) ? 0 : censusHeldCount(tree.list<Task>("task"), on) };
+}
+
 function queueCounts(ranked: Ranked[], parked: number, rev?: string): { research: Record<string, number>; branch: Record<string, number>; kind: Partial<Record<TaskKind, number>>; next: number; parked: number; rev?: string } {
   const research: Record<string, number> = {};
   const branch: Record<string, number> = {};
@@ -2438,6 +2463,8 @@ export interface QueueAsk {
   state?: "next" | "parked";
   /** Only the tasks of this kind (feature queue.kind, core/taskkind.ts). */
   kind?: TaskKind;
+  /** With kind other: the kinds the app knows, kept out of other (feature census; else every kind past spec 065's is other). */
+  known?: string[];
   /** What to find among them (feature queue.search): trimmed, 1…QUERY_MAX characters. */
   q?: string;
 }
@@ -2447,8 +2474,8 @@ export const QUERY_MAX = 100;
 
 /** The query of GET /queue read, or why it is none (400 queue.query). */
 export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
-  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&kind=${TASK_KINDS.join("|")}&q=<1…${QUERY_MAX} characters> (each optional)`;
-  const known = new Set(["from", "count", "branch", "research", "state", "kind", "q", "app", "poll"]);
+  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&kind=${TASK_KINDS.join("|")}&known=<kind>[,<kind>…]&q=<1…${QUERY_MAX} characters> (each optional)`;
+  const known = new Set(["from", "count", "branch", "research", "state", "kind", "known", "q", "app", "poll"]);
   for (const k of q.keys()) if (!known.has(k)) return { bad: `unknown ${k}: ${shape}` };
   const int = (k: string, dflt: number, min: number, max: number): number | undefined => {
     const v = q.get(k);
@@ -2484,6 +2511,13 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
     if (!k) return { bad: `kind=${TASK_KINDS.join("|")}: ${shape}` };
     ask.kind = k;
   }
+  // the kinds the app knows (feature census): out of other; its shape checked always, its words only with kind=other
+  const kn = q.get("known");
+  if (kn !== null) {
+    const words = parseKnownKinds(kn);
+    if (!words) return { bad: `known=<kind>[,<kind>…] (at most 20, each a-z or .): ${shape}` };
+    if (ask.kind === "other") ask.known = words;
+  }
   // what to find: never said back in a refusal (nor in the log — masked)
   const find = q.get("q");
   if (find !== null) {
@@ -2518,7 +2552,7 @@ export function queuePage(
   const entries: Entry[] = [];
   for (const [i, r] of ranked.entries()) entries.push({ t: r.task, r, pos: i + 1, where: whereInQueue(place, offLine, file, r.task, r) });
   if (ask.state !== "next") for (const t of order.parked) entries.push({ t, where: whereInQueue(place, offLine, file, t) });
-  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research) && (!ask.kind || taskKind(e.t) === ask.kind));
+  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research) && (!ask.kind || kindMatches(taskKind(e.t), ask.kind, ask.known)));
   // what the person searches for: among what the filters leave, in the order of the queue, then paged
   const found = ask.q === undefined ? undefined : searchQueue(tree, order, left, ask.q);
   const rows = found ? found.rows : left;
@@ -2919,6 +2953,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     experiments: { history: historyOn(tree, settings), regions: regionsOn(tree, settings), places: placesOn(tree, settings), historyPace: settings.historyPace(tree.config), ...kindsStatus(tree, settings) },
     // the history of the places in the stories (stories.history): on while the history is on, unless turned off
     stories: { history: settings.storyHistory(tree.config) },
+    // census records as a source (spec 106, feature census): always there — held 0 while on, in an archive and where
+    // the research waits for its agent
+    census: censusStatus(tree, settings),
     // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
     // waiting for its agent — no key there
     ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
@@ -3800,6 +3837,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     // the bridge itself: how long it runs on with nobody asking (this computer's choice), or ended now from the app
     if (req.method === "POST" && t === token && what === "live" && !sub) {
       writeFor(req, res, origin, liveWrite());
+      return;
+    }
+    // census records as a source (spec 106)
+    if (req.method === "POST" && t === token && what === "census" && !sub) {
+      writeFor(req, res, origin, censusWrite());
       return;
     }
     // the tree's settings of the books (spec 105)
@@ -6227,6 +6269,39 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         return { books: { settings: booksSettings(tree, new Settings(env, {})) }, head: h, parent: before };
       },
       refused: (_tree, code, why, data) => offlineRefused(code, why, data),
+    };
+  };
+
+  /**
+   * Census records as a source of this research (POST /census {"on": true|false}, exactly; spec 106): strom config set
+   * census on|off --for-tree, in the app's environment — the person's decision there, turned on or off at once (no
+   * window, no link). As it is already: 200, nothing written, head = parent. {census: {on, held}, head, parent} (held
+   * counted after the write). 400 census.body; not in an archive nor a research waiting for its agent (409
+   * census.archive, reasonCode: its state).
+   */
+  const censusWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "census records",
+      codes: { badBody: "census.body", busy: "research.busy", failed: "census.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || keys[0] !== "on" || typeof body.on !== "boolean") return { code: 400, body: refusal(`the body: {"on": true} or {"on": false}`, "census.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: { ...refusal("nobody researches here: census records are not looked for", "census.archive"), reasonCode: stateOf(tree) } };
+        before = head(root);
+        const settings = new Settings(env, {});
+        if (settings.census(tree.config) === body.on) return { code: 200, body: { census: censusStatus(tree, settings), head: before, parent: before } };
+        return { args: ["config", "set", "census", body.on ? "on" : "off", "--for-tree"] };
+      },
+      done(tree, _data, h) {
+        const now = Tree.open(tree.root, env);
+        return { census: censusStatus(now, new Settings(env, {})), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "census.archive"), reasonCode: stateOf(tree) } };
+        return undefined;
+      },
     };
   };
 

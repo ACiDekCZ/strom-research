@@ -54,6 +54,7 @@ import { head } from "../core/git.ts";
 import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
+import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
 
 
 function written(tree: Tree): string {
@@ -639,6 +640,23 @@ function waitSaid(tree: Tree, t: Task): string | undefined {
   return `${w.waitKind} · ${w.group.name} (${w.group.key}) · ${w.phase === "sent" ? `sent ${w.sentAt!.slice(0, 10)}` : SENDABLE.includes(w.waitKind) ? "not sent yet" : "with the user"}`;
 }
 
+/**
+ * The origin of a census task (strom task add --census <year>[:<house>], spec 106): census:<year>[:<house>] — refused
+ * while census records are off for the research (the person's switch alone; the agent proposes it once).
+ */
+function censusOrigin(ctx: Context, tree: Tree, given: unknown): string | undefined {
+  if (given === undefined) return undefined;
+  const v = String(given).normalize("NFC").trim();
+  if (!/^\d{3,4}(?::[\p{L}\p{M}\p{N}.\/-]{1,32})?$/u.test(v))
+    throw new UsageError(`--census takes <year>[:<house>], not "${v}"`, { code: "census.value", hint: "strom task add … --census 1890:14" });
+  if (!ctx.settings.census(tree.config))
+    throw new UsageError("census records are off for this research: no census task is added — turning them on is the person's decision (the menu's settings, the Strom app)", {
+      code: "census.off",
+      hint: `propose it to the user once instead: strom census propose --why "<what a census could show, in the research language>" [--person P…]${censusProposal(tree) ? ` (proposed already: ${censusProposal(tree)!.id} — do not propose again)` : ""}`,
+    });
+  return `${CENSUS_PREFIX}${v}`;
+}
+
 register(
   {
     path: ["task", "add"],
@@ -668,6 +686,7 @@ register(
       { name: "helps", type: "string", value: "<text>", description: HELPS_DESCRIPTION, max: 500 },
       { name: "note", type: "string", value: "<text>", description: "short note" },
       { name: "anyway", type: "boolean", description: "add it although an open task of the same person and level reads the same (it is really other work)" },
+      { name: "census", type: "string", value: "<year>[:<house>]", description: "a census task (one household, year, house): only while census is on; off: strom census propose" },
     ],
     examples: [
       'strom task add "Křest Jana Nováka (~1905)" --level link --where B0001 --why "potvrdí otce Josefa" --done-when "zápis nalezen, nebo ročníky 1903-1907 prohledány celé" --about P0001 --priority 4',
@@ -675,6 +694,7 @@ register(
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
       refuseInHistorySession(tree, currentSession(tree, ctx.env, ctx.refs), "strom task add");
+      const census = censusOrigin(ctx, tree, opts.census);
       const missing = [!opts.level && "--level", !listOpt(opts.where).length && "--where", !opts.why && "--why", !opts["done-when"] && "--done-when"].filter(Boolean);
       if (missing.length)
         throw new UsageError(`a task needs ${missing.join(", ")}`, { hint: "a task without where is a wish: name the record set (B…) or describe exactly where to look" });
@@ -725,7 +745,7 @@ register(
           subject,
           research,
           state: "open",
-          origin: tree.actor,
+          origin: census ?? tree.actor,
           ...(helpsOpt(opts.helps) ? { helps: helpsOpt(opts.helps) } : {}),
           note: [whatMore, typeof opts.note === "string" ? opts.note : undefined].filter(Boolean).join("\n") || undefined,
         },
@@ -859,7 +879,16 @@ register(
         const id = subjects(tree, [String(opts.about)])[0]!;
         all = all.filter((t) => t.subject.includes(id));
       }
+      // census records off (spec 106): their tasks held out of the queue — listed with --kind census or a state, marked
+      const censusNow = ctx.settings.census(tree.config);
+      const censusHeldNow = censusNow ? [] : tree.list<Task>("task").filter((t) => censusHeld(t, false) && (!opts.level || t.level === opts.level) && (!research || t.research === research));
+      if (!opts.state && !opts["off-tree"] && !book && kind === "census") all = [...all, ...censusHeldNow.filter((t) => !all.includes(t))];
       if (kind) all = all.filter((t) => taskKind(t) === kind);
+      const censusMark = (t: Task) => !censusNow && censusHeld(t, false);
+      const row = (t: Task) => {
+        const r = taskLine(t);
+        return censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : r;
+      };
       // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
       // the queue says what waits out of it for a link to the tree
@@ -878,8 +907,11 @@ register(
         };
       return {
         text: lines(
-          all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
+          all.length ? lines(table(page.items.map(row)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about && !book && kind !== "census" && censusHeldNow.length
+            ? `${censusHeldNow.length} census task${censusHeldNow.length === 1 ? "" : "s"} held: census records are off for this research — back by themselves once the person turns them on (strom task list --kind census)`
+            : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about && !research ? neverLine(tree, ctx.settings.offLine(tree.config)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? asleepLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
@@ -891,7 +923,9 @@ register(
             ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
             ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
+            ...(censusMark(t) ? { held: "census off" } : {}),
           })),
+          ...(censusHeldNow.length ? { censusHeld: censusHeldNow.length } : {}),
         },
       };
     },

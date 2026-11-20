@@ -1,5 +1,5 @@
 {
-  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use; quoteFrom reply: the quote is the archive's written reply to strom's author on the day replied — never public terms nor an address (terms, when given, is a public page of its own), and it never opens automated use. replied alone: the day of the archive's written reply the entry follows, its quote still its public terms at terms. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked (or an archive's reply, quoteFrom reply, word for word); a release adds an archive. wholeBook {how, says, from}: what a person may download of a book by hand, for strom's offer to speed up the tasks of a book (spec 105) — offered (the archive offers the whole book: a ZIP, a button), allowed (its terms or reply let the whole book be downloaded), selected (only selected images, never a whole book nor a substantial part), never (nothing to offer); says quoted word for word from its terms (from terms), its terms page (termsPage) or its reply (reply, on the day replied); none: only the images the tasks need. imageFileTimes: the image number in the name of a file as the portal names it (.jp2) is the image × this — counted back when a folder of the inbox is taken.",
+  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use; quoteFrom reply: the quote is the archive's written reply to strom's author on the day replied — never public terms nor an address (terms, when given, is a public page of its own), and it never opens automated use. replied alone: the day of the archive's written reply the entry follows, its quote still its public terms at terms. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked (or an archive's reply, quoteFrom reply, word for word); a release adds an archive. wholeBook {how, says, from}: what a person may download of a book by hand, for strom's offer to speed up the tasks of a book (spec 105) — offered (the archive offers the whole book: a ZIP, a button), allowed (its terms or reply let the whole book be downloaded), selected (only selected images, never a whole book nor a substantial part), never (nothing to offer); says quoted word for word from its terms (from terms), its terms page (termsPage) or its reply (reply, on the day replied); none: only the images the tasks need. imageFileTimes: the image number in the name of a file as the portal names it (.jp2) is the image × this — counted back when a folder of the inbox is taken. census {years, area, nameIndex, search, how, says, checked}: the census records the host holds (spec 106) — the years online, the area they cover, a name index (true or false), how a household is found (place, street, house, name), the way for strom (agent: the agent itself; slow: one record at a time; by-hand: the person saves the sheet, mostly a screenshot; link: a link and a task for the person) — never milder than the entry's level; says quoted word for word from its terms or its pages; checked: the day the census part was read. censusDays: the reference day of each census by country (ISO 3166 code) and year, where it is known — data, not the method's.",
   "archives": [
     {
       "host": "mza.cz",
@@ -19,7 +19,27 @@
       "pace": {
         "minIntervalMs": 4000
       },
-      "imageFileTimes": 10
+      "imageFileTimes": 10,
+      "census": {
+        "years": [
+          1857,
+          1869,
+          1880,
+          1890,
+          1900,
+          1910,
+          1921
+        ],
+        "area": "CZ: South Moravia and Vysočina (the district archives of MZA)",
+        "nameIndex": false,
+        "search": [
+          "place",
+          "street"
+        ],
+        "how": "by-hand",
+        "says": "Aplikace sčítacích operátů je určena výhradně pro prohlížení pořízených snímků, pro pořízení kopie prohlíženého digitalizátu využijte funkci PrintScreen na svém počítači.",
+        "checked": "2026-11-19"
+      }
     },
     {
       "host": "ebadatelna.soapraha.cz",
@@ -65,6 +85,23 @@
         "how": "selected",
         "says": "badatel smí uložit pouze vybrané snímky, t.j. nesmí takto exportovat celou knihu nebo její podstatnou část.",
         "from": "reply"
+      },
+      "census": {
+        "years": [
+          1857,
+          1869,
+          1880,
+          1890,
+          1900,
+          1910,
+          1921
+        ],
+        "area": "CZ: South Bohemia (seven district archives)",
+        "search": [
+          "place"
+        ],
+        "how": "by-hand",
+        "checked": "2026-11-19"
       }
     },
     {
@@ -79,6 +116,25 @@
         "how": "allowed",
         "says": "Lze prohlížet a stahovat jednotlivé snímky i celé sady digitalizátů (např. všechny stránky jedné matriky).",
         "from": "terms"
+      },
+      "census": {
+        "years": [
+          1857,
+          1869,
+          1880,
+          1890,
+          1900,
+          1910,
+          1921
+        ],
+        "area": "CZ: East Bohemia (all that survive)",
+        "nameIndex": false,
+        "search": [
+          "place"
+        ],
+        "how": "agent",
+        "says": "Všechny dochované sčítací operáty z okresů Královéhradeckého kraje a Pardubického kraje.",
+        "checked": "2026-11-19"
       }
     },
     {
@@ -526,6 +582,23 @@
         "how": "never",
         "says": "You further agree that, unless you have received our prior written permission, you will not use any software, technology, or device to perform a bulk download, to scrape content, or to otherwise harvest any information or materials from this site.",
         "from": "terms"
+      },
+      "census": {
+        "years": [
+          1857,
+          1869,
+          1880,
+          1890,
+          1900,
+          1910,
+          1921
+        ],
+        "area": "CZ: selected places (its catalogue by place; films of district archives)",
+        "search": [
+          "place"
+        ],
+        "how": "link",
+        "checked": "2026-11-19"
       }
     },
     {
@@ -754,7 +827,17 @@
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (and /pragapublica/ redirects to a bot check, /pragapublica/human/challenge)",
       "scope": "a person's browser only: robots.txt keeps every robot off and the catalogue opens behind a bot check; the person opens and saves the image, the agent reads the saved file; images never published (online only 500 px with the archive's watermark, under an agreement)",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "census": {
+        "years": [
+          1869,
+          1880,
+          1890
+        ],
+        "area": "CZ: Prague",
+        "how": "by-hand",
+        "checked": "2026-11-04"
+      }
     },
     {
       "host": "www.ahmp.cz",
@@ -1038,7 +1121,21 @@
       "quote": "# BLOCK AI & CHATBOT CRAWLERS / User-agent: Anthropic-ai / User-agent: ChatGPT-User / User-agent: ClaudeBot / … / User-agent: GPTBot / … / Disallow: /names / Disallow: /family-trees/ …",
       "robots": "AI agents by name (Anthropic-ai, ClaudeBot, Claude-Web, ChatGPT-User, GPTBot, Google-Extended …) · Disallow: /names, /last-name, /FP/API, /family-sites/, /family-trees/, /name-directory/, /pedigree-tree; Imperva in front",
       "scope": "its robots.txt keeps AI agents off by name; paid, behind the person's login: only the person, by hand in the browser",
-      "checked": "2026-11-04"
+      "checked": "2026-11-04",
+      "census": {
+        "years": [
+          1900,
+          1910,
+          1921
+        ],
+        "area": "CZ",
+        "nameIndex": true,
+        "search": [
+          "name"
+        ],
+        "how": "by-hand",
+        "checked": "2026-11-19"
+      }
     },
     {
       "host": "www2.landesarchiv-bw.de",
@@ -1352,9 +1449,28 @@
       "host": "digiarchiv.brno.cz",
       "name": "Archiv města Brna (Digitální archiv: census records)",
       "level": "unknown",
-      "robots": "User-agent: * · Disallow: (nothing closed)",
-      "scope": "Brno's census records 1850, 1857, 1870, 1880, 1890, 1900 and 1921 with their name index, in a JavaScript application: one record at a time; no terms of use found",
-      "checked": "2026-11-04"
+      "robots": "User-agent: * · Disallow: (nothing closed; read again 2026-11-20)",
+      "scope": "Brno's census records 1850, 1857, 1870, 1880, 1890, 1900 and 1921 with their name index, in a JavaScript application: one record at a time; no terms of use found (its page, 2026-11-20: the application alone, nothing said without JavaScript)",
+      "checked": "2026-11-20",
+      "census": {
+        "years": [
+          1850,
+          1857,
+          1870,
+          1880,
+          1890,
+          1900,
+          1921
+        ],
+        "area": "CZ: the city of Brno",
+        "nameIndex": true,
+        "search": [
+          "name",
+          "house"
+        ],
+        "how": "slow",
+        "checked": "2026-11-04"
+      }
     },
     {
       "host": "archivalie.brno.cz",
@@ -1382,9 +1498,14 @@
       "level": "restricted",
       "terms": "https://badatelna.ostrava.cz/vademecum/",
       "quote": "Publikování jakékoliv textové i obrazové části databáze je podmíněno souhlasem Archivu města Ostravy a uvedením řádné citace.",
-      "robots": "none (robots.txt redirects to /vademecum/)",
+      "robots": "none (robots.txt redirects to /vademecum/, the page of its terms; that page asks search engines not to index it: <meta name=\"ROBOTS\" content=\"NONE\">)",
       "scope": "census records, domicile registers and books of registered residents, cemetery and cremation books, chronicles of Ostrava: one record at a time; nothing published without the archive's consent and a citation; its terms say nothing of downloading or automated tools",
-      "checked": "2026-11-04"
+      "checked": "2026-11-20",
+      "census": {
+        "area": "CZ: the city of Ostrava",
+        "how": "slow",
+        "checked": "2026-11-20"
+      }
     },
     {
       "host": "amo.ostrava.cz",
@@ -1768,5 +1889,16 @@
       "scope": "maps of the Polish Military Geographical Institute: one map at a time; no terms of use found",
       "checked": "2026-11-03"
     }
-  ]
+  ],
+  "censusDays": {
+    "CZ": {
+      "1857": "1857-10-31",
+      "1869": "1869-12-31",
+      "1880": "1880-12-31",
+      "1890": "1890-12-31",
+      "1900": "1900-12-31",
+      "1910": "1910-12-31",
+      "1921": "1921-02-15"
+    }
+  }
 }

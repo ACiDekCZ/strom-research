@@ -297,19 +297,31 @@ test("claude-usage asks get_usage first — the limits alone, in a second — an
     }
   }
   // no answer in time (a minute of silence): given up at the gate's own GET_MS, then /usage within the rest of the budget
-  // — the time taken that GET_MS and the gate's Node processes on this computer now, twice and more, never the minute
+  // — the budget measured on the same work under the same load (a performance budget, never fixed milliseconds): the
+  // gate with get_usage answered at once and /usage after it, just before and just after the slow run, the longer of the
+  // two three times and GET_MS twice and a Node start; never the minute
   const getMs = 300;
-  const budget = 2 * getMs + 10 * nodeStartMs();
+  const quick = standIn([usage], undefined, "exit:3\n");
+  const sameWork = () => {
+    const t = Date.now();
+    const r = quick.ask(["10"], { CLAUDE_USAGE_GET_MS: String(getMs) });
+    assert.equal(r.reason, goes(30, week.at));
+    return Date.now() - t;
+  };
   const slow = standIn([usage], undefined, "sleep:60\n");
   try {
+    const first = sameWork();
     const before = Date.now();
     const r = slow.ask(["10"], { CLAUDE_USAGE_GET_MS: String(getMs) });
     const took = Date.now() - before;
+    const budget = 2 * getMs + 3 * Math.max(first, sameWork()) + nodeStartMs();
     assert.equal(r.code, 0, r.reason);
     assert.equal(r.reason, goes(30, week.at));
     assert.ok(took < budget, `${took} ms, the budget ${budget} ms`);
+    assert.ok(took < 60_000, "never the minute");
     assert.deepEqual(slow.asked(), ["usage"]);
   } finally {
+    quick.done();
     slow.done();
   }
 });

@@ -161,7 +161,9 @@ export interface Event {
   verified?: FactVerified;
   /**
    * One copy of an event the Strom app shares among people (spec 085: a census of a household, a move) — a person's
-   * fact only (`_STROM_SHARE`). Read, kept and given back; no command of the research changes it. Optional: no
+   * fact only (`_STROM_SHARE`). Read, kept and given back; the research makes it only of a census household (strom
+   * census add, spec 106 K3: an id of its own, the relation as the role) and keeps the copies' common fields alike
+   * (core/household.ts). Optional: no
    * SCHEMA_VERSION raised.
    */
   share?: EventShare;
@@ -261,6 +263,12 @@ export interface Name {
    * primaryName. GEDCOM NAME > _STROM_PRIMARY Y.
    */
   primary?: true;
+  /**
+   * The name after a marriage the user chose as the one now (spec 010 K4.2: changed in the Strom app): over the rule of
+   * the latest marriage (core/married.ts) until the user chooses another; at most one name of a person. Only the order
+   * the files give the names after a marriage in (the one now last) — never how the person is shown (primary).
+   */
+  marriedNow?: true;
   /** The records that give the person this name (in this form). */
   citations?: Citation[];
   /** Where the name came from (spec 066): an import or the user; none, the research's. */
@@ -1410,6 +1418,8 @@ export interface TreeConfig {
   experimentsPlaceHistory?: string;
   /** The kinds of the history's events looked for in this tree alone, both ways (core/eventkinds.ts; unset: the user's config, else all). */
   historyKinds?: string;
+  /** Census records as a source for this tree alone, both ways ("on" | "off"; unset: the user's config, else off — spec 106). */
+  census?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

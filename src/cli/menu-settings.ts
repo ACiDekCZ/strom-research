@@ -43,6 +43,7 @@ import { placesWithCoords } from "../core/placehistory.ts";
 import { ALL_KINDS, allKinds, EVENT_KINDS, NO_KINDS } from "../core/eventkinds.ts";
 import { kindNames } from "../core/historyalign.ts";
 import { pinPlaces, placeCost } from "./menu-links.ts";
+import { censusHeldCount } from "../core/census.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -91,6 +92,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               parts.push({ label: t("ui.settings.hypotheses", { state: t(decide === "agent" ? "ui.hypotheses.decide.agent" : "ui.hypotheses.decide.person") }), act: () => hypothesesStep(ctx, run, lang, root) });
               // the question before the agent starts from the Strom app's links (run.confirm, spec 123): this computer's
               parts.push({ label: t("ui.settings.runconfirm", { state: t(ctx.settings.runConfirm() === "no" ? "ui.runconfirm.no" : "ui.runconfirm.ask") }), act: () => runConfirmStep(ctx, run, lang) });
+              // census records as a source of this research (spec 106): the person's switch, with the census tasks held while off
+              if (root) parts.push({ label: censusLabel(ctx, lang, root), act: () => censusStep(ctx, run, lang, root) });
             }
             if (parts.length) {
               const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
@@ -205,6 +208,32 @@ async function hypothesesStep(ctx: Context, run: Run, lang: string, root: string
   if (values[i] === "agent" && !(await ctx.confirm(t("ui.consent.hypotheses.agent"), false))) return;
   const own = !!tree && readStored(tree, "hypotheses.decide", "") !== undefined;
   await run(["config", "set", "hypotheses.decide", values[i]!, ...(own ? ["--for-tree"] : [])], true);
+}
+
+/** Census records in this research: on, off, or off with the census tasks held (spec 106). */
+function censusLabel(ctx: Context, lang: string, root: string): string {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const on = ctx.settings.census(tree.config);
+  const held = censusHeldCount(tree.list<Task>("task"), on);
+  return t("ui.settings.census", { state: on ? t("ui.settings.on") : held ? t("ui.settings.census.held", { n: held }) : t("ui.settings.off") });
+}
+
+/**
+ * Census records as a source of this research (spec 106): what they are said first, then the person's yes to switch them
+ * on or off (Enter: nothing changed). Off: the census tasks held, back by themselves once on again — said with their
+ * number. Written for this research (--for-tree): the tree's own value wins both ways.
+ */
+async function censusStep(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const on = ctx.settings.census(Tree.open(root, ctx.env).config);
+  ctx.io.stdout(t("ui.settings.census.about") + "\n");
+  if (!(await ctx.confirm(t(on ? "ui.settings.census.off" : "ui.settings.census.on"), false))) return;
+  if ((await run(["config", "set", "census", on ? "off" : "on", "--for-tree"], true)) !== 0 || !on) return;
+  ctx.settings.reload();
+  const tree = Tree.open(root, ctx.env);
+  const held = censusHeldCount(tree.list<Task>("task"), ctx.settings.census(tree.config));
+  if (held) ctx.io.stdout(t("ui.settings.census.back", { n: held }) + "\n");
 }
 
 /**

@@ -406,6 +406,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(m ? phrase(lang, m[2] === " again (" ? "log.name.primary.clear" : "log.name.primary", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
       continue;
     }
+    if (o.op === "name.now") {
+      const m = /^\S+ name after the marriage now (.+?)(?: \(was |$)/.exec(o.summary);
+      say(m ? phrase(lang, "log.name.now", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
+      continue;
+    }
     if (o.op === "note.remove") {
       const m = /^\S+ note "(.*)" removed:/.exec(o.summary);
       say(m ? phrase(lang, "log.note.remove", { note: m[1]!, name: name(first) }) : changed(o));

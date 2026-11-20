@@ -34,6 +34,7 @@ import { eventName } from "../cli/human.ts";
 import { factValue, factWords, ownerWords, plainName, sexWords, staleProposal } from "./proposals.ts";
 import { whileDeciding } from "./proposalsettle.ts";
 import { deletedSource } from "./sourceretract.ts";
+import { alignCopies } from "./household.ts";
 
 export type FactPart = "date" | "place" | "value";
 export type NamePart = "given" | "surname";
@@ -461,6 +462,8 @@ function writeProposal(tree: Tree, x: Conflict, reason: string): string {
     },
     why,
   );
+  // one copy of a household (a shared event): its common fields to every copy, so the copies never differ (spec 106)
+  if (done.share) alignCopies(tree, done.id, { reason: why });
   return `${done.id}: ${factValue(done) || "—"}`;
 }
 

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -18,8 +18,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   bekommt keine); die Dateien eines Stapels werden nur dann nach ihrer Reihenfolge nummeriert, wenn keine eine Zahl im
   Namen hat; ein Ordner wird erst übernommen, wenn sein Stapel fertig heruntergeladen ist (ein .crdownload oder .part
   daneben hält ihn zurück). Eine Datei, die derselbe Scan wie ein anderes Bild ist, wird nie gelöscht: Sie wird daneben
-  beiseitegelegt, und das wird gesagt.
-- **Ein anderer Scan unter einer vergebenen Nummer:** Eine Datei, unter der Nummer eines schon erfassten Bildes
+  beiseitegelegt, und das wird gesagt. Eine Datei, unter der Nummer eines schon erfassten Bildes
   gespeichert, die eine andere Seite zeigt (andere Form oder andere Handschrift), ersetzt das Bild nicht mehr: Sie wird
   daneben beiseitegelegt und unter „Was wartet“ und in der Strom-App erfragt – das Bild behalten, die neue Datei als
   dieses Bild nehmen oder ihr eine eigene Nummer geben (`strom media aside`). Eine schärfere Kopie wird nur übernommen,
@@ -36,7 +35,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Eine Quelle löschen:** Eine Quelle lässt sich in der Forschung löschen – `strom source retract` im Terminal oder
   durch Löschen der Quelle in der Strom-App, nur durch die Person, nie durch einen Agenten (er darf es nur vorschlagen,
   mit dem, was es laut `--dry-run` mitnähme). Die Werte bleiben; ihre Zitate werden von den Angaben genommen und in der
-  Quelle aufbewahrt, eine Angabe kann weniger sicher werden, eine Aufgabe, die nur auf ihr beruht, wird beiseitegelegt,
+  Quelle aufbewahrt, eine Angabe kann weniger sicher werden, eine Aufgabe, die nur auf ihr beruht, wird aufgegeben,
   und ein entschiedener Widerspruch, der auf ihr beruhte, wird zur Prüfung markiert (`strom conflict keep` behält die
   Entscheidung bei). Was es mitnimmt, wird vorher gesagt und von der Person bestätigt; die Quelle lässt sich mit ihren
   Zitaten wiederherstellen (`strom source restore` oder „Rückgängig“ in der Strom-App). Eine in der Strom-App beim
@@ -44,6 +43,17 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   des ganzen Stammbaums durch die Person; sonst sagen die Änderungen, warum nicht. Eine gelöschte Quelle kommt mit
   keiner späteren Datei und keinem Import zurück. Im Terminal sagt `strom source show`, dass eine Quelle gelöscht ist,
   wann und was sie zurückholt, und `strom source list --retracted` listet die gelöschten auf.
+- **Volkszählungen:** Eine Forschung darf Volkszählungen als Quelle nutzen – ein Haushalt in einem Jahr zeigt, wer
+  zusammen wohnte und woher jemand kam. Aus, bis die Person sie einschaltet, in den Einstellungen der Forschung
+  („Volkszählungen in dieser Forschung“) oder in der Strom-App; der Agent darf es nur einmal vorschlagen. Ein Haushalt
+  wird für alle seine Mitglieder im Stammbaum auf einmal erfasst (`strom census add`): die Beziehung zum
+  Haushaltungsvorstand, das Alter, Datum, Ort und Haus und das Zitat des Bogens bei jedem gleich; Personen außerhalb des
+  Stammbaums nur in der Notiz. Die Beziehung wird so übernommen, wie die Zählbögen sie schreiben
+  („Haushaltungsvorstand“, „Ehefrau des Haushaltungsvorstandes“ und ihre Wörter auf Englisch, Tschechisch und Polnisch).
+- **Namen nach einer Heirat:** Bei einer mehrmals verheirateten Frau ist der jetzige Name der nach der letzten Heirat –
+  der Nachname des Ehemanns der spätesten Hochzeit, auch in der weiblichen Form; ein in der Strom-App als jetziger
+  gewählter Name wird übernommen und bleibt es, bis neu gewählt wird. Die Datei für die Strom-App gibt die Namen nach
+  einer Heirat zuletzt, den jetzigen ganz zuletzt, sodass auch eine ältere Strom-App den richtigen zeigt.
 - **Die Datei eines Stammbaums im Material:** Die Strom-App zeigt die importierten Stammbaumdateien (GEDCOM, JSON der
   App) im Material und löscht sie endgültig wie jede Datei des Materials; eine, aus der eine Quelle entstand, nur
   zusammen mit dieser Quelle, in einem Schritt mit einer Bestätigung (`strom input delete … --retract-sources`).

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -17,8 +17,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   jednoznacznie (kopia menedżera plików „33 2.jpg” to skan 33; nazwa z dwiema liczbami i bez licznika nie dostaje
   żadnego); pliki partii są numerowane według kolejności tylko wtedy, gdy żaden nie ma liczby w nazwie; folder jest
   przejmowany dopiero po pobraniu całej partii (.crdownload lub .part obok go wstrzymuje). Plik będący tym samym skanem
-  co inny skan nigdy nie jest usuwany: zostaje odłożony obok i jest to powiedziane.
-- **Inny skan pod zajętym numerem:** plik zapisany pod numerem już zarejestrowanego skanu, pokazujący inną stronę (inny
+  co inny skan nigdy nie jest usuwany: zostaje odłożony obok i jest to powiedziane. Plik zapisany pod numerem już zarejestrowanego skanu, pokazujący inną stronę (inny
   kształt lub inne pismo), nie zastępuje już skanu: zostaje odłożony obok, a pytanie o niego pojawia się w „Co czeka” i
   w aplikacji Strom – zachować skan, przyjąć nowy plik jako ten skan albo nadać mu własny numer (`strom media aside`).
   Ostrzejsza kopia jest przejmowana tylko wtedy, gdy na pewno jest tym samym skanem – porównywane jest pismo, nie
@@ -33,13 +32,23 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Usuwanie źródła:** źródło można usunąć w badaniu – `strom source retract` w terminalu lub usunięciem źródła w
   aplikacji Strom, tylko przez osobę, nigdy przez agenta (może je jedynie zaproponować, z tym, co według `--dry-run` by
   zabrało). Wartości zostają; jego cytaty są zdejmowane z danych i przechowywane w źródle, dana może stać się mniej
-  pewna, zadanie oparte tylko na nim zostaje odłożone, a rozstrzygnięta sprzeczność, która na nim stała, zostaje
+  pewna, zadanie oparte tylko na nim zostaje porzucone, a rozstrzygnięta sprzeczność, która na nim stała, zostaje
   oznaczona do sprawdzenia (`strom conflict keep` zachowuje rozstrzygnięcie). To, co zabierze, jest mówione wcześniej i
   osoba to potwierdza; źródło można przywrócić wraz z cytatami (`strom source restore` lub cofnięcie w aplikacji Strom).
   Źródło usunięte w aplikacji Strom podczas edycji drzewa jest usuwane w badaniu przy następnym wysłaniu – tylko przy
   wysłaniu całego drzewa przez osobę; w przeciwnym razie Zmiany mówią, dlaczego nie. Usunięte źródło nie wraca już z
   późniejszym plikiem ani importem. W terminalu `strom source show` mówi, że źródło jest usunięte, kiedy i co je
   przywraca, a `strom source list --retracted` wypisuje usunięte źródła.
+- **Spisy ludności:** badanie może używać spisów ludności jako źródła – gospodarstwo domowe w jednym roku pokazuje, kto
+  mieszkał razem i skąd kto pochodził. Wyłączone, dopóki osoba ich nie włączy, w ustawieniach badania („Spisy ludności
+  w tym badaniu”) lub w aplikacji Strom; agent może to tylko raz zaproponować. Gospodarstwo jest zapisywane wszystkim
+  jego członkom w drzewie naraz (`strom census add`): pokrewieństwo z głową rodziny, wiek, data, miejsce i dom oraz
+  cytat arkusza jednakowo u każdego; osoby spoza drzewa tylko w notatce. Pokrewieństwo jest przejmowane tak, jak piszą
+  je formularze spisu („głowa rodziny”, „żona głowy rodziny” i ich odpowiedniki po angielsku, czesku i niemiecku).
+- **Nazwiska po ślubie:** u kobiety zamężnej kilka razy obecne nazwisko to nazwisko po ostatnim ślubie – nazwisko męża
+  z najpóźniejszego ślubu, także w formie żeńskiej; nazwisko wybrane w aplikacji Strom jako obecne jest przejmowane i
+  obowiązuje, dopóki nie zostanie wybrane ponownie. Plik dla aplikacji Strom podaje nazwiska po ślubie na końcu, obecne
+  na samym końcu, więc także starsza aplikacja Strom pokaże właściwe.
 - **Plik drzewa genealogicznego w materiałach:** aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
   genealogicznego (GEDCOM, JSON aplikacji) i usuwa je na stałe jak każdy plik materiałów; ten, z którego powstało
   źródło, tylko razem z tym źródłem, w jednym kroku z jednym potwierdzeniem (`strom input delete … --retract-sources`).

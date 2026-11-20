@@ -52,6 +52,7 @@ import { verifySection } from "./verify.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
+import { censusHoldings, forCensus } from "../core/census.ts";
 import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
 import { researchKey, viewModel, viewSizes } from "../core/viewsizes.ts";
 import { inWords, PROFILES } from "../agents/profiles.ts";
@@ -1533,7 +1534,17 @@ export function buildBrief(
   ];
   // a task that links hypotheses reads no records: the parts of the method and the commands it uses, whatever its level
   const kind = linking ? METHOD_LINKS : task?.level;
+  // census records (spec 106): their page only for a census task while they are on; off, the one line that lets the
+  // agent propose them — nothing else of them
+  const censusNow = new Settings(tree.env, {}).census(tree.config);
+  const censusTask = !!task && forCensus(task) && censusNow;
+  if (censusTask) conditions.push("census");
+  else if (!censusNow) conditions.push("census-off");
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
+  if (censusTask) {
+    const known = censusHoldings();
+    if (known.length) sections.push({ name: "census", pointer: "strom task show", text: ["## Census records strom knows of (each archive's level and terms hold)", ...known].join("\n") });
+  }
 
   // 8'. the experiment of history on: a session that reads records may write a local event they tell of
   // (the local history: experiments.placeHistory, K1.3), of the kinds looked for (history.kinds) — none: no section

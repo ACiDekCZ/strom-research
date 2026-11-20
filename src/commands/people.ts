@@ -32,6 +32,7 @@ import {
   titledName,
 } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
+import { alignCopies } from "../core/household.ts";
 import { editNote, notesOf, restoreName, restoreNote, retractName, retractNote } from "../core/retractions.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
 import { foldText } from "../core/text.ts";
@@ -953,6 +954,7 @@ register(
       const tree = ctx.tree();
       const id = noteHolderId(tree, args[0]!);
       const note = editNote(tree, id, Number(args[1]), args[2]!, opts.reason as string | undefined);
+      if (/^E\d+$/.test(id)) alignCopies(tree, id, { reason: opts.reason as string | undefined });
       return { text: written(tree), data: { id, note } };
     },
   },
@@ -972,6 +974,7 @@ register(
       const tree = ctx.tree();
       const id = noteHolderId(tree, args[0]!);
       const note = retractNote(tree, id, Number(args[1]), opts.reason as string | undefined);
+      if (/^E\d+$/.test(id)) alignCopies(tree, id, { reason: opts.reason as string | undefined });
       return { text: written(tree), data: { id, note } };
     },
   },
@@ -990,6 +993,7 @@ register(
       const tree = ctx.tree();
       const id = noteHolderId(tree, args[0]!);
       const note = restoreNote(tree, id, Number(args[1]), opts.reason as string | undefined);
+      if (/^E\d+$/.test(id)) alignCopies(tree, id, { reason: opts.reason as string | undefined });
       return { text: written(tree), data: { id, note } };
     },
   },
@@ -1042,6 +1046,7 @@ register(
           throw new UsageError(`${id} was confirmed by the user against the scan: its status is theirs, not changed by an agent`, { code: "event.confirmed", hint: `strom cite ${id} ${citation.source} without --status` });
       }
       const e = citeEvent(tree, id, citation, opts.status as string | undefined, opts.reason as string | undefined);
+      alignCopies(tree, id, { reason: opts.reason as string | undefined, status: opts.status as string | undefined });
       return { text: written(tree), data: { event: e } };
     },
   },
@@ -1135,6 +1140,8 @@ register(
         const more = Object.entries(rest).some(([k, val]) => val !== undefined && !(Array.isArray(val) && !val.length) && !(k === "ages" && !Object.keys(val as object).length));
         return more ? editEvent(tree, id, rest, reason) : before;
       });
+      // one household of a census (a shared event): what changed of its common fields goes to every copy
+      alignCopies(tree, id, { reason, status: rest.status });
       // a participant named only who may be a person of the tree: said, never linked by itself
       const added = withs.filter((w) => (e.participants ?? []).some((p) => p.role === w.role && p.name === w.name));
       const suggest = added.length ? suggestPeople(tree, findEventOwner(tree, id).owner, added) : [];
@@ -1230,6 +1237,7 @@ register(
       if (opts.clear && opts.locator !== undefined) throw new UsageError("--locator picks the citation to mark: not with --clear", { hint: `strom event main ${id} --clear` });
       const source = opts.clear ? undefined : normId(args[1]!, "source");
       const r = chooseMainCitation(tree, id, source, opts.locator === undefined ? undefined : String(opts.locator), opts.reason as string | undefined);
+      if (r.changed) alignCopies(tree, id, { reason: opts.reason as string | undefined });
       const w = wordsFor(ctx, tree);
       const line = eventLine(r.event, w, sourcesOf(tree));
       const said = !r.changed ? w.say("ui.event.main.same", `nothing to change: ${line}`, { line }) : source ? w.say("ui.event.main", `the main record of the fact chosen: ${line}`, { line }) : w.say("ui.event.main.off", `the fact without a main record (the research's order): ${line}`, { line });

@@ -77,8 +77,41 @@ export interface KnownTerms {
    * taken. A file the person named by the number its viewer counts (57.jpg) is that image.
    */
   imageFileTimes?: number;
+  /**
+   * The census records the host holds (spec 106): the years online, the area, a name index, how a household is found
+   * there, the way for strom — never milder than the entry's level (test/unit/known-terms.test.ts keeps it so) —, what
+   * its terms or pages say of them (word for word), the day the census part was read. For the agent's brief of a census
+   * task (core/census.ts censusHoldings); nothing of the level comes from it.
+   */
+  census?: KnownCensus;
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
+}
+
+/**
+ * The way for strom to census records at a host, mildest first: agent — the agent itself; slow — one record at a time;
+ * by-hand — the person saves the sheet (mostly a screenshot); link — only a link and a task for the person.
+ */
+export const CENSUS_WAYS = ["agent", "slow", "by-hand", "link"] as const;
+export type CensusWay = (typeof CENSUS_WAYS)[number];
+
+export interface KnownCensus {
+  years?: number[];
+  area?: string;
+  nameIndex?: boolean;
+  /** How a household is found there: place, street, house, name. */
+  search?: string[];
+  how: CensusWay;
+  says?: string;
+  checked?: string;
+}
+
+/** The mildest way to census records an entry's level allows (core/census.ts and the list's test). */
+export function censusWayFloor(k: Pick<KnownTerms, "level" | "browserOnly">): CensusWay {
+  if (k.level === "forbidden") return "link";
+  if (k.level === "manual" || k.browserOnly) return "by-hand";
+  if (k.level === "allowed") return "agent";
+  return "slow";
 }
 
 /** What a person may download of a book by hand, as an archive's terms say (KnownTerms.wholeBook). */

@@ -44,6 +44,7 @@ import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import type { TreeMediaItem, TreeMediaPlaces } from "../core/treemedia.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
+import { marriagesOf, namesInOrder } from "../core/married.ts";
 import { proposalKind } from "../core/proposals.ts";
 import { otherNames, recordIndex } from "../core/placeid.ts";
 import { branchJoined, kinship, mainPerson } from "../core/kin.ts";
@@ -558,6 +559,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (opts.research) w.line(1, "_STROM_ASOF", asOfNow());
     // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
+    // the last name after a marriage of each person is the one now (spec 010 K4.1, K4.2): an app that reads it takes
+    // the order as it is (the user's choice too), one that does not puts it right by the latest marriage itself
+    w.line(1, "_STROM_MARRIED_LAST", "Y");
     // the file says the bounds of a lineage the person set, all of them (none: none), for an app that keeps them
     if (opts.lines) w.line(1, "_STROM_LINES", "Y");
     // the research's lines and the branches off them, for an app that shows the research in its table
@@ -608,8 +612,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // ── people ──
   const famc = new Map<string, { fam: string; relation: string }[]>();
   const fams = new Map<string, string[]>();
+  const partnerIn = new Map<string, Family[]>();
   for (const f of families) {
-    for (const p of f.partners) fams.set(p, [...(fams.get(p) ?? []), f.id]);
+    for (const p of f.partners) {
+      fams.set(p, [...(fams.get(p) ?? []), f.id]);
+      partnerIn.set(p, [...(partnerIn.get(p) ?? []), f]);
+    }
     for (const c of f.children) famc.set(c.person, [...(famc.get(c.person) ?? []), { fam: f.id, relation: c.relation }]);
   }
 
@@ -619,16 +627,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const primary = primaryName(p);
     const nameQuotes: string[] = [];
     // the name the person is shown by now (Name.primary): first for any program (GEDCOM 7: the preferred name first);
-    // the Strom file keeps the name of their identity first (the app's birth surname) and says the mark — a married
-    // name marked last of them (the app keeps one name after a marriage: the last), so even an app that reads no mark
-    // shows it
+    // the Strom file keeps the name of their identity first (the app's birth surname) and says the mark — the names
+    // after a marriage last, the one now the very last (spec 010 K4.1, K4.2: the one shown, the user's choice, else
+    // the latest marriage's; the app keeps one name after a marriage: the last), so even an app that reads no mark
+    // shows it (HEAD _STROM_MARRIED_LAST)
     const current = currentName(p);
     const rest = p.names.filter((n) => n !== primary && n !== current);
     const order =
-      current === primary ? [primary, ...rest]
-      : strict ? [current, primary, ...rest]
-      : current.kind === "married" ? [primary, ...rest, current]
-      : [primary, ...p.names.filter((n) => n !== primary)];
+      strict ? (current === primary ? [primary, ...rest] : [current, primary, ...rest])
+      : namesInOrder(p, marriagesOf(p.id, partnerIn.get(p.id) ?? [], (id) => personById.get(id)));
     for (const n of order) {
       // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
       // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
@@ -1101,11 +1108,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age ?? raw, lang)}`);
       }
     if (opts.for === "strom") shareLines(e, on);
+    // one event the app shares among people (spec 085): its note is the one of every copy, so nothing of one copy goes
+    // into it — the status of this copy and its age stay out (spec 106, the app's question 9); its AGE and its
+    // _STROM_STATUS say them
+    const shared = on === "INDI" && opts.for === "strom" && !!e.share;
     const cites = ordered(e.citations, { kind: e.kind, date: e.date });
     for (const c of cites) citation(2, c, e.kind);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
     if (opts.factStatus && opts.for === "strom") w.line(2, "_STROM_STATUS", e.status);
-    else if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
+    else if (!shared && (e.status === "lead" || e.status === "possible")) noteParts.unshift(L(e.status));
     if (origins) {
       w.line(2, "_STROM_ORIGIN", originSaid(e.origin, FACT_PART_TAGS));
       // one for each part changed, never joined (a place has commas of its own): its value as the fact's line has it
@@ -1116,7 +1127,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     else if (opts.ids && e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
-    if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
+    if (!shared && (repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
     if (!strict) for (const c of cites) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
     if (e.note) noteParts.push(e.note);
     for (const m of media?.events.get(e.id) ?? []) appObje(2, m, "event");

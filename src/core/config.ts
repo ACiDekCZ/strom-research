@@ -121,6 +121,8 @@ export interface UserConfig {
   experimentsPlaceHistory?: string;
   /** The kinds of the history's events looked for (core/eventkinds.ts): all (unset), none, "war,epidemic", "-economy,-law". */
   historyKinds?: string;
+  /** Census records as a source of the research (core/census.ts): on, off (default). */
+  census?: string;
   /**
    * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
    * update to a strom that has it — never again there, whatever the answer).
@@ -356,6 +358,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "experiments.historyPlaces", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of each place of the tree with coordinates and its surroundings, looked for by itself one place at a time at the pace of the history (experiments.historyPace), the places of the most people first, while experiments.placeHistory is on: on or off (unset: off) — only you turn it on; a tree may only turn it off" },
   // How often: the user's config, a tree's strom.json only less often; more often than before is the person's alone.
   { key: "experiments.historyPace", env: "", tree: true, kind: "choice", choices: HISTORY_PACES, description: "how often the history of the places takes a session when the agent works alone (strom run): sometimes (default — about every 5th session), rare (about every 10th) or idle (only when the family research has nothing to do); a region a session just worked at goes first — only you make it more often; a tree may only make it less often" },
+  // Read from the config files only — no variable, no flag: the person alone turns it on (the menu's settings, the Strom
+  // app, a terminal), for every research on this computer or for one (strom.json, both ways); off is anyone's.
+  { key: "census", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "census records as a source of the research: a household in one year shows who lived with whom and where each came from — tasks of kind census and the method's page for them (most archives only show their census sheets: they come by hand, as a screenshot, a task waiting for its images; nothing promises them fetched): on or off (unset: off) — only you turn it on (the menu's settings, the Strom app, strom config set census on in a terminal), for every research on this computer or with --for-tree for one (a tree's own value wins both ways); the agent may propose it once (strom census propose); off is anyone's" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -589,6 +594,11 @@ export function historySwitches(user: UserConfig | undefined, tree: TreeConfig |
     regions: (readStored(tree, "experiments.history", "") ?? readStored(user, "experiments.history", "")) === "on",
     places: (places(tree) ?? places(user)) === "on",
   };
+}
+
+/** Census records as a source (spec 106) as the stores hold them: the tree's own value both ways, else the user's. Unset: off. */
+export function censusSwitch(user: UserConfig | undefined, tree: TreeConfig | undefined): boolean {
+  return (readStored(tree, "census", "") ?? readStored(user, "census", "")) === "on";
 }
 
 /** Write (or with undefined, remove) a setting in a store. */
@@ -869,6 +879,14 @@ export class Settings {
    */
   historyPlace(tree?: TreeConfig): boolean {
     return historySwitches(this.config, tree).places;
+  }
+
+  /**
+   * Census records as a source (spec 106): the tree's strom.json both ways, else the user's own config — never a
+   * variable or a flag. Unset: off.
+   */
+  census(tree?: TreeConfig): boolean {
+    return censusSwitch(this.config, tree);
   }
 
   /**

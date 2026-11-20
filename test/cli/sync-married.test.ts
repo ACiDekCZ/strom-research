@@ -2,7 +2,8 @@
 // married kind as its own NAME with TYPE married; the app keeps one (the last) as its marriedSurname, with its own first
 // name, and sends it back so (TYPE married; marriedSurname in its JSON). It comes back as a name of the married kind —
 // never a rename, never another name of no kind; the same by its surname; changed in the app, the new one added and the
-// old one off where only the user's edits gave it (a record's stays, said); taken off in the app, the same.
+// old one off where only the user's edits gave it (a record's stays, said); taken off in the app, the same. Which one
+// is now (K4.1, K4.2): test/cli/sync-married-now.test.ts.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -84,8 +85,9 @@ test("a married name changed in the app: the new one added last, the old one off
   await w.ok(["name", "add", "P0001", "Marie /Nováková/", "--kind", "married"]);
   const text = await given();
   const file = send(w, named(text, ["1 NAME Marie /Dvořáková/", "1 NAME Marie /Novotná/", "2 TYPE married"]), "changed.ged");
+  // the user's choice of the one now (spec 010 K4.2): added of the married kind, as the one now
   assert.deepEqual(await plan(w, file), [
-    ["name.new", "add", "Marie /Novotná/", "married"],
+    ["name.now", "correct", "Marie /Novotná/", ""],
     ["name.gone", "remove", "Marie /Nováková/", ""],
   ]);
   const input = (await w.ok(["sync", file, "--apply", "--json"])).json.input as string;
@@ -99,7 +101,7 @@ test("a married name changed in the app: the new one added last, the old one off
   await w.ok(["name", "add", "P0001", "Marie /Nováková/", "--kind", "married", "--cite", (s.id ?? s.source?.id) as string]);
   const backed = send(w, named(await given(), ["1 NAME Marie /Dvořáková/", "1 NAME Marie /Novotná/", "2 TYPE married"]), "backed.ged");
   assert.deepEqual(await plan(w, backed), [
-    ["name.new", "add", "Marie /Novotná/", "married"],
+    ["name.now", "correct", "Marie /Novotná/", ""],
     ["name.gone", "report", "Marie /Nováková/", ""],
   ]);
   assert.match((await w.ok(["sync", backed], { tty: true })).out, /2\. Marie Dvořáková \[P0001\]: jméno po sňatku už v něm není — Marie \/Nováková\/ → zůstává: dokládá ho záznam/);

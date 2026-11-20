@@ -251,9 +251,11 @@ test("an event the app shares among people has one note there: a copy's note giv
     const mark = (t: string) => t.replace(/(1 CENS\r?\n2 DATE 15 FEB 1921\r?\n2 PLAC Lhota\r?\n)/gu, "$12 _STROM_SHARE SH7K2QX\n");
     await w.ok(["sync", send(w, "share.ged", mark(appFile(w))), "--apply"], FROM_APP);
     assert.equal(fact(w, "P0002", "CENS").share?.id, "SH7K2QX");
-    // the app gives the one note it has to both copies
+    // the app gives the one note it has to both copies (a shared event's note says nothing of one copy: no status word
+    // of a lead in it, spec 106)
     const t = appFile(w);
-    const one = t.replace(/(1 REFN P0002\r?\n2 TYPE strom-research\r?\n1 CENS\r?\n(?:[2-9] .*\r?\n)*?2 NOTE Vodítko — nedoloženo záznamem\.\r?\n)/u, "$13 CONT Dům č. 12, hospodář.\n");
+    assert.doesNotMatch(t, /Vodítko — nedoloženo záznamem/u);
+    const one = t.replace(/(1 REFN P0002\r?\n2 TYPE strom-research\r?\n1 CENS\r?\n(?:[2-9] .*\r?\n)*)/u, "$12 NOTE Dům č. 12, hospodář.\n");
     assert.notEqual(one, t);
     const r = await w.ok(["sync", send(w, "one.ged", one), "--json"]);
     assert.deepEqual(noteKinds(r.json.changes), [], JSON.stringify(r.json.changes));

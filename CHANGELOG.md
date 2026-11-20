@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.3. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -17,8 +17,7 @@ The changes of each version in short. The full notes and the install lines are o
   unambiguously (a file manager's copy "33 2.jpg" is image 33; a name with two numbers and no counter gets none); the
   files of a batch are numbered by their order only when none of them has a number in its name; a folder is taken only
   once its batch has finished downloading (a browser's .crdownload or .part beside it holds it back). A file that is the
-  same scan as another image is never deleted: it is set aside beside it and said.
-- **Another scan under a number taken already:** a file saved under the number of an image registered already that
+  same scan as another image is never deleted: it is set aside beside it and said. A file saved under the number of an image registered already that
   shows another page (another shape or other handwriting) no longer replaces the image: it is set aside beside it and
   asked in What waits and in the Strom app — the image kept, the new file taken as that image, or its own number given
   (`strom media aside`). A sharper copy is taken only when it is surely the same scan — compared by the handwriting,
@@ -33,13 +32,23 @@ The changes of each version in short. The full notes and the install lines are o
 - **Deleting a source:** a source can be deleted in the research — `strom source retract` in the terminal or deleting
   the source in the Strom app, only by the person, never by an agent (it may only propose it, with what `--dry-run` says
   it would take). The values stay; its citations are taken off the facts and kept in the source, a fact may become less
-  sure, a task resting on it alone is put aside, and a decided conflict that stood on it is marked for review
+  sure, a task resting on it alone is given up, and a decided conflict that stood on it is marked for review
   (`strom conflict keep` keeps the decision as it is). What it takes is said first and the person confirms it; the
   source can be put back with its citations (`strom source restore`, or Undo in the Strom app). A source deleted in the
   Strom app while the tree is edited there is deleted in the research with the next send — only the person's send of the
   whole tree; otherwise What changed says why not. A deleted source never comes back with a later file or import.
   In the terminal `strom source show` says a source is deleted, when, and what puts it back, and
   `strom source list --retracted` lists the deleted ones.
+- **Census records:** a research may use census records as a source — a household in one year shows who lived with whom
+  and where they came from. Off unless the person turns them on, in the settings of the research ("Census records in
+  this research") or in the Strom app; the agent may only propose it, once. A household is written for all its members
+  on the tree at once (`strom census add`): the relation to the head, the age, date, place and house and the sheet's
+  citation alike for each; the people off the tree only in the note. The relation is taken as the census forms write
+  it ("head of the household", "wife of the head" and their words in Czech, German and Polish).
+- **Names after a marriage:** of a woman married more than once, the name now is the one after the last marriage — the
+  husband's surname of the latest wedding, in the wife's form too; a name chosen in the Strom app as the one now is
+  taken over and stays so until chosen again. The file for the Strom app gives the names after a marriage last, the one
+  now the very last, so an older Strom app shows the right one as well.
 - **A family tree's file in the material:** the Strom app shows the imported family tree files (GEDCOM, the app's JSON)
   in Materials and deletes them for good as any file of the material; one a source was made of only together with that
   source, in one step with one confirmation (`strom input delete … --retract-sources`).

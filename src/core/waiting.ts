@@ -30,6 +30,7 @@ import { storiesToApprove } from "./stories.ts";
 import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
 import { Settings } from "./config.ts";
+import { censusHidden } from "./census.ts";
 import { aboutPeople, hypothesisPeople, scopes, type Scope } from "./directions.ts";
 import { pickableInApp } from "./hypolinks.ts";
 import { lineOf, offLineView, type BranchView } from "./offline.ts";
@@ -411,7 +412,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   // an archive (a research waiting for its agent too) asks the person nothing: none waits (put aside at its next write, settleArchive); a task that waits for
   // an archive's permission whose question waits is one of the question's tasks, never an item of its own — one that
   // waits for images saved by hand stays an item
-  const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)));
+  // census records off: their tasks held, none of them waits for the person; on: the proposal to turn them on is done (spec 106)
+  const censusHide = censusHidden(new Settings(tree.env, {}).census(tree.config));
+  const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)) && !censusHide(t));
   let all = o.scopes;
   let line: ((t: Task) => string | undefined) | undefined;
   // the books of the research, read once for every wait checked

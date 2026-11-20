@@ -12,7 +12,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
 import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import type { Input, Media, TreeConfig } from "../core/model.ts";
+import type { Input, Media, Task, TreeConfig } from "../core/model.ts";
 import type { UserConfig } from "../core/config.ts";
 import { gitVersion, runGit } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
@@ -71,7 +71,10 @@ import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, 
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
 import { ownModel } from "../agents/models.ts";
-import { EXIT, NeedsInputError, StromError, UsageError, type Need } from "../core/errors.ts";
+import { EXIT, NeedsConsentError, NeedsInputError, StromError, UsageError, type Need } from "../core/errors.ts";
+import { censusProposal } from "../core/census.ts";
+import { update } from "../core/records.ts";
+import { phrase } from "../core/phrases.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
 import { resetReading } from "../cli/tunereset.ts";
 import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
@@ -1286,6 +1289,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "experiments.history") return { value: "off", source: "default" };
+  if (def.key === "census") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
   if (def.key === "history.kinds") return { value: "all", source: "default" };
@@ -1574,8 +1578,60 @@ function webDecision(ctx: Context, key: string, value: string | number | undefin
   );
 }
 
+/**
+ * Census records as a source (spec 106): turned on by the person alone — in their terminal, the menu, a window of the
+ * system the agent can neither see nor click, or the Strom app (the bridge writes in the app's environment: the
+ * person's decision there, no window); an agent never turns them on — it proposes them once (strom census propose).
+ * Off is anyone's.
+ */
+function censusDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key !== "census") return;
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next !== "on" || now === "on") return;
+  if (ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)) return;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  try {
+    ctx.requireHuman(
+      scope === "tree" ? "Use census records as a source of this research?" : "Use census records as a source of every research on this computer?",
+      `strom config set census on${forTree}`,
+      "census",
+      ui(ctx.uiLang(), scope === "tree" ? "ui.consent.census.tree" : "ui.consent.census"),
+    );
+  } catch (e) {
+    // an agent: never round it — the proposal is its way (once in a research)
+    if (!(e instanceof NeedsConsentError) || !isAgent(ctx.env)) throw e;
+    const tree = scope === "tree" || ctx.locateTree() ? safeTree(ctx) : undefined;
+    const had = tree ? censusProposal(tree) : undefined;
+    throw new NeedsConsentError(
+      e.needs,
+      undefined,
+      had
+        ? `census records are the person's switch; proposed already (${had.id}, ${had.state}) — never again, go on without them`
+        : `census records are the person's switch, never yours: propose them once instead — strom census propose --why "<what a census could show, in the research language>" [--person P…]`,
+    );
+  }
+}
+
+/** The tree here, or undefined where none opens. */
+function safeTree(ctx: Context): Tree | undefined {
+  try {
+    return ctx.tree();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Census records on in this tree: the agent's proposal to turn them on, still open or waiting, is done (spec 106). */
+function closeCensusProposal(tree: Tree): string[] {
+  const p = censusProposal(tree);
+  if (!p || !["open", "waiting", "parked"].includes(p.state)) return [];
+  update<Task>(tree, p.id, "task", (x) => ({ ...x, state: "done", result: phrase(tree.lang, "census.propose.done") }), { op: "task.done", summary: `${p.id} done: census records turned on` });
+  return [path.relative(tree.root, tree.recordPath("task", p.id)).split(path.sep).join("/"), ...tree.opsFilesTouched()];
+}
+
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value, "tree");
+  censusDecision(ctx, key, value, "tree");
   addonsDecision(ctx, key, value, "tree");
   experimentsDecision(ctx, key, value, "tree");
   browserDecision(ctx, key, value, "tree");
@@ -1591,7 +1647,9 @@ export function setTreeSetting(ctx: Context, key: string, value: string | number
     summary: value === undefined ? `tree setting ${key} removed` : `tree setting ${key} = ${value}`,
   });
   const files = syncAgentFiles(tree);
-  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, ["strom.json", ...tree.opsFilesTouched(), ...files]));
+  // census records on here: the proposal to turn them on is done, in the same commit
+  const closed = key === "census" && ctx.settings.census(tree.config) ? closeCensusProposal(tree) : [];
+  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, [...new Set(["strom.json", ...tree.opsFilesTouched(), ...files, ...closed])]));
   tree.settle();
   return tree;
 }
@@ -1710,6 +1768,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
+  censusDecision(ctx, key, value, "user");
   const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");

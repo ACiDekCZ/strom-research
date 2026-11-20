@@ -28,7 +28,8 @@ const LEVELS: Record<string, string[]> = {
 /** Options a task hardly uses (another route, a reader's tuning): left out — strom help <command> has them. */
 const RARE: Record<string, string[]> = {
   "search add": ["by"],
-  "task add": ["research", "anyway"],
+  // --census: a census task only while census records are on (the method's census page names it, spec 106)
+  "task add": ["research", "anyway", "census"],
   "media view": ["scale", "max", "grey", "png", "image", "whole"],
   read: ["context", "batch", "model", "minutes", "max"],
   // a book the research has already: the refusal says --again where it applies; --status and --stop: the method and the brief name them;

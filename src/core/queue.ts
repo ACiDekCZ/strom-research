@@ -54,6 +54,7 @@ import type { PendingQuestion } from "./terms.ts";
 import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
+import { censusHidden } from "./census.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
 import { isBulkTry, readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
@@ -289,9 +290,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return p.off ? branchModeOf(choices, offLine, p.branch).mode : undefined;
   };
   // a task that helps a line waits with it while it is paused or ended; the person's own turn takes one off the lines
+  // census records off (spec 106): their tasks held, back by themselves once on (core/census.ts)
+  const censusHide = censusHidden(settings.census(tree.config), today);
   const waits = (t: Task) =>
     t.state !== "doing" &&
-    ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
+    (censusHide(t) || (stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
   const history = (t: Task) => {
