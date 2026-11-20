@@ -5,6 +5,7 @@
 // closes what the agent left open, exports the GEDCOM and commits. Between
 // sessions not a single token is spent.
 
+import { floorLine, floorNotes, floorWhat, treeNames } from "../core/floor.ts";
 import { RUN_TURNS } from "../core/queue.ts";
 import { queueVerify } from "../core/verify.ts";
 import { opsLogs, opsLogsOf } from "../core/opslog.ts";
@@ -1120,6 +1121,10 @@ register(
       // Archives through the browser with an agent that has no browser tools, or without the extension: said before it starts.
       const browserSays = browserNote(ctx, Tree.open(root, runEnv), runnerId);
       if (browserSays) out(browserSays);
+      // An archive strom keeps stricter than strom's list of its terms (by hand only: no browser there, its images the
+      // person's): said once, with what holds it and who decides — never changed here
+      const floorTree = Tree.open(root, runEnv);
+      for (const n of floorNotes(ctx.env, { tree: floorTree, ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}) }).filter((x) => treeNames(floorTree, x.host))) out(`· ${floorLine(lang, n)} ${floorWhat(lang, n)}`);
       if (permissions === "full") out(ui(lang, "ui.run.full"));
       const settingsLine = agentSettingsLine(lang, said, (p) => ctx.display(p));
       if (settingsLine) out(settingsLine);

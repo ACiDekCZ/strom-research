@@ -83,10 +83,14 @@ export function humanDate(date: string | undefined, lang: string): string {
   return simple(d, lang, false);
 }
 
+/** What "this year" is measured by: a test sets a fixed day (its CLI runs in the same process), strom the clock. */
+export const humanClock: { now?: () => number } = {};
+
 /** A day of the research (an ISO time): "25. 9.", with the year when it is not this one. */
 export function humanDay(iso: string, lang: string): string {
   const d = new Date(iso);
-  return format(lang, d, d.getUTCFullYear() === new Date().getUTCFullYear() ? "daymonth" : "day");
+  const year = new Date((humanClock.now ?? Date.now)()).getUTCFullYear();
+  return format(lang, d, d.getUTCFullYear() === year ? "daymonth" : "day");
 }
 
 /** A moment of the research (an ISO time) on this computer's clock: "3. 10. 23:01" — which of a day's sends it was. */

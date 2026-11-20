@@ -55,7 +55,8 @@ import { forgetTree } from "../commands/trees.ts";
 import { archiveQuestions } from "../core/archiveasks.ts";
 import { questionHosts } from "../core/terms.ts";
 import { bareHost, listConnectors } from "../core/connector.ts";
-import { decideArchive } from "./menu-archives.ts";
+import { decideArchive, decideFloor } from "./menu-archives.ts";
+import { floorQuestion } from "../core/floor.ts";
 import { bareArchive } from "../commands/archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
 import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
@@ -268,6 +269,9 @@ export async function archiveAsked(ctx: Context, run: Run, lang: string, root: s
   const tree = Tree.open(root, ctx.env);
   if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
   const q = archiveQuestions(tree).find((p) => p.kind === "permission" && questionHosts(p).includes(host));
+  // a level strom keeps stricter than strom's list of the archive's terms (the app shows it as the archive's item)
+  const shared = ctx.settings.shared()?.value;
+  if (!q && floorQuestion(ctx.env, host, { tree, ...(shared ? { shared } : {}) })) return decideFloor(ctx, run, lang, root, host);
   // a question that waits, a downloader here, or an archive of strom's list only a person's browser goes to that the
   // agent's browser would help at (the app's Permission… at what waits for its images, no downloader needed)
   const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host)) || !!bareArchive(ctx, host);

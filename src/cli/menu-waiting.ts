@@ -21,7 +21,7 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent, startDirection } from "./menu-research.ts";
-import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
+import { decideArchive, decideFloor, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
@@ -556,6 +556,8 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
   const tree = Tree.open(root, ctx.env);
   if (w.story) return void (await decideStory(ctx, run, lang, root, w.story, storyOf(tree, w.story)));
   const q = w.question;
+  // a level strom keeps stricter than strom's list of the archive's terms (computed, no question kept): kept or as the terms
+  if (!q && w.item.kind === "permission" && w.item.id.startsWith("floor:") && typeof w.item.host === "string") return void (await decideFloor(ctx, run, lang, root, w.item.host));
   if (q?.kind === "permission" && q.host) return void (await decideArchive(ctx, run, lang, root, q.host, q, q.archiveHosts));
   if (q?.kind === "takeover") return decideTakeover(ctx, run, lang, q);
   if (q?.kind === "milder" && q.connector) {

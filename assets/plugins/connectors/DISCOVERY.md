@@ -18,7 +18,15 @@ strom runs the connector; you never run it yourself, you test it with
   - `terms` (the URL), `termsSummary` (one to three sentences, quoted where it
     matters), `robots`, `officialExport`.
   - `automation`, one of (the strictest that fits; strom keeps to the
-    strictest of yours, the family tree's archive and what it knows itself):
+    strictest of yours, the family tree's archive and what it knows itself).
+    For an archive strom's list knows (said at the top of this file when it
+    does, and by `strom connector test`), never write a level stricter
+    than the list's without a quote from the archive's terms that says so:
+    strom keeps the stricter level and remembers it — only the user makes it
+    milder again — and `"manual"` shuts your browser there, so the user saves
+    every image by hand. "Viewing online only" of an archive the list has as
+    `"restricted"` (only through a person's browser) is that, not `"manual"`.
+    The levels:
     - `"allowed"`: the terms allow it or say nothing against it, robots.txt
       does not forbid the paths, and nothing is got round.
     - `"restricted"`: the terms restrict automation without forbidding it —

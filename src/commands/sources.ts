@@ -1,5 +1,6 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
+import { stricterThanList } from "../core/floor.ts";
 import { opLine } from "../core/proposals.ts";
 import { browserOnlyAccess, browserOnlyArchive } from "../core/byhand.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
@@ -491,7 +492,8 @@ register(
         },
         (id) => `+${id} repository "${args[0]}"`,
       );
-      return { text: written(tree), data: { repository: r } };
+      const stricter = r.url && URL.canParse(r.url) ? stricterThanList([new URL(r.url).hostname], r.automation, "repo") : undefined;
+      return { text: lines(written(tree), stricter), data: { repository: r } };
     },
   },
   {
@@ -1084,7 +1086,9 @@ register(
         {},
         opts,
       );
-      return { text: written(tree), data: { repository: r } };
+      // a level stricter than strom's list of the archive's terms, written now (its level or its address)
+      const stricter = (opts.automation !== undefined || opts.url !== undefined) && r.url && URL.canParse(r.url) ? stricterThanList([new URL(r.url).hostname], r.automation, "repo") : undefined;
+      return { text: lines(written(tree), stricter), data: { repository: r } };
     },
   },
   {

@@ -8,6 +8,7 @@
 // connector runs only with their consent, given on a terminal after a plain
 // warning — never by an agent; code that goes round strom needs it either way.
 
+import { stricterThanList } from "../core/floor.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1026,6 +1027,7 @@ register(
           `     strom connector test ${name} --find "<place>"`,
           consentRequired(ctx.env) ? `  3. the first test needs your consent, in your terminal: strom allow connector ${name}` : undefined,
           known ? `\n${known.text}` : undefined,
+          known ? "  policy.automation no stricter than that without a quote from the archive's terms that says so: strom keeps the stricter level and only the person makes it milder again (DISCOVERY.md, step 1)" : undefined,
           ofSite
             ? `\nnote: the connector ${ofSite} is here already for ${webDomain(url.hostname)} (its hosts: ${listConnectors(shared(ctx)).find((c) => c.name === ofSite)?.manifest.hosts.join(", ") ?? "?"}) — more pages of that site go through it (strom connector show ${ofSite}); keep this one only for another portal of the site, else take it away: ${discardable ? `strom connector discard ${name}` : `the user, in their terminal: strom connector remove ${name}`}`
             : undefined,
@@ -1868,7 +1870,15 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   if (!(await ensureLogin(ctx, c))) return { text: "no login — nothing was sent", exitCode: 1 };
   // what the archive's terms let a test ask (core/terms.ts): images only where they may come, at their pace
   const images = request.cmd === "fetch" || request.cmd === "part";
-  const gate = await gateArchive(ctx, c, { activity: images ? "images" : "catalogue", ...(images ? { images: request.cmd === "part" ? String(request.image) : imagesArg(request.images) } : {}) });
+  let gate: Awaited<ReturnType<typeof gateArchive>>;
+  try {
+    gate = await gateArchive(ctx, c, { activity: images ? "images" : "catalogue", ...(images ? { images: request.cmd === "part" ? String(request.image) : imagesArg(request.images) } : {}) });
+  } catch (err) {
+    // refused by its own level stricter than strom's list of the archive's terms: said beside the refusal
+    const stricter = stricterThanList(c.manifest.hosts, c.manifest.policy.automation, "connector");
+    if (stricter) ctx.io.stderr(`${stricter}\n`);
+    throw err;
+  }
   const workDir = path.join(c.dir, ".test");
   fs.mkdirSync(workDir, { recursive: true });
   for (const e of fs.readdirSync(workDir)) if (e !== "probe") fs.rmSync(path.join(workDir, e), { recursive: true, force: true }); // what probes saved stays
@@ -1895,6 +1905,7 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
       heavy?.text,
       c.manifest.policy.automation === "unknown" ? "⚠ policy.automation is unknown — find out what the portal's terms say (DISCOVERY.md, step 1)" : undefined,
       known?.text,
+      stricterThanList(c.manifest.hosts, c.manifest.policy.automation, "connector"),
       c.manifest.withheld?.length ? `⚠ can lists ${c.manifest.withheld.join(", ")}, but its terms are "${c.manifest.policy.automation}" — left out: take them out of connector.json` : undefined,
     ),
     data: { ...r, direct, ...(heavy ? { heavy: heavy.data } : {}), ...(known ? { knownTerms: known.data } : {}) },

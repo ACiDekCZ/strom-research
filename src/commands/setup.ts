@@ -2,7 +2,7 @@
 
 import { terminalHere } from "../core/terminal.ts";
 import { terminalName, terminalState } from "../cli/terminals.ts";
-import { refusedHosts } from "../core/terms.ts";
+import { archivesFile, loadArchives, refusedHosts } from "../core/terms.ts";
 import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -89,6 +89,7 @@ import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
 import { browserState, treeBrowserArchives } from "../core/browserhelp.ts";
+import { floorLine, floorNotes, floorWhat } from "../core/floor.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
 import { appReadLimits } from "../core/live-read.ts";
 import { markWidget } from "../core/widget.ts";
@@ -278,7 +279,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "cli", "login", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
+const AGENT_CHECKS = new Set(["agent", "cli", "login", "knows", "where", "level", "model", "views", "codex", "chatgptapp", "codexhooks", "desktop", "browser", "remote", "fence", "tuneworse", "web", "shim", "floor"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -588,6 +589,19 @@ function diagnoseInto(
     else if (s.state === "no-extension") add("browser", "warn", t("ui.doc.browser.archives.noext", { names }), CLAUDE_IN_CHROME_URL);
     else if (only.some((a) => !a.permitted)) add("browser", "warn", t("ui.doc.browser.archives.permission", { names: only.filter((a) => !a.permitted).map((a) => a.title ?? a.host).join(", ") }));
     else add("browser", "ok", t("ui.doc.browser.archives.ok", { names }) + appOnly);
+  }
+  // A level strom keeps stricter than strom's list of the archive's terms (its floor: a downloader or a research's record
+  // read it so once) shuts the agent's browser there and keeps its images by hand — said, with what holds it and who
+  // decides (spec K045 A); nothing changed
+  // The settings of archives that cannot be read: what they held is asked again and nothing is written over them —
+  // strom allow archive refuses and points here, so said with the file (K045)
+  if (loadArchives(ctx.env).broken) {
+    add("archives", "warn", t("ui.doc.archives.broken", { file: ctx.display(archivesFile(ctx.env)) }));
+    checks.at(-1)!.code = "archives.unreadable";
+  }
+  if (!ctx.archiveHere()) {
+    const floors = timed("doctor.floor", () => floorNotes(ctx.env, { ...(tree ? { tree: ctx.tree() } : {}), ...(shared ? { shared } : {}) }));
+    for (const n of floors) add("floor", "warn", floorLine(lang, n), floorWhat(lang, n));
   }
   // The desktop apps' own browser and computer use (Claude's, ChatGPT's/Codex's, OpenCode's): nothing switched off, never
   // recommended — what strom watches of each, said where those agents are here (strom doc R12.1; computer use R12.10)
